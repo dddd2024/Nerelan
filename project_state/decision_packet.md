@@ -1,22 +1,22 @@
 # Decision Packet
 
 ```json decision_meta
-{"schema_version":1,"decision_id":"decision_20260729_unattended_gate2_owner_audit_rework_v3","round_id":"round_20260729_unattended_gate2_owner_audit_rework_v3","based_on_state_build_id":"state_20260618_134029_d6bd033d2532","based_on_state_digest":"d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
+{"schema_version":1,"decision_id":"decision_20260729_unattended_gate2_audit_closure_v4","round_id":"round_20260729_unattended_gate2_audit_closure_v4","based_on_state_build_id":"state_20260618_134029_d6bd033d2532","based_on_state_digest":"d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260729_unattended_gate2_regression_reconciliation_v2",
-  "follows_last_round_id": "round_20260729_unattended_gate2_regression_reconciliation_v2",
-  "previous_audit_outcome": "OWNER_AUDIT_REWORK_REQUIRED",
-  "workstream_id": "unattended-gate2-owner-audit-rework-v3",
-  "source_issue": 79,
-  "predecessor_issue": 77,
+  "follows_last_decision_id": "decision_20260729_unattended_gate2_owner_audit_rework_v3",
+  "follows_last_round_id": "round_20260729_unattended_gate2_owner_audit_rework_v3",
+  "previous_audit_outcome": "REWORK_REQUIRED_BEFORE_CREDENTIAL_PROBE",
+  "workstream_id": "unattended-gate2-audit-closure-v4",
+  "source_issue": 80,
+  "predecessor_issue": 79,
   "parent_plan": 74,
   "active_pr": 78,
   "required_branch": "codex/unattended-base-platform-v0",
-  "starting_head": "22c37c5050891cd10c868de8047dd948d0c89220",
+  "starting_head": "a003c792f728e78e55f85450eb66c9c0514849b8",
   "activation_base_sha": "2aacf42dbab7f283454908da861b6ef44990f1d5",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -30,6 +30,7 @@
   "merge_allowed": false,
   "mark_ready_allowed": false,
   "auto_merge_allowed": false,
+  "force_push_allowed": false,
   "stop_after_exact_head_ci": true,
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
@@ -58,16 +59,13 @@
     {"command_id":"validation.doctor","command":"python -m reverse_agent.unattended.cli doctor","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["component_health_validation"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
     {"command_id":"test.full_regression","command":"python -m pytest -q","phase":"test","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["regression_test"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
     {"command_id":"validation.diff_check","command":"git diff --check 2aacf42dbab7f283454908da861b6ef44990f1d5..HEAD","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"probe.compose_fresh","command":"wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue79-gate2 -f deploy/unattended/compose.yaml up -d --wait","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["container_runtime","network_access"],"network_access":true,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"probe.gate2_first","command":"wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli gate2-probe","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["component_compatibility_validation","network_access"],"network_access":true,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"probe.compose_down_retain","command":"wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue79-gate2 -f deploy/unattended/compose.yaml down","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["container_runtime"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"probe.compose_restart","command":"wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue79-gate2 -f deploy/unattended/compose.yaml up -d --wait","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["container_runtime","network_access"],"network_access":true,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"probe.gate2_second","command":"wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli gate2-probe","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["component_compatibility_validation","network_access"],"network_access":true,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"probe.compose_cleanup","command":"wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue79-gate2 -f deploy/unattended/compose.yaml down -v","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["container_runtime"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
+    {"command_id":"probe.secret_preflight","command":"wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli secret-preflight --secret-file SECRET_FILE","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["secret_boundary_validation"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
+    {"command_id":"probe.compose_fresh","command":"wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue80-audit -f deploy/unattended/compose.yaml up -d --wait","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["container_runtime","network_access"],"network_access":true,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
+    {"command_id":"probe.audit_closure","command":"wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli audit-closure-probe","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["component_compatibility_validation","secret_boundary_validation"],"network_access":true,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
+    {"command_id":"probe.compose_cleanup","command":"wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue80-audit -f deploy/unattended/compose.yaml down -v","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["container_runtime"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
     {"command_id":"publication.push_branch","command":"git push -u origin codex/unattended-base-platform-v0","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["push","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
     {"command_id":"publication.update_draft_pr","command":"gh pr edit 78 --repo dddd2024/reverse-agent --body-file PR_BODY_TEMP_PATH","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["pull_request_update","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"publication.comment_issue79","command":"gh issue comment 79 --repo dddd2024/reverse-agent --body-file ISSUE79_COMMENT_TEMP_PATH","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["issue_comment","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"publication.comment_issue77","command":"gh issue comment 77 --repo dddd2024/reverse-agent --body-file ISSUE77_COMMENT_TEMP_PATH","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["issue_comment","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
+    {"command_id":"publication.comment_issue80","command":"gh issue comment 80 --repo dddd2024/reverse-agent --body-file ISSUE80_COMMENT_TEMP_PATH","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["issue_comment","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
     {"command_id":"publication.comment_draft_pr","command":"gh pr comment 78 --repo dddd2024/reverse-agent --body-file PR_COMMENT_TEMP_PATH","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["pull_request_comment","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
     {"command_id":"observation.exact_head_checks","command":"gh pr checks 78 --repo dddd2024/reverse-agent --watch","phase":"observation","required":false,"expected_exit_codes":[0],"execution_surface":"remote_observation","operations":["repository_observation","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]}
   ],
@@ -82,14 +80,14 @@
     "reverse_agent/unattended/**",
     "tests/unattended/**",
     "docs/unattended/**",
-    ".github/workflows/ci.yml"
+    ".github/workflows/ci.yml",
+    ".gitignore"
   ],
   "reference_paths": [
     "AGENTS.md",
     ".github/workflows/state-gate.yml",
     ".github/workflows/decision-preflight.yml",
     "pyproject.toml",
-    ".gitignore",
     "reverse_agent/project_gate.py",
     "reverse_agent/control_plane/**",
     "reverse_agent/mainline_landing.py",
@@ -128,7 +126,7 @@
     "GitHub branch or pull request adapter product implementation",
     "CI wait product implementation",
     "complete R1 fixture",
-    "worker restart proof",
+    "real provider credential use",
     "automatic rework loop",
     "custom workflow engine",
     "custom sandbox",
@@ -165,12 +163,11 @@
     "network_access_default_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
-      "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue79-gate2 -f deploy/unattended/compose.yaml up -d --wait",
-      "wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli gate2-probe",
+      "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue80-audit -f deploy/unattended/compose.yaml up -d --wait",
+      "wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli audit-closure-probe",
       "git push -u origin codex/unattended-base-platform-v0",
       "gh pr edit 78 --repo dddd2024/reverse-agent --body-file PR_BODY_TEMP_PATH",
-      "gh issue comment 79 --repo dddd2024/reverse-agent --body-file ISSUE79_COMMENT_TEMP_PATH",
-      "gh issue comment 77 --repo dddd2024/reverse-agent --body-file ISSUE77_COMMENT_TEMP_PATH",
+      "gh issue comment 80 --repo dddd2024/reverse-agent --body-file ISSUE80_COMMENT_TEMP_PATH",
       "gh pr comment 78 --repo dddd2024/reverse-agent --body-file PR_COMMENT_TEMP_PATH"
     ]
   },
@@ -183,6 +180,7 @@
     "tests/unattended/**",
     "docs/unattended/**",
     ".github/workflows/ci.yml"
+    ,".gitignore"
   ],
   "path_risk_floor": [
     {"pattern":"project_state/decision_packet.md","minimum_risk":"R2"},
@@ -191,10 +189,11 @@
     {"pattern":"reverse_agent/unattended/**","minimum_risk":"R2"},
     {"pattern":"tests/unattended/**","minimum_risk":"R2"},
     {"pattern":"docs/unattended/**","minimum_risk":"R2"},
-    {"pattern":".github/workflows/ci.yml","minimum_risk":"R2"}
+    {"pattern":".github/workflows/ci.yml","minimum_risk":"R2"},
+    {"pattern":".gitignore","minimum_risk":"R2"}
   ],
   "scope_policy": {
-    "scope": "unattended-gate2-owner-audit-rework-v3",
+    "scope": "unattended-gate2-audit-closure-v4",
     "implementation_risk_tier": "R2",
     "governance_artifact_risk_tier": "R2",
     "allow_product_source": true,
@@ -211,13 +210,10 @@
     "startup_state_mismatch",
     "governance_preflight_failure",
     "component_digest_drift",
-    "workspace_boundary_failure",
-    "openhands_lifecycle_contract_failure",
-    "contract_alignment_failure",
-    "temporal_bootstrap_failure",
-    "compose_restart_idempotence_failure",
-    "component_lock_validation_failure",
-    "full_suite_ci_failure",
+    "openhands_request_authority_failure",
+    "acceptance_truth_table_failure",
+    "provider_secret_boundary_failure",
+    "ci_credential_hygiene_failure",
     "component_compatibility_failure",
     "execution_environment_failure",
     "secret_boundary_failure",
@@ -236,18 +232,17 @@
 
 ### Goal
 
-Authorize only Issue #79 Owner-audit rework F1-F8 on the existing exact-head
-Draft PR #78: enforce the workspace submission boundary, reconcile OpenHands
-conversation lifecycle, align the six v0 contracts and policy semantics, make
-Temporal startup/restart idempotent, bind development ports to loopback,
-make the fixed component lock machine-verifiable, and make CI run truthful
-full-suite checks.
+Authorize only Issue #80 audit closure on existing Draft PR #78: seal the
+OpenHands request authority, enforce the AcceptanceResult truth table, move
+the provider credential boundary to an external file-backed secret mounted
+only into LiteLLM, and remove persisted checkout credentials before CI imports
+or executes repository code.
 
 ### Authority and sequencing
 
 This successor Decision is the sole R2 rework authority. It is committed
 alone on exact starting head
-`22c37c5050891cd10c868de8047dd948d0c89220`. The compiler-generated Command
+`a003c792f728e78e55f85450eb66c9c0514849b8`. The compiler-generated Command
 Plan and successful `PRE_EXECUTION_AUTHORIZED` must be committed separately
 before any F1-F8 mutation.
 
@@ -255,18 +250,19 @@ before any F1-F8 mutation.
 
 The existing nine PR commits remain immutable historical inputs. Rework is
 limited to `deploy/unattended/**`, `docs/unattended/**`,
-`reverse_agent/unattended/**`, `tests/unattended/**`, and the single workflow
-`.github/workflows/ci.yml`, plus the Decision and compiler-owned Gate files.
+`reverse_agent/unattended/**`, `tests/unattended/**`, `.gitignore`, and the
+single workflow `.github/workflows/ci.yml`, plus the Decision and
+compiler-owned Gate files.
 No dependency, audit record, state/decision workflow, mainline landing,
 remote verifier, or control-plane file may change. Real provider credentials
 and provider/model completion are explicitly outside this Work Item.
 
 ### Publication and stop boundary
 
-After Path B, all local checks, and the disposable fresh/restart proof pass,
+After Path B, all local checks, and the disposable secret-boundary proof pass,
 this Decision permits one non-force update of the existing branch, updates
-and evidence comments on Draft PR #78, evidence comments on Issues #79 and
-#77, and read-only observation of exact-head Actions. No second branch or PR
+and evidence comments on Draft PR #78 and Issue #80, and read-only observation
+of exact-head Actions. No second branch or PR
 may be created. PR #78 must remain Draft. Mark-ready, merge, auto-merge,
 history rewrite, direct main push, real provider credential use, tag, release,
 production deployment, and mutation of PR #47 or PR #49 are never authorized.
