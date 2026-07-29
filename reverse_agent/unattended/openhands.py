@@ -4,16 +4,14 @@ from __future__ import annotations
 
 import json
 import socket
-import uuid
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Mapping, Protocol
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from .contracts import AcceptanceResult, ExecutionHandle
-from .identifiers import workspace_path
+from .contracts import ExecutionHandle, TaskSubmission
+from .identifiers import executor_id, workspace_path
 
-_CONVERSATION_NAMESPACE = uuid.UUID("f1ea8fb8-d944-54c7-8706-3e3ef71b030d")
 _NOT_STARTED_STATUSES = frozenset({"idle"})
 _RUNNING_STATUSES = frozenset({"running"})
 _TERMINAL_STATUSES = frozenset({"finished", "error", "stuck"})
@@ -78,12 +76,10 @@ class UrllibJsonTransport:
 def conversation_id_for(handle: ExecutionHandle) -> str:
     """Derive the sole conversation UUID for one ExecutionHandle."""
 
-    return str(
-        uuid.uuid5(
-            _CONVERSATION_NAMESPACE,
-            f"{handle.workflow_id}:attempt:{handle.attempt}",
-        )
-    )
+    expected = executor_id(handle.workflow_id, handle.attempt)
+    if handle.executor_id != expected:
+        raise ValueError("executor_id_mismatch")
+    return expected
 
 
 def prepare_bounded_workspace(root: Path, relative: str) -> Path:
@@ -281,7 +277,7 @@ class OpenHandsAdapter:
                     f"conversation_delete_http_{delete_status}"
                 )
 
-    def collect_result(self, handle: ExecutionHandle) -> AcceptanceResult:
+    def collect_result(self, handle: ExecutionHandle) -> TaskSubmission:
         conversation_id = self._bound_id(handle)
         status = self.get_status(handle)
         if status not in _TERMINAL_STATUSES:
@@ -295,10 +291,16 @@ class OpenHandsAdapter:
                 f"conversation_result_http_{response_status}"
             )
         response = str(payload.get("response") or "")
-        return AcceptanceResult(
-            accepted=False,
-            checks=("agent_output_collected",),
-            detail=response,
+        return TaskSubmission(
+            verdict="EVIDENCE_ONLY",
+            summary=response or "OpenHands returned no final response",
+            changed_paths=(),
+            commands_executed=(),
+            test_evidence=("openhands_terminal_response_collected",),
+            limitations=(
+                "OpenHands output is executor evidence, not platform acceptance",
+            ),
+            failure_reason=None if status == "finished" else status,
         )
 
     @staticmethod

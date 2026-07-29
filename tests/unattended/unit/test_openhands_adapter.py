@@ -13,7 +13,9 @@ from reverse_agent.unattended import (
     OpenHandsAdapter,
     OpenHandsAdapterError,
     conversation_id_for,
+    executor_id,
     prepare_bounded_workspace,
+    workspace_id,
     workspace_path,
 )
 
@@ -34,7 +36,14 @@ class FakeTransport:
 
 
 def _handle(attempt: int = 1) -> ExecutionHandle:
-    return ExecutionHandle("unattended:dddd2024/reverse-agent:issue:76", attempt)
+    identifier = "unattended:dddd2024/reverse-agent:issue:76"
+    return ExecutionHandle(
+        identifier,
+        attempt,
+        workspace_id(identifier),
+        executor_id(identifier, attempt),
+        "2026-07-29T08:00:00+00:00",
+    )
 
 
 def _attempt_workspace(handle: ExecutionHandle | None = None) -> str:
@@ -308,8 +317,8 @@ def test_get_status_cancel_and_collect_result_use_v137_endpoints(
     assert adapter.get_status(_handle()) == "running"
     adapter.cancel(_handle())
     result = adapter.collect_result(_handle())
-    assert result.accepted is False
-    assert result.detail == "agent says done"
+    assert result.verdict == "EVIDENCE_ONLY"
+    assert result.summary == "agent says done"
     assert [call[:2] for call in transport.calls] == [
         ("GET", f"/api/conversations/{expected}"),
         ("POST", f"/api/conversations/{expected}/interrupt"),
@@ -326,7 +335,8 @@ def test_collect_result_rejects_agent_self_acceptance(tmp_path: Path) -> None:
         ]
     )
     result = _adapter(transport, tmp_path).collect_result(_handle())
-    assert result.accepted is False
+    assert result.verdict == "EVIDENCE_ONLY"
+    assert "platform acceptance" in result.limitations[0]
 
 
 def test_health_checks_alive_and_health(tmp_path: Path) -> None:

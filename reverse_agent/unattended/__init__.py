@@ -8,7 +8,13 @@ from .contracts import (
     ResolvedExecutionPolicy,
     TaskSubmission,
 )
-from .identifiers import TASK_QUEUE, workflow_id, workspace_path
+from .identifiers import (
+    TASK_QUEUE,
+    executor_id,
+    workflow_id,
+    workspace_id,
+    workspace_path,
+)
 from .openhands import (
     AmbiguousConversationStart,
     OpenHandsAdapter,
@@ -33,8 +39,10 @@ __all__ = [
     "TaskSubmission",
     "UrllibJsonTransport",
     "conversation_id_for",
+    "executor_id",
     "prepare_bounded_workspace",
     "resolve_execution_policy",
     "workflow_id",
+    "workspace_id",
     "workspace_path",
 ]
