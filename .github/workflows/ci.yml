@@ -34,8 +34,21 @@ jobs:
           LITELLM_MASTER_KEY: ci-only-placeholder
           LITELLM_SALT_KEY: ci-only-placeholder
           OPENAI_API_KEY: not-a-provider-credential
+          GIT_AUTHOR_NAME: reverse-agent-ci
+          GIT_AUTHOR_EMAIL: reverse-agent-ci@invalid
+          GIT_COMMITTER_NAME: reverse-agent-ci
+          GIT_COMMITTER_EMAIL: reverse-agent-ci@invalid
         run: |
           python -c "import reverse_agent.project_gate; import reverse_agent.project_state; import reverse_agent.post_final_evidence_sync; import reverse_agent.decision_preflight"
+          if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+            git fetch --unshallow --tags origin
+          else
+            git fetch --tags origin
+          fi
+          mkdir -p "$HOME/.config/powershell"
+          printf '%s\n' '$PSDefaultParameterValues["Get-Item:Force"] = $true' > "$HOME/.config/powershell/Microsoft.PowerShell_profile.ps1"
+          mkdir -p 'E:\reverse/逆向课程2024春01' 'E:\reverse/逆向课程2022春02'
+          touch 'E:\reverse/逆向课程2024春01/sha_256.exe' 'E:\reverse/逆向课程2022春02/CPP2.exe'
           echo "::group::Full test suite"
           python -m pytest -q
           echo "::endgroup::"
