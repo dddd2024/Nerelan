@@ -15,6 +15,33 @@ def provider_secret_preflight(
 ) -> dict[str, Any]:
     """Validate the external provider file without reading or identifying it."""
 
+    return _external_secret_file_preflight(
+        secret_file,
+        repository_root=repository_root,
+        presence_field="provider_secret",
+    )
+
+
+def executor_key_secret_preflight(
+    secret_file: str | os.PathLike[str] | None,
+    *,
+    repository_root: Path,
+) -> dict[str, Any]:
+    """Validate the external bounded executor-key file without reading it."""
+
+    return _external_secret_file_preflight(
+        secret_file,
+        repository_root=repository_root,
+        presence_field="executor_key",
+    )
+
+
+def _external_secret_file_preflight(
+    secret_file: str | os.PathLike[str] | None,
+    *,
+    repository_root: Path,
+    presence_field: str,
+) -> dict[str, Any]:
     checks = {
         "regular_file": "FAIL",
         "outside_repository": "FAIL",
@@ -23,7 +50,7 @@ def provider_secret_preflight(
     if not secret_file:
         return {
             "status": "FAIL",
-            "provider_secret": "MISSING",
+            presence_field: "MISSING",
             "checks": checks,
         }
 
@@ -31,7 +58,7 @@ def provider_secret_preflight(
     if not candidate.is_absolute() or not candidate.exists():
         return {
             "status": "FAIL",
-            "provider_secret": "MISSING",
+            presence_field: "MISSING",
             "checks": checks,
         }
 
@@ -47,7 +74,7 @@ def provider_secret_preflight(
     except OSError:
         return {
             "status": "FAIL",
-            "provider_secret": "MISSING",
+            presence_field: "MISSING",
             "checks": checks,
         }
 
@@ -58,7 +85,7 @@ def provider_secret_preflight(
     }
     return {
         "status": "PASS" if all(value == "PASS" for value in checks.values()) else "FAIL",
-        "provider_secret": "PRESENT",
+        presence_field: "PRESENT",
         "checks": checks,
     }
 

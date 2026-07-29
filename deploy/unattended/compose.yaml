@@ -106,12 +106,32 @@ services:
       retries: 30
     networks: [control]
 
+  litellm-database:
+    image: docker.io/library/postgres:16.14-bookworm@sha256:92620daddcd947f8d5ab5ba66e848702fe443d87fed30c4cea8e389fd78dfc55
+    depends_on:
+      temporal-schema:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      LITELLM_DATABASE_PASSWORD: ${LITELLM_DATABASE_PASSWORD}
+    volumes:
+      - ./postgres:/scripts:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["tr -d '\\r' < /scripts/ensure-litellm-database.sh | /bin/sh"]
+    restart: "no"
+    networks: [control]
+
   litellm:
     image: ghcr.io/berriai/litellm:v1.94.0@sha256:65d84a2282137b4dc73bbe184650a7c807177c533e4223b3bfbc87963fe3fabe
-    entrypoint: ["/bin/sh", "/app/litellm-entrypoint.sh"]
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["tr -d '\\r' < /app/litellm-entrypoint.sh | /bin/sh"]
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
       LITELLM_SALT_KEY: ${LITELLM_SALT_KEY}
+      DATABASE_URL: postgresql://litellm:${LITELLM_DATABASE_PASSWORD}@postgresql:5432/litellm
+    depends_on:
+      litellm-database:
+        condition: service_completed_successfully
     secrets:
       - source: openai_api_key
         target: openai_api_key
@@ -132,8 +152,28 @@ services:
       model-executor:
         aliases: [litellm-executor]
 
+  litellm-key-bootstrap:
+    image: ghcr.io/berriai/litellm:v1.94.0@sha256:65d84a2282137b4dc73bbe184650a7c807177c533e4223b3bfbc87963fe3fabe
+    depends_on:
+      litellm:
+        condition: service_healthy
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+    secrets:
+      - source: litellm_executor_key
+        target: litellm_executor_key
+        mode: 0400
+    volumes:
+      - ./litellm-key-bootstrap.py:/app/litellm-key-bootstrap.py:ro
+    entrypoint: ["python", "/app/litellm-key-bootstrap.py"]
+    restart: "no"
+    networks: [control]
+
   agent-canvas:
     image: ghcr.io/openhands/agent-canvas:1.6.1@sha256:98203471b02490b3c5bea8e9525c883519a794c5695989c8ba18c284d11d002d
+    depends_on:
+      litellm-key-bootstrap:
+        condition: service_completed_successfully
     environment:
       VITE_BACKEND_HOST: http://localhost:8000
     ports:
@@ -154,3 +194,5 @@ volumes:
 secrets:
   openai_api_key:
     file: ${UNATTENDED_OPENAI_API_KEY_FILE:-/tmp/reverse-agent-missing-openai-api-key}
+  litellm_executor_key:
+    file: ${UNATTENDED_LITELLM_EXECUTOR_KEY_FILE:-/tmp/reverse-agent-missing-litellm-executor-key}

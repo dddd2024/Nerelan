@@ -16,6 +16,7 @@ from reverse_agent.unattended.component_lock import (
 )
 from reverse_agent.unattended.secrets import (
     _strict_posix_permissions,
+    executor_key_secret_preflight,
     provider_secret_preflight,
 )
 
@@ -85,7 +86,7 @@ def test_temporal_bootstrap_is_automatic_and_idempotent() -> None:
     assert "namespace describe --namespace default" in namespace
     assert "namespace create --namespace default" in namespace
     assert not compose.startswith("name:")
-    assert compose.count("tr -d '\\\\r'") == 2
+    assert compose.count("tr -d '\\\\r'") == 4
 
 
 def test_resolved_compose_mounts_provider_secret_only_into_litellm(
@@ -95,13 +96,21 @@ def test_resolved_compose_mounts_provider_secret_only_into_litellm(
     secret_file = tmp_path / "provider-material"
     secret_file.write_text(provider_value, encoding="utf-8")
     secret_file.chmod(0o600)
+    executor_key_file = tmp_path / "executor-material"
+    executor_key_file.write_text(
+        f"sk-{secrets.token_urlsafe(32)}",
+        encoding="utf-8",
+    )
+    executor_key_file.chmod(0o600)
     environment = os.environ.copy()
     environment.update(
         {
             "POSTGRES_PASSWORD": "synthetic-postgres",
+            "LITELLM_DATABASE_PASSWORD": "synthetic_database_password",
             "LITELLM_MASTER_KEY": "synthetic-litellm",
             "LITELLM_SALT_KEY": "synthetic-salt",
             "UNATTENDED_OPENAI_API_KEY_FILE": str(secret_file),
+            "UNATTENDED_LITELLM_EXECUTOR_KEY_FILE": str(executor_key_file),
         }
     )
     completed = subprocess.run(
@@ -122,12 +131,24 @@ def test_resolved_compose_mounts_provider_secret_only_into_litellm(
     )
     resolved = json.loads(completed.stdout)
     services = resolved["services"]
-    mounted = {
+    provider_mounted = {
         name
         for name, service in services.items()
-        if service.get("secrets")
+        if any(
+            secret.get("source") == "openai_api_key"
+            for secret in service.get("secrets", [])
+        )
     }
-    assert mounted == {"litellm"}
+    executor_key_mounted = {
+        name
+        for name, service in services.items()
+        if any(
+            secret.get("source") == "litellm_executor_key"
+            for secret in service.get("secrets", [])
+        )
+    }
+    assert provider_mounted == {"litellm"}
+    assert executor_key_mounted == {"litellm-key-bootstrap"}
     assert services["litellm"]["secrets"] == [
         {
             "source": "openai_api_key",
@@ -136,12 +157,21 @@ def test_resolved_compose_mounts_provider_secret_only_into_litellm(
         }
     ]
     assert resolved["secrets"]["openai_api_key"]["file"] == str(secret_file)
+    assert resolved["secrets"]["litellm_executor_key"]["file"] == str(
+        executor_key_file
+    )
     for service in services.values():
         environment_values = service.get("environment", {})
         assert "OPENAI_API_KEY" not in environment_values
         assert provider_value not in json.dumps(environment_values, sort_keys=True)
     assert set(services["litellm"]["networks"]) == {"control", "model-executor"}
     assert resolved["networks"]["model-executor"]["internal"] is True
+    assert "LITELLM_MASTER_KEY" not in services["agent-canvas"].get(
+        "environment", {}
+    )
+    assert services["litellm"]["environment"]["DATABASE_URL"].startswith(
+        "postgresql://litellm:"
+    )
     assert provider_value not in completed.stdout
 
 
@@ -187,6 +217,19 @@ def test_provider_secret_preflight_rejects_missing_repo_file_and_bad_mode(
     assert _strict_posix_permissions("nt", 0o600) is False
 
 
+def test_executor_key_preflight_is_presence_only(tmp_path: Path) -> None:
+    key_file = tmp_path / "executor-key"
+    key_file.write_text(f"sk-{secrets.token_urlsafe(32)}", encoding="utf-8")
+    key_file.chmod(0o600)
+
+    report = executor_key_secret_preflight(key_file, repository_root=ROOT)
+    rendered = json.dumps(report, sort_keys=True)
+
+    assert report["executor_key"] == "PRESENT"
+    assert report["checks"]["regular_file"] == "PASS"
+    assert str(key_file) not in rendered
+
+
 def test_provider_configuration_has_no_env_value_slot_and_fixed_launcher() -> None:
     env_example = (DEPLOY / ".env.example").read_text(encoding="utf-8")
     compose = (DEPLOY / "compose.yaml").read_text(encoding="utf-8")
@@ -198,3 +241,28 @@ def test_provider_configuration_has_no_env_value_slot_and_fixed_launcher() -> No
     assert "exec litellm --config /app/config.yaml --port 4000" in launcher
     assert "echo" not in launcher
     assert "print" not in launcher
+
+
+def test_litellm_virtual_key_boundary_is_fixed_and_database_is_separate() -> None:
+    compose = (DEPLOY / "compose.yaml").read_text(encoding="utf-8")
+    config = (DEPLOY / "litellm.config.example.yaml").read_text(encoding="utf-8")
+    bootstrap = (DEPLOY / "litellm-key-bootstrap.py").read_text(encoding="utf-8")
+    database = (
+        DEPLOY / "postgres" / "ensure-litellm-database.sh"
+    ).read_text(encoding="utf-8")
+
+    assert 'database_url: os.environ/DATABASE_URL' in config
+    assert "disable_spend_logs: false" in config
+    assert "CREATE DATABASE litellm OWNER litellm" in database
+    assert "NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION" in database
+    assert "REVOKE ALL ON DATABASE temporal FROM litellm" in database
+    assert "REVOKE CONNECT ON DATABASE temporal FROM PUBLIC" in database
+    assert '"models": ["unattended-v0"]' in bootstrap
+    assert '"max_budget": 1.0' in bootstrap
+    assert '"rpm_limit": 10' in bootstrap
+    assert '"tpm_limit": 50000' in bootstrap
+    assert '"key_type": "llm_api"' in bootstrap
+    assert '"/v1/models"' in bootstrap
+    assert "/key/generate" in bootstrap
+    assert "/key/update" in bootstrap
+    assert "litellm_executor_key" in compose

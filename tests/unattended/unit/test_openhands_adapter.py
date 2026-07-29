@@ -59,6 +59,7 @@ def _adapter(transport: FakeTransport, tmp_path: Path) -> OpenHandsAdapter:
     return OpenHandsAdapter(
         transport,
         host_workspace_root=(tmp_path / "host-workspaces").absolute(),
+        executor_api_key="synthetic-executor-material",
     )
 
 
@@ -142,7 +143,8 @@ def test_start_task_creates_and_runs_exactly_one_conversation(tmp_path: Path) ->
                 "kind": "LLM",
                 "usage_id": "unattended-v0",
                 "model": "openai/unattended-v0",
-                "base_url": "http://litellm:4000/v1",
+                "base_url": "http://litellm-executor:4000/v1",
+                "api_key": "synthetic-executor-material",
             },
             "tools": [{"name": "terminal"}, {"name": "file_editor"}],
         },
@@ -492,6 +494,7 @@ def test_start_task_rejects_symlink_in_attempt_workspace(tmp_path: Path) -> None
             OpenHandsAdapter(
                 FakeTransport([]),
                 host_workspace_root=root.absolute(),
+                executor_api_key="synthetic-executor-material",
             )
         )
 
@@ -521,6 +524,7 @@ def test_post_validation_symlink_replacement_is_rejected(tmp_path: Path) -> None
             OpenHandsAdapter(
                 ReplacingTransport([(404, {})]),
                 host_workspace_root=root,
+                executor_api_key="synthetic-executor-material",
             )
         )
 
@@ -534,7 +538,13 @@ def test_symlink_workspace_root_is_rejected(tmp_path: Path) -> None:
     except OSError:
         pytest.skip("symlink creation unavailable")
     with pytest.raises(ValueError, match="root_symlink"):
-        _start(OpenHandsAdapter(FakeTransport([]), host_workspace_root=root.absolute()))
+        _start(
+            OpenHandsAdapter(
+                FakeTransport([]),
+                host_workspace_root=root.absolute(),
+                executor_api_key="synthetic-executor-material",
+            )
+        )
 
 
 def test_nonterminal_result_is_rejected(tmp_path: Path) -> None:

@@ -14,10 +14,11 @@ from typing import Any
 
 from .probe import run_temporal_probe
 from .component_lock import load_component_lock
-from .secrets import provider_secret_preflight
+from .secrets import executor_key_secret_preflight, provider_secret_preflight
 
 _REQUIRED_SECRET_NAMES = (
     "POSTGRES_PASSWORD",
+    "LITELLM_DATABASE_PASSWORD",
     "LITELLM_MASTER_KEY",
     "LITELLM_SALT_KEY",
 )
@@ -56,6 +57,11 @@ def doctor_report() -> dict[str, Any]:
         "internal_model_executor_network": (
             "  model-executor:" in compose_text
             and "    internal: true" in compose_text
+        ),
+        "litellm_virtual_key_boundary": (
+            "litellm-key-bootstrap:" in compose_text
+            and "litellm_executor_key" in compose_text
+            and "postgresql://litellm:" in compose_text
         ),
     }
     return {
@@ -112,6 +118,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--secret-file",
         default=os.environ.get("UNATTENDED_OPENAI_API_KEY_FILE"),
     )
+    executor_key_preflight = subparsers.add_parser("executor-key-preflight")
+    executor_key_preflight.add_argument(
+        "--secret-file",
+        default=os.environ.get("UNATTENDED_LITELLM_EXECUTOR_KEY_FILE"),
+    )
     args = parser.parse_args(argv)
     if args.command == "doctor":
         report = doctor_report()
@@ -119,8 +130,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         report = asyncio.run(
             _gate2_report(args.temporal_address, args.temporal_namespace)
         )
-    else:
+    elif args.command == "secret-preflight":
         report = provider_secret_preflight(
+            args.secret_file,
+            repository_root=_repo_root(),
+        )
+    else:
+        report = executor_key_secret_preflight(
             args.secret_file,
             repository_root=_repo_root(),
         )

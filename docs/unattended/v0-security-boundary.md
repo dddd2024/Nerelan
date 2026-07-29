@@ -15,6 +15,12 @@ Secret boundaries:
 - the provider credential is a Docker Compose file secret mounted only at
   `/run/secrets/openai_api_key` in LiteLLM. The fixed wrapper reads it inside
   that container and immediately `exec`s the pinned LiteLLM command.
+- the LiteLLM executor credential is a native Virtual Key limited to
+  `unattended-v0`, chat-completion/model-discovery routes, a daily budget,
+  bounded RPM/TPM, and one parallel request. It has no management authority.
+- the Virtual Key file is mounted only into the one-shot bootstrap. The
+  trusted adapter supplies it in the LLM request; it is absent from the
+  Attempt container environment.
 - tracked configuration contains variable names only; no value belongs in Git,
   test output, probe output, or uploaded evidence.
 

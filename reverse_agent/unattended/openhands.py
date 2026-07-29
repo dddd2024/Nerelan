@@ -19,7 +19,7 @@ _UNSAFE_STATUSES = frozenset(
     {"paused", "waiting_for_confirmation", "deleting", "cancelled"}
 )
 _MODEL = "openai/unattended-v0"
-_LITELLM_BASE_URL = "http://litellm:4000/v1"
+_LITELLM_BASE_URL = "http://litellm-executor:4000/v1"
 _AGENT_ATTEMPT_ROOT = PurePosixPath("/workspace/attempt")
 _MIN_MAX_ITERATIONS = 1
 _MAX_MAX_ITERATIONS = 20
@@ -133,11 +133,19 @@ class OpenHandsAdapter:
         transport: JsonTransport,
         *,
         host_workspace_root: Path,
+        executor_api_key: str,
     ) -> None:
         if not host_workspace_root.is_absolute():
             raise ValueError("host_workspace_root_must_be_absolute")
+        if (
+            not isinstance(executor_api_key, str)
+            or not executor_api_key
+            or "\x00" in executor_api_key
+        ):
+            raise ValueError("executor_api_key_invalid")
         self._transport = transport
         self._host_workspace_root = host_workspace_root
+        self._executor_api_key = executor_api_key
 
     def health(self) -> dict[str, str]:
         checks: dict[str, str] = {}
@@ -189,6 +197,7 @@ class OpenHandsAdapter:
             agent_workspace=agent_workspace,
             instruction=instruction,
             max_iterations=max_iterations,
+            executor_api_key=self._executor_api_key,
         )
 
         try:
@@ -236,6 +245,7 @@ class OpenHandsAdapter:
         agent_workspace: str,
         instruction: str,
         max_iterations: int,
+        executor_api_key: str,
     ) -> dict[str, Any]:
         """Build the complete audited v1.37.0 payload from trusted values only."""
 
@@ -247,6 +257,7 @@ class OpenHandsAdapter:
                     "usage_id": "unattended-v0",
                     "model": _MODEL,
                     "base_url": _LITELLM_BASE_URL,
+                    "api_key": executor_api_key,
                 },
                 "tools": [{"name": name} for name, _ in _AUDIT_TOOLS],
             },

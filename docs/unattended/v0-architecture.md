@@ -21,6 +21,14 @@ continues to own its coding loop and local Terminal/File Editor execution, but
 that execution occurs inside the disposable bounded Attempt container.
 LiteLLM is its only reachable model endpoint.
 
+LiteLLM v1.94.0 uses its native database-backed Virtual Key mechanism. The
+existing PostgreSQL component hosts a separate `litellm` database owned by a
+non-superuser `litellm` role; that role is denied the Temporal databases. A
+one-shot idempotent bootstrap installs the synthetic-audit key with only model
+`unattended-v0`, a USD 1 daily budget, 10 RPM, 50,000 TPM, one parallel
+request, and only chat-completion plus model-discovery routes. The key type is
+`llm_api`, not management.
+
 The development stack derives its Temporal layout from the maintained
 `temporalio/samples-server` PostgreSQL Compose example. Start the pinned stack
 from WSL2/Linux after creating a local `.env` for non-provider service
@@ -37,6 +45,13 @@ docker compose -f compose.yaml up -d --wait
 only into LiteLLM; it does not put the provider value in any service
 environment or expose it to OpenHands, the worker, sandbox, Temporal, or
 PostgreSQL.
+
+`UNATTENDED_LITELLM_EXECUTOR_KEY_FILE` is likewise a non-secret path to a
+temporary external `0600` file containing generated non-provider material.
+Compose mounts it only into the one-shot key bootstrap. The trusted adapter
+places the bounded Virtual Key in the OpenHands LLM request; it is not a
+container environment variable. The Agent Server never receives
+`LITELLM_MASTER_KEY`.
 
 The Compose baseline creates the Temporal `default` namespace automatically and
 idempotently. The same command is valid for a fresh project and after a

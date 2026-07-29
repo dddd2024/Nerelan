@@ -6,7 +6,8 @@ if [ ! -f "$secret_file" ]; then
   exit 1
 fi
 
-IFS= read -r OPENAI_API_KEY < "$secret_file"
+OPENAI_API_KEY=
+IFS= read -r OPENAI_API_KEY < "$secret_file" || true
 if [ -z "$OPENAI_API_KEY" ]; then
   exit 1
 fi
