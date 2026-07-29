@@ -269,7 +269,7 @@ class OpenHandsAdapter:
                 "role": "user",
                 "content": [
                     {
-                        "kind": "TextContent",
+                        "type": "text",
                         "text": f"{_PLATFORM_INSTRUCTION_PREFIX}{instruction.strip()}",
                     }
                 ],

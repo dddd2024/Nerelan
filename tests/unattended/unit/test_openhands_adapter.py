@@ -161,7 +161,7 @@ def test_start_task_creates_and_runs_exactly_one_conversation(tmp_path: Path) ->
             "role": "user",
             "content": [
                 {
-                    "kind": "TextContent",
+                    "type": "text",
                     "text": (
                         "Execute only this bounded synthetic task inside the "
                         "assigned Attempt Workspace. Do not access secrets, "
