@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import subprocess
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -533,12 +534,85 @@ def test_state_gate_routes_branch_and_main_lifecycles() -> None:
     assert '"pr60-historical-recovery"' in project_gate
 
 
-def test_committed_pr67_intent_remains_bound_to_v3_authority() -> None:
-    intent = json.loads(
-        (REPO_ROOT / "project_state/mainline_merge_intents/active.json").read_text(
-            encoding="utf-8"
-        )
+def _committed_blob(path: str) -> bytes:
+    return subprocess.check_output(
+        ["git", "cat-file", "blob", f"HEAD:{path}"],
+        cwd=REPO_ROOT,
     )
+
+
+def test_committed_pr67_intent_binds_exact_v5_authority() -> None:
+    intent = json.loads(
+        _committed_blob("project_state/mainline_merge_intents/active.json")
+    )
+    decision_blob = _committed_blob("project_state/decision_packet.md")
+    plan_blob = _committed_blob("project_state/gates/command_plan.json")
+    decision_matches = re.findall(
+        rb"```json decision_meta\r?\n(.*?)\r?\n```",
+        decision_blob,
+        re.DOTALL,
+    )
+    assert len(decision_matches) == 1
+    decision = json.loads(decision_matches[0])
+    plan = json.loads(plan_blob)
+
+    assert (
+        intent["decision_identity"]["decision_id"]
+        == decision["decision_id"]
+        == "decision_20260729_pr67_final_intent_rebind_v5"
+    )
+    assert intent["decision_identity"]["decision_content_sha256"] == hashlib.sha256(
+        decision_blob
+    ).hexdigest()
+    assert intent["command_plan_sha256"] == hashlib.sha256(plan_blob).hexdigest()
+    assert (plan["decision_id"], plan["round_id"]) == (
+        decision["decision_id"],
+        decision["round_id"],
+    )
+
+    checks = _validate_intent(
+        intent,
+        repo_root=REPO_ROOT,
+        accepted_head="HEAD",
+        source_pr=67,
+        locked_base="68026521710c50fa9a70f3851472941605d9ead1",
+        now=NOW,
+    )
+    assert all(check["status"] == "PASS" for check in checks), checks
+
+
+@pytest.mark.parametrize(
+    ("field", "stale_value", "expected_failure"),
+    [
+        (
+            "decision_id",
+            "decision_20260728_mainline_landing_semantic_rework_v3",
+            "intent_decision_id",
+        ),
+        (
+            "decision_content_sha256",
+            "242598ee4bd180cc3514460f7a53de1df0e8651b3732d6a460875ef597d4d152",
+            "intent_decision_digest",
+        ),
+        (
+            "command_plan_sha256",
+            "b461f01aa0e44f844f8f6e061c6ce6cfb5b9930c9e6ff1d2ef886e0364d10a67",
+            "intent_command_plan_digest",
+        ),
+    ],
+)
+def test_committed_pr67_intent_rejects_stale_v3_authority(
+    field: str,
+    stale_value: str,
+    expected_failure: str,
+) -> None:
+    intent = json.loads(
+        _committed_blob("project_state/mainline_merge_intents/active.json")
+    )
+    if field == "command_plan_sha256":
+        intent[field] = stale_value
+    else:
+        intent["decision_identity"][field] = stale_value
     checks = _validate_intent(
         intent,
         repo_root=REPO_ROOT,
@@ -548,17 +622,117 @@ def test_committed_pr67_intent_remains_bound_to_v3_authority() -> None:
         now=NOW,
     )
     observed = {check["name"]: check["status"] for check in checks}
-    assert {
-        name for name, status in observed.items() if status == "FAIL"
-    } == {
-        "intent_decision_id",
-        "intent_decision_digest",
-        "intent_command_plan_digest",
-    }
-    assert (
-        intent["decision_identity"]["decision_id"]
-        == "decision_20260728_mainline_landing_semantic_rework_v3"
+    assert observed[expected_failure] == "FAIL"
+
+
+def test_future_replacement_decision_without_matching_intent_fails(
+    tmp_path: Path,
+) -> None:
+    bundle = _future_repo(
+        tmp_path,
+        decision_id="decision_20260815_future_exact_head_v7",
+        intent_decision_id="decision_20260729_pr67_final_intent_rebind_v5",
     )
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("intent_decision_id" in item for item in result["blocking_reasons"])
+
+
+def test_production_pre_merge_simulation(tmp_path: Path) -> None:
+    repo = tmp_path / "simulation"
+    subprocess.run(
+        ["git", "clone", "--no-hardlinks", str(REPO_ROOT), str(repo)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    head = _git(repo, "rev-parse", "HEAD")
+    base = "68026521710c50fa9a70f3851472941605d9ead1"
+    tree = _git(repo, "rev-parse", f"{head}^{{tree}}")
+    merge = _git(
+        repo,
+        "commit-tree",
+        tree,
+        "-p",
+        base,
+        "-p",
+        head,
+        "-m",
+        "temporary production pre-merge simulation",
+    )
+    intent = json.loads(
+        subprocess.check_output(
+            [
+                "git",
+                "cat-file",
+                "blob",
+                f"{head}:project_state/mainline_merge_intents/active.json",
+            ],
+            cwd=repo,
+        )
+    )
+    approval_payload = {
+        "repository": "dddd2024/reverse-agent",
+        "source_pr": 67,
+        "locked_base_sha": base,
+        "accepted_exact_head_sha": head,
+        "allowed_merge_method": "merge",
+    }
+    observations = [
+        {
+            "name": name,
+            "run_id": 7100 + index,
+            "workflow_file": workflow_file,
+            "event": event,
+            "run_attempt": 1,
+            "head_sha": head,
+            "conclusion": "success",
+        }
+        for index, (name, (workflow_file, event)) in enumerate(
+            CANONICAL_WORKFLOW_POLICY.items(),
+            1,
+        )
+    ]
+    attestation = {
+        "schema_version": 1,
+        "attestation_id": "issue71_local_simulation_only",
+        "repository": "dddd2024/reverse-agent",
+        "source_pr": 67,
+        "locked_base_sha": base,
+        "accepted_exact_head_sha": head,
+        "allowed_merge_method": "merge",
+        "intent_digest": canonical_digest(intent),
+        "workflow_observations": observations,
+        "human_r2_approval": {
+            "approver": "dddd2024",
+            "approval_object_id": 71001,
+            "approval_payload": approval_payload,
+            "approval_content_digest": canonical_digest(approval_payload),
+        },
+        "authorization_status": "active",
+        "expires_at": "2026-08-19T23:59:59Z",
+        "superseded_by": None,
+        "_remote_comment_id": 71001,
+        "_remote_author": "dddd2024",
+    }
+    attestation["content_digest"] = canonical_digest(
+        attestation,
+        omit=("content_digest", "_remote_comment_id", "_remote_author"),
+    )
+    result = validate_future_merge(
+        repo_root=repo,
+        state_dir=repo / "project_state",
+        attestation=attestation,
+        verifier=FakeVerifier(),
+        commit_sha=merge,
+        validation_time=NOW,
+    )
+    intent_checks = [
+        check for check in result["checks"] if check["name"].startswith("intent_")
+    ]
+    assert result["gate_status"] == "PASSED", result
+    assert intent_checks
+    assert all(check["status"] == "PASS" for check in intent_checks), intent_checks
 
 
 def test_state_gate_permissions_are_read_only_and_complete() -> None:
