@@ -319,3 +319,99 @@ def test_executor_output_is_evidence_and_distinct_from_acceptance() -> None:
     assert failure.retryable is False
     with pytest.raises(AttributeError):
         submission.summary = "mutated"  # type: ignore[misc]
+
+
+def _acceptance(**overrides: object) -> AcceptanceResult:
+    values: dict[str, object] = {
+        "status": "ACCEPTED",
+        "attempt": 1,
+        "policy_passed": True,
+        "path_scope_passed": True,
+        "required_checks_passed": True,
+        "exact_head_sha": _HEAD,
+        "pr_number": 78,
+        "rework_reasons": (),
+    }
+    values.update(overrides)
+    return AcceptanceResult(**values)  # type: ignore[arg-type]
+
+
+def test_acceptance_truth_table_accepts_every_valid_status_shape() -> None:
+    assert _acceptance().status == "ACCEPTED"
+    assert _acceptance(
+        status="REWORK_REQUIRED",
+        required_checks_passed=False,
+        rework_reasons=("required check failed",),
+    ).status == "REWORK_REQUIRED"
+    assert _acceptance(
+        status="BLOCKED_APPROVAL",
+        policy_passed=False,
+        exact_head_sha=None,
+        pr_number=None,
+        rework_reasons=("owner approval required",),
+    ).status == "BLOCKED_APPROVAL"
+    assert _acceptance(
+        status="FAILED_TERMINAL",
+        required_checks_passed=False,
+        rework_reasons=("terminal failure",),
+    ).status == "FAILED_TERMINAL"
+    assert _acceptance(
+        status="CANCELLED",
+        policy_passed=False,
+        path_scope_passed=False,
+        required_checks_passed=False,
+        exact_head_sha=None,
+        pr_number=None,
+    ).status == "CANCELLED"
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"policy_passed": False},
+        {"path_scope_passed": False},
+        {"required_checks_passed": False},
+        {"exact_head_sha": None},
+        {"pr_number": None},
+        {"rework_reasons": ("not empty",)},
+    ],
+)
+def test_accepted_requires_all_checks_exact_head_pr_and_no_rework(
+    overrides: dict[str, object],
+) -> None:
+    with pytest.raises(ValueError, match="accepted_invariant"):
+        _acceptance(**overrides)
+
+
+def test_rework_required_requires_a_nonempty_reason() -> None:
+    with pytest.raises(ValueError, match="rework_reason_required"):
+        _acceptance(
+            status="REWORK_REQUIRED",
+            required_checks_passed=False,
+            rework_reasons=(),
+        )
+    with pytest.raises(ValueError, match="rework_reasons"):
+        _acceptance(
+            status="REWORK_REQUIRED",
+            required_checks_passed=False,
+            rework_reasons=("",),
+        )
+
+
+@pytest.mark.parametrize(
+    "status",
+    ["REWORK_REQUIRED", "BLOCKED_APPROVAL", "FAILED_TERMINAL", "CANCELLED"],
+)
+def test_nonaccepted_statuses_reject_complete_acceptance_claims(status: str) -> None:
+    reasons = ("must not claim acceptance",) if status == "REWORK_REQUIRED" else ()
+    with pytest.raises(ValueError, match="nonaccepted_status_claims_acceptance"):
+        _acceptance(status=status, rework_reasons=reasons)
+
+
+@pytest.mark.parametrize(
+    "status",
+    ["accepted", "UNKNOWN", "", "GATE2_COMPLETE"],
+)
+def test_unknown_or_noncanonical_acceptance_status_is_rejected(status: str) -> None:
+    with pytest.raises(ValueError, match="invalid_acceptance_status"):
+        _acceptance(status=status)

@@ -7,6 +7,15 @@ from dataclasses import dataclass
 from datetime import datetime
 _SHA40 = re.compile(r"[0-9a-f]{40}\Z")
 _RISK_TIERS = frozenset({"R0", "R1", "R2", "R3"})
+_ACCEPTANCE_STATUSES = frozenset(
+    {
+        "ACCEPTED",
+        "REWORK_REQUIRED",
+        "BLOCKED_APPROVAL",
+        "FAILED_TERMINAL",
+        "CANCELLED",
+    }
+)
 
 
 def _text(value: object, field: str, *, optional: bool = False) -> str | None:
@@ -175,7 +184,8 @@ class AcceptanceResult:
     rework_reasons: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        _text(self.status, "status")
+        if self.status not in _ACCEPTANCE_STATUSES:
+            raise ValueError("invalid_acceptance_status")
         _attempt(self.attempt)
         for field in (
             "policy_passed",
@@ -192,6 +202,28 @@ class AcceptanceResult:
         ):
             raise ValueError("invalid_pr_number")
         _strings(self.rework_reasons, "rework_reasons")
+
+        all_checks_passed = (
+            self.policy_passed
+            and self.path_scope_passed
+            and self.required_checks_passed
+        )
+        complete_acceptance_claim = (
+            all_checks_passed
+            and self.exact_head_sha is not None
+            and self.pr_number is not None
+        )
+        if self.status == "ACCEPTED":
+            if (
+                not complete_acceptance_claim
+                or self.rework_reasons
+            ):
+                raise ValueError("accepted_invariant_violation")
+            return
+        if self.status == "REWORK_REQUIRED" and not self.rework_reasons:
+            raise ValueError("rework_reason_required")
+        if complete_acceptance_claim:
+            raise ValueError("nonaccepted_status_claims_acceptance")
 
 
 @dataclass(frozen=True, slots=True)
