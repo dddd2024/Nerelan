@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260729_unattended_gate2_regression_reconciliation_v2",
-  "round_id": "round_20260729_unattended_gate2_regression_reconciliation_v2",
+  "decision_id": "decision_20260729_unattended_gate2_owner_audit_rework_v3",
+  "round_id": "round_20260729_unattended_gate2_owner_audit_rework_v3",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
@@ -128,74 +128,6 @@
         "project_state/gates/transition_preflight_result.json",
         "project_state/gates/bootstrap_state.json"
       ]
-    },
-    {
-      "command_id": "diagnostic.audit_isolated",
-      "command": "python -m pytest tests/test_project_audits.py::test_validate_audits_dir_accepts_current_audit_record -q -vv",
-      "phase": "diagnostic",
-      "required": false,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "regression_diagnostic"
-      ],
-      "network_access": false,
-      "diagnostic_only": true,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "diagnostic.audit_file",
-      "command": "python -m pytest tests/test_project_audits.py -q -vv",
-      "phase": "diagnostic",
-      "required": false,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "regression_diagnostic"
-      ],
-      "network_access": false,
-      "diagnostic_only": true,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "test.focused_reconciliation",
-      "command": "python -m pytest tests/test_mainline_landing.py::test_committed_pr67_intent_binds_exact_v5_authority tests/test_mainline_landing.py::test_production_pre_merge_simulation tests/test_project_audits.py::test_validate_audits_dir_accepts_current_audit_record tests/test_project_gate.py::test_transition_packaging_and_workflow_boundary -q",
-      "phase": "test",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "regression_test"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
     },
     {
       "command_id": "test.unattended_unit",
@@ -330,30 +262,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "probe.python313_temporal",
-      "command": "python3.13 -c \"import temporalio; print(temporalio.__version__)\"",
-      "phase": "probe",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "component_compatibility_validation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "probe.compose_up",
-      "command": "docker compose -f deploy/unattended/compose.yaml up -d --wait",
+      "command_id": "probe.compose_fresh",
+      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue79-gate2 -f deploy/unattended/compose.yaml up -d --wait",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -375,8 +285,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "probe.gate2",
-      "command": "python -m reverse_agent.unattended.cli gate2-probe",
+      "command_id": "probe.gate2_first",
+      "command": "wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli gate2-probe",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -386,10 +296,53 @@
       "execution_surface": "local",
       "operations": [
         "component_compatibility_validation",
-        "model_api_invocation",
         "network_access"
       ],
       "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "probe.compose_down_retain",
+      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue79-gate2 -f deploy/unattended/compose.yaml down",
+      "phase": "probe",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "container_runtime"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "probe.compose_cleanup",
+      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue79-gate2 -f deploy/unattended/compose.yaml down -v",
+      "phase": "probe",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "container_runtime"
+      ],
+      "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
@@ -422,8 +375,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.create_draft_pr",
-      "command": "gh pr create --repo dddd2024/reverse-agent --base main --head codex/unattended-base-platform-v0 --draft --title \"Gate 2: unattended base platform v0\" --body-file PR_BODY_TEMP_PATH",
+      "command_id": "publication.update_draft_pr",
+      "command": "gh pr edit 78 --repo dddd2024/reverse-agent --body-file PR_BODY_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -432,7 +385,30 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "pull_request_create",
+        "pull_request_update",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "publication.comment_issue79",
+      "command": "gh issue comment 79 --repo dddd2024/reverse-agent --body-file ISSUE79_COMMENT_TEMP_PATH",
+      "phase": "publication",
+      "required": false,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "issue_comment",
         "network_access"
       ],
       "network_access": true,
@@ -446,7 +422,7 @@
     },
     {
       "command_id": "publication.comment_issue77",
-      "command": "gh issue comment 77 --repo dddd2024/reverse-agent --body-file ISSUE_COMMENT_TEMP_PATH",
+      "command": "gh issue comment 77 --repo dddd2024/reverse-agent --body-file ISSUE77_COMMENT_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -469,7 +445,7 @@
     },
     {
       "command_id": "publication.comment_draft_pr",
-      "command": "gh pr comment PR_NUMBER --repo dddd2024/reverse-agent --body-file PR_COMMENT_TEMP_PATH",
+      "command": "gh pr comment 78 --repo dddd2024/reverse-agent --body-file PR_COMMENT_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -492,7 +468,7 @@
     },
     {
       "command_id": "observation.exact_head_checks",
-      "command": "gh pr checks PR_NUMBER --repo dddd2024/reverse-agent --watch",
+      "command": "gh pr checks 78 --repo dddd2024/reverse-agent --watch",
       "phase": "observation",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
