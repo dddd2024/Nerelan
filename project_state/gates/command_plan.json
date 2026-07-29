@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260729_unattended_gate2_baseline_v1",
-  "round_id": "round_20260729_unattended_gate2_baseline_v1",
+  "decision_id": "decision_20260729_unattended_gate2_regression_reconciliation_v2",
+  "round_id": "round_20260729_unattended_gate2_regression_reconciliation_v2",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
@@ -128,6 +128,74 @@
         "project_state/gates/transition_preflight_result.json",
         "project_state/gates/bootstrap_state.json"
       ]
+    },
+    {
+      "command_id": "diagnostic.audit_isolated",
+      "command": "python -m pytest tests/test_project_audits.py::test_validate_audits_dir_accepts_current_audit_record -q -vv",
+      "phase": "diagnostic",
+      "required": false,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "regression_diagnostic"
+      ],
+      "network_access": false,
+      "diagnostic_only": true,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "diagnostic.audit_file",
+      "command": "python -m pytest tests/test_project_audits.py -q -vv",
+      "phase": "diagnostic",
+      "required": false,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "regression_diagnostic"
+      ],
+      "network_access": false,
+      "diagnostic_only": true,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "test.focused_reconciliation",
+      "command": "python -m pytest tests/test_mainline_landing.py::test_committed_pr67_intent_binds_exact_v5_authority tests/test_mainline_landing.py::test_production_pre_merge_simulation tests/test_project_audits.py::test_validate_audits_dir_accepts_current_audit_record tests/test_project_gate.py::test_transition_packaging_and_workflow_boundary -q",
+      "phase": "test",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "regression_test"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
     },
     {
       "command_id": "test.unattended_unit",
@@ -377,8 +445,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.comment_issue76",
-      "command": "gh issue comment 76 --repo dddd2024/reverse-agent --body-file ISSUE_COMMENT_TEMP_PATH",
+      "command_id": "publication.comment_issue77",
+      "command": "gh issue comment 77 --repo dddd2024/reverse-agent --body-file ISSUE_COMMENT_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
