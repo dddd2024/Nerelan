@@ -18,8 +18,18 @@ _TERMINAL_STATUSES = frozenset({"finished", "error", "stuck"})
 _UNSAFE_STATUSES = frozenset(
     {"paused", "waiting_for_confirmation", "deleting", "cancelled"}
 )
-_GITHUB_SECRET_KEYS = frozenset(
-    {"github_token", "gh_token", "github_pat", "authorization"}
+_MODEL = "openai/unattended-v0"
+_LITELLM_BASE_URL = "http://litellm:4000/v1"
+_MIN_MAX_ITERATIONS = 1
+_MAX_MAX_ITERATIONS = 20
+_AUDIT_TOOLS = (
+    ("terminal", "openhands.tools.terminal.definition"),
+    ("file_editor", "openhands.tools.file_editor.definition"),
+)
+_PLATFORM_INSTRUCTION_PREFIX = (
+    "Execute only this bounded synthetic task inside the assigned Attempt "
+    "Workspace. Do not access secrets, external repositories, remote MCP "
+    "servers, callbacks, or paths outside that workspace.\n\nTask: "
 )
 
 
@@ -114,18 +124,6 @@ def prepare_bounded_workspace(root: Path, relative: str) -> Path:
     return resolved
 
 
-def _contains_github_secret(payload: object) -> bool:
-    if isinstance(payload, Mapping):
-        return any(
-            str(key).strip().lower() in _GITHUB_SECRET_KEYS
-            or _contains_github_secret(value)
-            for key, value in payload.items()
-        )
-    if isinstance(payload, (list, tuple)):
-        return any(_contains_github_secret(value) for value in payload)
-    return False
-
-
 class OpenHandsAdapter:
     """Map one ExecutionHandle to one v1.37.0 conversation lifecycle."""
 
@@ -162,12 +160,18 @@ class OpenHandsAdapter:
         *,
         instruction: str,
         attempt_workspace: str,
-        conversation_request: Mapping[str, Any],
+        max_iterations: int = 20,
     ) -> ExecutionHandle:
         if not instruction.strip() or len(instruction) > 32768:
             raise ValueError("instruction_out_of_bounds")
-        if _contains_github_secret(conversation_request):
-            raise ValueError("github_secret_forbidden")
+        if (
+            isinstance(max_iterations, bool)
+            or not isinstance(max_iterations, int)
+            or not _MIN_MAX_ITERATIONS
+            <= max_iterations
+            <= _MAX_MAX_ITERATIONS
+        ):
+            raise ValueError("max_iterations_out_of_bounds")
 
         relative, host_workspace, agent_workspace = self._bind_workspace(
             handle, attempt_workspace
@@ -188,28 +192,12 @@ class OpenHandsAdapter:
             raise OpenHandsAdapterError(f"conversation_reconciliation_http_{status}")
 
         self._assert_workspace_still_bound(relative, host_workspace)
-        request_payload = dict(conversation_request)
-        request_payload.update(
-            {
-                "conversation_id": expected_id,
-                "workspace": {
-                    "kind": "LocalWorkspace",
-                    "working_dir": agent_workspace,
-                },
-                "worktree": False,
-                "initial_message": {
-                    "role": "user",
-                    "content": [{"kind": "TextContent", "text": instruction}],
-                    "run": False,
-                },
-                "max_iterations": min(
-                    int(request_payload.get("max_iterations", 20)), 20
-                ),
-                "secrets": {},
-            }
+        request_payload = self._build_conversation_request(
+            expected_id=expected_id,
+            agent_workspace=agent_workspace,
+            instruction=instruction,
+            max_iterations=max_iterations,
         )
-        if _contains_github_secret(request_payload):
-            raise ValueError("github_secret_forbidden")
 
         try:
             status, created = self._transport.request(
@@ -248,6 +236,55 @@ class OpenHandsAdapter:
             created,
             retry_ambiguous_run=True,
         )
+
+    @staticmethod
+    def _build_conversation_request(
+        *,
+        expected_id: str,
+        agent_workspace: str,
+        instruction: str,
+        max_iterations: int,
+    ) -> dict[str, Any]:
+        """Build the complete audited v1.37.0 payload from trusted values only."""
+
+        return {
+            "agent": {
+                "kind": "Agent",
+                "llm": {
+                    "kind": "LLM",
+                    "usage_id": "unattended-v0",
+                    "model": _MODEL,
+                    "base_url": _LITELLM_BASE_URL,
+                },
+                "tools": [{"name": name} for name, _ in _AUDIT_TOOLS],
+            },
+            "tool_module_qualnames": dict(_AUDIT_TOOLS),
+            "conversation_id": expected_id,
+            "workspace": {
+                "kind": "LocalWorkspace",
+                "working_dir": agent_workspace,
+            },
+            "worktree": False,
+            "initial_message": {
+                "role": "user",
+                "content": [
+                    {
+                        "kind": "TextContent",
+                        "text": f"{_PLATFORM_INSTRUCTION_PREFIX}{instruction.strip()}",
+                    }
+                ],
+                "run": False,
+            },
+            "max_iterations": max_iterations,
+            "stuck_detection": True,
+            "secrets": {},
+            "secrets_encrypted": False,
+            "client_tools": [],
+            "agent_definitions": [],
+            "plugins": None,
+            "hook_config": None,
+            "autotitle": False,
+        }
 
     def get_status(self, handle: ExecutionHandle) -> str:
         conversation_id = self._bound_id(handle)

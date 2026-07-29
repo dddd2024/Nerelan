@@ -68,32 +68,15 @@ def _start(
     handle: ExecutionHandle | None = None,
     *,
     attempt_workspace: str | None = None,
-    request: Mapping[str, Any] | None = None,
+    max_iterations: int = 20,
 ) -> ExecutionHandle:
     selected = handle or _handle()
     return adapter.start_task(
         selected,
         instruction="Create only synthetic.txt",
         attempt_workspace=attempt_workspace or _attempt_workspace(selected),
-        conversation_request=request or _request(),
+        max_iterations=max_iterations,
     )
-
-
-def _request() -> dict[str, object]:
-    return {
-        "agent": {
-            "kind": "Agent",
-            "llm": {
-                "kind": "LLM",
-                "usage_id": "gate2",
-                "model": "openai/unattended-v0",
-                "base_url": "http://litellm:4000/v1",
-                "api_key": "litellm-session-key",
-            },
-            "tools": [],
-        },
-        "max_iterations": 2,
-    }
 
 
 def test_conversation_id_is_deterministic_per_execution_handle() -> None:
@@ -153,6 +136,53 @@ def test_start_task_creates_and_runs_exactly_one_conversation(tmp_path: Path) ->
         "working_dir": f"/workspace/{_attempt_workspace()}",
     }
     assert create[2]["secrets"] == {}  # type: ignore[index]
+    assert create[2] == {  # type: ignore[comparison-overlap]
+        "agent": {
+            "kind": "Agent",
+            "llm": {
+                "kind": "LLM",
+                "usage_id": "unattended-v0",
+                "model": "openai/unattended-v0",
+                "base_url": "http://litellm:4000/v1",
+            },
+            "tools": [{"name": "terminal"}, {"name": "file_editor"}],
+        },
+        "tool_module_qualnames": {
+            "terminal": "openhands.tools.terminal.definition",
+            "file_editor": "openhands.tools.file_editor.definition",
+        },
+        "conversation_id": expected,
+        "workspace": {
+            "kind": "LocalWorkspace",
+            "working_dir": f"/workspace/{_attempt_workspace()}",
+        },
+        "worktree": False,
+        "initial_message": {
+            "role": "user",
+            "content": [
+                {
+                    "kind": "TextContent",
+                    "text": (
+                        "Execute only this bounded synthetic task inside the "
+                        "assigned Attempt Workspace. Do not access secrets, "
+                        "external repositories, remote MCP servers, callbacks, "
+                        "or paths outside that workspace.\n\n"
+                        "Task: Create only synthetic.txt"
+                    ),
+                }
+            ],
+            "run": False,
+        },
+        "max_iterations": 20,
+        "stuck_detection": True,
+        "secrets": {},
+        "secrets_encrypted": False,
+        "client_tools": [],
+        "agent_definitions": [],
+        "plugins": None,
+        "hook_config": None,
+        "autotitle": False,
+    }
     assert [call[:2] for call in transport.calls[2:]] == [
         ("POST", f"/api/conversations/{expected}/run"),
         ("GET", f"/api/conversations/{expected}"),
@@ -293,12 +323,61 @@ def test_missing_or_mismatched_existing_identity_fails_closed(tmp_path: Path) ->
             _start(_adapter(FakeTransport([(200, payload)]), tmp_path))
 
 
-@pytest.mark.parametrize("secret_key", ["GITHUB_TOKEN", "github_token", "Authorization"])
-def test_github_secret_keys_are_rejected(tmp_path: Path, secret_key: str) -> None:
-    request = _request()
-    request["secrets"] = {secret_key: "must-not-cross-boundary"}
-    with pytest.raises(ValueError, match="github_secret_forbidden"):
-        _start(_adapter(FakeTransport([]), tmp_path), request=request)
+@pytest.mark.parametrize(
+    "field",
+    [
+        "conversation_request",
+        "model",
+        "base_url",
+        "api_key",
+        "tools",
+        "remote_mcp",
+        "callback_url",
+        "workspace",
+        "conversation_id",
+        "initial_message",
+        "worktree",
+        "secrets",
+        "unknown_security_field",
+    ],
+)
+def test_start_task_rejects_all_request_authority_overrides(
+    tmp_path: Path, field: str
+) -> None:
+    adapter = _adapter(FakeTransport([]), tmp_path)
+    kwargs: dict[str, object] = {
+        "instruction": "Create only synthetic.txt",
+        "attempt_workspace": _attempt_workspace(),
+        field: {"caller": "controlled"},
+    }
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        adapter.start_task(_handle(), **kwargs)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [True, False, -1, 0, 21, "2", 2.0, object()],
+)
+def test_max_iterations_rejects_bool_negative_string_and_coercion(
+    tmp_path: Path, value: object
+) -> None:
+    with pytest.raises(ValueError, match="max_iterations"):
+        _start(_adapter(FakeTransport([]), tmp_path), max_iterations=value)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("value", [1, 20])
+def test_max_iterations_accepts_only_explicit_bounded_integers(
+    tmp_path: Path, value: int
+) -> None:
+    expected = conversation_id_for(_handle())
+    transport = FakeTransport(
+        [
+            (404, {}),
+            (201, {"id": expected, "execution_status": "running"}),
+        ]
+    )
+    assert _start(_adapter(transport, tmp_path), max_iterations=value) == _handle()
+    assert transport.calls[1][2]["max_iterations"] == value  # type: ignore[index]
 
 
 def test_get_status_cancel_and_collect_result_use_v137_endpoints(
