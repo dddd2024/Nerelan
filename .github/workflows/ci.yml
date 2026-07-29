@@ -12,7 +12,7 @@ permissions:
 jobs:
   baseline:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,5 +28,22 @@ jobs:
       - name: Import check
         run: python -c "import reverse_agent.project_gate; import reverse_agent.project_state; import reverse_agent.post_final_evidence_sync; import reverse_agent.decision_preflight"
 
-      - name: Focused tests
-        run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py tests/test_control_plane_transition.py tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py -q
+      - name: Full test suite
+        timeout-minutes: 25
+        run: python -m pytest -q
+
+      - name: Unattended unit tests
+        run: python -m pytest tests/unattended/unit -q
+
+      - name: Validate unattended Compose configuration
+        env:
+          POSTGRES_PASSWORD: ci-only-placeholder
+          OH_SESSION_API_KEYS_0: ci-only-placeholder
+          OH_SECRET_KEY: ci-only-placeholder
+          LITELLM_MASTER_KEY: ci-only-placeholder
+          LITELLM_SALT_KEY: ci-only-placeholder
+          OPENAI_API_KEY: not-a-provider-credential
+        run: docker compose -f deploy/unattended/compose.yaml config --quiet
+
+      - name: Unattended doctor
+        run: python -m reverse_agent.unattended.cli doctor
