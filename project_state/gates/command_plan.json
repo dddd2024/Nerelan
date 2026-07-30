@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260729_unattended_gate2_runtime_proof_rework_v6",
-  "round_id": "round_20260729_unattended_gate2_runtime_proof_rework_v6",
+  "decision_id": "decision_20260730_unattended_gate2_runtime_proof_recovery_v7",
+  "round_id": "round_20260730_unattended_gate2_runtime_proof_recovery_v7",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
@@ -263,7 +263,7 @@
     },
     {
       "command_id": "probe.compose_fresh",
-      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue82-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof up -d --wait",
+      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue83-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof up -d --wait",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -311,7 +311,7 @@
     },
     {
       "command_id": "probe.compose_cleanup",
-      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue82-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof down -v",
+      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue83-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof down -v",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -378,8 +378,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.comment_issue82",
-      "command": "gh issue comment 82 --repo dddd2024/reverse-agent --body-file ISSUE82_COMMENT_TEMP_PATH",
+      "command_id": "publication.comment_issue83",
+      "command": "gh issue comment 83 --repo dddd2024/reverse-agent --body-file ISSUE83_COMMENT_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
