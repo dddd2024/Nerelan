@@ -61,13 +61,85 @@ def test_compose_separates_control_from_internal_model_executor_network() -> Non
     compose = (DEPLOY / "compose.yaml").read_text(encoding="utf-8")
 
     assert "\n  agent-server:\n" not in compose
-    assert "/var/run/docker.sock" not in compose
+    ordinary = compose.split("\n  reverse-agent-worker:\n", 1)[1].split(
+        "\n  sandbox-controller-worker:\n", 1
+    )[0]
+    controller = compose.split(
+        "\n  sandbox-controller-worker:\n", 1
+    )[1].split("\n  litellm-database:\n", 1)[0]
+    assert "/var/run/docker.sock" not in ordinary
+    assert "/var/run/docker.sock" in controller
+    assert "profiles: [runtime-proof]" in ordinary
+    assert "profiles: [runtime-proof]" in controller
+    assert "source: litellm_executor_key" not in ordinary
+    assert "source: litellm_executor_key" in controller
     assert "\n  model-executor:\n" in compose
     assert "    internal: true" in compose
     assert "aliases: [litellm-executor]" in compose
     for service in ("temporal", "postgresql", "temporal-ui"):
         block = compose.split(f"\n  {service}:\n", 1)[1].split("\n  ", 1)[0]
         assert "model-executor" not in block
+
+
+def test_runtime_profile_resolves_two_socket_separated_workers(
+    tmp_path: Path,
+) -> None:
+    provider_file = tmp_path / "provider"
+    provider_file.write_text("non-provider-placeholder", encoding="utf-8")
+    executor_file = tmp_path / "executor"
+    executor_file.write_text("sk-non-provider-placeholder", encoding="utf-8")
+    workspace_root = tmp_path / "attempts"
+    workspace_root.mkdir()
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "POSTGRES_PASSWORD": "synthetic-postgres",
+            "LITELLM_DATABASE_PASSWORD": "synthetic-database",
+            "LITELLM_MASTER_KEY": "synthetic-master",
+            "LITELLM_SALT_KEY": "synthetic-salt",
+            "UNATTENDED_OPENAI_API_KEY_FILE": str(provider_file),
+            "UNATTENDED_LITELLM_EXECUTOR_KEY_FILE": str(executor_file),
+            "UNATTENDED_HOST_WORKSPACE_ROOT": str(workspace_root),
+            "COMPOSE_PROJECT_NAME": "issue82-runtime-proof",
+        }
+    )
+    completed = subprocess.run(
+        (
+            "docker",
+            "compose",
+            "--profile",
+            "runtime-proof",
+            "-f",
+            str(DEPLOY / "compose.yaml"),
+            "config",
+            "--format",
+            "json",
+        ),
+        cwd=ROOT,
+        env=environment,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    services = json.loads(completed.stdout)["services"]
+    ordinary = services["reverse-agent-worker"]
+    controller = services["sandbox-controller-worker"]
+    assert ordinary.get("volumes", []) == []
+    assert ordinary.get("secrets", []) == []
+    assert any(
+        mount["source"] == "/var/run/docker.sock"
+        and mount["target"] == "/var/run/docker.sock"
+        for mount in controller["volumes"]
+    )
+    assert controller["secrets"] == [
+        {
+            "source": "litellm_executor_key",
+            "target": "litellm_executor_key",
+            "mode": "0400",
+        }
+    ]
+    assert ordinary["networks"] == {"control": None}
+    assert controller["networks"] == {"control": None}
 
 
 def test_temporal_bootstrap_is_automatic_and_idempotent() -> None:

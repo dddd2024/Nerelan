@@ -53,8 +53,13 @@ def doctor_report() -> dict[str, Any]:
         or "/var/run/docker.sock" not in _service_block(
             compose_text, "reverse-agent-worker"
         ),
+        "controller_worker_is_sole_docker_authority": (
+            "/var/run/docker.sock"
+            in _service_block(compose_text, "sandbox-controller-worker")
+            and "/var/run/docker.sock"
+            not in _service_block(compose_text, "reverse-agent-worker")
+        ),
         "long_lived_agent_server_absent": "  agent-server:" not in compose_text,
-        "docker_socket_absent_from_compose": "/var/run/docker.sock" not in compose_text,
         "internal_model_executor_network": (
             "  model-executor:" in compose_text
             and "    internal: true" in compose_text
@@ -80,9 +85,12 @@ def _service_block(compose_text: str, service: str) -> str:
     marker = f"\n  {service}:\n"
     if marker not in compose_text:
         return ""
-    block = compose_text.split(marker, 1)[1]
-    next_service = block.find("\n  ")
-    return block if next_service < 0 else block[:next_service]
+    selected: list[str] = []
+    for line in compose_text.split(marker, 1)[1].splitlines():
+        if line.startswith("  ") and not line.startswith("    "):
+            break
+        selected.append(line)
+    return "\n".join(selected)
 
 
 async def _gate2_report(address: str, namespace: str) -> dict[str, Any]:

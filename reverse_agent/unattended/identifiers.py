@@ -7,6 +7,7 @@ import uuid
 from pathlib import PurePosixPath
 
 TASK_QUEUE = "reverse-agent-unattended-v0"
+SANDBOX_CONTROLLER_TASK_QUEUE = "reverse-agent-sandbox-controller-v0"
 _SLUG = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\Z")
 _WORKSPACE_NAMESPACE = uuid.UUID("0e62e967-8aa7-5d4c-93a8-eb98feaa7b45")
 _EXECUTOR_NAMESPACE = uuid.UUID("f1ea8fb8-d944-54c7-8706-3e3ef71b030d")

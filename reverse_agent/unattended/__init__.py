@@ -10,6 +10,7 @@ from .contracts import (
 )
 from .identifiers import (
     TASK_QUEUE,
+    SANDBOX_CONTROLLER_TASK_QUEUE,
     executor_id,
     workflow_id,
     workspace_id,
@@ -52,6 +53,7 @@ __all__ = [
     "PolicyViolation",
     "ResolvedExecutionPolicy",
     "TASK_QUEUE",
+    "SANDBOX_CONTROLLER_TASK_QUEUE",
     "TaskSubmission",
     "UrllibJsonTransport",
     "conversation_id_for",

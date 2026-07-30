@@ -89,6 +89,60 @@ services:
       retries: 30
     networks: [control]
 
+  reverse-agent-worker:
+    profiles: [runtime-proof]
+    image: reverse-agent-unattended-worker:issue82
+    build:
+      context: ../..
+      dockerfile: deploy/unattended/worker.Dockerfile
+    depends_on:
+      temporal-namespace:
+        condition: service_completed_successfully
+    command: [reverse_agent.unattended.worker]
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [control]
+
+  sandbox-controller-worker:
+    profiles: [runtime-proof]
+    image: reverse-agent-unattended-worker:issue82
+    build:
+      context: ../..
+      dockerfile: deploy/unattended/worker.Dockerfile
+    depends_on:
+      temporal-namespace:
+        condition: service_completed_successfully
+    command: [reverse_agent.unattended.controller_worker]
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      UNATTENDED_HOST_WORKSPACE_ROOT: ${UNATTENDED_HOST_WORKSPACE_ROOT:-/tmp/reverse-agent-unattended-attempts}
+      UNATTENDED_EXECUTOR_NETWORK: ${COMPOSE_PROJECT_NAME:-reverse-agent-unattended}_model-executor
+      UNATTENDED_LITELLM_EXECUTOR_KEY_FILE: /run/secrets/litellm_executor_key
+    secrets:
+      - source: litellm_executor_key
+        target: litellm_executor_key
+        mode: 0400
+    volumes:
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+      - type: bind
+        source: ${UNATTENDED_HOST_WORKSPACE_ROOT:-/tmp/reverse-agent-unattended-attempts}
+        target: ${UNATTENDED_HOST_WORKSPACE_ROOT:-/tmp/reverse-agent-unattended-attempts}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [control]
+
   temporal-ui:
     image: docker.io/temporalio/ui:2.52.1@sha256:b839b5c798770896c78058db1647d325a19b3acef7fa1fbd9a23fabb1dd7feb2
     depends_on:

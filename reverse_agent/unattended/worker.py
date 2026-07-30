@@ -10,7 +10,6 @@ from collections.abc import Sequence
 from temporalio.client import Client
 from temporalio.worker import Worker
 
-from .activities import run_synthetic_activity
 from .identifiers import TASK_QUEUE
 from .workflows import UnattendedGate2Workflow
 
@@ -20,7 +19,7 @@ def build_worker(client: Client) -> Worker:
         client,
         task_queue=TASK_QUEUE,
         workflows=[UnattendedGate2Workflow],
-        activities=[run_synthetic_activity],
+        activities=[],
     )
 
 
