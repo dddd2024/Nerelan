@@ -23,9 +23,6 @@ from reverse_agent.unattended import (
 )
 
 _NETWORK = "issue81_model-executor"
-_SESSION = "synthetic-session-material"
-
-
 def _handle(attempt: int = 1) -> ExecutionHandle:
     identifier = "unattended:dddd2024/reverse-agent:issue:81"
     return ExecutionHandle(
@@ -55,7 +52,6 @@ def _inspect_payload(
             "Image": AGENT_SERVER_IMAGE,
             "Labels": {"reverse-agent.execution-id": handle.executor_id},
             "Env": [
-                f"SESSION_API_KEY={_SESSION}",
                 "DO_NOT_TRACK=1",
                 "OPENHANDS_AGENT_SERVER_CONFIG_PATH=/tmp/agent-server.json",
                 "PATH=/usr/local/bin:/usr/bin",
@@ -160,7 +156,6 @@ def _controller(
         runner,
         host_workspace_root=(tmp_path / "attempts").absolute(),
         executor_network=_NETWORK,
-        session_api_key=_SESSION,
     )
 
 
@@ -186,15 +181,16 @@ def test_launch_uses_only_fixed_argv_and_sanitized_metadata(tmp_path: Path) -> N
     ]
     assert "no-new-privileges:true" in launch
     assert "/var/run/docker.sock" not in " ".join(launch)
-    assert _SESSION not in launch
-    assert environment == {"SESSION_API_KEY": _SESSION}
+    assert "SESSION_API_KEY" not in launch
+    assert launch[launch.index("--host") + 1] == "127.0.0.1"
+    assert environment is None
     assert metadata.image_digest == AGENT_SERVER_DIGEST
     assert metadata.workspace_destination == ATTEMPT_WORKSPACE_DESTINATION
     assert metadata.network_name == _NETWORK
     assert metadata.privileged is False
     assert metadata.no_new_privileges is True
     assert metadata.read_only_rootfs is True
-    assert _SESSION not in repr(metadata)
+    assert "SESSION_API_KEY" not in repr(metadata)
 
 
 def test_reconcile_existing_never_creates_duplicate(tmp_path: Path) -> None:

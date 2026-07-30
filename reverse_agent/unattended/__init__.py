@@ -23,6 +23,7 @@ from .openhands import (
     conversation_id_for,
     prepare_bounded_workspace,
 )
+from .attempt_transport import AttemptJsonTransport, AttemptTransportError
 from .sandbox import (
     AGENT_SERVER_DIGEST,
     AGENT_SERVER_IMAGE,
@@ -46,6 +47,8 @@ __all__ = [
     "MinimalWorkItem",
     "OpenHandsAdapter",
     "OpenHandsAdapterError",
+    "AttemptJsonTransport",
+    "AttemptTransportError",
     "PolicyViolation",
     "ResolvedExecutionPolicy",
     "TASK_QUEUE",

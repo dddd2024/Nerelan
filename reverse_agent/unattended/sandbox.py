@@ -37,6 +37,7 @@ _FORBIDDEN_ENV_NAMES = frozenset(
         "MISTRAL_API_KEY",
         "OH_SESSION_API_KEYS_0",
         "OPENAI_API_KEY",
+        "SESSION_API_KEY",
     }
 )
 _EXPECTED_TMPFS = frozenset({"/tmp", "/home/openhands"})
@@ -70,6 +71,7 @@ class DockerCommandRunner(Protocol):
         argv: Sequence[str],
         *,
         environment: Mapping[str, str] | None = None,
+        input_text: str | None = None,
     ) -> DockerCommandResult: ...
 
 
@@ -81,6 +83,7 @@ class SubprocessDockerRunner:
         argv: Sequence[str],
         *,
         environment: Mapping[str, str] | None = None,
+        input_text: str | None = None,
     ) -> DockerCommandResult:
         if not argv or argv[0] != "docker":
             raise ValueError("docker_argv_required")
@@ -94,6 +97,7 @@ class SubprocessDockerRunner:
             text=True,
             shell=False,
             env=process_env,
+            input=input_text,
         )
         return DockerCommandResult(
             completed.returncode,
@@ -123,7 +127,6 @@ class SandboxController:
         *,
         host_workspace_root: Path,
         executor_network: str,
-        session_api_key: str,
     ) -> None:
         if not host_workspace_root.is_absolute():
             raise ValueError("host_workspace_root_must_be_absolute")
@@ -132,16 +135,9 @@ class SandboxController:
             raise ValueError("host_workspace_root_symlink")
         if _NETWORK_NAME.fullmatch(executor_network) is None:
             raise ValueError("executor_network_invalid")
-        if (
-            not isinstance(session_api_key, str)
-            or not session_api_key
-            or "\x00" in session_api_key
-        ):
-            raise ValueError("session_api_key_invalid")
         self._runner = runner
         self._host_workspace_root = host_workspace_root.resolve(strict=True)
         self._executor_network = executor_network
-        self._session_api_key = session_api_key
 
     def launch_or_reconcile(
         self,
@@ -157,7 +153,6 @@ class SandboxController:
         workspace = self._workspace_for(handle)
         result = self._runner.run(
             self._launch_argv(handle, workspace),
-            environment={"SESSION_API_KEY": self._session_api_key},
         )
         if result.returncode != 0:
             raced = self.inspect(handle)
@@ -256,14 +251,12 @@ class SandboxController:
             "--workdir",
             ATTEMPT_WORKSPACE_DESTINATION,
             "--env",
-            "SESSION_API_KEY",
-            "--env",
             "DO_NOT_TRACK=1",
             "--env",
             "OPENHANDS_AGENT_SERVER_CONFIG_PATH=/tmp/agent-server.json",
             AGENT_SERVER_IMAGE,
             "--host",
-            "0.0.0.0",
+            "127.0.0.1",
             "--port",
             "8000",
         )
@@ -332,8 +325,6 @@ class SandboxController:
         env_names = {str(value).split("=", 1)[0] for value in env}
         if env_names & _FORBIDDEN_ENV_NAMES:
             raise ValueError("forbidden_container_environment")
-        if "SESSION_API_KEY" not in env_names:
-            raise ValueError("session_credential_missing")
 
         return AttemptContainerMetadata(
             container_name=container_name_for(handle),

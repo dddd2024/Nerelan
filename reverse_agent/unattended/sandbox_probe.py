@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import re
-import secrets
 import shutil
 import time
 from pathlib import Path
@@ -20,7 +19,7 @@ from .sandbox import (
 )
 
 _PROJECT_NAME = re.compile(r"[a-z0-9][a-z0-9_-]{0,62}\Z")
-_WORKFLOW_ID = "unattended:dddd2024/reverse-agent:issue:81:boundary-probe"
+_WORKFLOW_ID = "unattended:dddd2024/reverse-agent:issue:82:runtime-proof"
 _HTTP_CLIENT = r"""
 import json
 import os
@@ -71,6 +70,25 @@ except Exception:
     ok = False
 raise SystemExit(0 if ok else 2)
 """.strip()
+_SETTINGS_ISOLATION_CLIENT = r"""
+import json
+import urllib.error
+import urllib.request
+
+request = urllib.request.Request("http://127.0.0.1:8000/api/settings")
+try:
+    with urllib.request.urlopen(request, timeout=10) as response:
+        raw = response.read(1048577)
+        if len(raw) > 1048576:
+            raise SystemExit(2)
+except urllib.error.HTTPError as error:
+    if error.code == 404:
+        raise SystemExit(0)
+    raw = error.read(1048577)
+except Exception:
+    raise SystemExit(2)
+raise SystemExit(2 if b"SESSION_API_KEY" in raw else 0)
+""".strip()
 
 _WORKSPACE_COMMAND = (
     "set -eu; printf synthetic > probe-inside.txt; "
@@ -81,17 +99,43 @@ _BOUNDARY_COMMAND = (
     "! touch /workspace/sibling-attempt 2>/dev/null; "
     "! touch /issue81-outside 2>/dev/null"
 )
-_ENVIRONMENT_COMMAND = (
-    "set -eu; "
-    'test -z "${SESSION_API_KEY+x}"; '
-    'test -z "${LITELLM_MASTER_KEY+x}"; '
-    'test -z "${LLM_API_KEY+x}"; '
-    'test -z "${OPENAI_API_KEY+x}"; '
-    'test -z "${ANTHROPIC_API_KEY+x}"; '
-    'test -z "${GITHUB_TOKEN+x}"; '
-    'test -z "${GH_TOKEN+x}"; '
-    'test -z "${UNATTENDED_EXECUTOR_API_KEY+x}"'
-)
+_ENVIRONMENT_COMMAND = r"""
+set -eu
+test -z "${SESSION_API_KEY+x}"
+test -z "${LITELLM_MASTER_KEY+x}"
+test -z "${LLM_API_KEY+x}"
+test -z "${OPENAI_API_KEY+x}"
+test -z "${ANTHROPIC_API_KEY+x}"
+test -z "${GITHUB_TOKEN+x}"
+test -z "${GH_TOKEN+x}"
+test -z "${UNATTENDED_EXECUTOR_API_KEY+x}"
+python - <<'PY'
+from pathlib import Path
+
+name = b"SESSION_API_KEY"
+try:
+    pid_one = Path("/proc/1/environ").read_bytes()
+except OSError:
+    pid_one = b""
+if name + b"=" in pid_one:
+    raise SystemExit(2)
+for root_name in ("/workspace/attempt", "/home/openhands", "/tmp"):
+    root = Path(root_name)
+    if not root.exists():
+        continue
+    for candidate in root.rglob("*"):
+        try:
+            if (
+                candidate.is_file()
+                and not candidate.is_symlink()
+                and candidate.stat().st_size <= 1048576
+                and name in candidate.read_bytes()
+            ):
+                raise SystemExit(2)
+        except (OSError, PermissionError):
+            continue
+PY
+""".strip()
 _DOCKER_COMMAND = (
     "set -eu; test ! -S /var/run/docker.sock; "
     "python - <<'PY'\n"
@@ -169,7 +213,6 @@ def run_sandbox_boundary_probe(
         runner,
         host_workspace_root=workspace_root,
         executor_network=f"{compose_project}_model-executor",
-        session_api_key=secrets.token_urlsafe(32),
     )
     try:
         metadata = controller.launch_or_reconcile(handle, FIXED_LAUNCH_SPEC)
@@ -200,6 +243,19 @@ def run_sandbox_boundary_probe(
             )
             checks[name] = passed
             exit_codes[name] = exit_code
+
+        settings = runner.run(
+            (
+                "docker",
+                "exec",
+                metadata.container_name,
+                "python",
+                "-c",
+                _SETTINGS_ISOLATION_CLIENT,
+            )
+        )
+        checks["settings_api_session_absence"] = settings.returncode == 0
+        exit_codes["settings_api_session_absence"] = settings.returncode
 
         litellm = runner.run(
             (
