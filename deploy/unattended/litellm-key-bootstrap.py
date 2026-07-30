@@ -77,15 +77,12 @@ def main() -> int:
 
     update = dict(_POLICY)
     update["key"] = executor_key
-    _request("POST", "/key/update", bearer=master_key, payload=update)
     result = _request(
-        "GET",
-        "/key/info",
-        bearer=executor_key,
+        "POST",
+        "/key/update",
+        bearer=master_key,
+        payload=update,
     )
-    info = result.get("info")
-    if not isinstance(info, dict):
-        return 1
     expected = {
         "models": ["unattended-v0"],
         "max_budget": 1.0,
@@ -99,7 +96,7 @@ def main() -> int:
         ],
         "key_type": "llm_api",
     }
-    if any(info.get(name) != value for name, value in expected.items()):
+    if any(result.get(name) != value for name, value in expected.items()):
         return 1
     return 0
 

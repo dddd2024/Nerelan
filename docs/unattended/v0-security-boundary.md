@@ -22,8 +22,9 @@ Secret boundaries:
   controller worker only. The controller supplies it in the LLM request over
   the fixed transport stdin; it is absent from URI, argv, process title,
   Docker metadata, logs, exceptions, evidence, and the Attempt environment.
-- `/key/info` uses the Virtual Key as its bearer credential without putting
-  raw key material in a query parameter.
+- the bootstrap validates the fixed Virtual Key policy from the authenticated
+  `/key/update` response. Raw key material is present only in the JSON request
+  body, never in a query parameter.
 - no Agent Server session credential exists in the Attempt environment. The
   unexposed loopback API is reachable only through the controller transport;
   child environment, PID-1 environment, settings API/state, and Docker

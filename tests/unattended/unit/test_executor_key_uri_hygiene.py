@@ -34,7 +34,7 @@ def _module() -> ModuleType:
     return module
 
 
-def test_executor_key_is_bearer_only_and_never_in_uri(
+def test_executor_key_is_json_body_only_and_never_in_uri(
     monkeypatch,
 ) -> None:
     module = _module()
@@ -46,10 +46,16 @@ def test_executor_key_is_bearer_only_and_never_in_uri(
         return _Response()
 
     monkeypatch.setattr(module, "urlopen", fake_urlopen)
-    module._request("GET", "/key/info", bearer=_EXECUTOR_KEY)
+    module._request(
+        "POST",
+        "/key/update",
+        bearer="synthetic-master",
+        payload={"key": _EXECUTOR_KEY},
+    )
 
     assert len(observed) == 1
     request = observed[0]
     assert _EXECUTOR_KEY not in request.full_url
-    assert request.full_url.endswith("/key/info")
-    assert request.get_header("Authorization") == f"Bearer {_EXECUTOR_KEY}"
+    assert request.full_url.endswith("/key/update")
+    assert request.get_header("Authorization") == "Bearer synthetic-master"
+    assert _EXECUTOR_KEY in request.data.decode("utf-8")

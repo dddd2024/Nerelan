@@ -335,9 +335,9 @@ def test_litellm_virtual_key_boundary_is_fixed_and_database_is_separate() -> Non
     assert '"/v1/models"' in bootstrap
     assert "/key/generate" in bootstrap
     assert "/key/update" in bootstrap
-    assert '"/key/info"' in bootstrap
+    assert "/key/info" not in bootstrap
     assert "?key=" not in bootstrap
-    assert "bearer=executor_key" in bootstrap
+    assert "result.get(name)" in bootstrap
     assert "litellm_executor_key" in compose
 
 
