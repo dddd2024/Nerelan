@@ -8,6 +8,7 @@ import pytest
 from reverse_agent.unattended.attempt_transport import (
     AttemptJsonTransport,
     AttemptTransportError,
+    AttemptTransportStartupUnavailable,
 )
 from reverse_agent.unattended.contracts import ExecutionHandle
 from reverse_agent.unattended.identifiers import executor_id, workspace_id
@@ -144,3 +145,83 @@ def test_docker_and_response_failures_are_sanitized(
         transport.request("GET", "/alive")
     assert "raw" not in str(captured.value)
     assert _SECRET not in str(captured.value)
+
+
+@pytest.mark.parametrize(
+    ("returncode", "state"),
+    ((8, "timeout"), (9, "connection_refused")),
+)
+def test_startup_transport_states_are_finite_and_retryable(
+    returncode: int,
+    state: str,
+) -> None:
+    transport = AttemptJsonTransport(
+        RecordingRunner(DockerCommandResult(returncode, "raw", "raw")),
+        _handle(),
+    )
+    with pytest.raises(AttemptTransportStartupUnavailable) as captured:
+        transport.request("GET", "/alive")
+    assert captured.value.state == state
+    assert "raw" not in str(captured.value)
+    observation = transport.probe_readiness()
+    assert observation.state == state
+    assert observation.retryable is True
+    assert observation.alive is False
+
+
+@pytest.mark.parametrize(
+    ("status", "state", "retryable", "alive"),
+    (
+        (200, "alive", False, True),
+        (425, "HTTP_not_ready_status", True, False),
+        (429, "HTTP_not_ready_status", True, False),
+        (503, "HTTP_not_ready_status", True, False),
+        (401, "unexpected_authentication_requirement", False, False),
+        (403, "unexpected_authentication_requirement", False, False),
+        (500, "unexpected_terminal_failure", False, False),
+    ),
+)
+def test_readiness_http_status_classification_is_finite(
+    status: int,
+    state: str,
+    retryable: bool,
+    alive: bool,
+) -> None:
+    observation = AttemptJsonTransport(
+        _runner(status=status),
+        _handle(),
+    ).probe_readiness()
+    assert (observation.state, observation.retryable, observation.alive) == (
+        state,
+        retryable,
+        alive,
+    )
+
+
+@pytest.mark.parametrize(
+    ("result", "state"),
+    (
+        (DockerCommandResult(0, "not-json", ""), "malformed_bounded_response"),
+        (
+            DockerCommandResult(
+                0,
+                json.dumps({"status": 200, "payload": {"echo": _SECRET}}),
+                "",
+            ),
+            "credential_leakage_signal",
+        ),
+        (DockerCommandResult(4, "raw", "raw"), "unexpected_terminal_failure"),
+    ),
+)
+def test_readiness_transport_contract_failures_are_terminal(
+    result: DockerCommandResult,
+    state: str,
+) -> None:
+    observation = AttemptJsonTransport(
+        RecordingRunner(result),
+        _handle(),
+        sensitive_values=(_SECRET,),
+    ).probe_readiness()
+    assert observation.state == state
+    assert observation.retryable is False
+    assert observation.alive is False

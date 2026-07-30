@@ -8,6 +8,12 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from .contracts import ExecutionHandle
+from .readiness import (
+    ALIVE_OBSERVATION,
+    ReadinessObservation,
+    retryable_observation,
+    terminal_observation,
+)
 from .sandbox import DockerCommandRunner, container_name_for
 
 _MAX_REQUEST_BYTES = 64 * 1024
@@ -42,8 +48,10 @@ try:
     response = urllib.request.urlopen(request, timeout=30)
 except urllib.error.HTTPError as error:
     response = error
-except Exception:
-    raise SystemExit(4)
+except TimeoutError:
+    raise SystemExit(8)
+except OSError:
+    raise SystemExit(9)
 with response:
     raw = response.read(response_limit + 1)
     if len(raw) > response_limit:
@@ -60,6 +68,16 @@ sys.stdout.write(json.dumps({"status": response.status, "payload": payload}))
 
 class AttemptTransportError(RuntimeError):
     """Sanitized transport failure without Docker or HTTP response material."""
+
+
+class AttemptTransportStartupUnavailable(AttemptTransportError):
+    """A bounded startup-only transport state."""
+
+    def __init__(self, state: str) -> None:
+        if state not in {"connection_refused", "timeout"}:
+            raise ValueError("invalid_startup_transport_state")
+        super().__init__(state)
+        self.state = state
 
 
 class AttemptJsonTransport:
@@ -119,6 +137,10 @@ class AttemptJsonTransport:
             ),
             input_text=encoded.decode("utf-8"),
         )
+        if result.returncode == 8:
+            raise AttemptTransportStartupUnavailable("timeout")
+        if result.returncode == 9:
+            raise AttemptTransportStartupUnavailable("connection_refused")
         if result.returncode != 0:
             raise AttemptTransportError("attempt_transport_failed")
         raw = result.stdout
@@ -139,6 +161,33 @@ class AttemptJsonTransport:
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             raise AttemptTransportError("attempt_response_malformed") from error
         return status, response
+
+    def probe_readiness(self) -> ReadinessObservation:
+        """Classify only the fixed loopback /alive startup operation."""
+
+        try:
+            status, _ = self.request("GET", "/alive")
+        except AttemptTransportStartupUnavailable as error:
+            return retryable_observation(error.state)
+        except AttemptTransportError as error:
+            category = str(error)
+            if category == "attempt_response_malformed":
+                return terminal_observation("malformed_bounded_response")
+            if category in {
+                "attempt_request_too_large",
+                "attempt_response_too_large",
+            }:
+                return terminal_observation("transport_protocol_violation")
+            if category == "attempt_response_sensitive":
+                return terminal_observation("credential_leakage_signal")
+            return terminal_observation("unexpected_terminal_failure")
+        if status == 200:
+            return ALIVE_OBSERVATION
+        if status in {425, 429, 503}:
+            return retryable_observation("HTTP_not_ready_status")
+        if status in {401, 403}:
+            return terminal_observation("unexpected_authentication_requirement")
+        return terminal_observation("unexpected_terminal_failure")
 
     def _validate_target(
         self,

@@ -31,6 +31,7 @@ from reverse_agent.unattended.identifiers import (
 )
 from reverse_agent.unattended.temporal_contracts import (
     ActivityProgress,
+    AttemptReadinessProgress,
     AttemptReadinessResult,
     CleanupResult,
     Gate2WorkflowResult,
@@ -52,7 +53,12 @@ _BOUNDARY_VALUES = (
         no_new_privileges=True,
         read_only_rootfs=True,
     ),
-    AttemptReadinessResult(alive=True, health=True),
+    AttemptReadinessResult(
+        alive=True,
+        health=True,
+        poll_count=3,
+        last_state="alive",
+    ),
     OpenHandsLifecycleResult(
         conversation_id="11111111-1111-5111-8111-111111111111",
         attempt=1,
@@ -78,6 +84,12 @@ _BOUNDARY_VALUES = (
         retryable=True,
     ),
     ActivityProgress(stage="readiness", completed=False),
+    AttemptReadinessProgress(
+        state="connection_refused",
+        poll_count=2,
+        elapsed_milliseconds=250,
+        next_delay_milliseconds=500,
+    ),
 )
 _BOUNDARY_VALUES = _BOUNDARY_VALUES + (
     Gate2WorkflowResult(

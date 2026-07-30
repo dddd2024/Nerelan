@@ -24,7 +24,17 @@ from .openhands import (
     conversation_id_for,
     prepare_bounded_workspace,
 )
-from .attempt_transport import AttemptJsonTransport, AttemptTransportError
+from .attempt_transport import (
+    AttemptJsonTransport,
+    AttemptTransportError,
+    AttemptTransportStartupUnavailable,
+)
+from .readiness import (
+    ALIVE_OBSERVATION,
+    RETRYABLE_READINESS_STATES,
+    TERMINAL_READINESS_STATES,
+    ReadinessObservation,
+)
 from .sandbox import (
     AGENT_SERVER_DIGEST,
     AGENT_SERVER_IMAGE,
@@ -41,6 +51,7 @@ from .sandbox import (
 from .policy import PolicyViolation, resolve_execution_policy
 from .temporal_contracts import (
     ActivityProgress,
+    AttemptReadinessProgress,
     AttemptReadinessResult,
     CleanupResult,
     Gate2WorkflowResult,
@@ -60,6 +71,7 @@ __all__ = [
     "OpenHandsAdapterError",
     "AttemptJsonTransport",
     "AttemptTransportError",
+    "AttemptTransportStartupUnavailable",
     "PolicyViolation",
     "ResolvedExecutionPolicy",
     "TASK_QUEUE",
@@ -85,6 +97,7 @@ __all__ = [
     "SubprocessDockerRunner",
     "container_name_for",
     "ActivityProgress",
+    "AttemptReadinessProgress",
     "AttemptReadinessResult",
     "CleanupResult",
     "Gate2WorkflowResult",
@@ -92,4 +105,8 @@ __all__ = [
     "OpenHandsLifecycleResult",
     "SanitizedFailureCategory",
     "TaskSubmissionEvidence",
+    "ALIVE_OBSERVATION",
+    "RETRYABLE_READINESS_STATES",
+    "TERMINAL_READINESS_STATES",
+    "ReadinessObservation",
 ]

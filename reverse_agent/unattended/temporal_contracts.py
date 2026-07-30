@@ -9,6 +9,8 @@ _FAILURE_CODES = frozenset(
         "ATTEMPT_CLEANUP_FAILED",
         "ATTEMPT_LAUNCH_FAILED",
         "ATTEMPT_READINESS_FAILED",
+        "ATTEMPT_READINESS_TIMEOUT",
+        "ATTEMPT_READINESS_CONTRACT",
         "OPENHANDS_LIFECYCLE_FAILED",
         "TASK_SUBMISSION_FAILED",
     }
@@ -34,6 +36,16 @@ class LaunchAttemptResult:
 class AttemptReadinessResult:
     alive: bool
     health: bool
+    poll_count: int
+    last_state: str
+
+
+@dataclass(frozen=True, slots=True)
+class AttemptReadinessProgress:
+    state: str
+    poll_count: int
+    elapsed_milliseconds: int
+    next_delay_milliseconds: int
 
 
 @dataclass(frozen=True, slots=True)
