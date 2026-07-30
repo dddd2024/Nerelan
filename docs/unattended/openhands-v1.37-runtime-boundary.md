@@ -40,9 +40,10 @@ can be inherited by Terminal.
 
 The successor design consequently:
 
-- uses the legacy upstream-supported `SESSION_API_KEY` name for the
-  disposable Agent Server session credential so the pinned sanitizer removes
-  it from tool subprocesses;
+- launches the disposable Agent Server without `SESSION_API_KEY` or another
+  session credential and leaves its loopback API unpublished;
+- permits only the trusted controller's fixed Docker-exec transport to reach
+  `127.0.0.1:8000`;
 - supplies no provider key or LiteLLM master key to the Attempt container;
 - supplies model execution authority as a bounded LiteLLM virtual key through
   the trusted conversation request, not the container environment.

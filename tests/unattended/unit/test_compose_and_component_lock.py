@@ -238,9 +238,7 @@ def test_resolved_compose_mounts_provider_secret_only_into_litellm(
         assert provider_value not in json.dumps(environment_values, sort_keys=True)
     assert set(services["litellm"]["networks"]) == {"control", "model-executor"}
     assert resolved["networks"]["model-executor"]["internal"] is True
-    assert "LITELLM_MASTER_KEY" not in services["agent-canvas"].get(
-        "environment", {}
-    )
+    assert "agent-canvas" not in services
     assert services["litellm"]["environment"]["DATABASE_URL"].startswith(
         "postgresql://litellm:"
     )
@@ -337,4 +335,59 @@ def test_litellm_virtual_key_boundary_is_fixed_and_database_is_separate() -> Non
     assert '"/v1/models"' in bootstrap
     assert "/key/generate" in bootstrap
     assert "/key/update" in bootstrap
+    assert '"/key/info"' in bootstrap
+    assert "?key=" not in bootstrap
+    assert "bearer=executor_key" in bootstrap
     assert "litellm_executor_key" in compose
+
+
+def test_canvas_is_deferred_from_default_topology(tmp_path: Path) -> None:
+    provider_file = tmp_path / "provider"
+    provider_file.write_text("non-provider-placeholder", encoding="utf-8")
+    executor_file = tmp_path / "executor"
+    executor_file.write_text("sk-non-provider-placeholder", encoding="utf-8")
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "POSTGRES_PASSWORD": "synthetic-postgres",
+            "LITELLM_DATABASE_PASSWORD": "synthetic-database",
+            "LITELLM_MASTER_KEY": "synthetic-master",
+            "LITELLM_SALT_KEY": "synthetic-salt",
+            "UNATTENDED_OPENAI_API_KEY_FILE": str(provider_file),
+            "UNATTENDED_LITELLM_EXECUTOR_KEY_FILE": str(executor_file),
+        }
+    )
+    default = subprocess.run(
+        (
+            "docker",
+            "compose",
+            "-f",
+            str(DEPLOY / "compose.yaml"),
+            "config",
+            "--services",
+        ),
+        cwd=ROOT,
+        env=environment,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    deferred = subprocess.run(
+        (
+            "docker",
+            "compose",
+            "--profile",
+            "deferred-canvas",
+            "-f",
+            str(DEPLOY / "compose.yaml"),
+            "config",
+            "--services",
+        ),
+        cwd=ROOT,
+        env=environment,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "agent-canvas" not in default.stdout.splitlines()
+    assert "agent-canvas" in deferred.stdout.splitlines()

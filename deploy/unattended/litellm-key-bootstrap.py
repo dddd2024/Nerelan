@@ -6,7 +6,6 @@ import json
 import os
 from pathlib import Path
 from urllib.error import HTTPError
-from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 _BASE_URL = "http://litellm:4000"
@@ -81,8 +80,8 @@ def main() -> int:
     _request("POST", "/key/update", bearer=master_key, payload=update)
     result = _request(
         "GET",
-        f"/key/info?key={quote(executor_key, safe='')}",
-        bearer=master_key,
+        "/key/info",
+        bearer=executor_key,
     )
     info = result.get("info")
     if not isinstance(info, dict):

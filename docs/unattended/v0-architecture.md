@@ -10,7 +10,7 @@ MinimalWorkItem
   -> thin trusted SandboxController
   -> one bounded OpenHands Agent Server Attempt container
   -> LiteLLM proxy
-  -> configured model provider
+  -> configured model provider (or the test-only provider-free fixture)
 ```
 
 Temporal owns durable scheduling and replay. PostgreSQL is its durable store.
@@ -48,10 +48,11 @@ PostgreSQL.
 
 `UNATTENDED_LITELLM_EXECUTOR_KEY_FILE` is likewise a non-secret path to a
 temporary external `0600` file containing generated non-provider material.
-Compose mounts it only into the one-shot key bootstrap. The trusted adapter
-places the bounded Virtual Key in the OpenHands LLM request; it is not a
-container environment variable. The Agent Server never receives
-`LITELLM_MASTER_KEY`.
+Compose mounts it into the one-shot key bootstrap and the trusted
+sandbox-controller worker only. The controller places the bounded Virtual Key
+in the OpenHands LLM request over stdin to the fixed Attempt transport; it is
+not a container environment variable, Docker argument, URI, process title, or
+metadata field. The Agent Server never receives `LITELLM_MASTER_KEY`.
 
 The Compose baseline creates the Temporal `default` namespace automatically and
 idempotently. The same command is valid for a fresh project and after a
@@ -69,7 +70,22 @@ and the other control services do not.
 Agent Server port 8000 is not published by the long-lived Compose stack or the
 Attempt launch profile. Audit control stays at the trusted Docker boundary;
 the ordinary worker receives neither a Docker socket nor an additional
-network path into the Attempt.
+network path into the Attempt. The controller uses a fixed Docker-exec JSON
+transport to `127.0.0.1:8000`; callers cannot select a container, URL, method
+outside the allowlist, header, endpoint, command, or callback.
+
+The `runtime-proof` Compose profile adds the dedicated controller worker and a
+test-only fixed provider-free fixture. The Temporal Workflow then executes the
+real OpenHands conversation create/run lifecycle, the fixture selects the
+Terminal tool, the Attempt creates and reads
+`provider-free-runtime-proof.txt`, the adapter collects a sanitized
+`TaskSubmission`, and cleanup removes the Attempt. This proves the integration
+path without claiming a real provider call.
+
+Agent Canvas is intentionally behind the non-default `deferred-canvas` profile.
+The current Gate 2 topology is API/probe oriented and does not expose an
+Attempt Agent Server port to a browser. A unified Web Console and a bounded
+Controller-mediated browser route require a later Work Item.
 
 Runtime workspaces live below the ignored `.var/unattended/` tree. Named
 volumes `temporal-postgresql-data` and `temporal-server-data` retain local

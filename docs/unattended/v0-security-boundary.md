@@ -18,9 +18,16 @@ Secret boundaries:
 - the LiteLLM executor credential is a native Virtual Key limited to
   `unattended-v0`, chat-completion/model-discovery routes, a daily budget,
   bounded RPM/TPM, and one parallel request. It has no management authority.
-- the Virtual Key file is mounted only into the one-shot bootstrap. The
-  trusted adapter supplies it in the LLM request; it is absent from the
-  Attempt container environment.
+- the Virtual Key file is mounted into the one-shot bootstrap and trusted
+  controller worker only. The controller supplies it in the LLM request over
+  the fixed transport stdin; it is absent from URI, argv, process title,
+  Docker metadata, logs, exceptions, evidence, and the Attempt environment.
+- `/key/info` uses the Virtual Key as its bearer credential without putting
+  raw key material in a query parameter.
+- no Agent Server session credential exists in the Attempt environment. The
+  unexposed loopback API is reachable only through the controller transport;
+  child environment, PID-1 environment, settings API/state, and Docker
+  metadata probes report exact-name booleans only.
 - tracked configuration contains variable names only; no value belongs in Git,
   test output, probe output, or uploaded evidence.
 
@@ -55,6 +62,12 @@ Docker boundaries:
 - the Attempt joins only an internal network shared with LiteLLM, with no
   public egress or control-service attachment;
 - the adapter rejects path traversal and symlinks before submitting work.
+
+The provider-free fixture is available only in the explicit `runtime-proof`
+profile, accepts one fixed model/instruction/tool shape, has no published port,
+and is not a production model service. Agent Canvas is deferred and does not
+start in the default topology because no safe browser route to the per-Attempt
+loopback API exists yet.
 
 Agent output is evidence, not platform acceptance. Deterministic acceptance
 checks outside the agent decide whether an attempt passed.
