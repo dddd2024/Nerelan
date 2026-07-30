@@ -3,16 +3,25 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import asdict
 from pathlib import Path
 
 from temporalio import activity
+from temporalio.exceptions import ApplicationError
 
 from ..attempt_transport import AttemptJsonTransport
-from ..contracts import ExecutionHandle, TaskSubmission
+from ..contracts import ExecutionHandle
 from ..identifiers import workspace_path
 from ..openhands import OpenHandsAdapter
 from ..sandbox import FIXED_LAUNCH_SPEC, SandboxController, SubprocessDockerRunner
+from ..temporal_contracts import (
+    ActivityProgress,
+    AttemptReadinessResult,
+    CleanupResult,
+    LaunchAttemptResult,
+    OpenHandsLifecycleResult,
+    SanitizedFailureCategory,
+    TaskSubmissionEvidence,
+)
 
 _PROVIDER_FREE_INSTRUCTION = (
     "Create provider-free-runtime-proof.txt with the exact text "
@@ -71,53 +80,102 @@ def _configured_runtime() -> ControllerActivityRuntime:
     return _runtime
 
 
+def _raise_sanitized(category: SanitizedFailureCategory) -> None:
+    raise ApplicationError(
+        "sanitized_activity_failure",
+        category,
+        type=category.code,
+        non_retryable=not category.retryable,
+    ) from None
+
+
 @activity.defn(name="launch_or_reconcile_attempt")
 async def launch_or_reconcile_attempt(
     handle: ExecutionHandle,
-) -> dict[str, object]:
-    runtime = _configured_runtime()
-    metadata = await asyncio.to_thread(
-        runtime.controller.launch_or_reconcile,
-        handle,
-        FIXED_LAUNCH_SPEC,
-    )
-    return asdict(metadata)
+) -> LaunchAttemptResult:
+    try:
+        runtime = _configured_runtime()
+        metadata = await asyncio.to_thread(
+            runtime.controller.launch_or_reconcile,
+            handle,
+            FIXED_LAUNCH_SPEC,
+        )
+        return LaunchAttemptResult(
+            container_name=metadata.container_name,
+            state=metadata.state,
+            image_digest=metadata.image_digest,
+            workspace_destination=metadata.workspace_destination,
+            network_name=metadata.network_name,
+            privileged=metadata.privileged,
+            no_new_privileges=metadata.no_new_privileges,
+            read_only_rootfs=metadata.read_only_rootfs,
+        )
+    except Exception:
+        _raise_sanitized(
+            SanitizedFailureCategory(
+                "ATTEMPT_LAUNCH_FAILED", "launch", True
+            )
+        )
 
 
 @activity.defn(name="wait_attempt_server")
-async def wait_attempt_server(handle: ExecutionHandle) -> dict[str, bool]:
-    adapter = _configured_runtime().adapter(handle)
-    for _ in range(60):
-        checks = await asyncio.to_thread(adapter.health)
-        if checks == {"/alive": "PASS", "/health": "PASS"}:
-            return {"alive": True, "health": True}
-        activity.heartbeat({"server_ready": False})
-        await asyncio.sleep(1)
-    raise RuntimeError("attempt_server_readiness_timeout")
+async def wait_attempt_server(handle: ExecutionHandle) -> AttemptReadinessResult:
+    try:
+        adapter = _configured_runtime().adapter(handle)
+        for _ in range(60):
+            checks = await asyncio.to_thread(adapter.health)
+            if checks == {"/alive": "PASS", "/health": "PASS"}:
+                return AttemptReadinessResult(alive=True, health=True)
+            activity.heartbeat(ActivityProgress("readiness", False))
+            await asyncio.sleep(1)
+    except Exception:
+        _raise_sanitized(
+            SanitizedFailureCategory(
+                "ATTEMPT_READINESS_FAILED", "readiness", True
+            )
+        )
+    _raise_sanitized(
+        SanitizedFailureCategory(
+            "ATTEMPT_READINESS_FAILED", "readiness", True
+        )
+    )
 
 
 @activity.defn(name="start_openhands_conversation")
 async def start_openhands_conversation(
     handle: ExecutionHandle,
-) -> ExecutionHandle:
-    relative_workspace = str(
-        Path(workspace_path(handle.workflow_id, handle.attempt)).relative_to(
-            ".var/unattended"
+) -> OpenHandsLifecycleResult:
+    try:
+        relative_workspace = str(
+            Path(workspace_path(handle.workflow_id, handle.attempt)).relative_to(
+                ".var/unattended"
+            )
+        ).replace("\\", "/")
+        started = await asyncio.to_thread(
+            _configured_runtime().adapter(handle).start_task,
+            handle,
+            instruction=_PROVIDER_FREE_INSTRUCTION,
+            attempt_workspace=relative_workspace,
+            max_iterations=8,
         )
-    ).replace("\\", "/")
-    return await asyncio.to_thread(
-        _configured_runtime().adapter(handle).start_task,
-        handle,
-        instruction=_PROVIDER_FREE_INSTRUCTION,
-        attempt_workspace=relative_workspace,
-        max_iterations=8,
-    )
+        return OpenHandsLifecycleResult(
+            conversation_id=started.executor_id,
+            attempt=started.attempt,
+            lifecycle_state="started_or_reconciled",
+            reconciled=True,
+        )
+    except Exception:
+        _raise_sanitized(
+            SanitizedFailureCategory(
+                "OPENHANDS_LIFECYCLE_FAILED", "start_conversation", True
+            )
+        )
 
 
 @activity.defn(name="collect_openhands_result")
 async def collect_openhands_result(
     handle: ExecutionHandle,
-) -> TaskSubmission:
+) -> TaskSubmissionEvidence:
     runtime = _configured_runtime()
     adapter = runtime.adapter(handle)
     try:
@@ -145,7 +203,7 @@ async def collect_openhands_result(
                     raise RuntimeError(
                         "provider_free_workspace_proof_mismatch"
                     )
-                return TaskSubmission(
+                return TaskSubmissionEvidence(
                     verdict="PROVIDER_FREE_RUNTIME_PROOF",
                     summary=(
                         "Provider-free OpenHands conversation completed one "
@@ -165,16 +223,35 @@ async def collect_openhands_result(
                     ),
                     failure_reason=None,
                 )
-            activity.heartbeat({"conversation_terminal": False})
+            activity.heartbeat(ActivityProgress("collect_result", False))
             await asyncio.sleep(1)
-        raise RuntimeError("openhands_conversation_timeout")
-    except BaseException:
-        await asyncio.to_thread(runtime.controller.stop_and_remove, handle)
-        raise
+    except Exception:
+        _raise_sanitized(
+            SanitizedFailureCategory(
+                "TASK_SUBMISSION_FAILED", "collect_result", True
+            )
+        )
+    _raise_sanitized(
+        SanitizedFailureCategory(
+            "TASK_SUBMISSION_FAILED", "collect_result", True
+        )
+    )
 
 
 @activity.defn(name="cleanup_attempt")
-async def cleanup_attempt(handle: ExecutionHandle) -> dict[str, bool]:
-    runtime = _configured_runtime()
-    await asyncio.to_thread(runtime.controller.stop_and_remove, handle)
-    return {"attempt_removed": True}
+async def cleanup_attempt(handle: ExecutionHandle) -> CleanupResult:
+    try:
+        runtime = _configured_runtime()
+        container_absent, workspace_absent = await asyncio.to_thread(
+            runtime.controller.cleanup_attempt, handle
+        )
+        return CleanupResult(
+            attempt_container_absent=container_absent,
+            attempt_workspace_absent=workspace_absent,
+        )
+    except Exception:
+        _raise_sanitized(
+            SanitizedFailureCategory(
+                "ATTEMPT_CLEANUP_FAILED", "cleanup", True
+            )
+        )

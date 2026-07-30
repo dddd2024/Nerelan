@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -191,6 +192,27 @@ class SandboxController:
         if self.inspect(handle) is not None:
             raise SandboxControllerError("docker_container_present_after_remove")
 
+    def cleanup_attempt(self, handle: ExecutionHandle) -> tuple[bool, bool]:
+        """Remove the exact deterministic container and workspace idempotently."""
+
+        self._validate_handle(handle)
+        self.stop_and_remove(handle)
+        workspace = self._workspace_candidate(handle)
+        if workspace.exists():
+            if workspace.is_symlink() or not workspace.is_dir():
+                raise SandboxControllerError("attempt_workspace_contract_mismatch")
+            shutil.rmtree(workspace)
+        if workspace.exists():
+            raise SandboxControllerError("attempt_workspace_present_after_remove")
+        parent = workspace.parent
+        while parent != self._host_workspace_root:
+            try:
+                parent.rmdir()
+            except OSError:
+                break
+            parent = parent.parent
+        return self.inspect(handle) is None, not workspace.exists()
+
     @staticmethod
     def _require_fixed_spec(spec: FixedLaunchSpec) -> None:
         if spec is not FIXED_LAUNCH_SPEC:
@@ -210,12 +232,30 @@ class SandboxController:
             raise ValueError("executor_id_mismatch")
 
     def _workspace_for(self, handle: ExecutionHandle) -> Path:
+        return prepare_bounded_workspace(
+            self._host_workspace_root,
+            self._workspace_relative(handle),
+        )
+
+    def _workspace_candidate(self, handle: ExecutionHandle) -> Path:
+        candidate = self._host_workspace_root.joinpath(
+            *PurePosixPath(self._workspace_relative(handle)).parts
+        )
+        if candidate.is_symlink():
+            raise SandboxControllerError("attempt_workspace_symlink")
+        resolved = candidate.resolve(strict=False)
+        if not resolved.is_relative_to(self._host_workspace_root):
+            raise SandboxControllerError("attempt_workspace_escape")
+        return resolved
+
+    @staticmethod
+    def _workspace_relative(handle: ExecutionHandle) -> str:
         relative = (
             PurePosixPath(workspace_path(handle.workflow_id, handle.attempt))
             .relative_to(".var/unattended")
             .as_posix()
         )
-        return prepare_bounded_workspace(self._host_workspace_root, relative)
+        return relative
 
     def _launch_argv(self, handle: ExecutionHandle, workspace: Path) -> tuple[str, ...]:
         return (

@@ -39,6 +39,16 @@ from .sandbox import (
     container_name_for,
 )
 from .policy import PolicyViolation, resolve_execution_policy
+from .temporal_contracts import (
+    ActivityProgress,
+    AttemptReadinessResult,
+    CleanupResult,
+    Gate2WorkflowResult,
+    LaunchAttemptResult,
+    OpenHandsLifecycleResult,
+    SanitizedFailureCategory,
+    TaskSubmissionEvidence,
+)
 
 __all__ = [
     "AcceptanceResult",
@@ -74,4 +84,12 @@ __all__ = [
     "SandboxControllerError",
     "SubprocessDockerRunner",
     "container_name_for",
+    "ActivityProgress",
+    "AttemptReadinessResult",
+    "CleanupResult",
+    "Gate2WorkflowResult",
+    "LaunchAttemptResult",
+    "OpenHandsLifecycleResult",
+    "SanitizedFailureCategory",
+    "TaskSubmissionEvidence",
 ]

@@ -270,6 +270,30 @@ def test_stop_remove_is_exact_and_idempotent(tmp_path: Path) -> None:
     ]
 
 
+def test_cleanup_removes_exact_container_and_workspace_idempotently(
+    tmp_path: Path,
+) -> None:
+    root = (tmp_path / "attempts").absolute()
+    runner = StatefulRunner(root, _handle(), exists=True)
+    controller = _controller(tmp_path, runner)
+    workspace = _workspace(root, _handle())
+    workspace.mkdir(parents=True)
+    (workspace / "provider-free-runtime-proof.txt").write_text(
+        "PROVIDER_FREE_RUNTIME_PROOF",
+        encoding="utf-8",
+    )
+
+    assert controller.cleanup_attempt(_handle()) == (True, True)
+    assert controller.cleanup_attempt(_handle()) == (True, True)
+    assert not workspace.exists()
+    removals = [
+        call[0] for call in runner.calls if call[0][:3] == ("docker", "container", "rm")
+    ]
+    assert removals == [
+        ("docker", "container", "rm", "--force", container_name_for(_handle()))
+    ]
+
+
 def test_only_singleton_fixed_launch_spec_is_accepted(tmp_path: Path) -> None:
     root = (tmp_path / "attempts").absolute()
     runner = StatefulRunner(root, _handle())
