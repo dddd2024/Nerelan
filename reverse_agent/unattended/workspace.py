@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import stat
+import threading
 import uuid
 from pathlib import Path, PurePosixPath
 
@@ -55,8 +56,16 @@ class WorkspaceRootManager:
             raise ValueError("workspace_volume_invalid")
         self.root = root
         self.volume_name = volume_name
+        self._provision_lock = threading.Lock()
 
     def preflight(self, handle: ExecutionHandle) -> WorkspaceRootPreflightResult:
+        with self._provision_lock:
+            return self._preflight_locked(handle)
+
+    def _preflight_locked(
+        self,
+        handle: ExecutionHandle,
+    ) -> WorkspaceRootPreflightResult:
         if not self.root.exists():
             raise WorkspacePreflightError("WORKSPACE_ROOT_MISSING")
         if self.root.is_symlink():
