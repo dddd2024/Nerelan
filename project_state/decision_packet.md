@@ -1,22 +1,22 @@
 # Decision Packet
 
 ```json decision_meta
-{"schema_version":1,"decision_id":"decision_20260730_unattended_gate2_attempt_readiness_recovery_v8","round_id":"round_20260730_unattended_gate2_attempt_readiness_recovery_v8","based_on_state_build_id":"state_20260618_134029_d6bd033d2532","based_on_state_digest":"d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
+{"schema_version":1,"decision_id":"decision_20260730_unattended_gate2_workspace_provisioning_recovery_v9","round_id":"round_20260730_unattended_gate2_workspace_provisioning_recovery_v9","based_on_state_build_id":"state_20260618_134029_d6bd033d2532","based_on_state_digest":"d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260730_unattended_gate2_runtime_proof_recovery_v7",
-  "follows_last_round_id": "round_20260730_unattended_gate2_runtime_proof_recovery_v7",
-  "previous_audit_outcome": "BLOCKED_SANDBOX_CONTROLLER_INTEGRATION",
-  "workstream_id": "unattended-gate2-attempt-readiness-recovery-v8",
-  "source_issue": 84,
-  "predecessor_issue": 83,
+  "follows_last_decision_id": "decision_20260730_unattended_gate2_attempt_readiness_recovery_v8",
+  "follows_last_round_id": "round_20260730_unattended_gate2_attempt_readiness_recovery_v8",
+  "previous_audit_outcome": "BLOCKED_PROVIDER_FREE_RUNTIME_PROOF",
+  "workstream_id": "unattended-gate2-workspace-provisioning-recovery-v9",
+  "source_issue": 85,
+  "predecessor_issue": 84,
   "parent_plan": 74,
   "active_pr": 78,
   "required_branch": "codex/unattended-base-platform-v0",
-  "starting_head": "faa29571b8b927305ecf466bb7554f05ce7f59c4",
+  "starting_head": "67e49f7044a82c0ea464f9b54946ce73cbb8c14e",
   "activation_base_sha": "2aacf42dbab7f283454908da861b6ef44990f1d5",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -31,8 +31,9 @@
   "mark_ready_allowed": false,
   "auto_merge_allowed": false,
   "force_push_allowed": false,
+  "checkpoint_push_allowed": true,
   "real_provider_credential_allowed": false,
-  "stop_after_exact_head_ci": true,
+  "stop_after_exact_head_ci": false,
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
@@ -60,15 +61,16 @@
     {"command_id":"validation.doctor","command":"python -m reverse_agent.unattended.cli doctor","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["component_health_validation"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
     {"command_id":"test.full_regression","command":"python -m pytest -q","phase":"test","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["regression_test"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
     {"command_id":"validation.diff_check","command":"git diff --check 2aacf42dbab7f283454908da861b6ef44990f1d5..HEAD","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"probe.compose_fresh","command":"wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue84-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof up -d --wait","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["container_runtime","network_access"],"network_access":true,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"probe.attempt_readiness","command":"python -m reverse_agent.unattended.cli attempt-readiness-probe --compose-project reverse-agent-issue84-runtime-proof","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["component_compatibility_validation","container_runtime","network_access"],"network_access":true,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"probe.runtime_proof","command":"wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli gate2-runtime-proof","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["component_compatibility_validation","container_runtime","network_access","secret_boundary_validation"],"network_access":true,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"probe.compose_cleanup","command":"wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue84-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof down -v","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["container_runtime"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"publication.push_branch","command":"git push -u origin codex/unattended-base-platform-v0","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["push","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"publication.update_draft_pr","command":"gh pr edit 78 --repo dddd2024/reverse-agent --body-file PR_BODY_TEMP_PATH","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["pull_request_update","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"publication.comment_issue84","command":"gh issue comment 84 --repo dddd2024/reverse-agent --body-file ISSUE84_COMMENT_TEMP_PATH","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["issue_comment","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
+    {"command_id":"probe.workspace_fresh","command":"python -m reverse_agent.unattended.cli workspace-preflight --compose-project reverse-agent-issue85-workspace --stack-mode fresh","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["component_compatibility_validation","container_runtime","secret_boundary_validation"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
+    {"command_id":"probe.workspace_restart","command":"python -m reverse_agent.unattended.cli workspace-preflight --compose-project reverse-agent-issue85-workspace --stack-mode restart","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["component_compatibility_validation","container_runtime","secret_boundary_validation"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
+    {"command_id":"publication.push_branch","command":"git push -u origin codex/unattended-base-platform-v0","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["push","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
+    {"command_id":"publication.update_draft_pr","command":"gh pr edit 78 --repo dddd2024/reverse-agent --body-file PR_BODY_TEMP_PATH","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["pull_request_update","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
+    {"command_id":"publication.comment_issue85","command":"gh issue comment 85 --repo dddd2024/reverse-agent --body-file ISSUE85_COMMENT_TEMP_PATH","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["issue_comment","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
     {"command_id":"publication.comment_draft_pr","command":"gh pr comment 78 --repo dddd2024/reverse-agent --body-file PR_COMMENT_TEMP_PATH","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["pull_request_comment","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"observation.exact_head_checks","command":"gh pr checks 78 --repo dddd2024/reverse-agent --watch","phase":"observation","required":false,"expected_exit_codes":[0],"execution_surface":"remote_observation","operations":["repository_observation","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]}
+    {"command_id":"observation.exact_head_checks","command":"gh pr checks 78 --repo dddd2024/reverse-agent --watch","phase":"observation","required":true,"expected_exit_codes":[0],"execution_surface":"remote_observation","operations":["repository_observation","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
+    {"command_id":"probe.compose_fresh","command":"wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue85-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof up -d --wait","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["container_runtime","network_access"],"network_access":true,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
+    {"command_id":"probe.runtime_proof","command":"python -m reverse_agent.unattended.cli gate2-runtime-proof --workflow-id unattended:dddd2024/reverse-agent:issue:85:runtime-proof-a","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["component_compatibility_validation","container_runtime","network_access","secret_boundary_validation"],"network_access":true,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
+    {"command_id":"probe.compose_cleanup","command":"wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue85-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof down -v","phase":"probe","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["container_runtime"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]}
   ],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
@@ -171,13 +173,16 @@
     "network_access_default_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
-      "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue84-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof up -d --wait",
-      "python -m reverse_agent.unattended.cli attempt-readiness-probe --compose-project reverse-agent-issue84-runtime-proof",
-      "wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli gate2-runtime-proof",
+      "python -m reverse_agent.unattended.cli workspace-preflight --compose-project reverse-agent-issue85-workspace --stack-mode fresh",
+      "python -m reverse_agent.unattended.cli workspace-preflight --compose-project reverse-agent-issue85-workspace --stack-mode restart",
       "git push -u origin codex/unattended-base-platform-v0",
       "gh pr edit 78 --repo dddd2024/reverse-agent --body-file PR_BODY_TEMP_PATH",
-      "gh issue comment 84 --repo dddd2024/reverse-agent --body-file ISSUE84_COMMENT_TEMP_PATH",
-      "gh pr comment 78 --repo dddd2024/reverse-agent --body-file PR_COMMENT_TEMP_PATH"
+      "gh issue comment 85 --repo dddd2024/reverse-agent --body-file ISSUE85_COMMENT_TEMP_PATH",
+      "gh pr comment 78 --repo dddd2024/reverse-agent --body-file PR_COMMENT_TEMP_PATH",
+      "gh pr checks 78 --repo dddd2024/reverse-agent --watch",
+      "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue85-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof up -d --wait",
+      "python -m reverse_agent.unattended.cli gate2-runtime-proof --workflow-id unattended:dddd2024/reverse-agent:issue:85:runtime-proof-a",
+      "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue85-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof down -v"
     ]
   },
   "authorized_risk_tier": "R2",
@@ -204,7 +209,7 @@
     {"pattern":".gitignore","minimum_risk":"R2"}
   ],
   "scope_policy": {
-    "scope": "unattended-gate2-attempt-readiness-recovery-v8",
+    "scope": "unattended-gate2-workspace-provisioning-recovery-v9",
     "implementation_risk_tier": "R2",
     "governance_artifact_risk_tier": "R2",
     "allow_product_source": true,
@@ -223,6 +228,9 @@
     "component_digest_drift",
     "temporal_payload_contract_failure",
     "sandbox_controller_integration_failure",
+    "workspace_identity_contract_failure",
+    "workspace_root_preflight_failure",
+    "attempt_directory_provision_failure",
     "attempt_transport_failure",
     "upstream_tool_path_probe_failure",
     "agent_server_session_isolation_failure",
@@ -247,23 +255,23 @@
 
 ### Goal
 
-Authorize only Issue #84 local-chain recovery and bounded Attempt readiness
-correction on existing Draft PR #78: preserve the exact unpublished #82/#83
-chain, classify startup transport states, poll only narrowly retryable states
-within a monotonic deadline, and prove one provider-free OpenHands
-conversation/tool lifecycle.
+Authorize only Issue #85 local-chain recovery and fixed workspace provisioning
+correction on existing Draft PR #78: preserve the exact unpublished #82-#84
+chain, fail fast on finite workspace-root contract violations before Docker
+launch, publish the mandatory auditable Draft checkpoint, and then prove one
+provider-free OpenHands conversation/tool lifecycle after exact-head checks.
 
 ### Authority and sequencing
 
 This successor Decision is the sole R2 recovery and rework authority. It is
 committed alone on exact recovered starting head
-`faa29571b8b927305ecf466bb7554f05ce7f59c4`. The compiler-generated Command
+`67e49f7044a82c0ea464f9b54946ce73cbb8c14e`. The compiler-generated Command
 Plan and successful `PRE_EXECUTION_AUTHORIZED` must be committed separately
 before any implementation mutation.
 
 ### Product boundary
 
-The existing nine PR commits remain immutable historical inputs. Rework is
+The existing seventeen unpublished commits remain immutable historical inputs. Rework is
 limited to `deploy/unattended/**`, `docs/unattended/**`,
 `reverse_agent/unattended/**`, `tests/unattended/**`, `.github/scripts/**`,
 `.gitignore`, and the single workflow `.github/workflows/ci.yml`, plus the Decision and
@@ -271,17 +279,20 @@ compiler-owned Gate files.
 No dependency, audit record, state/decision workflow, mainline landing,
 remote verifier, or control-plane file may change. A fixed Docker-exec JSON
 transport, a dedicated controller worker, and a test-only provider-free
-fixture are allowed; a generic sandbox, coding loop, scheduler, model service,
-or unified Web Console is not. Real provider credentials and real-provider
-completion are explicitly outside this Work Item.
+fixture remain allowed. A fixed one-shot workspace bootstrap with no Docker
+socket, credential, or public network, plus typed preflight and exact Attempt
+directory provisioning, is allowed; a generic sandbox, coding loop, scheduler,
+model service, or unified Web Console is not. Real provider credentials and
+real-provider completion are explicitly outside this Work Item.
 
 ### Publication and stop boundary
 
-After Path B, all local checks, the single direct readiness diagnostic,
-converter/replay checks, and the single disposable provider-free runtime proof pass,
-this Decision permits one non-force update of the existing branch, updates
-and evidence comments on Draft PR #78 and Issue #84, and read-only observation
-of exact-head Actions. No second branch or PR
-may be created. PR #78 must remain Draft. Mark-ready, merge, auto-merge,
+After Path B, all local checks, fresh/restart workspace preflight,
+converter/replay checks, and secret scans pass, this Decision requires one
+non-force Draft checkpoint update of the existing branch and PR #78 with
+`RUNTIME_PROOF_PENDING`, followed by successful exact-head Actions. Only then
+may the single disposable provider-free runtime proof run. Evidence comments
+may be posted on Draft PR #78 and Issue #85. No second branch or PR may be
+created. PR #78 must remain Draft and `rework-required`. Mark-ready, merge, auto-merge,
 history rewrite, direct main push, real provider credential use, tag, release,
 production deployment, and mutation of PR #47 or PR #49 are never authorized.
