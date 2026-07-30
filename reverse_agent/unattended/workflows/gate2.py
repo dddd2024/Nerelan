@@ -17,6 +17,7 @@ with workflow.unsafe.imports_passed_through():
         LaunchAttemptResult,
         OpenHandsLifecycleResult,
         TaskSubmissionEvidence,
+        WorkspaceRootPreflightResult,
     )
 
 
@@ -35,6 +36,20 @@ class UnattendedGate2Workflow:
         cleanup_required = True
         cleanup_completed = False
         try:
+            preflight = await workflow.execute_activity(
+                "workspace_root_preflight",
+                handle,
+                task_queue=SANDBOX_CONTROLLER_TASK_QUEUE,
+                start_to_close_timeout=timedelta(minutes=2),
+                retry_policy=retry,
+                result_type=WorkspaceRootPreflightResult,
+            )
+            if (
+                not preflight.controller_atomic_probe
+                or not preflight.attempt_directory_provisioned
+                or not preflight.agent_exact_attempt_write
+            ):
+                raise RuntimeError("workspace_preflight_failed")
             launch = await workflow.execute_activity(
                 "launch_or_reconcile_attempt",
                 handle,

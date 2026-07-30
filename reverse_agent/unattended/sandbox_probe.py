@@ -213,6 +213,7 @@ def run_sandbox_boundary_probe(
         runner,
         host_workspace_root=workspace_root,
         executor_network=f"{compose_project}_model-executor",
+        workspace_volume=f"{compose_project}_attempt-workspaces",
     )
     try:
         metadata = controller.launch_or_reconcile(handle, FIXED_LAUNCH_SPEC)

@@ -10,6 +10,7 @@ from reverse_agent.unattended.activities import (
     launch_or_reconcile_attempt,
     start_openhands_conversation,
     wait_attempt_server,
+    workspace_root_preflight,
 )
 from reverse_agent.unattended.cli import doctor_report
 from reverse_agent.unattended.controller_worker import build_controller_worker
@@ -78,6 +79,7 @@ def test_controller_worker_registers_only_fixed_activities(
     assert captured["task_queue"] == "reverse-agent-sandbox-controller-v0"
     assert captured["workflows"] == []
     assert captured["activities"] == [
+        workspace_root_preflight,
         launch_or_reconcile_attempt,
         wait_attempt_server,
         start_openhands_conversation,
@@ -90,6 +92,7 @@ def test_activity_names_are_fixed() -> None:
     assert [
         getattr(activity, "__temporal_activity_definition").name
         for activity in (
+            workspace_root_preflight,
             launch_or_reconcile_attempt,
             wait_attempt_server,
             start_openhands_conversation,
@@ -97,6 +100,7 @@ def test_activity_names_are_fixed() -> None:
             cleanup_attempt,
         )
     ] == [
+        "workspace_root_preflight",
         "launch_or_reconcile_attempt",
         "wait_attempt_server",
         "start_openhands_conversation",

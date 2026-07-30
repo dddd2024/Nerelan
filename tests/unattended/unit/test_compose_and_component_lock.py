@@ -123,6 +123,7 @@ def test_runtime_profile_resolves_two_socket_separated_workers(
     )
     services = json.loads(completed.stdout)["services"]
     ordinary = services["reverse-agent-worker"]
+    bootstrap = services["workspace-bootstrap"]
     controller = services["sandbox-controller-worker"]
     assert ordinary.get("volumes", []) == []
     assert ordinary.get("secrets", []) == []
@@ -140,6 +141,55 @@ def test_runtime_profile_resolves_two_socket_separated_workers(
     ]
     assert ordinary["networks"] == {"control": None}
     assert controller["networks"] == {"control": None}
+    assert ordinary["user"] == "10001:10001"
+    assert controller["user"] == "10001:10001"
+    assert controller["group_add"] == ["0"]
+    assert bootstrap["user"] == "0:0"
+    assert bootstrap["network_mode"] == "none"
+    assert bootstrap.get("secrets", []) == []
+    assert not any(
+        mount["source"] == "/var/run/docker.sock"
+        for mount in bootstrap["volumes"]
+    )
+    workspace_mounts = [
+        mount
+        for mount in controller["volumes"]
+        if mount["target"]
+        == "/var/lib/reverse-agent/unattended-workspaces"
+    ]
+    assert workspace_mounts == [
+        {
+            "type": "volume",
+            "source": "attempt-workspaces",
+            "target": "/var/lib/reverse-agent/unattended-workspaces",
+        }
+    ]
+    assert (
+        controller["environment"]["UNATTENDED_WORKSPACE_VOLUME"]
+        == "issue82-runtime-proof_attempt-workspaces"
+    )
+    assert "UNATTENDED_HOST_WORKSPACE_ROOT" not in controller["environment"]
+
+
+def test_workspace_bootstrap_is_fixed_minimal_and_non_world_writable() -> None:
+    compose = (DEPLOY / "compose.yaml").read_text(encoding="utf-8")
+    bootstrap = (
+        ROOT / "reverse_agent" / "unattended" / "workspace_bootstrap.py"
+    ).read_text(encoding="utf-8")
+    worker = (DEPLOY / "worker.Dockerfile").read_text(encoding="utf-8")
+    service = compose.split("\n  workspace-bootstrap:\n", 1)[1].split(
+        "\n  sandbox-controller-worker:\n", 1
+    )[0]
+
+    assert "network_mode: none" in service
+    assert "/var/run/docker.sock" not in service
+    assert "secrets:" not in service
+    assert "user: \"0:0\"" in service
+    assert "cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]" in service
+    assert "chmod 777" not in bootstrap
+    assert "0o777" not in bootstrap
+    assert "WORKSPACE_ROOT_MODE" in bootstrap
+    assert "USER 10001:10001" in worker
 
 
 def test_temporal_bootstrap_is_automatic_and_idempotent() -> None:

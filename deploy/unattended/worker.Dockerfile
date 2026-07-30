@@ -7,4 +7,5 @@ RUN python -m pip install --no-cache-dir temporalio==1.30.0
 
 ENV PYTHONPATH=/opt/reverse-agent
 ENV OPENHANDS_SUPPRESS_BANNER=1
+USER 10001:10001
 ENTRYPOINT ["/usr/local/bin/python", "-m"]

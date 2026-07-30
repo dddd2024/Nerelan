@@ -31,7 +31,9 @@ from ..temporal_contracts import (
     OpenHandsLifecycleResult,
     SanitizedFailureCategory,
     TaskSubmissionEvidence,
+    WorkspaceRootPreflightResult,
 )
+from ..workspace import WorkspacePreflightError
 
 _PROVIDER_FREE_INSTRUCTION = (
     "Create provider-free-runtime-proof.txt with the exact text "
@@ -120,10 +122,37 @@ async def launch_or_reconcile_attempt(
             no_new_privileges=metadata.no_new_privileges,
             read_only_rootfs=metadata.read_only_rootfs,
         )
+    except WorkspacePreflightError as error:
+        _raise_sanitized(
+            SanitizedFailureCategory(
+                error.code,
+                "workspace_preflight",
+                False,
+            )
+        )
     except Exception:
         _raise_sanitized(
             SanitizedFailureCategory(
                 "ATTEMPT_LAUNCH_FAILED", "launch", True
+            )
+        )
+
+
+@activity.defn(name="workspace_root_preflight")
+async def workspace_root_preflight(
+    handle: ExecutionHandle,
+) -> WorkspaceRootPreflightResult:
+    try:
+        return await asyncio.to_thread(
+            _configured_runtime().controller.preflight_workspace,
+            handle,
+        )
+    except WorkspacePreflightError as error:
+        _raise_sanitized(
+            SanitizedFailureCategory(
+                error.code,
+                "workspace_preflight",
+                False,
             )
         )
 

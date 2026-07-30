@@ -8,12 +8,13 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Mapping, Protocol, Sequence
 
 from .contracts import ExecutionHandle
-from .identifiers import executor_id, workspace_path
-from .openhands import prepare_bounded_workspace
+from .identifiers import executor_id
+from .temporal_contracts import WorkspaceRootPreflightResult
+from .workspace import WorkspaceRootManager
 
 AGENT_SERVER_IMAGE = (
     "ghcr.io/openhands/agent-server:1.37.0-python@"
@@ -128,17 +129,27 @@ class SandboxController:
         *,
         host_workspace_root: Path,
         executor_network: str,
+        workspace_volume: str,
     ) -> None:
         if not host_workspace_root.is_absolute():
             raise ValueError("host_workspace_root_must_be_absolute")
-        host_workspace_root.mkdir(parents=True, exist_ok=True)
-        if host_workspace_root.is_symlink():
-            raise ValueError("host_workspace_root_symlink")
         if _NETWORK_NAME.fullmatch(executor_network) is None:
             raise ValueError("executor_network_invalid")
+        self._workspace = WorkspaceRootManager(
+            host_workspace_root,
+            volume_name=workspace_volume,
+        )
         self._runner = runner
-        self._host_workspace_root = host_workspace_root.resolve(strict=True)
+        self._host_workspace_root = host_workspace_root
         self._executor_network = executor_network
+        self._workspace_volume = workspace_volume
+
+    def preflight_workspace(
+        self,
+        handle: ExecutionHandle,
+    ) -> WorkspaceRootPreflightResult:
+        self._validate_handle(handle)
+        return self._workspace.preflight(handle)
 
     def launch_or_reconcile(
         self,
@@ -147,13 +158,13 @@ class SandboxController:
     ) -> AttemptContainerMetadata:
         self._require_fixed_spec(fixed_launch_spec)
         self._validate_handle(handle)
+        self.preflight_workspace(handle)
         existing = self.inspect(handle)
         if existing is not None:
             return self._require_running(existing)
 
-        workspace = self._workspace_for(handle)
         result = self._runner.run(
-            self._launch_argv(handle, workspace),
+            self._launch_argv(handle),
         )
         if result.returncode != 0:
             raced = self.inspect(handle)
@@ -232,32 +243,12 @@ class SandboxController:
             raise ValueError("executor_id_mismatch")
 
     def _workspace_for(self, handle: ExecutionHandle) -> Path:
-        return prepare_bounded_workspace(
-            self._host_workspace_root,
-            self._workspace_relative(handle),
-        )
+        return self._workspace.attempt_path(handle)
 
     def _workspace_candidate(self, handle: ExecutionHandle) -> Path:
-        candidate = self._host_workspace_root.joinpath(
-            *PurePosixPath(self._workspace_relative(handle)).parts
-        )
-        if candidate.is_symlink():
-            raise SandboxControllerError("attempt_workspace_symlink")
-        resolved = candidate.resolve(strict=False)
-        if not resolved.is_relative_to(self._host_workspace_root):
-            raise SandboxControllerError("attempt_workspace_escape")
-        return resolved
+        return self._workspace.attempt_path(handle)
 
-    @staticmethod
-    def _workspace_relative(handle: ExecutionHandle) -> str:
-        relative = (
-            PurePosixPath(workspace_path(handle.workflow_id, handle.attempt))
-            .relative_to(".var/unattended")
-            .as_posix()
-        )
-        return relative
-
-    def _launch_argv(self, handle: ExecutionHandle, workspace: Path) -> tuple[str, ...]:
+    def _launch_argv(self, handle: ExecutionHandle) -> tuple[str, ...]:
         return (
             "docker",
             "run",
@@ -285,8 +276,9 @@ class SandboxController:
             "/home/openhands:rw,nosuid,size=128m",
             "--mount",
             (
-                f"type=bind,src={workspace},"
-                f"dst={ATTEMPT_WORKSPACE_DESTINATION}"
+                f"type=volume,src={self._workspace_volume},"
+                f"dst={ATTEMPT_WORKSPACE_DESTINATION},"
+                f"volume-subpath={self._workspace.attempt_subpath(handle)}"
             ),
             "--workdir",
             ATTEMPT_WORKSPACE_DESTINATION,
@@ -315,6 +307,7 @@ class SandboxController:
         security_opt = host.get("SecurityOpt")
         cap_drop = host.get("CapDrop")
         tmpfs = host.get("Tmpfs")
+        host_mounts = host.get("Mounts")
 
         if config.get("Image") != AGENT_SERVER_IMAGE:
             raise ValueError("image_mismatch")
@@ -349,15 +342,29 @@ class SandboxController:
         if not isinstance(mounts, list) or len(mounts) != 1:
             raise ValueError("mount_count_mismatch")
         mount = mounts[0]
-        expected_workspace = self._workspace_for(handle)
         if (
             not isinstance(mount, Mapping)
-            or mount.get("Type") != "bind"
-            or Path(str(mount.get("Source"))).resolve() != expected_workspace
+            or mount.get("Type") != "volume"
+            or mount.get("Name") != self._workspace_volume
             or mount.get("Destination") != ATTEMPT_WORKSPACE_DESTINATION
             or mount.get("RW") is not True
         ):
             raise ValueError("workspace_mount_mismatch")
+        if not isinstance(host_mounts, list) or len(host_mounts) != 1:
+            raise ValueError("host_mount_count_mismatch")
+        host_mount = host_mounts[0]
+        if not isinstance(host_mount, Mapping):
+            raise ValueError("host_mount_shape")
+        volume_options = host_mount.get("VolumeOptions")
+        if (
+            host_mount.get("Type") != "volume"
+            or host_mount.get("Source") != self._workspace_volume
+            or host_mount.get("Target") != ATTEMPT_WORKSPACE_DESTINATION
+            or not isinstance(volume_options, Mapping)
+            or volume_options.get("Subpath")
+            != self._workspace.attempt_subpath(handle)
+        ):
+            raise ValueError("workspace_volume_subpath_mismatch")
         if set(networks) != {self._executor_network}:
             raise ValueError("network_attachment_mismatch")
         if not isinstance(env, list):

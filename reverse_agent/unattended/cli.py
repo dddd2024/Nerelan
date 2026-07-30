@@ -15,6 +15,7 @@ from typing import Any
 from .probe import run_temporal_probe
 from .readiness_probe import run_direct_readiness_probe
 from .sandbox_probe import run_sandbox_boundary_probe
+from .workspace_probe import run_workspace_preflight_probe
 from .component_lock import load_component_lock
 from .secrets import executor_key_secret_preflight, provider_secret_preflight
 
@@ -167,6 +168,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--compose-project",
         required=True,
     )
+    workspace_probe = subparsers.add_parser("workspace-preflight")
+    workspace_probe.add_argument("--compose-project", required=True)
+    workspace_probe.add_argument(
+        "--stack-mode",
+        required=True,
+        choices=("fresh", "restart"),
+    )
     sandbox_probe.add_argument(
         "--executor-key-file",
         default=os.environ.get("UNATTENDED_LITELLM_EXECUTOR_KEY_FILE"),
@@ -204,10 +212,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             compose_project=args.compose_project,
             executor_key_file=key_file,
         )
-    else:
+    elif args.command == "attempt-readiness-probe":
         report = run_direct_readiness_probe(
             repository_root=_repo_root(),
             compose_project=args.compose_project,
+        )
+    else:
+        report = run_workspace_preflight_probe(
+            repository_root=_repo_root(),
+            compose_project=args.compose_project,
+            stack_mode=args.stack_mode,
         )
     print(json.dumps(report, sort_keys=True))
     return 0 if report["status"] == "PASS" else 1

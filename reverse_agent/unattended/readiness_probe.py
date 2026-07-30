@@ -51,6 +51,7 @@ def run_direct_readiness_probe(
         runner,
         host_workspace_root=root,
         executor_network=f"{compose_project}_model-executor",
+        workspace_volume=f"{compose_project}_attempt-workspaces",
     )
     transport = AttemptJsonTransport(runner, handle)
     progress: list[AttemptReadinessProgress] = []

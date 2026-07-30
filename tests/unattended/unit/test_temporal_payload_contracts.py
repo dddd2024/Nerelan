@@ -21,6 +21,7 @@ from reverse_agent.unattended.activities import (
     launch_or_reconcile_attempt,
     start_openhands_conversation,
     wait_attempt_server,
+    workspace_root_preflight,
 )
 from reverse_agent.unattended.contracts import ExecutionHandle
 from reverse_agent.unattended.identifiers import (
@@ -39,6 +40,7 @@ from reverse_agent.unattended.temporal_contracts import (
     OpenHandsLifecycleResult,
     SanitizedFailureCategory,
     TaskSubmissionEvidence,
+    WorkspaceRootPreflightResult,
 )
 from reverse_agent.unattended.workflows import UnattendedGate2Workflow
 
@@ -94,6 +96,30 @@ _BOUNDARY_VALUES = (
         code="ATTEMPT_READINESS_TIMEOUT",
         stage="readiness",
         retryable=False,
+    ),
+)
+_BOUNDARY_VALUES = _BOUNDARY_VALUES + (
+    WorkspaceRootPreflightResult(
+        source_kind="volume",
+        root_uid=10001,
+        root_gid=10001,
+        root_mode=0o750,
+        controller_uid=10001,
+        controller_gid=10001,
+        agent_uid=10001,
+        agent_gid=10001,
+        root_exists=True,
+        root_is_directory=True,
+        root_is_symlink=False,
+        owner_matches_policy=True,
+        mode_matches_policy=True,
+        controller_atomic_probe=True,
+        attempt_directory_provisioned=True,
+        agent_exact_attempt_write=True,
+        agent_root_denied=True,
+        agent_sibling_denied=True,
+        agent_outside_denied=True,
+        host_controller_identity_match=True,
     ),
 )
 _BOUNDARY_VALUES = _BOUNDARY_VALUES + (
@@ -162,6 +188,7 @@ def _assert_supported(annotation: object, *, trail: str) -> None:
 def test_temporal_boundary_annotations_reject_arbitrary_shapes() -> None:
     activity_definitions = [
         launch_or_reconcile_attempt.__temporal_activity_definition,
+        workspace_root_preflight.__temporal_activity_definition,
         wait_attempt_server.__temporal_activity_definition,
         start_openhands_conversation.__temporal_activity_definition,
         collect_openhands_result.__temporal_activity_definition,
@@ -188,6 +215,14 @@ def test_temporal_boundary_annotations_reject_arbitrary_shapes() -> None:
 _MODE = "success"
 _CALLS: list[str] = []
 _COLLECT_STARTED: asyncio.Event | None = None
+
+
+@activity.defn(name="workspace_root_preflight")
+async def _fake_preflight(
+    handle: ExecutionHandle,
+) -> WorkspaceRootPreflightResult:
+    _CALLS.append("preflight")
+    return _BOUNDARY_VALUES[-2]
 
 
 @activity.defn(name="launch_or_reconcile_attempt")
@@ -252,6 +287,7 @@ async def _run_replay_scenario(mode: str) -> tuple[int, int]:
                 environment.client,
                 task_queue=SANDBOX_CONTROLLER_TASK_QUEUE,
                 activities=[
+                    _fake_preflight,
                     _fake_launch,
                     _fake_readiness,
                     _fake_start,

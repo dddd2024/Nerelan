@@ -21,8 +21,13 @@ from reverse_agent.unattended import (
     workspace_id,
     workspace_path,
 )
+from reverse_agent.unattended.workspace import (
+    WORKSPACE_ROOT_IDENTITY_CONTENT,
+    WORKSPACE_ROOT_IDENTITY_MARKER,
+)
 
 _NETWORK = "issue81_model-executor"
+_VOLUME = "issue81_attempt-workspaces"
 def _handle(attempt: int = 1) -> ExecutionHandle:
     identifier = "unattended:dddd2024/reverse-agent:issue:81"
     return ExecutionHandle(
@@ -72,12 +77,29 @@ def _inspect_payload(
                 "/tmp": "rw,exec,nosuid,nodev,size=512m",
                 "/home/openhands": "rw,nosuid,size=128m",
             },
+            "Mounts": [
+                {
+                    "Type": "volume",
+                    "Source": _VOLUME,
+                    "Target": ATTEMPT_WORKSPACE_DESTINATION,
+                    "VolumeOptions": {
+                        "Subpath": str(
+                            Path(
+                                workspace_path(
+                                    handle.workflow_id,
+                                    handle.attempt,
+                                )
+                            ).relative_to(".var/unattended")
+                        ).replace("\\", "/")
+                    },
+                }
+            ],
         },
         "State": {"Status": "running"},
         "Mounts": [
             {
-                "Type": "bind",
-                "Source": str(_workspace(root, handle)),
+                "Type": "volume",
+                "Name": _VOLUME,
                 "Destination": ATTEMPT_WORKSPACE_DESTINATION,
                 "RW": True,
             }
@@ -152,10 +174,18 @@ def _controller(
     tmp_path: Path,
     runner: StatefulRunner,
 ) -> SandboxController:
+    root = (tmp_path / "attempts").absolute()
+    root.mkdir(mode=0o750, exist_ok=True)
+    root.chmod(0o750)
+    (root / WORKSPACE_ROOT_IDENTITY_MARKER).write_text(
+        WORKSPACE_ROOT_IDENTITY_CONTENT,
+        encoding="utf-8",
+    )
     return SandboxController(
         runner,
-        host_workspace_root=(tmp_path / "attempts").absolute(),
+        host_workspace_root=root,
         executor_network=_NETWORK,
+        workspace_volume=_VOLUME,
     )
 
 
@@ -181,6 +211,9 @@ def test_launch_uses_only_fixed_argv_and_sanitized_metadata(tmp_path: Path) -> N
     ]
     assert "no-new-privileges:true" in launch
     assert "/var/run/docker.sock" not in " ".join(launch)
+    mount = launch[launch.index("--mount") + 1]
+    assert mount.startswith(f"type=volume,src={_VOLUME},")
+    assert "volume-subpath=" in mount
     assert "SESSION_API_KEY" not in launch
     assert launch[launch.index("--host") + 1] == "127.0.0.1"
     assert environment is None

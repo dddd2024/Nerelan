@@ -8,6 +8,7 @@ from .gate2 import (
     launch_or_reconcile_attempt,
     start_openhands_conversation,
     wait_attempt_server,
+    workspace_root_preflight,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "launch_or_reconcile_attempt",
     "start_openhands_conversation",
     "wait_attempt_server",
+    "workspace_root_preflight",
 ]

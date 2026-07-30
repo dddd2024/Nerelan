@@ -19,11 +19,14 @@ from .activities import (
     launch_or_reconcile_attempt,
     start_openhands_conversation,
     wait_attempt_server,
+    workspace_root_preflight,
 )
 from .identifiers import SANDBOX_CONTROLLER_TASK_QUEUE
 from .sandbox import SandboxController, SubprocessDockerRunner
+from .workspace import WORKSPACE_ROOT
 
 _CONTROLLER_ACTIVITIES = [
+    workspace_root_preflight,
     launch_or_reconcile_attempt,
     wait_attempt_server,
     start_openhands_conversation,
@@ -45,22 +48,23 @@ async def run_controller_worker(
     address: str,
     namespace: str,
     *,
-    host_workspace_root: Path,
     executor_network: str,
+    workspace_volume: str,
     executor_key_file: Path,
 ) -> None:
     executor_api_key = executor_key_file.read_text(encoding="utf-8").strip()
     runner = SubprocessDockerRunner()
     controller = SandboxController(
         runner,
-        host_workspace_root=host_workspace_root,
+        host_workspace_root=WORKSPACE_ROOT,
         executor_network=executor_network,
+        workspace_volume=workspace_volume,
     )
     configure_controller_activity_runtime(
         ControllerActivityRuntime(
             controller,
             runner,
-            host_workspace_root=host_workspace_root,
+            host_workspace_root=WORKSPACE_ROOT,
             executor_api_key=executor_api_key,
         )
     )
@@ -77,13 +81,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--namespace", default=os.environ.get("TEMPORAL_NAMESPACE", "default")
     )
     parser.add_argument(
-        "--workspace-root",
-        default=os.environ.get("UNATTENDED_HOST_WORKSPACE_ROOT"),
-        type=Path,
-    )
-    parser.add_argument(
         "--executor-network",
         default=os.environ.get("UNATTENDED_EXECUTOR_NETWORK"),
+    )
+    parser.add_argument(
+        "--workspace-volume",
+        default=os.environ.get("UNATTENDED_WORKSPACE_VOLUME"),
     )
     parser.add_argument(
         "--executor-key-file",
@@ -92,8 +95,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     if (
-        args.workspace_root is None
-        or args.executor_network is None
+        args.executor_network is None
+        or args.workspace_volume is None
         or args.executor_key_file is None
     ):
         parser.error("controller runtime paths and network are required")
@@ -101,8 +104,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_controller_worker(
             args.address,
             args.namespace,
-            host_workspace_root=args.workspace_root,
             executor_network=args.executor_network,
+            workspace_volume=args.workspace_volume,
             executor_key_file=args.executor_key_file,
         )
     )

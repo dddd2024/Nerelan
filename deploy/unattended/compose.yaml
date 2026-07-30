@@ -91,7 +91,7 @@ services:
 
   reverse-agent-worker:
     profiles: [runtime-proof]
-    image: reverse-agent-unattended-worker:issue82
+    image: reverse-agent-unattended-worker:issue85
     build:
       context: ../..
       dockerfile: deploy/unattended/worker.Dockerfile
@@ -99,6 +99,7 @@ services:
       temporal-namespace:
         condition: service_completed_successfully
     command: [reverse_agent.unattended.worker]
+    user: "10001:10001"
     environment:
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_NAMESPACE: default
@@ -109,21 +110,44 @@ services:
     security_opt: [no-new-privileges:true]
     networks: [control]
 
+  workspace-bootstrap:
+    profiles: [runtime-proof]
+    image: reverse-agent-unattended-worker:issue85
+    build:
+      context: ../..
+      dockerfile: deploy/unattended/worker.Dockerfile
+    command: [reverse_agent.unattended.workspace_bootstrap]
+    user: "0:0"
+    volumes:
+      - type: volume
+        source: attempt-workspaces
+        target: /var/lib/reverse-agent/unattended-workspaces
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    network_mode: none
+    restart: "no"
+
   sandbox-controller-worker:
     profiles: [runtime-proof]
-    image: reverse-agent-unattended-worker:issue82
+    image: reverse-agent-unattended-worker:issue85
     build:
       context: ../..
       dockerfile: deploy/unattended/worker.Dockerfile
     depends_on:
       temporal-namespace:
         condition: service_completed_successfully
+      workspace-bootstrap:
+        condition: service_completed_successfully
     command: [reverse_agent.unattended.controller_worker]
+    user: "10001:10001"
+    group_add: ["0"]
     environment:
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_NAMESPACE: default
-      UNATTENDED_HOST_WORKSPACE_ROOT: ${UNATTENDED_HOST_WORKSPACE_ROOT:-/tmp/reverse-agent-unattended-attempts}
       UNATTENDED_EXECUTOR_NETWORK: ${COMPOSE_PROJECT_NAME:-reverse-agent-unattended}_model-executor
+      UNATTENDED_WORKSPACE_VOLUME: ${COMPOSE_PROJECT_NAME:-reverse-agent-unattended}_attempt-workspaces
       UNATTENDED_LITELLM_EXECUTOR_KEY_FILE: /run/secrets/litellm_executor_key
     secrets:
       - source: litellm_executor_key
@@ -133,9 +157,9 @@ services:
       - type: bind
         source: /var/run/docker.sock
         target: /var/run/docker.sock
-      - type: bind
-        source: ${UNATTENDED_HOST_WORKSPACE_ROOT:-/tmp/reverse-agent-unattended-attempts}
-        target: ${UNATTENDED_HOST_WORKSPACE_ROOT:-/tmp/reverse-agent-unattended-attempts}
+      - type: volume
+        source: attempt-workspaces
+        target: /var/lib/reverse-agent/unattended-workspaces
     read_only: true
     tmpfs:
       - /tmp:rw,nosuid,nodev,size=64m
@@ -209,11 +233,12 @@ services:
 
   provider-free-llm-fixture:
     profiles: [runtime-proof]
-    image: reverse-agent-unattended-worker:issue82
+    image: reverse-agent-unattended-worker:issue85
     build:
       context: ../..
       dockerfile: deploy/unattended/worker.Dockerfile
     command: [reverse_agent.unattended.provider_free_fixture]
+    user: "10001:10001"
     read_only: true
     tmpfs:
       - /tmp:rw,nosuid,nodev,size=16m
@@ -265,6 +290,7 @@ networks:
 volumes:
   temporal-postgresql-data:
   temporal-server-data:
+  attempt-workspaces:
 
 secrets:
   openai_api_key:
