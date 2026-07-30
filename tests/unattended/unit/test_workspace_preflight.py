@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import inspect
+import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
+import reverse_agent.unattended.workspace as workspace_module
 
 from reverse_agent.unattended import (
     ExecutionHandle,
@@ -32,6 +34,15 @@ _VOLUME = "issue85_attempt-workspaces"
 _NETWORK = "issue85_model-executor"
 
 
+@pytest.fixture
+def temporary_workspace_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if os.name == "posix":
+        monkeypatch.setattr(workspace_module, "WORKSPACE_ROOT_UID", os.geteuid())
+        monkeypatch.setattr(workspace_module, "WORKSPACE_ROOT_GID", os.getegid())
+
+
 def _handle() -> ExecutionHandle:
     identifier = "unattended:dddd2024/reverse-agent:issue:85-unit"
     return ExecutionHandle(
@@ -54,7 +65,10 @@ def _root(tmp_path: Path) -> Path:
     return root
 
 
-def test_fresh_and_restart_preflight_are_idempotent(tmp_path: Path) -> None:
+def test_fresh_and_restart_preflight_are_idempotent(
+    tmp_path: Path,
+    temporary_workspace_identity: None,
+) -> None:
     manager = WorkspaceRootManager(_root(tmp_path), volume_name=_VOLUME)
 
     first = manager.preflight(_handle())
@@ -72,7 +86,10 @@ def test_fresh_and_restart_preflight_are_idempotent(tmp_path: Path) -> None:
     assert manager.attempt_path(_handle()).is_dir()
 
 
-def test_concurrent_same_handle_provisions_one_directory(tmp_path: Path) -> None:
+def test_concurrent_same_handle_provisions_one_directory(
+    tmp_path: Path,
+    temporary_workspace_identity: None,
+) -> None:
     manager = WorkspaceRootManager(_root(tmp_path), volume_name=_VOLUME)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
@@ -87,8 +104,6 @@ def test_concurrent_same_handle_provisions_one_directory(tmp_path: Path) -> None
     [
         ("missing", "WORKSPACE_ROOT_MISSING"),
         ("file", "WORKSPACE_ROOT_NOT_DIRECTORY"),
-        ("marker_missing", "WORKSPACE_ROOT_HOST_IDENTITY_MISMATCH"),
-        ("marker_wrong", "WORKSPACE_ROOT_HOST_IDENTITY_MISMATCH"),
     ],
 )
 def test_preflight_returns_finite_root_failures(
@@ -110,6 +125,29 @@ def test_preflight_returns_finite_root_failures(
     manager = WorkspaceRootManager(root, volume_name=_VOLUME)
 
     with pytest.raises(WorkspacePreflightError, match=category):
+        manager.preflight(_handle())
+
+
+@pytest.mark.parametrize("setup", ["marker_missing", "marker_wrong"])
+def test_preflight_returns_finite_marker_failures(
+    tmp_path: Path,
+    temporary_workspace_identity: None,
+    setup: str,
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    root.chmod(WORKSPACE_ROOT_MODE)
+    if setup == "marker_wrong":
+        (root / WORKSPACE_ROOT_IDENTITY_MARKER).write_text(
+            "wrong\n",
+            encoding="utf-8",
+        )
+    manager = WorkspaceRootManager(root, volume_name=_VOLUME)
+
+    with pytest.raises(
+        WorkspacePreflightError,
+        match="WORKSPACE_ROOT_HOST_IDENTITY_MISMATCH",
+    ):
         manager.preflight(_handle())
 
 

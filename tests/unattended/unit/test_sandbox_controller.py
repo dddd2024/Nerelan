@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Mapping, Sequence
 
 import pytest
+import reverse_agent.unattended.workspace as workspace_module
 
 from reverse_agent.unattended import (
     AGENT_SERVER_DIGEST,
@@ -28,6 +30,17 @@ from reverse_agent.unattended.workspace import (
 
 _NETWORK = "issue81_model-executor"
 _VOLUME = "issue81_attempt-workspaces"
+
+
+@pytest.fixture
+def temporary_workspace_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if os.name == "posix":
+        monkeypatch.setattr(workspace_module, "WORKSPACE_ROOT_UID", os.geteuid())
+        monkeypatch.setattr(workspace_module, "WORKSPACE_ROOT_GID", os.getegid())
+
+
 def _handle(attempt: int = 1) -> ExecutionHandle:
     identifier = "unattended:dddd2024/reverse-agent:issue:81"
     return ExecutionHandle(
@@ -195,7 +208,10 @@ def test_container_name_is_deterministic_per_attempt() -> None:
     assert container_name_for(_handle()).startswith("reverse-agent-attempt-")
 
 
-def test_launch_uses_only_fixed_argv_and_sanitized_metadata(tmp_path: Path) -> None:
+def test_launch_uses_only_fixed_argv_and_sanitized_metadata(
+    tmp_path: Path,
+    temporary_workspace_identity: None,
+) -> None:
     root = (tmp_path / "attempts").absolute()
     runner = StatefulRunner(root, _handle())
 
@@ -226,7 +242,10 @@ def test_launch_uses_only_fixed_argv_and_sanitized_metadata(tmp_path: Path) -> N
     assert "SESSION_API_KEY" not in repr(metadata)
 
 
-def test_reconcile_existing_never_creates_duplicate(tmp_path: Path) -> None:
+def test_reconcile_existing_never_creates_duplicate(
+    tmp_path: Path,
+    temporary_workspace_identity: None,
+) -> None:
     root = (tmp_path / "attempts").absolute()
     runner = StatefulRunner(root, _handle(), exists=True)
 
@@ -241,7 +260,10 @@ def test_reconcile_existing_never_creates_duplicate(tmp_path: Path) -> None:
     assert not any(call[0][1] == "run" for call in runner.calls)
 
 
-def test_create_conflict_reconciles_exact_existing_container(tmp_path: Path) -> None:
+def test_create_conflict_reconciles_exact_existing_container(
+    tmp_path: Path,
+    temporary_workspace_identity: None,
+) -> None:
     root = (tmp_path / "attempts").absolute()
     runner = StatefulRunner(
         root,
@@ -260,6 +282,7 @@ def test_create_conflict_reconciles_exact_existing_container(tmp_path: Path) -> 
 
 def test_failed_create_without_reconciled_container_is_sanitized(
     tmp_path: Path,
+    temporary_workspace_identity: None,
 ) -> None:
     root = (tmp_path / "attempts").absolute()
     runner = StatefulRunner(root, _handle(), create_returncode=125)
@@ -272,7 +295,10 @@ def test_failed_create_without_reconciled_container_is_sanitized(
         )
 
 
-def test_reconcile_rejects_nonrunning_container(tmp_path: Path) -> None:
+def test_reconcile_rejects_nonrunning_container(
+    tmp_path: Path,
+    temporary_workspace_identity: None,
+) -> None:
     root = (tmp_path / "attempts").absolute()
     runner = StatefulRunner(
         root,
