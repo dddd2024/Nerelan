@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260730_unattended_gate2_runtime_proof_recovery_v7",
-  "round_id": "round_20260730_unattended_gate2_runtime_proof_recovery_v7",
+  "decision_id": "decision_20260730_unattended_gate2_attempt_readiness_recovery_v8",
+  "round_id": "round_20260730_unattended_gate2_attempt_readiness_recovery_v8",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260730_unattended_gate2_runtime_proof_recovery_v7 expected=decision_20260730_unattended_gate2_runtime_proof_recovery_v7"
+      "detail": "observed=decision_20260730_unattended_gate2_attempt_readiness_recovery_v8 expected=decision_20260730_unattended_gate2_attempt_readiness_recovery_v8"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260730_unattended_gate2_runtime_proof_recovery_v7 expected=round_20260730_unattended_gate2_runtime_proof_recovery_v7"
+      "detail": "observed=round_20260730_unattended_gate2_attempt_readiness_recovery_v8 expected=round_20260730_unattended_gate2_attempt_readiness_recovery_v8"
     },
     {
       "name": "decision_approved",
@@ -43,12 +43,12 @@
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=248ef023b6ad5c2315536bce1f2b223ce3721cdc"
+      "detail": "decision_commit=bb1ab672fe07dd06743a989cc56d29c486dae2f1"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260730_unattended_gate2_runtime_proof_recovery_v7/round_20260730_unattended_gate2_runtime_proof_recovery_v7"
+      "detail": "plan=decision_20260730_unattended_gate2_attempt_readiness_recovery_v8/round_20260730_unattended_gate2_attempt_readiness_recovery_v8"
     },
     {
       "name": "command_plan_contract",
