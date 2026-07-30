@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260729_unattended_gate2_sandbox_boundary_v5",
-  "round_id": "round_20260729_unattended_gate2_sandbox_boundary_v5",
+  "decision_id": "decision_20260729_unattended_gate2_runtime_proof_rework_v6",
+  "round_id": "round_20260729_unattended_gate2_runtime_proof_rework_v6",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260729_unattended_gate2_sandbox_boundary_v5 expected=decision_20260729_unattended_gate2_sandbox_boundary_v5"
+      "detail": "observed=decision_20260729_unattended_gate2_runtime_proof_rework_v6 expected=decision_20260729_unattended_gate2_runtime_proof_rework_v6"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260729_unattended_gate2_sandbox_boundary_v5 expected=round_20260729_unattended_gate2_sandbox_boundary_v5"
+      "detail": "observed=round_20260729_unattended_gate2_runtime_proof_rework_v6 expected=round_20260729_unattended_gate2_runtime_proof_rework_v6"
     },
     {
       "name": "decision_approved",
@@ -43,12 +43,12 @@
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=def487ebfbc73d85d50c18cfcf0bf9b4649dfe58"
+      "detail": "decision_commit=2d3795005e254dbd6e658adb86c583f30965149d"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260729_unattended_gate2_sandbox_boundary_v5/round_20260729_unattended_gate2_sandbox_boundary_v5"
+      "detail": "plan=decision_20260729_unattended_gate2_runtime_proof_rework_v6/round_20260729_unattended_gate2_runtime_proof_rework_v6"
     },
     {
       "name": "command_plan_contract",

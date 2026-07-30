@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260729_unattended_gate2_sandbox_boundary_v5",
-  "round_id": "round_20260729_unattended_gate2_sandbox_boundary_v5",
+  "decision_id": "decision_20260729_unattended_gate2_runtime_proof_rework_v6",
+  "round_id": "round_20260729_unattended_gate2_runtime_proof_rework_v6",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
@@ -262,31 +262,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "probe.upstream_source",
-      "command": "git clone --branch 1.37.0 --depth 1 https://github.com/OpenHands/software-agent-sdk.git UPSTREAM_TEMP_PATH",
-      "phase": "probe",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
       "command_id": "probe.compose_fresh",
-      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue81-sandbox -f deploy/unattended/compose.yaml up -d --wait",
+      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue82-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof up -d --wait",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -308,8 +285,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "probe.sandbox_boundary",
-      "command": "wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli sandbox-boundary-probe",
+      "command_id": "probe.runtime_proof",
+      "command": "wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli gate2-runtime-proof",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -334,7 +311,7 @@
     },
     {
       "command_id": "probe.compose_cleanup",
-      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue81-sandbox -f deploy/unattended/compose.yaml down -v",
+      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue82-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof down -v",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -401,8 +378,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.comment_issue81",
-      "command": "gh issue comment 81 --repo dddd2024/reverse-agent --body-file ISSUE81_COMMENT_TEMP_PATH",
+      "command_id": "publication.comment_issue82",
+      "command": "gh issue comment 82 --repo dddd2024/reverse-agent --body-file ISSUE82_COMMENT_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
