@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260730_unattended_gate2_attempt_readiness_recovery_v8",
-  "round_id": "round_20260730_unattended_gate2_attempt_readiness_recovery_v8",
-  "expired_at": "2026-07-30T04:38:56+00:00"
+  "decision_id": "decision_20260730_unattended_gate2_workspace_provisioning_recovery_v9",
+  "round_id": "round_20260730_unattended_gate2_workspace_provisioning_recovery_v9",
+  "expired_at": "2026-07-30T06:29:32+00:00"
 }

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260730_unattended_gate2_attempt_readiness_recovery_v8",
-  "round_id": "round_20260730_unattended_gate2_attempt_readiness_recovery_v8",
+  "decision_id": "decision_20260730_unattended_gate2_workspace_provisioning_recovery_v9",
+  "round_id": "round_20260730_unattended_gate2_workspace_provisioning_recovery_v9",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
@@ -262,31 +262,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "probe.compose_fresh",
-      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue84-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof up -d --wait",
-      "phase": "probe",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "container_runtime",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "probe.attempt_readiness",
-      "command": "python -m reverse_agent.unattended.cli attempt-readiness-probe --compose-project reverse-agent-issue84-runtime-proof",
+      "command_id": "probe.workspace_fresh",
+      "command": "python -m reverse_agent.unattended.cli workspace-preflight --compose-project reverse-agent-issue85-workspace --stack-mode fresh",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -297,34 +274,9 @@
       "operations": [
         "component_compatibility_validation",
         "container_runtime",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "probe.runtime_proof",
-      "command": "wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli gate2-runtime-proof",
-      "phase": "probe",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "component_compatibility_validation",
-        "container_runtime",
-        "network_access",
         "secret_boundary_validation"
       ],
-      "network_access": true,
+      "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
@@ -334,8 +286,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "probe.compose_cleanup",
-      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue84-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof down -v",
+      "command_id": "probe.workspace_restart",
+      "command": "python -m reverse_agent.unattended.cli workspace-preflight --compose-project reverse-agent-issue85-workspace --stack-mode restart",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -344,7 +296,9 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "container_runtime"
+        "component_compatibility_validation",
+        "container_runtime",
+        "secret_boundary_validation"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -359,7 +313,7 @@
       "command_id": "publication.push_branch",
       "command": "git push -u origin codex/unattended-base-platform-v0",
       "phase": "publication",
-      "required": false,
+      "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
@@ -382,7 +336,7 @@
       "command_id": "publication.update_draft_pr",
       "command": "gh pr edit 78 --repo dddd2024/reverse-agent --body-file PR_BODY_TEMP_PATH",
       "phase": "publication",
-      "required": false,
+      "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
@@ -402,8 +356,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.comment_issue84",
-      "command": "gh issue comment 84 --repo dddd2024/reverse-agent --body-file ISSUE84_COMMENT_TEMP_PATH",
+      "command_id": "publication.comment_issue85",
+      "command": "gh issue comment 85 --repo dddd2024/reverse-agent --body-file ISSUE85_COMMENT_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -451,7 +405,7 @@
       "command_id": "observation.exact_head_checks",
       "command": "gh pr checks 78 --repo dddd2024/reverse-agent --watch",
       "phase": "observation",
-      "required": false,
+      "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
@@ -462,6 +416,76 @@
         "network_access"
       ],
       "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "probe.compose_fresh",
+      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue85-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof up -d --wait",
+      "phase": "probe",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "container_runtime",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "probe.runtime_proof",
+      "command": "python -m reverse_agent.unattended.cli gate2-runtime-proof --workflow-id unattended:dddd2024/reverse-agent:issue:85:runtime-proof-a",
+      "phase": "probe",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "component_compatibility_validation",
+        "container_runtime",
+        "network_access",
+        "secret_boundary_validation"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "probe.compose_cleanup",
+      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue85-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof down -v",
+      "phase": "probe",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "container_runtime"
+      ],
+      "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
