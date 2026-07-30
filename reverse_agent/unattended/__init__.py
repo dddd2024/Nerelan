@@ -65,6 +65,17 @@ from .temporal_contracts import (
     OpenHandsLifecycleResult,
     SanitizedFailureCategory,
     TaskSubmissionEvidence,
+    WorkspaceRootPreflightResult,
+)
+from .workspace import (
+    ATTEMPT_DIRECTORY_MODE,
+    WORKSPACE_PREFLIGHT_FAILURE_CODES,
+    WORKSPACE_ROOT,
+    WORKSPACE_ROOT_GID,
+    WORKSPACE_ROOT_MODE,
+    WORKSPACE_ROOT_UID,
+    WorkspacePreflightError,
+    WorkspaceRootManager,
 )
 
 __all__ = [
@@ -111,6 +122,15 @@ __all__ = [
     "OpenHandsLifecycleResult",
     "SanitizedFailureCategory",
     "TaskSubmissionEvidence",
+    "WorkspaceRootPreflightResult",
+    "ATTEMPT_DIRECTORY_MODE",
+    "WORKSPACE_PREFLIGHT_FAILURE_CODES",
+    "WORKSPACE_ROOT",
+    "WORKSPACE_ROOT_GID",
+    "WORKSPACE_ROOT_MODE",
+    "WORKSPACE_ROOT_UID",
+    "WorkspacePreflightError",
+    "WorkspaceRootManager",
     "ALIVE_OBSERVATION",
     "READINESS_DEADLINE_SECONDS",
     "READINESS_MAX_POLL_INTERVAL_SECONDS",

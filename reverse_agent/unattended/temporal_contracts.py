@@ -13,11 +13,83 @@ _FAILURE_CODES = frozenset(
         "ATTEMPT_READINESS_CONTRACT",
         "OPENHANDS_LIFECYCLE_FAILED",
         "TASK_SUBMISSION_FAILED",
+        "WORKSPACE_ROOT_MISSING",
+        "WORKSPACE_ROOT_NOT_DIRECTORY",
+        "WORKSPACE_ROOT_SYMLINK_REJECTED",
+        "WORKSPACE_ROOT_OWNER_MISMATCH",
+        "WORKSPACE_ROOT_MODE_MISMATCH",
+        "WORKSPACE_ROOT_NOT_WRITABLE",
+        "WORKSPACE_ROOT_HOST_IDENTITY_MISMATCH",
+        "ATTEMPT_DIRECTORY_PROVISION_FAILED",
     }
 )
 _FAILURE_STAGES = frozenset(
-    {"cleanup", "launch", "readiness", "start_conversation", "collect_result"}
+    {
+        "workspace_preflight",
+        "cleanup",
+        "launch",
+        "readiness",
+        "start_conversation",
+        "collect_result",
+    }
 )
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceRootPreflightResult:
+    source_kind: str
+    root_uid: int
+    root_gid: int
+    root_mode: int
+    controller_uid: int
+    controller_gid: int
+    agent_uid: int
+    agent_gid: int
+    root_exists: bool
+    root_is_directory: bool
+    root_is_symlink: bool
+    owner_matches_policy: bool
+    mode_matches_policy: bool
+    controller_atomic_probe: bool
+    attempt_directory_provisioned: bool
+    agent_exact_attempt_write: bool
+    agent_root_denied: bool
+    agent_sibling_denied: bool
+    agent_outside_denied: bool
+    host_controller_identity_match: bool
+
+    def __post_init__(self) -> None:
+        if self.source_kind != "volume":
+            raise ValueError("invalid_workspace_source_kind")
+        for name in (
+            "root_uid",
+            "root_gid",
+            "root_mode",
+            "controller_uid",
+            "controller_gid",
+            "agent_uid",
+            "agent_gid",
+        ):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < -1:
+                raise ValueError(f"invalid_{name}")
+        if self.root_mode < 0 or self.root_mode > 0o777:
+            raise ValueError("invalid_workspace_root_mode")
+        required_true = (
+            self.root_exists,
+            self.root_is_directory,
+            self.owner_matches_policy,
+            self.mode_matches_policy,
+            self.controller_atomic_probe,
+            self.attempt_directory_provisioned,
+            self.agent_exact_attempt_write,
+            self.agent_root_denied,
+            self.agent_sibling_denied,
+            self.agent_outside_denied,
+            self.host_controller_identity_match,
+        )
+        if self.root_is_symlink or not all(required_true):
+            raise ValueError("workspace_preflight_result_must_pass")
 
 
 @dataclass(frozen=True, slots=True)
