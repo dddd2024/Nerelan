@@ -129,7 +129,7 @@ for root_name in ("/workspace/attempt", "/home/openhands", "/tmp"):
                 candidate.is_file()
                 and not candidate.is_symlink()
                 and candidate.stat().st_size <= 1048576
-                and name in candidate.read_bytes()
+                and name + b"=" in candidate.read_bytes()
             ):
                 raise SystemExit(2)
         except (OSError, PermissionError):
