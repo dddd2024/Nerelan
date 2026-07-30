@@ -118,6 +118,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--temporal-address",
         default=os.environ.get("TEMPORAL_ADDRESS", "localhost:7233"),
     )
+    runtime_proof = subparsers.add_parser("gate2-runtime-proof")
+    runtime_proof.add_argument(
+        "--temporal-address",
+        default=os.environ.get("TEMPORAL_ADDRESS", "localhost:7233"),
+    )
+    runtime_proof.add_argument(
+        "--temporal-namespace",
+        default=os.environ.get("TEMPORAL_NAMESPACE", "default"),
+    )
+    runtime_proof.add_argument(
+        "--workflow-id",
+        default=os.environ.get(
+            "UNATTENDED_RUNTIME_PROOF_WORKFLOW_ID",
+            "unattended:dddd2024/reverse-agent:issue:82:runtime-proof",
+        ),
+    )
     probe.add_argument(
         "--temporal-namespace",
         default=os.environ.get("TEMPORAL_NAMESPACE", "default"),
@@ -147,9 +163,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "doctor":
         report = doctor_report()
-    elif args.command == "gate2-probe":
+    elif args.command in {"gate2-probe", "gate2-runtime-proof"}:
         report = asyncio.run(
-            _gate2_report(args.temporal_address, args.temporal_namespace)
+            _gate2_report(
+                args.temporal_address,
+                args.temporal_namespace,
+            )
+            if args.command == "gate2-probe"
+            else run_temporal_probe(
+                address=args.temporal_address,
+                namespace=args.temporal_namespace,
+                probe_workflow_id=args.workflow_id,
+            )
         )
     elif args.command == "secret-preflight":
         report = provider_secret_preflight(

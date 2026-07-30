@@ -24,3 +24,4 @@ def test_temporal_activity_and_replay_against_pinned_stack() -> None:
     assert report["temporal_connection"] == "PASS"
     assert report["activity_execution"] == "PASS"
     assert report["workflow_replay"] == "PASS"
+    assert report["result"]["verdict"] == "PROVIDER_FREE_RUNTIME_PROOF"

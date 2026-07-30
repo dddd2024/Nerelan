@@ -182,6 +182,7 @@ services:
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
       LITELLM_SALT_KEY: ${LITELLM_SALT_KEY}
+      PROVIDER_FREE_FIXTURE_API_KEY: provider-free-fixture-only
       DATABASE_URL: postgresql://litellm:${LITELLM_DATABASE_PASSWORD}@postgresql:5432/litellm
     depends_on:
       litellm-database:
@@ -191,7 +192,7 @@ services:
         target: openai_api_key
         mode: 0400
     volumes:
-      - ./litellm.config.example.yaml:/app/config.yaml:ro
+      - ${UNATTENDED_LITELLM_CONFIG_FILE:-./litellm.config.example.yaml}:/app/config.yaml:ro
       - ./litellm-entrypoint.sh:/app/litellm-entrypoint.sh:ro
     ports:
       - "${UNATTENDED_BIND_ADDRESS:-127.0.0.1}:4000:4000"
@@ -205,6 +206,25 @@ services:
       control:
       model-executor:
         aliases: [litellm-executor]
+
+  provider-free-llm-fixture:
+    profiles: [runtime-proof]
+    image: reverse-agent-unattended-worker:issue82
+    build:
+      context: ../..
+      dockerfile: deploy/unattended/worker.Dockerfile
+    command: [reverse_agent.unattended.provider_free_fixture]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=16m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health', timeout=3)"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    networks: [model-executor]
 
   litellm-key-bootstrap:
     image: ghcr.io/berriai/litellm:v1.94.0@sha256:65d84a2282137b4dc73bbe184650a7c807177c533e4223b3bfbc87963fe3fabe

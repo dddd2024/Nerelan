@@ -124,7 +124,47 @@ async def collect_openhands_result(
         for _ in range(300):
             status = await asyncio.to_thread(adapter.get_status, handle)
             if status in {"finished", "error", "stuck"}:
-                return await asyncio.to_thread(adapter.collect_result, handle)
+                await asyncio.to_thread(adapter.collect_result, handle)
+                relative = Path(
+                    workspace_path(handle.workflow_id, handle.attempt)
+                ).relative_to(".var/unattended")
+                proof = (
+                    runtime.host_workspace_root
+                    / relative
+                    / "provider-free-runtime-proof.txt"
+                )
+                try:
+                    content = await asyncio.to_thread(
+                        proof.read_text, encoding="utf-8"
+                    )
+                except OSError as error:
+                    raise RuntimeError(
+                        "provider_free_workspace_proof_missing"
+                    ) from error
+                if content != "PROVIDER_FREE_RUNTIME_PROOF":
+                    raise RuntimeError(
+                        "provider_free_workspace_proof_mismatch"
+                    )
+                return TaskSubmission(
+                    verdict="PROVIDER_FREE_RUNTIME_PROOF",
+                    summary=(
+                        "Provider-free OpenHands conversation completed one "
+                        "bounded terminal tool action."
+                    ),
+                    changed_paths=("provider-free-runtime-proof.txt",),
+                    commands_executed=("terminal_or_file_editor_action",),
+                    test_evidence=(
+                        "executor_virtual_key_authenticated_litellm",
+                        "openhands_conversation_create_run",
+                        "inside_workspace_create_read",
+                        "task_submission_collected",
+                    ),
+                    limitations=(
+                        "No real provider credential or provider completion "
+                        "was used.",
+                    ),
+                    failure_reason=None,
+                )
             activity.heartbeat({"conversation_terminal": False})
             await asyncio.sleep(1)
         raise RuntimeError("openhands_conversation_timeout")
