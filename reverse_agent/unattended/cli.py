@@ -61,6 +61,30 @@ def doctor_report() -> dict[str, Any]:
             and "/var/run/docker.sock"
             not in _service_block(compose_text, "reverse-agent-worker")
         ),
+        "workspace_bootstrap_is_one_shot_and_isolated": (
+            "workspace-bootstrap:" in compose_text
+            and "network_mode: none"
+            in _service_block(compose_text, "workspace-bootstrap")
+            and "/var/run/docker.sock"
+            not in _service_block(compose_text, "workspace-bootstrap")
+            and "secrets:"
+            not in _service_block(compose_text, "workspace-bootstrap")
+        ),
+        "controller_and_agent_are_non_root": (
+            'user: "10001:10001"'
+            in _service_block(compose_text, "sandbox-controller-worker")
+            and "USER 10001:10001"
+            in (
+                root / "deploy" / "unattended" / "worker.Dockerfile"
+            ).read_text(encoding="utf-8")
+        ),
+        "fixed_workspace_volume_boundary": (
+            "source: attempt-workspaces"
+            in _service_block(compose_text, "sandbox-controller-worker")
+            and "UNATTENDED_HOST_WORKSPACE_ROOT"
+            not in _service_block(compose_text, "sandbox-controller-worker")
+            and "attempt-workspaces:" in compose_text
+        ),
         "long_lived_agent_server_absent": "  agent-server:" not in compose_text,
         "internal_model_executor_network": (
             "  model-executor:" in compose_text

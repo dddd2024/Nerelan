@@ -59,6 +59,14 @@ idempotently. The same command is valid for a fresh project and after a
 `docker compose down` that retains its named volumes; no manual schema or
 namespace command is part of the startup contract.
 
+The `runtime-proof` profile also creates a fixed `attempt-workspaces` named
+volume. A one-shot, network-isolated bootstrap with no Docker socket or secrets
+sets its root to owner/group `10001:10001` and mode `0750`, then exits. The
+long-lived controller runs as `10001:10001`, validates the root identity and an
+atomic write/rename/delete probe, and provisions mode-`0700` deterministic
+Attempt directories before launch. The Agent receives only its exact volume
+subpath; it cannot mount or mutate the root or sibling Attempts.
+
 Published development ports default to
 `${UNATTENDED_BIND_ADDRESS:-127.0.0.1}`. Setting a broader address is an
 explicit local-development opt-in, not a production topology. Internal
@@ -87,7 +95,9 @@ The current Gate 2 topology is API/probe oriented and does not expose an
 Attempt Agent Server port to a browser. A unified Web Console and a bounded
 Controller-mediated browser route require a later Work Item.
 
-Runtime workspaces live below the ignored `.var/unattended/` tree. Named
-volumes `temporal-postgresql-data` and `temporal-server-data` retain local
-Temporal state between ordinary container restarts. This is a development
-baseline and is not a production deployment topology.
+Runtime workspace identity still derives from
+`.var/unattended/{workspace-id}/{attempt}`, but its bytes live in the fixed
+`attempt-workspaces` named volume. Named volumes `temporal-postgresql-data` and
+`temporal-server-data` retain local Temporal state between ordinary container
+restarts. This is a development baseline and is not a production deployment
+topology.

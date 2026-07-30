@@ -56,10 +56,13 @@ Docker example runs that Agent Server as a remote workspace container. The
 minimal image does not require a Docker socket for local Terminal or File
 Editor execution.
 
-The fixed image can therefore be launched once per Attempt with one workspace
-bind, a private internal executor network, dropped capabilities,
+The fixed image can therefore be launched once per Attempt with one exact
+named-volume subpath mounted at `/workspace/attempt`, a private internal
+executor network, dropped capabilities,
 `no-new-privileges`, bounded CPU/memory/PIDs, a read-only root filesystem, and
-explicit tmpfs mounts. Docker authority remains outside that container.
+explicit tmpfs mounts. The fixed Agent identity is `10001:10001`; it receives
+neither the volume root nor sibling Attempt paths. Docker authority remains
+outside that container.
 
 ## Unsafe starting-head observation
 

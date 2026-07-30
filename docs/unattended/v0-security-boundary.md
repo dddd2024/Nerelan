@@ -56,7 +56,13 @@ Docker boundaries:
   containers directly;
 - only the separate trusted `SandboxController` process may address Docker;
 - the AI-controlled Agent Server container has no Docker socket;
-- sandbox work is restricted to its single RW Attempt-workspace bind;
+- sandbox work is restricted to one RW named-volume subpath for its exact
+  Attempt; the workspace root and sibling Attempts are not mounted;
+- a fixed one-shot root bootstrap has no network, Docker socket, or secrets,
+  sets the volume root to owner/group `10001:10001` and mode `0750`, and exits
+  before the non-root controller starts;
+- the long-lived controller and Agent Server both run as non-root
+  `10001:10001`; only the controller receives the Docker socket;
 - the root filesystem is read-only, temporary paths are tmpfs, all
   capabilities are dropped, `no-new-privileges` is set, and CPU, memory, and
   PID counts are bounded;
