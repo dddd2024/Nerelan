@@ -12,7 +12,17 @@ from ..attempt_transport import AttemptJsonTransport
 from ..contracts import ExecutionHandle
 from ..identifiers import workspace_path
 from ..openhands import OpenHandsAdapter
-from ..sandbox import FIXED_LAUNCH_SPEC, SandboxController, SubprocessDockerRunner
+from ..readiness import (
+    AttemptReadinessTerminal,
+    AttemptReadinessTimeout,
+    wait_for_attempt_readiness,
+)
+from ..sandbox import (
+    FIXED_LAUNCH_SPEC,
+    SandboxController,
+    SandboxControllerError,
+    SubprocessDockerRunner,
+)
 from ..temporal_contracts import (
     ActivityProgress,
     AttemptReadinessResult,
@@ -120,25 +130,41 @@ async def launch_or_reconcile_attempt(
 
 @activity.defn(name="wait_attempt_server")
 async def wait_attempt_server(handle: ExecutionHandle) -> AttemptReadinessResult:
+    runtime = _configured_runtime()
+    transport = AttemptJsonTransport(
+        runtime.runner,
+        handle,
+        sensitive_values=(runtime.executor_api_key,),
+    )
+
+    async def inspect_container():
+        try:
+            return await asyncio.to_thread(runtime.controller.inspect, handle)
+        except SandboxControllerError as error:
+            raise AttemptReadinessTerminal("container_contract_drift") from None
+
+    async def probe_loopback():
+        return await asyncio.to_thread(transport.probe_readiness)
+
     try:
-        adapter = _configured_runtime().adapter(handle)
-        for _ in range(60):
-            checks = await asyncio.to_thread(adapter.health)
-            if checks == {"/alive": "PASS", "/health": "PASS"}:
-                return AttemptReadinessResult(alive=True, health=True)
-            activity.heartbeat(ActivityProgress("readiness", False))
-            await asyncio.sleep(1)
-    except Exception:
+        return await wait_for_attempt_readiness(
+            inspect_container=inspect_container,
+            probe_loopback=probe_loopback,
+            heartbeat=activity.heartbeat,
+            cancelled=activity.is_cancelled,
+        )
+    except AttemptReadinessTimeout:
         _raise_sanitized(
             SanitizedFailureCategory(
-                "ATTEMPT_READINESS_FAILED", "readiness", True
+                "ATTEMPT_READINESS_TIMEOUT", "readiness", False
             )
         )
-    _raise_sanitized(
-        SanitizedFailureCategory(
-            "ATTEMPT_READINESS_FAILED", "readiness", True
+    except AttemptReadinessTerminal:
+        _raise_sanitized(
+            SanitizedFailureCategory(
+                "ATTEMPT_READINESS_CONTRACT", "readiness", False
+            )
         )
-    )
 
 
 @activity.defn(name="start_openhands_conversation")

@@ -39,6 +39,14 @@ class AttemptReadinessResult:
     poll_count: int
     last_state: str
 
+    def __post_init__(self) -> None:
+        if not self.alive or not self.health:
+            raise ValueError("readiness_result_must_be_ready")
+        if isinstance(self.poll_count, bool) or self.poll_count < 1:
+            raise ValueError("invalid_readiness_poll_count")
+        if self.last_state != "alive":
+            raise ValueError("invalid_readiness_success_state")
+
 
 @dataclass(frozen=True, slots=True)
 class AttemptReadinessProgress:
@@ -46,6 +54,24 @@ class AttemptReadinessProgress:
     poll_count: int
     elapsed_milliseconds: int
     next_delay_milliseconds: int
+
+    def __post_init__(self) -> None:
+        if self.state not in {
+            "connection_refused",
+            "timeout",
+            "HTTP_not_ready_status",
+        }:
+            raise ValueError("invalid_readiness_progress_state")
+        for name in (
+            "poll_count",
+            "elapsed_milliseconds",
+            "next_delay_milliseconds",
+        ):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"invalid_{name}")
+        if self.poll_count < 1 or self.next_delay_milliseconds < 1:
+            raise ValueError("invalid_readiness_progress_bounds")
 
 
 @dataclass(frozen=True, slots=True)

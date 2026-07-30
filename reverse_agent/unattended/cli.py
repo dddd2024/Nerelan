@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .probe import run_temporal_probe
+from .readiness_probe import run_direct_readiness_probe
 from .sandbox_probe import run_sandbox_boundary_probe
 from .component_lock import load_component_lock
 from .secrets import executor_key_secret_preflight, provider_secret_preflight
@@ -161,6 +162,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             "reverse-agent-issue81-sandbox",
         ),
     )
+    readiness_probe = subparsers.add_parser("attempt-readiness-probe")
+    readiness_probe.add_argument(
+        "--compose-project",
+        required=True,
+    )
     sandbox_probe.add_argument(
         "--executor-key-file",
         default=os.environ.get("UNATTENDED_LITELLM_EXECUTOR_KEY_FILE"),
@@ -187,7 +193,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.secret_file,
             repository_root=_repo_root(),
         )
-    else:
+    elif args.command == "sandbox-boundary-probe":
         key_file = (
             Path(args.executor_key_file)
             if args.executor_key_file
@@ -197,6 +203,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             repository_root=_repo_root(),
             compose_project=args.compose_project,
             executor_key_file=key_file,
+        )
+    else:
+        report = run_direct_readiness_probe(
+            repository_root=_repo_root(),
+            compose_project=args.compose_project,
         )
     print(json.dumps(report, sort_keys=True))
     return 0 if report["status"] == "PASS" else 1

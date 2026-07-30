@@ -90,6 +90,11 @@ _BOUNDARY_VALUES = (
         elapsed_milliseconds=250,
         next_delay_milliseconds=500,
     ),
+    SanitizedFailureCategory(
+        code="ATTEMPT_READINESS_TIMEOUT",
+        stage="readiness",
+        retryable=False,
+    ),
 )
 _BOUNDARY_VALUES = _BOUNDARY_VALUES + (
     Gate2WorkflowResult(
