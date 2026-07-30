@@ -134,6 +134,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             "unattended:dddd2024/reverse-agent:issue:82:runtime-proof",
         ),
     )
+    runtime_proof.add_argument(
+        "--executor-key-file",
+        default=os.environ.get("UNATTENDED_LITELLM_EXECUTOR_KEY_FILE"),
+        type=Path,
+    )
     probe.add_argument(
         "--temporal-namespace",
         default=os.environ.get("TEMPORAL_NAMESPACE", "default"),
@@ -170,11 +175,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.temporal_namespace,
             )
             if args.command == "gate2-probe"
-            else run_temporal_probe(
-                address=args.temporal_address,
-                namespace=args.temporal_namespace,
-                probe_workflow_id=args.workflow_id,
-            )
+            else _runtime_proof_report(args)
         )
     elif args.command == "secret-preflight":
         report = provider_secret_preflight(
@@ -199,6 +200,29 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     print(json.dumps(report, sort_keys=True))
     return 0 if report["status"] == "PASS" else 1
+
+
+async def _runtime_proof_report(args: argparse.Namespace) -> dict[str, Any]:
+    if args.executor_key_file is None:
+        raise ValueError("executor_key_file_required")
+    executor_key = args.executor_key_file.read_text(encoding="utf-8").strip()
+    if not executor_key or "\x00" in executor_key:
+        raise ValueError("executor_key_invalid")
+    report = await run_temporal_probe(
+        address=args.temporal_address,
+        namespace=args.temporal_namespace,
+        probe_workflow_id=args.workflow_id,
+        sensitive_values=(executor_key,),
+    )
+    checks = (
+        report["temporal_connection"],
+        report["activity_execution"],
+        report["workflow_history_secret_scan"],
+        report["workflow_replay"],
+        report["cleanup"],
+    )
+    report["status"] = "PASS" if all(value == "PASS" for value in checks) else "FAIL"
+    return report
 
 
 if __name__ == "__main__":
