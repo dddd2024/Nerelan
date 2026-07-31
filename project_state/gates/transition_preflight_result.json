@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260730_unattended_gate2_workspace_provisioning_recovery_v9",
-  "round_id": "round_20260730_unattended_gate2_workspace_provisioning_recovery_v9",
+  "decision_id": "decision_20260730_unattended_gate2_launch_recovery_v10",
+  "round_id": "round_20260730_unattended_gate2_launch_recovery_v10",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260730_unattended_gate2_workspace_provisioning_recovery_v9 expected=decision_20260730_unattended_gate2_workspace_provisioning_recovery_v9"
+      "detail": "observed=decision_20260730_unattended_gate2_launch_recovery_v10 expected=decision_20260730_unattended_gate2_launch_recovery_v10"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260730_unattended_gate2_workspace_provisioning_recovery_v9 expected=round_20260730_unattended_gate2_workspace_provisioning_recovery_v9"
+      "detail": "observed=round_20260730_unattended_gate2_launch_recovery_v10 expected=round_20260730_unattended_gate2_launch_recovery_v10"
     },
     {
       "name": "decision_approved",
@@ -43,12 +43,12 @@
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=f301fb0f52136f9a9c8b12fb629fc32806757b63"
+      "detail": "decision_commit=2e172fd77ccde6b2bf607c2c2c8d5017a8c65225"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260730_unattended_gate2_workspace_provisioning_recovery_v9/round_20260730_unattended_gate2_workspace_provisioning_recovery_v9"
+      "detail": "plan=decision_20260730_unattended_gate2_launch_recovery_v10/round_20260730_unattended_gate2_launch_recovery_v10"
     },
     {
       "name": "command_plan_contract",

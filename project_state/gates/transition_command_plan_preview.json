@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260730_unattended_gate2_workspace_provisioning_recovery_v9",
-  "round_id": "round_20260730_unattended_gate2_workspace_provisioning_recovery_v9",
+  "decision_id": "decision_20260730_unattended_gate2_launch_recovery_v10",
+  "round_id": "round_20260730_unattended_gate2_launch_recovery_v10",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
@@ -263,7 +263,7 @@
     },
     {
       "command_id": "probe.workspace_fresh",
-      "command": "python -m reverse_agent.unattended.cli workspace-preflight --compose-project reverse-agent-issue85-workspace --stack-mode fresh",
+      "command": "python -m reverse_agent.unattended.cli workspace-preflight --compose-project reverse-agent-issue86-workspace --stack-mode fresh",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -287,7 +287,7 @@
     },
     {
       "command_id": "probe.workspace_restart",
-      "command": "python -m reverse_agent.unattended.cli workspace-preflight --compose-project reverse-agent-issue85-workspace --stack-mode restart",
+      "command": "python -m reverse_agent.unattended.cli workspace-preflight --compose-project reverse-agent-issue86-workspace --stack-mode restart",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -299,6 +299,75 @@
         "component_compatibility_validation",
         "container_runtime",
         "secret_boundary_validation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "probe.launch_stack_up",
+      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue86-launch-diagnostic -f deploy/unattended/compose.yaml --profile runtime-proof up -d --wait",
+      "phase": "probe",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "container_runtime",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "probe.launch_diagnostic",
+      "command": "python -m reverse_agent.unattended.cli sandbox-boundary-probe --compose-project reverse-agent-issue86-launch-diagnostic --executor-key-file EXECUTOR_KEY_TEMP_PATH",
+      "phase": "probe",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "component_compatibility_validation",
+        "container_runtime",
+        "secret_boundary_validation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "probe.launch_stack_cleanup",
+      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue86-launch-diagnostic -f deploy/unattended/compose.yaml --profile runtime-proof down -v",
+      "phase": "probe",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "container_runtime"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -356,8 +425,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.comment_issue85",
-      "command": "gh issue comment 85 --repo dddd2024/reverse-agent --body-file ISSUE85_COMMENT_TEMP_PATH",
+      "command_id": "publication.comment_issue86",
+      "command": "gh issue comment 86 --repo dddd2024/reverse-agent --body-file ISSUE86_COMMENT_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -425,8 +494,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "probe.compose_fresh",
-      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue85-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof up -d --wait",
+      "command_id": "probe.runtime_stack_up",
+      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue86-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof up -d --wait",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -449,7 +518,7 @@
     },
     {
       "command_id": "probe.runtime_proof",
-      "command": "python -m reverse_agent.unattended.cli gate2-runtime-proof --workflow-id unattended:dddd2024/reverse-agent:issue:85:runtime-proof-a",
+      "command": "python -m reverse_agent.unattended.cli gate2-runtime-proof --workflow-id unattended:dddd2024/reverse-agent:issue:86:runtime-proof-a --executor-key-file EXECUTOR_KEY_TEMP_PATH",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -473,8 +542,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "probe.compose_cleanup",
-      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue85-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof down -v",
+      "command_id": "probe.runtime_stack_cleanup",
+      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue86-runtime-proof -f deploy/unattended/compose.yaml --profile runtime-proof down -v",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
