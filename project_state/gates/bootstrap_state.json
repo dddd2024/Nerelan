@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260731_unattended_gate2_start_failure_recovery_v11",
-  "round_id": "round_20260731_unattended_gate2_start_failure_recovery_v11",
-  "expired_at": "2026-07-31T06:18:11+00:00"
+  "decision_id": "decision_20260731_unattended_gate2_launch_hardening_v12",
+  "round_id": "round_20260731_unattended_gate2_launch_hardening_v12",
+  "expired_at": "2026-07-31T08:41:09+00:00"
 }
