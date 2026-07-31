@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260730_unattended_gate2_launch_recovery_v10",
-  "round_id": "round_20260730_unattended_gate2_launch_recovery_v10",
+  "decision_id": "decision_20260731_unattended_gate2_start_failure_recovery_v11",
+  "round_id": "round_20260731_unattended_gate2_start_failure_recovery_v11",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
@@ -425,8 +425,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.comment_issue86",
-      "command": "gh issue comment 86 --repo dddd2024/reverse-agent --body-file ISSUE86_COMMENT_TEMP_PATH",
+      "command_id": "publication.comment_issue87",
+      "command": "gh issue comment 87 --repo dddd2024/reverse-agent --body-file ISSUE87_COMMENT_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -518,7 +518,7 @@
     },
     {
       "command_id": "probe.runtime_proof",
-      "command": "python -m reverse_agent.unattended.cli gate2-runtime-proof --workflow-id unattended:dddd2024/reverse-agent:issue:86:runtime-proof-a --executor-key-file EXECUTOR_KEY_TEMP_PATH",
+      "command": "python -m reverse_agent.unattended.cli gate2-runtime-proof --workflow-id unattended:dddd2024/reverse-agent:issue:87:runtime-proof-a --executor-key-file EXECUTOR_KEY_TEMP_PATH",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
