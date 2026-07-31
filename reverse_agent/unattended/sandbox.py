@@ -13,7 +13,11 @@ from typing import Mapping, Protocol, Sequence
 
 from .contracts import ExecutionHandle
 from .identifiers import executor_id
-from .temporal_contracts import WorkspaceRootPreflightResult
+from .temporal_contracts import (
+    WorkspaceRootPreflightResult,
+    is_launch_failure_code,
+    is_launch_failure_retryable,
+)
 from .workspace import WorkspaceRootManager
 
 AGENT_SERVER_IMAGE = (
@@ -47,6 +51,20 @@ _EXPECTED_TMPFS = frozenset({"/tmp", "/home/openhands"})
 
 class SandboxControllerError(RuntimeError):
     """A sanitized controller failure without Docker output."""
+
+
+class LaunchFailure(Exception):
+    """A finite, sanitized Docker launch failure."""
+
+    def __init__(self, code: str) -> None:
+        if not is_launch_failure_code(code):
+            raise ValueError("invalid_launch_failure_code")
+        super().__init__(code)
+        self.code = code
+
+    @property
+    def retryable(self) -> bool:
+        return is_launch_failure_retryable(self.code)
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,22 +177,40 @@ class SandboxController:
         self._require_fixed_spec(fixed_launch_spec)
         self._validate_handle(handle)
         self.preflight_workspace(handle)
-        existing = self.inspect(handle)
-        if existing is not None:
-            return self._require_running(existing)
 
-        result = self._runner.run(
-            self._launch_argv(handle),
-        )
-        if result.returncode != 0:
-            raced = self.inspect(handle)
+        # State 1: Validate Prerequisites
+        self._validate_prerequisites()
+
+        # State 2: Reconcile Existing Container
+        existing = self._inspect_for_launch(handle)
+        if existing is not None:
+            return self._require_running_for_launch(existing)
+
+        # State 3: Docker Container Create
+        create_result = self._runner.run(self._create_argv(handle))
+        if create_result.returncode != 0:
+            raced = self._inspect_for_launch(handle)
             if raced is not None:
-                return self._require_running(raced)
-            raise SandboxControllerError("docker_container_create_failed")
-        created = self.inspect(handle)
+                return self._require_running_for_launch(raced)
+            raise LaunchFailure("DOCKER_CONTAINER_CREATE_FAILED")
+
+        # State 4: Inspect Created Container
+        created = self._inspect_for_launch(handle)
         if created is None:
-            raise SandboxControllerError("docker_container_missing_after_create")
-        return self._require_running(created)
+            raise LaunchFailure("DOCKER_CONTAINER_MISSING_AFTER_CREATE")
+
+        # State 5: Docker Container Start
+        start_result = self._runner.run(
+            ("docker", "container", "start", container_name_for(handle))
+        )
+        if start_result.returncode != 0:
+            raise LaunchFailure("DOCKER_CONTAINER_START_FAILED")
+
+        # State 6: Inspect And Require Running
+        started = self._inspect_for_launch(handle)
+        if started is None:
+            raise LaunchFailure("DOCKER_CONTAINER_NOT_RUNNING_AFTER_START")
+        return self._require_running_for_launch(started)
 
     def inspect(self, handle: ExecutionHandle) -> AttemptContainerMetadata | None:
         self._validate_handle(handle)
@@ -229,6 +265,63 @@ class SandboxController:
         if spec is not FIXED_LAUNCH_SPEC:
             raise ValueError("untrusted_launch_spec")
 
+    def _validate_prerequisites(self) -> None:
+        """Validate Docker daemon, network, volume, and image before create."""
+        self._validate_docker_daemon()
+        self._validate_executor_network()
+        self._validate_workspace_volume()
+        self._validate_agent_image()
+
+    def _validate_docker_daemon(self) -> None:
+        result = self._runner.run(
+            ("docker", "info", "--format", "{{.ServerVersion}}")
+        )
+        if result.returncode != 0:
+            stderr_lower = result.stderr.lower()
+            if (
+                "permission denied" in stderr_lower
+                or "access denied" in stderr_lower
+            ):
+                raise LaunchFailure("DOCKER_SOCKET_PERMISSION_DENIED")
+            raise LaunchFailure("DOCKER_SOCKET_UNAVAILABLE")
+
+    def _validate_executor_network(self) -> None:
+        result = self._runner.run(
+            ("docker", "network", "inspect", self._executor_network)
+        )
+        if result.returncode != 0:
+            raise LaunchFailure("EXECUTOR_NETWORK_MISSING")
+
+    def _validate_workspace_volume(self) -> None:
+        result = self._runner.run(
+            ("docker", "volume", "inspect", self._workspace_volume)
+        )
+        if result.returncode != 0:
+            raise LaunchFailure("WORKSPACE_VOLUME_MISSING")
+
+    def _validate_agent_image(self) -> None:
+        result = self._runner.run(
+            ("docker", "image", "inspect", AGENT_SERVER_IMAGE)
+        )
+        if result.returncode != 0:
+            raise LaunchFailure("AGENT_IMAGE_UNAVAILABLE")
+
+    def _inspect_for_launch(
+        self, handle: ExecutionHandle
+    ) -> AttemptContainerMetadata | None:
+        try:
+            return self.inspect(handle)
+        except SandboxControllerError:
+            raise LaunchFailure("DOCKER_INSPECT_CONTRACT_MISMATCH") from None
+
+    @staticmethod
+    def _require_running_for_launch(
+        metadata: AttemptContainerMetadata,
+    ) -> AttemptContainerMetadata:
+        if metadata.state != "running":
+            raise LaunchFailure("DOCKER_CONTAINER_NOT_RUNNING_AFTER_START")
+        return metadata
+
     @staticmethod
     def _require_running(
         metadata: AttemptContainerMetadata,
@@ -248,11 +341,10 @@ class SandboxController:
     def _workspace_candidate(self, handle: ExecutionHandle) -> Path:
         return self._workspace.attempt_path(handle)
 
-    def _launch_argv(self, handle: ExecutionHandle) -> tuple[str, ...]:
+    def _create_argv(self, handle: ExecutionHandle) -> tuple[str, ...]:
         return (
             "docker",
-            "run",
-            "--detach",
+            "create",
             "--name",
             container_name_for(handle),
             "--label",

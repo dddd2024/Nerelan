@@ -7,7 +7,20 @@ from dataclasses import dataclass
 _FAILURE_CODES = frozenset(
     {
         "ATTEMPT_CLEANUP_FAILED",
-        "ATTEMPT_LAUNCH_FAILED",
+        "DOCKER_SOCKET_UNAVAILABLE",
+        "DOCKER_SOCKET_PERMISSION_DENIED",
+        "EXECUTOR_NETWORK_MISSING",
+        "WORKSPACE_VOLUME_MISSING",
+        "WORKSPACE_SUBPATH_MISSING",
+        "WORKSPACE_VOLUME_SUBPATH_UNSUPPORTED",
+        "AGENT_IMAGE_UNAVAILABLE",
+        "DOCKER_CREATE_CONTRACT_REJECTED",
+        "DOCKER_CONTAINER_CREATE_FAILED",
+        "DOCKER_CONTAINER_MISSING_AFTER_CREATE",
+        "DOCKER_CONTAINER_START_FAILED",
+        "DOCKER_CONTAINER_NOT_RUNNING_AFTER_START",
+        "DOCKER_INSPECT_CONTRACT_MISMATCH",
+        "DOCKER_LAUNCH_TRANSIENT_UNAVAILABLE",
         "ATTEMPT_READINESS_FAILED",
         "ATTEMPT_READINESS_TIMEOUT",
         "ATTEMPT_READINESS_CONTRACT",
@@ -33,6 +46,41 @@ _FAILURE_STAGES = frozenset(
         "collect_result",
     }
 )
+# Finite Docker launch taxonomy.  Only a separately verified short-lived
+# Docker Daemon unavailability may be retryable.  Every other deterministic
+# permission, configuration, compatibility, create, start, or inspect
+# failure is non-retryable.
+_LAUNCH_FAILURE_CODES = frozenset(
+    {
+        "DOCKER_SOCKET_UNAVAILABLE",
+        "DOCKER_SOCKET_PERMISSION_DENIED",
+        "EXECUTOR_NETWORK_MISSING",
+        "WORKSPACE_VOLUME_MISSING",
+        "WORKSPACE_SUBPATH_MISSING",
+        "WORKSPACE_VOLUME_SUBPATH_UNSUPPORTED",
+        "AGENT_IMAGE_UNAVAILABLE",
+        "DOCKER_CREATE_CONTRACT_REJECTED",
+        "DOCKER_CONTAINER_CREATE_FAILED",
+        "DOCKER_CONTAINER_MISSING_AFTER_CREATE",
+        "DOCKER_CONTAINER_START_FAILED",
+        "DOCKER_CONTAINER_NOT_RUNNING_AFTER_START",
+        "DOCKER_INSPECT_CONTRACT_MISMATCH",
+        "DOCKER_LAUNCH_TRANSIENT_UNAVAILABLE",
+    }
+)
+_LAUNCH_RETRYABLE_CODES = frozenset({"DOCKER_LAUNCH_TRANSIENT_UNAVAILABLE"})
+
+
+def is_launch_failure_code(code: str) -> bool:
+    """Return True iff *code* is one of the finite Docker launch categories."""
+
+    return code in _LAUNCH_FAILURE_CODES
+
+
+def is_launch_failure_retryable(code: str) -> bool:
+    """Return True iff *code* is the verified transient daemon category."""
+
+    return code in _LAUNCH_RETRYABLE_CODES
 
 
 @dataclass(frozen=True, slots=True)

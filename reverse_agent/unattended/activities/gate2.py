@@ -19,6 +19,7 @@ from ..readiness import (
 )
 from ..sandbox import (
     FIXED_LAUNCH_SPEC,
+    LaunchFailure,
     SandboxController,
     SandboxControllerError,
     SubprocessDockerRunner,
@@ -130,10 +131,18 @@ async def launch_or_reconcile_attempt(
                 False,
             )
         )
+    except LaunchFailure as error:
+        _raise_sanitized(
+            SanitizedFailureCategory(
+                error.code,
+                "launch",
+                error.retryable,
+            )
+        )
     except Exception:
         _raise_sanitized(
             SanitizedFailureCategory(
-                "ATTEMPT_LAUNCH_FAILED", "launch", True
+                "DOCKER_LAUNCH_TRANSIENT_UNAVAILABLE", "launch", True
             )
         )
 
