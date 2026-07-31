@@ -47,6 +47,8 @@ _FORBIDDEN_ENV_NAMES = frozenset(
     }
 )
 _EXPECTED_TMPFS = frozenset({"/tmp", "/home/openhands"})
+_CAPABILITY_PROBE_NAME = "reverse-agent-capability-probe"
+_MINIMAL_PROBE_NAME = "reverse-agent-minimal-probe"
 
 
 class SandboxControllerError(RuntimeError):
@@ -193,7 +195,7 @@ class SandboxController:
             raced = self._inspect_for_launch(handle)
             if raced is not None:
                 return self._reconcile_existing(handle, raced)
-            raise self._classify_create_failure(create_result)
+            raise self._classify_create_failure(handle)
 
         # State 4: Inspect Created Container
         created = self._inspect_for_launch(handle)
@@ -298,23 +300,53 @@ class SandboxController:
             raise LaunchFailure("AGENT_IMAGE_UNAVAILABLE")
 
     def _validate_workspace_subpath(self, handle: ExecutionHandle) -> None:
-        """Verify the exact Attempt subpath exists inside the named volume."""
+        """Verify the exact Attempt subpath exists inside the named volume.
+
+        Uses a fixed, pinned, no-network, no-pull, resource-bounded probe
+        based on the already-validated agent server image. A helper failure
+        is never reported as WORKSPACE_SUBPATH_MISSING.
+        """
         subpath = self._workspace.attempt_subpath(handle)
-        check = self._runner.run(
-            (
-                "docker",
-                "run",
-                "--rm",
-                "-v",
-                f"{self._workspace_volume}:/__volume_check",
-                "alpine:3.19",
-                "sh",
-                "-c",
-                f"test -d /__volume_check/{subpath}",
-            )
+        probe = self._runner.run(self._subpath_probe_argv(subpath))
+        if probe.returncode == 0:
+            return
+        helper = self._runner.run(self._helper_readiness_argv())
+        if helper.returncode != 0:
+            raise LaunchFailure("DOCKER_LAUNCH_UNCLASSIFIED_TERMINAL")
+        raise LaunchFailure("WORKSPACE_SUBPATH_MISSING")
+
+    def _subpath_probe_argv(self, subpath: str) -> tuple[str, ...]:
+        """Fixed no-pull, no-network, resource-bounded subpath probe argv."""
+        return (
+            "docker", "run", "--rm",
+            "--network", "none",
+            "--pull", "never",
+            "--memory", "128m",
+            "--cpus", "0.5",
+            "--read-only",
+            "--cap-drop", "ALL",
+            "--security-opt", "no-new-privileges:true",
+            "--entrypoint", "sh",
+            "-v", f"{self._workspace_volume}:/__volume_check",
+            AGENT_SERVER_IMAGE,
+            "-c", f"test -d /__volume_check/{subpath}",
         )
-        if check.returncode != 0:
-            raise LaunchFailure("WORKSPACE_SUBPATH_MISSING")
+
+    def _helper_readiness_argv(self) -> tuple[str, ...]:
+        """Fixed helper readiness probe argv (no subpath check)."""
+        return (
+            "docker", "run", "--rm",
+            "--network", "none",
+            "--pull", "never",
+            "--memory", "128m",
+            "--cpus", "0.5",
+            "--read-only",
+            "--cap-drop", "ALL",
+            "--security-opt", "no-new-privileges:true",
+            "--entrypoint", "sh",
+            AGENT_SERVER_IMAGE,
+            "-c", "exit 0",
+        )
 
     def _reconcile_existing(
         self,
@@ -334,30 +366,86 @@ class SandboxController:
         self,
         handle: ExecutionHandle,
     ) -> AttemptContainerMetadata:
-        """Start the exact container and require it to be running."""
+        """Start the exact container and require it to be running.
+
+        A nonzero start result is ambiguous: inspect the exact container to
+        reconcile a successful start, or classify the precise failure mode
+        without relying on raw Docker output.
+        """
         start_result = self._runner.run(
             ("docker", "container", "start", container_name_for(handle))
         )
         if start_result.returncode != 0:
-            raise LaunchFailure("DOCKER_CONTAINER_START_FAILED")
+            started = self._inspect_for_launch(handle)
+            if started is not None and started.state == "running":
+                return started
+            if started is None:
+                raise LaunchFailure("DOCKER_CONTAINER_MISSING_AFTER_START")
+            if started.state == "created":
+                raise LaunchFailure("DOCKER_MOUNT_INITIALIZATION_FAILED")
+            if started.state in ("exited", "dead"):
+                raise LaunchFailure("DOCKER_FIXED_IMAGE_PROCESS_EXITED")
+            raise LaunchFailure("DOCKER_CONTAINER_NOT_RUNNING_AFTER_START")
         started = self._inspect_for_launch(handle)
         if started is None:
-            raise LaunchFailure("DOCKER_CONTAINER_NOT_RUNNING_AFTER_START")
+            raise LaunchFailure("DOCKER_CONTAINER_MISSING_AFTER_START")
         if started.state != "running":
             raise LaunchFailure("DOCKER_CONTAINER_NOT_RUNNING_AFTER_START")
         return started
 
-    @staticmethod
-    def _classify_create_failure(
-        result: DockerCommandResult,
-    ) -> LaunchFailure:
-        """Classify a container create failure into a finite category."""
-        stderr_lower = (result.stderr or "").lower()
-        if "volume-subpath" in stderr_lower or "subpath" in stderr_lower:
+    def _classify_create_failure(self, handle: ExecutionHandle) -> LaunchFailure:
+        """Classify a container create failure using bounded capability probes.
+
+        Does not rely on Docker stderr keywords. Uses deterministic probes
+        that never allow raw Docker output to cross the controller boundary.
+        """
+        capability = self._runner.run(self._volume_subpath_capability_argv(handle))
+        if capability.returncode != 0:
             return LaunchFailure("WORKSPACE_VOLUME_SUBPATH_UNSUPPORTED")
-        if "mount" in stderr_lower or "volume" in stderr_lower:
+        self._cleanup_probe(_CAPABILITY_PROBE_NAME)
+        minimal = self._runner.run(self._minimal_create_probe_argv())
+        if minimal.returncode == 0:
+            self._cleanup_probe(_MINIMAL_PROBE_NAME)
             return LaunchFailure("DOCKER_CREATE_CONTRACT_REJECTED")
         return LaunchFailure("DOCKER_CONTAINER_CREATE_FAILED")
+
+    def _volume_subpath_capability_argv(self, handle: ExecutionHandle) -> tuple[str, ...]:
+        """Bounded volume-subpath capability probe argv."""
+        subpath = self._workspace.attempt_subpath(handle)
+        return (
+            "docker", "create",
+            "--name", _CAPABILITY_PROBE_NAME,
+            "--network", "none",
+            "--memory", "128m",
+            "--cpus", "0.5",
+            "--read-only",
+            "--cap-drop", "ALL",
+            "--security-opt", "no-new-privileges:true",
+            "--mount", f"type=volume,src={self._workspace_volume},dst=/__probe,volume-subpath={subpath}",
+            "--entrypoint", "sh",
+            AGENT_SERVER_IMAGE,
+            "-c", "exit 0",
+        )
+
+    def _minimal_create_probe_argv(self) -> tuple[str, ...]:
+        """Bounded minimal create probe argv (no mount)."""
+        return (
+            "docker", "create",
+            "--name", _MINIMAL_PROBE_NAME,
+            "--network", "none",
+            "--memory", "128m",
+            "--cpus", "0.5",
+            "--read-only",
+            "--cap-drop", "ALL",
+            "--security-opt", "no-new-privileges:true",
+            "--entrypoint", "sh",
+            AGENT_SERVER_IMAGE,
+            "-c", "exit 0",
+        )
+
+    def _cleanup_probe(self, name: str) -> None:
+        """Remove a probe container idempotently."""
+        self._runner.run(("docker", "container", "rm", "--force", name))
 
     def _inspect_for_launch(
         self, handle: ExecutionHandle
