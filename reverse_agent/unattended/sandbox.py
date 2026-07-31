@@ -180,37 +180,28 @@ class SandboxController:
 
         # State 1: Validate Prerequisites
         self._validate_prerequisites()
+        self._validate_workspace_subpath(handle)
 
         # State 2: Reconcile Existing Container
         existing = self._inspect_for_launch(handle)
         if existing is not None:
-            return self._require_running_for_launch(existing)
+            return self._reconcile_existing(handle, existing)
 
         # State 3: Docker Container Create
         create_result = self._runner.run(self._create_argv(handle))
         if create_result.returncode != 0:
             raced = self._inspect_for_launch(handle)
             if raced is not None:
-                return self._require_running_for_launch(raced)
-            raise LaunchFailure("DOCKER_CONTAINER_CREATE_FAILED")
+                return self._reconcile_existing(handle, raced)
+            raise self._classify_create_failure(create_result)
 
         # State 4: Inspect Created Container
         created = self._inspect_for_launch(handle)
         if created is None:
             raise LaunchFailure("DOCKER_CONTAINER_MISSING_AFTER_CREATE")
 
-        # State 5: Docker Container Start
-        start_result = self._runner.run(
-            ("docker", "container", "start", container_name_for(handle))
-        )
-        if start_result.returncode != 0:
-            raise LaunchFailure("DOCKER_CONTAINER_START_FAILED")
-
-        # State 6: Inspect And Require Running
-        started = self._inspect_for_launch(handle)
-        if started is None:
-            raise LaunchFailure("DOCKER_CONTAINER_NOT_RUNNING_AFTER_START")
-        return self._require_running_for_launch(started)
+        # State 5: Start the exact created container
+        return self._start_and_verify(handle)
 
     def inspect(self, handle: ExecutionHandle) -> AttemptContainerMetadata | None:
         self._validate_handle(handle)
@@ -306,6 +297,68 @@ class SandboxController:
         if result.returncode != 0:
             raise LaunchFailure("AGENT_IMAGE_UNAVAILABLE")
 
+    def _validate_workspace_subpath(self, handle: ExecutionHandle) -> None:
+        """Verify the exact Attempt subpath exists inside the named volume."""
+        subpath = self._workspace.attempt_subpath(handle)
+        check = self._runner.run(
+            (
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{self._workspace_volume}:/__volume_check",
+                "alpine:3.19",
+                "sh",
+                "-c",
+                f"test -d /__volume_check/{subpath}",
+            )
+        )
+        if check.returncode != 0:
+            raise LaunchFailure("WORKSPACE_SUBPATH_MISSING")
+
+    def _reconcile_existing(
+        self,
+        handle: ExecutionHandle,
+        metadata: AttemptContainerMetadata,
+    ) -> AttemptContainerMetadata:
+        """Reconcile an existing exact container by its state."""
+        state = metadata.state
+        if state == "running":
+            return metadata
+        if state == "created":
+            return self._start_and_verify(handle)
+        # exited, dead, paused, restarting -> terminal
+        raise LaunchFailure("DOCKER_CONTAINER_NOT_RUNNING_AFTER_START")
+
+    def _start_and_verify(
+        self,
+        handle: ExecutionHandle,
+    ) -> AttemptContainerMetadata:
+        """Start the exact container and require it to be running."""
+        start_result = self._runner.run(
+            ("docker", "container", "start", container_name_for(handle))
+        )
+        if start_result.returncode != 0:
+            raise LaunchFailure("DOCKER_CONTAINER_START_FAILED")
+        started = self._inspect_for_launch(handle)
+        if started is None:
+            raise LaunchFailure("DOCKER_CONTAINER_NOT_RUNNING_AFTER_START")
+        if started.state != "running":
+            raise LaunchFailure("DOCKER_CONTAINER_NOT_RUNNING_AFTER_START")
+        return started
+
+    @staticmethod
+    def _classify_create_failure(
+        result: DockerCommandResult,
+    ) -> LaunchFailure:
+        """Classify a container create failure into a finite category."""
+        stderr_lower = (result.stderr or "").lower()
+        if "volume-subpath" in stderr_lower or "subpath" in stderr_lower:
+            return LaunchFailure("WORKSPACE_VOLUME_SUBPATH_UNSUPPORTED")
+        if "mount" in stderr_lower or "volume" in stderr_lower:
+            return LaunchFailure("DOCKER_CREATE_CONTRACT_REJECTED")
+        return LaunchFailure("DOCKER_CONTAINER_CREATE_FAILED")
+
     def _inspect_for_launch(
         self, handle: ExecutionHandle
     ) -> AttemptContainerMetadata | None:
@@ -313,14 +366,6 @@ class SandboxController:
             return self.inspect(handle)
         except SandboxControllerError:
             raise LaunchFailure("DOCKER_INSPECT_CONTRACT_MISMATCH") from None
-
-    @staticmethod
-    def _require_running_for_launch(
-        metadata: AttemptContainerMetadata,
-    ) -> AttemptContainerMetadata:
-        if metadata.state != "running":
-            raise LaunchFailure("DOCKER_CONTAINER_NOT_RUNNING_AFTER_START")
-        return metadata
 
     @staticmethod
     def _require_running(

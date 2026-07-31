@@ -153,11 +153,14 @@ class StatefulRunner:
         volume_missing: bool = False,
         image_missing: bool = False,
         start_returncode: int = 0,
+        create_stderr: str = "",
+        subpath_missing: bool = False,
     ) -> None:
         self.root = root
         self.handle = handle
         self.exists = exists
         self.create_returncode = create_returncode
+        self.create_stderr = create_stderr
         self.race_on_failure = race_on_failure
         self.overrides = overrides
         self.daemon_unavailable = daemon_unavailable
@@ -166,6 +169,7 @@ class StatefulRunner:
         self.volume_missing = volume_missing
         self.image_missing = image_missing
         self.start_returncode = start_returncode
+        self.subpath_missing = subpath_missing
         self.calls: list[tuple[tuple[str, ...], Mapping[str, str] | None]] = []
 
     def run(
@@ -218,12 +222,25 @@ class StatefulRunner:
                 "",
             )
 
+        if call[:2] == ("docker", "run") and "--rm" in call:
+            # Subpath existence probe from _validate_workspace_subpath.
+            if self.subpath_missing:
+                return DockerCommandResult(1, "", "subpath not found")
+            return DockerCommandResult(0, "", "")
+
         if call[:2] == ("docker", "create"):
             if self.create_returncode == 0 or self.race_on_failure:
                 self.exists = True
-            return DockerCommandResult(self.create_returncode, "created", "")
+            return DockerCommandResult(
+                self.create_returncode, "created", self.create_stderr
+            )
 
         if call[:3] == ("docker", "container", "start"):
+            if self.start_returncode == 0:
+                # A successful start transitions the container to "running".
+                merged: dict[str, object] = dict(self.overrides or {})
+                merged["State.Status"] = "running"
+                self.overrides = merged
             return DockerCommandResult(self.start_returncode, "", "")
 
         if call[:4] == ("docker", "container", "rm", "--force"):
@@ -621,6 +638,7 @@ def test_launch_failure_retryable_only_for_transient() -> None:
         "DOCKER_CONTAINER_START_FAILED",
         "DOCKER_CONTAINER_NOT_RUNNING_AFTER_START",
         "DOCKER_INSPECT_CONTRACT_MISMATCH",
+        "DOCKER_LAUNCH_UNCLASSIFIED_TERMINAL",
     )
     for code in non_retryable_codes:
         assert is_launch_failure_code(code) is True
@@ -633,3 +651,152 @@ def test_launch_failure_rejects_invalid_code() -> None:
         LaunchFailure("ATTEMPT_LAUNCH_FAILED")
     with pytest.raises(ValueError, match="invalid_launch_failure_code"):
         LaunchFailure("CALLER_CONTROLLED_CODE")
+
+
+# --- Issue #87: precise container reconciliation + reachable taxonomy tests ---
+
+
+def test_launch_raises_workspace_subpath_missing(
+    tmp_path: Path,
+    temporary_workspace_identity: None,
+) -> None:
+    """Missing Attempt subpath inside the named volume is a finite terminal."""
+    root = (tmp_path / "attempts").absolute()
+    runner = StatefulRunner(root, _handle(), subpath_missing=True)
+
+    with pytest.raises(
+        LaunchFailure, match="WORKSPACE_SUBPATH_MISSING"
+    ) as exc_info:
+        _controller(tmp_path, runner).launch_or_reconcile(
+            _handle(), FIXED_LAUNCH_SPEC
+        )
+    assert exc_info.value.retryable is False
+    # Must not reach create when the subpath is missing.
+    assert not any(call[0][1] == "create" for call in runner.calls)
+
+
+def test_launch_raises_workspace_volume_subpath_unsupported(
+    tmp_path: Path,
+    temporary_workspace_identity: None,
+) -> None:
+    """Docker daemon rejecting volume-subpath mounts is a finite terminal."""
+    root = (tmp_path / "attempts").absolute()
+    runner = StatefulRunner(
+        root,
+        _handle(),
+        create_returncode=125,
+        create_stderr="error creating mount path: volume-subpath not supported",
+    )
+
+    with pytest.raises(
+        LaunchFailure, match="WORKSPACE_VOLUME_SUBPATH_UNSUPPORTED"
+    ) as exc_info:
+        _controller(tmp_path, runner).launch_or_reconcile(
+            _handle(), FIXED_LAUNCH_SPEC
+        )
+    assert exc_info.value.retryable is False
+
+
+def test_launch_raises_docker_create_contract_rejected(
+    tmp_path: Path,
+    temporary_workspace_identity: None,
+) -> None:
+    """Create failures mentioning mount/volume but not subpath are contract rejects."""
+    root = (tmp_path / "attempts").absolute()
+    runner = StatefulRunner(
+        root,
+        _handle(),
+        create_returncode=125,
+        create_stderr="error response from daemon: invalid mount configuration",
+    )
+
+    with pytest.raises(
+        LaunchFailure, match="DOCKER_CREATE_CONTRACT_REJECTED"
+    ) as exc_info:
+        _controller(tmp_path, runner).launch_or_reconcile(
+            _handle(), FIXED_LAUNCH_SPEC
+        )
+    assert exc_info.value.retryable is False
+
+
+def test_reconcile_created_starts_same_container(
+    tmp_path: Path,
+    temporary_workspace_identity: None,
+) -> None:
+    """A 'created' container is started in place, never duplicated."""
+    root = (tmp_path / "attempts").absolute()
+    runner = StatefulRunner(
+        root,
+        _handle(),
+        exists=True,
+        overrides={"State.Status": "created"},
+    )
+
+    metadata = _controller(tmp_path, runner).launch_or_reconcile(
+        _handle(), FIXED_LAUNCH_SPEC
+    )
+
+    # Exactly one start call against the exact container name, no create calls.
+    starts = [
+        call[0] for call in runner.calls if call[0][:3] == ("docker", "container", "start")
+    ]
+    assert starts == [
+        ("docker", "container", "start", container_name_for(_handle()))
+    ]
+    assert not any(call[0][1] == "create" for call in runner.calls)
+    assert metadata.container_name == container_name_for(_handle())
+
+
+@pytest.mark.parametrize(
+    "terminal_state",
+    ["exited", "dead", "paused", "restarting"],
+)
+def test_reconcile_rejects_terminal_states(
+    tmp_path: Path,
+    terminal_state: str,
+    temporary_workspace_identity: None,
+) -> None:
+    """exited/dead/paused/restarting are finite terminals, not retried."""
+    root = (tmp_path / "attempts").absolute()
+    runner = StatefulRunner(
+        root,
+        _handle(),
+        exists=True,
+        overrides={"State.Status": terminal_state},
+    )
+
+    with pytest.raises(
+        LaunchFailure, match="DOCKER_CONTAINER_NOT_RUNNING_AFTER_START"
+    ) as exc_info:
+        _controller(tmp_path, runner).launch_or_reconcile(
+            _handle(), FIXED_LAUNCH_SPEC
+        )
+    assert exc_info.value.retryable is False
+    # Must not start a terminal-state container and must not create a duplicate.
+    assert not any(call[0][1] == "create" for call in runner.calls)
+    starts = [
+        call[0] for call in runner.calls if call[0][:3] == ("docker", "container", "start")
+    ]
+    assert starts == []
+
+
+def test_create_failure_classifies_as_container_create_failed_when_no_signal(
+    tmp_path: Path,
+    temporary_workspace_identity: None,
+) -> None:
+    """Generic create failure with no subpath/mount/volume signal is DOCKER_CONTAINER_CREATE_FAILED."""
+    root = (tmp_path / "attempts").absolute()
+    runner = StatefulRunner(
+        root,
+        _handle(),
+        create_returncode=125,
+        create_stderr="some other daemon error",
+    )
+
+    with pytest.raises(
+        LaunchFailure, match="DOCKER_CONTAINER_CREATE_FAILED"
+    ) as exc_info:
+        _controller(tmp_path, runner).launch_or_reconcile(
+            _handle(), FIXED_LAUNCH_SPEC
+        )
+    assert exc_info.value.retryable is False

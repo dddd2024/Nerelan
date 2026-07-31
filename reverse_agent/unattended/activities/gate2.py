@@ -142,7 +142,7 @@ async def launch_or_reconcile_attempt(
     except Exception:
         _raise_sanitized(
             SanitizedFailureCategory(
-                "DOCKER_LAUNCH_TRANSIENT_UNAVAILABLE", "launch", True
+                "DOCKER_LAUNCH_UNCLASSIFIED_TERMINAL", "launch", False
             )
         )
 
