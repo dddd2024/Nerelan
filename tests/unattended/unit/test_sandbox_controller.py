@@ -1608,4 +1608,3 @@ def test_secret_scan_no_provider_credentials_in_probe_argv(
             assert token not in joined, (
                 f"forbidden token {token!r} found in probe argv: {call}"
             )
-
