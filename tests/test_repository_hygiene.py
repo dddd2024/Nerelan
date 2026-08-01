@@ -339,13 +339,44 @@ def test_supervisor_scripts_have_no_shell_or_credentials() -> None:
 
 
 def test_supervisor_context_args_are_explicit_lists() -> None:
+    import json as _json
+
     import supervisor_context as sc
 
     calls: list[list[str]] = []
 
     def fake_runner(args, timeout):
         calls.append(list(args))
-        return sc.CommandOutcome(0, "[]", "", False)
+        # Return bounded, valid responses for each git/gh call so that
+        # collect_context succeeds and we can inspect all arg lists.
+        if args[0] == "git":
+            if "symbolic-ref" in args:
+                return sc.CommandOutcome(0, "refs/remotes/origin/main", "", False)
+            if "rev-parse" in args and "HEAD" in args:
+                return sc.CommandOutcome(0, "a" * 40, "", False)
+            if "rev-parse" in args:
+                return sc.CommandOutcome(0, "16526801bda2a816fc707342f903c1ad037de9bd", "", False)
+            if "branch" in args:
+                return sc.CommandOutcome(0, "agent/codex-supervisor-foundation-v0", "", False)
+            if "status" in args:
+                return sc.CommandOutcome(0, "", "", False)
+            if "log" in args:
+                return sc.CommandOutcome(0, "abcdef0 Title", "", False)
+        if args[0] == "gh":
+            if args[:2] == ["gh", "issue"] and "list" in args:
+                return sc.CommandOutcome(0, "[]", "", False)
+            if args[:2] == ["gh", "pr"] and "list" in args:
+                return sc.CommandOutcome(0, "[]", "", False)
+            if args[:3] == ["gh", "issue", "view"]:
+                return sc.CommandOutcome(0, _json.dumps({"number": 90, "title": "t", "body": "b"}), "", False)
+            if args[:3] == ["gh", "pr", "view"]:
+                return sc.CommandOutcome(0, _json.dumps({
+                    "number": 93, "title": "t", "isDraft": True, "state": "OPEN",
+                    "headRefName": "b", "headRefOid": "a" * 40, "baseRefName": "main",
+                }), "", False)
+            if args[:3] == ["gh", "pr", "checks"]:
+                return sc.CommandOutcome(0, "[]", "", False)
+        return sc.CommandOutcome(0, "", "", False)
 
     sc.collect_context("dddd2024/reverse-agent", runner=fake_runner)
     assert calls  # at least one git/gh invocation

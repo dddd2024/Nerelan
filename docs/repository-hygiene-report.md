@@ -24,20 +24,41 @@ Section V of Issue #92 to hold.
 | `BLOCKED_DIRTY_WORKTREE` | A local worktree linked to this branch is dirty or locked. Cleanup is blocked until the worktree is resolved. |
 | `BLOCKED_UNKNOWN_PROVENANCE` | Branch origin cannot be verified (no PR, no Issue reference, HEAD drifted since audit). Do not delete. |
 
-## Before / after summary
+## Current observed state (post-cleanup evidence)
 
-| Metric | Before | After (recommended) |
-|--------|--------|---------------------|
-| Remote branches (excl. main) | 28 | 17 retained, 11 delete-safe |
-| Open Draft PRs | 9 | 0 (all 9 superseded — close without merge) |
-| Closed unmerged Draft PRs | 1 (#78) | 1 (already closed) |
-| Open Issues | 36 | 4 retained, 32 close-completed or close-not-planned-superseded |
-| Local worktrees (excl. main) | 9 | 8 removable, 1 blocked (dirty) |
+This section records the repository state observed on the
+`agent/codex-supervisor-foundation-v0` branch at HEAD
+`30ad6e9b0aa0dcfca9e3c3f899f4ca4c15933a94`, against
+`origin/main` = `16526801bda2a816fc707342f903c1ad037de9bd`.
 
-Note: the "after" column records recommended dispositions. Actual R2
-cleanup execution (closing PRs, deleting remote branches, closing Issues)
-requires a bounded Path-B Decision per AGENTS.md. This report is the
-evidence base for that Decision.
+| Metric | Current value |
+|--------|---------------|
+| Remote branches (incl. main) | 18 |
+| Open Draft PRs | 1 (PR #93, branch `agent/codex-supervisor-foundation-v0`) |
+| Closed old Draft PRs (superseded, not merged) | 9 (#5, #6, #7, #11, #19, #21, #24, #47, #49) |
+| Pre-existing closed unmerged Draft PR | 1 (#78) — already closed before this work |
+| Open Issues | 2 (#90 parent product, #92 current task) |
+| Issue #54 | CLOSED as `NOT_PLANNED` after owner audit |
+| CI run `30681854828` (baseline) | SUCCESS |
+| State Gate run `30681854818` | FAILURE |
+| State Gate failure cause | Legacy PR #67 Decision carries branch/path binding that does not cover the `agent/codex-supervisor-foundation-v0` branch; State Gate refuses to validate a PR whose head branch is not named in the approved Work Item |
+| Dirty worktree (`F:/reverse-agent-pr60-mainline-landing-repair-v1`) | Retained as `BLOCKED_DIRTY_WORKTREE`; NOT force-removed |
+
+## Before / after summary (historical reference)
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Remote branches (excl. main) | 28 | 17 retained, 11 delete-safe branches deleted |
+| Open Draft PRs | 9 | 1 (PR #93 only) |
+| Closed old Draft PRs (this work) | 0 | 9 |
+| Open Issues | 36 | 2 (#90, #92) |
+| Local worktrees (excl. main) | 9 | 1 blocked dirty worktree retained; 8 removable worktrees pruned |
+
+Note: the 11 fully-merged delete-safe branches were deleted by the owner
+during the Issue #92 hygiene pass. The 9 superseded Draft PRs were closed
+without merge. The single dirty worktree
+`F:/reverse-agent-pr60-mainline-landing-repair-v1` is retained and MUST
+NOT be force-removed; its dirty changes must be resolved by the owner.
 
 ## Section II — net-zero main commit protection
 
@@ -122,31 +143,41 @@ Issue reference; its provenance cannot be fully verified, so it is
 
 | Branch | HEAD | PR | Disposition |
 |--------|------|----|-------------|
-| `agent/codex-supervisor-foundation-v0` | `16526801` (same as main) | Draft PR to be created under #92 | `KEEP_ACTIVE` |
+| `agent/codex-supervisor-foundation-v0` | `30ad6e9b0aa0dcfca9e3c3f899f4ca4c15933a94` | Draft PR #93 (open) | `KEEP_ACTIVE` |
 
-## Section IV — open Draft PR audit
+## Section IV — Draft PR audit (current state)
 
-All nine open Draft PRs are superseded by the current project direction
-(Codex Supervisor v0 under Issue #90/#92). Each should be closed without
-merge with a brief comment pointing to Issue #92.
+After the Issue #92 hygiene pass, exactly one Draft PR remains open and
+nine superseded Draft PRs have been closed without merge.
 
-| PR | Branch | Title | Unique commits | Superseded by | Branch after close |
-|----|--------|-------|----------------|---------------|---------------------|
-| #5 | `agent/terminal-status-propagation-seal-restart-rework-v3` | consumed-decision CI preflight parity rework | 44 | Issue #92 direction | `KEEP_HISTORICAL_UNIQUE` |
-| #6 | `plan/framework-adoption-control-plane-v1` | transition workflow cutover and CI test bootstrap | 8 | Issue #92 direction | `KEEP_HISTORICAL_UNIQUE` |
-| #7 | `codex/legacy-control-plane-transition-disposition-v1` | disposition legacy control plane transition | 2 | Issue #92 direction | `KEEP_HISTORICAL_UNIQUE` |
-| #11 | `agent/architecture-constitution-plan-v1` | Replace blocked P0 authority with gate-compatible Decision | 15 | Issue #92 direction | `KEEP_HISTORICAL_UNIQUE` |
-| #19 | `codex/stage-a-freeze-baseline-v1` | freeze Architecture Spine main integration baseline | 3 | Issue #92 direction | `KEEP_HISTORICAL_UNIQUE` |
-| #21 | `codex/p1a-current-merge-validation-v2` | P1A: bind mainline checks to current merge | 3 | Issue #92 direction | `KEEP_HISTORICAL_UNIQUE` |
-| #24 | `codex/p1a-v3-exact-head-external-approval` | v3 exact-head external merge approval gate | 5 | Issue #92 direction | `KEEP_HISTORICAL_UNIQUE` |
-| #47 | `codex/base-platform-m1-spec-policy-core-v1` | M1: implement versioned SpecPackage and Policy Resolver core | 2 | Issue #92 direction | `KEEP_HISTORICAL_UNIQUE` |
-| #49 | `codex/path-a-r1-state-gate-cutover-v1` | R2: add Path-A R1 State Gate and task-scoped exact-head CI | 8 | Issue #92 direction | `KEEP_HISTORICAL_UNIQUE` |
+### Open Draft PR (1)
 
-Closed unmerged Draft PR:
+| PR | Branch | Head SHA | Title | Disposition |
+|----|--------|----------|-------|-------------|
+| #93 | `agent/codex-supervisor-foundation-v0` | `30ad6e9b0aa0dcfca9e3c3f899f4ca4c15933a94` | Repository hygiene + thin Codex Supervisor composition v0 (#92) | `KEEP_ACTIVE` — current work item |
+
+### Closed old Draft PRs (9, superseded under Issue #92)
+
+Each was closed without merge. Their branches are retained as
+`KEEP_HISTORICAL_UNIQUE` because they carry unique commits not in main.
+
+| PR | Branch | Title | Close reason |
+|----|--------|-------|--------------|
+| #5 | `agent/terminal-status-propagation-seal-restart-rework-v3` | consumed-decision CI preflight parity rework | Superseded by Issue #92 direction |
+| #6 | `plan/framework-adoption-control-plane-v1` | transition workflow cutover and CI test bootstrap | Superseded by Issue #92 direction |
+| #7 | `codex/legacy-control-plane-transition-disposition-v1` | disposition legacy control plane transition | Superseded by Issue #92 direction |
+| #11 | `agent/architecture-constitution-plan-v1` | Replace blocked P0 authority with gate-compatible Decision | Superseded by Issue #92 direction |
+| #19 | `codex/stage-a-freeze-baseline-v1` | freeze Architecture Spine main integration baseline | Superseded by Issue #92 direction |
+| #21 | `codex/p1a-current-merge-validation-v2` | P1A: bind mainline checks to current merge | Superseded by Issue #92 direction |
+| #24 | `codex/p1a-v3-exact-head-external-approval` | v3 exact-head external merge approval gate | Superseded by Issue #92 direction |
+| #47 | `codex/base-platform-m1-spec-policy-core-v1` | M1: implement versioned SpecPackage and Policy Resolver core | Superseded by Issue #92 direction |
+| #49 | `codex/path-a-r1-state-gate-cutover-v1` | R2: add Path-A R1 State Gate and task-scoped exact-head CI | Superseded by Issue #92 direction |
+
+### Pre-existing closed unmerged Draft PR (1)
 
 | PR | Branch | State | Disposition |
 |----|--------|-------|-------------|
-| #78 | `codex/unattended-base-platform-v0` | CLOSED (not merged) | Already closed; branch retained as `KEEP_HISTORICAL_UNIQUE` (66 unique commits) |
+| #78 | `codex/unattended-base-platform-v0` | CLOSED (not merged) | Already closed before this work; branch retained as `KEEP_HISTORICAL_UNIQUE` (66 unique commits) |
 
 ## Section V — remote branch deletion conditions
 
@@ -203,49 +234,32 @@ git worktree prune --dry-run
 ```
 Do not use `git worktree remove --force` or `git clean -fdx`.
 
-## Section VII — open Issue cleanup
+## Section VII — Issue cleanup (current state)
 
-| Issue | Title | Labels | Disposition | Reason |
-|-------|-------|--------|-------------|--------|
-| #92 | Repository hygiene + thin Codex Supervisor composition v0 | work-item, r2, owner-accepted | `KEEP_ACTIVE` | Current task |
-| #90 | Codex Supervisor Vertical Slice v0 | r1, work-item, owner-accepted | `KEEP_ACTIVE` | Parent product Issue |
-| #73 | Plan: Unattended Base Platform Vertical Slice v0 | (none) | `CLOSE_NOT_PLANNED_SUPERSEDED` | Superseded by #90/#92 direction |
-| #68 | PR #67 rework: generalize mainline Decision binding | work-item, r2 | `CLOSE_COMPLETED` | PR #67 merged; rework addressed |
-| #66 | R2 activation rework: capture and repair governance preflight blocker | work-item, r2 | `CLOSE_COMPLETED` | Resolved in PR #67 |
-| #65 | R2 Phase B: repair mainline landing lifecycle | work-item, r2 | `CLOSE_COMPLETED` | Resolved in PR #67 |
-| #64 | R2 post-merge landing-state repair for PR #60 | work-item, r2 | `CLOSE_COMPLETED` | PR #60 merged and repaired |
-| #63 | R2 final merge authorization for PR #60 | work-item, r2 | `CLOSE_COMPLETED` | PR #60 merged |
-| #59 | Pivot milestone: executor-neutral vertical slice | r1, work-item | `CLOSE_COMPLETED` | PR #60 merged |
-| #55 | Architecture reset: validate differentiation | work-item, r2 | `CLOSE_NOT_PLANNED_SUPERSEDED` | Superseded by #90/#92 |
-| #54 | External setup: deploy trusted Path-A GitHub App | work-item, r2 | `KEEP_HISTORICAL_REFERENCE` | Design reference; not current scope |
-| #53 | R2 rework v5: run Path-A from trusted evaluator | work-item, r2 | `CLOSE_NOT_PLANNED_SUPERSEDED` | Superseded by merged PR #67 |
-| #52 | R2 rework v4: bind Path-A checks to live authority | work-item, r2 | `CLOSE_NOT_PLANNED_SUPERSEDED` | Superseded by merged PR #67 |
-| #51 | R2 rework v3: enforce Path-A risk floors | work-item, r2 | `CLOSE_NOT_PLANNED_SUPERSEDED` | Superseded by merged PR #67 |
-| #50 | R2 rework: close Path-A routing gaps | work-item, r2 | `CLOSE_NOT_PLANNED_SUPERSEDED` | Superseded by merged PR #67 |
-| #48 | R2: add Path-A R1 State Gate and task-scoped CI | work-item, r2 | `CLOSE_NOT_PLANNED_SUPERSEDED` | Superseded by #92; PR #49 to be closed |
-| #46 | M1: implement versioned SpecPackage and Policy Resolver | r1, work-item, r1-approved | `CLOSE_NOT_PLANNED_SUPERSEDED` | Superseded by #92; PR #47 to be closed |
-| #45 | P1: Base Platform v0.1 vertical slice | (none) | `CLOSE_NOT_PLANNED_SUPERSEDED` | Superseded by #90/#92 |
-| #42 | R2 handoff: merge accepted PR #41 | (none) | `CLOSE_COMPLETED` | PR #41 merged |
-| #31 | P0 semantic consistency rework | (none) | `CLOSE_COMPLETED` | Resolved by minimal integration baseline |
-| #30 | P0 acceptance rework: restore AGENTS.md | (none) | `CLOSE_COMPLETED` | Resolved by minimal integration baseline |
-| #29 | P0 activation diagnostic | (none) | `CLOSE_COMPLETED` | Diagnostic completed |
-| #28 | R1 Work Item: implement minimal AI integration baseline | (none) | `CLOSE_COMPLETED` | PR #27 merged |
-| #26 | P0: direction convergence, minimal AI integration | (none) | `CLOSE_COMPLETED` | Resolved by PR #27 |
-| #25 | P1A-v3 completion | (none) | `CLOSE_NOT_PLANNED_SUPERSEDED` | Superseded by #90/#92 |
-| #23 | P1A-v3: bind merge approval to exact head | (none) | `CLOSE_NOT_PLANNED_SUPERSEDED` | Superseded by #90/#92 |
-| #22 | P1A-v2: replace self-referential merge receipts | (none) | `CLOSE_NOT_PLANNED_SUPERSEDED` | Superseded by #90/#92 |
-| #20 | P1A: bind mainline checks to each merge | (none) | `CLOSE_NOT_PLANNED_SUPERSEDED` | Superseded by #90/#92 |
-| #18 | Program: Architecture cutover | (none) | `CLOSE_NOT_PLANNED_SUPERSEDED` | Superseded by #90/#92 |
-| #17 | P1: integrate PR #9 exact head | (none) | `CLOSE_COMPLETED` | PR #9 merged |
-| #16 | P0 v8 evidence-derived audit rework plan | (none) | `CLOSE_COMPLETED` | Resolved by subsequent PRs |
-| #15 | P0 v5 full-profile convergence | (none) | `CLOSE_COMPLETED` | Resolved by subsequent PRs |
-| #14 | Goal-to-Decision handoff and Required Audit simplification | (none) | `CLOSE_COMPLETED` | Resolved by subsequent PRs |
-| #13 | P0 test compatibility and completion rework | (none) | `CLOSE_COMPLETED` | Resolved by subsequent PRs |
-| #12 | P0 Active Work Item: Architecture Constitution | (none) | `CLOSE_NOT_PLANNED_SUPERSEDED` | Superseded by #90/#92 |
-| #10 | Architecture Constitution and Migration Baseline v1 | (none) | `CLOSE_NOT_PLANNED_SUPERSEDED` | Superseded by #90/#92 |
+After the Issue #92 hygiene pass, only two Issues remain open: #90 (parent
+product) and #92 (current task). All other Issues have been closed by the
+owner — either as `COMPLETED` (work merged/resolved) or as `NOT_PLANNED`
+(superseded by the #90/#92 direction).
 
-Issue #91 (superseded by #92) remains closed. Issue #78 (PR) remains closed
-and unmodified. No new cleanup Issues are created.
+### Open Issues (2)
+
+| Issue | Title | Labels | Disposition |
+|-------|-------|--------|-------------|
+| #92 | Repository hygiene + thin Codex Supervisor composition v0 | work-item, r2, owner-accepted | `KEEP_ACTIVE` — current task |
+| #90 | Codex Supervisor Vertical Slice v0 | r1, work-item, owner-accepted | `KEEP_ACTIVE` — parent product Issue |
+
+### Notable closed Issues (post-audit)
+
+| Issue | Title | State | State reason | Note |
+|-------|-------|-------|--------------|------|
+| #54 | External setup: deploy trusted Path-A GitHub App | CLOSED | `NOT_PLANNED` | Closed by owner after audit; not current scope |
+| #91 | (superseded by #92) | CLOSED | — | Remains closed, unmodified |
+| #78 | (PR) | CLOSED | — | Remains closed, unmodified |
+
+All other historical Issues (#10, #12, #13, #14, #15, #16, #17, #18, #20,
+#22, #23, #25, #26, #28, #29, #30, #31, #42, #45, #46, #48, #50, #51, #52,
+#53, #55, #59, #63, #64, #65, #66, #68, #73) are CLOSED. No new cleanup
+Issues were created.
 
 ## Section IX — mature tool reuse
 
@@ -265,50 +279,91 @@ protocol, database, or model backend is introduced.
 The Supervisor does NOT reimplement: Git object model, GitHub REST client,
 PR/Issue state machines, CI system, task scheduler, or model backend.
 
-## Section X — audit-result contract
+## Section X — audit-result contract (v0.2, fail-closed)
 
-The minimal audit result is validated by `scripts/supervisor_validate.py`:
+The audit result is validated by `scripts/supervisor_validate.py` against
+the closed v0.2 schema (`docs/supervisor/audit-result.schema.json`).
+Unknown fields are rejected at every level (top level, finding, next_task).
 
 ```json
 {
+  "schema_version": "0.2",
+  "repository": "dddd2024/reverse-agent",
+  "audited_main_sha": "<full 40-hex-char SHA>",
   "status": "continue | revise | stop",
   "findings": [
     { "claim": "...", "evidence": ["<verifiable reference>"] }
   ],
-  "next_task": {
+  "next_task": null | {
     "title": "...",
     "goal": "<one bounded goal>",
     "allowed_scope": ["<path or operation>"],
     "forbidden_scope": ["<path or operation>"],
+    "requested_operations": ["<closed-whitelist operation>"],
     "acceptance_checks": ["<deterministic check>"],
     "execution_prompt": "<complete prompt>"
   }
 }
 ```
 
-Rejected: finding without evidence, `next_task` without
-`acceptance_checks`, empty `allowed_scope`, broad scope (`*`, `**`, `.`,
-`./`, `entire repository`), requests for merge / auto-merge / push main /
-release / deploy / credential access / unrelated Issue or PR mutation.
+Fail-closed rejections (finite, machine-readable error codes):
 
-## Section XI — stable cycle marker
+- `SCHEMA_VERSION_MISMATCH` — `schema_version` is not `"0.2"`.
+- `REPOSITORY_MISMATCH` — `repository` does not equal the expected value.
+- `INVALID_MAIN_SHA_FORMAT` / `MAIN_SHA_MISMATCH` — `audited_main_sha` is not
+  a full 40-hex SHA or does not equal the expected value.
+- `UNKNOWN_FIELD` — any field outside the closed set (top level, finding, or
+  next_task) is rejected.
+- `INVALID_JSON` — payload is not a JSON object.
+- `INVALID_STATUS` — `status` not in `{continue, revise, stop}`.
+- `FINDINGS_MISSING` / `FINDING_NO_EVIDENCE` / `FINDING_INVALID_CLAIM`.
+- `NEXT_TASK_ALLOWED_SCOPE_EMPTY` / `NEXT_TASK_SCOPE_TOO_BROAD`.
+- `NEXT_TASK_OPERATIONS_REQUIRED` / `NEXT_TASK_OPERATION_UNKNOWN` —
+  `requested_operations` is the **authoritative** permission grant and must
+  be a non-empty subset of the closed whitelist:
+  `{read_repository, edit_bounded_files, run_checks, push_named_branch,
+  create_or_update_draft_pr}`.
+- `POLICY_DANGEROUS_ACCEPTANCE_CHECK` — `acceptance_checks` is scanned for
+  dangerous commands (push main, merge, release, deploy, force push, rebase,
+  reset --hard, credential/secret/token access).
+- `POLICY_MERGE_FORBIDDEN` / `POLICY_MAIN_PUSH_FORBIDDEN` /
+  `POLICY_RELEASE_FORBIDDEN` / `POLICY_DEPLOYMENT_FORBIDDEN` /
+  `POLICY_CREDENTIAL_ACCESS_FORBIDDEN` /
+  `POLICY_UNRELATED_MUTATION_FORBIDDEN` — secondary natural-language scan of
+  `allowed_scope`, `goal`, `execution_prompt` (auxiliary only; never
+  authorizes an operation absent from `requested_operations`).
+- `FIELD_TOO_LONG` / `FIELD_TOO_MANY` — bounded limit exceeded.
+- `NEXT_TASK_FORBIDDEN_SCOPE_INVALID` — `forbidden_scope` element is not a
+  non-empty string or exceeds the length cap.
 
-The cycle marker is a SHA-256 over the normalized fields:
+Validation failure never proceeds to marker computation or publication
+planning.
+
+## Section XI — stable cycle marker (v0.2)
+
+The cycle marker is a SHA-256 digest over the canonical JSON encoding of:
 
 ```
 repository
-main SHA
-schema/policy version
-next_task.goal
-next_task.acceptance_checks
+exact main SHA (40 hex chars, lowercased)
+schema_version (fixed "0.2")
+policy_version (fixed "0.2")
+normalized next_task.goal
+sorted, de-duplicated next_task.allowed_scope
+sorted, de-duplicated next_task.forbidden_scope
+sorted, de-duplicated next_task.requested_operations
+sorted, de-duplicated next_task.acceptance_checks
 ```
 
 Marker format: `<!-- reverse-agent-supervisor-cycle:<sha256> -->`
 
-Rules: marker absent → create; marker present and content changed → update;
-marker present and content identical → no-op. Equivalent inputs (same goal,
-same checks in any order) produce the same marker. No duplicate Issues are
-created for the same marker.
+Rules: marker absent → `create_issue`; marker present and content changed →
+`update_issue`; marker present and content identical → `no_op`. A material
+change to **any** covered field (repository, main SHA, schema/policy
+version, goal, allowed/forbidden scope, requested operations, or acceptance
+checks) changes the marker. Equivalent inputs (same fields in any order,
+extra whitespace) produce the same marker. No duplicate Issues are created
+for the same marker.
 
 ## Security notes
 
@@ -317,5 +372,20 @@ created for the same marker.
 - All `git`/`gh` invocations use explicit argument lists (no `shell=True`,
   no metacharacters).
 - Dry-run mode performs zero writes. `--live` is required for any GitHub
-  mutation.
+  mutation, and even then only `gh issue create` / `gh issue edit` (never
+  merge, mark-ready, close, release, deploy, or main push).
+- Context collection is fail-closed: any `git`/`gh` failure, timeout,
+  invalid JSON, or missing main SHA raises `ContextError` and emits no
+  context. Read failures are never masked as empty Issue/PR lists.
+- Publication is fail-closed:
+  - Discovery failure (gh failure, invalid JSON, incomplete results) → zero writes.
+  - Marker found in two Issues → zero writes (`DUPLICATE_MARKER`).
+  - Closed Issue with the same marker → no duplicate create.
+  - Body exceeding `MAX_BODY_LENGTH` → rejected, NOT truncated.
+  - Live guard verifies `gh` login user is `dddd2024`, worktree is clean,
+    current branch is `agent/codex-supervisor-foundation-v0` (never `main`),
+    and `origin/main` equals `audited_main_sha`. Any failure → zero writes.
+  - TOCTOU: marker is re-queried immediately before any live `gh issue`
+    write; if it appeared or duplicated, zero writes.
+  - `update_issue` updates both title and body together.
 - This report contains no tokens, secrets, or environment dumps.
