@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260801_issue92_edit_intent_precision_repair_v4",
-  "round_id": "round_20260801_issue92_edit_intent_precision_repair_v4",
+  "decision_id": "decision_20260801_issue92_operation_surface_consistency_v5",
+  "round_id": "round_20260801_issue92_operation_surface_consistency_v5",
   "commands": [
     {
-      "command_id": "test.supervisor_edit_intent_precision",
+      "command_id": "test.supervisor_operation_surface_consistency",
       "command": "python -m pytest tests/test_supervisor_validate.py -q -k operation_prompt_consistency",
       "phase": "test",
       "required": true,

@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260801_issue92_edit_intent_precision_repair_v4",
-  "round_id": "round_20260801_issue92_edit_intent_precision_repair_v4",
-  "expired_at": "2026-08-01T13:33:04+00:00"
+  "decision_id": "decision_20260801_issue92_operation_surface_consistency_v5",
+  "round_id": "round_20260801_issue92_operation_surface_consistency_v5",
+  "expired_at": "2026-08-01T13:58:09+00:00"
 }
