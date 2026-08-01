@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import subprocess
 import sys
 
 import pytest
@@ -885,6 +886,117 @@ def test_toctou_update_re_queries_before_write() -> None:
 
 
 # --- context fail-closed ---------------------------------------------------
+
+
+def test_default_runner_decodes_utf8_bytes_without_locale_dependency(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(args, **kwargs):
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout="Windows UTF-8: \u6d4b\u8bd5".encode("utf-8"),
+            stderr="\u5b8c\u6210".encode("utf-8"),
+        )
+
+    monkeypatch.setattr(sc.subprocess, "run", fake_run)
+    outcome = sc.default_runner(["example", "--read-only"], 1.0)
+
+    assert outcome.exit_code == 0
+    assert outcome.stdout == "Windows UTF-8: \u6d4b\u8bd5"
+    assert outcome.stderr == "\u5b8c\u6210"
+    assert captured["text"] is False
+    assert "encoding" not in captured
+    assert "errors" not in captured
+
+
+def test_default_runner_invalid_utf8_returns_finite_error_without_partial_output(
+    monkeypatch,
+) -> None:
+    def fake_run(args, **kwargs):
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout=b"valid prefix\xff",
+            stderr=b"partial diagnostic",
+        )
+
+    monkeypatch.setattr(sc.subprocess, "run", fake_run)
+    outcome = sc.default_runner(["example"], 1.0)
+
+    assert outcome.exit_code == sc.DECODE_ERROR_EXIT_CODE
+    assert outcome.stdout == ""
+    assert outcome.stderr == "UTF8_DECODE_ERROR"
+    assert outcome.timed_out is False
+    assert isinstance(outcome.stdout, str)
+    assert isinstance(outcome.stderr, str)
+
+
+def test_default_runner_none_streams_are_empty_strings(monkeypatch) -> None:
+    def fake_run(args, **kwargs):
+        return subprocess.CompletedProcess(args, 0, stdout=None, stderr=None)
+
+    monkeypatch.setattr(sc.subprocess, "run", fake_run)
+    outcome = sc.default_runner(["example"], 1.0)
+
+    assert outcome.stdout == ""
+    assert outcome.stderr == ""
+    assert isinstance(outcome.stdout, str)
+    assert isinstance(outcome.stderr, str)
+
+
+def test_default_runner_timeout_bytes_and_none_are_stable_strings(monkeypatch) -> None:
+    def fake_run(args, **kwargs):
+        raise subprocess.TimeoutExpired(
+            cmd=args,
+            timeout=kwargs["timeout"],
+            output="\u8d85\u65f6\u524d\u8f93\u51fa".encode("utf-8"),
+            stderr=None,
+        )
+
+    monkeypatch.setattr(sc.subprocess, "run", fake_run)
+    outcome = sc.default_runner(["example"], 1.0)
+
+    assert outcome.exit_code == -1
+    assert outcome.stdout == "\u8d85\u65f6\u524d\u8f93\u51fa"
+    assert outcome.stderr == ""
+    assert outcome.timed_out is True
+    assert isinstance(outcome.stdout, str)
+    assert isinstance(outcome.stderr, str)
+
+
+def test_default_runner_timeout_invalid_utf8_discards_partial_output(monkeypatch) -> None:
+    def fake_run(args, **kwargs):
+        raise subprocess.TimeoutExpired(
+            cmd=args,
+            timeout=kwargs["timeout"],
+            output=b"partial\xff",
+            stderr=None,
+        )
+
+    monkeypatch.setattr(sc.subprocess, "run", fake_run)
+    outcome = sc.default_runner(["example"], 1.0)
+
+    assert outcome.exit_code == sc.DECODE_ERROR_EXIT_CODE
+    assert outcome.stdout == ""
+    assert outcome.stderr == "UTF8_DECODE_ERROR"
+    assert outcome.timed_out is True
+
+
+def test_context_decode_failure_raises_without_partial_context(monkeypatch) -> None:
+    def fake_run(args, **kwargs):
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout=b"partial context\xff",
+            stderr=None,
+        )
+
+    monkeypatch.setattr(sc.subprocess, "run", fake_run)
+
+    with pytest.raises(sc.ContextError, match=r"exit=-2"):
+        sc.collect_context(REPO, runner=sc.default_runner)
 
 
 def test_context_git_failure_raises_no_output() -> None:
