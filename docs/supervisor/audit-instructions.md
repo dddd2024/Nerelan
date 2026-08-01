@@ -205,10 +205,17 @@ describes:
 - `requested_operations` remains the authoritative permission grant. When
   `edit_bounded_files` is absent, every repository path in `allowed_scope` is
   read-only.
-- Positive repository-edit intent in `goal` or `execution_prompt` requires
-  `edit_bounded_files`. The validator uses a finite normalized whole-word set,
-  including `edit`, `modify`, `change`, `implement`, `add`, `create`, `write`,
-  `update`, `patch`, `fix`, `refactor`, `remove`, `delete`, and `rename`.
+- Repository edit authority is required only for positive repository-artifact
+  mutation intent in `goal` or `execution_prompt`. Strong edit verbs are
+  checked as bounded whole-word patterns. Generic metadata/reporting verbs
+  such as `create`, `update`, `change`, `write`, `add`, `remove`, and `delete`
+  imply repository mutation only when the same finite clause names a
+  repository artifact or explicit path.
+- Draft PR metadata changes require `create_or_update_draft_pr`, not
+  `edit_bounded_files`.
+- A directly negated edit occurrence is not positive edit intent. The
+  validator splits text with a finite delimiter set, so a separate positive
+  edit instruction in the same prompt is still detected.
 - If `goal` or `execution_prompt` mentions `push` (whole word),
   `push_named_branch` MUST be in `requested_operations`.
 - If `goal` or `execution_prompt` mentions `draft pr`, `update pr`, or

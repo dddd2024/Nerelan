@@ -162,23 +162,45 @@ _BROAD_SCOPES = frozenset({
     "entire_repo", "whole repo", "whole_repo", "repo-wide", "everything",
 })
 
-# Positive repository-edit intent. These are matched as normalized whole
-# words in goal/execution_prompt; an allowed path by itself remains read-only.
-_EDIT_INTENT_WORDS = (
-    "edit",
-    "modify",
-    "change",
-    "implement",
-    "add",
-    "create",
-    "write",
-    "update",
-    "patch",
-    "fix",
-    "refactor",
-    "remove",
-    "delete",
-    "rename",
+# Finite edit-intent vocabulary. Strong verbs can establish repository-edit
+# intent on their own; ambiguous verbs require a repository-artifact target in
+# the same bounded clause. Patterns include only explicit inflections.
+_STRONG_EDIT_VERB_PATTERNS = (
+    r"edit(?:s|ed|ing)?",
+    r"modif(?:y|ies|ied|ying)",
+    r"implement(?:s|ed|ing)?",
+    r"patch(?:es|ed|ing)?",
+    r"fix(?:es|ed|ing)?",
+    r"refactor(?:s|ed|ing)?",
+    r"rename(?:s|d|ing)?",
+)
+_AMBIGUOUS_EDIT_VERB_PATTERNS = (
+    r"create(?:s|d|ing)?",
+    r"update(?:s|d|ing)?",
+    r"change(?:s|d|ing)?",
+    r"write(?:s|ing)?",
+    r"wrote",
+    r"add(?:s|ed|ing)?",
+    r"remove(?:s|d|ing)?",
+    r"delete(?:s|d|ing)?",
+)
+_REPOSITORY_ARTIFACT_TARGETS = (
+    "file", "files", "code", "source", "source code", "script",
+    "test", "tests", "docs", "documentation", "module", "function",
+    "class", "implementation", "validator", "repository artifact",
+)
+_EDIT_CLAUSE_SPLIT_RE = re.compile(
+    r"(?:[.!?](?:\s+|$)|[,;:\n]+|\b(?:but|however|then)\b)",
+    re.IGNORECASE,
+)
+_DIRECT_NEGATION_BEFORE_RE = re.compile(
+    r"(?:\bdo\s+not|\bdon't|\bnever|\bwithout)\s+"
+    r"(?:[a-z0-9_-]+\s+){0,2}$",
+    re.IGNORECASE,
+)
+_EXPLICIT_FILE_TARGET_RE = re.compile(
+    r"(?:[/\\]|(?:^|\s)(?:\*|[a-z0-9_.-]+)\.[a-z0-9]+(?:\s|$))",
+    re.IGNORECASE,
 )
 
 # Forbidden operation phrases (whole-word, case-insensitive) paired with the
@@ -624,6 +646,51 @@ def _scan_policy_strict(texts: Sequence[str], errors: list[str]) -> None:
                 errors.append(code)
 
 
+def _occurrence_is_directly_negated(clause: str, start: int) -> bool:
+    """Return whether the verb occurrence has a bounded direct negation."""
+
+    return _DIRECT_NEGATION_BEFORE_RE.search(clause[:start]) is not None
+
+
+def _clause_has_positive_verb(clause: str, patterns: Sequence[str]) -> bool:
+    for pattern in patterns:
+        for match in re.finditer(rf"\b(?:{pattern})\b", clause, re.IGNORECASE):
+            if not _occurrence_is_directly_negated(clause, match.start()):
+                return True
+    return False
+
+
+def _clause_has_repository_artifact_target(clause: str) -> bool:
+    normalized = _normalize_for_scan(clause)
+    return (
+        any(_matches_word(normalized, target) for target in _REPOSITORY_ARTIFACT_TARGETS)
+        or _EXPLICIT_FILE_TARGET_RE.search(clause) is not None
+    )
+
+
+def _has_positive_repository_edit_intent(*texts: str) -> bool:
+    """Detect bounded positive repository-artifact mutation intent.
+
+    Direct negation applies only to its verb occurrence. Clause splitting keeps
+    a later independent instruction visible, while ambiguous metadata/reporting
+    verbs require a repository-artifact target in the same clause.
+    """
+
+    for text in texts:
+        for raw_clause in _EDIT_CLAUSE_SPLIT_RE.split(normalize_text(text).lower()):
+            clause = " ".join(raw_clause.split())
+            if not clause:
+                continue
+            if _clause_has_positive_verb(clause, _STRONG_EDIT_VERB_PATTERNS):
+                return True
+            if (
+                _clause_has_repository_artifact_target(clause)
+                and _clause_has_positive_verb(clause, _AMBIGUOUS_EDIT_VERB_PATTERNS)
+            ):
+                return True
+    return False
+
+
 def _check_operation_prompt_consistency(
     *,
     goal: str,
@@ -646,18 +713,19 @@ def _check_operation_prompt_consistency(
     """
 
     ops = {str(o) for o in requested_operations if isinstance(o, str)}
-    combined = _normalize_for_scan(f"{goal} {execution_prompt}")
 
-    # Positive repository-edit intent requires edit_bounded_files. A non-empty
-    # allowed_scope, including explicit file paths, does not itself imply
-    # mutation authority.
+    # Positive repository-artifact mutation intent requires
+    # edit_bounded_files. Directly negated occurrences and generic
+    # metadata/reporting verbs without repository targets do not imply it.
     if (
-        any(_matches_word(combined, word) for word in _EDIT_INTENT_WORDS)
+        _has_positive_repository_edit_intent(goal, execution_prompt)
         and "edit_bounded_files" not in ops
     ):
         errors.append(
             f"{OPERATION_PROMPT_INCONSISTENCY}:edit_bounded_files_required"
         )
+
+    combined = _normalize_for_scan(f"{goal} {execution_prompt}")
 
     # Pushing a named branch requires push_named_branch.
     if _matches_word(combined, "push"):

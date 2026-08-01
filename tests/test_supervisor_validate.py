@@ -1585,6 +1585,113 @@ def test_operation_prompt_consistency_edit_intent_with_permission_passes() -> No
     assert ok and not errors
 
 
+@pytest.mark.parametrize(
+    "execution_prompt",
+    [
+        "Write an audit report.",
+        "Update the status summary.",
+        "Add evidence to the report.",
+        "Change the result description.",
+        "Remove a stale status note.",
+        "Create an Issue comment.",
+    ],
+)
+def test_operation_prompt_consistency_reporting_language_is_read_only(
+    execution_prompt: str,
+) -> None:
+    task = _safe_task()
+    task["goal"] = "Inspect and report the bounded result."
+    task["allowed_scope"] = ["scripts/supervisor_validate.py"]
+    task["requested_operations"] = ["read_repository", "run_checks"]
+    task["execution_prompt"] = execution_prompt
+    ok, errors, _ = sv.validate_audit_result(
+        _safe_result(task=task),
+        expected_repository=REPO,
+        expected_main_sha=MAIN_SHA,
+    )
+    assert ok and not errors
+
+
+@pytest.mark.parametrize(
+    "execution_prompt",
+    [
+        "Do not edit repository files. Inspect and report only.",
+        "Never modify source code. Inspect and report only.",
+        "Without changing any files, inspect the validator and report only.",
+    ],
+)
+def test_operation_prompt_consistency_direct_negation_is_read_only(
+    execution_prompt: str,
+) -> None:
+    task = _safe_task()
+    task["goal"] = "Inspect and report the bounded result."
+    task["requested_operations"] = ["read_repository", "run_checks"]
+    task["execution_prompt"] = execution_prompt
+    ok, errors, _ = sv.validate_audit_result(
+        _safe_result(task=task),
+        expected_repository=REPO,
+        expected_main_sha=MAIN_SHA,
+    )
+    assert ok and not errors
+
+
+def test_operation_prompt_consistency_negation_does_not_hide_later_edit() -> None:
+    task = _safe_task()
+    task["goal"] = "Inspect the bounded validator behavior."
+    task["requested_operations"] = ["read_repository", "run_checks"]
+    task["execution_prompt"] = (
+        "Do not edit file X, but implement the validator correction in "
+        "scripts/supervisor_validate.py."
+    )
+    ok, errors, _ = sv.validate_audit_result(
+        _safe_result(task=task),
+        expected_repository=REPO,
+        expected_main_sha=MAIN_SHA,
+    )
+    assert not ok
+    assert (
+        f"{sv.OPERATION_PROMPT_INCONSISTENCY}:edit_bounded_files_required"
+        in errors
+    )
+
+
+@pytest.mark.parametrize(
+    "execution_prompt",
+    [
+        "Implement the validator correction.",
+        "Update scripts/supervisor_validate.py.",
+        "Add a regression test.",
+        "Patch the validator function.",
+        "Refactor the bounded implementation.",
+    ],
+)
+def test_operation_prompt_consistency_repository_edit_requires_permission(
+    execution_prompt: str,
+) -> None:
+    task = _safe_task()
+    task["goal"] = "Inspect the bounded validator behavior."
+    task["requested_operations"] = ["read_repository", "run_checks"]
+    task["execution_prompt"] = execution_prompt
+    ok, errors, _ = sv.validate_audit_result(
+        _safe_result(task=task),
+        expected_repository=REPO,
+        expected_main_sha=MAIN_SHA,
+    )
+    assert not ok
+    assert (
+        f"{sv.OPERATION_PROMPT_INCONSISTENCY}:edit_bounded_files_required"
+        in errors
+    )
+
+    task["requested_operations"].append("edit_bounded_files")
+    ok, errors, _ = sv.validate_audit_result(
+        _safe_result(task=task),
+        expected_repository=REPO,
+        expected_main_sha=MAIN_SHA,
+    )
+    assert ok and not errors
+
+
 def test_operation_prompt_consistency_push_without_permission_rejected() -> None:
     """If the prompt mentions 'push' but requested_operations lacks
     push_named_branch, the plan must be rejected.
@@ -1615,21 +1722,24 @@ def test_operation_prompt_consistency_draft_pr_without_permission_rejected() -> 
     create_or_update_draft_pr, the plan must be rejected.
     """
     task = _safe_task()
+    task["goal"] = "Inspect the bounded evidence."
     task["execution_prompt"] = "Update the draft PR description with evidence."
-    task["requested_operations"] = ["read_repository", "edit_bounded_files", "run_checks", "push_named_branch"]
+    task["requested_operations"] = ["read_repository"]
     ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
     assert not ok
-    assert any(sv.OPERATION_PROMPT_INCONSISTENCY in e for e in errors)
+    assert (
+        f"{sv.OPERATION_PROMPT_INCONSISTENCY}:create_or_update_draft_pr_required"
+        in errors
+    )
+    assert not any("edit_bounded_files_required" in error for error in errors)
 
 
 def test_operation_prompt_consistency_draft_pr_with_permission_passes() -> None:
-    """When operations match the prompt, validation passes."""
+    """Draft PR metadata authority does not imply repository edit authority."""
     task = _safe_task()
-    task["execution_prompt"] = "Edit the bounded files, push the named branch, and update the draft PR."
-    task["requested_operations"] = [
-        "read_repository", "edit_bounded_files", "run_checks",
-        "push_named_branch", "create_or_update_draft_pr",
-    ]
+    task["goal"] = "Inspect the bounded evidence."
+    task["execution_prompt"] = "Update the draft PR description with evidence."
+    task["requested_operations"] = ["read_repository", "create_or_update_draft_pr"]
     ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
     assert ok and not errors
 
