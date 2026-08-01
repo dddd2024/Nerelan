@@ -1,22 +1,40 @@
 #!/usr/bin/env python3
-"""Thin Codex Supervisor publication planner (quota-free v0.2, fail-closed).
+"""Thin Codex Supervisor publication planner (quota-free v0.3, fail-closed).
 
 Searches existing Issues (ALL states — open and closed) for the cycle marker
-via ``gh``, then produces a bounded publication plan: ``create_issue``,
-``update_issue``, or ``no_op``. Never closes issues, never modifies PRs,
-never touches main.
+via paginated ``gh api``, then produces a bounded publication plan:
+``create_issue``, ``update_issue``, or ``no_op``. Never closes issues, never
+modifies PRs, never touches main.
 
 Default mode is **dry-run** (zero GitHub writes). GitHub writes happen only
 when ``--live`` is passed explicitly, and even then only ``create_issue`` /
 ``update_issue`` (no merge, no close, no main push).
 
-Fail-closed rules:
+v0.3 changes (fail-closed closure):
+- Issue discovery uses paginated ``gh api repos/<repo>/issues?state=all``
+  (NOT ``gh issue list --state all --limit 100``). Pull Request entries
+  returned by the ``/issues`` endpoint are filtered out. Any page failure,
+  invalid JSON, missing number/body/state, or over-cap result is fail-closed.
+  Malformed entries are NOT silently skipped.
+- Remote main verification queries ``gh api repos/<repo>/git/refs/heads/main``
+  before any live write. The GitHub-side main SHA must equal
+  ``audited_main_sha`` AND the local ``origin/main`` must equal the GitHub
+  main SHA. Any drift → zero writes.
+- Closed-Issue Marker handling: same content → ``no_op``; different content
+  → ``CLOSED_MARKER_REQUIRES_OWNER`` (zero writes, no auto-edit, no reopen,
+  no surrogate create). Same Marker in two Issues → fail-closed. Multiple
+  Markers in one Issue → fail-closed.
+- Single-machine publish lock: a runtime-only exclusive lock (stdlib only)
+  is acquired in the system temp directory before any live guard / Marker
+  query / GitHub mutation. Lock is atomically acquired (``O_EXCL``) and
+  released in ``finally``. If the lock already exists, zero writes. This
+  lock does NOT provide cross-machine distributed atomicity.
+
+Fail-closed rules (carried from v0.2):
 - Discovery failure (gh failure, invalid JSON, incomplete results) → zero writes.
 - Marker found in two Issues → fail-closed, zero writes.
-- Closed Issue with same marker → no duplicate create.
-- Live write re-queries marker (TOCTOU guard) before any ``gh issue`` write.
 - Body exceeding ``MAX_BODY_LENGTH`` → rejected (NOT truncated).
-- Live guard verifies owner, clean worktree, branch, main SHA before any write.
+- Live write re-queries marker (TOCTOU guard) before any ``gh issue`` write.
 
 Pure standard library. No real Codex/model calls.
 
@@ -32,7 +50,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
+import tempfile
 from typing import Any, Callable, Mapping, Sequence
 
 # Import the validator (same scripts directory). When run as a script this
@@ -42,6 +62,7 @@ from supervisor_validate import (
     POLICY_VERSION,
     SCHEMA_VERSION,
     compute_cycle_key,
+    find_all_marker_keys,
     find_marker_key,
     make_marker,
     validate_audit_result,
@@ -55,6 +76,11 @@ ACTION_NO_OP = "no_op"
 MAX_BODY_LENGTH = 8000
 MAX_TITLE_LENGTH = 200
 
+# Pagination safety caps.
+MAX_ISSUE_PAGES = 10
+PAGE_SIZE = 100
+MAX_TOTAL_ISSUES = 500  # safety cap across all pages
+
 # Expected live-guard constants.
 EXPECTED_OWNER = "dddd2024"
 EXPECTED_BRANCH = "agent/codex-supervisor-foundation-v0"
@@ -62,14 +88,88 @@ EXPECTED_BRANCH = "agent/codex-supervisor-foundation-v0"
 # Finite, machine-readable error codes.
 ERR_DISCOVERY_FAILED = "DISCOVERY_FAILED"
 ERR_DUPLICATE_MARKER = "DUPLICATE_MARKER"
+ERR_MULTI_MARKER_IN_ISSUE = "MULTI_MARKER_IN_ISSUE"
+ERR_CLOSED_MARKER_REQUIRES_OWNER = "CLOSED_MARKER_REQUIRES_OWNER"
 ERR_BODY_TOO_LONG = "BODY_TOO_LONG"
 ERR_LIVE_GUARD_OWNER = "LIVE_GUARD_OWNER"
 ERR_LIVE_GUARD_WORKTREE_DIRTY = "LIVE_GUARD_WORKTREE_DIRTY"
 ERR_LIVE_GUARD_BRANCH = "LIVE_GUARD_BRANCH"
 ERR_LIVE_GUARD_MAIN_DRIFT = "LIVE_GUARD_MAIN_DRIFT"
+ERR_LIVE_GUARD_REMOTE_MAIN = "LIVE_GUARD_REMOTE_MAIN"
+ERR_LIVE_GUARD_LOCAL_MAIN = "LIVE_GUARD_LOCAL_MAIN"
 ERR_LIVE_GUARD_MARKER_QUERY = "LIVE_GUARD_MARKER_QUERY"
 ERR_LIVE_GUARD_DUPLICATE_MARKER = "LIVE_GUARD_DUPLICATE_MARKER"
 ERR_TOCTOU = "TOCTOU_MARKER_APPEARED"
+ERR_LOCK_BUSY = "LOCK_BUSY"
+
+
+# =====================================================================
+# Single-machine publish lock (Task 7).
+#
+# Runtime-only exclusive lock backed by an atomic file creation in the
+# system temp directory. Pure standard library. Does NOT provide cross-
+# machine distributed atomicity — it only serializes live publications
+# on a single host.
+# =====================================================================
+
+
+class PublishLock:
+    """Runtime-only exclusive lock for live publication.
+
+    Acquired atomically via ``O_CREAT | O_EXCL`` on a path in the system
+    temp directory (NOT inside the repository). Released in ``__exit__``
+    via ``os.unlink``. If the lock file already exists, acquisition fails
+    and zero writes must be performed.
+
+    This lock is single-machine only. It does NOT coordinate across hosts
+    and does NOT coordinate with other processes that bypass it. It is a
+    guard against accidental concurrent live publications on the same
+    machine (e.g. two terminals running ``--live`` in parallel).
+    """
+
+    def __init__(self, *, name: str = "reverse-agent-supervisor-publish.lock") -> None:
+        self._name = name
+        self._path: str | None = None
+        self._owned = False
+
+    @property
+    def path(self) -> str | None:
+        return self._path
+
+    def __enter__(self) -> "PublishLock":
+        path = os.path.join(tempfile.gettempdir(), self._name)
+        try:
+            # O_CREAT | O_EXCL: atomic create. Fails if the file exists.
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            self._owned = False
+            self._path = path
+            raise LockBusyError(path)
+        try:
+            os.write(fd, str(os.getpid()).encode("utf-8"))
+        finally:
+            os.close(fd)
+        self._path = path
+        self._owned = True
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        if self._owned and self._path is not None:
+            try:
+                os.unlink(self._path)
+            except FileNotFoundError:
+                pass
+            self._owned = False
+            self._path = None
+
+
+class LockBusyError(RuntimeError):
+    """Raised when the publish lock is already held by another process."""
+
+
+# =====================================================================
+# Body construction and content digest.
+# =====================================================================
 
 
 def build_issue_body(next_task: Mapping[str, Any], marker: str) -> str:
@@ -119,6 +219,11 @@ def content_digest(body: str) -> str:
     return hashlib.sha256(body.encode("utf-8")).hexdigest()
 
 
+# =====================================================================
+# Publication planning.
+# =====================================================================
+
+
 def plan_publication(
     *,
     audit_result: Mapping[str, Any],
@@ -129,13 +234,19 @@ def plan_publication(
     """Return a bounded publication plan (fail-closed).
 
     ``existing_issues`` is a list of ``{"number", "title", "body", "state"}``
-    dicts (typically from ``gh issue list --state all``). The plan never
-    performs writes; the caller decides whether to apply it (dry-run vs --live).
+    dicts (from paginated ``gh api``). The plan never performs writes; the
+    caller decides whether to apply it (dry-run vs --live).
 
     Fail-closed:
     - If two Issues carry the same marker, returns a no-op with
       ``ERR_DUPLICATE_MARKER`` (zero writes).
-    - If a closed Issue carries the same marker, returns no-op (no duplicate create).
+    - If a single Issue carries multiple distinct markers, returns a no-op
+      with ``ERR_MULTI_MARKER_IN_ISSUE`` (zero writes).
+    - If a closed Issue carries the same marker with identical content,
+      returns no_op (no duplicate create).
+    - If a closed Issue carries the same marker with different content,
+      returns no-op with ``ERR_CLOSED_MARKER_REQUIRES_OWNER`` (zero writes,
+      no auto-edit, no reopen, no surrogate create).
     """
 
     ok, errors, parsed = validate_audit_result(
@@ -202,6 +313,24 @@ def plan_publication(
         }
     digest = content_digest(body)
 
+    # Multi-marker-within-one-Issue check (fail-closed).
+    for issue in existing_issues:
+        issue_body = str(issue.get("body", "") or "")
+        keys_in_issue = find_all_marker_keys(issue_body)
+        if len(keys_in_issue) > 1:
+            return {
+                "action": ACTION_NO_OP,
+                "schema_valid": True,
+                "policy_allowed": False,
+                "errors": [f"{ERR_MULTI_MARKER_IN_ISSUE}:issue={issue.get('number')} count={len(keys_in_issue)}"],
+                "marker": marker,
+                "idempotency_key": key,
+                "target_issue": None,
+                "title": title,
+                "body": body,
+                "content_digest": digest,
+            }
+
     # Scan ALL issues (open + closed) for the marker.
     matched: list[Mapping[str, Any]] = []
     for issue in existing_issues:
@@ -227,8 +356,45 @@ def plan_publication(
     if len(matched) == 1:
         matched_issue = matched[0]
         matched_number = matched_issue.get("number")
+        matched_state = str(matched_issue.get("state", "") or "").upper()
         matched_body = str(matched_issue.get("body", "") or "")
-        if _normalize_body(matched_body) == _normalize_body(body):
+        same_content = _normalize_body(matched_body) == _normalize_body(body)
+
+        # Closed-Issue Marker handling (Task 4).
+        if matched_state == "CLOSED":
+            if same_content:
+                # Identical content in closed Issue: no duplicate create.
+                return {
+                    "action": ACTION_NO_OP,
+                    "schema_valid": True,
+                    "policy_allowed": True,
+                    "errors": [],
+                    "marker": marker,
+                    "idempotency_key": key,
+                    "target_issue": matched_number,
+                    "title": title,
+                    "body": body,
+                    "content_digest": digest,
+                    "closed_match": True,
+                }
+            # Different content in closed Issue: requires owner action.
+            # No auto-edit, no reopen, no surrogate create.
+            return {
+                "action": ACTION_NO_OP,
+                "schema_valid": True,
+                "policy_allowed": False,
+                "errors": [f"{ERR_CLOSED_MARKER_REQUIRES_OWNER}:issue={matched_number}"],
+                "marker": marker,
+                "idempotency_key": key,
+                "target_issue": matched_number,
+                "title": title,
+                "body": body,
+                "content_digest": digest,
+                "closed_match": True,
+            }
+
+        # Open Issue with marker.
+        if same_content:
             return {
                 "action": ACTION_NO_OP,
                 "schema_valid": True,
@@ -273,52 +439,158 @@ def _normalize_body(body: str) -> str:
     return " ".join(body.split())
 
 
+# =====================================================================
+# Issue discovery (Task 2): paginated gh api, filter PRs, fail-closed.
+# =====================================================================
+
+
 def fetch_existing_issues(
     repository: str,
     *,
     runner: CommandRunner = default_runner,
 ) -> tuple[list[Mapping[str, Any]], str | None]:
-    """Fetch bounded Issues (ALL states) via gh.
+    """Fetch bounded Issues (ALL states) via paginated ``gh api``.
 
     Returns ``(issues, error)``. On failure, ``issues`` is empty and
     ``error`` is a non-None string (fail-closed: caller must not write).
+
+    v0.3 changes:
+    - Uses ``gh api repos/<repo>/issues?state=all`` with explicit pagination
+      (NOT ``gh issue list --state all --limit 100``).
+    - Filters out Pull Request entries (the ``/issues`` endpoint includes
+      PRs that have a ``pull_request`` field).
+    - Any page failure, invalid JSON, missing number/body/state, or
+      over-cap result is fail-closed.
+    - Malformed entries are NOT silently skipped.
     """
 
-    outcome = run_gh(
-        [
-            "issue", "list",
-            "--repo", repository,
-            "--state", "all",
-            "--limit", "100",
-            "--json", "number,title,body,state",
-        ],
+    items: list[Mapping[str, Any]] = []
+    for page in range(1, MAX_ISSUE_PAGES + 1):
+        outcome = run_gh(
+            [
+                "api", f"repos/{repository}/issues",
+                "--field", "state=all",
+                "--field", f"per_page={PAGE_SIZE}",
+                "--field", f"page={page}",
+            ],
+            runner,
+        )
+        if not outcome.ok:
+            return [], f"{ERR_DISCOVERY_FAILED}:gh api issues page {page} exit={outcome.exit_code} timed_out={outcome.timed_out}"
+        text = outcome.stdout.strip()
+        if not text:
+            return [], f"{ERR_DISCOVERY_FAILED}:gh api issues page {page} empty output"
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as exc:
+            return [], f"{ERR_DISCOVERY_FAILED}:gh api issues page {page} invalid JSON: {exc}"
+        if not isinstance(parsed, list):
+            return [], f"{ERR_DISCOVERY_FAILED}:gh api issues page {page} expected array"
+        if not parsed:
+            break  # empty page — done.
+        for raw in parsed:
+            if not isinstance(raw, Mapping):
+                return [], f"{ERR_DISCOVERY_FAILED}:gh api issues page {page} non-object entry"
+            # Filter out PR entries (the /issues endpoint returns PRs too).
+            if "pull_request" in raw:
+                continue
+            # Required fields (fail-closed — no silent skip).
+            for required in ("number", "body", "state"):
+                if required not in raw:
+                    return [], f"{ERR_DISCOVERY_FAILED}:gh api issues page {page} missing {required}"
+            items.append({
+                "number": raw.get("number"),
+                "title": str(raw.get("title", "") or ""),
+                "body": str(raw.get("body", "") or ""),
+                "state": str(raw.get("state", "") or ""),
+            })
+            if len(items) >= MAX_TOTAL_ISSUES:
+                return [], f"{ERR_DISCOVERY_FAILED}:exceeded safety cap {MAX_TOTAL_ISSUES}"
+        if len(parsed) < PAGE_SIZE:
+            break  # last page.
+    return items, None
+
+
+# =====================================================================
+# Remote main verification (Task 3).
+# =====================================================================
+
+
+def verify_remote_main(
+    *,
+    repository: str,
+    expected_main_sha: str,
+    runner: CommandRunner = default_runner,
+) -> tuple[bool, list[str]]:
+    """Verify GitHub-side main and local origin/main consistency.
+
+    All of the following must hold:
+    - ``gh api repos/<repo>/git/refs/heads/main`` succeeds and returns
+      a 40-hex SHA equal to ``expected_main_sha``.
+    - Local ``git rev-parse refs/remotes/origin/main`` succeeds and returns
+      the same SHA as the GitHub-side main.
+
+    Returns ``(ok, errors)``. Any failure → zero writes.
+    """
+
+    errors: list[str] = []
+
+    # 1. GitHub-side main via gh api.
+    remote_outcome = run_gh(
+        ["api", f"repos/{repository}/git/refs/heads/main"],
         runner,
     )
-    if not outcome.ok:
-        return [], f"{ERR_DISCOVERY_FAILED}:gh issue list exit={outcome.exit_code} timed_out={outcome.timed_out}"
-    text = outcome.stdout.strip()
-    if not text:
-        return [], f"{ERR_DISCOVERY_FAILED}:gh issue list empty output"
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError as exc:
-        return [], f"{ERR_DISCOVERY_FAILED}:gh issue list invalid JSON: {exc}"
-    if not isinstance(parsed, list):
-        return [], f"{ERR_DISCOVERY_FAILED}:gh issue list expected array"
-    # Validate each item has required fields (fail-closed on incomplete).
-    items: list[Mapping[str, Any]] = []
-    for raw in parsed:
-        if not isinstance(raw, Mapping):
-            continue
-        if "number" not in raw or "body" not in raw:
-            continue
-        items.append({
-            "number": raw.get("number"),
-            "title": str(raw.get("title", "") or ""),
-            "body": str(raw.get("body", "") or ""),
-            "state": str(raw.get("state", "") or ""),
-        })
-    return items, None
+    if not remote_outcome.ok:
+        errors.append(f"{ERR_LIVE_GUARD_REMOTE_MAIN}:gh api refs/heads/main failed exit={remote_outcome.exit_code}")
+    else:
+        text = remote_outcome.stdout.strip()
+        if not text:
+            errors.append(f"{ERR_LIVE_GUARD_REMOTE_MAIN}:gh api refs/heads/main empty output")
+        else:
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError as exc:
+                errors.append(f"{ERR_LIVE_GUARD_REMOTE_MAIN}:invalid JSON: {exc}")
+                parsed = None
+            if isinstance(parsed, Mapping):
+                obj = parsed.get("object")
+                if not isinstance(obj, Mapping) or "sha" not in obj:
+                    errors.append(f"{ERR_LIVE_GUARD_REMOTE_MAIN}:missing object.sha")
+                else:
+                    remote_sha = str(obj.get("sha", "") or "").strip().lower()
+                    if not _is_full_sha(remote_sha):
+                        errors.append(f"{ERR_LIVE_GUARD_REMOTE_MAIN}:invalid sha {remote_sha!r}")
+                    elif remote_sha != expected_main_sha.strip().lower():
+                        errors.append(f"{ERR_LIVE_GUARD_REMOTE_MAIN}:{remote_sha}!={expected_main_sha}")
+
+    # 2. Local origin/main via git.
+    local_outcome = run_git(["rev-parse", "refs/remotes/origin/main"], runner)
+    if not local_outcome.ok:
+        errors.append(f"{ERR_LIVE_GUARD_LOCAL_MAIN}:git rev-parse origin/main failed exit={local_outcome.exit_code}")
+    else:
+        local_sha = local_outcome.stdout.strip().lower()
+        if not _is_full_sha(local_sha):
+            errors.append(f"{ERR_LIVE_GUARD_LOCAL_MAIN}:invalid sha {local_sha!r}")
+        elif local_sha != expected_main_sha.strip().lower():
+            errors.append(f"{ERR_LIVE_GUARD_LOCAL_MAIN}:{local_sha}!={expected_main_sha}")
+
+    # Summary code: if any main-drift error was raised, also emit a general
+    # MAIN_DRIFT marker so callers checking for the generic code still catch it.
+    if any(e.startswith(ERR_LIVE_GUARD_REMOTE_MAIN) or e.startswith(ERR_LIVE_GUARD_LOCAL_MAIN) for e in errors):
+        errors.append(f"{ERR_LIVE_GUARD_MAIN_DRIFT}:remote or local main differs from {expected_main_sha}")
+
+    return (len(errors) == 0), errors
+
+
+def _is_full_sha(value: str) -> bool:
+    if not isinstance(value, str):
+        return False
+    return len(value) == 40 and all(c in "0123456789abcdef" for c in value)
+
+
+# =====================================================================
+# Live guard (Task 3 integration).
+# =====================================================================
 
 
 def live_guard(
@@ -331,11 +603,12 @@ def live_guard(
 ) -> tuple[bool, list[str]]:
     """Verify pre-conditions before any live GitHub write.
 
-    Checks:
+    Checks (v0.3):
     - gh login user is ``expected_owner``.
     - Worktree is clean.
     - Current branch is ``expected_branch`` (and NOT main).
-    - origin/main equals ``expected_main_sha``.
+    - GitHub-side main (via ``gh api refs/heads/main``) equals ``expected_main_sha``.
+    - Local ``origin/main`` equals the GitHub-side main.
     - Marker query succeeds (no discovery failure, no duplicate marker).
 
     Returns ``(allowed, errors)``. If any check fails, zero writes occur.
@@ -370,14 +643,14 @@ def live_guard(
         elif branch != expected_branch:
             errors.append(f"{ERR_LIVE_GUARD_BRANCH}:{branch}!={expected_branch}")
 
-    # 4. origin/main == audited_main_sha.
-    main_outcome = run_git(["rev-parse", "refs/remotes/origin/main"], runner)
-    if not main_outcome.ok:
-        errors.append(f"{ERR_LIVE_GUARD_MAIN_DRIFT}:git rev-parse origin/main failed")
-    else:
-        actual_main = main_outcome.stdout.strip().lower()
-        if actual_main != expected_main_sha.strip().lower():
-            errors.append(f"{ERR_LIVE_GUARD_MAIN_DRIFT}:{actual_main}!={expected_main_sha}")
+    # 4. Remote main verification (Task 3): GitHub main + local origin/main.
+    main_ok, main_errors = verify_remote_main(
+        repository=repository,
+        expected_main_sha=expected_main_sha,
+        runner=runner,
+    )
+    if not main_ok:
+        errors.extend(main_errors)
 
     if errors:
         return False, errors
@@ -389,6 +662,11 @@ def live_guard(
         return False, errors
 
     return True, errors
+
+
+# =====================================================================
+# Plan application (with publish lock — Task 7).
+# =====================================================================
 
 
 def apply_plan(
@@ -406,6 +684,9 @@ def apply_plan(
 
     Live guard + TOCTOU re-query are performed before any write. If any
     guard fails, zero writes occur.
+
+    v0.3: the live path is wrapped in a single-machine publish lock
+    (:class:`PublishLock`). If the lock is already held, zero writes.
     """
 
     action = plan.get("action")
@@ -415,7 +696,39 @@ def apply_plan(
     if not live:
         return {"applied": False, "action": action, "reason": "dry_run", "live": False}
 
-    # Live guard: verify pre-conditions.
+    # Single-machine publish lock (Task 7): hold the lock across the entire
+    # live path (live guard + TOCTOU re-query + GitHub mutation). If the
+    # lock is already held, zero writes.
+    try:
+        with PublishLock():
+            return _apply_plan_locked(
+                plan,
+                repository=repository,
+                expected_main_sha=expected_main_sha,
+                runner=runner,
+            )
+    except LockBusyError as exc:
+        return {
+            "applied": False,
+            "action": action,
+            "reason": ERR_LOCK_BUSY,
+            "live": True,
+            "lock_path": str(exc),
+        }
+
+
+def _apply_plan_locked(
+    plan: Mapping[str, Any],
+    *,
+    repository: str,
+    expected_main_sha: str,
+    runner: CommandRunner,
+) -> Mapping[str, Any]:
+    """Apply the plan while holding the publish lock."""
+
+    action = plan.get("action")
+
+    # Live guard: verify pre-conditions (incl. remote main verification).
     guard_ok, guard_errors = live_guard(
         repository=repository,
         expected_main_sha=expected_main_sha,
@@ -519,18 +832,18 @@ def apply_plan(
             "target_issue": target,
         }
 
-    return {"applied": False, "action": action, "reason": "unknown_action", "live": live}
+    return {"applied": False, "action": action, "reason": "unknown_action", "live": True}
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Plan Codex Supervisor publication (dry-run by default, fail-closed)")
+    parser = argparse.ArgumentParser(description="Plan Codex Supervisor publication (dry-run by default, fail-closed v0.3)")
     sub = parser.add_subparsers(dest="command", required=True)
 
     plan_parser = sub.add_parser("plan", help="Produce a dry-run publication plan")
     plan_parser.add_argument("--result", required=True, help="Path to audit result JSON")
     plan_parser.add_argument("--repository", required=True, help="Repository (owner/name)")
     plan_parser.add_argument("--main-sha", required=True, help="Exact main SHA (40 hex chars)")
-    plan_parser.add_argument("--existing-issues", help="Path to JSON file of existing issues (default: query gh)")
+    plan_parser.add_argument("--existing-issues", help="Path to JSON file of existing issues (default: query gh api)")
     plan_parser.add_argument("--live", action="store_true", help="Apply the plan (writes to GitHub). Default is dry-run.")
 
     args = parser.parse_args(argv)

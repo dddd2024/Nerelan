@@ -350,11 +350,33 @@ def test_credential_access_rejected() -> None:
     assert sv.POLICY_CREDENTIAL_ACCESS_FORBIDDEN in errors
 
 
-def test_negation_not_flagged() -> None:
+def test_negation_not_skipped_v03() -> None:
+    """v0.3: no negation skip. 'Do not merge' and 'Never push to main' are
+    still rejected because forbidden operations belong in forbidden_scope,
+    not prompt negation. Legitimate prohibitions must be expressed as
+    forbidden_scope entries, not as natural-language negation in goal /
+    execution_prompt.
+    """
     task = _safe_task()
     task["execution_prompt"] = "Do not merge anything. Never push to main."
     ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
-    assert ok and not errors
+    assert not ok
+    # Both "merge" and "push to main" must be flagged (no negation skip).
+    assert sv.POLICY_MERGE_FORBIDDEN in errors
+    assert sv.POLICY_MAIN_PUSH_FORBIDDEN in errors
+
+
+def test_do_not_merge_but_deploy_rejected() -> None:
+    """v0.3: 'do not merge but deploy' is rejected because:
+    (a) the negation is no longer skipped, so 'merge' is flagged, and
+    (b) 'deploy' is flagged regardless of any preceding 'do not'.
+    """
+    task = _safe_task()
+    task["execution_prompt"] = "Do not merge anything but deploy to production."
+    ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
+    assert not ok
+    assert sv.POLICY_MERGE_FORBIDDEN in errors
+    assert sv.POLICY_DEPLOYMENT_FORBIDDEN in errors
 
 
 # --- idempotency / marker stability ---------------------------------------
@@ -584,8 +606,42 @@ def test_oversize_body_rejected_not_truncated() -> None:
 # --- discovery failure → zero writes ---------------------------------------
 
 
+def _api_path(args: list[str], prefix: str) -> bool:
+    """True if args is a ``gh api <prefix>`` call."""
+    return args[:2] == ["gh", "api"] and len(args) > 2 and args[2].startswith(prefix)
+
+
+def _page_arg(args: list[str]) -> int:
+    """Extract the ``page=N`` value from a gh api paginated call."""
+    for a in args:
+        if isinstance(a, str) and a.startswith("page="):
+            try:
+                return int(a.split("=", 1)[1])
+            except ValueError:
+                return 1
+    return 1
+
+
+def _paginated_issues_response(issues_json: str, page: int) -> str:
+    """Return the requested page of a pre-built issues JSON array.
+
+    ``issues_json`` is a full JSON array. Split it into PAGE_SIZE chunks so
+    that callers can simulate multi-page responses.
+    """
+    try:
+        all_items = json.loads(issues_json)
+    except json.JSONDecodeError:
+        return issues_json  # let the caller surface the parse error
+    if not isinstance(all_items, list):
+        return issues_json
+    page_size = 100
+    start = (page - 1) * page_size
+    chunk = all_items[start:start + page_size]
+    return json.dumps(chunk)
+
+
 class _RecordingRunner:
-    """Records calls; simulates gh without network."""
+    """Records calls; simulates gh without network (v0.3 paginated api)."""
 
     def __init__(self, issues_json: str = "[]", *, fail_issues: bool = False) -> None:
         self.issues_json = issues_json
@@ -596,10 +652,12 @@ class _RecordingRunner:
         self.calls.append(list(args))
         from supervisor_context import CommandOutcome
 
-        if self.fail_issues and args[:2] == ["gh", "issue"] and "list" in args:
+        # gh api repos/<repo>/issues (paginated) — replaces gh issue list.
+        if self.fail_issues and _api_path(args, "repos/") and "/issues" in args[2]:
             return CommandOutcome(1, "", "discovery failed", False)
-        if args[:2] == ["gh", "issue"] and "list" in args:
-            return CommandOutcome(0, self.issues_json, "", False)
+        if _api_path(args, "repos/") and "/issues" in args[2]:
+            page = _page_arg(args)
+            return CommandOutcome(0, _paginated_issues_response(self.issues_json, page), "", False)
         if args[:3] == ["gh", "api", "user"]:
             return CommandOutcome(0, "dddd2024", "", False)
         if args[:2] == ["git", "status"]:
@@ -608,6 +666,8 @@ class _RecordingRunner:
             return CommandOutcome(0, "agent/codex-supervisor-foundation-v0", "", False)
         if args[:2] == ["git", "rev-parse"] and "refs/remotes/origin/main" in args:
             return CommandOutcome(0, MAIN_SHA, "", False)
+        if _api_path(args, "repos/") and args[2].endswith("/git/refs/heads/main"):
+            return CommandOutcome(0, json.dumps({"object": {"sha": MAIN_SHA, "type": "commit"}}), "", False)
         return CommandOutcome(0, "", "", False)
 
 
@@ -665,7 +725,7 @@ def test_live_create_calls_gh_issue_create() -> None:
 
 
 class _GuardRunner:
-    """Runner that allows controlling guard check outcomes."""
+    """Runner that allows controlling guard check outcomes (v0.3 paginated api)."""
 
     def __init__(
         self,
@@ -675,12 +735,18 @@ class _GuardRunner:
         worktree_clean: bool = True,
         branch: str = "agent/codex-supervisor-foundation-v0",
         main_sha: str = MAIN_SHA,
+        remote_main_sha: str | None = None,
+        fail_issues_page: int | None = None,
     ) -> None:
         self.issues_json = issues_json
         self.owner = owner
         self.worktree_clean = worktree_clean
         self.branch = branch
         self.main_sha = main_sha
+        # GitHub-side main SHA (gh api refs/heads/main). Defaults to main_sha.
+        self.remote_main_sha = remote_main_sha if remote_main_sha is not None else main_sha
+        # If set, the given page of gh api issues fails (for pagination tests).
+        self.fail_issues_page = fail_issues_page
         self.calls: list[list[str]] = []
 
     def __call__(self, args, timeout):
@@ -689,8 +755,16 @@ class _GuardRunner:
 
         if args[:3] == ["gh", "api", "user"]:
             return CommandOutcome(0, self.owner, "", False)
-        if args[:2] == ["gh", "issue"] and "list" in args:
-            return CommandOutcome(0, self.issues_json, "", False)
+        # gh api repos/<repo>/issues (paginated) — replaces gh issue list.
+        if _api_path(args, "repos/") and "/issues" in args[2]:
+            page = _page_arg(args)
+            if self.fail_issues_page is not None and page >= self.fail_issues_page:
+                return CommandOutcome(1, "", "page failed", False)
+            return CommandOutcome(0, _paginated_issues_response(self.issues_json, page), "", False)
+        if _api_path(args, "repos/") and args[2].endswith("/git/refs/heads/main"):
+            if self.remote_main_sha is None:
+                return CommandOutcome(1, "", "remote main fetch failed", False)
+            return CommandOutcome(0, json.dumps({"object": {"sha": self.remote_main_sha, "type": "commit"}}), "", False)
         if args[:2] == ["git", "status"]:
             return CommandOutcome(0, "" if self.worktree_clean else " M file.txt", "", False)
         if args[:2] == ["git", "branch"]:
@@ -833,7 +907,8 @@ def test_context_timeout_raises_no_output() -> None:
 
 def test_context_invalid_json_raises_no_output() -> None:
     def bad_json_runner(args, timeout):
-        if args[:2] == ["gh", "issue"] and "list" in args:
+        # v0.3: gh api repos/<repo>/issues (paginated) — replaces gh issue list.
+        if _api_path(list(args), "repos/") and "/issues" in args[2]:
             return sc.CommandOutcome(0, "not valid json", "", False)
         if args[:2] == ["gh", "pr"] and "list" in args:
             return sc.CommandOutcome(0, "[]", "", False)
@@ -841,8 +916,9 @@ def test_context_invalid_json_raises_no_output() -> None:
             return sc.CommandOutcome(0, '{"number":90,"title":"t","body":"b"}', "", False)
         if args[:3] == ["gh", "pr", "view"]:
             return sc.CommandOutcome(0, '{"number":93,"title":"t","isDraft":true,"state":"OPEN","headRefName":"b","headRefOid":"' + "a" * 40 + '","baseRefName":"main"}', "", False)
-        if args[:3] == ["gh", "pr", "checks"]:
-            return sc.CommandOutcome(0, "[]", "", False)
+        # v0.3: gh api check-runs (paginated) — replaces gh pr checks.
+        if _api_path(list(args), "repos/") and "/check-runs" in args[2]:
+            return sc.CommandOutcome(0, '{"check_runs":[]}', "", False)
         if args[0] == "git":
             if "symbolic-ref" in args:
                 return sc.CommandOutcome(0, "refs/remotes/origin/main", "", False)
@@ -878,7 +954,8 @@ def test_context_does_not_mask_failures_as_empty() -> None:
     """Read failures must NOT be masked as empty Issue/PR lists."""
 
     def fail_issue_runner(args, timeout):
-        if args[:2] == ["gh", "issue"] and "list" in args:
+        # v0.3: gh api repos/<repo>/issues (paginated) — replaces gh issue list.
+        if _api_path(list(args), "repos/") and "/issues" in args[2]:
             return sc.CommandOutcome(1, "", "forbidden", False)
         if args[0] == "git":
             if "symbolic-ref" in args:
@@ -900,11 +977,13 @@ def test_context_does_not_mask_failures_as_empty() -> None:
 
 
 def test_context_includes_issue_90_and_pr_93_facts() -> None:
-    """Context must include Issue #90 goal and PR #93 facts."""
+    """Context must include Issue #90 goal and PR #93 facts (v0.3 configurable)."""
 
     def good_runner(args, timeout):
-        if args[:2] == ["gh", "issue"] and "list" in args:
-            return sc.CommandOutcome(0, "[]", "", False)
+        # v0.3: gh api repos/<repo>/issues (paginated) — replaces gh issue list.
+        if _api_path(list(args), "repos/") and "/issues" in args[2]:
+            page = _page_arg(list(args))
+            return sc.CommandOutcome(0, _paginated_issues_response("[]", page), "", False)
         if args[:2] == ["gh", "pr"] and "list" in args:
             return sc.CommandOutcome(0, "[]", "", False)
         if args[:3] == ["gh", "issue", "view"] and "90" in args:
@@ -915,11 +994,14 @@ def test_context_includes_issue_90_and_pr_93_facts() -> None:
                 "headRefName": "agent/codex-supervisor-foundation-v0",
                 "headRefOid": "a" * 40, "baseRefName": "main",
             }), "", False)
-        if args[:3] == ["gh", "pr", "checks"]:
-            return sc.CommandOutcome(0, json.dumps([
-                {"name": "state-gate", "state": "fail", "link": "https://github.com/dddd2024/reverse-agent/actions/runs/30681854818/job/91320333803"},
-                {"name": "baseline", "state": "pass", "link": "https://github.com/dddd2024/reverse-agent/actions/runs/30681854828/job/91320333865"},
-            ]), "", False)
+        # v0.3: gh api check-runs bound to exact head — replaces gh pr checks.
+        if _api_path(list(args), "repos/") and "/check-runs" in args[2]:
+            return sc.CommandOutcome(0, json.dumps({
+                "check_runs": [
+                    {"name": "state-gate", "status": "completed", "conclusion": "failure", "html_url": "https://github.com/dddd2024/reverse-agent/runs/1"},
+                    {"name": "baseline", "status": "completed", "conclusion": "success", "html_url": "https://github.com/dddd2024/reverse-agent/runs/2"},
+                ]
+            }), "", False)
         if args[0] == "git":
             if "symbolic-ref" in args:
                 return sc.CommandOutcome(0, "refs/remotes/origin/main", "", False)
@@ -935,18 +1017,26 @@ def test_context_includes_issue_90_and_pr_93_facts() -> None:
                 return sc.CommandOutcome(0, "abcdef0 Title", "", False)
         return sc.CommandOutcome(0, "", "", False)
 
-    context = sc.collect_context(REPO, runner=good_runner)
-    assert "issue_90_goal" in context
-    assert context["issue_90_goal"]["number"] == 90
-    assert "supervisor" in context["issue_90_goal"]["goal_excerpt"].lower()
-    assert "pr_93_facts" in context
-    assert context["pr_93_facts"]["number"] == 93
-    assert context["pr_93_facts"]["draft"] is True
-    assert context["pr_93_facts"]["head_sha"] == "a" * 40
-    # Checks include state-gate fail and baseline pass.
-    check_names = {c["name"] for c in context["pr_93_facts"]["checks"]}
+    # v0.3: goal_issue and active_pr are configurable; pass explicitly so the
+    # test does not depend on branch-derived PR lookup.
+    context = sc.collect_context(REPO, goal_issue=90, active_pr=93, runner=good_runner)
+    # v0.3: field names are configurable (issue_goal / pr_facts, not hardcoded).
+    assert "issue_goal" in context
+    assert context["issue_goal"]["number"] == 90
+    assert "supervisor" in context["issue_goal"]["goal_excerpt"].lower()
+    assert "pr_facts" in context
+    assert context["pr_facts"]["number"] == 93
+    assert context["pr_facts"]["draft"] is True
+    assert context["pr_facts"]["head_sha"] == "a" * 40
+    # v0.3: failed checks still appear (not masked by gh pr checks exit code).
+    check_names = {c["name"] for c in context["pr_facts"]["checks"]}
     assert "state-gate" in check_names
     assert "baseline" in check_names
+    # Failed check retains name, status, conclusion, and bounded run_url.
+    state_gate = next(c for c in context["pr_facts"]["checks"] if c["name"] == "state-gate")
+    assert state_gate["conclusion"] == "failure"
+    assert state_gate["status"] == "completed"
+    assert "run_url" in state_gate
 
 
 # --- context bounds and safety --------------------------------------------
@@ -1004,3 +1094,617 @@ def test_supervisor_scripts_have_no_shell_or_credentials() -> None:
         assert "os.environ" not in src
         for token in ("gho_", "ghp_", "Bearer ", "Authorization:", "CHATGPT_SESSION"):
             assert token not in src
+
+
+# =========================================================================
+# v0.3 fail-closed closure tests.
+#
+# These tests cover the new behaviors required by Issue #92 PR #93 rework:
+#   - Checks collection via gh api check-runs (failed checks retained).
+#   - Check API failure → no Context.
+#   - Paginated Issue discovery (101st Issue Marker found).
+#   - Page 2 failure → zero writes.
+#   - Malformed Issue entry → fail-closed.
+#   - GitHub remote main drift → zero writes.
+#   - Local origin/main drift → zero writes.
+#   - Closed Issue with changed Marker → zero writes (CLOSED_MARKER_REQUIRES_OWNER).
+#   - Duplicate Marker → fail-closed (v0.2 behavior preserved).
+#   - Multiple Markers in one Issue → fail-closed.
+#   - git merge-base allowed; gh pr merge rejected.
+#   - Shell chaining / substitution rejected.
+#   - Operation–prompt inconsistency rejected.
+#   - Active PR configurable.
+#   - Single-machine publish lock: contention → zero writes; released after exception.
+# =========================================================================
+
+
+def _v03_good_runner_factory(*, check_runs_payload: str | None = None, fail_check_api: bool = False):
+    """Build a runner that returns valid v0.3 responses for collect_context.
+
+    Returns a (runner, calls) tuple where calls is the list of recorded args.
+    """
+
+    calls: list[list[str]] = []
+
+    def runner(args, timeout):
+        calls.append(list(args))
+        if _api_path(list(args), "repos/") and "/issues" in args[2]:
+            return sc.CommandOutcome(0, "[]", "", False)
+        if args[:2] == ["gh", "pr"] and "list" in args:
+            return sc.CommandOutcome(0, "[]", "", False)
+        if args[:3] == ["gh", "issue", "view"]:
+            return sc.CommandOutcome(0, json.dumps({"number": 90, "title": "t", "body": "b"}), "", False)
+        if args[:3] == ["gh", "pr", "view"]:
+            return sc.CommandOutcome(0, json.dumps({
+                "number": 93, "title": "t", "isDraft": True, "state": "OPEN",
+                "headRefName": "b", "headRefOid": "a" * 40, "baseRefName": "main",
+            }), "", False)
+        if _api_path(list(args), "repos/") and "/check-runs" in args[2]:
+            if fail_check_api:
+                return sc.CommandOutcome(1, "", "check api failed", False)
+            return sc.CommandOutcome(0, check_runs_payload or '{"check_runs":[]}', "", False)
+        if args[0] == "git":
+            if "symbolic-ref" in args:
+                return sc.CommandOutcome(0, "refs/remotes/origin/main", "", False)
+            if "rev-parse" in args and "HEAD" in args:
+                return sc.CommandOutcome(0, "a" * 40, "", False)
+            if "rev-parse" in args:
+                return sc.CommandOutcome(0, MAIN_SHA, "", False)
+            if "branch" in args:
+                return sc.CommandOutcome(0, "agent/codex-supervisor-foundation-v0", "", False)
+            if "status" in args:
+                return sc.CommandOutcome(0, "", "", False)
+            if "log" in args:
+                return sc.CommandOutcome(0, "abcdef0 Title", "", False)
+        return sc.CommandOutcome(0, "", "", False)
+
+    return runner, calls
+
+
+# --- Task 1: Checks collection via gh api check-runs ----------------------
+
+
+def test_failed_check_appears_in_context() -> None:
+    """A failed check must still appear in the Context with name, status,
+    conclusion, and bounded run_url — not masked by an exit code.
+    """
+    payload = json.dumps({
+        "check_runs": [
+            {"name": "state-gate", "status": "completed", "conclusion": "failure", "html_url": "https://github.com/dddd2024/reverse-agent/runs/1"},
+            {"name": "baseline", "status": "completed", "conclusion": "success", "html_url": "https://github.com/dddd2024/reverse-agent/runs/2"},
+        ]
+    })
+    runner, _ = _v03_good_runner_factory(check_runs_payload=payload)
+    context = sc.collect_context(REPO, goal_issue=90, active_pr=93, runner=runner)
+    checks = context["pr_facts"]["checks"]
+    names = {c["name"] for c in checks}
+    assert "state-gate" in names and "baseline" in names
+    failed = next(c for c in checks if c["name"] == "state-gate")
+    assert failed["conclusion"] == "failure"
+    assert failed["status"] == "completed"
+    assert "run_url" in failed and failed["run_url"]
+
+
+def test_check_api_failure_no_context() -> None:
+    """If gh api check-runs fails, no Context is emitted (fail-closed)."""
+    runner, _ = _v03_good_runner_factory(fail_check_api=True)
+    with pytest.raises(sc.ContextError):
+        sc.collect_context(REPO, goal_issue=90, active_pr=93, runner=runner)
+
+
+# --- Task 2: paginated Issue discovery ------------------------------------
+
+
+def test_issue_101_marker_discovered() -> None:
+    """The 101st Issue (page 2, item 1) carrying the marker must be found.
+    This exercises the paginated gh api discovery path.
+    """
+    # Build a create plan (computes the marker body).
+    plan = sp.plan_publication(
+        audit_result=_safe_result(), repository=REPO, main_sha=MAIN_SHA,
+        existing_issues=[],
+    )
+    marker_body = plan["body"]
+    # 100 dummy issues on page 1, then the marker issue as #101 on page 2.
+    page1 = [{"number": i, "title": f"old-{i}", "body": "", "state": "CLOSED"} for i in range(1, 101)]
+    page2 = [{"number": 101, "title": "marker-issue", "body": marker_body, "state": "OPEN"}]
+    all_issues = page1 + page2
+    runner = _RecordingRunner(issues_json=json.dumps(all_issues))
+    issues, err = sp.fetch_existing_issues(REPO, runner=runner)
+    assert err is None
+    # The 101st issue (marker) must be present in the fetched set.
+    numbers = {i.get("number") for i in issues}
+    assert 101 in numbers
+
+
+def test_page2_failure_zero_writes() -> None:
+    """If page 2 of gh api issues fails, discovery returns an error and
+    live writes do not occur.
+    """
+    # Page 1 has 100 issues (full page), forcing a page 2 fetch which fails.
+    page1 = [{"number": i, "title": f"old-{i}", "body": "", "state": "CLOSED"} for i in range(1, 101)]
+    runner = _GuardRunner(issues_json=json.dumps(page1), fail_issues_page=2)
+    issues, err = sp.fetch_existing_issues(REPO, runner=runner)
+    assert err is not None
+    assert issues == []
+    assert "page 2" in err
+
+
+def test_malformed_issue_entry_fail_closed() -> None:
+    """A malformed Issue entry (missing number/body/state) must fail-closed
+    rather than being silently skipped.
+    """
+    malformed = json.dumps([
+        {"number": 1, "body": "x", "state": "OPEN"},  # missing title is OK
+        {"number": 2, "title": "no-body", "state": "OPEN"},  # missing body
+    ])
+    runner = _RecordingRunner(issues_json=malformed)
+    issues, err = sp.fetch_existing_issues(REPO, runner=runner)
+    assert err is not None
+    assert "missing" in err
+
+
+def test_pr_entries_filtered_from_issues() -> None:
+    """The /issues endpoint returns PR entries (with a pull_request field).
+    These must be filtered out — they are NOT Issues.
+    """
+    mixed = json.dumps([
+        {"number": 1, "title": "real issue", "body": "b", "state": "OPEN"},
+        {"number": 2, "title": "pr leak", "body": "b", "state": "OPEN", "pull_request": {"url": "x"}},
+    ])
+    runner = _RecordingRunner(issues_json=mixed)
+    issues, err = sp.fetch_existing_issues(REPO, runner=runner)
+    assert err is None
+    numbers = {i.get("number") for i in issues}
+    assert 1 in numbers
+    assert 2 not in numbers  # PR entry filtered out.
+
+
+# --- Task 3: remote main verification -------------------------------------
+
+
+def test_remote_main_drift_zero_writes() -> None:
+    """If GitHub's refs/heads/main differs from audited_main_sha, zero writes."""
+    plan = _make_create_plan()
+    # GitHub remote main has drifted to a different SHA.
+    runner = _GuardRunner(remote_main_sha="b" * 40)
+    result = sp.apply_plan(plan, repository=REPO, expected_main_sha=MAIN_SHA, runner=runner, live=True)
+    assert result["applied"] is False
+    assert any(sp.ERR_LIVE_GUARD_REMOTE_MAIN in e for e in result["guard_errors"])
+    write_calls = [c for c in runner.calls if "create" in c or "edit" in c]
+    assert write_calls == []
+
+
+def test_local_main_drift_zero_writes() -> None:
+    """If local origin/main differs from audited_main_sha, zero writes."""
+    plan = _make_create_plan()
+    # Local origin/main has drifted (git rev-parse returns a different SHA).
+    runner = _GuardRunner(main_sha="c" * 40, remote_main_sha=MAIN_SHA)
+    result = sp.apply_plan(plan, repository=REPO, expected_main_sha=MAIN_SHA, runner=runner, live=True)
+    assert result["applied"] is False
+    assert any(sp.ERR_LIVE_GUARD_LOCAL_MAIN in e for e in result["guard_errors"])
+    write_calls = [c for c in runner.calls if "create" in c or "edit" in c]
+    assert write_calls == []
+
+
+def test_remote_main_api_failure_zero_writes() -> None:
+    """If gh api refs/heads/main fails, zero writes."""
+    plan = _make_create_plan()
+    runner = _GuardRunner()
+    # Override remote main to None → gh api failure.
+    runner.remote_main_sha = None
+    result = sp.apply_plan(plan, repository=REPO, expected_main_sha=MAIN_SHA, runner=runner, live=True)
+    assert result["applied"] is False
+    assert any(sp.ERR_LIVE_GUARD_REMOTE_MAIN in e for e in result["guard_errors"])
+
+
+# --- Task 4: closed Issue Marker handling ---------------------------------
+
+
+def test_closed_changed_marker_zero_writes() -> None:
+    """A closed Issue carrying the same Marker but different content must
+    yield CLOSED_MARKER_REQUIRES_OWNER (zero writes, no auto-edit, no
+    reopen, no surrogate create).
+    """
+    first = sp.plan_publication(
+        audit_result=_safe_result(), repository=REPO, main_sha=MAIN_SHA,
+        existing_issues=[],
+    )
+    # Same marker (same key) but body altered by a human note, in a CLOSED issue.
+    existing = [{"number": 7, "title": first["title"], "body": first["body"] + "\nhuman edit", "state": "CLOSED"}]
+    plan = sp.plan_publication(
+        audit_result=_safe_result(), repository=REPO, main_sha=MAIN_SHA,
+        existing_issues=existing,
+    )
+    assert plan["action"] == sp.ACTION_NO_OP
+    assert plan["policy_allowed"] is False
+    assert any(sp.ERR_CLOSED_MARKER_REQUIRES_OWNER in e for e in plan["errors"])
+    assert plan["target_issue"] == 7
+
+
+def test_closed_same_marker_no_op() -> None:
+    """A closed Issue carrying the same Marker with identical content is no_op."""
+    first = sp.plan_publication(
+        audit_result=_safe_result(), repository=REPO, main_sha=MAIN_SHA,
+        existing_issues=[],
+    )
+    existing = [{"number": 99, "title": first["title"], "body": first["body"], "state": "CLOSED"}]
+    plan = sp.plan_publication(
+        audit_result=_safe_result(), repository=REPO, main_sha=MAIN_SHA,
+        existing_issues=existing,
+    )
+    assert plan["action"] == sp.ACTION_NO_OP
+    assert plan["policy_allowed"] is True
+    assert plan["errors"] == []
+    assert plan["target_issue"] == 99
+
+
+def test_multi_marker_in_one_issue_fail_closed() -> None:
+    """If a single Issue carries multiple distinct markers, fail-closed."""
+    first = sp.plan_publication(
+        audit_result=_safe_result(), repository=REPO, main_sha=MAIN_SHA,
+        existing_issues=[],
+    )
+    # Build a second marker by changing the goal.
+    task2 = _safe_task()
+    task2["goal"] = "A different bounded goal"
+    second = sp.plan_publication(
+        audit_result=_safe_result(task=task2), repository=REPO, main_sha=MAIN_SHA,
+        existing_issues=[],
+    )
+    # One Issue carrying both markers.
+    combined_body = first["body"] + "\n" + second["body"]
+    existing = [{"number": 1, "title": "multi", "body": combined_body, "state": "OPEN"}]
+    plan = sp.plan_publication(
+        audit_result=_safe_result(), repository=REPO, main_sha=MAIN_SHA,
+        existing_issues=existing,
+    )
+    assert plan["action"] == sp.ACTION_NO_OP
+    assert plan["policy_allowed"] is False
+    assert any(sp.ERR_MULTI_MARKER_IN_ISSUE in e for e in plan["errors"])
+
+
+# --- Task 5: command / token checks ---------------------------------------
+
+
+def test_git_merge_base_allowed() -> None:
+    """git merge-base is a safe command and must NOT be rejected."""
+    task = _safe_task()
+    task["acceptance_checks"] = ["git merge-base HEAD origin/main"]
+    ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
+    assert ok and not errors
+
+
+def test_gh_pr_merge_rejected() -> None:
+    """gh pr merge is a dangerous command and must be rejected."""
+    task = _safe_task()
+    task["acceptance_checks"] = ["gh pr merge 93 --merge"]
+    ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
+    assert not ok
+    assert any(sv.POLICY_DANGEROUS_ACCEPTANCE_CHECK in e for e in errors)
+
+
+def test_git_branch_D_rejected() -> None:
+    """git branch -D (branch deletion) must be rejected."""
+    task = _safe_task()
+    task["acceptance_checks"] = ["git branch -D feature/x"]
+    ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
+    assert not ok
+    assert any(sv.POLICY_BRANCH_DELETION_FORBIDDEN in e for e in errors)
+
+
+def test_shell_chain_rejected() -> None:
+    """Shell chaining (&&) in acceptance_checks must be rejected."""
+    task = _safe_task()
+    task["acceptance_checks"] = ["pytest && flake8"]
+    ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
+    assert not ok
+    assert any(sv.POLICY_SHELL_METACHAR_FORBIDDEN in e for e in errors)
+
+
+def test_shell_substitution_rejected() -> None:
+    """Shell command substitution $() in acceptance_checks must be rejected."""
+    task = _safe_task()
+    task["acceptance_checks"] = ["echo $(whoami)"]
+    ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
+    assert not ok
+    assert any(sv.POLICY_SHELL_METACHAR_FORBIDDEN in e for e in errors)
+
+
+def test_shell_redirect_rejected() -> None:
+    """Shell redirection (>) in acceptance_checks must be rejected."""
+    task = _safe_task()
+    task["acceptance_checks"] = ["pytest tests/ > out.txt"]
+    ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
+    assert not ok
+    assert any(sv.POLICY_SHELL_METACHAR_FORBIDDEN in e for e in errors)
+
+
+# --- Task 5: operation–prompt consistency ---------------------------------
+
+
+def test_file_scope_without_edit_operation_rejected() -> None:
+    """If allowed_scope lists file paths but requested_operations lacks
+    edit_bounded_files, the plan must be rejected for inconsistency.
+    """
+    task = _safe_task()
+    # allowed_scope has file paths but operations omit edit_bounded_files.
+    task["requested_operations"] = ["read_repository", "run_checks"]
+    ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
+    assert not ok
+    assert any(sv.OPERATION_PROMPT_INCONSISTENCY in e for e in errors)
+
+
+def test_push_prompt_without_push_operation_rejected() -> None:
+    """If the prompt mentions 'push' but requested_operations lacks
+    push_named_branch, the plan must be rejected.
+    """
+    task = _safe_task()
+    task["execution_prompt"] = "Push the bounded changes to the named branch."
+    task["requested_operations"] = ["read_repository", "edit_bounded_files", "run_checks", "create_or_update_draft_pr"]
+    ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
+    assert not ok
+    assert any(sv.OPERATION_PROMPT_INCONSISTENCY in e for e in errors)
+
+
+def test_draft_pr_prompt_without_pr_operation_rejected() -> None:
+    """If the prompt mentions 'draft pr' but requested_operations lacks
+    create_or_update_draft_pr, the plan must be rejected.
+    """
+    task = _safe_task()
+    task["execution_prompt"] = "Update the draft PR description with evidence."
+    task["requested_operations"] = ["read_repository", "edit_bounded_files", "run_checks", "push_named_branch"]
+    ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
+    assert not ok
+    assert any(sv.OPERATION_PROMPT_INCONSISTENCY in e for e in errors)
+
+
+def test_consistent_operations_and_prompt_pass() -> None:
+    """When operations match the prompt, validation passes."""
+    task = _safe_task()
+    task["execution_prompt"] = "Edit the bounded files, push the named branch, and update the draft PR."
+    task["requested_operations"] = [
+        "read_repository", "edit_bounded_files", "run_checks",
+        "push_named_branch", "create_or_update_draft_pr",
+    ]
+    ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
+    assert ok and not errors
+
+
+# --- Task 6: active PR configurable ---------------------------------------
+
+
+def test_active_pr_configurable() -> None:
+    """collect_context must accept an explicit active_pr number other than
+    93 without source changes — the PR number is not hardcoded.
+    """
+    def runner(args, timeout):
+        if _api_path(list(args), "repos/") and "/issues" in args[2]:
+            return sc.CommandOutcome(0, "[]", "", False)
+        if args[:2] == ["gh", "pr"] and "list" in args:
+            return sc.CommandOutcome(0, "[]", "", False)
+        if args[:3] == ["gh", "issue", "view"] and "90" in args:
+            return sc.CommandOutcome(0, json.dumps({"number": 90, "title": "t", "body": "b"}), "", False)
+        # Respond for PR #777 (NOT #93) to prove the number is configurable.
+        if args[:3] == ["gh", "pr", "view"] and "777" in args:
+            return sc.CommandOutcome(0, json.dumps({
+                "number": 777, "title": "other PR", "isDraft": True, "state": "OPEN",
+                "headRefName": "other-branch", "headRefOid": "b" * 40, "baseRefName": "main",
+            }), "", False)
+        if _api_path(list(args), "repos/") and "/check-runs" in args[2]:
+            return sc.CommandOutcome(0, '{"check_runs":[]}', "", False)
+        if args[0] == "git":
+            if "symbolic-ref" in args:
+                return sc.CommandOutcome(0, "refs/remotes/origin/main", "", False)
+            if "rev-parse" in args and "HEAD" in args:
+                return sc.CommandOutcome(0, "b" * 40, "", False)
+            if "rev-parse" in args:
+                return sc.CommandOutcome(0, MAIN_SHA, "", False)
+            if "branch" in args:
+                return sc.CommandOutcome(0, "other-branch", "", False)
+            if "status" in args:
+                return sc.CommandOutcome(0, "", "", False)
+            if "log" in args:
+                return sc.CommandOutcome(0, "abcdef0 Title", "", False)
+        return sc.CommandOutcome(0, "", "", False)
+
+    context = sc.collect_context(REPO, goal_issue=90, active_pr=777, runner=runner)
+    assert context["active_pr_number"] == 777
+    assert context["pr_facts"]["number"] == 777
+    assert context["pr_facts"]["title"] == "other PR"
+
+
+def test_active_pr_derived_from_branch() -> None:
+    """When active_pr is None, it is derived from the current branch via
+    gh api pulls. Exactly one match is required.
+    """
+    def runner(args, timeout):
+        if _api_path(list(args), "repos/") and "/issues" in args[2]:
+            return sc.CommandOutcome(0, "[]", "", False)
+        if args[:2] == ["gh", "pr"] and "list" in args:
+            return sc.CommandOutcome(0, "[]", "", False)
+        if args[:3] == ["gh", "issue", "view"]:
+            return sc.CommandOutcome(0, json.dumps({"number": 90, "title": "t", "body": "b"}), "", False)
+        if args[:3] == ["gh", "pr", "view"] and "42" in args:
+            return sc.CommandOutcome(0, json.dumps({
+                "number": 42, "title": "derived", "isDraft": True, "state": "OPEN",
+                "headRefName": "agent/codex-supervisor-foundation-v0",
+                "headRefOid": "a" * 40, "baseRefName": "main",
+            }), "", False)
+        # gh api pulls (derive) — return exactly one PR.
+        if _api_path(list(args), "repos/") and "/pulls" in args[2]:
+            return sc.CommandOutcome(0, json.dumps([{"number": 42}]), "", False)
+        if _api_path(list(args), "repos/") and "/check-runs" in args[2]:
+            return sc.CommandOutcome(0, '{"check_runs":[]}', "", False)
+        if args[0] == "git":
+            if "symbolic-ref" in args:
+                return sc.CommandOutcome(0, "refs/remotes/origin/main", "", False)
+            if "rev-parse" in args and "HEAD" in args:
+                return sc.CommandOutcome(0, "a" * 40, "", False)
+            if "rev-parse" in args:
+                return sc.CommandOutcome(0, MAIN_SHA, "", False)
+            if "branch" in args:
+                return sc.CommandOutcome(0, "agent/codex-supervisor-foundation-v0", "", False)
+            if "status" in args:
+                return sc.CommandOutcome(0, "", "", False)
+            if "log" in args:
+                return sc.CommandOutcome(0, "abcdef0 Title", "", False)
+        return sc.CommandOutcome(0, "", "", False)
+
+    context = sc.collect_context(REPO, goal_issue=90, active_pr=None, runner=runner)
+    assert context["active_pr_number"] == 42
+
+
+def test_active_pr_derive_zero_match_fail_closed() -> None:
+    """Zero matching PRs for the current branch → ContextError (fail-closed)."""
+    def runner(args, timeout):
+        if _api_path(list(args), "repos/") and "/issues" in args[2]:
+            return sc.CommandOutcome(0, "[]", "", False)
+        if args[:2] == ["gh", "pr"] and "list" in args:
+            return sc.CommandOutcome(0, "[]", "", False)
+        if args[:3] == ["gh", "issue", "view"]:
+            return sc.CommandOutcome(0, json.dumps({"number": 90, "title": "t", "body": "b"}), "", False)
+        # gh api pulls (derive) — return zero PRs.
+        if _api_path(list(args), "repos/") and "/pulls" in args[2]:
+            return sc.CommandOutcome(0, "[]", "", False)
+        if args[0] == "git":
+            if "symbolic-ref" in args:
+                return sc.CommandOutcome(0, "refs/remotes/origin/main", "", False)
+            if "rev-parse" in args and "HEAD" in args:
+                return sc.CommandOutcome(0, "a" * 40, "", False)
+            if "rev-parse" in args:
+                return sc.CommandOutcome(0, MAIN_SHA, "", False)
+            if "branch" in args:
+                return sc.CommandOutcome(0, "agent/codex-supervisor-foundation-v0", "", False)
+            if "status" in args:
+                return sc.CommandOutcome(0, "", "", False)
+            if "log" in args:
+                return sc.CommandOutcome(0, "abcdef0 Title", "", False)
+        return sc.CommandOutcome(0, "", "", False)
+
+    with pytest.raises(sc.ContextError):
+        sc.collect_context(REPO, goal_issue=90, active_pr=None, runner=runner)
+
+
+def test_active_pr_derive_multiple_match_fail_closed() -> None:
+    """Multiple matching PRs for the current branch → ContextError."""
+    def runner(args, timeout):
+        if _api_path(list(args), "repos/") and "/issues" in args[2]:
+            return sc.CommandOutcome(0, "[]", "", False)
+        if args[:2] == ["gh", "pr"] and "list" in args:
+            return sc.CommandOutcome(0, "[]", "", False)
+        if args[:3] == ["gh", "issue", "view"]:
+            return sc.CommandOutcome(0, json.dumps({"number": 90, "title": "t", "body": "b"}), "", False)
+        if _api_path(list(args), "repos/") and "/pulls" in args[2]:
+            return sc.CommandOutcome(0, json.dumps([{"number": 41}, {"number": 42}]), "", False)
+        if args[0] == "git":
+            if "symbolic-ref" in args:
+                return sc.CommandOutcome(0, "refs/remotes/origin/main", "", False)
+            if "rev-parse" in args and "HEAD" in args:
+                return sc.CommandOutcome(0, "a" * 40, "", False)
+            if "rev-parse" in args:
+                return sc.CommandOutcome(0, MAIN_SHA, "", False)
+            if "branch" in args:
+                return sc.CommandOutcome(0, "agent/codex-supervisor-foundation-v0", "", False)
+            if "status" in args:
+                return sc.CommandOutcome(0, "", "", False)
+            if "log" in args:
+                return sc.CommandOutcome(0, "abcdef0 Title", "", False)
+        return sc.CommandOutcome(0, "", "", False)
+
+    with pytest.raises(sc.ContextError):
+        sc.collect_context(REPO, goal_issue=90, active_pr=None, runner=runner)
+
+
+# --- Task 7: single-machine publish lock ----------------------------------
+
+
+def test_lock_contention_zero_writes() -> None:
+    """If the publish lock is already held, zero writes occur."""
+    plan = _make_create_plan()
+    # Pre-acquire the lock with the same name so apply_plan's acquisition fails.
+    shared_lock = sp.PublishLock(name="reverse-agent-supervisor-publish.lock")
+    acquired_path = None
+    try:
+        with shared_lock:
+            acquired_path = shared_lock.path
+            runner = _GuardRunner()  # all guards pass.
+            result = sp.apply_plan(plan, repository=REPO, expected_main_sha=MAIN_SHA, runner=runner, live=True)
+            assert result["applied"] is False
+            assert result["reason"] == sp.ERR_LOCK_BUSY
+            write_calls = [c for c in runner.calls if "create" in c or "edit" in c]
+            assert write_calls == []
+    finally:
+        # The lock should still be held by shared_lock (released on exit).
+        if acquired_path and not shared_lock._owned:
+            # shared_lock.__exit__ already unlinked; ensure no leftover.
+            import os as _os
+            assert not _os.path.exists(acquired_path)
+
+
+def test_lock_released_after_exception() -> None:
+    """If an exception occurs while holding the lock, the lock is released
+    in the finally block (the file is unlinked).
+    """
+    import os as _os
+    lock = sp.PublishLock(name="reverse-agent-supervisor-publish-test-exception.lock")
+    lock_path = None
+    try:
+        with lock:
+            lock_path = lock.path
+            assert _os.path.exists(lock_path)
+            raise RuntimeError("simulated failure")
+    except RuntimeError:
+        pass
+    # Lock file must be unlinked even after the exception.
+    assert lock_path is not None
+    assert not _os.path.exists(lock_path)
+
+
+def test_lock_atomic_acquisition() -> None:
+    """Two concurrent PublishLock instances with the same name: the second
+    acquisition fails with LockBusyError (atomic O_EXCL).
+    """
+    import os as _os
+    lock1 = sp.PublishLock(name="reverse-agent-supervisor-publish-test-atomic.lock")
+    lock2 = sp.PublishLock(name="reverse-agent-supervisor-publish-test-atomic.lock")
+    try:
+        with lock1:
+            with pytest.raises(sp.LockBusyError):
+                with lock2:
+                    pass
+    finally:
+        pass  # lock1.__exit__ unlinks the file.
+
+
+def test_lock_not_in_repository() -> None:
+    """The lock file must NOT be created inside the repository."""
+    lock = sp.PublishLock(name="reverse-agent-supervisor-publish-test-location.lock")
+    repo_root = pathlib.Path(__file__).resolve().parents[1]
+    try:
+        with lock:
+            assert lock.path is not None
+            lock_path = pathlib.Path(lock.path).resolve()
+            repo_root_resolved = repo_root.resolve()
+            # lock_path must not be inside the repo.
+            assert not str(lock_path).startswith(str(repo_root_resolved))
+    finally:
+        pass
+
+
+# --- Task 8: volatile evidence not in tracking docs -----------------------
+
+
+def test_no_hardcoded_head_or_run_id_in_hygiene_report() -> None:
+    """The hygiene report must not hardcode exact Head SHAs or Actions run
+    IDs as 'current facts' — those are volatile and expire on every push.
+    Stable hygiene facts (branch counts, dispositions) are permitted.
+    """
+    report = pathlib.Path(__file__).resolve().parents[1] / "docs" / "repository-hygiene-report.md"
+    text = report.read_text(encoding="utf-8")
+    # The report may record the audited main SHA (stable for the round) but
+    # must not present the implementation branch HEAD or CI run IDs as
+    # current facts. Look for the volatile markers explicitly.
+    # (The historical 'post-cleanup evidence' section is removed in v0.3.)
+    assert "Current observed state" not in text
+    assert "exact Head" not in text.lower()

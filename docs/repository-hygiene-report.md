@@ -24,25 +24,33 @@ Section V of Issue #92 to hold.
 | `BLOCKED_DIRTY_WORKTREE` | A local worktree linked to this branch is dirty or locked. Cleanup is blocked until the worktree is resolved. |
 | `BLOCKED_UNKNOWN_PROVENANCE` | Branch origin cannot be verified (no PR, no Issue reference, HEAD drifted since audit). Do not delete. |
 
-## Current observed state (post-cleanup evidence)
+## Stable repository hygiene facts
 
-This section records the repository state observed on the
-`agent/codex-supervisor-foundation-v0` branch at HEAD
-`30ad6e9b0aa0dcfca9e3c3f899f4ca4c15933a94`, against
-`origin/main` = `16526801bda2a816fc707342f903c1ad037de9bd`.
+This section records **stable** repository hygiene facts that do not expire
+on every push. Volatile evidence (exact implementation HEAD, CI run IDs,
+State Gate run IDs) is intentionally NOT recorded here — those values
+expire immediately after each commit and should be published as PR #93
+comments after Actions complete.
 
-| Metric | Current value |
+| Metric | Stable value |
 |--------|---------------|
-| Remote branches (incl. main) | 18 |
-| Open Draft PRs | 1 (PR #93, branch `agent/codex-supervisor-foundation-v0`) |
+| Audited main SHA (round base) | `16526801bda2a816fc707342f903c1ad037de9bd` |
+| Implementation branch | `agent/codex-supervisor-foundation-v0` |
+| Active Draft PR | #93 (open, against `main`) |
+| Remote branches (incl. main, post-cleanup) | 18 |
+| Open Draft PRs (post-cleanup) | 1 (PR #93) |
 | Closed old Draft PRs (superseded, not merged) | 9 (#5, #6, #7, #11, #19, #21, #24, #47, #49) |
 | Pre-existing closed unmerged Draft PR | 1 (#78) — already closed before this work |
-| Open Issues | 2 (#90 parent product, #92 current task) |
+| Open Issues (post-cleanup) | 2 (#90 parent product, #92 current task) |
 | Issue #54 | CLOSED as `NOT_PLANNED` after owner audit |
-| CI run `30681854828` (baseline) | SUCCESS |
-| State Gate run `30681854818` | FAILURE |
-| State Gate failure cause | Legacy PR #67 Decision carries branch/path binding that does not cover the `agent/codex-supervisor-foundation-v0` branch; State Gate refuses to validate a PR whose head branch is not named in the approved Work Item |
 | Dirty worktree (`F:/reverse-agent-pr60-mainline-landing-repair-v1`) | Retained as `BLOCKED_DIRTY_WORKTREE`; NOT force-removed |
+| State Gate failure cause (stable) | Legacy PR #67 Decision carries branch/path binding that does not cover the `agent/codex-supervisor-foundation-v0` branch; State Gate refuses to validate a PR whose head branch is not named in the approved Work Item. This cause is stable until the legacy binding is retired. |
+
+**Note on volatile evidence:** The exact implementation HEAD, CI run IDs,
+and State Gate run IDs change on every push and are therefore not recorded
+here as "current facts". The latest exact Head and CI/State Gate results
+should be published to PR #93 comments after Actions complete, where they
+can be timestamped and superseded without invalidating this document.
 
 ## Before / after summary (historical reference)
 
@@ -141,9 +149,13 @@ Issue reference; its provenance cannot be fully verified, so it is
 
 ### Active implementation branch
 
-| Branch | HEAD | PR | Disposition |
-|--------|------|----|-------------|
-| `agent/codex-supervisor-foundation-v0` | `30ad6e9b0aa0dcfca9e3c3f899f4ca4c15933a94` | Draft PR #93 (open) | `KEEP_ACTIVE` |
+| Branch | PR | Disposition |
+|--------|----|-------------|
+| `agent/codex-supervisor-foundation-v0` | Draft PR #93 (open) | `KEEP_ACTIVE` |
+
+The exact HEAD of this branch changes on every push and is not recorded
+here as a stable fact. See the latest PR #93 comment for the current
+exact Head and CI/State Gate results.
 
 ## Section IV — Draft PR audit (current state)
 

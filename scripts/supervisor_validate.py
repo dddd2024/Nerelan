@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Thin Codex Supervisor validator (quota-free v0.2, fail-closed).
+"""Thin Codex Supervisor validator (quota-free v0.3, fail-closed).
 
 Validates an external audit result against the minimal project contract,
 applies project-specific security rules, and computes the stable cycle
@@ -8,6 +8,19 @@ marker. Pure standard library. No real Codex/model calls.
 This is a thin script over git/gh + json/hashlib. It deliberately does NOT
 introduce a Backend Protocol, Snapshot class hierarchy, or Publication
 Planner framework (see Issue #92).
+
+v0.3 changes (fail-closed closure):
+- No negation skip for goal / execution_prompt: a forbidden operation
+  keyword appearing in these fields is rejected directly. Legitimate
+  prohibitions belong in ``forbidden_scope``, not prompt negation.
+- acceptance_checks use bounded command/token rules with word-boundary
+  matching: ``git merge-base`` is allowed; ``gh pr merge``, push main,
+  force-push, rebase, reset --hard, release, deploy, credential access,
+  branch deletion, and shell chaining/redirection/substitution are rejected.
+- Operation–prompt consistency: modifying files requires
+  ``edit_bounded_files``, pushing a named branch requires
+  ``push_named_branch``, updating a Draft PR requires
+  ``create_or_update_draft_pr``.
 
 Fail-closed audit-result contract (v0.2):
 
@@ -132,6 +145,9 @@ POLICY_DEPLOYMENT_FORBIDDEN = "POLICY_DEPLOYMENT_FORBIDDEN"
 POLICY_CREDENTIAL_ACCESS_FORBIDDEN = "POLICY_CREDENTIAL_ACCESS_FORBIDDEN"
 POLICY_UNRELATED_MUTATION_FORBIDDEN = "POLICY_UNRELATED_MUTATION_FORBIDDEN"
 POLICY_DANGEROUS_ACCEPTANCE_CHECK = "POLICY_DANGEROUS_ACCEPTANCE_CHECK"
+POLICY_BRANCH_DELETION_FORBIDDEN = "POLICY_BRANCH_DELETION_FORBIDDEN"
+POLICY_SHELL_METACHAR_FORBIDDEN = "POLICY_SHELL_METACHAR_FORBIDDEN"
+OPERATION_PROMPT_INCONSISTENCY = "OPERATION_PROMPT_INCONSISTENCY"
 FIELD_TOO_LONG = "FIELD_TOO_LONG"
 FIELD_TOO_MANY = "FIELD_TOO_MANY"
 UNKNOWN_FIELD = "UNKNOWN_FIELD"
@@ -151,6 +167,10 @@ _BROAD_SCOPES = frozenset({
 # of allowed_scope, execution_prompt, goal, and acceptance_checks.
 # ``forbidden_scope`` is NOT scanned: listing "merge" there means merge is
 # forbidden (good), not requested.
+#
+# Word-boundary matching is used so that ``git merge-base`` is NOT flagged
+# for "merge" (because "merge" is followed by "-", not a word boundary),
+# while ``gh pr merge`` IS flagged (because "merge" is a whole word).
 _FORBIDDEN_PHRASES: tuple[tuple[str, str], ...] = (
     ("merge", POLICY_MERGE_FORBIDDEN),
     ("auto-merge", POLICY_MERGE_FORBIDDEN),
@@ -176,7 +196,9 @@ _FORBIDDEN_PHRASES: tuple[tuple[str, str], ...] = (
 )
 
 # Dangerous commands that must not appear in acceptance_checks.
-_DANGEROUS_COMMAND_PHRASES = (
+# Uses word-boundary matching so ``git merge-base`` is allowed but
+# ``gh pr merge`` is rejected.
+_DANGEROUS_COMMAND_PHRASES: tuple[tuple[str, str], ...] = (
     ("push main", POLICY_MAIN_PUSH_FORBIDDEN),
     ("push to main", POLICY_MAIN_PUSH_FORBIDDEN),
     ("git push origin main", POLICY_MAIN_PUSH_FORBIDDEN),
@@ -192,16 +214,31 @@ _DANGEROUS_COMMAND_PHRASES = (
     ("force push", POLICY_MAIN_PUSH_FORBIDDEN),
     ("force-push", POLICY_MAIN_PUSH_FORBIDDEN),
     ("push --force", POLICY_MAIN_PUSH_FORBIDDEN),
-    ("push -f origin main", POLICY_MAIN_PUSH_FORBIDDEN),
-    ("push -f main", POLICY_MAIN_PUSH_FORBIDDEN),
+    ("push -f", POLICY_MAIN_PUSH_FORBIDDEN),
     ("rebase", POLICY_MAIN_PUSH_FORBIDDEN),
     ("reset --hard", POLICY_MAIN_PUSH_FORBIDDEN),
     ("read credentials", POLICY_CREDENTIAL_ACCESS_FORBIDDEN),
     ("read secrets", POLICY_CREDENTIAL_ACCESS_FORBIDDEN),
     ("read token", POLICY_CREDENTIAL_ACCESS_FORBIDDEN),
+    ("git branch -D", POLICY_BRANCH_DELETION_FORBIDDEN),
+    ("git branch -d", POLICY_BRANCH_DELETION_FORBIDDEN),
+    ("git push --delete", POLICY_BRANCH_DELETION_FORBIDDEN),
+    ("git push origin --delete", POLICY_BRANCH_DELETION_FORBIDDEN),
 )
 
-_NEGATION_TOKENS = ("do not ", "don't ", "never ", "must not ", "cannot ", "can't ", "without ", "avoid ", "forbid ", "no ", "not ")
+# Shell metacharacter patterns rejected in acceptance_checks.
+# Checked with substring matching (these tokens are unambiguous).
+_SHELL_METACHAR_CHECKS: tuple[tuple[str, str], ...] = (
+    ("&&", "shell_chain"),
+    ("||", "shell_chain"),
+    ("$(", "command_substitution"),
+    ("`", "backtick"),
+    (" | ", "shell_pipe"),
+    (" > ", "redirect"),
+    (" >> ", "redirect"),
+    (" < ", "redirect"),
+    ("; ", "command_separator"),
+)
 
 _FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
@@ -264,6 +301,12 @@ def find_marker_key(text: str) -> str | None:
     return match.group(1) if match is not None else None
 
 
+def find_all_marker_keys(text: str) -> list[str]:
+    """Return all marker keys found in ``text`` (for multi-marker detection)."""
+
+    return [m.group(1) for m in _MARKER_RE.finditer(text)]
+
+
 def validate_audit_result(
     payload: object,
     *,
@@ -285,9 +328,13 @@ def validate_audit_result(
       ``expected_main_sha`` (case-insensitive).
     - ``requested_operations`` must be a non-empty subset of the closed
       whitelist. This is the authoritative permission grant.
-    - ``acceptance_checks`` are scanned for dangerous commands.
+    - ``acceptance_checks`` are scanned for dangerous commands and shell
+      metacharacters (word-boundary matching: ``git merge-base`` allowed,
+      ``gh pr merge`` rejected).
     - Natural-language keyword scan of allowed_scope / execution_prompt /
-      goal is a secondary guard (can reject, never authorizes).
+      goal is a secondary guard (can reject, never authorizes). No negation
+      skip in v0.3 — forbidden operations in free text are always rejected.
+    - Operation–prompt consistency is verified.
     """
 
     errors: list[str] = []
@@ -457,12 +504,26 @@ def _validate_next_task(task: Mapping[str, Any], errors: list[str]) -> dict[str,
             elif len(item.strip()) > MAX_CHECK_LENGTH:
                 errors.append(f"{FIELD_TOO_LONG}:next_task.acceptance_checks")
             else:
-                # Dangerous-command scan (fail-closed).
-                norm = normalize_text(item).lower()
+                # Dangerous-command scan (word-boundary matching).
+                # ``git merge-base`` is allowed; ``gh pr merge`` is rejected.
+                # Use punctuation-aware normalization so trailing periods etc.
+                # don't prevent phrase matching.
+                norm_scan = _normalize_for_scan(item)
+                rejected = False
                 for phrase, code in _DANGEROUS_COMMAND_PHRASES:
-                    if phrase in norm:
+                    if _matches_word(norm_scan, phrase):
                         errors.append(f"{POLICY_DANGEROUS_ACCEPTANCE_CHECK}:{code}")
+                        rejected = True
                         break
+                if not rejected:
+                    # Shell metacharacter scan (substring matching).
+                    # Use the original normalization (punctuation preserved)
+                    # because the metacharacters themselves are the signal.
+                    norm_raw = normalize_text(item).lower()
+                    for token, reason in _SHELL_METACHAR_CHECKS:
+                        if token in norm_raw:
+                            errors.append(f"{POLICY_SHELL_METACHAR_FORBIDDEN}:{reason}")
+                            break
 
     execution_prompt = task.get("execution_prompt")
     if not isinstance(execution_prompt, str) or not execution_prompt.strip():
@@ -470,9 +531,12 @@ def _validate_next_task(task: Mapping[str, Any], errors: list[str]) -> dict[str,
     elif len(execution_prompt.strip()) > MAX_EXECUTION_PROMPT_LENGTH:
         errors.append(f"{FIELD_TOO_LONG}:next_task.execution_prompt")
 
-    # Secondary natural-language keyword scan (auxiliary only).
+    # --- v0.3: Strict natural-language keyword scan (NO negation skip). ---
     # allowed_scope: strict — any mention of a forbidden operation is rejected.
-    # execution_prompt / goal: negation-aware.
+    # execution_prompt / goal: strict — NO negation skip in v0.3.
+    #   A forbidden operation keyword appearing in goal or execution_prompt
+    #   is rejected directly. Legitimate prohibitions belong in
+    #   forbidden_scope, not prompt negation.
     # forbidden_scope: NOT scanned (listing "merge" there is good).
     if isinstance(allowed_scope, list):
         _scan_policy_strict(
@@ -484,7 +548,17 @@ def _validate_next_task(task: Mapping[str, Any], errors: list[str]) -> dict[str,
         free_text.append(execution_prompt)
     if isinstance(goal, str):
         free_text.append(goal)
-    _scan_policy_free_text(free_text, errors)
+    # v0.3: use strict scan for free text too (no negation skip).
+    _scan_policy_strict(free_text, errors)
+
+    # --- v0.3: Operation–prompt consistency check. ---
+    _check_operation_prompt_consistency(
+        goal=goal if isinstance(goal, str) else "",
+        execution_prompt=execution_prompt if isinstance(execution_prompt, str) else "",
+        allowed_scope=allowed_scope if isinstance(allowed_scope, list) else [],
+        requested_operations=requested_operations if isinstance(requested_operations, list) else [],
+        errors=errors,
+    )
 
     if errors:
         return None
@@ -499,43 +573,85 @@ def _validate_next_task(task: Mapping[str, Any], errors: list[str]) -> dict[str,
     }
 
 
+def _normalize_for_scan(text: str) -> str:
+    """Normalize text for keyword scanning: lowercase, collapse whitespace,
+    and replace common punctuation with spaces so word-boundary matching
+    handles trailing periods, commas, etc.
+
+    Hyphens are preserved so that ``merge-base`` is NOT split into
+    ``merge`` + ``base`` (``git merge-base`` must NOT be flagged for "merge").
+    """
+
+    norm = normalize_text(text).lower()
+    # Replace punctuation (except hyphens) with spaces.
+    for ch in ".,;:!?'\"()[]{}":
+        norm = norm.replace(ch, " ")
+    return " ".join(norm.split())
+
+
 def _scan_policy_strict(texts: Sequence[str], errors: list[str]) -> None:
-    """Strict scan for ``allowed_scope``: any mention of a forbidden
-    operation is rejected, regardless of wording.
+    """Strict scan: any mention of a forbidden operation is rejected,
+    regardless of wording or negation. Word-boundary matching is used so
+    that ``git merge-base`` is NOT flagged for "merge".
+
+    All matching forbidden phrases are flagged (not just the first) so that
+    a prompt mentioning both "merge" and "deploy" surfaces both violations.
     """
 
     for text in texts:
-        norm = normalize_text(text).lower()
+        norm = _normalize_for_scan(text)
         for phrase, code in _FORBIDDEN_PHRASES:
             if _matches_word(norm, phrase):
                 errors.append(code)
-                break  # one error per scope item is enough
 
 
-def _scan_policy_free_text(texts: Sequence[str], errors: list[str]) -> None:
-    """Negation-aware scan for free text (``execution_prompt``, ``goal``).
+def _check_operation_prompt_consistency(
+    *,
+    goal: str,
+    execution_prompt: str,
+    allowed_scope: list,
+    requested_operations: list,
+    errors: list[str],
+) -> None:
+    """Verify that the requested_operations match what the prompt describes.
 
-    A clause that starts with a negation token (e.g. "do not merge") is
-    not flagged — it is forbidding the operation, not requesting it.
+    - If allowed_scope is non-empty (file paths to edit), ``edit_bounded_files``
+      must be in ``requested_operations``.
+    - If goal or execution_prompt mentions "push" (whole word),
+      ``push_named_branch`` must be in ``requested_operations``.
+    - If goal or execution_prompt mentions "draft pr" or "update pr" or
+      "pr description", ``create_or_update_draft_pr`` must be in
+      ``requested_operations``.
     """
 
-    for text in texts:
-        norm = normalize_text(text).lower()
-        for clause in _split_clauses(norm):
-            if any(clause.startswith(neg.rstrip()) for neg in _NEGATION_TOKENS):
-                continue
-            for phrase, code in _FORBIDDEN_PHRASES:
-                if _matches_word(clause, phrase):
-                    errors.append(code)
-                    break  # one error per clause is enough
+    ops = {str(o) for o in requested_operations if isinstance(o, str)}
 
+    # Modifying files requires edit_bounded_files.
+    if allowed_scope:
+        if "edit_bounded_files" not in ops:
+            errors.append(f"{OPERATION_PROMPT_INCONSISTENCY}:edit_bounded_files_required_for_file_scope")
 
-def _split_clauses(text: str) -> list[str]:
-    parts = re.split(r"[.;:!?\n]", text)
-    return [p.strip() for p in parts if p.strip()]
+    combined = _normalize_for_scan(f"{goal} {execution_prompt}")
+
+    # Pushing a named branch requires push_named_branch.
+    if _matches_word(combined, "push"):
+        if "push_named_branch" not in ops:
+            errors.append(f"{OPERATION_PROMPT_INCONSISTENCY}:push_named_branch_required")
+
+    # Updating a Draft PR requires create_or_update_draft_pr.
+    if "draft pr" in combined or "update pr" in combined or "pr description" in combined:
+        if "create_or_update_draft_pr" not in ops:
+            errors.append(f"{OPERATION_PROMPT_INCONSISTENCY}:create_or_update_draft_pr_required")
 
 
 def _matches_word(text: str, keyword: str) -> bool:
+    """Match ``keyword`` as a whole word in ``text``.
+
+    Uses space-delimited boundaries so that ``merge`` matches in
+    ``gh pr merge 93`` but NOT in ``git merge-base`` (where "merge"
+    is followed by "-", not a space).
+    """
+
     if text == keyword:
         return True
     if text.startswith(keyword + " "):
@@ -554,7 +670,7 @@ def _dedupe(items: list[str]) -> list[str]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Validate a Codex Supervisor audit result (fail-closed v0.2)")
+    parser = argparse.ArgumentParser(description="Validate a Codex Supervisor audit result (fail-closed v0.3)")
     parser.add_argument("--result", required=True, help="Path to audit result JSON")
     parser.add_argument("--repository", required=True, help="Expected repository (owner/name)")
     parser.add_argument("--main-sha", required=True, help="Expected exact main SHA (40 hex chars)")

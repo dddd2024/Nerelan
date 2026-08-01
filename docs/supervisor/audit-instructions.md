@@ -1,10 +1,60 @@
-# Codex Supervisor v0 — Audit Instructions (quota-free, fail-closed v0.2)
+# Codex Supervisor v0 — Audit Instructions (quota-free, fail-closed v0.3)
 
 This document defines the deterministic, quota-free audit instructions for
 the thin Codex Supervisor v0 implemented under Issue #92 (PR #93 rework).
 No real Codex or model calls occur in this phase; the instructions describe
 the contract an external audit result must satisfy and the project-specific
 security rules the validator enforces.
+
+## v0.3 fail-closed closure
+
+This revision documents the **v0.3 fail-closed closure** rework of the
+supervisor scripts. The audit-result **schema** (`schema_version`) remains
+`"0.2"` — the v0.3 changes are enforcement behaviors, not structural
+schema changes. The changes are:
+
+1. **Checks collection** — Checks are fetched via `gh api` `check-runs`
+   bound to the exact head SHA, NOT `gh pr checks` (whose non-zero exit was
+   wrongly treated as "no checks"). Failed checks are retained with
+   `name`, `status`, `conclusion`, and a bounded `run_url`. Network
+   failure, timeout, invalid JSON, or incomplete pagination raises a
+   bounded error and emits no Context.
+2. **Issue Marker discovery** — Uses paginated `gh api repos/<repo>/issues`
+   with `state=all` (NOT `gh issue list --state all --limit 100`). Pull
+   Request entries returned by the `/issues` endpoint are filtered out.
+   Any page failure, invalid JSON, entry missing `number`/`body`/`state`,
+   or over-cap result is fail-closed. Malformed entries are NOT silently
+   skipped.
+3. **Remote main verification** — Before any live GitHub Issue write, the
+   GitHub-side `refs/heads/main` SHA is queried via `gh api`. The
+   GitHub-side main MUST equal `audited_main_sha` AND the local
+   `origin/main` MUST equal the GitHub-side main. Any drift → zero writes.
+4. **Closed-Issue Marker handling** — Same Marker in a closed Issue with
+   identical content → `no_op`. Same Marker in a closed Issue with
+   different content → `CLOSED_MARKER_REQUIRES_OWNER` (zero writes, no
+   auto-edit, no reopen, no surrogate create). Multiple Markers in one
+   Issue, or the same Marker in two Issues → fail-closed.
+5. **Permission / command checks** — `requested_operations` remains the
+   authoritative permission grant. The natural-language scan of `goal` and
+   `execution_prompt` NO LONGER skips negated sentences: a forbidden
+   operation keyword is rejected directly. Legitimate prohibitions belong
+   in `forbidden_scope`, not prompt negation. `acceptance_checks` use
+   word-boundary command/token rules (see below).
+6. **Active PR configurable** — Issue #90 is the configurable goal Issue
+   (`--goal-issue`). The active PR is supplied via `--active-pr <number>`
+   or derived from the current branch via `gh api pulls`. Zero or multiple
+   matches → fail-closed. PR #93 is no longer hardcoded.
+7. **Single-machine publish lock** — A runtime-only exclusive lock (stdlib
+   only) is acquired in the system temp directory before any live guard /
+   Marker query / GitHub mutation. Atomically acquired via `O_EXCL`,
+   released in `finally`. If the lock already exists, zero writes. This
+   lock is single-machine only — it does NOT provide cross-machine
+   distributed atomicity.
+8. **Volatile evidence** — The exact implementation HEAD, CI run IDs, and
+   State Gate run IDs are NOT recorded in tracking docs as "current facts"
+   (they expire on every push). Stable repository-hygiene facts are
+   recorded; volatile results are published as PR #93 comments after
+   Actions complete.
 
 ## Scope and non-goals
 
@@ -19,15 +69,16 @@ foundation composes mature tools directly.
 
 | File | Purpose |
 |------|---------|
-| `scripts/supervisor_context.py` | Calls `git` and `gh`, outputs a bounded JSON repository context. Fail-closed: any required step failure raises `ContextError` and emits no context. |
-| `scripts/supervisor_validate.py` | Validates an external audit result against the v0.2 closed schema, applies security rules, computes the stable cycle marker. |
-| `scripts/supervisor_publish.py` | Searches existing issues (ALL states) for the marker, produces a dry-run `create_issue` / `update_issue` / `no_op` plan; writes only with explicit `--live` after live guard + TOCTOU re-query. |
-| `docs/supervisor/audit-result.schema.json` | JSON Schema for the v0.2 audit-result contract (unknown fields rejected). |
+| `scripts/supervisor_context.py` | Calls `git` and `gh`, outputs a bounded JSON repository context. Fail-closed: any required step failure raises `ContextError` and emits no context. v0.3: checks via `gh api check-runs` bound to exact head; goal Issue and active PR are configurable. |
+| `scripts/supervisor_validate.py` | Validates an external audit result against the v0.2 closed schema, applies security rules, computes the stable cycle marker. v0.3: no negation skip; word-boundary command/token checks; operation–prompt consistency. |
+| `scripts/supervisor_publish.py` | Searches existing issues (ALL states) for the marker via paginated `gh api`, produces a dry-run `create_issue` / `update_issue` / `no_op` plan; writes only with explicit `--live` after live guard + TOCTOU re-query. v0.3: paginated discovery, remote main verification, closed-marker handling, single-machine publish lock. |
+| `docs/supervisor/audit-result.schema.json` | JSON Schema for the v0.2 audit-result contract (unknown fields rejected). Schema structure is unchanged in v0.3. |
 
 ## v0.2 audit-result contract (fail-closed)
 
 The audit result MUST match this closed schema. Unknown fields at any level
-(top level, finding, next_task) are rejected.
+(top level, finding, next_task) are rejected. The schema version remains
+`"0.2"` in v0.3 — v0.3 changes are enforcement behaviors, not structure.
 
 ```json
 {
@@ -91,9 +142,57 @@ reject (e.g. flag "merge" mentioned in `allowed_scope`), but the absence of
 a keyword does NOT authorize an operation that is absent from
 `requested_operations`.
 
-`acceptance_checks` is scanned for dangerous commands (push main, merge,
-release, deploy, force push, rebase, reset --hard, credential/secret/token
-access). Any match is rejected.
+### v0.3 — no negation skip
+
+In v0.3 the secondary scan NO LONGER skips negated sentences in `goal` or
+`execution_prompt`. A phrase like "Do not merge" or "Never push to main"
+is **rejected** because the forbidden operation keyword (`merge`, `push to
+main`) is present. Legitimate prohibitions MUST be expressed as
+`forbidden_scope` entries, not as natural-language negation in the prompt.
+This prevents an auditor from smuggling a forbidden operation into a prompt
+under the guise of a prohibition.
+
+## `acceptance_checks` command/token rules (v0.3)
+
+`acceptance_checks` are scanned with **word-boundary matching** so that
+safe commands are allowed while dangerous ones are rejected:
+
+- **Allowed**: `git merge-base HEAD origin/main` (the token `merge` is
+  followed by `-`, not a word boundary, so it is not flagged).
+- **Rejected commands** (word-boundary match):
+  - `gh pr merge` — merge / auto-merge
+  - `git push origin main`, `git push main`, `push main`, `push to main`
+  - `git push --force`, `force push`, `force-push`, `push -f`
+  - `rebase`, `reset --hard` (history rewrite)
+  - `release`, `gh release`
+  - `deploy`, `deployment`
+  - `read credentials`, `read secrets`, `read token`
+  - `git branch -D`, `git branch -d`, `git push --delete` (branch deletion)
+- **Rejected shell metacharacters** (substring match — these tokens are
+  unambiguous):
+  - `&&`, `||` (shell chaining)
+  - `$(` (command substitution)
+  - `` ` `` (backtick)
+  - ` | ` (pipe), ` > ` / ` >> ` / ` < ` (redirection)
+  - `; ` (command separator)
+
+Any match is rejected with `POLICY_DANGEROUS_ACCEPTANCE_CHECK` or
+`POLICY_SHELL_METACHAR_FORBIDDEN`.
+
+## Operation–prompt consistency (v0.3)
+
+The validator verifies that `requested_operations` matches what the prompt
+describes:
+
+- If `allowed_scope` lists file paths (non-empty), `edit_bounded_files`
+  MUST be in `requested_operations`.
+- If `goal` or `execution_prompt` mentions `push` (whole word),
+  `push_named_branch` MUST be in `requested_operations`.
+- If `goal` or `execution_prompt` mentions `draft pr`, `update pr`, or
+  `pr description`, `create_or_update_draft_pr` MUST be in
+  `requested_operations`.
+
+A mismatch is rejected with `OPERATION_PROMPT_INCONSISTENCY`.
 
 ## Validation rejections (finite, machine-readable)
 
@@ -120,6 +219,10 @@ The validator rejects, with finite error codes:
   non-empty string or exceeds the length cap.
 - `POLICY_DANGEROUS_ACCEPTANCE_CHECK` — `acceptance_checks` contains a
   dangerous command.
+- `POLICY_SHELL_METACHAR_FORBIDDEN` — `acceptance_checks` contains shell
+  chaining, substitution, redirection, or command separator metacharacters.
+- `POLICY_BRANCH_DELETION_FORBIDDEN` — `acceptance_checks` contains branch
+  deletion (`git branch -D`, `git push --delete`, etc.).
 - `POLICY_MERGE_FORBIDDEN` — secondary scan flagged merge / auto-merge.
 - `POLICY_MAIN_PUSH_FORBIDDEN` — secondary scan flagged push/write to main.
 - `POLICY_RELEASE_FORBIDDEN` — secondary scan flagged release.
@@ -128,6 +231,8 @@ The validator rejects, with finite error codes:
   secrets, tokens, or ChatGPT session data.
 - `POLICY_UNRELATED_MUTATION_FORBIDDEN` — secondary scan flagged
   closing/modifying unrelated Issues or PRs.
+- `OPERATION_PROMPT_INCONSISTENCY` — `requested_operations` does not match
+  the operations described in `goal` / `execution_prompt` / `allowed_scope`.
 - `FIELD_TOO_LONG` / `FIELD_TOO_MANY` — a bounded limit was exceeded.
 
 Validation failure never proceeds to marker computation or publication
@@ -159,36 +264,85 @@ A material change to **any** covered field changes the marker. Acceptance-
 check and scope order have no semantics, so they are sorted before hashing.
 Whitespace is collapsed. Same semantic inputs produce the same marker.
 
-## Publication rules (fail-closed)
+## Publication rules (fail-closed, v0.3)
 
 ```
-no matching marker              -> create_issue
-matching marker + body changed  -> update_issue (title AND body together)
-matching marker + body same     -> no_op
-marker in two Issues            -> no_op + DUPLICATE_MARKER (zero writes)
-closed Issue with same marker   -> no_op (no duplicate create)
+no matching marker                       -> create_issue
+matching marker + body changed (OPEN)    -> update_issue (title AND body together)
+matching marker + body same (OPEN)       -> no_op
+matching marker + body same (CLOSED)     -> no_op (no duplicate create)
+matching marker + body changed (CLOSED)  -> no_op + CLOSED_MARKER_REQUIRES_OWNER
+marker in two Issues                     -> no_op + DUPLICATE_MARKER (zero writes)
+multiple markers in one Issue            -> no_op + MULTI_MARKER_IN_ISSUE (zero writes)
 ```
 
 The planner never proposes a second `create_issue` for an existing marker,
-never closes issues, never modifies PRs, never touches main, and never
-publishes credentials. Default mode is **dry-run** (zero GitHub writes);
-writes occur only with explicit `--live`.
+never closes issues, never reopens issues, never modifies PRs, never
+touches main, and never publishes credentials. Default mode is **dry-run**
+(zero GitHub writes); writes occur only with explicit `--live`.
 
-### Fail-closed rules
+### v0.3 — Issue discovery (paginated, fail-closed)
+
+Issue discovery uses `gh api repos/<repo>/issues?state=all` with explicit
+pagination (`per_page=100`, `page=1..10`). The `/issues` endpoint returns
+Pull Request entries (those carrying a `pull_request` field); these are
+filtered out — they are NOT Issues. Any of the following is fail-closed
+(zero writes):
+
+- Any page failure (non-zero exit or timeout).
+- Empty output where a non-empty page was expected.
+- Invalid JSON on any page.
+- An entry that is not a JSON object.
+- An entry missing `number`, `body`, or `state`.
+- Exceeding the safety cap (`MAX_TOTAL_ISSUES=500`).
+
+Malformed entries are NOT silently skipped — the discovery fails closed.
+
+### v0.3 — remote main verification
+
+Before any live GitHub Issue write, `verify_remote_main` queries
+`gh api repos/<repo>/git/refs/heads/main` and `git rev-parse
+refs/remotes/origin/main`. ALL of the following must hold:
+
+- GitHub-side `refs/heads/main` SHA is a full 40-hex SHA equal to
+  `audited_main_sha`.
+- Local `origin/main` SHA equals the GitHub-side main SHA.
+
+Any failure → zero `gh issue create` / `gh issue edit` calls.
+
+### v0.3 — live guard (full pre-write check)
+
+Before any live write, `live_guard` verifies ALL of:
+
+- `gh api user` returns login `dddd2024`;
+- worktree is clean (`git status --porcelain` empty);
+- current branch is `agent/codex-supervisor-foundation-v0` (never `main`);
+- GitHub-side `refs/heads/main` equals `audited_main_sha` (Task 3);
+- local `origin/main` equals the GitHub-side main (Task 3);
+- marker query completes successfully (no discovery failure, no duplicate).
+
+Any failure → zero writes. The live path is wrapped in a single-machine
+publish lock (Task 7).
+
+### v0.3 — single-machine publish lock
+
+The live path acquires `PublishLock` (stdlib only) in the system temp
+directory via `O_CREAT | O_EXCL` (atomic). The lock is held across the
+entire live path (live guard + TOCTOU re-query + GitHub mutation) and
+released in `finally`. If the lock already exists, zero writes.
+
+This lock is **single-machine only**. It does NOT coordinate across hosts
+and does NOT coordinate with processes that bypass it. It is a guard
+against accidental concurrent live publications on the same machine (e.g.
+two terminals running `--live` in parallel).
+
+### Fail-closed rules (carried from v0.2)
 
 - **Discovery failure** (gh failure, invalid JSON, incomplete results) →
   zero writes.
 - **Duplicate marker** (same marker in two Issues) → zero writes.
+- **Multiple markers in one Issue** → zero writes.
 - **Body exceeding `MAX_BODY_LENGTH`** → rejected, NOT truncated.
-- **Live guard** (before any live write) verifies ALL of:
-  - `gh` login user is `dddd2024`;
-  - worktree is clean;
-  - current branch is `agent/codex-supervisor-foundation-v0` (never `main`);
-  - `origin/main` equals `audited_main_sha`;
-  - marker query completes successfully;
-  - at most one Issue matches the marker.
-
-  Any failure → zero `gh issue create` / `gh issue edit` calls.
 - **TOCTOU re-query**: immediately before any live write, the marker is
   re-queried. If the marker appeared or duplicated since the plan was
   computed, zero writes.
@@ -202,21 +356,48 @@ collector never includes full environment variables, full GitHub Actions
 logs, full repository contents, API keys, tokens, cookies, ChatGPT session
 data, or local authentication files.
 
-## Context collection (fail-closed)
+Pagination safety caps: `MAX_ISSUE_PAGES=10`, `MAX_CHECK_PAGES=10`,
+`PAGE_SIZE=100`, `MAX_TOTAL_ISSUES=500`.
+
+## Context collection (fail-closed, v0.3)
 
 `supervisor_context.collect_context` raises `ContextError` and emits no
 context when any required step fails:
 
 - `git` invocation failure (non-zero exit) or timeout;
 - `gh` invocation failure or timeout;
-- empty or invalid JSON from `gh ... --json`;
+- empty or invalid JSON from `gh ... --json` or `gh api`;
 - missing main SHA;
-- missing Issue #90 goal or PR #93 facts.
+- missing goal Issue facts;
+- check-runs API failure, invalid JSON, or incomplete pagination;
+- active-PR derivation returning zero or multiple matches.
 
 Read failures are NEVER masked as empty Issue/PR lists. The context
-collector records bounded Issue #90 goal information and PR #93 exact head,
-CI success, and State Gate failure facts (run IDs and states only — no
-stderr, env, token, cookie, or session data).
+collector records bounded goal Issue information and active PR facts
+(exact head, checks). Checks are fetched via `gh api` `check-runs` bound
+to the exact head SHA; failed checks are retained with `name`, `status`,
+`conclusion`, and a bounded `run_url` (no stderr, env, token, cookie, or
+session data).
+
+### v0.3 — configurable goal Issue and active PR
+
+- `--goal-issue <number>` (default `90`) — the Issue carrying the bounded
+  goal. Issue #90 is the default but is NOT hardcoded.
+- `--active-pr <number>` — the active PR for exact-head/check facts. If
+  omitted, the PR is derived from the current branch via
+  `gh api repos/<repo>/pulls?head=<owner>:<branch>&state=open`. Exactly
+  one match is required; zero or multiple → `ContextError`.
+
+## Volatile evidence handling (v0.3)
+
+The exact implementation HEAD, CI run IDs, and State Gate run IDs change
+on every push and are NOT recorded in tracking documents as "current
+facts". Stable repository-hygiene facts (branch counts, dispositions,
+audited main SHA, implementation branch name) are recorded in
+`docs/repository-hygiene-report.md`. Volatile results (exact Head, CI
+run ID, State Gate run ID) are published as PR #93 comments after
+Actions complete, where they can be timestamped and superseded without
+invalidating the stable document.
 
 ## Deferred real-Codex steps (quota recovery)
 

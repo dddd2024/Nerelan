@@ -363,7 +363,8 @@ def test_supervisor_context_args_are_explicit_lists() -> None:
             if "log" in args:
                 return sc.CommandOutcome(0, "abcdef0 Title", "", False)
         if args[0] == "gh":
-            if args[:2] == ["gh", "issue"] and "list" in args:
+            # v0.3: gh api repos/<repo>/issues (paginated) — replaces gh issue list.
+            if args[:2] == ["gh", "api"] and len(args) > 2 and "/issues" in args[2]:
                 return sc.CommandOutcome(0, "[]", "", False)
             if args[:2] == ["gh", "pr"] and "list" in args:
                 return sc.CommandOutcome(0, "[]", "", False)
@@ -374,11 +375,14 @@ def test_supervisor_context_args_are_explicit_lists() -> None:
                     "number": 93, "title": "t", "isDraft": True, "state": "OPEN",
                     "headRefName": "b", "headRefOid": "a" * 40, "baseRefName": "main",
                 }), "", False)
-            if args[:3] == ["gh", "pr", "checks"]:
-                return sc.CommandOutcome(0, "[]", "", False)
+            # v0.3: gh api check-runs bound to exact head — replaces gh pr checks.
+            if args[:2] == ["gh", "api"] and len(args) > 2 and "/check-runs" in args[2]:
+                return sc.CommandOutcome(0, _json.dumps({"check_runs": []}), "", False)
         return sc.CommandOutcome(0, "", "", False)
 
-    sc.collect_context("dddd2024/reverse-agent", runner=fake_runner)
+    # v0.3: pass active_pr explicitly so the test focuses on arg bounds and
+    # does not depend on branch-derived PR lookup (gh api pulls).
+    sc.collect_context("dddd2024/reverse-agent", goal_issue=90, active_pr=93, runner=fake_runner)
     assert calls  # at least one git/gh invocation
     for call in calls:
         assert call[0] in ("git", "gh")
