@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260801_issue92_operation_surface_consistency_v5",
-  "round_id": "round_20260801_issue92_operation_surface_consistency_v5",
+  "decision_id": "decision_20260801_issue92_multi_surface_reference_consistency_v6",
+  "round_id": "round_20260801_issue92_multi_surface_reference_consistency_v6",
   "commands": [
     {
-      "command_id": "test.supervisor_operation_surface_consistency",
+      "command_id": "test.supervisor_multi_surface_reference_consistency",
       "command": "python -m pytest tests/test_supervisor_validate.py -q -k operation_prompt_consistency",
       "phase": "test",
       "required": true,
