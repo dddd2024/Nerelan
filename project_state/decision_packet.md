@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260801_issue92_operation_consistency_repair_v3",
-  "round_id": "round_20260801_issue92_operation_consistency_repair_v3",
+  "decision_id": "decision_20260801_issue92_edit_intent_precision_repair_v4",
+  "round_id": "round_20260801_issue92_edit_intent_precision_repair_v4",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,15 +16,15 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260801_issue92_replacement_shadow_audit_v2",
-  "follows_last_round_id": "round_20260801_issue92_replacement_shadow_audit_v2",
-  "previous_audit_outcome": "BLOCKED_VALIDATOR_OPERATION_PROMPT_INCONSISTENCY_REPEAT",
-  "workstream_id": "issue92-operation-consistency-contract-repair-v3",
+  "follows_last_decision_id": "decision_20260801_issue92_operation_consistency_repair_v3",
+  "follows_last_round_id": "round_20260801_issue92_operation_consistency_repair_v3",
+  "previous_audit_outcome": "REWORK_REQUIRED_EDIT_INTENT_OVERMATCH",
+  "workstream_id": "issue92-edit-intent-precision-repair-v4",
   "source_issue": 92,
   "parent_issue": 90,
   "active_pr": 93,
   "required_branch": "agent/codex-supervisor-foundation-v0",
-  "starting_head": "ca82233e41e46393f47aca81f6cd9401d4b43a3b",
+  "starting_head": "c7d516246f75a6e6a20c3e95f6b2d877ec88ed96",
   "activation_base_sha": "16526801bda2a816fc707342f903c1ad037de9bd",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -41,15 +41,9 @@
   "real_provider_credential_allowed": false,
   "live_work_item_publication_allowed": false,
   "repair_attempt_limit": 1,
-  "post_repair_audit_attempt_limit": 1,
+  "audit_generation_allowed": false,
   "prior_audits_immutable": true,
-  "frozen_context_path": "../reverse-agent-supervisor-context-v05.json",
-  "frozen_context_sha256": "08ec84b2b38cc12cd45e154d08437ee8a536f2775d3ce87af5e046967f5ce50c",
-  "rejected_v05_path": "../reverse-agent-supervisor-audit-v05.json",
-  "rejected_v05_sha256": "87a6ccbdf2dc89a3e23a1f25f61ac84a7ae5eeee4289ed4a0d05c792ca7f27ef",
-  "rejected_v06_path": "../reverse-agent-supervisor-audit-v06.json",
-  "rejected_v06_sha256": "b95ec62e91215cf1334539c700df454efe674b78db9187e0d754ec4a4e7f186f",
-  "post_repair_audit_path": "../reverse-agent-supervisor-audit-v07.json",
+  "v07_observation_only": true,
   "bootstrap_state_initial": "BOOTSTRAP_OPEN",
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
@@ -68,7 +62,7 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "test.supervisor_operation_consistency",
+      "command_id": "test.supervisor_edit_intent_precision",
       "command": "python -m pytest tests/test_supervisor_validate.py -q -k operation_prompt_consistency",
       "phase": "test",
       "required": true,
@@ -104,97 +98,6 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "validation.frozen_context_digest",
-      "command": "python -c \"import hashlib,pathlib; p=pathlib.Path('../reverse-agent-supervisor-context-v05.json'); assert p.is_file(); assert hashlib.sha256(p.read_bytes()).hexdigest() == '08ec84b2b38cc12cd45e154d08437ee8a536f2775d3ce87af5e046967f5ce50c'\"",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "validation.rejected_v05_digest",
-      "command": "python -c \"import hashlib,pathlib; p=pathlib.Path('../reverse-agent-supervisor-audit-v05.json'); assert p.is_file(); assert hashlib.sha256(p.read_bytes()).hexdigest() == '87a6ccbdf2dc89a3e23a1f25f61ac84a7ae5eeee4289ed4a0d05c792ca7f27ef'\"",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "validation.rejected_v06_digest",
-      "command": "python -c \"import hashlib,pathlib; p=pathlib.Path('../reverse-agent-supervisor-audit-v06.json'); assert p.is_file(); assert hashlib.sha256(p.read_bytes()).hexdigest() == 'b95ec62e91215cf1334539c700df454efe674b78db9187e0d754ec4a4e7f186f'\"",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "validation.repaired_audit_result",
-      "command": "python scripts/supervisor_validate.py --result ../reverse-agent-supervisor-audit-v07.json --repository dddd2024/reverse-agent --main-sha 16526801bda2a816fc707342f903c1ad037de9bd",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "policy_validation"
-      ],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "validation.publication_dry_run",
-      "command": "python scripts/supervisor_publish.py plan --result ../reverse-agent-supervisor-audit-v07.json --repository dddd2024/reverse-agent --main-sha 16526801bda2a816fc707342f903c1ad037de9bd",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "local_command_evidence",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
       "command_id": "validation.diff_check",
       "command": "git diff --check 16526801bda2a816fc707342f903c1ad037de9bd..HEAD",
       "phase": "validation",
@@ -205,6 +108,24 @@
       "execution_surface": "local",
       "operations": [
         "diff_validation"
+      ],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "observation.v07_presence",
+      "command": "python -c \"import hashlib,pathlib; p=pathlib.Path('../reverse-agent-supervisor-audit-v07.json'); print('ABSENT' if not p.exists() else hashlib.sha256(p.read_bytes()).hexdigest())\"",
+      "phase": "observation",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation"
       ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence",
@@ -336,11 +257,9 @@
   ],
   "forbidden_operations": [
     "implementation before PRE_EXECUTION_AUTHORIZED",
-    "modify or replace the rejected v05 audit result",
-    "modify or replace the rejected v06 audit result",
-    "reuse v05 or v06 as the v07 result",
-    "more than one validator contract repair attempt",
-    "more than one post-repair audit attempt",
+    "generate, modify, validate, or publish v07 or any later audit result",
+    "modify or replace v05 or v06",
+    "more than one edit-intent precision repair attempt",
     "new branch",
     "new issue",
     "new pull request",
@@ -375,7 +294,6 @@
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
-      "python scripts/supervisor_publish.py plan --result ../reverse-agent-supervisor-audit-v07.json --repository dddd2024/reverse-agent --main-sha 16526801bda2a816fc707342f903c1ad037de9bd",
       "git push origin agent/codex-supervisor-foundation-v0",
       "gh issue comment 92 --repo dddd2024/reverse-agent --body-file ISSUE_COMMENT_TEMP_PATH",
       "gh pr comment 93 --repo dddd2024/reverse-agent --body-file PR_COMMENT_TEMP_PATH",
@@ -418,8 +336,8 @@
 
 ## Goal
 
-Repair the validator's operation–prompt consistency contract before any further shadow-audit attempt. The current implementation treats every non-empty allowed_scope as proof of file mutation even though the schema requires allowed_scope to be non-empty and documents it as path or operation. This makes a bounded read-only next_task impossible without over-granting edit_bounded_files. After PRE_EXECUTION_AUTHORIZED, change only scripts/supervisor_validate.py, tests/test_supervisor_validate.py, and docs/supervisor/audit-instructions.md so allowed_scope defines bounded accessible scope, requested_operations remains the authoritative permission grant, and edit_bounded_files is required only when goal or execution_prompt positively describes repository mutation using a finite documented edit-intent rule. Add regression tests proving a read-only task with non-empty allowed_scope passes without edit_bounded_files, an edit-intent prompt without that operation fails, and an edit-intent prompt with it passes. Preserve the v0.2 JSON shape and cycle-marker inputs. After the repair passes focused tests, verify the frozen Context and immutable v05/v06 digests, generate exactly one fresh v07 result from scratch in the current human-dispatched Codex App task, validate it once, and only if validation succeeds run publication planning without --live. No source change beyond the three named files and no live publication is authorized.
+Repair the remaining false-positive behavior in the validator's operation–prompt consistency check. The v3 implementation correctly stopped treating every non-empty allowed_scope as a file edit, but it now treats generic words such as create, update, change, write, add, remove, and delete anywhere in goal or execution_prompt as repository-file mutation. This can over-grant edit_bounded_files for PR metadata operations, read-only reporting, status updates, evidence updates, or explicit prohibitions. After PRE_EXECUTION_AUTHORIZED, change only scripts/supervisor_validate.py, tests/test_supervisor_validate.py, and docs/supervisor/audit-instructions.md. Introduce a finite deterministic positive repository-edit-intent detector that distinguishes actual file/code mutation from Draft PR/PR description metadata operations and read-only/reporting language. Strong edit verbs may remain direct signals; ambiguous verbs must require a bounded repository-artifact target or explicit path context. Directly negated edit phrases must not require edit authority, while a separate positive edit instruction in the same prompt must still require it. requested_operations remains authoritative, schema 0.2 and cycle-marker inputs remain unchanged, and every unrelated security guard must remain fail-closed. This Decision authorizes no model/audit generation, validator run on v07, or publication planning; it ends after the precision repair, tests, exact-head CI, and evidence report.
 
 ## Acceptance boundary
 
-The validator contract repair is complete only when the generated v3 Command Plan and PRE_EXECUTION_AUTHORIZED result are committed separately, the implementation changes are confined to the three named files, targeted operation-consistency tests and the full focused suite pass, the Context/v05/v06 SHA-256 values remain unchanged, the single untouched v07 passes validator, publication planning runs without --live, and the shadow phase performs zero GitHub writes. Success is CODEX_APP_OPERATION_CONSISTENCY_REPAIRED_AND_SHADOW_AUDIT_COMPLETE_ZERO_WRITES. Any gate failure, out-of-scope mutation, test failure, digest mismatch, validator failure, second v07 attempt, or shadow GitHub write must stop as BLOCKED_WITH_EXACT_EVIDENCE. This Decision does not authorize mark-ready, merge, main mutation, release, deployment, credentials, new branch/Issue/PR, history rewrite, nested model calls, or live generated Work Item publication.
+The v4 repair is complete only when compiler-owned v4 Gate artifacts are generated and committed separately, PRE_EXECUTION_AUTHORIZED has no blockers, implementation changes are confined to the three named files, targeted and full focused tests pass, and exact-head CI, Decision Preflight, and State Gate succeed. Tests must prove: a read-only bounded scope passes without edit_bounded_files; 'update the draft PR description' passes with create_or_update_draft_pr and without edit_bounded_files; read-only reporting/evidence/status language does not imply file mutation; a directly negated edit phrase does not require edit authority; 'do not edit X but implement Y' still requires edit_bounded_files; and actual bounded file/code implementation without edit_bounded_files fails. Any v07 file may only be observed for presence and SHA-256 and must not be read for content, modified, regenerated, validated, or published under this Decision. Success is OPERATION_CONSISTENCY_PRECISION_REPAIR_COMPLETE_AWAITING_SHADOW_AUDIT_AUTHORITY. Any Gate failure, out-of-scope mutation, test failure, second repair attempt, audit generation/validation, or forbidden GitHub operation must stop as BLOCKED_WITH_EXACT_EVIDENCE.
