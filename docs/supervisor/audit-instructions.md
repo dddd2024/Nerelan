@@ -195,7 +195,7 @@ safe commands are allowed while dangerous ones are rejected:
 Any match is rejected with `POLICY_DANGEROUS_ACCEPTANCE_CHECK` or
 `POLICY_SHELL_METACHAR_FORBIDDEN`.
 
-## Operation–prompt consistency (v0.3)
+## Operation–prompt consistency (v0.3, operation-surface classification)
 
 The validator verifies that `requested_operations` matches what the prompt
 describes:
@@ -205,22 +205,28 @@ describes:
 - `requested_operations` remains the authoritative permission grant. When
   `edit_bounded_files` is absent, every repository path in `allowed_scope` is
   read-only.
-- Repository edit authority is required only for positive repository-artifact
-  mutation intent in `goal` or `execution_prompt`. Strong edit verbs are
-  checked as bounded whole-word patterns. Generic metadata/reporting verbs
-  such as `create`, `update`, `change`, `write`, `add`, `remove`, and `delete`
-  imply repository mutation only when the same finite clause names a
-  repository artifact or explicit path.
-- Draft PR metadata changes require `create_or_update_draft_pr`, not
-  `edit_bounded_files`.
-- A directly negated edit occurrence is not positive edit intent. The
-  validator splits text with a finite delimiter set, so a separate positive
-  edit instruction in the same prompt is still detected.
+- Each bounded positive clause is classified before permission checking as
+  `REPOSITORY_MUTATION`, `DRAFT_PR_MUTATION`,
+  `UNSUPPORTED_GITHUB_MUTATION`, `READ_ONLY`, or `NONE`.
+- Repository edits require `edit_bounded_files`. Draft PR metadata changes
+  (`draft PR`, `draft pull request`, `PR description`, `pull request
+  description`, or `PR body`) require only `create_or_update_draft_pr`, even
+  when the clause uses a strong verb such as `fix`, `edit`, or `modify`.
+- Issue writes, ordinary PR comments/reviews/labels, and branch
+  create/delete/rename operations are unsupported surfaces. They are rejected
+  with `OPERATION_PROMPT_INCONSISTENCY:unsupported_mutation_surface`; neither
+  repository-edit nor Draft-PR authority permits them.
+- Reporting and status/result language without a repository target is
+  read-only. For example, modifying an audit report or creating a test report
+  does not require repository-edit authority.
+- URL text is not treated as a repository path. A GitHub pull-request URL plus
+  `description` or `body` remains a Draft-PR metadata target.
+- Direct negations (`do not`, `don't`, `never`, `must not`, `should not`,
+  `without`, `under no circumstances`, and their bounded forms) affect only
+  the associated verb occurrence. Finite clause splitting keeps a later
+  positive instruction visible.
 - If `goal` or `execution_prompt` mentions `push` (whole word),
   `push_named_branch` MUST be in `requested_operations`.
-- If `goal` or `execution_prompt` mentions `draft pr`, `update pr`, or
-  `pr description`, `create_or_update_draft_pr` MUST be in
-  `requested_operations`.
 
 A mismatch is rejected with `OPERATION_PROMPT_INCONSISTENCY`.
 

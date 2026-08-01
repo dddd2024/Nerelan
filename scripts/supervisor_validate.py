@@ -162,9 +162,18 @@ _BROAD_SCOPES = frozenset({
     "entire_repo", "whole repo", "whole_repo", "repo-wide", "everything",
 })
 
-# Finite edit-intent vocabulary. Strong verbs can establish repository-edit
-# intent on their own; ambiguous verbs require a repository-artifact target in
-# the same bounded clause. Patterns include only explicit inflections.
+# Finite mutation-surface vocabulary. Classification happens before permission
+# checks so repository edits, Draft-PR metadata writes, unsupported GitHub
+# writes, and reporting language cannot borrow one another's authority.
+_REPOSITORY_MUTATION = "REPOSITORY_MUTATION"
+_DRAFT_PR_MUTATION = "DRAFT_PR_MUTATION"
+_UNSUPPORTED_GITHUB_MUTATION = "UNSUPPORTED_GITHUB_MUTATION"
+_READ_ONLY = "READ_ONLY"
+_NONE = "NONE"
+
+# Strong verbs can establish repository-edit intent on their own after the
+# clause has been ruled out as a metadata/reporting surface. Ambiguous verbs
+# require a repository-artifact target in the same bounded clause.
 _STRONG_EDIT_VERB_PATTERNS = (
     r"edit(?:s|ed|ing)?",
     r"modif(?:y|ies|ied|ying)",
@@ -184,6 +193,14 @@ _AMBIGUOUS_EDIT_VERB_PATTERNS = (
     r"remove(?:s|d|ing)?",
     r"delete(?:s|d|ing)?",
 )
+_GITHUB_MUTATION_VERB_PATTERNS = (
+    *_STRONG_EDIT_VERB_PATTERNS,
+    *_AMBIGUOUS_EDIT_VERB_PATTERNS,
+    r"close(?:s|d|ing)?",
+    r"reopen(?:s|ed|ing)?",
+    r"assign(?:s|ed|ing)?",
+    r"unassign(?:s|ed|ing)?",
+)
 _REPOSITORY_ARTIFACT_TARGETS = (
     "file", "files", "code", "source", "source code", "script",
     "test", "tests", "docs", "documentation", "module", "function",
@@ -194,13 +211,45 @@ _EDIT_CLAUSE_SPLIT_RE = re.compile(
     re.IGNORECASE,
 )
 _DIRECT_NEGATION_BEFORE_RE = re.compile(
-    r"(?:\bdo\s+not|\bdon't|\bnever|\bwithout)\s+"
-    r"(?:[a-z0-9_-]+\s+){0,2}$",
+    r"(?:\bdo\s+not(?:\s+under\s+any\s+circumstances)?|\bdon't|\bnever|"
+    r"\bmust\s+not|\bshould\s+not|\bwithout|"
+    r"\bunder\s+no\s+circumstances|\bmust\s+never)\s+"
+    r"(?:[a-z0-9_-]+\s+){0,3}$",
     re.IGNORECASE,
 )
 _EXPLICIT_FILE_TARGET_RE = re.compile(
     r"(?:[/\\]|(?:^|\s)(?:\*|[a-z0-9_.-]+)\.[a-z0-9]+(?:\s|$))",
     re.IGNORECASE,
+)
+_URL_RE = re.compile(r"(?:https?://\S+|(?:www\.)?github\.com/\S+)", re.IGNORECASE)
+_DRAFT_PR_TARGET_RE = re.compile(
+    r"\b(?:draft\s+(?:pr|pull\s+request)|pr\s+(?:description|body)|"
+    r"pull\s+request\s+(?:description|body))\b|"
+    r"\bgithub\.com/\S+/pull/\d+(?:\S*)?\s+(?:description|body)\b",
+    re.IGNORECASE,
+)
+_UNSUPPORTED_GITHUB_TARGET_RE = re.compile(
+    r"\bissue\s+(?:comment|body|status|title|labels?|assignees?)\b|"
+    r"\bissue\s*#?\d+\b|"
+    r"\b(?:pr|pull\s+request)\s+(?:comment|review|review\s+comment|labels?)\b",
+    re.IGNORECASE,
+)
+_BRANCH_TARGET_RE = re.compile(r"\bbranch(?:es)?\b", re.IGNORECASE)
+_BRANCH_MUTATION_VERB_PATTERNS = (
+    r"create(?:s|d|ing)?",
+    r"delete(?:s|d|ing)?",
+    r"rename(?:s|d|ing)?",
+)
+_ISSUE_LIFECYCLE_MUTATION_VERB_PATTERNS = (
+    r"close(?:s|d|ing)?",
+    r"reopen(?:s|ed|ing)?",
+    r"assign(?:s|ed|ing)?",
+    r"unassign(?:s|ed|ing)?",
+)
+_REPORTING_TARGETS = (
+    "audit report", "test report", "status report", "result summary",
+    "status summary", "evidence summary", "result description",
+    "status note", "report",
 )
 
 # Forbidden operation phrases (whole-word, case-insensitive) paired with the
@@ -661,34 +710,67 @@ def _clause_has_positive_verb(clause: str, patterns: Sequence[str]) -> bool:
 
 
 def _clause_has_repository_artifact_target(clause: str) -> bool:
-    normalized = _normalize_for_scan(clause)
+    without_urls = _URL_RE.sub(" ", clause)
+    normalized = _normalize_for_scan(without_urls)
     return (
         any(_matches_word(normalized, target) for target in _REPOSITORY_ARTIFACT_TARGETS)
-        or _EXPLICIT_FILE_TARGET_RE.search(clause) is not None
+        or _EXPLICIT_FILE_TARGET_RE.search(without_urls) is not None
     )
 
 
-def _has_positive_repository_edit_intent(*texts: str) -> bool:
-    """Detect bounded positive repository-artifact mutation intent.
+def _classify_positive_mutation_surface(*texts: str) -> frozenset[str]:
+    """Classify positive mutation clauses into finite operation surfaces."""
 
-    Direct negation applies only to its verb occurrence. Clause splitting keeps
-    a later independent instruction visible, while ambiguous metadata/reporting
-    verbs require a repository-artifact target in the same clause.
-    """
-
+    surfaces: set[str] = set()
     for text in texts:
         for raw_clause in _EDIT_CLAUSE_SPLIT_RE.split(normalize_text(text).lower()):
             clause = " ".join(raw_clause.split())
             if not clause:
                 continue
+            has_mutation_verb = _clause_has_positive_verb(
+                clause, _GITHUB_MUTATION_VERB_PATTERNS
+            )
+            if not has_mutation_verb:
+                surfaces.add(_NONE)
+                continue
+            if _DRAFT_PR_TARGET_RE.search(clause):
+                surfaces.add(_DRAFT_PR_MUTATION)
+                continue
+            if (
+                _UNSUPPORTED_GITHUB_TARGET_RE.search(clause)
+                or (
+                    _matches_word(_normalize_for_scan(clause), "issue")
+                    and _clause_has_positive_verb(
+                        clause, _ISSUE_LIFECYCLE_MUTATION_VERB_PATTERNS
+                    )
+                )
+                or (
+                    _BRANCH_TARGET_RE.search(clause)
+                    and _clause_has_positive_verb(
+                        clause, _BRANCH_MUTATION_VERB_PATTERNS
+                    )
+                )
+            ):
+                surfaces.add(_UNSUPPORTED_GITHUB_MUTATION)
+                continue
+            normalized = _normalize_for_scan(_URL_RE.sub(" ", clause))
+            if (
+                any(_matches_word(normalized, target) for target in _REPORTING_TARGETS)
+                and _EXPLICIT_FILE_TARGET_RE.search(_URL_RE.sub(" ", clause)) is None
+            ):
+                surfaces.add(_READ_ONLY)
+                continue
             if _clause_has_positive_verb(clause, _STRONG_EDIT_VERB_PATTERNS):
-                return True
+                surfaces.add(_REPOSITORY_MUTATION)
+                continue
             if (
                 _clause_has_repository_artifact_target(clause)
                 and _clause_has_positive_verb(clause, _AMBIGUOUS_EDIT_VERB_PATTERNS)
             ):
-                return True
-    return False
+                surfaces.add(_REPOSITORY_MUTATION)
+                continue
+            surfaces.add(_READ_ONLY)
+    return frozenset(surfaces)
 
 
 def _check_operation_prompt_consistency(
@@ -703,26 +785,34 @@ def _check_operation_prompt_consistency(
 
     - ``allowed_scope`` defines bounded accessible scope. Paths remain
       read-only unless ``edit_bounded_files`` is requested.
-    - If goal or execution_prompt contains positive repository-edit intent,
-      ``edit_bounded_files`` must be in ``requested_operations``.
+    - Positive clauses are first classified by mutation surface, then checked
+      against the permission for that surface.
     - If goal or execution_prompt mentions "push" (whole word),
       ``push_named_branch`` must be in ``requested_operations``.
-    - If goal or execution_prompt mentions "draft pr" or "update pr" or
-      "pr description", ``create_or_update_draft_pr`` must be in
-      ``requested_operations``.
     """
 
     ops = {str(o) for o in requested_operations if isinstance(o, str)}
+    surfaces = _classify_positive_mutation_surface(goal, execution_prompt)
 
-    # Positive repository-artifact mutation intent requires
-    # edit_bounded_files. Directly negated occurrences and generic
-    # metadata/reporting verbs without repository targets do not imply it.
     if (
-        _has_positive_repository_edit_intent(goal, execution_prompt)
+        _REPOSITORY_MUTATION in surfaces
         and "edit_bounded_files" not in ops
     ):
         errors.append(
             f"{OPERATION_PROMPT_INCONSISTENCY}:edit_bounded_files_required"
+        )
+
+    if (
+        _DRAFT_PR_MUTATION in surfaces
+        and "create_or_update_draft_pr" not in ops
+    ):
+        errors.append(
+            f"{OPERATION_PROMPT_INCONSISTENCY}:create_or_update_draft_pr_required"
+        )
+
+    if _UNSUPPORTED_GITHUB_MUTATION in surfaces:
+        errors.append(
+            f"{OPERATION_PROMPT_INCONSISTENCY}:unsupported_mutation_surface"
         )
 
     combined = _normalize_for_scan(f"{goal} {execution_prompt}")
@@ -731,12 +821,6 @@ def _check_operation_prompt_consistency(
     if _matches_word(combined, "push"):
         if "push_named_branch" not in ops:
             errors.append(f"{OPERATION_PROMPT_INCONSISTENCY}:push_named_branch_required")
-
-    # Updating a Draft PR requires create_or_update_draft_pr.
-    if "draft pr" in combined or "update pr" in combined or "pr description" in combined:
-        if "create_or_update_draft_pr" not in ops:
-            errors.append(f"{OPERATION_PROMPT_INCONSISTENCY}:create_or_update_draft_pr_required")
-
 
 def _matches_word(text: str, keyword: str) -> bool:
     """Match ``keyword`` as a whole word in ``text``.
