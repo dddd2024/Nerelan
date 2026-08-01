@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260801_issue92_shadow_audit_recovery_v1",
-  "round_id": "round_20260801_issue92_shadow_audit_recovery_v1",
+  "decision_id": "decision_20260801_issue92_replacement_shadow_audit_v2",
+  "round_id": "round_20260801_issue92_replacement_shadow_audit_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,15 +16,15 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260729_pr67_final_intent_rebind_v5",
-  "follows_last_round_id": "round_20260729_pr67_final_intent_rebind_v5",
-  "previous_audit_outcome": "BLOCKED_GATE_0_PATH_B_AUTHORITY_MISMATCH",
-  "workstream_id": "issue92-shadow-audit-recovery-v1",
+  "follows_last_decision_id": "decision_20260801_issue92_shadow_audit_recovery_v1",
+  "follows_last_round_id": "round_20260801_issue92_shadow_audit_recovery_v1",
+  "previous_audit_outcome": "BLOCKED_VALIDATOR_OPERATION_PROMPT_INCONSISTENCY",
+  "workstream_id": "issue92-replacement-shadow-audit-v2",
   "source_issue": 92,
   "parent_issue": 90,
   "active_pr": 93,
   "required_branch": "agent/codex-supervisor-foundation-v0",
-  "starting_head": "e5baee5464c25a2a94883b7f0756e0041d4b3e1f",
+  "starting_head": "3dd972d04b6973d93aaa72043585b0eb525ddc14",
   "activation_base_sha": "16526801bda2a816fc707342f903c1ad037de9bd",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -40,6 +40,13 @@
   "force_push_allowed": false,
   "real_provider_credential_allowed": false,
   "live_work_item_publication_allowed": false,
+  "replacement_attempt_limit": 1,
+  "original_audit_immutable": true,
+  "frozen_context_path": "../reverse-agent-supervisor-context-v05.json",
+  "frozen_context_sha256": "08ec84b2b38cc12cd45e154d08437ee8a536f2775d3ce87af5e046967f5ce50c",
+  "rejected_audit_path": "../reverse-agent-supervisor-audit-v05.json",
+  "rejected_audit_sha256": "87a6ccbdf2dc89a3e23a1f25f61ac84a7ae5eeee4289ed4a0d05c792ca7f27ef",
+  "replacement_audit_path": "../reverse-agent-supervisor-audit-v06.json",
   "bootstrap_state_initial": "BOOTSTRAP_OPEN",
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
@@ -72,22 +79,36 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "validation.context_retry",
-      "command": "python scripts/supervisor_context.py --repository dddd2024/reverse-agent --goal-issue 90 --active-pr 93 --output ../reverse-agent-supervisor-context-v05.json",
+      "command_id": "validation.frozen_context_digest",
+      "command": "python -c \"import hashlib,pathlib; p=pathlib.Path('../reverse-agent-supervisor-context-v05.json'); assert p.is_file(); assert hashlib.sha256(p.read_bytes()).hexdigest() == '08ec84b2b38cc12cd45e154d08437ee8a536f2775d3ce87af5e046967f5ce50c'\"",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["repository_observation", "network_access"],
-      "network_access": true,
+      "operations": ["repository_observation"],
+      "network_access": false,
       "required_evidence_source": "local_command_evidence",
       "authority_origin": "normal_plan",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "validation.audit_result",
-      "command": "python scripts/supervisor_validate.py --result ../reverse-agent-supervisor-audit-v05.json --repository dddd2024/reverse-agent --main-sha 16526801bda2a816fc707342f903c1ad037de9bd",
+      "command_id": "validation.rejected_audit_digest",
+      "command": "python -c \"import hashlib,pathlib; p=pathlib.Path('../reverse-agent-supervisor-audit-v05.json'); assert p.is_file(); assert hashlib.sha256(p.read_bytes()).hexdigest() == '87a6ccbdf2dc89a3e23a1f25f61ac84a7ae5eeee4289ed4a0d05c792ca7f27ef'\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "validation.replacement_audit_result",
+      "command": "python scripts/supervisor_validate.py --result ../reverse-agent-supervisor-audit-v06.json --repository dddd2024/reverse-agent --main-sha 16526801bda2a816fc707342f903c1ad037de9bd",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -101,7 +122,7 @@
     },
     {
       "command_id": "validation.publication_dry_run",
-      "command": "python scripts/supervisor_publish.py plan --result ../reverse-agent-supervisor-audit-v05.json --repository dddd2024/reverse-agent --main-sha 16526801bda2a816fc707342f903c1ad037de9bd",
+      "command": "python scripts/supervisor_publish.py plan --result ../reverse-agent-supervisor-audit-v06.json --repository dddd2024/reverse-agent --main-sha 16526801bda2a816fc707342f903c1ad037de9bd",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -190,17 +211,17 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "scripts/supervisor_context.py",
-    "tests/test_supervisor_validate.py",
-    "tests/test_repository_hygiene.py"
+    "project_state/gates/transition_preflight_result.json"
   ],
   "reference_paths": [
     "AGENTS.md",
     "docs/supervisor/audit-instructions.md",
     "docs/supervisor/audit-result.schema.json",
+    "scripts/supervisor_context.py",
     "scripts/supervisor_validate.py",
     "scripts/supervisor_publish.py",
+    "tests/test_supervisor_validate.py",
+    "tests/test_repository_hygiene.py",
     "reverse_agent/project_gate.py",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/transition.py",
@@ -225,11 +246,14 @@
     "AGENTS.md",
     "pyproject.toml",
     "docs/**",
-    "scripts/supervisor_validate.py",
-    "scripts/supervisor_publish.py"
+    "scripts/**",
+    "tests/**"
   ],
   "forbidden_operations": [
     "implementation before PRE_EXECUTION_AUTHORIZED",
+    "modify or replace the rejected v05 audit result",
+    "reuse the rejected v05 audit result as the replacement",
+    "more than one replacement audit attempt",
     "new branch",
     "new issue",
     "new pull request",
@@ -264,8 +288,7 @@
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
-      "python scripts/supervisor_context.py --repository dddd2024/reverse-agent --goal-issue 90 --active-pr 93 --output ../reverse-agent-supervisor-context-v05.json",
-      "python scripts/supervisor_publish.py plan --result ../reverse-agent-supervisor-audit-v05.json --repository dddd2024/reverse-agent --main-sha 16526801bda2a816fc707342f903c1ad037de9bd",
+      "python scripts/supervisor_publish.py plan --result ../reverse-agent-supervisor-audit-v06.json --repository dddd2024/reverse-agent --main-sha 16526801bda2a816fc707342f903c1ad037de9bd",
       "git push origin agent/codex-supervisor-foundation-v0",
       "gh issue comment 92 --repo dddd2024/reverse-agent --body-file ISSUE_COMMENT_TEMP_PATH",
       "gh pr comment 93 --repo dddd2024/reverse-agent --body-file PR_COMMENT_TEMP_PATH",
@@ -276,31 +299,25 @@
   "authorized_risk_tier": "R2",
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
-    "project_state/gates/**",
-    "scripts/supervisor_context.py",
-    "tests/test_supervisor_validate.py",
-    "tests/test_repository_hygiene.py"
+    "project_state/gates/**"
   ],
   "path_risk_floor": [
     {"pattern": "project_state/decision_packet.md", "minimum_risk": "R2"},
-    {"pattern": "project_state/gates/**", "minimum_risk": "R2"},
-    {"pattern": "scripts/supervisor_context.py", "minimum_risk": "R1"},
-    {"pattern": "tests/test_supervisor_validate.py", "minimum_risk": "R1"},
-    {"pattern": "tests/test_repository_hygiene.py", "minimum_risk": "R1"}
+    {"pattern": "project_state/gates/**", "minimum_risk": "R2"}
   ]
 }
 ```
 
 ## Goal
 
-Recover Issue #92 from the stale PR #67 Path-B authority, bind execution to PR #93 and the exact Supervisor branch, add only the missing Windows UTF-8 regression coverage or a narrowly proven adjacent collector correction, then run one successful bounded Context collection and one schema-0.2 Codex App shadow audit. The shadow result must be validated and passed to publication planning without `--live`; no generated Work Item may be published.
+Authorize exactly one fresh replacement schema-0.2 Codex App shadow-audit result after the immutable v05 result failed validation with OPERATION_PROMPT_INCONSISTENCY:edit_bounded_files_required_for_file_scope. Reuse the frozen v05 Context only after verifying its SHA-256. Preserve the rejected v05 audit result byte-for-byte. Generate v06 from scratch in the current, human-dispatched Codex App task, validate it once, and only if validation succeeds run publication planning without --live. The direct current-task audit is permitted; nested codex exec, repository model API invocation, a second agent, and a second replacement attempt remain forbidden. The replacement prompt must make operation grants internally consistent: any repository file path in allowed_scope, or any instruction to create/edit files, requires requested_operations to include edit_bounded_files; a named branch push requires push_named_branch; Draft PR creation or description update requires create_or_update_draft_pr. No repository implementation change is authorized.
 
 ## Acceptance boundary
 
 Success is limited to:
 
 ```text
-CODEX_APP_SHADOW_AUDIT_COMPLETE_ZERO_WRITES
+CODEX_APP_REPLACEMENT_SHADOW_AUDIT_COMPLETE_ZERO_WRITES
 ```
 
-This Decision does not authorize live publication, mark-ready, merge, main mutation, release, deployment, nested model calls, or any new framework/dependency/workflow/Gate family.
+The v05 result remains immutable evidence. This Decision authorizes one new v06 result, not repair of v05. A validator failure, missing artifact, digest mismatch, second attempt, or any GitHub write during the shadow phase must stop as BLOCKED_WITH_EXACT_EVIDENCE. This Decision does not authorize live publication, source/test/docs changes, mark-ready, merge, main mutation, release, deployment, nested model calls, or a new branch/Issue/PR.
