@@ -1,8 +1,30 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260801_issue92_replacement_shadow_audit_v2",
-  "round_id": "round_20260801_issue92_replacement_shadow_audit_v2",
+  "decision_id": "decision_20260801_issue92_operation_consistency_repair_v3",
+  "round_id": "round_20260801_issue92_operation_consistency_repair_v3",
   "commands": [
+    {
+      "command_id": "test.supervisor_operation_consistency",
+      "command": "python -m pytest tests/test_supervisor_validate.py -q -k operation_prompt_consistency",
+      "phase": "test",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "regression_test"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
     {
       "command_id": "test.supervisor_focused",
       "command": "python -m pytest tests/test_supervisor_validate.py tests/test_repository_hygiene.py -q",
@@ -48,7 +70,7 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "validation.rejected_audit_digest",
+      "command_id": "validation.rejected_v05_digest",
       "command": "python -c \"import hashlib,pathlib; p=pathlib.Path('../reverse-agent-supervisor-audit-v05.json'); assert p.is_file(); assert hashlib.sha256(p.read_bytes()).hexdigest() == '87a6ccbdf2dc89a3e23a1f25f61ac84a7ae5eeee4289ed4a0d05c792ca7f27ef'\"",
       "phase": "validation",
       "required": true,
@@ -70,8 +92,30 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "validation.replacement_audit_result",
-      "command": "python scripts/supervisor_validate.py --result ../reverse-agent-supervisor-audit-v06.json --repository dddd2024/reverse-agent --main-sha 16526801bda2a816fc707342f903c1ad037de9bd",
+      "command_id": "validation.rejected_v06_digest",
+      "command": "python -c \"import hashlib,pathlib; p=pathlib.Path('../reverse-agent-supervisor-audit-v06.json'); assert p.is_file(); assert hashlib.sha256(p.read_bytes()).hexdigest() == 'b95ec62e91215cf1334539c700df454efe674b78db9187e0d754ec4a4e7f186f'\"",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "validation.repaired_audit_result",
+      "command": "python scripts/supervisor_validate.py --result ../reverse-agent-supervisor-audit-v07.json --repository dddd2024/reverse-agent --main-sha 16526801bda2a816fc707342f903c1ad037de9bd",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -93,7 +137,7 @@
     },
     {
       "command_id": "validation.publication_dry_run",
-      "command": "python scripts/supervisor_publish.py plan --result ../reverse-agent-supervisor-audit-v06.json --repository dddd2024/reverse-agent --main-sha 16526801bda2a816fc707342f903c1ad037de9bd",
+      "command": "python scripts/supervisor_publish.py plan --result ../reverse-agent-supervisor-audit-v07.json --repository dddd2024/reverse-agent --main-sha 16526801bda2a816fc707342f903c1ad037de9bd",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
