@@ -200,8 +200,15 @@ Any match is rejected with `POLICY_DANGEROUS_ACCEPTANCE_CHECK` or
 The validator verifies that `requested_operations` matches what the prompt
 describes:
 
-- If `allowed_scope` lists file paths (non-empty), `edit_bounded_files`
-  MUST be in `requested_operations`.
+- `allowed_scope` defines the bounded scope that the task may access. It does
+  not itself grant or imply mutation authority.
+- `requested_operations` remains the authoritative permission grant. When
+  `edit_bounded_files` is absent, every repository path in `allowed_scope` is
+  read-only.
+- Positive repository-edit intent in `goal` or `execution_prompt` requires
+  `edit_bounded_files`. The validator uses a finite normalized whole-word set,
+  including `edit`, `modify`, `change`, `implement`, `add`, `create`, `write`,
+  `update`, `patch`, `fix`, `refactor`, `remove`, `delete`, and `rename`.
 - If `goal` or `execution_prompt` mentions `push` (whole word),
   `push_named_branch` MUST be in `requested_operations`.
 - If `goal` or `execution_prompt` mentions `draft pr`, `update pr`, or

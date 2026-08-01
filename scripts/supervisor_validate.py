@@ -162,6 +162,25 @@ _BROAD_SCOPES = frozenset({
     "entire_repo", "whole repo", "whole_repo", "repo-wide", "everything",
 })
 
+# Positive repository-edit intent. These are matched as normalized whole
+# words in goal/execution_prompt; an allowed path by itself remains read-only.
+_EDIT_INTENT_WORDS = (
+    "edit",
+    "modify",
+    "change",
+    "implement",
+    "add",
+    "create",
+    "write",
+    "update",
+    "patch",
+    "fix",
+    "refactor",
+    "remove",
+    "delete",
+    "rename",
+)
+
 # Forbidden operation phrases (whole-word, case-insensitive) paired with the
 # finite error code they raise. Used for *secondary* natural-language scan
 # of allowed_scope, execution_prompt, goal, and acceptance_checks.
@@ -615,8 +634,10 @@ def _check_operation_prompt_consistency(
 ) -> None:
     """Verify that the requested_operations match what the prompt describes.
 
-    - If allowed_scope is non-empty (file paths to edit), ``edit_bounded_files``
-      must be in ``requested_operations``.
+    - ``allowed_scope`` defines bounded accessible scope. Paths remain
+      read-only unless ``edit_bounded_files`` is requested.
+    - If goal or execution_prompt contains positive repository-edit intent,
+      ``edit_bounded_files`` must be in ``requested_operations``.
     - If goal or execution_prompt mentions "push" (whole word),
       ``push_named_branch`` must be in ``requested_operations``.
     - If goal or execution_prompt mentions "draft pr" or "update pr" or
@@ -625,13 +646,18 @@ def _check_operation_prompt_consistency(
     """
 
     ops = {str(o) for o in requested_operations if isinstance(o, str)}
-
-    # Modifying files requires edit_bounded_files.
-    if allowed_scope:
-        if "edit_bounded_files" not in ops:
-            errors.append(f"{OPERATION_PROMPT_INCONSISTENCY}:edit_bounded_files_required_for_file_scope")
-
     combined = _normalize_for_scan(f"{goal} {execution_prompt}")
+
+    # Positive repository-edit intent requires edit_bounded_files. A non-empty
+    # allowed_scope, including explicit file paths, does not itself imply
+    # mutation authority.
+    if (
+        any(_matches_word(combined, word) for word in _EDIT_INTENT_WORDS)
+        and "edit_bounded_files" not in ops
+    ):
+        errors.append(
+            f"{OPERATION_PROMPT_INCONSISTENCY}:edit_bounded_files_required"
+        )
 
     # Pushing a named branch requires push_named_branch.
     if _matches_word(combined, "push"):

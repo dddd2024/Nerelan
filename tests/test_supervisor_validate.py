@@ -1541,19 +1541,51 @@ def test_shell_redirect_rejected() -> None:
 # --- Task 5: operation–prompt consistency ---------------------------------
 
 
-def test_file_scope_without_edit_operation_rejected() -> None:
-    """If allowed_scope lists file paths but requested_operations lacks
-    edit_bounded_files, the plan must be rejected for inconsistency.
-    """
+def test_operation_prompt_consistency_read_only_file_scope_passes() -> None:
+    """Bounded repository paths remain read-only without edit authority."""
     task = _safe_task()
-    # allowed_scope has file paths but operations omit edit_bounded_files.
+    task["goal"] = "Inspect and analyze the bounded validator behavior."
+    task["allowed_scope"] = [
+        "scripts/supervisor_validate.py",
+        "docs/supervisor/audit-instructions.md",
+    ]
     task["requested_operations"] = ["read_repository", "run_checks"]
+    task["execution_prompt"] = (
+        "Verify the operation consistency contract and report the results."
+    )
+    ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
+    assert ok and not errors
+
+
+def test_operation_prompt_consistency_edit_intent_without_permission_rejected() -> None:
+    task = _safe_task()
+    task["goal"] = "Correct the bounded validator behavior."
+    task["allowed_scope"] = ["scripts/supervisor_validate.py"]
+    task["requested_operations"] = ["read_repository", "run_checks"]
+    task["execution_prompt"] = "Implement the bounded validator correction."
     ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
     assert not ok
-    assert any(sv.OPERATION_PROMPT_INCONSISTENCY in e for e in errors)
+    assert (
+        f"{sv.OPERATION_PROMPT_INCONSISTENCY}:edit_bounded_files_required"
+        in errors
+    )
 
 
-def test_push_prompt_without_push_operation_rejected() -> None:
+def test_operation_prompt_consistency_edit_intent_with_permission_passes() -> None:
+    task = _safe_task()
+    task["goal"] = "Correct the bounded validator behavior."
+    task["allowed_scope"] = ["scripts/supervisor_validate.py"]
+    task["requested_operations"] = [
+        "read_repository",
+        "edit_bounded_files",
+        "run_checks",
+    ]
+    task["execution_prompt"] = "Implement the bounded validator correction."
+    ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
+    assert ok and not errors
+
+
+def test_operation_prompt_consistency_push_without_permission_rejected() -> None:
     """If the prompt mentions 'push' but requested_operations lacks
     push_named_branch, the plan must be rejected.
     """
@@ -1565,7 +1597,20 @@ def test_push_prompt_without_push_operation_rejected() -> None:
     assert any(sv.OPERATION_PROMPT_INCONSISTENCY in e for e in errors)
 
 
-def test_draft_pr_prompt_without_pr_operation_rejected() -> None:
+def test_operation_prompt_consistency_push_with_permission_passes() -> None:
+    task = _safe_task()
+    task["execution_prompt"] = "Edit the bounded file and push the named branch."
+    task["requested_operations"] = [
+        "read_repository",
+        "edit_bounded_files",
+        "run_checks",
+        "push_named_branch",
+    ]
+    ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
+    assert ok and not errors
+
+
+def test_operation_prompt_consistency_draft_pr_without_permission_rejected() -> None:
     """If the prompt mentions 'draft pr' but requested_operations lacks
     create_or_update_draft_pr, the plan must be rejected.
     """
@@ -1577,7 +1622,7 @@ def test_draft_pr_prompt_without_pr_operation_rejected() -> None:
     assert any(sv.OPERATION_PROMPT_INCONSISTENCY in e for e in errors)
 
 
-def test_consistent_operations_and_prompt_pass() -> None:
+def test_operation_prompt_consistency_draft_pr_with_permission_passes() -> None:
     """When operations match the prompt, validation passes."""
     task = _safe_task()
     task["execution_prompt"] = "Edit the bounded files, push the named branch, and update the draft PR."
@@ -1587,6 +1632,14 @@ def test_consistent_operations_and_prompt_pass() -> None:
     ]
     ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
     assert ok and not errors
+
+
+def test_operation_prompt_consistency_dangerous_command_scan_unchanged() -> None:
+    task = _safe_task()
+    task["acceptance_checks"] = ["gh pr merge 93"]
+    ok, errors, _ = sv.validate_audit_result(_safe_result(task=task), expected_repository=REPO, expected_main_sha=MAIN_SHA)
+    assert not ok
+    assert any(sv.POLICY_DANGEROUS_ACCEPTANCE_CHECK in e for e in errors)
 
 
 # --- Task 6: active PR configurable ---------------------------------------
