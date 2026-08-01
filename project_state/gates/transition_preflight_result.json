@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260801_issue92_shadow_audit_recovery_v1",
-  "round_id": "round_20260801_issue92_shadow_audit_recovery_v1",
+  "decision_id": "decision_20260801_issue92_replacement_shadow_audit_v2",
+  "round_id": "round_20260801_issue92_replacement_shadow_audit_v2",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260801_issue92_shadow_audit_recovery_v1 expected=decision_20260801_issue92_shadow_audit_recovery_v1"
+      "detail": "observed=decision_20260801_issue92_replacement_shadow_audit_v2 expected=decision_20260801_issue92_replacement_shadow_audit_v2"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260801_issue92_shadow_audit_recovery_v1 expected=round_20260801_issue92_shadow_audit_recovery_v1"
+      "detail": "observed=round_20260801_issue92_replacement_shadow_audit_v2 expected=round_20260801_issue92_replacement_shadow_audit_v2"
     },
     {
       "name": "decision_approved",
@@ -43,12 +43,12 @@
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=a93907dd41e926eb5e5d524f3c68eae759b74c00"
+      "detail": "decision_commit=bf0965f7052ceba84e64ae45194652b541548ae0"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260801_issue92_shadow_audit_recovery_v1/round_20260801_issue92_shadow_audit_recovery_v1"
+      "detail": "plan=decision_20260801_issue92_replacement_shadow_audit_v2/round_20260801_issue92_replacement_shadow_audit_v2"
     },
     {
       "name": "command_plan_contract",
