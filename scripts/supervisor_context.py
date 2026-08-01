@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Thin Codex Supervisor context collector (quota-free v0.3, fail-closed).
+"""Thin Codex Supervisor context collector (v0.4, fail-closed).
 
 Calls ``git`` and ``gh`` to produce a bounded JSON repository context for an
 audit prompt. Pure standard library. No real Codex/model calls, no live
@@ -51,6 +51,7 @@ MAX_ISSUE_PAGES = 10
 MAX_CHECK_PAGES = 10
 PAGE_SIZE = 100
 MAX_TOTAL_ISSUES = 500  # safety cap across all pages
+MAX_TOTAL_CHECK_RUNS = 500  # finite cap across all pages
 
 CommandRunner = Callable[[Sequence[str], float], "CommandOutcome"]
 
@@ -170,7 +171,14 @@ def collect_context(
     """
 
     default_branch = _git_default_branch(runner)
-    main_sha = _git_branch_sha_required(default_branch, runner)
+    local_main_sha = _git_branch_sha_required(default_branch, runner)
+    github_main_sha = _gh_main_sha_required(repository, runner)
+    if github_main_sha != local_main_sha:
+        raise ContextError(
+            "GitHub main does not match local origin/main: "
+            f"{github_main_sha}!={local_main_sha}"
+        )
+    main_sha = github_main_sha
     current_branch = _git_current_branch(runner)
     current_head = _git_current_head(runner)
     worktree_clean = _git_worktree_clean(runner)
@@ -240,6 +248,28 @@ def _git_worktree_clean(runner: CommandRunner) -> bool:
     return outcome.stdout.strip() == ""
 
 
+def _gh_main_sha_required(repository: str, runner: CommandRunner) -> str:
+    """Return the verified GitHub ``refs/heads/main`` commit SHA."""
+
+    outcome = run_gh(
+        ["api", f"repos/{repository}/git/refs/heads/main", "--method", "GET"],
+        runner,
+    )
+    if not outcome.ok:
+        raise ContextError(
+            "gh api refs/heads/main failed "
+            f"(exit={outcome.exit_code}, timed_out={outcome.timed_out})"
+        )
+    raw = _parse_json_object_required(outcome.stdout, "gh api refs/heads/main")
+    obj = raw.get("object")
+    if not isinstance(obj, Mapping):
+        raise ContextError("gh api refs/heads/main: missing object")
+    sha = str(obj.get("sha", "") or "").strip().lower()
+    if not _is_full_sha(sha):
+        raise ContextError("gh api refs/heads/main: missing or malformed object.sha")
+    return sha
+
+
 def _gh_open_issues(repository: str, runner: CommandRunner) -> list[Mapping[str, Any]]:
     """Fetch bounded open Issues via paginated ``gh api``.
 
@@ -252,7 +282,7 @@ def _gh_open_issues(repository: str, runner: CommandRunner) -> list[Mapping[str,
     for page in range(1, MAX_ISSUE_PAGES + 1):
         outcome = run_gh(
             [
-                "api", f"repos/{repository}/issues",
+                "api", f"repos/{repository}/issues", "--method", "GET",
                 "--field", "state=open",
                 "--field", f"per_page={PAGE_SIZE}",
                 "--field", f"page={page}",
@@ -360,7 +390,7 @@ def _derive_active_pr(repository: str, branch: str, runner: CommandRunner) -> in
     head = f"{owner}:{branch}"
     outcome = run_gh(
         [
-            "api", f"repos/{repository}/pulls",
+            "api", f"repos/{repository}/pulls", "--method", "GET",
             "--field", f"head={head}",
             "--field", "state=open",
             "--field", "per_page=10",
@@ -405,8 +435,22 @@ def _gh_pr_facts(
         raise ContextError(f"gh pr view {pr_number} failed (exit={outcome.exit_code}, timed_out={outcome.timed_out})")
     raw = _parse_json_object_required(outcome.stdout, f"gh pr view {pr_number}")
 
+    local_head = exact_head.strip().lower()
+    pr_head_raw = raw.get("headRefOid")
+    if not isinstance(pr_head_raw, str):
+        raise ContextError(f"gh pr view {pr_number}: missing or malformed headRefOid")
+    pr_head = pr_head_raw.strip().lower()
+    if not _is_full_sha(local_head):
+        raise ContextError("local HEAD is missing or malformed")
+    if not _is_full_sha(pr_head):
+        raise ContextError(f"gh pr view {pr_number}: missing or malformed headRefOid")
+    if pr_head != local_head:
+        raise ContextError(
+            f"PR headRefOid does not match local HEAD: {pr_head}!={local_head}"
+        )
+
     # Fetch check runs via API (bounded, no stderr/env/token in output).
-    checks = _gh_check_runs(repository, exact_head, runner)
+    checks = _gh_check_runs(repository, local_head, runner)
 
     return {
         "number": raw.get("number", pr_number),
@@ -414,9 +458,9 @@ def _gh_pr_facts(
         "draft": bool(raw.get("isDraft", False)),
         "state": str(raw.get("state", "")),
         "head_ref": _bounded_text(str(raw.get("headRefName", "")), MAX_LABEL_LENGTH),
-        "head_sha": str(raw.get("headRefOid", "")).strip().lower(),
+        "head_sha": pr_head,
         "base_ref": _bounded_text(str(raw.get("baseRefName", "")), MAX_LABEL_LENGTH),
-        "exact_head": exact_head.lower(),
+        "exact_head": local_head,
         "checks": checks,
     }
 
@@ -433,10 +477,11 @@ def _gh_check_runs(repository: str, head_sha: str, runner: CommandRunner) -> lis
     if not sha:
         raise ContextError("gh api check-runs: empty head SHA")
     items: list[Mapping[str, Any]] = []
+    expected_total: int | None = None
     for page in range(1, MAX_CHECK_PAGES + 1):
         outcome = run_gh(
             [
-                "api", f"repos/{repository}/commits/{sha}/check-runs",
+                "api", f"repos/{repository}/commits/{sha}/check-runs", "--method", "GET",
                 "--field", f"per_page={PAGE_SIZE}",
                 "--field", f"page={page}",
             ],
@@ -445,27 +490,70 @@ def _gh_check_runs(repository: str, head_sha: str, runner: CommandRunner) -> lis
         if not outcome.ok:
             raise ContextError(f"gh api check-runs page {page} failed (exit={outcome.exit_code}, timed_out={outcome.timed_out})")
         raw = _parse_json_object_required(outcome.stdout, f"gh api check-runs page {page}")
+        total_count = raw.get("total_count")
+        if isinstance(total_count, bool) or not isinstance(total_count, int) or total_count < 0:
+            raise ContextError(f"gh api check-runs page {page}: missing or malformed total_count")
+        if total_count > MAX_TOTAL_CHECK_RUNS:
+            raise ContextError(
+                f"gh api check-runs: total_count {total_count} exceeds safety cap {MAX_TOTAL_CHECK_RUNS}"
+            )
+        if expected_total is None:
+            expected_total = total_count
+            required_pages = (total_count + PAGE_SIZE - 1) // PAGE_SIZE
+            if required_pages > MAX_CHECK_PAGES:
+                raise ContextError(
+                    f"gh api check-runs: pagination requires {required_pages} pages, cap is {MAX_CHECK_PAGES}"
+                )
+        elif total_count != expected_total:
+            raise ContextError(
+                f"gh api check-runs page {page}: total_count changed "
+                f"from {expected_total} to {total_count}"
+            )
         runs = raw.get("check_runs")
         if not isinstance(runs, list):
             raise ContextError(f"gh api check-runs page {page}: missing check_runs array")
-        if not runs:
-            break  # empty page — done.
+        if len(runs) > PAGE_SIZE:
+            raise ContextError(f"gh api check-runs page {page}: page exceeds per_page={PAGE_SIZE}")
         for run in runs:
             if not isinstance(run, Mapping):
                 raise ContextError(f"gh api check-runs page {page}: non-object run")
-            if "name" not in run or "status" not in run:
-                raise ContextError(f"gh api check-runs page {page}: missing name/status")
+            name = run.get("name")
+            status = run.get("status")
+            conclusion = run.get("conclusion")
+            run_url = run.get("html_url")
+            if not isinstance(name, str) or not name.strip():
+                raise ContextError(f"gh api check-runs page {page}: missing or malformed name")
+            if not isinstance(status, str) or not status.strip():
+                raise ContextError(f"gh api check-runs page {page}: missing or malformed status")
+            if conclusion is not None and not isinstance(conclusion, str):
+                raise ContextError(f"gh api check-runs page {page}: malformed conclusion")
+            if run_url is not None and not isinstance(run_url, str):
+                raise ContextError(f"gh api check-runs page {page}: malformed html_url")
             items.append({
-                "name": _bounded_text(str(run.get("name", "")), MAX_LABEL_LENGTH),
-                "status": str(run.get("status", "")).strip().lower(),
-                "conclusion": str(run.get("conclusion", "") or "").strip().lower(),
-                "run_url": _bounded_text(str(run.get("html_url", "") or ""), 200),
+                "name": _bounded_text(name, MAX_LABEL_LENGTH),
+                "status": status.strip().lower(),
+                "conclusion": (conclusion or "").strip().lower(),
+                "run_url": _bounded_text(run_url or "", 200),
             })
-            if len(items) >= MAX_LABELS * 5:  # bounded safety cap (100)
-                break
-        if len(runs) < PAGE_SIZE:
-            break  # last page.
+        if len(items) > total_count:
+            raise ContextError(
+                f"gh api check-runs: returned {len(items)} records but total_count is {total_count}"
+            )
+        if len(items) == total_count:
+            return items
+        if not runs or len(runs) < PAGE_SIZE:
+            raise ContextError(
+                f"gh api check-runs: incomplete pagination returned {len(items)} of {total_count}"
+            )
+    if expected_total is None or len(items) != expected_total:
+        raise ContextError(
+            "gh api check-runs: pagination cap reached before total_count was satisfied"
+        )
     return items
+
+
+def _is_full_sha(value: str) -> bool:
+    return len(value) == 40 and all(character in "0123456789abcdef" for character in value)
 
 
 def _git_recent_commits(branch: str, runner: CommandRunner) -> list[Mapping[str, Any]]:

@@ -1,10 +1,26 @@
-# Codex Supervisor v0 — Audit Instructions (quota-free, fail-closed v0.3)
+# Codex Supervisor v0 — Audit Instructions (fail-closed v0.4)
 
-This document defines the deterministic, quota-free audit instructions for
+This document defines the deterministic audit instructions for
 the thin Codex Supervisor v0 implemented under Issue #92 (PR #93 rework).
-No real Codex or model calls occur in this phase; the instructions describe
-the contract an external audit result must satisfy and the project-specific
-security rules the validator enforces.
+The scripts do not invoke a model themselves; a bounded external Codex shadow
+audit may consume the collected Context and must return schema `0.2` JSON.
+
+## v0.4 exact-state closure
+
+The audit-result schema remains `0.2`. v0.4 tightens collection and optional
+live-update enforcement without adding a framework:
+
+1. Every parameterized `gh api` read uses explicit `--method GET`.
+2. Context collection requires local `HEAD == PR headRefOid` and GitHub
+   `refs/heads/main == origin/main`; the verified GitHub SHA becomes
+   `main_sha`.
+3. Check-run pagination requires a stable integer `total_count`, retains all
+   successful, failed, and pending records, and rejects malformed records,
+   incomplete pages, more than 10 pages, or more than 500 total records.
+4. Inside the publication lock, an `update_issue` re-reads all Issues and
+   requires the target to remain open with exactly one planned Marker,
+   unchanged title/body SHA-256 preimages, no duplicate Marker, and a freshly
+   recomputed `update_issue` plan. Any concurrent change produces zero writes.
 
 ## v0.3 fail-closed closure
 

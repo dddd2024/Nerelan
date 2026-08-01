@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Thin Codex Supervisor publication planner (quota-free v0.3, fail-closed).
+"""Thin Codex Supervisor publication planner (v0.4, fail-closed).
 
 Searches existing Issues (ALL states — open and closed) for the cycle marker
 via paginated ``gh api``, then produces a bounded publication plan:
@@ -418,6 +418,11 @@ def plan_publication(
             "title": title,
             "body": body,
             "content_digest": digest,
+            "planning_audit_result": parsed,
+            "preimage_title_digest": content_digest(
+                str(matched_issue.get("title", "") or "")
+            ),
+            "preimage_body_digest": content_digest(matched_body),
         }
 
     # No match — create. (Closed issues with same marker would have matched above.)
@@ -468,7 +473,7 @@ def fetch_existing_issues(
     for page in range(1, MAX_ISSUE_PAGES + 1):
         outcome = run_gh(
             [
-                "api", f"repos/{repository}/issues",
+                "api", f"repos/{repository}/issues", "--method", "GET",
                 "--field", "state=all",
                 "--field", f"per_page={PAGE_SIZE}",
                 "--field", f"page={page}",
@@ -537,7 +542,7 @@ def verify_remote_main(
 
     # 1. GitHub-side main via gh api.
     remote_outcome = run_gh(
-        ["api", f"repos/{repository}/git/refs/heads/main"],
+        ["api", f"repos/{repository}/git/refs/heads/main", "--method", "GET"],
         runner,
     )
     if not remote_outcome.ok:
@@ -617,7 +622,7 @@ def live_guard(
     errors: list[str] = []
 
     # 1. gh login user.
-    user_outcome = run_gh(["api", "user", "--jq", ".login"], runner)
+    user_outcome = run_gh(["api", "user", "--method", "GET", "--jq", ".login"], runner)
     if not user_outcome.ok:
         errors.append(f"{ERR_LIVE_GUARD_OWNER}:gh api user failed")
     else:
@@ -805,15 +810,71 @@ def _apply_plan_locked(
         target = plan.get("target_issue")
         if target is None:
             return {"applied": False, "action": action, "reason": "no_target", "live": True}
-        # TOCTOU: target must still carry the marker. If the target is gone
-        # (e.g. deleted) or no longer carries the marker, fail-closed.
-        if target not in matched_numbers:
+        target_matches = [issue for issue in issues if issue.get("number") == target]
+        if len(target_matches) != 1 or target not in matched_numbers:
             return {
                 "applied": False,
                 "action": action,
                 "reason": ERR_TOCTOU,
                 "live": True,
                 "matched": matched_numbers,
+            }
+        target_issue = target_matches[0]
+        target_title = str(target_issue.get("title", "") or "")
+        target_body = str(target_issue.get("body", "") or "")
+        target_markers = find_all_marker_keys(target_body)
+        if str(target_issue.get("state", "") or "").upper() != "OPEN":
+            return {
+                "applied": False,
+                "action": action,
+                "reason": "toctou_target_not_open",
+                "live": True,
+            }
+        if len(target_markers) != 1 or target_markers[0] != key:
+            return {
+                "applied": False,
+                "action": action,
+                "reason": "toctou_marker_changed",
+                "live": True,
+            }
+        if content_digest(target_title) != plan.get("preimage_title_digest"):
+            return {
+                "applied": False,
+                "action": action,
+                "reason": "toctou_title_changed",
+                "live": True,
+            }
+        if content_digest(target_body) != plan.get("preimage_body_digest"):
+            return {
+                "applied": False,
+                "action": action,
+                "reason": "toctou_body_changed",
+                "live": True,
+            }
+        planning_audit_result = plan.get("planning_audit_result")
+        if not isinstance(planning_audit_result, Mapping):
+            return {
+                "applied": False,
+                "action": action,
+                "reason": "toctou_missing_planning_input",
+                "live": True,
+            }
+        fresh_plan = plan_publication(
+            audit_result=planning_audit_result,
+            repository=repository,
+            main_sha=expected_main_sha,
+            existing_issues=issues,
+        )
+        if (
+            fresh_plan.get("action") != ACTION_UPDATE_ISSUE
+            or fresh_plan.get("target_issue") != target
+            or fresh_plan.get("marker") != plan.get("marker")
+        ):
+            return {
+                "applied": False,
+                "action": action,
+                "reason": "toctou_fresh_plan_changed",
+                "live": True,
             }
         outcome = run_gh(
             [

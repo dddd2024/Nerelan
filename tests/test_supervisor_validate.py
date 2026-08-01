@@ -980,6 +980,8 @@ def test_context_includes_issue_90_and_pr_93_facts() -> None:
     """Context must include Issue #90 goal and PR #93 facts (v0.3 configurable)."""
 
     def good_runner(args, timeout):
+        if _api_path(list(args), "repos/") and args[2].endswith("/git/refs/heads/main"):
+            return sc.CommandOutcome(0, json.dumps({"object": {"sha": MAIN_SHA}}), "", False)
         # v0.3: gh api repos/<repo>/issues (paginated) — replaces gh issue list.
         if _api_path(list(args), "repos/") and "/issues" in args[2]:
             page = _page_arg(list(args))
@@ -997,6 +999,7 @@ def test_context_includes_issue_90_and_pr_93_facts() -> None:
         # v0.3: gh api check-runs bound to exact head — replaces gh pr checks.
         if _api_path(list(args), "repos/") and "/check-runs" in args[2]:
             return sc.CommandOutcome(0, json.dumps({
+                "total_count": 2,
                 "check_runs": [
                     {"name": "state-gate", "status": "completed", "conclusion": "failure", "html_url": "https://github.com/dddd2024/reverse-agent/runs/1"},
                     {"name": "baseline", "status": "completed", "conclusion": "success", "html_url": "https://github.com/dddd2024/reverse-agent/runs/2"},
@@ -1128,6 +1131,8 @@ def _v03_good_runner_factory(*, check_runs_payload: str | None = None, fail_chec
 
     def runner(args, timeout):
         calls.append(list(args))
+        if _api_path(list(args), "repos/") and args[2].endswith("/git/refs/heads/main"):
+            return sc.CommandOutcome(0, json.dumps({"object": {"sha": MAIN_SHA}}), "", False)
         if _api_path(list(args), "repos/") and "/issues" in args[2]:
             return sc.CommandOutcome(0, "[]", "", False)
         if args[:2] == ["gh", "pr"] and "list" in args:
@@ -1142,7 +1147,7 @@ def _v03_good_runner_factory(*, check_runs_payload: str | None = None, fail_chec
         if _api_path(list(args), "repos/") and "/check-runs" in args[2]:
             if fail_check_api:
                 return sc.CommandOutcome(1, "", "check api failed", False)
-            return sc.CommandOutcome(0, check_runs_payload or '{"check_runs":[]}', "", False)
+            return sc.CommandOutcome(0, check_runs_payload or '{"total_count":0,"check_runs":[]}', "", False)
         if args[0] == "git":
             if "symbolic-ref" in args:
                 return sc.CommandOutcome(0, "refs/remotes/origin/main", "", False)
@@ -1169,6 +1174,7 @@ def test_failed_check_appears_in_context() -> None:
     conclusion, and bounded run_url — not masked by an exit code.
     """
     payload = json.dumps({
+        "total_count": 2,
         "check_runs": [
             {"name": "state-gate", "status": "completed", "conclusion": "failure", "html_url": "https://github.com/dddd2024/reverse-agent/runs/1"},
             {"name": "baseline", "status": "completed", "conclusion": "success", "html_url": "https://github.com/dddd2024/reverse-agent/runs/2"},
@@ -1479,6 +1485,8 @@ def test_active_pr_configurable() -> None:
     93 without source changes — the PR number is not hardcoded.
     """
     def runner(args, timeout):
+        if _api_path(list(args), "repos/") and args[2].endswith("/git/refs/heads/main"):
+            return sc.CommandOutcome(0, json.dumps({"object": {"sha": MAIN_SHA}}), "", False)
         if _api_path(list(args), "repos/") and "/issues" in args[2]:
             return sc.CommandOutcome(0, "[]", "", False)
         if args[:2] == ["gh", "pr"] and "list" in args:
@@ -1492,7 +1500,7 @@ def test_active_pr_configurable() -> None:
                 "headRefName": "other-branch", "headRefOid": "b" * 40, "baseRefName": "main",
             }), "", False)
         if _api_path(list(args), "repos/") and "/check-runs" in args[2]:
-            return sc.CommandOutcome(0, '{"check_runs":[]}', "", False)
+            return sc.CommandOutcome(0, '{"total_count":0,"check_runs":[]}', "", False)
         if args[0] == "git":
             if "symbolic-ref" in args:
                 return sc.CommandOutcome(0, "refs/remotes/origin/main", "", False)
@@ -1519,6 +1527,8 @@ def test_active_pr_derived_from_branch() -> None:
     gh api pulls. Exactly one match is required.
     """
     def runner(args, timeout):
+        if _api_path(list(args), "repos/") and args[2].endswith("/git/refs/heads/main"):
+            return sc.CommandOutcome(0, json.dumps({"object": {"sha": MAIN_SHA}}), "", False)
         if _api_path(list(args), "repos/") and "/issues" in args[2]:
             return sc.CommandOutcome(0, "[]", "", False)
         if args[:2] == ["gh", "pr"] and "list" in args:
@@ -1535,7 +1545,7 @@ def test_active_pr_derived_from_branch() -> None:
         if _api_path(list(args), "repos/") and "/pulls" in args[2]:
             return sc.CommandOutcome(0, json.dumps([{"number": 42}]), "", False)
         if _api_path(list(args), "repos/") and "/check-runs" in args[2]:
-            return sc.CommandOutcome(0, '{"check_runs":[]}', "", False)
+            return sc.CommandOutcome(0, '{"total_count":0,"check_runs":[]}', "", False)
         if args[0] == "git":
             if "symbolic-ref" in args:
                 return sc.CommandOutcome(0, "refs/remotes/origin/main", "", False)
@@ -1614,6 +1624,205 @@ def test_active_pr_derive_multiple_match_fail_closed() -> None:
 
     with pytest.raises(sc.ContextError):
         sc.collect_context(REPO, goal_issue=90, active_pr=None, runner=runner)
+
+
+# =========================================================================
+# v0.4 exact transport, binding, completeness, and TOCTOU tests.
+# =========================================================================
+
+
+def _assert_explicit_get(args: list[str]) -> None:
+    assert "--method" in args
+    method_index = args.index("--method")
+    assert args[method_index + 1] == "GET"
+
+
+def test_every_parameterized_gh_api_read_uses_explicit_get() -> None:
+    calls: list[list[str]] = []
+
+    def runner(args, timeout):
+        call = list(args)
+        calls.append(call)
+        if "/check-runs" in call[2]:
+            return sc.CommandOutcome(0, '{"total_count":0,"check_runs":[]}', "", False)
+        if call[2].endswith("/pulls"):
+            return sc.CommandOutcome(0, '[{"number":93}]', "", False)
+        return sc.CommandOutcome(0, "[]", "", False)
+
+    assert sc._gh_open_issues(REPO, runner) == []
+    assert sc._derive_active_pr(REPO, "agent/codex-supervisor-foundation-v0", runner) == 93
+    assert sc._gh_check_runs(REPO, "a" * 40, runner) == []
+    issues, error = sp.fetch_existing_issues(REPO, runner=runner)
+    assert issues == [] and error is None
+
+    parameterized_reads = [call for call in calls if "--field" in call or "-F" in call]
+    assert len(parameterized_reads) == 4
+    for call in parameterized_reads:
+        assert call[:2] == ["gh", "api"]
+        _assert_explicit_get(call)
+
+
+def test_pr_head_mismatch_rejected_before_check_collection() -> None:
+    calls: list[list[str]] = []
+
+    def runner(args, timeout):
+        calls.append(list(args))
+        return sc.CommandOutcome(0, json.dumps({
+            "number": 93,
+            "title": "PR #93",
+            "isDraft": True,
+            "state": "OPEN",
+            "headRefName": "agent/codex-supervisor-foundation-v0",
+            "headRefOid": "b" * 40,
+            "baseRefName": "main",
+        }), "", False)
+
+    with pytest.raises(sc.ContextError, match="does not match local HEAD"):
+        sc._gh_pr_facts(REPO, 93, runner, exact_head="a" * 40)
+    assert not any("/check-runs" in arg for call in calls for arg in call)
+
+
+def test_github_main_mismatch_rejects_context() -> None:
+    def runner(args, timeout):
+        if args[:3] == ["git", "symbolic-ref", "--short"]:
+            return sc.CommandOutcome(0, "refs/remotes/origin/main", "", False)
+        if args[:2] == ["git", "rev-parse"]:
+            return sc.CommandOutcome(0, MAIN_SHA, "", False)
+        if _api_path(list(args), "repos/") and args[2].endswith("/git/refs/heads/main"):
+            return sc.CommandOutcome(0, json.dumps({"object": {"sha": "b" * 40}}), "", False)
+        return sc.CommandOutcome(0, "", "", False)
+
+    with pytest.raises(sc.ContextError, match="does not match local origin/main"):
+        sc.collect_context(REPO, goal_issue=90, active_pr=93, runner=runner)
+
+
+def test_check_total_count_overflow_rejected() -> None:
+    def runner(args, timeout):
+        return sc.CommandOutcome(0, json.dumps({
+            "total_count": sc.MAX_TOTAL_CHECK_RUNS + 1,
+            "check_runs": [],
+        }), "", False)
+
+    with pytest.raises(sc.ContextError, match="exceeds safety cap"):
+        sc._gh_check_runs(REPO, "a" * 40, runner)
+
+
+def test_check_total_count_incomplete_rejected() -> None:
+    def runner(args, timeout):
+        return sc.CommandOutcome(0, json.dumps({
+            "total_count": 2,
+            "check_runs": [{"name": "one", "status": "completed", "conclusion": "success", "html_url": ""}],
+        }), "", False)
+
+    with pytest.raises(sc.ContextError, match="incomplete pagination"):
+        sc._gh_check_runs(REPO, "a" * 40, runner)
+
+
+def test_check_page_failure_rejected() -> None:
+    runs = [
+        {"name": f"check-{index}", "status": "completed", "conclusion": "success", "html_url": ""}
+        for index in range(sc.PAGE_SIZE)
+    ]
+
+    def runner(args, timeout):
+        page = _page_arg(list(args))
+        if page == 1:
+            return sc.CommandOutcome(0, json.dumps({"total_count": 101, "check_runs": runs}), "", False)
+        return sc.CommandOutcome(1, "", "page failed", False)
+
+    with pytest.raises(sc.ContextError, match="page 2 failed"):
+        sc._gh_check_runs(REPO, "a" * 40, runner)
+
+
+def test_malformed_check_run_rejected() -> None:
+    def runner(args, timeout):
+        return sc.CommandOutcome(0, json.dumps({
+            "total_count": 1,
+            "check_runs": [{"name": "", "status": "completed"}],
+        }), "", False)
+
+    with pytest.raises(sc.ContextError, match="malformed name"):
+        sc._gh_check_runs(REPO, "a" * 40, runner)
+
+
+def _make_update_plan_and_issue() -> tuple[dict, dict]:
+    create_plan = sp.plan_publication(
+        audit_result=_safe_result(), repository=REPO, main_sha=MAIN_SHA,
+        existing_issues=[],
+    )
+    issue = {
+        "number": 5,
+        "title": "owner title",
+        "body": create_plan["marker"] + "\nowner preimage",
+        "state": "OPEN",
+    }
+    update_plan = sp.plan_publication(
+        audit_result=_safe_result(), repository=REPO, main_sha=MAIN_SHA,
+        existing_issues=[issue],
+    )
+    assert update_plan["action"] == sp.ACTION_UPDATE_ISSUE
+    return dict(update_plan), issue
+
+
+def _issue_write_calls(calls: list[list[str]]) -> list[list[str]]:
+    return [call for call in calls if call[:3] in (["gh", "issue", "edit"], ["gh", "issue", "create"])]
+
+
+def test_update_issue_closed_after_plan_zero_writes() -> None:
+    plan, issue = _make_update_plan_and_issue()
+    issue["state"] = "CLOSED"
+    runner = _GuardRunner(issues_json=json.dumps([issue]))
+    result = sp.apply_plan(plan, repository=REPO, expected_main_sha=MAIN_SHA, runner=runner, live=True)
+    assert result["applied"] is False
+    assert result["reason"] == "toctou_target_not_open"
+    assert _issue_write_calls(runner.calls) == []
+
+
+@pytest.mark.parametrize("field", ["title", "body"])
+def test_update_issue_edited_after_plan_zero_writes(field: str) -> None:
+    plan, issue = _make_update_plan_and_issue()
+    issue[field] += " concurrent owner edit"
+    runner = _GuardRunner(issues_json=json.dumps([issue]))
+    result = sp.apply_plan(plan, repository=REPO, expected_main_sha=MAIN_SHA, runner=runner, live=True)
+    assert result["applied"] is False
+    assert result["reason"] == f"toctou_{field}_changed"
+    assert _issue_write_calls(runner.calls) == []
+
+
+def test_update_issue_second_marker_after_plan_zero_writes() -> None:
+    plan, issue = _make_update_plan_and_issue()
+    second_task = _safe_task()
+    second_task["goal"] = "A distinct bounded goal"
+    second = sp.plan_publication(
+        audit_result=_safe_result(task=second_task), repository=REPO,
+        main_sha=MAIN_SHA, existing_issues=[],
+    )
+    issue["body"] += "\n" + second["marker"]
+    runner = _GuardRunner(issues_json=json.dumps([issue]))
+    result = sp.apply_plan(plan, repository=REPO, expected_main_sha=MAIN_SHA, runner=runner, live=True)
+    assert result["applied"] is False
+    assert result["reason"] == "toctou_marker_changed"
+    assert _issue_write_calls(runner.calls) == []
+
+
+def test_update_issue_duplicate_marker_after_plan_zero_writes() -> None:
+    plan, issue = _make_update_plan_and_issue()
+    duplicate = {"number": 6, "title": "duplicate", "body": plan["marker"], "state": "OPEN"}
+    runner = _GuardRunner(issues_json=json.dumps([issue, duplicate]))
+    result = sp.apply_plan(plan, repository=REPO, expected_main_sha=MAIN_SHA, runner=runner, live=True)
+    assert result["applied"] is False
+    assert result["reason"] == "toctou_duplicate_marker"
+    assert _issue_write_calls(runner.calls) == []
+
+
+def test_unchanged_open_issue_allows_one_bounded_update() -> None:
+    plan, issue = _make_update_plan_and_issue()
+    runner = _GuardRunner(issues_json=json.dumps([issue]))
+    result = sp.apply_plan(plan, repository=REPO, expected_main_sha=MAIN_SHA, runner=runner, live=True)
+    assert result["applied"] is True
+    writes = _issue_write_calls(runner.calls)
+    assert len(writes) == 1
+    assert writes[0][:4] == ["gh", "issue", "edit", "5"]
 
 
 # --- Task 7: single-machine publish lock ----------------------------------

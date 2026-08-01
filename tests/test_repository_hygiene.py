@@ -363,6 +363,8 @@ def test_supervisor_context_args_are_explicit_lists() -> None:
             if "log" in args:
                 return sc.CommandOutcome(0, "abcdef0 Title", "", False)
         if args[0] == "gh":
+            if args[:2] == ["gh", "api"] and len(args) > 2 and args[2].endswith("/git/refs/heads/main"):
+                return sc.CommandOutcome(0, _json.dumps({"object": {"sha": "16526801bda2a816fc707342f903c1ad037de9bd"}}), "", False)
             # v0.3: gh api repos/<repo>/issues (paginated) — replaces gh issue list.
             if args[:2] == ["gh", "api"] and len(args) > 2 and "/issues" in args[2]:
                 return sc.CommandOutcome(0, "[]", "", False)
@@ -377,7 +379,7 @@ def test_supervisor_context_args_are_explicit_lists() -> None:
                 }), "", False)
             # v0.3: gh api check-runs bound to exact head — replaces gh pr checks.
             if args[:2] == ["gh", "api"] and len(args) > 2 and "/check-runs" in args[2]:
-                return sc.CommandOutcome(0, _json.dumps({"check_runs": []}), "", False)
+                return sc.CommandOutcome(0, _json.dumps({"total_count": 0, "check_runs": []}), "", False)
         return sc.CommandOutcome(0, "", "", False)
 
     # v0.3: pass active_pr explicitly so the test focuses on arg bounds and
