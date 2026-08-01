@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260801_issue92_edit_intent_precision_repair_v4",
-  "round_id": "round_20260801_issue92_edit_intent_precision_repair_v4",
+  "decision_id": "decision_20260801_issue92_operation_surface_consistency_v5",
+  "round_id": "round_20260801_issue92_operation_surface_consistency_v5",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,15 +16,15 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260801_issue92_operation_consistency_repair_v3",
-  "follows_last_round_id": "round_20260801_issue92_operation_consistency_repair_v3",
-  "previous_audit_outcome": "REWORK_REQUIRED_EDIT_INTENT_OVERMATCH",
-  "workstream_id": "issue92-edit-intent-precision-repair-v4",
+  "follows_last_decision_id": "decision_20260801_issue92_edit_intent_precision_repair_v4",
+  "follows_last_round_id": "round_20260801_issue92_edit_intent_precision_repair_v4",
+  "previous_audit_outcome": "REWORK_REQUIRED_OPERATION_SURFACE_AMBIGUITY",
+  "workstream_id": "issue92-operation-surface-consistency-v5",
   "source_issue": 92,
   "parent_issue": 90,
   "active_pr": 93,
   "required_branch": "agent/codex-supervisor-foundation-v0",
-  "starting_head": "c7d516246f75a6e6a20c3e95f6b2d877ec88ed96",
+  "starting_head": "546053b4e20a4105bd2dd65c87f2a66c37f3c09f",
   "activation_base_sha": "16526801bda2a816fc707342f903c1ad037de9bd",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -62,7 +62,7 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "test.supervisor_edit_intent_precision",
+      "command_id": "test.supervisor_operation_surface_consistency",
       "command": "python -m pytest tests/test_supervisor_validate.py -q -k operation_prompt_consistency",
       "phase": "test",
       "required": true,
@@ -259,7 +259,7 @@
     "implementation before PRE_EXECUTION_AUTHORIZED",
     "generate, modify, validate, or publish v07 or any later audit result",
     "modify or replace v05 or v06",
-    "more than one edit-intent precision repair attempt",
+    "more than one operation-surface consistency repair attempt",
     "new branch",
     "new issue",
     "new pull request",
@@ -336,8 +336,8 @@
 
 ## Goal
 
-Repair the remaining false-positive behavior in the validator's operation–prompt consistency check. The v3 implementation correctly stopped treating every non-empty allowed_scope as a file edit, but it now treats generic words such as create, update, change, write, add, remove, and delete anywhere in goal or execution_prompt as repository-file mutation. This can over-grant edit_bounded_files for PR metadata operations, read-only reporting, status updates, evidence updates, or explicit prohibitions. After PRE_EXECUTION_AUTHORIZED, change only scripts/supervisor_validate.py, tests/test_supervisor_validate.py, and docs/supervisor/audit-instructions.md. Introduce a finite deterministic positive repository-edit-intent detector that distinguishes actual file/code mutation from Draft PR/PR description metadata operations and read-only/reporting language. Strong edit verbs may remain direct signals; ambiguous verbs must require a bounded repository-artifact target or explicit path context. Directly negated edit phrases must not require edit authority, while a separate positive edit instruction in the same prompt must still require it. requested_operations remains authoritative, schema 0.2 and cycle-marker inputs remain unchanged, and every unrelated security guard must remain fail-closed. This Decision authorizes no model/audit generation, validator run on v07, or publication planning; it ends after the precision repair, tests, exact-head CI, and evidence report.
+Close the remaining operation-surface ambiguity in the validator before any shadow audit. The v4 implementation distinguishes several read-only and Draft PR cases, but strong edit verbs still require edit_bounded_files even when they target GitHub metadata or reporting surfaces, and the current regression test incorrectly accepts an unsupported instruction such as 'Create an Issue comment' as a read-only task. After PRE_EXECUTION_AUTHORIZED, change only scripts/supervisor_validate.py, tests/test_supervisor_validate.py, and docs/supervisor/audit-instructions.md. Implement a finite deterministic surface classifier for positive mutation instructions: repository-artifact mutation requires edit_bounded_files; named-branch push requires push_named_branch; Draft PR creation or metadata update requires create_or_update_draft_pr; any other positive GitHub mutation surface that has no representable requested_operation must fail closed with OPERATION_PROMPT_INCONSISTENCY:unsupported_mutation_surface. Metadata/reporting nouns must suppress repository-edit inference only when the clause has no repository-artifact target or explicit repository path. Directly negated mutation occurrences, including 'must not', 'should not', 'under no circumstances', and 'do not under any circumstances', must not require authority, while a separate positive instruction in the same prompt must still be detected. requested_operations remains authoritative; schema 0.2, cycle-marker inputs, policy scans, repository/main binding, publication behavior, and every unrelated guard remain unchanged. This Decision authorizes no model/audit generation, validator run on v07, or publication planning.
 
 ## Acceptance boundary
 
-The v4 repair is complete only when compiler-owned v4 Gate artifacts are generated and committed separately, PRE_EXECUTION_AUTHORIZED has no blockers, implementation changes are confined to the three named files, targeted and full focused tests pass, and exact-head CI, Decision Preflight, and State Gate succeed. Tests must prove: a read-only bounded scope passes without edit_bounded_files; 'update the draft PR description' passes with create_or_update_draft_pr and without edit_bounded_files; read-only reporting/evidence/status language does not imply file mutation; a directly negated edit phrase does not require edit authority; 'do not edit X but implement Y' still requires edit_bounded_files; and actual bounded file/code implementation without edit_bounded_files fails. Any v07 file may only be observed for presence and SHA-256 and must not be read for content, modified, regenerated, validated, or published under this Decision. Success is OPERATION_CONSISTENCY_PRECISION_REPAIR_COMPLETE_AWAITING_SHADOW_AUDIT_AUTHORITY. Any Gate failure, out-of-scope mutation, test failure, second repair attempt, audit generation/validation, or forbidden GitHub operation must stop as BLOCKED_WITH_EXACT_EVIDENCE.
+The v5 repair is complete only when compiler-owned v5 Gate artifacts are generated and committed separately, PRE_EXECUTION_AUTHORIZED has no blockers, implementation changes are confined to the three named files, targeted and full focused tests pass, and exact-head CI, Decision Preflight, and State Gate succeed. Tests must prove: 'Fix the draft PR description' requires create_or_update_draft_pr but not edit_bounded_files; 'Edit the Issue comment' and 'Create an Issue comment' fail as unsupported mutation surfaces rather than pass or require file-edit authority; 'Modify the audit report' and other pure report/status/result wording do not imply repository mutation when no tracked path or repository artifact is named; 'Create a test report' does not become a code edit merely because it contains the word test; URL text does not become an explicit file path; extended direct negation such as 'Do not under any circumstances edit repository files' is read-only; a later independent repository edit still requires edit_bounded_files; and actual file/code mutation, push, and Draft PR rules remain fail-closed. Any v07 file may only be observed for presence and SHA-256 and must not be read for content, modified, regenerated, validated, or published. Success is OPERATION_SURFACE_CONSISTENCY_COMPLETE_AWAITING_SHADOW_AUDIT_AUTHORITY. Any Gate failure, out-of-scope mutation, test failure, unsupported weakening, second repair attempt, audit generation/validation, or forbidden GitHub operation must stop as BLOCKED_WITH_EXACT_EVIDENCE.
