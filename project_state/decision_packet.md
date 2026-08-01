@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260801_issue92_operation_surface_consistency_v5",
-  "round_id": "round_20260801_issue92_operation_surface_consistency_v5",
+  "decision_id": "decision_20260801_issue92_multi_surface_reference_consistency_v6",
+  "round_id": "round_20260801_issue92_multi_surface_reference_consistency_v6",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,15 +16,15 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260801_issue92_edit_intent_precision_repair_v4",
-  "follows_last_round_id": "round_20260801_issue92_edit_intent_precision_repair_v4",
-  "previous_audit_outcome": "REWORK_REQUIRED_OPERATION_SURFACE_AMBIGUITY",
-  "workstream_id": "issue92-operation-surface-consistency-v5",
+  "follows_last_decision_id": "decision_20260801_issue92_operation_surface_consistency_v5",
+  "follows_last_round_id": "round_20260801_issue92_operation_surface_consistency_v5",
+  "previous_audit_outcome": "REWORK_REQUIRED_MULTI_SURFACE_AND_REFERENCE_OVERMATCH",
+  "workstream_id": "issue92-multi-surface-reference-consistency-v6",
   "source_issue": 92,
   "parent_issue": 90,
   "active_pr": 93,
   "required_branch": "agent/codex-supervisor-foundation-v0",
-  "starting_head": "546053b4e20a4105bd2dd65c87f2a66c37f3c09f",
+  "starting_head": "62accc87a2546cab2254ad43fc378ab5413e850f",
   "activation_base_sha": "16526801bda2a816fc707342f903c1ad037de9bd",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -62,7 +62,7 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "test.supervisor_operation_surface_consistency",
+      "command_id": "test.supervisor_multi_surface_reference_consistency",
       "command": "python -m pytest tests/test_supervisor_validate.py -q -k operation_prompt_consistency",
       "phase": "test",
       "required": true,
@@ -259,7 +259,7 @@
     "implementation before PRE_EXECUTION_AUTHORIZED",
     "generate, modify, validate, or publish v07 or any later audit result",
     "modify or replace v05 or v06",
-    "more than one operation-surface consistency repair attempt",
+    "more than one multi-surface/reference consistency repair attempt",
     "new branch",
     "new issue",
     "new pull request",
@@ -336,8 +336,8 @@
 
 ## Goal
 
-Close the remaining operation-surface ambiguity in the validator before any shadow audit. The v4 implementation distinguishes several read-only and Draft PR cases, but strong edit verbs still require edit_bounded_files even when they target GitHub metadata or reporting surfaces, and the current regression test incorrectly accepts an unsupported instruction such as 'Create an Issue comment' as a read-only task. After PRE_EXECUTION_AUTHORIZED, change only scripts/supervisor_validate.py, tests/test_supervisor_validate.py, and docs/supervisor/audit-instructions.md. Implement a finite deterministic surface classifier for positive mutation instructions: repository-artifact mutation requires edit_bounded_files; named-branch push requires push_named_branch; Draft PR creation or metadata update requires create_or_update_draft_pr; any other positive GitHub mutation surface that has no representable requested_operation must fail closed with OPERATION_PROMPT_INCONSISTENCY:unsupported_mutation_surface. Metadata/reporting nouns must suppress repository-edit inference only when the clause has no repository-artifact target or explicit repository path. Directly negated mutation occurrences, including 'must not', 'should not', 'under no circumstances', and 'do not under any circumstances', must not require authority, while a separate positive instruction in the same prompt must still be detected. requested_operations remains authoritative; schema 0.2, cycle-marker inputs, policy scans, repository/main binding, publication behavior, and every unrelated guard remain unchanged. This Decision authorizes no model/audit generation, validator run on v07, or publication planning.
+Close the remaining fail-closed gaps in the operation-surface classifier before any shadow audit. The v5 implementation can return only one effective surface per clause because it stops after the first target match, so a Draft-PR target can hide a repository edit or unsupported GitHub write in the same clause. It also treats a bare reference such as Issue #92 as a mutation target, suppresses repository edits whenever a reporting noun is present even when the same clause names a function/module/file, and checks every occurrence of push without positive-intent or branch-target binding. After PRE_EXECUTION_AUTHORIZED, change only scripts/supervisor_validate.py, tests/test_supervisor_validate.py, and docs/supervisor/audit-instructions.md. Make classification additive: one clause may emit multiple surfaces. Bind GitHub mutation only to a positive action directed at that GitHub target, not to a reference mention. Reporting language is read-only only when the clause contains no repository-artifact target or explicit repository path. Replace the global push keyword check with a finite positive named-branch-push detector that respects direct negation and does not treat phrases such as 'push evidence into the report' as branch publication. Tighten explicit path recognition so URLs, pass/fail wording, and version numbers such as 1.0 do not imply a repository path. Expand unsupported GitHub action detection only through a finite documented set such as comment, review, approve, label, close/reopen, assign/unassign, mark ready, and branch create/delete/rename. requested_operations remains authoritative; schema 0.2, cycle-marker inputs, policy scans, repository/main binding, publication behavior, and unrelated guards remain unchanged. This Decision authorizes no model/audit generation, validator run on v07, or publication planning.
 
 ## Acceptance boundary
 
-The v5 repair is complete only when compiler-owned v5 Gate artifacts are generated and committed separately, PRE_EXECUTION_AUTHORIZED has no blockers, implementation changes are confined to the three named files, targeted and full focused tests pass, and exact-head CI, Decision Preflight, and State Gate succeed. Tests must prove: 'Fix the draft PR description' requires create_or_update_draft_pr but not edit_bounded_files; 'Edit the Issue comment' and 'Create an Issue comment' fail as unsupported mutation surfaces rather than pass or require file-edit authority; 'Modify the audit report' and other pure report/status/result wording do not imply repository mutation when no tracked path or repository artifact is named; 'Create a test report' does not become a code edit merely because it contains the word test; URL text does not become an explicit file path; extended direct negation such as 'Do not under any circumstances edit repository files' is read-only; a later independent repository edit still requires edit_bounded_files; and actual file/code mutation, push, and Draft PR rules remain fail-closed. Any v07 file may only be observed for presence and SHA-256 and must not be read for content, modified, regenerated, validated, or published. Success is OPERATION_SURFACE_CONSISTENCY_COMPLETE_AWAITING_SHADOW_AUDIT_AUTHORITY. Any Gate failure, out-of-scope mutation, test failure, unsupported weakening, second repair attempt, audit generation/validation, or forbidden GitHub operation must stop as BLOCKED_WITH_EXACT_EVIDENCE.
+The v6 repair is complete only when compiler-owned v6 Gate artifacts are generated and committed separately, PRE_EXECUTION_AUTHORIZED has no blockers, implementation changes are confined to the three named files, targeted and full focused tests pass, and exact-head CI, Decision Preflight, and State Gate succeed. Tests must prove: 'Update scripts/supervisor_validate.py and edit the PR body' requires both permissions regardless of target order; 'Update the draft PR description and create an Issue comment' rejects the unsupported surface; 'Write an audit report for Issue #92' and 'Update the status summary for PR #93' remain read-only references; 'Edit Issue #92 body' remains unsupported; 'Modify the audit report generator function' and 'Modify the status report module' require edit_bounded_files; 'Do not push the branch' does not require push authority; 'Push the named branch' does; 'Push evidence into the report' is read-only; 'Comment on Issue #92', 'Review PR #93', 'Approve PR #93', and 'mark PR #93 ready' fail as unsupported mutation surfaces; pass/fail and version 1.0 text do not become paths; actual relative paths still do. Existing repository-edit, Draft-PR, dangerous-policy, schema, marker, and publication checks must remain fail-closed. Any v07 file may only be observed for presence and SHA-256 and must not be read for content, modified, regenerated, validated, or published. Success is MULTI_SURFACE_REFERENCE_CONSISTENCY_COMPLETE_AWAITING_SHADOW_AUDIT_AUTHORITY. Any Gate failure, out-of-scope mutation, test failure, unsupported weakening, second repair attempt, audit generation/validation, or forbidden GitHub operation must stop as BLOCKED_WITH_EXACT_EVIDENCE.
