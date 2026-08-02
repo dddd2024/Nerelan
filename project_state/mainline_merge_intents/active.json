@@ -2,7 +2,7 @@
   "schema_version": 1,
   "intent_id": "platform_v1_agent_canvas_v1",
   "repository": "dddd2024/reverse-agent",
-  "source_pr": null,
+  "source_pr": 0,
   "locked_base_sha": "705a0bfd6638d51c688752f154433020225c4e99",
   "allowed_merge_method": "merge",
   "decision_identity": {
