@@ -541,7 +541,62 @@ def _committed_blob(path: str) -> bytes:
     )
 
 
-def test_committed_pr67_intent_binds_exact_v5_authority() -> None:
+def test_committed_pr67_archived_intent_preserves_exact_v5_authority() -> None:
+    """The archived PR67 intent must preserve its historical v5 binding verbatim."""
+    intent = json.loads(
+        _committed_blob(
+            "project_state/mainline_merge_intents/archive/pr67_v5.json"
+        )
+    )
+    assert intent["intent_id"] == "mainline_merge_intent_pr67_v5"
+    assert intent["source_pr"] == 67
+    assert intent["locked_base_sha"] == "68026521710c50fa9a70f3851472941605d9ead1"
+    assert (
+        intent["decision_identity"]["decision_id"]
+        == "decision_20260729_pr67_final_intent_rebind_v5"
+    )
+    assert (
+        intent["decision_identity"]["decision_content_sha256"]
+        == "8688d024d22f192841130bf2d3cb78f9eeb8084af41b2996802f705dc1f3b8c0"
+    )
+    assert (
+        intent["command_plan_sha256"]
+        == "b15e68f720ecb4b6325a03249b2824204ec8aac92ba78db4878e28fd40d5f821"
+    )
+    assert intent["merge_tree_policy"] == "equal_to_accepted_head_tree"
+    assert intent["required_workflows"] == list(CANONICAL_WORKFLOW_POLICY)
+    assert intent["expires_at"] == "2026-08-19T23:59:59Z"
+
+
+def test_committed_pr93_archived_intent_preserves_exact_v10_authority() -> None:
+    """The archived PR93 v10 intent must preserve its historical binding verbatim."""
+    intent = json.loads(
+        _committed_blob(
+            "project_state/mainline_merge_intents/archive/pr93_v10.json"
+        )
+    )
+    assert intent["intent_id"] == "mainline_merge_intent_pr93_v1"
+    assert intent["source_pr"] == 93
+    assert intent["locked_base_sha"] == "16526801bda2a816fc707342f903c1ad037de9bd"
+    assert (
+        intent["decision_identity"]["decision_id"]
+        == "decision_20260802_issue95_pr93_merge_readiness_closure_v10"
+    )
+    assert (
+        intent["decision_identity"]["decision_content_sha256"]
+        == "4e6f283feb6c0fabde64b7e5086be992acfb2c250b04f354d702007b9c56c954"
+    )
+    assert (
+        intent["command_plan_sha256"]
+        == "6e2cdebfd8e2bd900fad6ec0ad0ba6051bde1c91190d0eee83ecc25af8283a60"
+    )
+    assert intent["merge_tree_policy"] == "equal_to_accepted_head_tree"
+    assert intent["required_workflows"] == list(CANONICAL_WORKFLOW_POLICY)
+    assert intent["expires_at"] == "2026-08-09T23:59:59Z"
+
+
+def test_committed_active_intent_binds_exact_current_authority() -> None:
+    """The active merge intent must bind the current Decision and command plan."""
     intent = json.loads(
         _committed_blob("project_state/mainline_merge_intents/active.json")
     )
@@ -559,7 +614,6 @@ def test_committed_pr67_intent_binds_exact_v5_authority() -> None:
     assert (
         intent["decision_identity"]["decision_id"]
         == decision["decision_id"]
-        == "decision_20260729_pr67_final_intent_rebind_v5"
     )
     assert intent["decision_identity"]["decision_content_sha256"] == hashlib.sha256(
         decision_blob
@@ -574,8 +628,8 @@ def test_committed_pr67_intent_binds_exact_v5_authority() -> None:
         intent,
         repo_root=REPO_ROOT,
         accepted_head="HEAD",
-        source_pr=67,
-        locked_base="68026521710c50fa9a70f3851472941605d9ead1",
+        source_pr=intent["source_pr"],
+        locked_base=intent["locked_base_sha"],
         now=NOW,
     )
     assert all(check["status"] == "PASS" for check in checks), checks
@@ -601,11 +655,12 @@ def test_committed_pr67_intent_binds_exact_v5_authority() -> None:
         ),
     ],
 )
-def test_committed_pr67_intent_rejects_stale_v3_authority(
+def test_committed_active_intent_rejects_stale_authority(
     field: str,
     stale_value: str,
     expected_failure: str,
 ) -> None:
+    """The active intent must reject any stale authority values."""
     intent = json.loads(
         _committed_blob("project_state/mainline_merge_intents/active.json")
     )
@@ -617,8 +672,8 @@ def test_committed_pr67_intent_rejects_stale_v3_authority(
         intent,
         repo_root=REPO_ROOT,
         accepted_head="HEAD",
-        source_pr=67,
-        locked_base="68026521710c50fa9a70f3851472941605d9ead1",
+        source_pr=intent["source_pr"],
+        locked_base=intent["locked_base_sha"],
         now=NOW,
     )
     observed = {check["name"]: check["status"] for check in checks}
@@ -646,8 +701,22 @@ def test_production_pre_merge_simulation(tmp_path: Path) -> None:
         capture_output=True,
         text=True,
     )
+    _git(repo, "config", "user.email", "simulation@example.com")
+    _git(repo, "config", "user.name", "Simulation")
     head = _git(repo, "rev-parse", "HEAD")
-    base = "68026521710c50fa9a70f3851472941605d9ead1"
+    intent = json.loads(
+        subprocess.check_output(
+            [
+                "git",
+                "cat-file",
+                "blob",
+                f"{head}:project_state/mainline_merge_intents/active.json",
+            ],
+            cwd=repo,
+        )
+    )
+    base = intent["locked_base_sha"]
+    source_pr = intent["source_pr"]
     tree = _git(repo, "rev-parse", f"{head}^{{tree}}")
     merge = _git(
         repo,
@@ -660,20 +729,9 @@ def test_production_pre_merge_simulation(tmp_path: Path) -> None:
         "-m",
         "temporary production pre-merge simulation",
     )
-    intent = json.loads(
-        subprocess.check_output(
-            [
-                "git",
-                "cat-file",
-                "blob",
-                f"{head}:project_state/mainline_merge_intents/active.json",
-            ],
-            cwd=repo,
-        )
-    )
     approval_payload = {
         "repository": "dddd2024/reverse-agent",
-        "source_pr": 67,
+        "source_pr": source_pr,
         "locked_base_sha": base,
         "accepted_exact_head_sha": head,
         "allowed_merge_method": "merge",
@@ -697,7 +755,7 @@ def test_production_pre_merge_simulation(tmp_path: Path) -> None:
         "schema_version": 1,
         "attestation_id": "issue71_local_simulation_only",
         "repository": "dddd2024/reverse-agent",
-        "source_pr": 67,
+        "source_pr": source_pr,
         "locked_base_sha": base,
         "accepted_exact_head_sha": head,
         "allowed_merge_method": "merge",
@@ -710,7 +768,7 @@ def test_production_pre_merge_simulation(tmp_path: Path) -> None:
             "approval_content_digest": canonical_digest(approval_payload),
         },
         "authorization_status": "active",
-        "expires_at": "2026-08-19T23:59:59Z",
+        "expires_at": intent["expires_at"],
         "superseded_by": None,
         "_remote_comment_id": 71001,
         "_remote_author": "dddd2024",

@@ -130,8 +130,25 @@ def test_validate_audits_dir_returns_outcome_counts_and_paths(tmp_path: Path) ->
     assert result["outcome_counts"]["BLOCKED"] == 1
 
 
-def test_validate_audits_dir_accepts_current_audit_record() -> None:
-    result = validate_audits_dir(Path("project_state"))
+def test_validate_audits_dir_accepts_current_audit_record(tmp_path: Path) -> None:
+    """validate_audits_dir must accept a well-formed audit record and return its fields.
+
+    This test uses tmp_path isolation so it validates function behavior against a
+    controlled audit file rather than reading real project_state/audits files,
+    some of which use a non-canonical fence name (``audit_result_summary`` instead
+    of ``audit_summary``) and are tracked artifacts outside this round's mutation
+    scope.
+    """
+    audits_dir = tmp_path / "project_state" / "audits"
+    _write_audit(
+        audits_dir / "audit_20260629_rework_required_clean_baseline_jobs_inventory_gate.md",
+        _valid_audit(
+            audit_id="audit_20260629_rework_required_clean_baseline_jobs_inventory_gate",
+            outcome="REWORK_REQUIRED",
+        ),
+    )
+
+    result = validate_audits_dir(tmp_path / "project_state")
 
     assert result["validation_status"] == "PASSED"
     current = next(

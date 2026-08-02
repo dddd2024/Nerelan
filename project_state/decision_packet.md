@@ -1,22 +1,31 @@
 # Decision Packet
 
 ```json decision_meta
-{"schema_version":1,"decision_id":"decision_20260729_pr67_final_intent_rebind_v5","round_id":"round_20260729_pr67_final_intent_rebind_v5","based_on_state_build_id":"state_20260618_134029_d6bd033d2532","based_on_state_digest":"d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260802_issue95_scoped_merge_gate_repair_v11",
+  "round_id": "round_20260802_issue95_scoped_merge_gate_repair_v11",
+  "status": "APPROVED",
+  "mainline": "engineering_branch",
+  "skill_profiles": [
+    "reverse-agent-iteration@v2"
+  ]
+}
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260729_github_contents_base64_normalization_v4",
-  "follows_last_round_id": "round_20260729_github_contents_base64_normalization_v4",
-  "previous_audit_outcome": "REWORK_REQUIRED_FINAL_MAINLINE_INTENT_BINDING",
-  "workstream_id": "pr67-final-intent-rebind-v5",
-  "source_issue": 71,
-  "predecessor_issue": 70,
-  "active_pr": 67,
-  "required_branch": "codex/pr60-mainline-landing-repair-v2",
-  "starting_head": "aa67d7e7cf7d6cc14da66a5181829be49bacda93",
-  "activation_base_sha": "68026521710c50fa9a70f3851472941605d9ead1",
+  "follows_last_decision_id": "decision_20260802_issue95_pr93_merge_readiness_closure_v10",
+  "follows_last_round_id": "round_20260802_issue95_pr93_merge_readiness_closure_v10",
+  "previous_audit_outcome": "PR93_MERGE_READINESS_CI_FAILED_UNSCOPED_LEGACY_SUITE",
+  "workstream_id": "issue95-scoped-merge-gate-repair-v11",
+  "source_issue": 95,
+  "parent_issue": 90,
+  "active_pr": 93,
+  "required_branch": "agent/codex-supervisor-foundation-v0",
+  "starting_head": "33d1272e1c8a4d9b51d361d091ea28adf85c414b",
+  "activation_base_sha": "16526801bda2a816fc707342f903c1ad037de9bd",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
@@ -28,7 +37,15 @@
   "merge_allowed": false,
   "mark_ready_allowed": false,
   "auto_merge_allowed": false,
-  "stop_after_exact_head_ci": true,
+  "force_push_allowed": false,
+  "real_provider_credential_allowed": false,
+  "live_work_item_publication_allowed": false,
+  "repair_attempt_limit": 1,
+  "audit_generation_allowed": false,
+  "prior_audits_immutable": true,
+  "v07_observation_only": true,
+  "v08_read_only_remediation_input": true,
+  "bootstrap_state_initial": "BOOTSTRAP_OPEN",
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
@@ -45,261 +62,327 @@
     "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre"
   ],
   "allowed_commands": [
-    {"command_id":"gate.startup_snapshot","command":"python -m reverse_agent.project_gate startup-snapshot --state-dir project_state","phase":"gate","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":["project_state/gates/startup_snapshot.json"],"produced_artifacts":["project_state/gates/startup_snapshot.json"]},
-    {"command_id":"status.git_status","command":"git status --short","phase":"status","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"gate.command_plan","command":"python -m reverse_agent.project_gate transition-command-plan --state-dir project_state","phase":"gate","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["command_plan_generation"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":["project_state/gates/command_plan.json","project_state/gates/transition_command_plan_preview.json"],"produced_artifacts":["project_state/gates/command_plan.json","project_state/gates/transition_command_plan_preview.json"]},
-    {"command_id":"gate.transition_lint","command":"python -m reverse_agent.project_gate transition-lint --state-dir project_state","phase":"gate","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["authority_validation"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"gate.pre_execution","command":"python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre","phase":"gate","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["pre_execution_authorization"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":["project_state/gates/transition_preflight_result.json","project_state/gates/bootstrap_state.json"],"produced_artifacts":["project_state/gates/transition_preflight_result.json","project_state/gates/bootstrap_state.json"]},
-    {"command_id":"test.mainline_landing","command":"python -m pytest tests/test_mainline_landing.py -q","phase":"test","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["regression_test"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"test.integration_baseline","command":"python -m pytest tests/test_integration_baseline.py -q","phase":"test","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["regression_test"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"test.executor_neutral","command":"python -m pytest tests/executor_neutral -q","phase":"test","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["regression_test"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"test.transition_runtime","command":"python -m pytest tests/test_control_plane_transition.py -q","phase":"test","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["regression_test"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"test.project_gate","command":"python -m pytest tests/test_project_gate.py -q","phase":"test","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["regression_test"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"validation.integration_baseline","command":"python -m reverse_agent.project_gate integration-baseline --state-dir project_state","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"validation.production_pre_merge_simulation","command":"python -m pytest tests/test_mainline_landing.py -q -k production_pre_merge_simulation","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["regression_test","repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"validation.diff_check","command":"git diff --check origin/main..HEAD","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"validation.live_pr60_recovery","command":"python -m reverse_agent.project_gate pr60-historical-recovery --state-dir project_state --json","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"remote_observation","operations":["repository_observation","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"publication.push_branch","command":"git push origin codex/pr60-mainline-landing-repair-v2","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["push","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"publication.update_pr_body","command":"gh pr edit 67 --repo dddd2024/reverse-agent --body-file PR_BODY_TEMP_PATH","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["pull_request_edit","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"publication.comment_issue71","command":"gh issue comment 71 --repo dddd2024/reverse-agent --body-file ISSUE_COMMENT_TEMP_PATH","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["issue_comment","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"publication.comment_pr67","command":"gh pr comment 67 --repo dddd2024/reverse-agent --body-file PR_COMMENT_TEMP_PATH","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["pull_request_comment","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"observation.exact_head_checks","command":"gh pr checks 67 --repo dddd2024/reverse-agent --watch","phase":"observation","required":false,"expected_exit_codes":[0],"execution_surface":"remote_observation","operations":["repository_observation","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]}
+    {
+      "command_id": "observation.git_status",
+      "command": "git status --short",
+      "phase": "status",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "validation.diff_check",
+      "command": "git diff --check 16526801bda2a816fc707342f903c1ad037de9bd..HEAD",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["diff_validation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "test.pytest_codex_skills",
+      "command": "python -m pytest tests/test_codex_skills.py -q",
+      "phase": "test",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "test.pytest_integration_mainline_audits",
+      "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
+      "phase": "test",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "test.pytest_supervisor_hygiene",
+      "command": "python -m pytest tests/test_supervisor_validate.py tests/test_repository_hygiene.py -q",
+      "phase": "test",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "test.pytest_project_gate",
+      "command": "python -m pytest tests/test_project_gate.py -q",
+      "phase": "test",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "publication.push_branch",
+      "command": "git push origin agent/codex-supervisor-foundation-v0",
+      "phase": "publication",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["push", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "observation.pr93_checks",
+      "command": "gh pr checks 93 --repo dddd2024/reverse-agent --watch",
+      "phase": "observation",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "publication.issue95_comment",
+      "command": "gh issue comment 95 --repo dddd2024/reverse-agent --body-file -",
+      "phase": "publication",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["issue_comment", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "publication.issue92_comment",
+      "command": "gh issue comment 92 --repo dddd2024/reverse-agent --body-file -",
+      "phase": "publication",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["issue_comment", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "publication.pr93_comment",
+      "command": "gh pr comment 93 --repo dddd2024/reverse-agent --body-file -",
+      "phase": "publication",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["pr_comment", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    }
   ],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
+    ".github/workflows/ci.yml",
+    "tools/sync_codex_skills.ps1",
+    "tests/test_codex_skills.py",
+    "tests/test_mainline_landing.py",
+    "tests/test_project_gate.py",
     "project_state/mainline_merge_intents/active.json",
-    "tests/test_mainline_landing.py"
+    "project_state/mainline_merge_intents/archive/pr93_v10.json",
+    "docs/testing/legacy-full-suite-debt.md"
   ],
   "reference_paths": [
     "AGENTS.md",
+    "docs/supervisor/audit-result.schema.json",
+    "scripts/supervisor_context.py",
+    "scripts/supervisor_publish.py",
+    "scripts/supervisor_validate.py",
+    "tests/test_repository_hygiene.py",
+    "tests/test_supervisor_validate.py",
+    "project_state/decision_packet.md",
+    "project_state/audits/audit_20260629_rework_required_audit_inventory_gate.md",
+    "project_state/audits/audit_20260629_rework_required_clean_baseline_jobs_inventory_gate.md",
+    "project_state/audits/audit_20260701_rework_required_audit_readiness_packet.md",
+    "project_state/audits/audit_20260701_rework_required_current_handoff_packet_readiness_mismatch.md",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/project_audits.py",
+    "reverse_agent/mainline_landing.py",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/transition.py",
-    "tests/test_project_gate.py",
-    "tests/test_control_plane_transition.py",
-    "reverse_agent/project_gate.py",
-    "project_state/mainline_recoveries/pr60.json",
-    "project_state/integration_baselines/architecture_spine_v1.json",
-    "tests/test_integration_baseline.py",
-    "reverse_agent/mainline_landing.py",
-    "project_state/schemas/mainline_merge_intent.schema.json",
-    "project_state/mainline_recoveries/pr60.json",
-    "reverse_agent/github_remote_verifier.py",
+    ".codex-skills/registry.json",
     ".github/workflows/state-gate.yml",
-    ".github/workflows/ci.yml",
     ".github/workflows/decision-preflight.yml"
   ],
   "generated_artifact_paths": [
-    "project_state/gates/startup_snapshot.json",
     "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json"
   ],
   "forbidden_mutated_paths": [
-    "reverse_agent/**",
-    "reverse_agent/executor_neutral/**",
-    "tests/executor_neutral/**",
-    ".github/workflows/ci.yml",
-    ".github/workflows/decision-preflight.yml",
     ".github/workflows/state-gate.yml",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/project_gate.py",
+    ".github/workflows/decision-preflight.yml",
+    "reverse_agent/**",
     "project_state/schemas/**",
-    "project_state/mainline_recoveries/**",
-    "project_state/integration_baselines/**",
-    "reverse_agent/github_remote_verifier.py",
-    "reverse_agent/control_plane/path_a.py",
-    ".codex-skills/**",
-    "AGENTS.md",
-    "pyproject.toml",
-    "pytest.ini",
-    "setup.cfg",
     "project_state/rounds/**",
     "project_state/audits/**",
     "project_state/current_state.json",
     "project_state/state_manifest.json",
-    "project_state/artifact_index.json"
+    "project_state/artifactindex.json",
+    "AGENTS.md",
+    "pyproject.toml",
+    "docs/supervisor/audit-result.schema.json",
+    "docs/supervisor/audit-instructions.md",
+    "scripts/supervisor_context.py",
+    "scripts/supervisor_publish.py",
+    "scripts/supervisor_validate.py",
+    "tests/test_repository_hygiene.py",
+    "tests/test_supervisor_validate.py",
+    "tests/test_integration_baseline.py",
+    "tests/test_local_reverse_forced_ida_extract.py"
   ],
   "forbidden_operations": [
-    "apply v1 implementation files",
-    "create branch",
-    "create worktree",
-    "create pull request",
-    "revert PR #60",
-    "rewrite accepted head",
-    "rewrite merge commit",
-    "skip main State Gate",
-    "globally disable required_branch validation",
-    "fabricate pre-merge authorization for PR #60",
-    "generic bypass",
+    "shadow-audit generation or execution",
+    "generate v12 or any other audit version",
+    "read, parse, modify, rename, or publish v07 audit content",
+    "modify, rename, parse, or publish v08 audit file",
+    "invoke a second model or nested agent",
+    "live publication or apply_result",
+    "live generated Work Item publication",
+    "new branch",
+    "new issue",
+    "new pull request",
     "direct push to main",
+    "mark ready",
+    "merge",
+    "auto merge",
     "force push",
     "rebase",
     "squash",
-    "merge",
-    "mark_ready_for_review",
-    "auto_merge",
     "tag or release",
-    "workflow dispatch",
+    "deployment",
+    "credential access",
+    "nested model invocation",
     "runner dispatch",
     "unknown binary execution",
-    "model API invocation",
     "external reverse-tool invocation",
-    "PR #47 mutation",
-    "PR #49 mutation",
-    "implementation before PRE_EXECUTION_AUTHORIZED"
+    "modify paths outside the allowed implementation files and gate artifacts",
+    "delete or modify unknown ignored or untracked files",
+    "weaken validate_audits_dir or ignore malformed tracked audit records",
+    "skip xfail delete or weaken tests to manufacture green status",
+    "modify dedicated reverse-tool production code or reverse-tool tests",
+    "add frontend database workflow engine Spec Kit or specialized reverse tooling"
   ],
   "capability_policy": {
+    "runner_dispatch_allowed": false,
+    "model_api_invocation_allowed": false,
+    "external_reverse_tool_invocation_allowed": false,
+    "unknown_binary_execution_allowed": false,
+    "destructive_operations_allowed": false,
+    "bmad_installation_allowed": false,
+    "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
     "merge_allowed": false,
-    "mark_ready_allowed": false,
-    "auto_merge_allowed": false,
     "force_push_allowed": false,
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
-    "destructive_operations_allowed": false,
-    "unknown_binary_execution_allowed": false,
-    "model_api_invocation_allowed": false,
-    "external_reverse_tool_invocation_allowed": false,
-    "runner_dispatch_allowed": false,
-    "network_access_default_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
-      "git push origin codex/pr60-mainline-landing-repair-v2",
-      "gh pr edit 67 --repo dddd2024/reverse-agent --body-file PR_BODY_TEMP_PATH",
-      "gh issue comment 71 --repo dddd2024/reverse-agent --body-file ISSUE_COMMENT_TEMP_PATH",
-      "gh pr comment 67 --repo dddd2024/reverse-agent --body-file PR_COMMENT_TEMP_PATH",
-      "python -m reverse_agent.project_gate pr60-historical-recovery --state-dir project_state --json"
-    ]
+      "git push origin agent/codex-supervisor-foundation-v0",
+      "gh pr checks 93 --repo dddd2024/reverse-agent --watch",
+      "gh issue comment 95 --repo dddd2024/reverse-agent --body-file -",
+      "gh issue comment 92 --repo dddd2024/reverse-agent --body-file -",
+      "gh pr comment 93 --repo dddd2024/reverse-agent --body-file -"
+    ],
+    "ci_network_exceptions": []
   },
   "authorized_risk_tier": "R2",
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
     "project_state/gates/**",
     "project_state/mainline_merge_intents/active.json",
-    "tests/test_mainline_landing.py"
+    "project_state/mainline_merge_intents/archive/pr93_v10.json",
+    ".github/workflows/ci.yml",
+    "tools/sync_codex_skills.ps1",
+    "tests/test_codex_skills.py",
+    "tests/test_mainline_landing.py",
+    "tests/test_project_gate.py",
+    "docs/testing/legacy-full-suite-debt.md"
   ],
   "path_risk_floor": [
-    {"pattern":"project_state/decision_packet.md","minimum_risk":"R2"},
-    {"pattern":"project_state/gates/**","minimum_risk":"R2"},
-    {"pattern":"project_state/mainline_merge_intents/active.json","minimum_risk":"R2"},
-    {"pattern":"tests/test_mainline_landing.py","minimum_risk":"R1"}
-  ],
-  "scope_policy": {
-    "scope": "pr60-mainline-landing-repair-v2",
-    "implementation_risk_tier": "R2",
-    "governance_artifact_risk_tier": "R2",
-    "allow_product_source": false,
-    "allow_test_changes": true,
-    "allow_dependency_changes": false,
-    "allow_workflow_changes": false,
-    "allow_gate_runtime_changes": false,
-    "allow_path_a_changes": false,
-    "allow_new_branch_or_pr": false,
-    "allow_pr47_or_pr49_mutation": false
-  },
-  "landing_lanes": {
-    "future_normal_landing": {
-      "authority_input": "versioned MergeIntent committed in the exact accepted PR head plus independently published trusted approval attestation",
-      "validation": "direct two-parent Git validation on main with exact locked base, accepted head, merge method, repository and PR identity, Decision digest, Command Plan digest, canonical workflow policy, expiry and trusted remote approval",
-      "output": "post-merge MainlineIntegrationReceipt"
+    {
+      "pattern": "project_state/decision_packet.md",
+      "minimum_risk": "R2"
     },
-    "pr60_historical_recovery": {
-      "classification": "one-time post-facto closeout and audit operation, never retroactive pre-merge authorization or an ordinary future-main prerequisite",
-      "repository": "dddd2024/reverse-agent",
-      "source_pr": 60,
-      "exact_merge_commit": "68026521710c50fa9a70f3851472941605d9ead1",
-      "locked_base": "61570724495aa7053eba78bd2e34d8bda22f6407",
-      "accepted_head": "0ab750cf0ea49463d29577948becc768a6c176b8",
-      "merge_method": "merge",
-      "authorization_issue": 63,
-      "authorization_decision_id": "decision_20260727_pr60_final_merge_authorization_v1",
-      "authorization_branch": "codex/pr60-final-merge-authorization-v1",
-      "authorization_head": "7e2ef47b22d742fafc5a5e15808792cb62a2328a",
-      "accepted_audit_head": "0ab750cf0ea49463d29577948becc768a6c176b8"
+    {
+      "pattern": "project_state/gates/**",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "project_state/mainline_merge_intents/**",
+      "minimum_risk": "R2"
     }
-  },
-  "trusted_remote_evidence_policy": {
-    "fail_closed": true,
-    "github_token_required_on_main": true,
-    "repository_identity_required": "dddd2024/reverse-agent",
-    "canonical_workflow_policy_required": true,
-    "workflow_run_head_sha_binding_required": true,
-    "unique_run_id_and_logical_observation_required": true,
-    "pr_head_and_base_binding_required": true,
-    "allowed_approver_identity_required": true,
-    "approval_content_digest_required": true,
-    "malformed_or_missing_or_permission_denied_or_rate_limited_result": "REJECT"
-  },
-  "stop_conditions": [
-    "startup_state_mismatch",
-    "final_intent_binding_contract_cannot_be_preserved",
-    "trusted_remote_evidence_unavailable",
-    "transition_lint_failure",
-    "preflight_not_authorized",
-    "focused_tests_failure",
-    "regression_test_failure",
-    "diff_check_failure",
-    "scope_violation_detected",
-    "implementation_before_PRE_EXECUTION_AUTHORIZED",
-    "exact_head_CI_failure",
-    "exact_head_State_Gate_failure",
-    "exact_head_Decision_Preflight_failure",
-    "attempted_merge_mark_ready_auto_merge_tag_release_or_main_push",
-    "PR47_or_PR49_mutation",
-    "main_mutation",
-    "new_branch_or_PR_creation"
   ]
 }
 ```
 
-## DECISION_PACKET
+## Goal
 
-### Goal
+Establish scoped merge gates for PR #93 by adding `fetch-depth: 0` to CI checkout, fixing `tools/sync_codex_skills.ps1` for Linux dot-prefixed hidden directory access, defining required CI gate suites covering the reusable base-platform surfaces, documenting legacy reverse-tool test debt, archiving the v10 PR93 intent, and rebinding the active intent to the v11 Decision and command plan. Do not add reverse tooling, frontend, database, workflow engine, or Spec Kit.
 
-Authorize the bounded Issue #71 final MergeIntent rebind on the existing branch
-and Draft PR #67. Bind the accepted-head MergeIntent to the committed v5
-Decision and compiler-generated v5 Command Plan without changing production
-validation, workflows, schemas, Base64 verification, or historical recovery.
+## v10 CI failure dispositions
 
-### Authority and sequencing
+1. **PowerShell hidden-directory portability — 5 failures** in `tests/test_codex_skills.py`. Root cause: `Get-Item` cannot see `.codex-skills` on Linux without `-Force`. Fix: add `-Force` to `Get-Item` in `tools/sync_codex_skills.ps1`.
 
-This committed Decision is the v5 rebind authority commit. The
-compiler-generated Command Plan and successful `PRE_EXECUTION_AUTHORIZED` must
-be committed next. No MergeIntent or test mutation is authorized before that
-gate succeeds.
+2. **Shallow Git checkout — 6 failures** across `tests/test_integration_baseline.py` and `tests/test_mainline_landing.py`. Root cause: `fetch-depth: 1` omits historical git objects needed by baseline, PR60 recovery, and pre-merge simulation tests. Fix: set `fetch-depth: 0` in CI checkout.
 
-The fixed starting head is
-`aa67d7e7cf7d6cc14da66a5181829be49bacda93`. No MergeIntent or test change
-may precede this Decision and the regenerated successful preflight.
+3. **Dedicated reverse-tool tests — 4 failures** in `tests/test_local_reverse_forced_ida_extract.py`. Root cause: fixtures reference local Windows binaries and reverse-specific behavior outside the reusable base-platform scope. Fix: document as legacy debt in `docs/testing/legacy-full-suite-debt.md`; do not require them as merge gates.
 
-### Scope and non-retroactivity
+4. **PR93 simulation defect — 1 failure** in `test_production_pre_merge_simulation`. Root cause: shallow checkout lacks base object `16526801...`. Fix: resolved by `fetch-depth: 0`.
 
-Only the exact paths, commands, operations, network exceptions, and risk floors
-in the structured contract are authorized. After pre-execution authorization,
-the implementation scope is limited to
-`project_state/mainline_merge_intents/active.json` and
-`tests/test_mainline_landing.py`; compiler-owned Gate artifacts are generated
-authority only. The committed Intent must bind the raw committed v5 Decision
-and Command Plan blob SHA-256 values, preserve the canonical workflow and
-tree-equality policies, and use a bounded expiry no earlier than
-`2026-08-12T23:59:59Z`.
+## Acceptance boundary
 
-Production Python, workflows, schemas, the Base64 verifier, recovery records,
-integration baselines, dependencies, executor-neutral code, PR #47, PR #49,
-and `main` remain read-only. Tests must require all committed Intent checks to
-PASS and retain fail-closed coverage for stale and future authority mismatches.
-
-### Stop boundary
-
-This Decision authorizes updates only to the existing v2 branch and Draft PR
-#67. It does not authorize creating any branch or PR, nor
-authorize direct main mutation, mark-ready, merge, auto-merge, tag, release,
-workflow dispatch, history rewrite, mutation of PR #47/#49, or creation of merge
-authority. After one exact final head is pushed and configured workflows finish,
-stop for independent audit.
+The v11 scoped merge-gate repair is complete only when the Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is 18/18 PASS with `blocking_reasons=[]` before implementation; CI uses `fetch-depth: 0`; `sync_codex_skills.ps1` handles dot-prefixed directories on Linux; required CI gate suites cover focused, supervisor/hygiene, codex-skills, integration-baseline/mainline-landing/project-audit, and project-gate tests; the repository-wide diagnostic step is nonblocking and labelled as legacy debt with its failing node set recorded in `docs/testing/legacy-full-suite-debt.md`; the v10 active PR93 intent is archived verbatim as `project_state/mainline_merge_intents/archive/pr93_v10.json`; the new active intent binds the exact v11 Decision content SHA-256 and command-plan SHA-256 with `source_pr: 93`, locked base `16526801...`, merge method `merge`, canonical four workflows, and expiry no later than `2026-08-09T23:59:59Z`; all required suites pass in both the primary worktree and a clean detached worktree; `git diff --check 16526801bda2a816fc707342f903c1ad037de9bd..HEAD` passes; exact-head CI (all required scoped gates), Decision Preflight, State Gate push, and State Gate pull_request all succeed; PR #93 remains Open, Draft, and unmerged; no new branch, Issue, PR, or audit version is created. Success is `PR93_SCOPED_GATES_GREEN_AWAITING_OWNER_MERGE`. Any drift, scope conflict, Gate block, required-suite failure, or new non-legacy failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.

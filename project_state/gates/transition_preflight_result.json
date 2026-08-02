@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260729_pr67_final_intent_rebind_v5",
-  "round_id": "round_20260729_pr67_final_intent_rebind_v5",
+  "decision_id": "decision_20260802_issue95_scoped_merge_gate_repair_v11",
+  "round_id": "round_20260802_issue95_scoped_merge_gate_repair_v11",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260729_pr67_final_intent_rebind_v5 expected=decision_20260729_pr67_final_intent_rebind_v5"
+      "detail": "observed=decision_20260802_issue95_scoped_merge_gate_repair_v11 expected=decision_20260802_issue95_scoped_merge_gate_repair_v11"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260729_pr67_final_intent_rebind_v5 expected=round_20260729_pr67_final_intent_rebind_v5"
+      "detail": "observed=round_20260802_issue95_scoped_merge_gate_repair_v11 expected=round_20260802_issue95_scoped_merge_gate_repair_v11"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=codex/pr60-mainline-landing-repair-v2 expected=codex/pr60-mainline-landing-repair-v2"
+      "detail": "observed=agent/codex-supervisor-foundation-v0 expected=agent/codex-supervisor-foundation-v0"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=68026521710c50fa9a70f3851472941605d9ead1 merge_base=68026521710c50fa9a70f3851472941605d9ead1"
+      "detail": "base=16526801bda2a816fc707342f903c1ad037de9bd merge_base=16526801bda2a816fc707342f903c1ad037de9bd"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=cfa83a02a8917e6e6803089e6838805c2997e004"
+      "detail": "decision_commit=6db5657004a010df40f58edb0cf9a96857dfcecd"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260729_pr67_final_intent_rebind_v5/round_20260729_pr67_final_intent_rebind_v5"
+      "detail": "plan=decision_20260802_issue95_scoped_merge_gate_repair_v11/round_20260802_issue95_scoped_merge_gate_repair_v11"
     },
     {
       "name": "command_plan_contract",

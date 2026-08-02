@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audit-result.schema.json",
+  "title": "Codex Supervisor Audit Result v0.2 (fail-closed)",
+  "description": "Fail-closed audit result contract for the thin Codex Supervisor v0 (Issue #92 PR #93 rework). Strict: unknown fields are rejected, repository and audited_main_sha must match the expected values exactly, and requested_operations must be a subset of the closed whitelist.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "repository", "audited_main_sha", "status", "findings", "next_task"],
+  "properties": {
+    "schema_version": {"const": "0.2"},
+    "repository": {"type": "string", "minLength": 1, "maxLength": 100},
+    "audited_main_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "status": {"enum": ["continue", "revise", "stop"]},
+    "findings": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim", "evidence"],
+        "properties": {
+          "claim": {"type": "string", "minLength": 1, "maxLength": 1000},
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {"type": "string", "minLength": 1, "maxLength": 500}
+          }
+        }
+      }
+    },
+    "next_task": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["title", "goal", "allowed_scope", "forbidden_scope", "requested_operations", "acceptance_checks", "execution_prompt"],
+          "properties": {
+            "title": {"type": "string", "minLength": 1, "maxLength": 200},
+            "goal": {"type": "string", "minLength": 1, "maxLength": 1000},
+            "allowed_scope": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 50,
+              "items": {"type": "string", "minLength": 1, "maxLength": 500}
+            },
+            "forbidden_scope": {
+              "type": "array",
+              "maxItems": 50,
+              "items": {"type": "string", "minLength": 1, "maxLength": 500}
+            },
+            "requested_operations": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "items": {
+                "enum": [
+                  "read_repository",
+                  "edit_bounded_files",
+                  "run_checks",
+                  "push_named_branch",
+                  "create_or_update_draft_pr"
+                ]
+              }
+            },
+            "acceptance_checks": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 50,
+              "items": {"type": "string", "minLength": 1, "maxLength": 500}
+            },
+            "execution_prompt": {"type": "string", "minLength": 1, "maxLength": 8000}
+          }
+        }
+      ]
+    }
+  }
+}

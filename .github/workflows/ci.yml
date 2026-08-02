@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -30,3 +32,19 @@ jobs:
 
       - name: Focused tests
         run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py tests/test_control_plane_transition.py tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py -q
+
+      - name: Supervisor and repository hygiene tests
+        run: python -m pytest tests/test_supervisor_validate.py tests/test_repository_hygiene.py -q
+
+      - name: Codex skills sync tests
+        run: python -m pytest tests/test_codex_skills.py -q
+
+      - name: Integration baseline, mainline landing and project audit tests
+        run: python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q
+
+      - name: Project gate and workflow contract tests
+        run: python -m pytest tests/test_project_gate.py -q
+
+      - name: Repository-wide diagnostic (legacy debt, nonblocking)
+        continue-on-error: true
+        run: python -m pytest -q

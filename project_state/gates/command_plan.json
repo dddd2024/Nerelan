@@ -1,36 +1,10 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260729_pr67_final_intent_rebind_v5",
-  "round_id": "round_20260729_pr67_final_intent_rebind_v5",
+  "decision_id": "decision_20260802_issue95_scoped_merge_gate_repair_v11",
+  "round_id": "round_20260802_issue95_scoped_merge_gate_repair_v11",
   "commands": [
     {
-      "command_id": "gate.startup_snapshot",
-      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [
-        "project_state/gates/startup_snapshot.json"
-      ],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/gates/startup_snapshot.json"
-      ]
-    },
-    {
-      "command_id": "status.git_status",
+      "command_id": "observation.git_status",
       "command": "git status --short",
       "phase": "status",
       "required": true,
@@ -52,241 +26,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "gate.command_plan",
-      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "command_plan_generation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/transition_command_plan_preview.json"
-      ],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/transition_command_plan_preview.json"
-      ]
-    },
-    {
-      "command_id": "gate.transition_lint",
-      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "authority_validation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "gate.pre_execution",
-      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "pre_execution_authorization"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [
-        "project_state/gates/transition_preflight_result.json",
-        "project_state/gates/bootstrap_state.json"
-      ],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/gates/transition_preflight_result.json",
-        "project_state/gates/bootstrap_state.json"
-      ]
-    },
-    {
-      "command_id": "test.mainline_landing",
-      "command": "python -m pytest tests/test_mainline_landing.py -q",
-      "phase": "test",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "regression_test"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "test.integration_baseline",
-      "command": "python -m pytest tests/test_integration_baseline.py -q",
-      "phase": "test",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "regression_test"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "test.executor_neutral",
-      "command": "python -m pytest tests/executor_neutral -q",
-      "phase": "test",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "regression_test"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "test.transition_runtime",
-      "command": "python -m pytest tests/test_control_plane_transition.py -q",
-      "phase": "test",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "regression_test"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "test.project_gate",
-      "command": "python -m pytest tests/test_project_gate.py -q",
-      "phase": "test",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "regression_test"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "validation.integration_baseline",
-      "command": "python -m reverse_agent.project_gate integration-baseline --state-dir project_state",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "validation.production_pre_merge_simulation",
-      "command": "python -m pytest tests/test_mainline_landing.py -q -k production_pre_merge_simulation",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "regression_test",
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
       "command_id": "validation.diff_check",
-      "command": "git diff --check origin/main..HEAD",
+      "command": "git diff --check 16526801bda2a816fc707342f903c1ad037de9bd..HEAD",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -307,20 +48,85 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "validation.live_pr60_recovery",
-      "command": "python -m reverse_agent.project_gate pr60-historical-recovery --state-dir project_state --json",
-      "phase": "validation",
+      "command_id": "test.pytest_codex_skills",
+      "command": "python -m pytest tests/test_codex_skills.py -q",
+      "phase": "test",
       "required": true,
-      "required_evidence_source": "repository_state_attestation",
+      "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "remote_observation",
+      "execution_surface": "local",
       "operations": [
-        "repository_observation",
-        "network_access"
+        "run_checks"
       ],
-      "network_access": true,
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "test.pytest_integration_mainline_audits",
+      "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
+      "phase": "test",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "test.pytest_supervisor_hygiene",
+      "command": "python -m pytest tests/test_supervisor_validate.py tests/test_repository_hygiene.py -q",
+      "phase": "test",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "test.pytest_project_gate",
+      "command": "python -m pytest tests/test_project_gate.py -q",
+      "phase": "test",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
@@ -331,7 +137,7 @@
     },
     {
       "command_id": "publication.push_branch",
-      "command": "git push origin codex/pr60-mainline-landing-repair-v2",
+      "command": "git push origin agent/codex-supervisor-foundation-v0",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -353,9 +159,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.update_pr_body",
-      "command": "gh pr edit 67 --repo dddd2024/reverse-agent --body-file PR_BODY_TEMP_PATH",
-      "phase": "publication",
+      "command_id": "observation.pr93_checks",
+      "command": "gh pr checks 93 --repo dddd2024/reverse-agent --watch",
+      "phase": "observation",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
@@ -363,7 +169,7 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "pull_request_edit",
+        "repository_observation",
         "network_access"
       ],
       "network_access": true,
@@ -376,8 +182,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.comment_issue71",
-      "command": "gh issue comment 71 --repo dddd2024/reverse-agent --body-file ISSUE_COMMENT_TEMP_PATH",
+      "command_id": "publication.issue95_comment",
+      "command": "gh issue comment 95 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -399,8 +205,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.comment_pr67",
-      "command": "gh pr comment 67 --repo dddd2024/reverse-agent --body-file PR_COMMENT_TEMP_PATH",
+      "command_id": "publication.issue92_comment",
+      "command": "gh issue comment 92 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -409,7 +215,7 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "pull_request_comment",
+        "issue_comment",
         "network_access"
       ],
       "network_access": true,
@@ -422,17 +228,17 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.exact_head_checks",
-      "command": "gh pr checks 67 --repo dddd2024/reverse-agent --watch",
-      "phase": "observation",
+      "command_id": "publication.pr93_comment",
+      "command": "gh pr comment 93 --repo dddd2024/reverse-agent --body-file -",
+      "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "remote_observation",
+      "execution_surface": "local",
       "operations": [
-        "repository_observation",
+        "pr_comment",
         "network_access"
       ],
       "network_access": true,
@@ -440,6 +246,86 @@
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.python -m reverse_agent.project_gate startup-snapshot --state-di",
+      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.python -m reverse_agent.project_gate transition-command-plan --s",
+      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.python -m reverse_agent.project_gate transition-lint --state-dir",
+      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.python -m reverse_agent.project_gate transition-preflight --stat",
+      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": []
