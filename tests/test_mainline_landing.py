@@ -701,6 +701,8 @@ def test_production_pre_merge_simulation(tmp_path: Path) -> None:
         capture_output=True,
         text=True,
     )
+    _git(repo, "config", "user.email", "simulation@example.com")
+    _git(repo, "config", "user.name", "Simulation")
     head = _git(repo, "rev-parse", "HEAD")
     intent = json.loads(
         subprocess.check_output(
