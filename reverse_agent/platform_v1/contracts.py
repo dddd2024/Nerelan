@@ -24,6 +24,7 @@ MAX_ATTEMPTS = 2  # at most one bounded retry; the third attempt is rejected
 
 VALID_ACCEPTANCE_STATUSES = frozenset({
     "ACCEPTED",
+    "FIXTURE_VALIDATED",
     "REWORK_REQUIRED",
     "BLOCKED_APPROVAL",
     "FAILED_TERMINAL",
@@ -61,7 +62,10 @@ _BROAD_PATH_PATTERNS = frozenset({
     "*.*",
 })
 
-_SHA256_HEX_RE = re.compile(r"^[0-9a-f]{40}$")
+# Git commit SHAs are SHA-1 (40 hex chars).
+_SHA1_HEX_RE = re.compile(r"^[0-9a-f]{40}$")
+# SHA-256 digests are 64 hex chars (e.g. approved Issue body digest, Work Item digest).
+_SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 
 # CI workflow statuses that are NOT successful.
 _FAILED_CI_STATUSES = frozenset({
@@ -177,11 +181,11 @@ class PlatformWorkItem:
             raise ValueError("source_issue_number_must_be_positive_int")
         if not isinstance(self.repository, str) or "/" not in self.repository:
             raise ValueError(f"invalid_repository:{self.repository}")
-        if not isinstance(self.base_sha, str) or not _SHA256_HEX_RE.match(self.base_sha):
+        if not isinstance(self.base_sha, str) or not _SHA1_HEX_RE.match(self.base_sha):
             raise ValueError(f"invalid_base_sha:{self.base_sha}")
         if not isinstance(self.goal, str) or not self.goal.strip():
             raise ValueError("goal_must_be_non_empty_string")
-        if not isinstance(self.approved_issue_body_digest, str) or not _SHA256_HEX_RE.match(self.approved_issue_body_digest):
+        if not isinstance(self.approved_issue_body_digest, str) or not _SHA1_HEX_RE.match(self.approved_issue_body_digest):
             raise ValueError(f"invalid_approved_issue_body_digest:{self.approved_issue_body_digest}")
         if self.risk_tier not in VALID_RISK_TIERS:
             raise ValueError(f"invalid_risk_tier:{self.risk_tier}")
@@ -242,6 +246,16 @@ class PlatformWorkItem:
             "target_branch": self.target_branch,
             "approved_issue_body_digest": self.approved_issue_body_digest,
         }
+
+    def required_checks_as_workflows(self) -> tuple[str, ...]:
+        """Return required_checks as the canonical workflow name set.
+
+        F12: Required workflows come from the approved Work Item, not from
+        evidence. This method exposes ``required_checks`` as the workflow
+        name tuple used by the live acceptance path.
+        """
+
+        return self.required_checks
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any]) -> PlatformWorkItem:
@@ -325,9 +339,16 @@ class ExecutionEvidence:
     ``agent_completion_claim`` is recorded but never used to override Git
     or test failures.
 
+    F9: ``collection_mode`` and ``provenance`` can only be set to live/trusted
+    by the internal trusted collector factory (:meth:`create_live`). The
+    public :meth:`from_mapping` constructor always forces fixture/caller_asserted
+    regardless of what the caller supplies — a caller-asserted
+    ``collection_mode=live`` or trusted provenance can never become live evidence.
+
     ``collection_mode`` is ``"live"`` when evidence comes from real Git/GitHub
-    observation, or ``"fixture"`` when evidence is supplied from a test
-    fixture. Fixture evidence can never produce a live merge-ready result.
+    observation by the trusted collector, or ``"fixture"`` when evidence is
+    supplied from a test fixture or caller JSON. Fixture evidence can never
+    produce a live merge-ready result.
 
     ``provenance`` records the source of the evidence (e.g.,
     ``"trusted_git_github_collector"``, ``"caller_asserted"``).
@@ -353,9 +374,9 @@ class ExecutionEvidence:
             raise ValueError("execution_id_must_be_non_empty_string")
         if not isinstance(self.repository, str) or "/" not in self.repository:
             raise ValueError(f"invalid_repository:{self.repository}")
-        if not isinstance(self.base_sha, str) or not _SHA256_HEX_RE.match(self.base_sha):
+        if not isinstance(self.base_sha, str) or not _SHA1_HEX_RE.match(self.base_sha):
             raise ValueError(f"invalid_base_sha:{self.base_sha}")
-        if not isinstance(self.head_sha, str) or not _SHA256_HEX_RE.match(self.head_sha):
+        if not isinstance(self.head_sha, str) or not _SHA1_HEX_RE.match(self.head_sha):
             raise ValueError(f"invalid_head_sha:{self.head_sha}")
         if not isinstance(self.pr_number, int) or self.pr_number <= 0:
             raise ValueError(f"invalid_pr_number:{self.pr_number}")
@@ -378,9 +399,11 @@ class ExecutionEvidence:
     def ci_passed(self) -> bool:
         """True only when all required workflows report SUCCESS on the exact head.
 
-        Fail-closed for: missing required workflows, duplicate authoritative
-        workflows, and any non-SUCCESS status (PENDING, SKIPPED, CANCELLED,
-        UNKNOWN, FAILURE, TIMED_OUT, ACTION_REQUIRED, STALE, NEUTRAL).
+        F12: The observed workflow set must match the required set exactly —
+        no subset, no superset. Fail-closed for: missing required workflows,
+        duplicate authoritative workflows, extra unexpected workflows, and
+        any non-SUCCESS status (PENDING, SKIPPED, CANCELLED, UNKNOWN, FAILURE,
+        TIMED_OUT, ACTION_REQUIRED, STALE, NEUTRAL).
         """
 
         if not self.ci_checks or not self.required_workflows:
@@ -392,6 +415,11 @@ class ExecutionEvidence:
             if name in seen:
                 return False  # duplicate authoritative workflow
             seen.add(name)
+        # F12: observed set must match required set exactly (no subset)
+        observed_set = set(names)
+        required_set = set(self.required_workflows)
+        if observed_set != required_set:
+            return False  # subset or superset rejected
         # Check all required workflows are present and SUCCESS
         checks_by_name = {check.get("name", ""): check for check in self.ci_checks}
         for required in self.required_workflows:
@@ -406,9 +434,24 @@ class ExecutionEvidence:
 
     @property
     def is_live(self) -> bool:
-        """True only when evidence comes from live Git/GitHub observation."""
+        """True only when evidence comes from live Git/GitHub observation.
+
+        F9: This can only be True when the evidence was constructed by the
+        internal trusted collector factory (:meth:`create_live`). The public
+        :meth:`from_mapping` constructor always forces fixture mode.
+        """
 
         return self.collection_mode == "live"
+
+    @property
+    def live_ready(self) -> bool:
+        """True only when this evidence is live (not fixture).
+
+        F9: Fixture evidence is never live_ready, regardless of what the
+        caller asserted.
+        """
+
+        return self.is_live
 
     def validate_binding(self, work_item: PlatformWorkItem) -> None:
         """Validate that this evidence binds to the given Work Item.
@@ -435,8 +478,61 @@ class ExecutionEvidence:
                 f"evidence={self.base_sha} work_item={work_item.base_sha}",
             )
 
+    def validate_exact_binding(
+        self,
+        work_item: PlatformWorkItem,
+        *,
+        expected_head_sha: str,
+        expected_pr_number: int,
+        expected_branch: str,
+        authority_digest: str,
+    ) -> None:
+        """Validate exact binding for the live path (F11).
+
+        All parameters are mandatory — no optional defaults. Raises
+        ``EvidenceBindingError`` on any mismatch.
+        """
+
+        self.validate_binding(work_item)
+        if not expected_head_sha or not _SHA1_HEX_RE.match(expected_head_sha):
+            raise EvidenceBindingError("invalid_expected_head_sha", expected_head_sha)
+        if self.head_sha != expected_head_sha:
+            raise EvidenceBindingError(
+                "head_sha_mismatch",
+                f"evidence={self.head_sha} expected={expected_head_sha}",
+            )
+        if not isinstance(expected_pr_number, int) or expected_pr_number <= 0:
+            raise EvidenceBindingError("invalid_expected_pr_number", str(expected_pr_number))
+        if self.pr_number != expected_pr_number:
+            raise EvidenceBindingError(
+                "pr_number_mismatch",
+                f"evidence={self.pr_number} expected={expected_pr_number}",
+            )
+        if not expected_branch:
+            raise EvidenceBindingError("empty_expected_branch", "")
+        if work_item.target_branch != expected_branch:
+            raise EvidenceBindingError(
+                "branch_mismatch",
+                f"work_item={work_item.target_branch} expected={expected_branch}",
+            )
+        if not authority_digest or not _SHA256_HEX_RE.match(authority_digest):
+            raise EvidenceBindingError("invalid_authority_digest", authority_digest)
+        if work_item.digest != authority_digest:
+            raise EvidenceBindingError(
+                "authority_digest_mismatch",
+                f"work_item={work_item.digest} expected={authority_digest}",
+            )
+
     @classmethod
     def from_mapping(cls, data: dict[str, Any]) -> ExecutionEvidence:
+        """Build evidence from a dict (e.g. parsed from stdin JSON).
+
+        F9: Caller-supplied ``collection_mode`` and ``provenance`` are always
+        ignored — the result is always ``collection_mode=fixture`` and
+        ``provenance=caller_asserted``. Only the internal :meth:`create_live`
+        factory can produce live evidence.
+        """
+
         return cls(
             execution_id=str(data["execution_id"]),
             repository=str(data.get("repository", "")),
@@ -450,8 +546,50 @@ class ExecutionEvidence:
             agent_completion_claim=str(data.get("agent_completion_claim", "")),
             ci_checks=tuple(data.get("ci_checks", ())),
             collected_at=str(data.get("collected_at", "")),
-            collection_mode=str(data.get("collection_mode", "fixture")),
-            provenance=str(data.get("provenance", "caller_asserted")),
+            # F9: always fixture — ignore caller-supplied labels
+            collection_mode="fixture",
+            provenance="caller_asserted",
+        )
+
+    @classmethod
+    def create_live(
+        cls,
+        *,
+        execution_id: str,
+        repository: str,
+        base_sha: str,
+        head_sha: str,
+        pr_number: int,
+        required_workflows: tuple[str, ...],
+        changed_paths: tuple[str, ...] = (),
+        test_results: dict[str, Any] | None = None,
+        git_diff_check_passed: bool = False,
+        agent_completion_claim: str = "",
+        ci_checks: tuple[dict[str, Any], ...] = (),
+        collected_at: str = "",
+    ) -> ExecutionEvidence:
+        """Create live evidence — only callable by the trusted collector.
+
+        F9: This is the sole factory that can produce ``collection_mode=live``
+        and ``provenance=trusted_git_github_collector``. It is never called from
+        :meth:`from_mapping` or from CLI stdin parsing.
+        """
+
+        return cls(
+            execution_id=execution_id,
+            repository=repository,
+            base_sha=base_sha,
+            head_sha=head_sha,
+            pr_number=pr_number,
+            required_workflows=required_workflows,
+            changed_paths=changed_paths,
+            test_results=test_results or {},
+            git_diff_check_passed=git_diff_check_passed,
+            agent_completion_claim=agent_completion_claim,
+            ci_checks=ci_checks,
+            collected_at=collected_at,
+            collection_mode="live",
+            provenance="trusted_git_github_collector",
         )
 
 
@@ -461,8 +599,9 @@ class PlatformAcceptanceResult:
 
     Status must be one of ``VALID_ACCEPTANCE_STATUSES``. ``reasons`` explains
     the decision. ``evidence`` is the evidence the decision was based on.
-    ``live_ready`` is True only when the result is ACCEPTED and the evidence
-    was collected in live mode (not fixture).
+    ``live_ready`` is True only when the result is ACCEPTED with live-mode
+    evidence. Fixture evidence that passes all checks returns
+    ``FIXTURE_VALIDATED`` — never ``ACCEPTED`` or ``live_ready: True``.
     """
 
     execution_id: str
@@ -477,11 +616,16 @@ class PlatformAcceptanceResult:
 
     @property
     def accepted(self) -> bool:
+        """True only for live ACCEPTED — never for FIXTURE_VALIDATED."""
+
         return self.status == "ACCEPTED"
 
     @property
     def live_ready(self) -> bool:
-        """True only when ACCEPTED with live-mode evidence."""
+        """True only when ACCEPTED with live-mode evidence.
+
+        F9: FIXTURE_VALIDATED is never live_ready, even if all checks pass.
+        """
 
         return self.accepted and self.evidence is not None and self.evidence.is_live
 

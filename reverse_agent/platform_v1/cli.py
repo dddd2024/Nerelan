@@ -5,8 +5,22 @@ Exit codes:
   10 — schema/validation error
   20 — policy violation
   30 — backend/publication error
-  40 — acceptance failed (REWORK_REQUIRED)
+  40 — acceptance rework required (REWORK_REQUIRED)
+  41 — fixture validated (FIXTURE_VALIDATED — not live-ready)
   50 — acceptance blocked (BLOCKED_APPROVAL / FAILED_TERMINAL)
+  60 — live collection error (Git/GitHub/test failure)
+
+F10: The ``evaluate-acceptance`` command processes fixture evidence only and
+returns ``FIXTURE_VALIDATED`` (exit 41) when all checks pass — never
+``ACCEPTED`` or the live-success exit code. The separate
+``evaluate-live-acceptance`` command collects trusted facts itself through
+injectable adapters and does not accept a raw evidence object.
+
+F11: The live path requires mandatory exact binding (repository, base SHA,
+exact head SHA, PR number, target branch, authority digest, required
+workflows) — no optional defaults.
+
+F12: Required workflows come from the approved Work Item, not from evidence.
 """
 
 from __future__ import annotations
@@ -22,6 +36,8 @@ from .contracts import (
     PlatformAcceptanceResult,
     PlatformWorkItem,
 )
+from .evidence_adapter import EvidenceCollectionError
+from .github_adapter import GitHubAdapterError
 
 
 def _print_json(data: dict[str, Any]) -> None:
@@ -148,21 +164,135 @@ def cmd_ingest_events(args: Sequence[str]) -> int:
 
 
 def cmd_evaluate_acceptance(args: Sequence[str]) -> int:
-    """Evaluate acceptance from binding and evidence."""
+    """Evaluate acceptance from binding and fixture evidence.
+
+    F10: This command processes fixture evidence only. ``from_mapping`` forces
+    ``collection_mode=fixture`` and ``provenance=caller_asserted`` regardless
+    of caller-supplied labels. When all checks pass, the result is
+    ``FIXTURE_VALIDATED`` (exit 41) — never ``ACCEPTED`` or the live-success
+    exit code.
+
+    For live acceptance, use ``evaluate-live-acceptance`` instead.
+    """
 
     try:
         data = _read_stdin_json()
         work_item = PlatformWorkItem.from_mapping(data["work_item"])
         attempt = int(data.get("attempt", 1))
         binding = ExecutionBinding(work_item=work_item, attempt=attempt)
+        # F9: from_mapping always forces fixture/caller_asserted
         evidence = ExecutionEvidence.from_mapping(data["evidence"])
+        result = acceptance.evaluate_acceptance(binding, evidence)
+        _print_json(result.to_mapping())
+        if result.status == "ACCEPTED":
+            return 0
+        if result.status == "FIXTURE_VALIDATED":
+            return 41
+        if result.status == "REWORK_REQUIRED":
+            return 40
+        return 50  # BLOCKED_APPROVAL or FAILED_TERMINAL
+    except policy_adapter.PolicyViolation as exc:
+        _print_json({"status": "POLICY_VIOLATION", "code": exc.code, "detail": exc.detail})
+        return 20
+    except (ValueError, KeyError, json.JSONDecodeError) as exc:
+        _print_json({"status": "SCHEMA_ERROR", "error": str(exc)})
+        return 10
+
+
+def cmd_evaluate_live_acceptance(args: Sequence[str]) -> int:
+    """Evaluate live acceptance by collecting trusted facts.
+
+    F10: This command does NOT accept a raw evidence object. It receives only
+    execution targets (work item, PR number, expected head SHA, etc.) and
+    collects trusted facts itself through injectable adapters.
+
+    F11: All binding parameters are mandatory — no optional defaults.
+
+    F12: Required workflows come from the Work Item, not from the caller.
+
+    The ``--adapters`` argument optionally accepts a JSON file path for
+    test-injected adapters (not used in production).
+    """
+
+    try:
+        data = _read_stdin_json()
+        work_item = PlatformWorkItem.from_mapping(data["work_item"])
+        # F12: required workflows come from the Work Item, NOT from evidence
+        required_workflows = work_item.required_checks_as_workflows()
+        pr_number = int(data["pr_number"])
+        expected_head_sha = str(data["expected_head_sha"])
+        expected_branch = str(data.get("expected_branch", work_item.target_branch))
+        authority_digest = str(data.get("authority_digest", work_item.digest))
+        repo_dir = str(data.get("repo_dir", "."))
+        test_command = str(data.get("test_command", ""))
+        agent_completion_claim = str(data.get("agent_completion_claim", ""))
+
+        # F11: mandatory exact binding — all fields required
+        if not pr_number or pr_number <= 0:
+            _print_json({"status": "SCHEMA_ERROR", "error": "pr_number_required"})
+            return 10
+        if not expected_head_sha:
+            _print_json({"status": "SCHEMA_ERROR", "error": "expected_head_sha_required"})
+            return 10
+        if not expected_branch:
+            _print_json({"status": "SCHEMA_ERROR", "error": "expected_branch_required"})
+            return 10
+        if not authority_digest:
+            _print_json({"status": "SCHEMA_ERROR", "error": "authority_digest_required"})
+            return 10
+
+        # Collect live evidence through injectable adapters
+        try:
+            evidence = evidence_adapter.collect_live_evidence(
+                execution_id=work_item.execution_id,
+                repository=work_item.repository,
+                base_sha=work_item.base_sha,
+                expected_head_sha=expected_head_sha,
+                pr_number=pr_number,
+                required_workflows=required_workflows,
+                expected_branch=expected_branch,
+                authority_digest=authority_digest,
+                work_item=work_item,
+                git_adapter=evidence_adapter.LiveGitAdapter(repo_dir),
+                github_adapter=None,  # uses LiveGitHubAdapter
+                test_command_runner=evidence_adapter.LiveCommandRunner(repo_dir) if test_command else None,
+                test_command=test_command,
+                agent_completion_claim=agent_completion_claim,
+            )
+        except EvidenceCollectionError as exc:
+            _print_json({"status": "LIVE_COLLECTION_ERROR", "code": exc.code, "detail": exc.detail})
+            return 60
+        except GitHubAdapterError as exc:
+            _print_json({"status": "LIVE_COLLECTION_ERROR", "code": exc.code, "detail": exc.detail})
+            return 60
+
+        # F11: validate exact binding
+        try:
+            evidence.validate_exact_binding(
+                work_item,
+                expected_head_sha=expected_head_sha,
+                expected_pr_number=pr_number,
+                expected_branch=expected_branch,
+                authority_digest=authority_digest,
+            )
+        except Exception as exc:
+            _print_json({"status": "BINDING_ERROR", "error": str(exc)})
+            return 50
+
+        # Evaluate acceptance
+        binding = ExecutionBinding(
+            work_item=work_item,
+            attempt=int(data.get("attempt", 1)),
+            expected_head_sha=expected_head_sha,
+            expected_pr_number=pr_number,
+        )
         result = acceptance.evaluate_acceptance(binding, evidence)
         _print_json(result.to_mapping())
         if result.status == "ACCEPTED":
             return 0
         if result.status == "REWORK_REQUIRED":
             return 40
-        return 50  # BLOCKED_APPROVAL or FAILED_TERMINAL
+        return 50
     except policy_adapter.PolicyViolation as exc:
         _print_json({"status": "POLICY_VIOLATION", "code": exc.code, "detail": exc.detail})
         return 20
@@ -181,6 +311,7 @@ _COMMANDS = {
     "generate-prompt": cmd_generate_prompt,
     "ingest-events": cmd_ingest_events,
     "evaluate-acceptance": cmd_evaluate_acceptance,
+    "evaluate-live-acceptance": cmd_evaluate_live_acceptance,
 }
 
 

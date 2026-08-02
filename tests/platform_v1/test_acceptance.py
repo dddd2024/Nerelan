@@ -81,9 +81,20 @@ def _make_evidence(work_item: PlatformWorkItem, **overrides) -> ExecutionEvidenc
 # ---------------------------------------------------------------------------
 
 class TestEvaluateAcceptance:
-    def test_all_pass_returns_accepted(self) -> None:
+    def test_all_pass_fixture_returns_fixture_validated(self) -> None:
+        # F9: fixture evidence returns FIXTURE_VALIDATED, not ACCEPTED
         binding = ExecutionBinding(work_item=_make_work_item())
         evidence = _make_evidence(binding.work_item)
+        result = evaluate_acceptance(binding, evidence)
+        assert result.status == "FIXTURE_VALIDATED"
+        assert "all_checks_passed_fixture" in result.reasons
+        assert result.accepted is False
+        assert result.live_ready is False
+
+    def test_all_pass_live_returns_accepted(self) -> None:
+        # F9: only live evidence returns ACCEPTED
+        binding = ExecutionBinding(work_item=_make_work_item())
+        evidence = _make_evidence(binding.work_item, collection_mode="live")
         result = evaluate_acceptance(binding, evidence)
         assert result.status == "ACCEPTED"
         assert "all_checks_passed" in result.reasons
@@ -259,13 +270,14 @@ class TestAgentClaimCannotOverride:
         assert "git_diff_check_failed" in result.reasons
 
     def test_agent_claim_preserved_in_evidence_when_all_pass(self) -> None:
+        # F9: fixture evidence returns FIXTURE_VALIDATED; agent claim is preserved
         binding = ExecutionBinding(work_item=_make_work_item())
         evidence = _make_evidence(
             binding.work_item,
             agent_completion_claim="Done.",
         )
         result = evaluate_acceptance(binding, evidence)
-        assert result.status == "ACCEPTED"
+        assert result.status == "FIXTURE_VALIDATED"
         assert result.evidence.agent_completion_claim == "Done."
 
 
@@ -274,16 +286,20 @@ class TestAgentClaimCannotOverride:
 # ---------------------------------------------------------------------------
 
 class TestLiveReady:
-    """live_ready is True only when ACCEPTED with live-mode evidence."""
+    """live_ready is True only when ACCEPTED with live-mode evidence.
 
-    def test_fixture_evidence_accepted_but_not_live_ready(self) -> None:
+    F9: Fixture evidence returns FIXTURE_VALIDATED (never ACCEPTED), and is
+    never live_ready — even if all checks pass.
+    """
+
+    def test_fixture_evidence_returns_fixture_validated_not_live_ready(self) -> None:
         binding = ExecutionBinding(work_item=_make_work_item())
         evidence = _make_evidence(
             binding.work_item,
             collection_mode="fixture",
         )
         result = evaluate_acceptance(binding, evidence)
-        assert result.status == "ACCEPTED"
+        assert result.status == "FIXTURE_VALIDATED"
         assert result.live_ready is False
 
     def test_live_evidence_accepted_and_live_ready(self) -> None:
@@ -323,9 +339,23 @@ class TestLiveReady:
 # ---------------------------------------------------------------------------
 
 class TestCanRetry:
+    """F16: Only REWORK_REQUIRED with attempts remaining can retry.
+
+    BLOCKED_APPROVAL, FAILED_TERMINAL, ACCEPTED, and FIXTURE_VALIDATED are
+    never retryable.
+    """
+
     def test_accepted_cannot_retry(self) -> None:
         binding = ExecutionBinding(work_item=_make_work_item())
+        evidence = _make_evidence(binding.work_item, collection_mode="live")
+        result = evaluate_acceptance(binding, evidence)
+        assert result.status == "ACCEPTED"
+        assert can_retry(result, binding) is False
+
+    def test_fixture_validated_cannot_retry(self) -> None:
+        binding = ExecutionBinding(work_item=_make_work_item())
         result = evaluate_acceptance(binding, _make_evidence(binding.work_item))
+        assert result.status == "FIXTURE_VALIDATED"
         assert can_retry(result, binding) is False
 
     def test_failed_terminal_cannot_retry(self) -> None:
@@ -350,13 +380,13 @@ class TestCanRetry:
         assert result.status == "REWORK_REQUIRED"
         assert can_retry(result, binding) is False
 
-    def test_blocked_approval_R2_can_retry(self) -> None:
-        # BLOCKED_APPROVAL may allow a retry if attempts remain.
+    def test_blocked_approval_R2_cannot_retry(self) -> None:
+        # F16: BLOCKED_APPROVAL is never retryable, even with attempts remaining
         binding = ExecutionBinding(work_item=_make_work_item(risk_tier="R2"), attempt=1)
         evidence = _make_evidence(binding.work_item)
         result = evaluate_acceptance(binding, evidence)
         assert result.status == "BLOCKED_APPROVAL"
-        assert can_retry(result, binding) is True
+        assert can_retry(result, binding) is False
 
     def test_blocked_approval_R2_cannot_retry_at_max_attempts(self) -> None:
         binding = ExecutionBinding(work_item=_make_work_item(risk_tier="R2"), attempt=2)

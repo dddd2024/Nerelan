@@ -288,20 +288,35 @@ class TestEvaluateAcceptanceCmd:
             "evidence": evidence,
         }
 
-    def test_all_pass_returns_zero(self) -> None:
+    def test_all_pass_fixture_returns_41(self) -> None:
+        # F9: fixture evidence returns FIXTURE_VALIDATED (exit 41), not ACCEPTED (exit 0)
         code, out = _run_cli(["evaluate-acceptance"], json.dumps(self._payload()))
-        assert code == 0
-        assert out["status"] == "ACCEPTED"
-        assert out["live_ready"] is False  # fixture evidence
+        assert code == 41
+        assert out["status"] == "FIXTURE_VALIDATED"
+        assert out["live_ready"] is False
 
-    def test_all_pass_live_returns_zero_and_live_ready(self) -> None:
+    def test_stdin_collection_mode_live_still_returns_fixture(self) -> None:
+        # F9: stdin collection_mode=live cannot produce live_ready
         code, out = _run_cli(
             ["evaluate-acceptance"],
             json.dumps(self._payload(evidence_overrides={"collection_mode": "live"})),
         )
-        assert code == 0
-        assert out["status"] == "ACCEPTED"
-        assert out["live_ready"] is True
+        assert code == 41
+        assert out["status"] == "FIXTURE_VALIDATED"
+        assert out["live_ready"] is False
+
+    def test_stdin_trusted_provenance_still_returns_fixture(self) -> None:
+        # F9: stdin trusted provenance cannot produce live_ready
+        code, out = _run_cli(
+            ["evaluate-acceptance"],
+            json.dumps(self._payload(evidence_overrides={
+                "collection_mode": "live",
+                "provenance": "trusted_git_github_collector",
+            })),
+        )
+        assert code == 41
+        assert out["status"] == "FIXTURE_VALIDATED"
+        assert out["live_ready"] is False
 
     def test_tests_failed_returns_40(self) -> None:
         payload = self._payload(evidence_overrides={"test_results": {"passed": False}})
@@ -355,6 +370,91 @@ class TestEvaluateAcceptanceCmd:
         code, out = _run_cli(["evaluate-acceptance"], json.dumps(payload))
         assert code == 40
         assert any("agent_claim_ignored" in r for r in out["reasons"])
+
+
+# ---------------------------------------------------------------------------
+# evaluate-live-acceptance (F10/F11)
+# ---------------------------------------------------------------------------
+
+class TestEvaluateLiveAcceptanceCmd:
+    """F10: The live path does NOT accept a raw evidence object.
+    F11: All binding parameters are mandatory.
+    """
+
+    def _live_payload(self, **overrides) -> dict:
+        work_item = _valid_work_item_payload()
+        payload = {
+            "work_item": work_item,
+            "pr_number": 97,
+            "expected_head_sha": VALID_HEAD_SHA,
+            "expected_branch": "agent/platform-v1-openhands-codex-acp",
+            "authority_digest": PlatformWorkItem.from_mapping(work_item).digest,
+            "repo_dir": ".",
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_missing_pr_number_returns_schema_error(self) -> None:
+        payload = self._live_payload()
+        del payload["pr_number"]
+        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
+        assert code == 10
+        assert out["status"] == "SCHEMA_ERROR"
+
+    def test_zero_pr_number_returns_schema_error(self) -> None:
+        payload = self._live_payload(pr_number=0)
+        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
+        assert code == 10
+        assert out["status"] == "SCHEMA_ERROR"
+        assert "pr_number_required" in out.get("error", "")
+
+    def test_missing_expected_head_sha_returns_schema_error(self) -> None:
+        payload = self._live_payload()
+        del payload["expected_head_sha"]
+        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
+        assert code == 10
+        assert out["status"] == "SCHEMA_ERROR"
+
+    def test_empty_expected_head_sha_returns_schema_error(self) -> None:
+        payload = self._live_payload(expected_head_sha="")
+        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
+        assert code == 10
+        assert out["status"] == "SCHEMA_ERROR"
+        assert "expected_head_sha_required" in out.get("error", "")
+
+    def test_missing_expected_branch_returns_schema_error(self) -> None:
+        payload = self._live_payload(expected_branch="")
+        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
+        assert code == 10
+        assert out["status"] == "SCHEMA_ERROR"
+        assert "expected_branch_required" in out.get("error", "")
+
+    def test_missing_authority_digest_returns_schema_error(self) -> None:
+        payload = self._live_payload(authority_digest="")
+        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
+        assert code == 10
+        assert out["status"] == "SCHEMA_ERROR"
+        assert "authority_digest_required" in out.get("error", "")
+
+    def test_raw_evidence_object_not_accepted(self) -> None:
+        # F10: The live path must not accept a raw evidence object.
+        # Even if the caller provides an "evidence" key with all-success
+        # values and collection_mode=live, the command must NOT return
+        # ACCEPTED. It collects its own evidence through LiveGitAdapter.
+        payload = self._live_payload()
+        payload["evidence"] = {
+            "execution_id": "exec-forged",
+            "collection_mode": "live",
+            "provenance": "trusted_git_github_collector",
+            "test_results": {"passed": True},
+            "ci_checks": [{"name": "CI", "conclusion": "SUCCESS"}],
+            "git_diff_check_passed": True,
+        }
+        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
+        # The command must NOT return 0 (ACCEPTED) — it ignores the evidence
+        # key and tries to collect real evidence, which fails in test env.
+        assert code != 0
+        assert out.get("status") != "ACCEPTED"
 
 
 # ---------------------------------------------------------------------------

@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "intent_id": "platform_v1_live_evidence_boundary_v3_pr97",
+  "intent_id": "platform_v1_trust_binding_rework_v2_pr97",
   "repository": "dddd2024/reverse-agent",
   "source_pr": 97,
   "locked_base_sha": "705a0bfd6638d51c688752f154433020225c4e99",
   "allowed_merge_method": "merge",
   "decision_identity": {
-    "decision_id": "decision_20260802_issue99_platform_v1_live_evidence_boundary_v3",
-    "decision_content_sha256": "17c8dca6605caf71b13da2efd0e3cfd3fa84d8def0dd39bf8bb17b5ada9b54ad"
+    "decision_id": "decision_20260802_issue98_platform_v1_trust_binding_rework_v2",
+    "decision_content_sha256": "f0c45ea2e8456766f5aca6e206dcd5fc4b70e57e45d8455526470cc6c65fd2d0"
   },
-  "command_plan_sha256": "0c2e448f0c77b5c1e7f60355ba3f932bd77a61e40f8f3681bee24332bf1a1228",
+  "command_plan_sha256": "fc458ada97190d14bc4d13953cf9c6ddb47a6a4b888e073b1e5e65c1475aa806",
   "merge_tree_policy": "equal_to_accepted_head_tree",
   "required_workflows": [
     "CI",

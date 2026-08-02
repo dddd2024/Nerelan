@@ -5,9 +5,12 @@ The accepter evaluates ``ExecutionEvidence`` and returns a
 to override Git or test failures.
 
 R2/R3 risk tiers return ``BLOCKED_APPROVAL`` before any backend invocation
-or evidence evaluation. Fixture evidence can produce ``ACCEPTED`` for
-testing but ``live_ready`` remains False — fixture evidence can never
-produce a live merge-ready result.
+or evidence evaluation.
+
+F9: Fixture evidence (from ``from_mapping`` or stdin) that passes all checks
+returns ``FIXTURE_VALIDATED`` — never ``ACCEPTED``, never ``live_ready: True``,
+never the live-success exit code. Only the trusted live collector path can
+return ``ACCEPTED`` with ``live_ready: True``.
 """
 
 from __future__ import annotations
@@ -40,7 +43,7 @@ def evaluate_acceptance(
     4. Git diff check — if failed, REWORK_REQUIRED.
     5. Tests — if failed, REWORK_REQUIRED (agent claim cannot override).
     6. CI checks — if failed, REWORK_REQUIRED (agent claim cannot override).
-    7. All pass — ACCEPTED (``live_ready`` depends on evidence collection_mode).
+    7. All pass — FIXTURE_VALIDATED for fixture evidence; ACCEPTED for live evidence.
     """
 
     execution_id = binding.execution_id
@@ -145,23 +148,36 @@ def evaluate_acceptance(
             evidence=evidence,
         )
 
-    # 7. All pass — ACCEPTED
-    # live_ready is derived from evidence.is_live
+    # 7. All pass — F9: fixture evidence returns FIXTURE_VALIDATED, not ACCEPTED.
+    #    Only live evidence (from the trusted collector) returns ACCEPTED.
+    if evidence.is_live:
+        return PlatformAcceptanceResult(
+            execution_id=execution_id,
+            status="ACCEPTED",
+            reasons=("all_checks_passed",),
+            evidence=evidence,
+        )
     return PlatformAcceptanceResult(
         execution_id=execution_id,
-        status="ACCEPTED",
-        reasons=("all_checks_passed",),
+        status="FIXTURE_VALIDATED",
+        reasons=("all_checks_passed_fixture",),
         evidence=evidence,
     )
 
 
 def can_retry(result: PlatformAcceptanceResult, binding: ExecutionBinding) -> bool:
-    """Return True if the result allows a bounded retry."""
+    """Return True if the result allows a bounded retry.
 
-    if result.status == "ACCEPTED":
+    F16: ``BLOCKED_APPROVAL``, ``FAILED_TERMINAL``, and ``ACCEPTED`` are never
+    retryable. Only ``REWORK_REQUIRED`` with attempts remaining allows one
+    bounded retry. ``FIXTURE_VALIDATED`` is not retryable (it is a success
+    for fixture purposes).
+    """
+
+    if result.status in ("ACCEPTED", "FIXTURE_VALIDATED"):
         return False
-    if result.status == "FAILED_TERMINAL":
+    if result.status in ("BLOCKED_APPROVAL", "FAILED_TERMINAL"):
         return False
-    # REWORK_REQUIRED and BLOCKED_APPROVAL may allow a retry if attempts remain
+    # Only REWORK_REQUIRED with attempts remaining
     from .contracts import MAX_ATTEMPTS
     return binding.attempt < MAX_ATTEMPTS

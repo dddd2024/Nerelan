@@ -648,3 +648,295 @@ class TestPlatformAcceptanceResult:
         for status in VALID_ACCEPTANCE_STATUSES:
             result = PlatformAcceptanceResult(execution_id="exec-1", status=status)
             assert result.status == status
+
+
+# ---------------------------------------------------------------------------
+# F9: Fixture/Live evidence boundary
+# ---------------------------------------------------------------------------
+
+class TestFixtureLiveBoundary:
+    """F9: from_mapping always forces fixture/caller_asserted.
+
+    Even if the caller supplies collection_mode=live or trusted provenance,
+    the result is always fixture. Only create_live can produce live evidence.
+    """
+
+    def test_from_mapping_forces_fixture_even_when_caller_supplies_live(self) -> None:
+        data = {
+            "execution_id": "exec-1",
+            "repository": "dddd2024/reverse-agent",
+            "base_sha": VALID_BASE_SHA,
+            "head_sha": VALID_HEAD_SHA,
+            "pr_number": 97,
+            "required_workflows": ["CI"],
+            "collection_mode": "live",
+            "provenance": "trusted_git_github_collector",
+        }
+        evidence = ExecutionEvidence.from_mapping(data)
+        assert evidence.collection_mode == "fixture"
+        assert evidence.provenance == "caller_asserted"
+        assert evidence.is_live is False
+        assert evidence.live_ready is False
+
+    def test_from_mapping_forces_caller_asserted_even_with_trusted_provenance(self) -> None:
+        data = {
+            "execution_id": "exec-1",
+            "repository": "dddd2024/reverse-agent",
+            "base_sha": VALID_BASE_SHA,
+            "head_sha": VALID_HEAD_SHA,
+            "pr_number": 97,
+            "required_workflows": ["CI"],
+            "provenance": "trusted_git_github_collector",
+        }
+        evidence = ExecutionEvidence.from_mapping(data)
+        assert evidence.provenance == "caller_asserted"
+        assert evidence.is_live is False
+
+    def test_create_live_produces_live_evidence(self) -> None:
+        evidence = ExecutionEvidence.create_live(
+            execution_id="exec-1",
+            repository="dddd2024/reverse-agent",
+            base_sha=VALID_BASE_SHA,
+            head_sha=VALID_HEAD_SHA,
+            pr_number=97,
+            required_workflows=("CI",),
+        )
+        assert evidence.collection_mode == "live"
+        assert evidence.provenance == "trusted_git_github_collector"
+        assert evidence.is_live is True
+        assert evidence.live_ready is True
+
+    def test_fixture_evidence_live_ready_is_false(self) -> None:
+        evidence = _make_evidence(collection_mode="fixture")
+        assert evidence.live_ready is False
+        assert evidence.is_live is False
+
+    def test_live_evidence_live_ready_is_true(self) -> None:
+        evidence = _make_evidence(collection_mode="live")
+        assert evidence.live_ready is True
+        assert evidence.is_live is True
+
+
+# ---------------------------------------------------------------------------
+# F12: Required workflow set must match exactly (no subset)
+# ---------------------------------------------------------------------------
+
+class TestRequiredWorkflowSetMatching:
+    """F12: The observed workflow set must match the required set exactly.
+
+    A subset of required workflows is rejected. A superset is also rejected.
+    """
+
+    def test_workflow_subset_rejected(self) -> None:
+        # Required: CI + Decision Preflight; Observed: only CI
+        evidence = _make_evidence(
+            required_workflows=("CI", "Decision Preflight"),
+            ci_checks=({"name": "CI", "conclusion": "SUCCESS"},),
+        )
+        assert evidence.ci_passed is False
+
+    def test_workflow_superset_rejected(self) -> None:
+        # Required: CI; Observed: CI + extra
+        evidence = _make_evidence(
+            required_workflows=("CI",),
+            ci_checks=(
+                {"name": "CI", "conclusion": "SUCCESS"},
+                {"name": "Extra Workflow", "conclusion": "SUCCESS"},
+            ),
+        )
+        assert evidence.ci_passed is False
+
+    def test_workflow_exact_match_accepted(self) -> None:
+        evidence = _make_evidence(
+            required_workflows=("CI", "Decision Preflight"),
+            ci_checks=(
+                {"name": "CI", "conclusion": "SUCCESS"},
+                {"name": "Decision Preflight", "conclusion": "SUCCESS"},
+            ),
+        )
+        assert evidence.ci_passed is True
+
+    def test_multi_word_workflow_names_preserved(self) -> None:
+        evidence = _make_evidence(
+            required_workflows=("CI", "Decision Preflight", "State Gate (push)"),
+            ci_checks=(
+                {"name": "CI", "conclusion": "SUCCESS"},
+                {"name": "Decision Preflight", "conclusion": "SUCCESS"},
+                {"name": "State Gate (push)", "conclusion": "SUCCESS"},
+            ),
+        )
+        assert evidence.ci_passed is True
+
+
+# ---------------------------------------------------------------------------
+# F11: validate_exact_binding
+# ---------------------------------------------------------------------------
+
+class TestValidateExactBinding:
+    """F11: The live path requires mandatory exact binding."""
+
+    def test_valid_exact_binding_passes(self) -> None:
+        wi = _make_work_item()
+        evidence = _make_evidence(
+            execution_id=wi.execution_id,
+            repository=wi.repository,
+            base_sha=wi.base_sha,
+            head_sha=VALID_HEAD_SHA,
+            pr_number=97,
+        )
+        evidence.validate_exact_binding(
+            wi,
+            expected_head_sha=VALID_HEAD_SHA,
+            expected_pr_number=97,
+            expected_branch=wi.target_branch,
+            authority_digest=wi.digest,
+        )
+
+    def test_wrong_head_sha_rejected(self) -> None:
+        wi = _make_work_item()
+        evidence = _make_evidence(
+            execution_id=wi.execution_id,
+            repository=wi.repository,
+            base_sha=wi.base_sha,
+        )
+        with pytest.raises(EvidenceBindingError, match="head_sha_mismatch"):
+            evidence.validate_exact_binding(
+                wi,
+                expected_head_sha="b" * 40,
+                expected_pr_number=97,
+                expected_branch=wi.target_branch,
+                authority_digest=wi.digest,
+            )
+
+    def test_wrong_pr_number_rejected(self) -> None:
+        wi = _make_work_item()
+        evidence = _make_evidence(
+            execution_id=wi.execution_id,
+            repository=wi.repository,
+            base_sha=wi.base_sha,
+            pr_number=97,
+        )
+        with pytest.raises(EvidenceBindingError, match="pr_number_mismatch"):
+            evidence.validate_exact_binding(
+                wi,
+                expected_head_sha=VALID_HEAD_SHA,
+                expected_pr_number=98,
+                expected_branch=wi.target_branch,
+                authority_digest=wi.digest,
+            )
+
+    def test_wrong_branch_rejected(self) -> None:
+        wi = _make_work_item()
+        evidence = _make_evidence(
+            execution_id=wi.execution_id,
+            repository=wi.repository,
+            base_sha=wi.base_sha,
+        )
+        with pytest.raises(EvidenceBindingError, match="branch_mismatch"):
+            evidence.validate_exact_binding(
+                wi,
+                expected_head_sha=VALID_HEAD_SHA,
+                expected_pr_number=97,
+                expected_branch="agent/wrong-branch",
+                authority_digest=wi.digest,
+            )
+
+    def test_wrong_authority_digest_rejected(self) -> None:
+        wi = _make_work_item()
+        evidence = _make_evidence(
+            execution_id=wi.execution_id,
+            repository=wi.repository,
+            base_sha=wi.base_sha,
+        )
+        with pytest.raises(EvidenceBindingError, match="authority_digest_mismatch"):
+            evidence.validate_exact_binding(
+                wi,
+                expected_head_sha=VALID_HEAD_SHA,
+                expected_pr_number=97,
+                expected_branch=wi.target_branch,
+                authority_digest="b" * 64,
+            )
+
+
+# ---------------------------------------------------------------------------
+# required_checks_as_workflows (F12)
+# ---------------------------------------------------------------------------
+
+class TestRequiredChecksAsWorkflows:
+    """F12: Required workflows come from the Work Item's required_checks."""
+
+    def test_returns_required_checks_as_tuple(self) -> None:
+        wi = _make_work_item(required_checks=("CI", "Decision Preflight"))
+        assert wi.required_checks_as_workflows() == ("CI", "Decision Preflight")
+
+    def test_returns_empty_tuple_when_no_checks(self) -> None:
+        with pytest.raises(ValueError, match="required_checks_must_not_be_empty"):
+            _make_work_item(required_checks=())
+
+
+# ---------------------------------------------------------------------------
+# F17: Active merge intent binds PR #97 and v3 digests
+# ---------------------------------------------------------------------------
+
+class TestActiveMergeIntentV3:
+    """F17: The active merge intent must bind PR #97 and v3 digests.
+
+    The v2 intent must be archived verbatim. The v1 archive must be untouched.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _load_intents(self) -> None:
+        import json
+        from pathlib import Path
+        repo_root = Path(__file__).resolve().parents[2]
+        intents_dir = repo_root / "project_state" / "mainline_merge_intents"
+        self._active_path = intents_dir / "active.json"
+        self._archive_v2_path = intents_dir / "archive" / "pr97_v2.json"
+        self._archive_v1_path = intents_dir / "archive" / "pr97_v1.json"
+        self._active = json.loads(self._active_path.read_text(encoding="utf-8"))
+        self._archive_v2 = json.loads(self._archive_v2_path.read_text(encoding="utf-8"))
+
+    def test_active_binds_source_pr_97(self) -> None:
+        assert self._active["source_pr"] == 97
+
+    def test_active_binds_v3_decision_id(self) -> None:
+        assert self._active["decision_identity"]["decision_id"] == (
+            "decision_20260802_issue99_platform_v1_live_evidence_boundary_v3"
+        )
+
+    def test_active_binds_v3_decision_content_sha256(self) -> None:
+        sha = self._active["decision_identity"]["decision_content_sha256"]
+        assert isinstance(sha, str) and len(sha) == 64
+        assert all(c in "0123456789abcdef" for c in sha)
+        assert sha != "f0c45ea2e8456766f5aca6e206dcd5fc4b70e57e45d8455526470cc6c65fd2d0"
+
+    def test_active_binds_v3_command_plan_sha256(self) -> None:
+        sha = self._active["command_plan_sha256"]
+        assert isinstance(sha, str) and len(sha) == 64
+        assert all(c in "0123456789abcdef" for c in sha)
+        assert sha != "fc458ada97190d14bc4d13953cf9c6ddb47a6a4b888e073b1e5e65c1475aa806"
+
+    def test_active_binds_locked_base_sha(self) -> None:
+        assert self._active["locked_base_sha"] == VALID_BASE_SHA
+
+    def test_active_binds_merge_method(self) -> None:
+        assert self._active["allowed_merge_method"] == "merge"
+
+    def test_active_binds_required_workflows(self) -> None:
+        workflows = self._active["required_workflows"]
+        assert "CI" in workflows
+        assert "Decision Preflight" in workflows
+        assert "State Gate (pull_request)" in workflows
+        assert "State Gate (push)" in workflows
+
+    def test_active_has_bounded_expiry(self) -> None:
+        expires = self._active.get("expires_at", "")
+        assert expires and expires.endswith("Z")
+
+    def test_archive_v2_exists_and_preserves_v2_decision_id(self) -> None:
+        assert self._archive_v2["decision_identity"]["decision_id"] == (
+            "decision_20260802_issue98_platform_v1_trust_binding_rework_v2"
+        )
+
+    def test_archive_v2_preserves_v2_source_pr(self) -> None:
+        assert self._archive_v2["source_pr"] == 97

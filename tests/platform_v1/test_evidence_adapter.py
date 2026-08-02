@@ -17,11 +17,19 @@ import pytest
 from reverse_agent.platform_v1.contracts import ExecutionEvidence
 from reverse_agent.platform_v1.evidence_adapter import (
     EvidenceCollectionError,
+    FakeCommandRunner,
+    FakeGitAdapter,
     assemble_evidence,
     check_git_diff,
+    collect_live_evidence,
     get_changed_paths,
     merge_evidence,
     parse_pr_checks,
+)
+from reverse_agent.platform_v1.github_adapter import (
+    FakeGitHubAdapter,
+    GitHubAdapterError,
+    WorkflowCheck,
 )
 
 
@@ -221,7 +229,8 @@ class TestMergeEvidence:
         merged = merge_evidence(untrusted, trusted)
         assert merged.ci_passed is False
 
-    def test_untrusted_paths_used_when_trusted_empty(self) -> None:
+    def test_trusted_empty_paths_do_not_fallback_to_untrusted(self) -> None:
+        # F15: When trusted changed_paths is empty, it stays empty — NO fallback
         untrusted = _make_evidence(
             changed_paths=("from_agent.py",),
             agent_completion_claim="done",
@@ -231,7 +240,23 @@ class TestMergeEvidence:
             git_diff_check_passed=True,
         )
         merged = merge_evidence(untrusted, trusted)
-        assert merged.changed_paths == ("from_agent.py",)
+        assert merged.changed_paths == ()
+        # agent_completion_claim is audit-only and preserved from untrusted
+        assert merged.agent_completion_claim == "done"
+
+    def test_trusted_empty_test_results_do_not_fallback_to_untrusted(self) -> None:
+        # F15: When trusted test_results is empty, it stays empty — NO fallback
+        untrusted = _make_evidence(
+            test_results={"passed": True, "source": "agent"},
+            agent_completion_claim="agent says passed",
+        )
+        trusted = _make_evidence(
+            test_results={},
+            git_diff_check_passed=True,
+        )
+        merged = merge_evidence(untrusted, trusted)
+        assert merged.test_results == {}
+        assert merged.tests_passed is False
 
     def test_trusted_binding_fields_propagate(self) -> None:
         untrusted = _make_evidence(
@@ -336,6 +361,164 @@ class TestAssembleEvidence:
                 required_workflows=("CI",),
                 repo_dir=str(tmp_path),
             )
+
+
+# ---------------------------------------------------------------------------
+# collect_live_evidence (F14: collector owns truth)
+# ---------------------------------------------------------------------------
+
+class TestCollectLiveEvidence:
+    """F14: The collector collects all facts through injectable adapters.
+
+    It does NOT accept caller-supplied test pass/fail booleans or CI success
+    lists. Git/GitHub/test collector failures return non-zero errors.
+    """
+
+    def _make_work_item(self):
+        from reverse_agent.platform_v1.contracts import PlatformWorkItem
+        return PlatformWorkItem(
+            source_issue_number=99,
+            repository="dddd2024/reverse-agent",
+            base_sha=VALID_BASE_SHA,
+            allowed_paths=("reverse_agent/platform_v1/**",),
+            forbidden_operations=(),
+            acceptance_criteria=(),
+            goal="test",
+            required_checks=("CI", "Decision Preflight"),
+            approved_issue_body_digest="a" * 40,
+            risk_tier="R0",
+            target_branch="agent/platform-v1-openhands-codex-acp",
+        )
+
+    def test_collects_live_evidence_with_fake_adapters(self) -> None:
+        wi = self._make_work_item()
+        git = FakeGitAdapter(
+            changed_paths=("reverse_agent/platform_v1/cli.py",),
+            diff_check_passed=True,
+            head_sha=VALID_HEAD_SHA,
+        )
+        gh = FakeGitHubAdapter(checks=(
+            WorkflowCheck(name="CI", run_id="1", head_sha=VALID_HEAD_SHA, event="push", status="COMPLETED", conclusion="SUCCESS"),
+            WorkflowCheck(name="Decision Preflight", run_id="2", head_sha=VALID_HEAD_SHA, event="push", status="COMPLETED", conclusion="SUCCESS"),
+        ))
+        runner = FakeCommandRunner(exit_code=0)
+
+        evidence = collect_live_evidence(
+            execution_id=wi.execution_id,
+            repository=wi.repository,
+            base_sha=wi.base_sha,
+            expected_head_sha=VALID_HEAD_SHA,
+            pr_number=97,
+            required_workflows=wi.required_checks,
+            expected_branch=wi.target_branch,
+            authority_digest=wi.digest,
+            work_item=wi,
+            git_adapter=git,
+            github_adapter=gh,
+            test_command_runner=runner,
+            test_command="pytest -q",
+        )
+        assert evidence.is_live is True
+        assert evidence.collection_mode == "live"
+        assert evidence.provenance == "trusted_git_github_collector"
+        assert evidence.head_sha == VALID_HEAD_SHA
+        assert evidence.changed_paths == ("reverse_agent/platform_v1/cli.py",)
+        assert evidence.git_diff_check_passed is True
+        assert evidence.tests_passed is True
+
+    def test_head_sha_mismatch_raises_error(self) -> None:
+        wi = self._make_work_item()
+        git = FakeGitAdapter(head_sha="0" * 40)
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            collect_live_evidence(
+                execution_id=wi.execution_id,
+                repository=wi.repository,
+                base_sha=wi.base_sha,
+                expected_head_sha=VALID_HEAD_SHA,
+                pr_number=97,
+                required_workflows=wi.required_checks,
+                expected_branch=wi.target_branch,
+                authority_digest=wi.digest,
+                work_item=wi,
+                git_adapter=git,
+                github_adapter=FakeGitHubAdapter(),
+            )
+        assert exc_info.value.code == "head_sha_mismatch"
+
+    def test_git_adapter_failure_raises_error(self) -> None:
+        wi = self._make_work_item()
+        git = FakeGitAdapter(
+            head_sha=VALID_HEAD_SHA,
+            fail_with=EvidenceCollectionError("git_rev_parse_failed", "test"),
+        )
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            collect_live_evidence(
+                execution_id=wi.execution_id,
+                repository=wi.repository,
+                base_sha=wi.base_sha,
+                expected_head_sha=VALID_HEAD_SHA,
+                pr_number=97,
+                required_workflows=wi.required_checks,
+                expected_branch=wi.target_branch,
+                authority_digest=wi.digest,
+                work_item=wi,
+                git_adapter=git,
+                github_adapter=FakeGitHubAdapter(),
+            )
+        assert exc_info.value.code == "git_rev_parse_failed"
+
+    def test_github_adapter_failure_raises_error(self) -> None:
+        wi = self._make_work_item()
+        git = FakeGitAdapter(
+            changed_paths=("a.py",),
+            diff_check_passed=True,
+            head_sha=VALID_HEAD_SHA,
+        )
+        gh = FakeGitHubAdapter(
+            fail_with=GitHubAdapterError("gh_pr_checks_failed", "exit=1"),
+        )
+        with pytest.raises(GitHubAdapterError) as exc_info:
+            collect_live_evidence(
+                execution_id=wi.execution_id,
+                repository=wi.repository,
+                base_sha=wi.base_sha,
+                expected_head_sha=VALID_HEAD_SHA,
+                pr_number=97,
+                required_workflows=wi.required_checks,
+                expected_branch=wi.target_branch,
+                authority_digest=wi.digest,
+                work_item=wi,
+                git_adapter=git,
+                github_adapter=gh,
+            )
+        assert exc_info.value.code == "gh_pr_checks_failed"
+
+    def test_workflow_validation_failure_raises_error(self) -> None:
+        wi = self._make_work_item()
+        git = FakeGitAdapter(
+            changed_paths=("a.py",),
+            diff_check_passed=True,
+            head_sha=VALID_HEAD_SHA,
+        )
+        # Only CI provided, missing Decision Preflight
+        gh = FakeGitHubAdapter(checks=(
+            WorkflowCheck(name="CI", run_id="1", head_sha=VALID_HEAD_SHA, event="push", status="COMPLETED", conclusion="SUCCESS"),
+        ))
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            collect_live_evidence(
+                execution_id=wi.execution_id,
+                repository=wi.repository,
+                base_sha=wi.base_sha,
+                expected_head_sha=VALID_HEAD_SHA,
+                pr_number=97,
+                required_workflows=wi.required_checks,
+                expected_branch=wi.target_branch,
+                authority_digest=wi.digest,
+                work_item=wi,
+                git_adapter=git,
+                github_adapter=gh,
+            )
+        assert exc_info.value.code == "workflow_validation_failed"
 
 
 # ---------------------------------------------------------------------------
