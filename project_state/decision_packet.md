@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260802_issue99_platform_v1_live_evidence_boundary_v3",
-  "round_id": "round_20260802_issue99_platform_v1_live_evidence_boundary_v3",
+  "decision_id": "decision_20260802_issue100_platform_v1_authority_collector_v4",
+  "round_id": "round_20260802_issue100_platform_v1_authority_collector_v4",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,16 +16,16 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260802_issue98_platform_v1_trust_binding_rework_v2",
-  "follows_last_round_id": "round_20260802_issue98_platform_v1_trust_binding_rework_v2",
-  "previous_audit_outcome": "PLATFORM_V1_V2_REJECTED_CALLER_FORGED_LIVE_EVIDENCE",
-  "workstream_id": "issue99-platform-v1-live-evidence-boundary-v3",
-  "source_issue": 99,
+  "follows_last_decision_id": "decision_20260802_issue99_platform_v1_live_evidence_boundary_v3",
+  "follows_last_round_id": "round_20260802_issue99_platform_v1_live_evidence_boundary_v3",
+  "previous_audit_outcome": "PLATFORM_V1_V3_REJECTED_SELF_ASSERTED_AUTHORITY_AND_SHELL_EXECUTION",
+  "workstream_id": "issue100-platform-v1-authority-collector-v4",
+  "source_issue": 100,
   "parent_issue": 90,
-  "predecessor_issue": 98,
+  "predecessor_issue": 99,
   "active_pr": 97,
   "required_branch": "agent/platform-v1-openhands-codex-acp",
-  "starting_head": "3f74683cc96c9a8d84d48edbfe87d51bebc770e6",
+  "starting_head": "853cec8aadbcde8e5ae801e4eb7d7c11d1d0fc89",
   "activation_base_sha": "705a0bfd6638d51c688752f154433020225c4e99",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -149,7 +149,7 @@
     },
     {
       "command_id": "observation.pr_checks",
-      "command": "gh pr checks --repo dddd2024/reverse-agent --watch",
+      "command": "gh pr checks 97 --repo dddd2024/reverse-agent --watch",
       "phase": "observation",
       "required": false,
       "expected_exit_codes": [0],
@@ -162,8 +162,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "publication.issue99_comment",
-      "command": "gh issue comment 99 --repo dddd2024/reverse-agent --body-file -",
+      "command_id": "publication.issue100_comment",
+      "command": "gh issue comment 100 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "expected_exit_codes": [0],
@@ -177,7 +177,7 @@
     },
     {
       "command_id": "publication.pr_comment",
-      "command": "gh pr comment --repo dddd2024/reverse-agent --body-file -",
+      "command": "gh pr comment 97 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "expected_exit_codes": [0],
@@ -198,21 +198,24 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr97_v2.json",
+    "project_state/mainline_merge_intents/archive/pr97_v3.json",
     "docs/platform_v1/adr-001-component-compatibility.md",
     "docs/platform_v1/component-lock.json",
+    "reverse_agent/platform_v1/authority_adapter.py",
     "reverse_agent/platform_v1/contracts.py",
     "reverse_agent/platform_v1/acceptance.py",
     "reverse_agent/platform_v1/cli.py",
     "reverse_agent/platform_v1/evidence_adapter.py",
     "reverse_agent/platform_v1/github_adapter.py",
     "reverse_agent/platform_v1/policy_adapter.py",
+    "tests/platform_v1/test_authority_adapter.py",
     "tests/platform_v1/test_acceptance.py",
     "tests/platform_v1/test_cli.py",
     "tests/platform_v1/test_contracts.py",
     "tests/platform_v1/test_evidence_adapter.py",
-    "tests/platform_v1/test_policy_adapter.py",
-    "tests/platform_v1/test_github_adapter.py"
+    "tests/platform_v1/test_github_adapter.py",
+    "tests/platform_v1/test_merge_intent.py",
+    ".github/workflows/ci.yml"
   ],
   "reference_paths": [
     "docs/supervisor/audit-result.schema.json",
@@ -244,7 +247,6 @@
   "forbidden_mutated_paths": [
     ".github/workflows/state-gate.yml",
     ".github/workflows/decision-preflight.yml",
-    ".github/workflows/ci.yml",
     "reverse_agent/adapters/**",
     "reverse_agent/architecture/**",
     "reverse_agent/control_plane/**",
@@ -305,8 +307,8 @@
     "examples/platform_v1_target/**",
     "tests/platform_v1/test_forbidden_capabilities.py",
     "tests/platform_v1/test_idempotency.py",
-    "tests/platform_v1/test_merge_intent.py",
     "tests/platform_v1/test_openhands_adapter.py",
+    "tests/platform_v1/test_policy_adapter.py",
     "project_state/schemas/**",
     "project_state/rounds/**",
     "project_state/audits/**",
@@ -314,6 +316,7 @@
     "project_state/state_manifest.json",
     "project_state/artifactindex.json",
     "project_state/mainline_merge_intents/archive/pr97_v1.json",
+    "project_state/mainline_merge_intents/archive/pr97_v2.json",
     "pyproject.toml",
     "docs/supervisor/audit-result.schema.json",
     "docs/supervisor/audit-instructions.md",
@@ -362,6 +365,12 @@
     "accept caller-supplied collection_mode=live or trusted provenance as live evidence",
     "accept caller-supplied pass/fail booleans or CI success lists as trusted truth in the live path",
     "fall back to untrusted changed_paths test_results or ci_checks when trusted evidence is empty",
+    "accept caller-supplied Work Item or authority digest as live authority via stdin",
+    "execute caller-supplied shell text or test_command from stdin",
+    "use shell=True in production command execution",
+    "request unsupported gh pr checks JSON fields",
+    "confuse baseline job name with CI workflow name",
+    "accept empty conclusion as success for completed workflow runs",
     "retry BLOCKED_APPROVAL automatically without a new approved Work Item",
     "run or claim the trusted-host OpenHands/Codex live probe"
   ],
@@ -381,10 +390,9 @@
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
       "git push origin agent/platform-v1-openhands-codex-acp",
-      "gh pr create --draft --base main --head agent/platform-v1-openhands-codex-acp --repo dddd2024/reverse-agent",
-      "gh pr checks --repo dddd2024/reverse-agent --watch",
-      "gh issue comment 99 --repo dddd2024/reverse-agent --body-file -",
-      "gh pr comment --repo dddd2024/reverse-agent --body-file -"
+      "gh pr checks 97 --repo dddd2024/reverse-agent --watch",
+      "gh issue comment 100 --repo dddd2024/reverse-agent --body-file -",
+      "gh pr comment 97 --repo dddd2024/reverse-agent --body-file -"
     ],
     "ci_network_exceptions": []
   },
@@ -395,7 +403,8 @@
     "project_state/mainline_merge_intents/**",
     "docs/platform_v1/**",
     "reverse_agent/platform_v1/**",
-    "tests/platform_v1/**"
+    "tests/platform_v1/**",
+    ".github/workflows/ci.yml"
   ],
   "path_risk_floor": [
     {
@@ -424,8 +433,8 @@
 
 ## Goal
 
-Rework the Platform V1 live-evidence boundary on the existing branch `agent/platform-v1-openhands-codex-acp` starting from exact head `3f74683cc96c9a8d84d48edbfe87d51bebc770e6`. Remediate findings F9 through F17 from Issue #99: ensure that any evidence created via stdin, JSON, or `from_mapping()` is always treated as `collection_mode=fixture`, `provenance=caller_asserted`, `live_ready=false` regardless of caller-supplied labels, so caller-asserted `collection_mode=live` or trusted provenance cannot become live evidence; implement a separate trusted live acceptance path that does not accept a raw evidence object but instead receives only execution targets (repository, local repo path, approved Work Item, PR number, expected branch, expected base SHA, expected head SHA, authority digest) and collects trusted facts itself (local HEAD, git changed paths, git diff --check, PR current head/base/branch, GitHub Actions workflow runs, authorized test command results) through injectable structured adapters; enforce mandatory exact binding of repository, base SHA, exact head SHA, PR number, target branch, approved authority digest, and full required workflow set in the live path with no optional defaults; derive the required workflow set exclusively from the approved Work Item or active merge intent and reject evidence-supplied workflow sets, requiring exact match between observed and approved sets; replace tabular `gh pr checks` parsing with an injectable structured GitHub adapter using JSON/API results that preserves full multi-word workflow names, run IDs, head SHAs, events, statuses, conclusions, and workflow IDs, correctly distinguishes `State Gate (push)` from `State Gate (pull_request)`, and rejects missing, duplicate, wrong-head, stale, pending, skipped, cancelled, unknown, neutral, action_required, timed_out, and failure results; ensure `assemble_evidence()` and the live collector own truth by not accepting caller-supplied test pass/fail booleans or CI success lists, running or reading authorized test evidence directly, with provider-free tests using fake Git/GitHub/command transports; remove untrusted fallback in `merge_evidence()` so trusted empty changed_paths, test_results, or ci_checks never fall back to agent/caller data and fail closed where evidence is required; fix approval retry so `BLOCKED_APPROVAL`, `FAILED_TERMINAL`, and `ACCEPTED` are not automatically retryable and only `REWORK_REQUIRED` with attempts remaining allows one bounded retry; archive the v2 merge intent verbatim to `project_state/mainline_merge_intents/archive/pr97_v2.json` and bind the new active intent to `source_pr: 97`, locked base `705a0bfd...`, exact v3 Decision digest, exact v3 Command Plan digest, merge method `merge`, the four canonical workflows (CI, Decision Preflight, State Gate pull_request, State Gate push), and a bounded expiry. Do not run or claim the trusted-host OpenHands/Codex live probe. Push only the existing branch, update only Draft PR #97, require exact-head checks, publish desensitized evidence, and stop at `PR97_TRUSTED_EVIDENCE_BOUNDARY_CLOSED_AWAITING_LIVE_PROBE`.
+Rework the Platform V1 authority and execution boundary on the existing branch `agent/platform-v1-openhands-codex-acp` starting from exact head `853cec8aadbcde8e5ae801e4eb7d7c11d1d0fc89`. Remediate findings F18 through F28 from Issue #100: introduce an immutable Authority Bundle loaded internally from `decision_packet.md`, generated `command_plan.json`, active merge intent, and the exact GitHub Issue body, cross-verifying Decision ID, Decision content SHA-256, Command Plan SHA-256, Issue number, Issue body SHA-256, Issue state, required labels, repository, PR number, branch, base SHA, risk tier, allowed paths, allowed command IDs, and required workflow/event keys — the live CLI accepts only target identifiers (repo_dir, repository, issue_number, pr_number) via stdin, never a raw Work Item or authority digest; compute `approved_issue_body_digest` as a 64-character lowercase hex SHA-256 over the exact approved Issue body or documented canonical payload, invalidating the old digest on Issue body drift and rejecting the previous 40-character SHA-1 validation; remove caller-supplied `test_command` from stdin and select required commands by exact `command_id` from the approved generated Command Plan, executing an argv list with `shell=False`, exact command match, exact working directory, and matching network/mutation permissions, rejecting unknown command IDs, command content drift, shell metacharacters, extra arguments, unauthorized network access, and unauthorized mutated paths; independently observe PR metadata (number, state, isDraft, repository, headRefName, headRefOid, baseRefName, baseRefOid) through structured GitHub data and reject wrong repository, wrong PR, closed/merged PR, non-Draft PR, wrong base branch, wrong base SHA, wrong head branch, or wrong head SHA; replace the unsupported `gh pr checks --json name,workflow,state,conclusion,startedAt,completedAt,link,detail` with supported structured data from `gh run list --commit <exact-head> --json attempt,conclusion,databaseId,event,headBranch,headSha,name,status,workflowDatabaseId,workflowName` or equivalent GitHub Actions API, modeling required runs as canonical `(workflowName, event)` keys — `(CI, pull_request)`, `(Decision Preflight, pull_request)`, `(State Gate, pull_request)`, `(State Gate, push)` — requiring exactly one authoritative success result per key with `headSha == exact expected head`, `status == completed`, `conclusion == success`, and blocking on missing, duplicate, extra authoritative run, wrong head, wrong event, pending, queued, in_progress, skipped, cancelled, neutral, stale, timed_out, action_required, unknown, failure, or empty conclusion, never confusing the `baseline` job name with the `CI` workflow name; remove or deactivate deprecated `assemble_evidence()` as an acceptance-grade live path so it cannot produce live acceptance from caller-supplied `test_results` and `ci_checks`, restricting `ExecutionEvidence.create_live()` so it is not a public general-purpose factory, with fixture APIs remaining explicitly `FIXTURE_VALIDATED` and `live_ready=false`; add a blocking CI step in `.github/workflows/ci.yml` that runs exactly `python -m pytest tests/platform_v1 -q` without `continue-on-error`, `|| true`, or failure-swallowing patterns, keeping the repository-wide diagnostic nonblocking but not as a substitute; update `tests/platform_v1/test_merge_intent.py` to verify the v4 Decision, the `pr97_v1`, `pr97_v2`, `pr97_v3` archive chain, and the active v4 intent binding PR #97 and exact v4 digests, removing stale v2 active expectations; archive the v3 merge intent verbatim to `project_state/mainline_merge_intents/archive/pr97_v3.json` and bind the new active intent to `source_pr: 97`, locked base `705a0bfd...`, exact v4 Decision SHA-256, exact v4 Command Plan SHA-256, merge method `merge`, canonical workflow/event requirements, and a bounded expiry. Do not run or claim the trusted-host OpenHands/Codex live probe. Push only the existing branch, update only Draft PR #97, require exact-head checks, publish desensitized evidence, and stop at `PR97_AUTHORITY_AND_EXECUTION_BOUNDARY_CLOSED_AWAITING_LIVE_PROBE`.
 
 ## Acceptance boundary
 
-The Platform V1 live-evidence boundary rework is complete only when: the Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is 18/18 PASS with `blocking_reasons=[]` before implementation; `ExecutionEvidence.from_mapping()` ignores or rejects caller-supplied `collection_mode=live` and trusted provenance values, always returning fixture evidence with `collection_mode=fixture`, `provenance=caller_asserted`, `live_ready=false`; fixture validation may return `FIXTURE_VALIDATED` but never live `ACCEPTED`, `live_ready: true`, or the live-success exit code; the CLI live path does not accept a raw evidence object and instead receives only execution targets, collecting trusted facts itself through injectable structured adapters; the live path requires mandatory repository, base SHA, exact head SHA, PR number, target branch, approved authority digest, and full required workflow set with no optional defaults, returning finite nonzero exit codes on wrong head, wrong PR, or wrong branch; the required workflow set is derived exclusively from the approved Work Item or active merge intent and the observed set must match exactly, rejecting evidence-supplied reduced sets; an injectable structured GitHub adapter using JSON/API results preserves full multi-word workflow names, run IDs, head SHAs, events, statuses, conclusions, and workflow IDs, distinguishes `State Gate (push)` from `State Gate (pull_request)`, and rejects missing, duplicate, wrong-head, stale, pending, skipped, cancelled, unknown, neutral, action_required, timed_out, and failure results; `assemble_evidence()` and the live collector do not accept caller-supplied test pass/fail booleans or CI success lists and instead collect trusted facts themselves, with provider-free tests using fake Git/GitHub/command transports; `merge_evidence()` never substitutes untrusted changed_paths, test_results, ci_checks, head, PR, or provenance when trusted evidence is empty and fail closed where evidence is required; `can_retry()` returns false for `BLOCKED_APPROVAL`, `FAILED_TERMINAL`, and `ACCEPTED` and only returns true for `REWORK_REQUIRED` with attempts remaining; the v2 merge intent is archived verbatim to `project_state/mainline_merge_intents/archive/pr97_v2.json` and the new active intent binds `source_pr: 97`, locked base `705a0bfd...`, exact v3 Decision digest, exact v3 Command Plan digest, merge method `merge`, the four canonical workflows, and a bounded expiry; `python -m pytest tests/platform_v1 -q` passes; `python -m pytest tests/test_supervisor_validate.py tests/test_mainline_landing.py tests/test_integration_baseline.py -q` passes; `python -m pytest tests/test_project_gate.py -q` passes; `git diff --check 705a0bfd6638d51c688752f154433020225c4e99..HEAD` passes; exact-head CI, Decision Preflight, State Gate push, and State Gate pull_request succeed; the PR remains Draft and unmerged. The terminal status is `PR97_TRUSTED_EVIDENCE_BOUNDARY_CLOSED_AWAITING_LIVE_PROBE` since no trusted-host live probe is performed. Any scope conflict, credential exposure, idempotency failure, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
+The Platform V1 authority and execution boundary rework is complete only when: the Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is 18/18 PASS with `blocking_reasons=[]` before implementation; an immutable Authority Bundle is loaded internally from `decision_packet.md`, generated `command_plan.json`, active merge intent, and the exact GitHub Issue, cross-verifying Decision ID, Decision content SHA-256, Command Plan SHA-256, Issue number, Issue body SHA-256, Issue state, required labels, repository, PR number, branch, base SHA, risk tier, allowed paths, allowed command IDs, and required workflow/event keys; the live CLI accepts only target identifiers (repo_dir, repository, issue_number, pr_number) via stdin and never accepts a raw Work Item or authority digest; `approved_issue_body_digest` is a 64-character lowercase hex SHA-256 computed from the exact approved Issue body or documented canonical payload, validated with a SHA-256 regex, and invalidates on Issue body drift; caller-supplied `test_command` is removed from stdin and commands are selected by exact `command_id` from the approved generated Command Plan, executed as an argv list with `shell=False`, exact command match, exact working directory, and matching network/mutation permissions, rejecting unknown command IDs, command content drift, shell metacharacters, extra arguments, unauthorized network access, and unauthorized mutated paths, with no `shell=True` in production command execution; PR metadata (number, state, isDraft, repository, headRefName, headRefOid, baseRefName, baseRefOid) is independently observed through structured GitHub data and rejects wrong repository, wrong PR, closed/merged PR, non-Draft PR, wrong base branch, wrong base SHA, wrong head branch, or wrong head SHA; workflow runs use supported structured fields from `gh run list --commit <exact-head> --json attempt,conclusion,databaseId,event,headBranch,headSha,name,status,workflowDatabaseId,workflowName` or equivalent API data, modeled as canonical `(workflowName, event)` keys requiring exactly one authoritative success result per key with `headSha == exact expected head`, `status == completed`, `conclusion == success`, blocking on missing, duplicate, extra, wrong-head, wrong-event, pending, queued, in_progress, skipped, cancelled, neutral, stale, timed_out, action_required, unknown, failure, and empty conclusion, without requesting unsupported `gh pr checks` JSON fields, without confusing `baseline` job name with `CI` workflow name, and keeping push and pull_request State Gate runs distinct; deprecated `assemble_evidence()` cannot produce acceptance-grade live evidence from caller-supplied `test_results` and `ci_checks`, and `ExecutionEvidence.create_live()` is not a public general-purpose factory; fixture APIs remain explicitly `FIXTURE_VALIDATED` with `live_ready=false`; `.github/workflows/ci.yml` includes a blocking step running exactly `python -m pytest tests/platform_v1 -q` without `continue-on-error`, `|| true`, or failure-swallowing patterns; `tests/platform_v1/test_merge_intent.py` verifies the v4 Decision, the `pr97_v1`, `pr97_v2`, `pr97_v3` archive chain, and the active v4 intent; the v3 merge intent is archived verbatim to `project_state/mainline_merge_intents/archive/pr97_v3.json` and the new active intent binds `source_pr: 97`, locked base `705a0bfd...`, exact v4 Decision SHA-256, exact v4 Command Plan SHA-256, merge method `merge`, canonical workflow/event requirements, and a bounded expiry; `python -m pytest tests/platform_v1 -q` passes with zero failures, zero new skips, and zero xfails; `python -m pytest tests/test_supervisor_validate.py tests/test_mainline_landing.py tests/test_integration_baseline.py -q` passes; `python -m pytest tests/test_project_gate.py -q` passes; `git diff --check 705a0bfd6638d51c688752f154433020225c4e99..HEAD` passes; exact-head CI, Decision Preflight, State Gate push, and State Gate pull_request succeed, including the new blocking Platform V1 CI step; the PR remains Draft and unmerged. The terminal status is `PR97_AUTHORITY_AND_EXECUTION_BOUNDARY_CLOSED_AWAITING_LIVE_PROBE` since no trusted-host live probe is performed. Any scope conflict, credential exposure, idempotency failure, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
