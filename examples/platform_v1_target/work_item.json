@@ -1,0 +1,29 @@
+{
+  "source_issue_number": 96,
+  "repository": "dddd2024/reverse-agent",
+  "base_sha": "705a0bfd6638d51c688752f154433020225c4e99",
+  "allowed_paths": [
+    "reverse_agent/platform_v1/**",
+    "tests/platform_v1/**",
+    "docs/platform_v1/**",
+    "deploy/agent-canvas/**",
+    "examples/platform_v1_target/**"
+  ],
+  "forbidden_operations": [
+    "push_main",
+    "mark_ready",
+    "merge",
+    "auto_merge",
+    "release",
+    "deployment",
+    "secret_access"
+  ],
+  "acceptance_criteria": [
+    "python -m pytest tests/platform_v1 -q passes",
+    "git diff --check passes",
+    "R2/R3/broad-path/empty-path all fail-closed",
+    "agent completion claim cannot override Git or test failures"
+  ],
+  "risk_tier": "R2",
+  "target_branch": "agent/platform-v1-openhands-codex-acp"
+}

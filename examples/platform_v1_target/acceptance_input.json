@@ -1,0 +1,42 @@
+{
+  "work_item": {
+    "source_issue_number": 96,
+    "repository": "dddd2024/reverse-agent",
+    "base_sha": "705a0bfd6638d51c688752f154433020225c4e99",
+    "allowed_paths": [
+      "reverse_agent/platform_v1/**",
+      "tests/platform_v1/**"
+    ],
+    "forbidden_operations": [
+      "push_main",
+      "merge"
+    ],
+    "acceptance_criteria": [
+      "pytest passes"
+    ],
+    "risk_tier": "R2",
+    "target_branch": "agent/platform-v1-openhands-codex-acp"
+  },
+  "attempt": 1,
+  "evidence": {
+    "execution_id": "exec-issue-96-705a0bfd6638",
+    "changed_paths": [
+      "reverse_agent/platform_v1/__init__.py",
+      "reverse_agent/platform_v1/cli.py",
+      "tests/platform_v1/test_contracts.py"
+    ],
+    "test_results": {
+      "passed": true,
+      "total": 203,
+      "failed": 0
+    },
+    "git_diff_check_passed": true,
+    "agent_completion_claim": "All checks green. Task done.",
+    "ci_checks": [
+      {"name": "CI", "conclusion": "SUCCESS"},
+      {"name": "Decision Preflight", "conclusion": "SUCCESS"},
+      {"name": "State Gate", "conclusion": "SUCCESS"}
+    ],
+    "collected_at": "2026-08-02T00:00:00Z"
+  }
+}

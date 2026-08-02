@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "intent_id": "mainline_merge_intent_pr93_v2",
+  "intent_id": "platform_v1_agent_canvas_v1",
   "repository": "dddd2024/reverse-agent",
-  "source_pr": 93,
-  "locked_base_sha": "16526801bda2a816fc707342f903c1ad037de9bd",
+  "source_pr": null,
+  "locked_base_sha": "705a0bfd6638d51c688752f154433020225c4e99",
   "allowed_merge_method": "merge",
   "decision_identity": {
-    "decision_id": "decision_20260802_issue95_scoped_merge_gate_repair_v11",
-    "decision_content_sha256": "fe09cf818774ac8c4c7a939c4e352522d6ca6b398eae49d09d1e4638ed0fc3ec"
+    "decision_id": "decision_20260802_platform_v1_openhands_codex_acp_v1",
+    "decision_content_sha256": "d69e1128b006b15a7183c2355253530df1abc719a5cb70e25c7db09b35d934ac"
   },
-  "command_plan_sha256": "58f282213943e071f7fcb2e3dbc6d1deb8b363c51ad02308aa6f41bd4c15c81b",
+  "command_plan_sha256": "ea6dbd78f32df417ec4272f867dfb14149bfcf31aae9e2830365191a7ace3540",
   "merge_tree_policy": "equal_to_accepted_head_tree",
   "required_workflows": [
     "CI",

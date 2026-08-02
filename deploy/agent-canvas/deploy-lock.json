@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "deploy_id": "platform-v1-agent-canvas-v1.6.1",
+  "pinned_at": "2026-08-02T00:00:00Z",
+  "purpose": "Trusted-host deployment reference for the Platform V1 vertical slice. Not a custom frontend.",
+  "components": {
+    "agent_canvas": {
+      "package": "@openhands/agent-canvas",
+      "version": "1.6.1",
+      "lineage": "v1.6.0",
+      "registry": "npm",
+      "license": "MIT",
+      "engines": "node >= 22.12.0"
+    },
+    "openhands_runtime_image": {
+      "image": "docker.openhands.dev/openhands/runtime",
+      "tag": "0.61-nikolaik",
+      "digest_pending_trusted_host": true,
+      "note": "Image digest must be captured on first trusted-host live run."
+    },
+    "openhands_app_image": {
+      "image": "docker.openhands.dev/openhands/openhands",
+      "tag": "0.61",
+      "digest_pending_trusted_host": true,
+      "note": "Image digest must be captured on first trusted-host live run."
+    }
+  },
+  "credential_isolation": {
+    "github_token": "host-env-only, read-only, never written to repo/workspace/logs",
+    "codex_login": "bind-mounted read-only, never copied into task workspace",
+    "gitignore_entries": [".env", "*.env", ".codex/", "codex_login*"]
+  },
+  "live_probe_gate": {
+    "required_env": "PLATFORM_V1_LIVE_PROBE=1",
+    "opt_in": true,
+    "provider_free_ci": "All contract/policy/idempotency/acceptance tests run without provider credentials."
+  },
+  "restart_recovery": {
+    "execution_id_stable": true,
+    "pr_marker_stable": true,
+    "evidence_rederived_from_git": true
+  }
+}
