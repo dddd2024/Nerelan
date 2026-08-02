@@ -21,7 +21,7 @@ from reverse_agent.platform_v1.contracts import (
 
 VALID_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
 ALT_BASE_SHA = "16526801bda2a816fc707342f903c1ad037de9bd"
-VALID_ISSUE_BODY_DIGEST = "a" * 40
+VALID_ISSUE_BODY_DIGEST = "a" * 64  # F25: SHA-256, 64 hex chars
 
 
 def _make_work_item(
@@ -181,7 +181,7 @@ class TestMaterialFieldChangeChangesIdentity:
 
     def test_changing_approved_issue_body_digest_changes_identity(self) -> None:
         base = _make_work_item()
-        changed = _make_work_item(approved_issue_body_digest="b" * 40)
+        changed = _make_work_item(approved_issue_body_digest="b" * 64)
         assert changed.digest != base.digest
         assert changed.execution_id != base.execution_id
         assert changed.pr_marker != base.pr_marker

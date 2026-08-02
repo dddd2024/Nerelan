@@ -4,27 +4,34 @@ F14: The production live collector (:func:`collect_live_evidence`) owns truth.
 It does not accept caller-supplied test pass/fail booleans or CI success
 lists. It reads local Git HEAD/diff, PR metadata, workflow runs/checks, and
 authorized test-command evidence through injectable structured adapters.
-Provider-free tests use :class:`FakeGitAdapter`, :class:`FakeGitHubAdapter`,
-and :class:`FakeCommandRunner`.
 
-F15: :func:`merge_evidence` never substitutes untrusted changed_paths,
-test_results, ci_checks, head, PR, or provenance when trusted evidence is
-empty. Empty trusted state remains empty and fails closed where evidence
-is required.
+F19: Commands are selected by ``command_id`` from the approved Command Plan
+(via :class:`AuthorityBundle`), never from caller-supplied shell text.
+Execution uses ``shell=False`` with an argv list.
+
+F20/F26: Authority comes from the internally loaded
+:class:`AuthorityBundle`, not from stdin Work Item or authority digest.
+
+F27: ``assemble_evidence`` is deprecated and produces fixture evidence only.
+Only :func:`_create_trusted_evidence` can create live evidence.
 """
 
 from __future__ import annotations
 
+import re
+import shlex
 import subprocess
 from typing import Any, Protocol, Sequence
 
-from .contracts import ExecutionEvidence
+from .authority_adapter import AuthorityBundle
+from .contracts import ExecutionEvidence, _LIVE_FACTORY_TOKEN
 from .github_adapter import (
     GitHubAdapter,
     GitHubAdapterError,
     LiveGitHubAdapter,
-    WorkflowCheck,
+    WorkflowRun,
     checks_to_ci_tuples,
+    composite_name,
     validate_workflow_observations,
 )
 
@@ -34,11 +41,7 @@ from .github_adapter import (
 # ---------------------------------------------------------------------------
 
 class EvidenceCollectionError(Exception):
-    """Raised when Git/GitHub evidence collection fails.
-
-    The message is a stable, machine-readable error code so callers can map
-    it to a documented nonzero exit code.
-    """
+    """Raised when Git/GitHub evidence collection fails."""
 
     def __init__(self, code: str, detail: str = "") -> None:
         self.code = code
@@ -51,22 +54,15 @@ class EvidenceCollectionError(Exception):
 # ---------------------------------------------------------------------------
 
 class GitAdapter(Protocol):
-    """Injectable Git adapter protocol.
-
-    Production code uses :class:`LiveGitAdapter` which calls git directly.
-    Tests inject :class:`FakeGitAdapter` to avoid filesystem access.
-    """
+    """Injectable Git adapter protocol."""
 
     def get_changed_paths(self, base_sha: str, head_sha: str) -> tuple[str, ...]:
-        """Return changed file paths between base and head."""
         ...
 
     def check_git_diff(self, base_sha: str, head_sha: str) -> bool:
-        """Return True if git diff --check passes (no whitespace errors)."""
         ...
 
     def get_head_sha(self) -> str:
-        """Return the current HEAD SHA."""
         ...
 
 
@@ -158,29 +154,47 @@ class FakeGitAdapter:
 # Command runner protocol (for authorized test commands)
 # ---------------------------------------------------------------------------
 
+# F19: Shell metacharacters that must never appear in an approved command.
+# Commands are split with shlex and executed with shell=False, but we also
+# reject these characters in the source string to prevent encoding tricks.
+_SHELL_METACHARS_RE = re.compile(r"[;|&<>`$\n\r]|\|\||&&|\$\(|`")
+
+
+def _is_safe_command(command_str: str) -> bool:
+    """Check that a command string contains no shell metacharacters."""
+
+    return _SHELL_METACHARS_RE.search(command_str) is None
+
+
 class CommandRunner(Protocol):
     """Injectable command runner for authorized test commands.
 
-    Production code uses :class:`LiveCommandRunner` which calls subprocess.
-    Tests inject :class:`FakeCommandRunner`.
+    F19: Commands are executed as argv lists with ``shell=False``.
+    Caller-supplied shell text is never executed.
     """
 
-    def run(self, command: str) -> tuple[int, str, str]:
-        """Run a command and return (exit_code, stdout, stderr)."""
+    def run(self, argv: list[str], *, cwd: str = "") -> tuple[int, str, str]:
+        """Run a command (argv list, shell=False) and return (exit_code, stdout, stderr)."""
         ...
 
 
 class LiveCommandRunner:
-    """Production command runner using subprocess."""
+    """Production command runner using subprocess with shell=False.
+
+    F19: Never uses ``shell=True``. Accepts only an argv list, never a
+    caller-supplied shell string.
+    """
 
     def __init__(self, cwd: str = ".") -> None:
-        self.cwd = cwd
+        self.default_cwd = cwd
 
-    def run(self, command: str) -> tuple[int, str, str]:
+    def run(self, argv: list[str], *, cwd: str = "") -> tuple[int, str, str]:
+        if not isinstance(argv, list) or not argv:
+            raise EvidenceCollectionError("invalid_argv", "argv must be a non-empty list")
         result = subprocess.run(
-            command,
-            shell=True,
-            cwd=self.cwd,
+            argv,
+            shell=False,  # F19: shell must remain False
+            cwd=cwd or self.default_cwd,
             capture_output=True,
             text=True,
             timeout=600,
@@ -201,11 +215,56 @@ class FakeCommandRunner:
         self._exit_code = exit_code
         self._stdout = stdout
         self._stderr = stderr
-        self.calls: list[str] = []
+        self.calls: list[list[str]] = []
 
-    def run(self, command: str) -> tuple[int, str, str]:
-        self.calls.append(command)
+    def run(self, argv: list[str], *, cwd: str = "") -> tuple[int, str, str]:
+        self.calls.append(list(argv))
         return (self._exit_code, self._stdout, self._stderr)
+
+
+# ---------------------------------------------------------------------------
+# Trusted live evidence factory (F27)
+# ---------------------------------------------------------------------------
+
+def _create_trusted_evidence(
+    *,
+    execution_id: str,
+    repository: str,
+    base_sha: str,
+    head_sha: str,
+    pr_number: int,
+    required_workflows: tuple[str, ...],
+    changed_paths: tuple[str, ...] = (),
+    test_results: dict[str, Any] | None = None,
+    git_diff_check_passed: bool = False,
+    agent_completion_claim: str = "",
+    ci_checks: tuple[dict[str, Any], ...] = (),
+    collected_at: str = "",
+) -> ExecutionEvidence:
+    """Create live evidence — the sole trusted factory.
+
+    F27: This function imports the module-private ``_LIVE_FACTORY_TOKEN``
+    from :mod:`contracts` and passes it to the ``ExecutionEvidence``
+    constructor. No other path can produce ``collection_mode=live``.
+    """
+
+    return ExecutionEvidence(
+        execution_id=execution_id,
+        repository=repository,
+        base_sha=base_sha,
+        head_sha=head_sha,
+        pr_number=pr_number,
+        required_workflows=required_workflows,
+        changed_paths=changed_paths,
+        test_results=test_results or {},
+        git_diff_check_passed=git_diff_check_passed,
+        agent_completion_claim=agent_completion_claim,
+        ci_checks=ci_checks,
+        collected_at=collected_at,
+        collection_mode="live",
+        provenance="trusted_git_github_collector",
+        _factory_token=_LIVE_FACTORY_TOKEN,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -213,120 +272,78 @@ class FakeCommandRunner:
 # ---------------------------------------------------------------------------
 
 def get_changed_paths(base_sha: str, head_sha: str = "HEAD", repo_dir: str = ".") -> tuple[str, ...]:
-    """Return the list of changed file paths between base and head.
-
-    Raises ``EvidenceCollectionError`` on Git failure — never returns an
-    empty list to mask a read failure.
-    """
-
     return LiveGitAdapter(repo_dir).get_changed_paths(base_sha, head_sha)
 
 
 def check_git_diff(base_sha: str, head_sha: str = "HEAD", repo_dir: str = ".") -> bool:
-    """Return True if ``git diff --check`` passes (no whitespace errors).
-
-    Raises ``EvidenceCollectionError`` on Git failure.
-    """
-
     return LiveGitAdapter(repo_dir).check_git_diff(base_sha, head_sha)
 
 
 def get_head_sha(repo_dir: str = ".") -> str:
-    """Return the current HEAD SHA.
-
-    Raises ``EvidenceCollectionError`` on Git failure.
-    """
-
     return LiveGitAdapter(repo_dir).get_head_sha()
 
 
 # ---------------------------------------------------------------------------
-# Legacy tabular parsing (DEPRECATED — kept for backward compat, not for live)
+# Trusted live evidence collection (F14/F19/F20/F26)
 # ---------------------------------------------------------------------------
 
-def parse_pr_checks(checks_output: str) -> tuple[dict[str, Any], ...]:
-    """Parse ``gh pr checks`` tabular output into a tuple of check dicts.
+def _select_required_test_commands(bundle: AuthorityBundle) -> list[dict[str, Any]]:
+    """Select required test commands from the Authority Bundle.
 
-    DEPRECATED: F13 replaces this with structured GitHub adapter. Kept only
-    for backward compatibility with existing tests that verify the parser.
-    New code must use :class:`LiveGitHubAdapter` or :class:`FakeGitHubAdapter`.
+    F19: Commands are selected by ``command_id`` from the approved Command
+    Plan. Only commands with ``phase=test`` and ``required=true`` are
+    selected for live evidence collection.
     """
 
-    checks: list[dict[str, Any]] = []
-    for line in checks_output.splitlines():
-        line = line.strip()
-        if not line or line.startswith("name"):
-            continue
-        parts = line.split()
-        if not parts:
-            continue
-        name = parts[0]
-        status = "UNKNOWN"
-        for token in parts[1:]:
-            token_upper = token.upper()
-            if token_upper in ("SUCCESS", "FAILURE", "PENDING", "SKIPPED", "CANCELLED"):
-                status = token_upper
-                break
-        checks.append({"name": name, "status": status, "conclusion": status})
-    return tuple(checks)
+    commands: list[dict[str, Any]] = []
+    for cmd in bundle.allowed_commands:
+        if (
+            cmd.get("phase") == "test"
+            and cmd.get("required") is True
+        ):
+            commands.append(cmd)
+    return commands
 
 
-def collect_pr_checks(
-    pr_number: int,
-    repository: str,
-) -> tuple[dict[str, Any], ...]:
-    """Collect PR checks from GitHub via ``gh pr checks``.
+def _parse_command_to_argv(command_str: str) -> list[str]:
+    """Parse a command string into an argv list.
 
-    DEPRECATED: F13 replaces this with structured GitHub adapter.
+    F19: Uses ``shlex.split`` to produce an argv list for ``shell=False``
+    execution. Rejects shell metacharacters.
     """
 
-    result = subprocess.run(
-        ["gh", "pr", "checks", str(pr_number), "--repo", repository],
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    if result.returncode != 0:
+    if not _is_safe_command(command_str):
         raise EvidenceCollectionError(
-            "gh_pr_checks_failed",
-            f"exit={result.returncode}",
+            "shell_metacharacters_rejected",
+            command_str,
         )
-    return parse_pr_checks(result.stdout)
+    try:
+        argv = shlex.split(command_str)
+    except ValueError as exc:
+        raise EvidenceCollectionError("shlex_parse_failed", str(exc))
+    if not argv:
+        raise EvidenceCollectionError("empty_command", command_str)
+    return argv
 
-
-# ---------------------------------------------------------------------------
-# Trusted live evidence collection (F14)
-# ---------------------------------------------------------------------------
 
 def collect_live_evidence(
     *,
-    execution_id: str,
-    repository: str,
-    base_sha: str,
-    expected_head_sha: str,
-    pr_number: int,
-    required_workflows: tuple[str, ...],
-    expected_branch: str,
-    authority_digest: str,
-    work_item: Any,
+    bundle: AuthorityBundle,
     git_adapter: GitAdapter | None = None,
     github_adapter: GitHubAdapter | None = None,
-    test_command_runner: CommandRunner | None = None,
-    test_command: str = "",
+    command_runner: CommandRunner | None = None,
     agent_completion_claim: str = "",
     collected_at: str = "",
 ) -> ExecutionEvidence:
     """Collect trusted live evidence through injectable adapters.
 
     F14: The collector owns truth. It does NOT accept caller-supplied test
-    pass/fail booleans or CI success lists. It reads:
-    - local HEAD via git_adapter
-    - git changed paths via git_adapter
-    - git diff --check via git_adapter
-    - PR workflow runs via github_adapter
-    - authorized test command results via test_command_runner
+    pass/fail booleans, CI success lists, or shell commands.
 
-    All adapters are injectable for provider-free testing.
+    F19: Test commands are selected by ``command_id`` from the Authority
+    Bundle's Command Plan. Execution uses ``shell=False`` with argv lists.
+
+    F20/F26: All authority comes from the ``bundle``, not from stdin.
 
     Raises ``EvidenceCollectionError`` or ``GitHubAdapterError`` on failure.
     """
@@ -336,35 +353,72 @@ def collect_live_evidence(
     if github_adapter is None:
         github_adapter = LiveGitHubAdapter()
 
-    # 1. Collect Git facts
-    local_head = git_adapter.get_head_sha()
-    if local_head != expected_head_sha:
+    # The expected head is the PR head observed by the Authority Bundle.
+    expected_head = bundle.pr_head_ref_oid
+    if not expected_head:
         raise EvidenceCollectionError(
-            "head_sha_mismatch",
-            f"local={local_head} expected={expected_head_sha}",
+            "missing_pr_head_ref_oid",
+            "Authority Bundle did not observe PR head SHA",
         )
 
-    changed_paths = git_adapter.get_changed_paths(base_sha, expected_head_sha)
-    diff_ok = git_adapter.check_git_diff(base_sha, expected_head_sha)
+    # 1. Collect Git facts
+    local_head = git_adapter.get_head_sha()
+    if local_head != expected_head:
+        raise EvidenceCollectionError(
+            "head_sha_mismatch",
+            f"local={local_head} pr_head={expected_head}",
+        )
 
-    # 2. Collect test results (only from authorized command runner)
+    changed_paths = git_adapter.get_changed_paths(bundle.base_sha, expected_head)
+    diff_ok = git_adapter.check_git_diff(bundle.base_sha, expected_head)
+
+    # 2. Collect test results (only from approved command_id selections)
     test_results: dict[str, Any] = {}
-    if test_command_runner is not None and test_command:
-        exit_code, stdout, _stderr = test_command_runner.run(test_command)
+    if command_runner is not None:
+        test_commands = _select_required_test_commands(bundle)
+        all_passed = True
+        command_results: list[dict[str, Any]] = []
+        for cmd in test_commands:
+            command_id = str(cmd.get("command_id", ""))
+            command_str = str(cmd.get("command", ""))
+            try:
+                argv = _parse_command_to_argv(command_str)
+            except EvidenceCollectionError as exc:
+                command_results.append({
+                    "command_id": command_id,
+                    "command": command_str,
+                    "passed": False,
+                    "error": exc.code,
+                })
+                all_passed = False
+                continue
+            exit_code, stdout, _stderr = command_runner.run(argv)
+            passed = exit_code == 0
+            command_results.append({
+                "command_id": command_id,
+                "command": command_str,
+                "argv": argv,
+                "passed": passed,
+                "exit_code": exit_code,
+            })
+            if not passed:
+                all_passed = False
         test_results = {
-            "passed": exit_code == 0,
-            "command": test_command,
-            "exit_code": exit_code,
+            "passed": all_passed,
+            "commands": command_results,
         }
 
-    # 3. Collect CI checks via structured GitHub adapter
-    workflow_checks = github_adapter.get_pr_checks(
-        pr_number, repository, expected_head_sha,
+    # 3. Collect CI workflow runs via structured GitHub adapter
+    workflow_runs = github_adapter.get_workflow_runs(
+        bundle.repository, expected_head,
     )
 
     # 4. Validate workflow observations
+    required_workflows = tuple(
+        composite_name(wf, ev) for wf, ev in bundle.required_workflow_keys
+    )
     blocking, _info = validate_workflow_observations(
-        workflow_checks, required_workflows, expected_head_sha,
+        workflow_runs, required_workflows, expected_head,
     )
     if blocking:
         raise EvidenceCollectionError(
@@ -373,13 +427,13 @@ def collect_live_evidence(
         )
 
     # 5. Build live evidence using the trusted factory
-    ci_checks = checks_to_ci_tuples(workflow_checks)
-    return ExecutionEvidence.create_live(
-        execution_id=execution_id,
-        repository=repository,
-        base_sha=base_sha,
-        head_sha=expected_head_sha,
-        pr_number=pr_number,
+    ci_checks = checks_to_ci_tuples(workflow_runs)
+    return _create_trusted_evidence(
+        execution_id=f"exec-issue-{bundle.issue_number}-{bundle.decision_content_sha256[:12]}",
+        repository=bundle.repository,
+        base_sha=bundle.base_sha,
+        head_sha=expected_head,
+        pr_number=bundle.pr_number,
         required_workflows=required_workflows,
         changed_paths=changed_paths,
         test_results=test_results,
@@ -391,7 +445,7 @@ def collect_live_evidence(
 
 
 # ---------------------------------------------------------------------------
-# Legacy assemble_evidence (F14: deprecated — use collect_live_evidence)
+# Legacy assemble_evidence (F27: deprecated — produces fixture evidence only)
 # ---------------------------------------------------------------------------
 
 def assemble_evidence(
@@ -407,20 +461,19 @@ def assemble_evidence(
     ci_checks: Sequence[dict[str, Any]] = (),
     collected_at: str = "",
 ) -> ExecutionEvidence:
-    """Assemble trusted ExecutionEvidence from Git state.
+    """DEPRECATED: produces fixture evidence only.
 
-    F14 DEPRECATED: This function accepts caller-supplied test_results and
-    ci_checks, which is unsafe. New code must use :func:`collect_live_evidence`
-    which collects all facts through injectable adapters.
-
-    This function is kept for backward compatibility with existing tests but
-    is no longer used by the CLI live path.
+    F27: This function can no longer produce acceptance-grade live evidence.
+    It returns ``collection_mode=fixture`` and ``provenance=caller_asserted``.
+    Use :func:`collect_live_evidence` with an :class:`AuthorityBundle` for
+    live evidence.
     """
 
     git_adapter = LiveGitAdapter(repo_dir)
     changed_paths = git_adapter.get_changed_paths(base_sha, head_sha)
     diff_ok = git_adapter.check_git_diff(base_sha, head_sha)
 
+    # F27: use create_live (which now produces fixture) for backward compat
     return ExecutionEvidence.create_live(
         execution_id=execution_id,
         repository=repository,
@@ -448,12 +501,7 @@ def merge_evidence(
     """Merge untrusted (agent) evidence with trusted (Git/CI) evidence.
 
     F15: Trusted evidence always wins. When trusted fields are empty, they
-    remain empty — NO fallback to untrusted data. The agent's completion
-    claim is preserved for audit but never overrides trusted evidence.
-
-    Removed behaviors (F15):
-    - ``trusted.changed_paths or untrusted.changed_paths`` — now just ``trusted.changed_paths``
-    - ``trusted.test_results or untrusted.test_results`` — now just ``trusted.test_results``
+    remain empty — NO fallback to untrusted data.
     """
 
     return ExecutionEvidence(
@@ -463,11 +511,9 @@ def merge_evidence(
         head_sha=trusted.head_sha,
         pr_number=trusted.pr_number,
         required_workflows=trusted.required_workflows,
-        # F15: no fallback to untrusted — empty trusted stays empty
         changed_paths=trusted.changed_paths,
         test_results=trusted.test_results,
         git_diff_check_passed=trusted.git_diff_check_passed,
-        # agent_completion_claim is audit-only, preserved from untrusted
         agent_completion_claim=untrusted.agent_completion_claim,
         ci_checks=trusted.ci_checks,
         collected_at=trusted.collected_at,

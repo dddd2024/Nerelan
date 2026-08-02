@@ -20,6 +20,7 @@ from reverse_agent.platform_v1.contracts import (
     ExecutionEvidence,
     PlatformAcceptanceResult,
     PlatformWorkItem,
+    _LIVE_FACTORY_TOKEN,
 )
 
 
@@ -29,7 +30,7 @@ from reverse_agent.platform_v1.contracts import (
 
 VALID_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
 VALID_HEAD_SHA = "e702a3c5f50b9373e0af8087a76268d4a01cd9b1"
-VALID_ISSUE_BODY_DIGEST = "a" * 40
+VALID_ISSUE_BODY_DIGEST = "a" * 64  # F25: SHA-256, 64 hex chars
 
 
 def _make_work_item(**overrides) -> PlatformWorkItem:
@@ -62,10 +63,13 @@ def _make_evidence(**overrides) -> ExecutionEvidence:
         "test_results": {"passed": True},
         "git_diff_check_passed": True,
         "agent_completion_claim": "",
-        "ci_checks": ({"name": "CI", "conclusion": "SUCCESS"},),
+        "ci_checks": ({"name": "CI", "status": "completed", "conclusion": "success"},),
         "collected_at": "",
     }
     defaults.update(overrides)
+    # F27: live mode requires the module-private trusted factory token.
+    if defaults.get("collection_mode") == "live":
+        defaults["_factory_token"] = _LIVE_FACTORY_TOKEN
     return ExecutionEvidence(**defaults)
 
 
@@ -239,7 +243,7 @@ class TestPlatformWorkItem:
             ("required_checks", ("different-check",)),
             ("risk_tier", "R0"),
             ("target_branch", "agent/other-branch"),
-            ("approved_issue_body_digest", "b" * 40),
+            ("approved_issue_body_digest", "b" * 64),
             ("base_sha", "0" * 40),
             ("source_issue_number", 97),
             ("repository", "other/repo"),
@@ -343,7 +347,7 @@ class TestExecutionEvidence:
         assert evidence.test_results == {"passed": True}
         assert evidence.git_diff_check_passed is True
         assert evidence.agent_completion_claim == ""
-        assert evidence.ci_checks == ({"name": "CI", "conclusion": "SUCCESS"},)
+        assert evidence.ci_checks == ({"name": "CI", "status": "completed", "conclusion": "success"},)
         assert evidence.tests_passed is True
         assert evidence.ci_passed is True
         assert evidence.collection_mode == "fixture"
@@ -420,8 +424,8 @@ class TestExecutionEvidence:
         evidence = _make_evidence(
             required_workflows=("CI", "Decision Preflight"),
             ci_checks=(
-                {"name": "CI", "conclusion": "SUCCESS"},
-                {"name": "Decision Preflight", "conclusion": "SUCCESS"},
+                {"name": "CI", "status": "completed", "conclusion": "success"},
+                {"name": "Decision Preflight", "status": "completed", "conclusion": "success"},
             ),
         )
         assert evidence.ci_passed is True
@@ -430,8 +434,8 @@ class TestExecutionEvidence:
         evidence = _make_evidence(
             required_workflows=("CI", "State Gate"),
             ci_checks=(
-                {"name": "CI", "conclusion": "SUCCESS"},
-                {"name": "State Gate", "conclusion": "FAILURE"},
+                {"name": "CI", "status": "completed", "conclusion": "success"},
+                {"name": "State Gate", "status": "completed", "conclusion": "FAILURE"},
             ),
         )
         assert evidence.ci_passed is False
@@ -443,7 +447,7 @@ class TestExecutionEvidence:
     def test_ci_passed_false_when_required_workflow_missing(self) -> None:
         evidence = _make_evidence(
             required_workflows=("CI", "State Gate"),
-            ci_checks=({"name": "CI", "conclusion": "SUCCESS"},),
+            ci_checks=({"name": "CI", "status": "completed", "conclusion": "success"},),
         )
         assert evidence.ci_passed is False
 
@@ -451,18 +455,28 @@ class TestExecutionEvidence:
         evidence = _make_evidence(
             required_workflows=("CI",),
             ci_checks=(
-                {"name": "CI", "conclusion": "SUCCESS"},
-                {"name": "CI", "conclusion": "SUCCESS"},
+                {"name": "CI", "status": "completed", "conclusion": "success"},
+                {"name": "CI", "status": "completed", "conclusion": "success"},
             ),
         )
         assert evidence.ci_passed is False
 
-    def test_ci_passed_accepts_status_field(self) -> None:
+    def test_ci_passed_requires_both_status_and_conclusion(self) -> None:
+        # F24: Both status=completed AND conclusion=success are required.
+        # status=SUCCESS alone (without conclusion) must fail.
         evidence = _make_evidence(
             required_workflows=("CI",),
             ci_checks=({"name": "CI", "status": "SUCCESS"},),
         )
-        assert evidence.ci_passed is True
+        assert evidence.ci_passed is False
+
+    def test_ci_passed_rejects_empty_conclusion(self) -> None:
+        # F24: completed run with empty conclusion never passes.
+        evidence = _make_evidence(
+            required_workflows=("CI",),
+            ci_checks=({"name": "CI", "status": "completed", "conclusion": ""},),
+        )
+        assert evidence.ci_passed is False
 
     def test_is_live_true_only_for_live_mode(self) -> None:
         live = _make_evidence(collection_mode="live")
@@ -482,7 +496,7 @@ class TestExecutionEvidence:
             "test_results": {"passed": True},
             "git_diff_check_passed": True,
             "agent_completion_claim": "done",
-            "ci_checks": [{"name": "CI", "conclusion": "SUCCESS"}],
+            "ci_checks": [{"name": "CI", "status": "completed", "conclusion": "success"}],
             "collected_at": "2026-08-02T00:00:00Z",
             "collection_mode": "fixture",
             "provenance": "caller_asserted",
@@ -692,7 +706,12 @@ class TestFixtureLiveBoundary:
         assert evidence.provenance == "caller_asserted"
         assert evidence.is_live is False
 
-    def test_create_live_produces_live_evidence(self) -> None:
+    def test_create_live_produces_fixture_evidence_f27(self) -> None:
+        """F27: create_live is deprecated and produces fixture evidence only.
+
+        Only evidence_adapter._create_trusted_evidence can produce live
+        evidence by passing the module-private _LIVE_FACTORY_TOKEN.
+        """
         evidence = ExecutionEvidence.create_live(
             execution_id="exec-1",
             repository="dddd2024/reverse-agent",
@@ -701,10 +720,10 @@ class TestFixtureLiveBoundary:
             pr_number=97,
             required_workflows=("CI",),
         )
-        assert evidence.collection_mode == "live"
-        assert evidence.provenance == "trusted_git_github_collector"
-        assert evidence.is_live is True
-        assert evidence.live_ready is True
+        assert evidence.collection_mode == "fixture"
+        assert evidence.provenance == "caller_asserted"
+        assert evidence.is_live is False
+        assert evidence.live_ready is False
 
     def test_fixture_evidence_live_ready_is_false(self) -> None:
         evidence = _make_evidence(collection_mode="fixture")
@@ -750,8 +769,8 @@ class TestRequiredWorkflowSetMatching:
         evidence = _make_evidence(
             required_workflows=("CI", "Decision Preflight"),
             ci_checks=(
-                {"name": "CI", "conclusion": "SUCCESS"},
-                {"name": "Decision Preflight", "conclusion": "SUCCESS"},
+                {"name": "CI", "status": "completed", "conclusion": "success"},
+                {"name": "Decision Preflight", "status": "completed", "conclusion": "success"},
             ),
         )
         assert evidence.ci_passed is True
@@ -760,9 +779,9 @@ class TestRequiredWorkflowSetMatching:
         evidence = _make_evidence(
             required_workflows=("CI", "Decision Preflight", "State Gate (push)"),
             ci_checks=(
-                {"name": "CI", "conclusion": "SUCCESS"},
-                {"name": "Decision Preflight", "conclusion": "SUCCESS"},
-                {"name": "State Gate (push)", "conclusion": "SUCCESS"},
+                {"name": "CI", "status": "completed", "conclusion": "success"},
+                {"name": "Decision Preflight", "status": "completed", "conclusion": "success"},
+                {"name": "State Gate (push)", "status": "completed", "conclusion": "success"},
             ),
         )
         assert evidence.ci_passed is True
@@ -875,13 +894,14 @@ class TestRequiredChecksAsWorkflows:
 
 
 # ---------------------------------------------------------------------------
-# F17: Active merge intent binds PR #97 and v3 digests
+# F17/F28: Active merge intent binds PR #97 and v4 digests
 # ---------------------------------------------------------------------------
 
-class TestActiveMergeIntentV3:
-    """F17: The active merge intent must bind PR #97 and v3 digests.
+class TestActiveMergeIntentV4:
+    """F17/F28: The active merge intent must bind PR #97 and v4 digests.
 
-    The v2 intent must be archived verbatim. The v1 archive must be untouched.
+    The v1, v2, and v3 intents must be archived verbatim. The active intent
+    must bind the v4 Decision content SHA-256 and Command Plan SHA-256.
     """
 
     @pytest.fixture(autouse=True)
@@ -891,30 +911,35 @@ class TestActiveMergeIntentV3:
         repo_root = Path(__file__).resolve().parents[2]
         intents_dir = repo_root / "project_state" / "mainline_merge_intents"
         self._active_path = intents_dir / "active.json"
-        self._archive_v2_path = intents_dir / "archive" / "pr97_v2.json"
         self._archive_v1_path = intents_dir / "archive" / "pr97_v1.json"
+        self._archive_v2_path = intents_dir / "archive" / "pr97_v2.json"
+        self._archive_v3_path = intents_dir / "archive" / "pr97_v3.json"
         self._active = json.loads(self._active_path.read_text(encoding="utf-8"))
+        self._archive_v1 = json.loads(self._archive_v1_path.read_text(encoding="utf-8"))
         self._archive_v2 = json.loads(self._archive_v2_path.read_text(encoding="utf-8"))
+        self._archive_v3 = json.loads(self._archive_v3_path.read_text(encoding="utf-8"))
 
     def test_active_binds_source_pr_97(self) -> None:
         assert self._active["source_pr"] == 97
 
-    def test_active_binds_v3_decision_id(self) -> None:
+    def test_active_binds_v4_decision_id(self) -> None:
         assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260802_issue99_platform_v1_live_evidence_boundary_v3"
+            "decision_20260802_issue100_platform_v1_authority_collector_v4"
         )
 
-    def test_active_binds_v3_decision_content_sha256(self) -> None:
+    def test_active_binds_v4_decision_content_sha256(self) -> None:
         sha = self._active["decision_identity"]["decision_content_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
-        assert sha != "f0c45ea2e8456766f5aca6e206dcd5fc4b70e57e45d8455526470cc6c65fd2d0"
+        # Must differ from the v3 decision content SHA-256
+        assert sha != self._archive_v3["decision_identity"]["decision_content_sha256"]
 
-    def test_active_binds_v3_command_plan_sha256(self) -> None:
+    def test_active_binds_v4_command_plan_sha256(self) -> None:
         sha = self._active["command_plan_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
-        assert sha != "fc458ada97190d14bc4d13953cf9c6ddb47a6a4b888e073b1e5e65c1475aa806"
+        # Must differ from the v3 command plan SHA-256
+        assert sha != self._archive_v3["command_plan_sha256"]
 
     def test_active_binds_locked_base_sha(self) -> None:
         assert self._active["locked_base_sha"] == VALID_BASE_SHA
@@ -933,10 +958,20 @@ class TestActiveMergeIntentV3:
         expires = self._active.get("expires_at", "")
         assert expires and expires.endswith("Z")
 
+    def test_archive_v1_exists_and_preserves_v1_decision_id(self) -> None:
+        assert self._archive_v1["decision_identity"]["decision_id"] == (
+            "decision_20260802_platform_v1_openhands_codex_acp_v1"
+        )
+
     def test_archive_v2_exists_and_preserves_v2_decision_id(self) -> None:
         assert self._archive_v2["decision_identity"]["decision_id"] == (
             "decision_20260802_issue98_platform_v1_trust_binding_rework_v2"
         )
 
-    def test_archive_v2_preserves_v2_source_pr(self) -> None:
-        assert self._archive_v2["source_pr"] == 97
+    def test_archive_v3_exists_and_preserves_v3_decision_id(self) -> None:
+        assert self._archive_v3["decision_identity"]["decision_id"] == (
+            "decision_20260802_issue99_platform_v1_live_evidence_boundary_v3"
+        )
+
+    def test_archive_v3_preserves_v3_source_pr(self) -> None:
+        assert self._archive_v3["source_pr"] == 97

@@ -22,6 +22,10 @@ from typing import Any, Sequence
 
 MAX_ATTEMPTS = 2  # at most one bounded retry; the third attempt is rejected
 
+# Module-private sentinel required to construct live evidence.
+# Only evidence_adapter._create_trusted_evidence() may import and use this.
+_LIVE_FACTORY_TOKEN = object()
+
 VALID_ACCEPTANCE_STATUSES = frozenset({
     "ACCEPTED",
     "FIXTURE_VALIDATED",
@@ -185,7 +189,7 @@ class PlatformWorkItem:
             raise ValueError(f"invalid_base_sha:{self.base_sha}")
         if not isinstance(self.goal, str) or not self.goal.strip():
             raise ValueError("goal_must_be_non_empty_string")
-        if not isinstance(self.approved_issue_body_digest, str) or not _SHA1_HEX_RE.match(self.approved_issue_body_digest):
+        if not isinstance(self.approved_issue_body_digest, str) or not _SHA256_HEX_RE.match(self.approved_issue_body_digest):
             raise ValueError(f"invalid_approved_issue_body_digest:{self.approved_issue_body_digest}")
         if self.risk_tier not in VALID_RISK_TIERS:
             raise ValueError(f"invalid_risk_tier:{self.risk_tier}")
@@ -368,6 +372,7 @@ class ExecutionEvidence:
     collected_at: str = ""
     collection_mode: str = "fixture"
     provenance: str = "caller_asserted"
+    _factory_token: object = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.execution_id, str) or not self.execution_id.strip():
@@ -388,6 +393,12 @@ class ExecutionEvidence:
             object.__setattr__(self, "ci_checks", tuple(self.ci_checks))
         if self.collection_mode not in ("live", "fixture"):
             raise ValueError(f"invalid_collection_mode:{self.collection_mode}")
+        # F27: live mode requires the module-private trusted factory token.
+        # This prevents external callers from constructing acceptance-grade
+        # live evidence directly. Only evidence_adapter._create_trusted_evidence
+        # imports _LIVE_FACTORY_TOKEN and passes it.
+        if self.collection_mode == "live" and self._factory_token is not _LIVE_FACTORY_TOKEN:
+            raise ValueError("live_mode_requires_trusted_factory")
 
     @property
     def tests_passed(self) -> bool:
@@ -404,6 +415,9 @@ class ExecutionEvidence:
         duplicate authoritative workflows, extra unexpected workflows, and
         any non-SUCCESS status (PENDING, SKIPPED, CANCELLED, UNKNOWN, FAILURE,
         TIMED_OUT, ACTION_REQUIRED, STALE, NEUTRAL).
+
+        F24: A completed run with empty conclusion never passes. Both
+        ``status=completed`` AND ``conclusion=success`` are required.
         """
 
         if not self.ci_checks or not self.required_workflows:
@@ -428,7 +442,8 @@ class ExecutionEvidence:
             check = checks_by_name[required]
             conclusion = str(check.get("conclusion", "")).upper()
             status = str(check.get("status", "")).upper()
-            if conclusion not in ("SUCCESS", "COMPLETED") and status != "SUCCESS":
+            # F24: strict success — both status=completed AND conclusion=success
+            if status != "COMPLETED" or conclusion != "SUCCESS":
                 return False
         return True
 
@@ -568,11 +583,13 @@ class ExecutionEvidence:
         ci_checks: tuple[dict[str, Any], ...] = (),
         collected_at: str = "",
     ) -> ExecutionEvidence:
-        """Create live evidence — only callable by the trusted collector.
+        """DEPRECATED: use ``evidence_adapter._create_trusted_evidence``.
 
-        F9: This is the sole factory that can produce ``collection_mode=live``
-        and ``provenance=trusted_git_github_collector``. It is never called from
-        :meth:`from_mapping` or from CLI stdin parsing.
+        F27: This public factory can no longer produce acceptance-grade live
+        evidence. It returns fixture evidence (``collection_mode=fixture``,
+        ``provenance=caller_asserted``) regardless of caller intent. Only
+        ``evidence_adapter._create_trusted_evidence`` imports the module-private
+        ``_LIVE_FACTORY_TOKEN`` and can construct live evidence.
         """
 
         return cls(
@@ -588,8 +605,9 @@ class ExecutionEvidence:
             agent_completion_claim=agent_completion_claim,
             ci_checks=ci_checks,
             collected_at=collected_at,
-            collection_mode="live",
-            provenance="trusted_git_github_collector",
+            # F27: always fixture — public factory cannot produce live evidence
+            collection_mode="fixture",
+            provenance="caller_asserted",
         )
 
 

@@ -25,7 +25,7 @@ from reverse_agent.platform_v1.contracts import PlatformWorkItem
 
 VALID_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
 VALID_HEAD_SHA = "e702a3c5f50b9373e0af8087a76268d4a01cd9b1"
-VALID_ISSUE_BODY_DIGEST = "a" * 40
+VALID_ISSUE_BODY_DIGEST = "a" * 64  # F25: SHA-256, 64 hex chars
 
 
 def _run_cli(args: list[str], stdin_data: str = "") -> tuple[int, dict]:
@@ -89,7 +89,7 @@ def _evidence_payload_for(work_item_payload: dict, **evidence_overrides) -> dict
         "test_results": {"passed": True},
         "git_diff_check_passed": True,
         "agent_completion_claim": "",
-        "ci_checks": [{"name": "CI", "conclusion": "SUCCESS"}],
+        "ci_checks": [{"name": "CI", "status": "completed", "conclusion": "success"}],
         "collected_at": "",
         "collection_mode": "fixture",
         "provenance": "caller_asserted",
@@ -373,86 +373,144 @@ class TestEvaluateAcceptanceCmd:
 
 
 # ---------------------------------------------------------------------------
-# evaluate-live-acceptance (F10/F11)
+# evaluate-live-acceptance (F10/F11/F18/F19/F20/F26/F27)
 # ---------------------------------------------------------------------------
 
 class TestEvaluateLiveAcceptanceCmd:
-    """F10: The live path does NOT accept a raw evidence object.
-    F11: All binding parameters are mandatory.
+    """F18/F20/F26: The live path accepts ONLY target identifiers from stdin.
+
+    stdin Work Item payloads, ``authority_digest``, ``test_command``,
+    ``expected_head_sha``, and ``expected_branch`` are all rejected.
+    Authority is loaded internally from repository state and GitHub facts.
     """
 
-    def _live_payload(self, **overrides) -> dict:
-        work_item = _valid_work_item_payload()
+    def _identifier_payload(self, **overrides) -> dict:
         payload = {
-            "work_item": work_item,
-            "pr_number": 97,
-            "expected_head_sha": VALID_HEAD_SHA,
-            "expected_branch": "agent/platform-v1-openhands-codex-acp",
-            "authority_digest": PlatformWorkItem.from_mapping(work_item).digest,
             "repo_dir": ".",
+            "repository": "dddd2024/reverse-agent",
+            "issue_number": 100,
+            "pr_number": 97,
         }
         payload.update(overrides)
         return payload
 
+    # --- F18/F20: stdin Work Item forbidden ---
+
+    def test_stdin_work_item_forbidden(self) -> None:
+        payload = self._identifier_payload()
+        payload["work_item"] = _valid_work_item_payload()
+        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
+        assert code == 10
+        assert out["status"] == "SCHEMA_ERROR"
+        assert out.get("error") == "stdin_work_item_forbidden"
+
+    def test_stdin_authority_digest_forbidden(self) -> None:
+        payload = self._identifier_payload()
+        payload["authority_digest"] = "a" * 64
+        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
+        assert code == 10
+        assert out["status"] == "SCHEMA_ERROR"
+        assert out.get("error") == "stdin_authority_digest_forbidden"
+
+    def test_stdin_test_command_forbidden(self) -> None:
+        payload = self._identifier_payload()
+        payload["test_command"] = "python -m pytest"
+        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
+        assert code == 10
+        assert out["status"] == "SCHEMA_ERROR"
+        assert out.get("error") == "stdin_test_command_forbidden"
+
+    def test_stdin_expected_head_sha_forbidden(self) -> None:
+        payload = self._identifier_payload()
+        payload["expected_head_sha"] = VALID_HEAD_SHA
+        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
+        assert code == 10
+        assert out["status"] == "SCHEMA_ERROR"
+        assert out.get("error") == "stdin_binding_forbidden"
+
+    def test_stdin_expected_branch_forbidden(self) -> None:
+        payload = self._identifier_payload()
+        payload["expected_branch"] = "agent/platform-v1-openhands-codex-acp"
+        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
+        assert code == 10
+        assert out["status"] == "SCHEMA_ERROR"
+        assert out.get("error") == "stdin_binding_forbidden"
+
+    # --- Target identifier validation ---
+
+    def test_missing_repository_returns_schema_error(self) -> None:
+        payload = self._identifier_payload(repository="")
+        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
+        assert code == 10
+        assert out["status"] == "SCHEMA_ERROR"
+        assert out.get("error") == "repository_required"
+
+    def test_missing_issue_number_returns_schema_error(self) -> None:
+        payload = self._identifier_payload()
+        del payload["issue_number"]
+        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
+        assert code == 10
+        assert out["status"] == "SCHEMA_ERROR"
+        assert out.get("error") == "issue_number_required"
+
+    def test_zero_issue_number_returns_schema_error(self) -> None:
+        payload = self._identifier_payload(issue_number=0)
+        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
+        assert code == 10
+        assert out["status"] == "SCHEMA_ERROR"
+        assert out.get("error") == "issue_number_required"
+
     def test_missing_pr_number_returns_schema_error(self) -> None:
-        payload = self._live_payload()
+        payload = self._identifier_payload()
         del payload["pr_number"]
         code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
         assert code == 10
         assert out["status"] == "SCHEMA_ERROR"
 
     def test_zero_pr_number_returns_schema_error(self) -> None:
-        payload = self._live_payload(pr_number=0)
+        payload = self._identifier_payload(pr_number=0)
         code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
         assert code == 10
         assert out["status"] == "SCHEMA_ERROR"
-        assert "pr_number_required" in out.get("error", "")
+        assert out.get("error") == "pr_number_required"
 
-    def test_missing_expected_head_sha_returns_schema_error(self) -> None:
-        payload = self._live_payload()
-        del payload["expected_head_sha"]
+    def test_non_integer_issue_number_returns_schema_error(self) -> None:
+        payload = self._identifier_payload(issue_number="abc")
         code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
         assert code == 10
         assert out["status"] == "SCHEMA_ERROR"
+        assert out.get("error") == "issue_number_must_be_int"
 
-    def test_empty_expected_head_sha_returns_schema_error(self) -> None:
-        payload = self._live_payload(expected_head_sha="")
-        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
-        assert code == 10
-        assert out["status"] == "SCHEMA_ERROR"
-        assert "expected_head_sha_required" in out.get("error", "")
-
-    def test_missing_expected_branch_returns_schema_error(self) -> None:
-        payload = self._live_payload(expected_branch="")
-        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
-        assert code == 10
-        assert out["status"] == "SCHEMA_ERROR"
-        assert "expected_branch_required" in out.get("error", "")
-
-    def test_missing_authority_digest_returns_schema_error(self) -> None:
-        payload = self._live_payload(authority_digest="")
-        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
-        assert code == 10
-        assert out["status"] == "SCHEMA_ERROR"
-        assert "authority_digest_required" in out.get("error", "")
+    # --- F10: raw evidence object not accepted ---
 
     def test_raw_evidence_object_not_accepted(self) -> None:
         # F10: The live path must not accept a raw evidence object.
         # Even if the caller provides an "evidence" key with all-success
         # values and collection_mode=live, the command must NOT return
-        # ACCEPTED. It collects its own evidence through LiveGitAdapter.
-        payload = self._live_payload()
+        # ACCEPTED. It collects its own evidence through injectable adapters.
+        payload = self._identifier_payload()
         payload["evidence"] = {
             "execution_id": "exec-forged",
             "collection_mode": "live",
             "provenance": "trusted_git_github_collector",
             "test_results": {"passed": True},
-            "ci_checks": [{"name": "CI", "conclusion": "SUCCESS"}],
+            "ci_checks": [{"name": "CI", "status": "completed", "conclusion": "success"}],
             "git_diff_check_passed": True,
         }
         code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
         # The command must NOT return 0 (ACCEPTED) — it ignores the evidence
-        # key and tries to collect real evidence, which fails in test env.
+        # key and tries to collect real evidence via the Authority Bundle.
+        assert code != 0
+        assert out.get("status") != "ACCEPTED"
+
+    # --- Authority loading (will fail without real GitHub access) ---
+
+    def test_valid_identifiers_trigger_authority_loading(self) -> None:
+        # With valid identifiers but no real GitHub access (or repository
+        # state mismatch), the command must NOT return ACCEPTED.
+        # It should return AUTHORITY_ERROR or LIVE_COLLECTION_ERROR.
+        payload = self._identifier_payload()
+        code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
         assert code != 0
         assert out.get("status") != "ACCEPTED"
 

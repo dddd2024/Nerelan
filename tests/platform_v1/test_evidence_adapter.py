@@ -1,35 +1,47 @@
-"""Tests for the Git/GitHub evidence adapter.
+"""Tests for the Git/GitHub evidence adapter (F14/F19/F20/F26/F27).
 
 Covers:
-- get_changed_paths via git diff (raises EvidenceCollectionError on failure)
-- check_git_diff via git diff --check (raises EvidenceCollectionError on failure)
-- parse_pr_checks output parsing
-- merge_evidence: trusted overrides untrusted
-- assemble_evidence: collects Git truth (collection_mode=live)
+- ``LiveGitAdapter``: get_changed_paths / check_git_diff via subprocess
+- ``LiveCommandRunner``: never uses shell=True (F19)
+- ``collect_live_evidence`` with injectable adapters and AuthorityBundle
+- F19: test commands selected by command_id from the Command Plan
+- F19: shell metacharacters rejected; argv list used; shell=False enforced
+- F20/F26: caller-supplied test_command / Work Item rejected
+- F27: assemble_evidence produces fixture evidence only (never live)
+- F27: _create_trusted_evidence is the sole live evidence factory
+- F15: merge_evidence trusted overrides untrusted, no fallback
 """
 
 from __future__ import annotations
 
+import inspect
 import subprocess
 
 import pytest
 
-from reverse_agent.platform_v1.contracts import ExecutionEvidence
+from reverse_agent.platform_v1.authority_adapter import AuthorityBundle
+from reverse_agent.platform_v1.contracts import ExecutionEvidence, _LIVE_FACTORY_TOKEN
 from reverse_agent.platform_v1.evidence_adapter import (
     EvidenceCollectionError,
     FakeCommandRunner,
     FakeGitAdapter,
+    LiveCommandRunner,
+    LiveGitAdapter,
+    _create_trusted_evidence,
+    _is_safe_command,
+    _parse_command_to_argv,
+    _select_required_test_commands,
     assemble_evidence,
     check_git_diff,
     collect_live_evidence,
     get_changed_paths,
+    get_head_sha,
     merge_evidence,
-    parse_pr_checks,
 )
 from reverse_agent.platform_v1.github_adapter import (
     FakeGitHubAdapter,
     GitHubAdapterError,
-    WorkflowCheck,
+    WorkflowRun,
 )
 
 
@@ -56,13 +68,84 @@ def _make_evidence(**overrides) -> ExecutionEvidence:
     return ExecutionEvidence(**defaults)
 
 
+def _make_bundle(
+    *,
+    issue_number: int = 100,
+    pr_number: int = 97,
+    head_sha: str = VALID_HEAD_SHA,
+    base_sha: str = VALID_BASE_SHA,
+    branch: str = "agent/platform-v1-openhands-codex-acp",
+    risk_tier: str = "R0",
+    allowed_paths: tuple[str, ...] = ("reverse_agent/platform_v1/**",),
+    allowed_commands: tuple[dict, ...] | None = None,
+) -> AuthorityBundle:
+    """Build an AuthorityBundle for tests (bypasses live GitHub)."""
+
+    if allowed_commands is None:
+        allowed_commands = (
+            {
+                "command_id": "test.pytest_platform_v1",
+                "command": "python -m pytest tests/platform_v1 -q",
+                "phase": "test",
+                "required": True,
+            },
+        )
+    return AuthorityBundle(
+        decision_id="decision_test",
+        round_id="round_test",
+        decision_content_sha256="a" * 64,
+        command_plan_sha256="b" * 64,
+        allowed_command_ids=tuple(c["command_id"] for c in allowed_commands),
+        allowed_commands=allowed_commands,
+        issue_number=issue_number,
+        issue_body_sha256="c" * 64,
+        issue_state="OPEN",
+        issue_labels=("work-item", "r2", "owner-accepted"),
+        repository="dddd2024/reverse-agent",
+        pr_number=pr_number,
+        branch=branch,
+        base_sha=base_sha,
+        risk_tier=risk_tier,
+        intent_id="intent_test",
+        intent_decision_content_sha256="a" * 64,
+        intent_command_plan_sha256="b" * 64,
+        allowed_paths=allowed_paths,
+        required_workflow_keys=(
+            ("CI", "pull_request"),
+            ("Decision Preflight", "pull_request"),
+            ("State Gate", "pull_request"),
+            ("State Gate", "push"),
+        ),
+        pr_state="OPEN",
+        pr_is_draft=True,
+        pr_head_ref_name=branch,
+        pr_head_ref_oid=head_sha,
+        pr_base_ref_name="main",
+        pr_base_ref_oid=base_sha,
+    )
+
+
+def _all_required_runs(head_sha: str = VALID_HEAD_SHA) -> tuple[WorkflowRun, ...]:
+    return (
+        WorkflowRun(workflow_name="CI", event="pull_request", run_id="1",
+                    head_sha=head_sha, status="COMPLETED", conclusion="SUCCESS"),
+        WorkflowRun(workflow_name="Decision Preflight", event="pull_request",
+                    run_id="2", head_sha=head_sha, status="COMPLETED",
+                    conclusion="SUCCESS"),
+        WorkflowRun(workflow_name="State Gate", event="pull_request",
+                    run_id="3", head_sha=head_sha, status="COMPLETED",
+                    conclusion="SUCCESS"),
+        WorkflowRun(workflow_name="State Gate", event="push", run_id="4",
+                    head_sha=head_sha, status="COMPLETED", conclusion="SUCCESS"),
+    )
+
+
 # ---------------------------------------------------------------------------
-# get_changed_paths
+# get_changed_paths / check_git_diff / get_head_sha (legacy function API)
 # ---------------------------------------------------------------------------
 
 class TestGetChangedPaths:
     def test_returns_paths_from_git_diff(self, tmp_path) -> None:
-        # Set up a tiny git repo
         repo = tmp_path / "repo"
         repo.mkdir()
         _git(repo, "init")
@@ -80,23 +163,11 @@ class TestGetChangedPaths:
         assert "b.py" in paths
 
     def test_raises_on_git_failure(self, tmp_path) -> None:
-        # Non-existent base SHA in a non-repo directory -> git failure.
-        # The adapter must raise EvidenceCollectionError, not return ().
         with pytest.raises(EvidenceCollectionError) as exc_info:
             get_changed_paths("0" * 40, "HEAD", str(tmp_path))
         assert exc_info.value.code == "git_diff_name_only_failed"
         assert "exit=" in exc_info.value.detail
 
-    def test_does_not_return_empty_on_git_failure(self, tmp_path) -> None:
-        # The old behavior returned () on git failure; the new contract
-        # raises. Verify the function does NOT silently return an empty tuple.
-        with pytest.raises(EvidenceCollectionError):
-            get_changed_paths("0" * 40, "HEAD", str(tmp_path))
-
-
-# ---------------------------------------------------------------------------
-# check_git_diff
-# ---------------------------------------------------------------------------
 
 class TestCheckGitDiff:
     def test_returns_true_when_no_whitespace_errors(self, tmp_path) -> None:
@@ -125,7 +196,6 @@ class TestCheckGitDiff:
         _git(repo, "add", "a.py")
         _git(repo, "commit", "-m", "initial")
         base_sha = _git(repo, "rev-parse", "HEAD")
-        # trailing whitespace triggers git diff --check failure (exit 2)
         (repo / "b.py").write_text("b = 2   \n", encoding="utf-8")
         _git(repo, "add", "b.py")
         _git(repo, "commit", "-m", "add b with trailing space")
@@ -133,159 +203,314 @@ class TestCheckGitDiff:
         assert check_git_diff(base_sha, "HEAD", str(repo)) is False
 
     def test_raises_on_git_failure(self, tmp_path) -> None:
-        # A non-repo directory causes git to fail with an unexpected exit
-        # code (not 0 or 2), which must raise EvidenceCollectionError.
         with pytest.raises(EvidenceCollectionError) as exc_info:
             check_git_diff("0" * 40, "HEAD", str(tmp_path))
         assert exc_info.value.code == "git_diff_check_failed"
         assert "exit=" in exc_info.value.detail
 
 
-# ---------------------------------------------------------------------------
-# parse_pr_checks
-# ---------------------------------------------------------------------------
+class TestGetHeadSha:
+    def test_returns_head_sha(self, tmp_path) -> None:
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init")
+        _git(repo, "config", "user.email", "test@example.com")
+        _git(repo, "config", "user.name", "Test")
+        (repo / "a.py").write_text("a = 1\n", encoding="utf-8")
+        _git(repo, "add", "a.py")
+        _git(repo, "commit", "-m", "initial")
+        expected = _git(repo, "rev-parse", "HEAD")
 
-class TestParsePrChecks:
-    def test_parses_success_status(self) -> None:
-        output = "CI\tSUCCESS\tmain\t1234567890\n"
-        checks = parse_pr_checks(output)
-        assert len(checks) == 1
-        assert checks[0]["name"] == "CI"
-        assert checks[0]["status"] == "SUCCESS"
-
-    def test_parses_multiple_checks(self) -> None:
-        output = (
-            "CI\tSUCCESS\tmain\t123\n"
-            "State Gate\tFAILURE\tmain\t124\n"
-            "Decision Preflight\tSUCCESS\tmain\t125\n"
-        )
-        checks = parse_pr_checks(output)
-        assert len(checks) == 3
-        assert checks[0]["status"] == "SUCCESS"
-        assert checks[1]["status"] == "FAILURE"
-        assert checks[2]["status"] == "SUCCESS"
-
-    def test_skips_header_and_empty_lines(self) -> None:
-        output = (
-            "name\tstate\tbranch\tid\n"
-            "\n"
-            "CI\tSUCCESS\tmain\t123\n"
-        )
-        checks = parse_pr_checks(output)
-        assert len(checks) == 1
-        assert checks[0]["name"] == "CI"
-
-    def test_empty_output_returns_empty(self) -> None:
-        assert parse_pr_checks("") == ()
-
-    def test_unknown_status_default(self) -> None:
-        output = "CI\tNEUTRAL\tmain\t123\n"
-        checks = parse_pr_checks(output)
-        assert len(checks) == 1
-        assert checks[0]["status"] == "UNKNOWN"
+        assert get_head_sha(str(repo)) == expected
 
 
 # ---------------------------------------------------------------------------
-# merge_evidence
+# F19: LiveCommandRunner uses shell=False
 # ---------------------------------------------------------------------------
 
-class TestMergeEvidence:
-    def test_trusted_changed_paths_override_untrusted(self) -> None:
-        untrusted = _make_evidence(
-            changed_paths=("claimed.py",),
-            agent_completion_claim="done",
-        )
-        trusted = _make_evidence(
-            changed_paths=("actual.py",),
-            git_diff_check_passed=True,
-        )
-        merged = merge_evidence(untrusted, trusted)
-        assert merged.changed_paths == ("actual.py",)
-        assert merged.agent_completion_claim == "done"
+class TestLiveCommandRunnerShellFalse:
+    """F19: The live command runner never uses shell=True."""
 
-    def test_trusted_test_results_override_untrusted(self) -> None:
-        untrusted = _make_evidence(
-            test_results={"passed": True, "source": "agent"},
-        )
-        trusted = _make_evidence(
-            test_results={"passed": False, "source": "git"},
-        )
-        merged = merge_evidence(untrusted, trusted)
-        assert merged.tests_passed is False
+    def test_run_uses_shell_false_in_source(self) -> None:
+        source = inspect.getsource(LiveCommandRunner.run)
+        assert "shell=False" in source
 
-    def test_trusted_git_diff_check_overrides(self) -> None:
-        untrusted = _make_evidence(git_diff_check_passed=True)
-        trusted = _make_evidence(git_diff_check_passed=False)
-        merged = merge_evidence(untrusted, trusted)
-        assert merged.git_diff_check_passed is False
+    def test_run_does_not_use_shell_true_in_source(self) -> None:
+        source = inspect.getsource(LiveCommandRunner.run)
+        assert "shell=True" not in source
 
-    def test_trusted_ci_checks_override(self) -> None:
-        untrusted = _make_evidence(
-            ci_checks=({"name": "CI", "conclusion": "SUCCESS"},),
-        )
-        trusted = _make_evidence(
-            ci_checks=({"name": "CI", "conclusion": "FAILURE"},),
-        )
-        merged = merge_evidence(untrusted, trusted)
-        assert merged.ci_passed is False
+    def test_run_rejects_non_list_argv(self) -> None:
+        runner = LiveCommandRunner()
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            runner.run("python -m pytest")  # type: ignore[arg-type]
+        assert exc_info.value.code == "invalid_argv"
 
-    def test_trusted_empty_paths_do_not_fallback_to_untrusted(self) -> None:
-        # F15: When trusted changed_paths is empty, it stays empty — NO fallback
-        untrusted = _make_evidence(
-            changed_paths=("from_agent.py",),
-            agent_completion_claim="done",
-        )
-        trusted = _make_evidence(
-            changed_paths=(),
-            git_diff_check_passed=True,
-        )
-        merged = merge_evidence(untrusted, trusted)
-        assert merged.changed_paths == ()
-        # agent_completion_claim is audit-only and preserved from untrusted
-        assert merged.agent_completion_claim == "done"
+    def test_run_rejects_empty_argv(self) -> None:
+        runner = LiveCommandRunner()
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            runner.run([])
+        assert exc_info.value.code == "invalid_argv"
 
-    def test_trusted_empty_test_results_do_not_fallback_to_untrusted(self) -> None:
-        # F15: When trusted test_results is empty, it stays empty — NO fallback
-        untrusted = _make_evidence(
-            test_results={"passed": True, "source": "agent"},
-            agent_completion_claim="agent says passed",
-        )
-        trusted = _make_evidence(
-            test_results={},
-            git_diff_check_passed=True,
-        )
-        merged = merge_evidence(untrusted, trusted)
-        assert merged.test_results == {}
-        assert merged.tests_passed is False
 
-    def test_trusted_binding_fields_propagate(self) -> None:
-        untrusted = _make_evidence(
-            repository="untrusted/repo",
-            base_sha="0" * 40,
-            head_sha="1" * 40,
-            pr_number=1,
-        )
-        trusted = _make_evidence(
-            repository="trusted/repo",
-            base_sha=VALID_BASE_SHA,
+# ---------------------------------------------------------------------------
+# F19: _is_safe_command / _parse_command_to_argv
+# ---------------------------------------------------------------------------
+
+class TestSafeCommandParsing:
+    """F19: Shell metacharacters are rejected; commands are split to argv."""
+
+    def test_safe_command_no_metacharacters(self) -> None:
+        assert _is_safe_command("python -m pytest tests/platform_v1 -q") is True
+
+    @pytest.mark.parametrize("metachar", [";", "|", "&", "<", ">", "`", "$", "\n", "\r"])
+    def test_metacharacters_rejected(self, metachar: str) -> None:
+        assert _is_safe_command(f"python {metachar} pytest") is False
+
+    def test_logical_and_rejected(self) -> None:
+        assert _is_safe_command("python && pytest") is False
+
+    def test_logical_or_rejected(self) -> None:
+        assert _is_safe_command("python || pytest") is False
+
+    def test_command_substitution_rejected(self) -> None:
+        assert _is_safe_command("python $(whoami)") is False
+
+    def test_parse_command_to_argv_returns_list(self) -> None:
+        argv = _parse_command_to_argv("python -m pytest tests/platform_v1 -q")
+        assert argv == ["python", "-m", "pytest", "tests/platform_v1", "-q"]
+
+    def test_parse_command_to_argv_rejects_metacharacters(self) -> None:
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            _parse_command_to_argv("python; pytest")
+        assert exc_info.value.code == "shell_metacharacters_rejected"
+
+    def test_parse_command_to_argv_rejects_empty(self) -> None:
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            _parse_command_to_argv("   ")
+        assert exc_info.value.code == "empty_command"
+
+
+# ---------------------------------------------------------------------------
+# F19: _select_required_test_commands selects by command_id from Command Plan
+# ---------------------------------------------------------------------------
+
+class TestSelectRequiredTestCommands:
+    """F19: Test commands are selected from the bundle's Command Plan."""
+
+    def test_selects_required_test_phase_commands(self) -> None:
+        bundle = _make_bundle(allowed_commands=(
+            {"command_id": "test.pytest_platform_v1", "command": "python -m pytest tests/platform_v1 -q",
+             "phase": "test", "required": True},
+            {"command_id": "observation.git_status", "command": "git status --short",
+             "phase": "status", "required": True},
+            {"command_id": "test.pytest_optional", "command": "python -m pytest tests/optional",
+             "phase": "test", "required": False},
+        ))
+        selected = _select_required_test_commands(bundle)
+        assert len(selected) == 1
+        assert selected[0]["command_id"] == "test.pytest_platform_v1"
+
+    def test_does_not_select_non_test_phase(self) -> None:
+        bundle = _make_bundle(allowed_commands=(
+            {"command_id": "observation.git_status", "command": "git status --short",
+             "phase": "status", "required": True},
+        ))
+        selected = _select_required_test_commands(bundle)
+        assert selected == []
+
+    def test_does_not_select_optional_tests(self) -> None:
+        bundle = _make_bundle(allowed_commands=(
+            {"command_id": "test.optional", "command": "python -m pytest tests/optional",
+             "phase": "test", "required": False},
+        ))
+        selected = _select_required_test_commands(bundle)
+        assert selected == []
+
+
+# ---------------------------------------------------------------------------
+# collect_live_evidence (F14/F19/F20/F26)
+# ---------------------------------------------------------------------------
+
+class TestCollectLiveEvidence:
+    """F14: The collector owns truth through injectable adapters.
+
+    F19: Test commands are selected by command_id from the bundle.
+    F20/F26: Authority comes from the bundle, not from stdin.
+    """
+
+    def test_collects_live_evidence_with_fake_adapters(self) -> None:
+        bundle = _make_bundle()
+        git = FakeGitAdapter(
+            changed_paths=("reverse_agent/platform_v1/cli.py",),
+            diff_check_passed=True,
             head_sha=VALID_HEAD_SHA,
-            pr_number=97,
-            required_workflows=("CI",),
         )
-        merged = merge_evidence(untrusted, trusted)
-        assert merged.repository == "trusted/repo"
-        assert merged.base_sha == VALID_BASE_SHA
-        assert merged.head_sha == VALID_HEAD_SHA
-        assert merged.pr_number == 97
-        assert merged.required_workflows == ("CI",)
+        gh = FakeGitHubAdapter(runs=_all_required_runs())
+        runner = FakeCommandRunner(exit_code=0)
+
+        evidence = collect_live_evidence(
+            bundle=bundle,
+            git_adapter=git,
+            github_adapter=gh,
+            command_runner=runner,
+        )
+        assert evidence.is_live is True
+        assert evidence.collection_mode == "live"
+        assert evidence.provenance == "trusted_git_github_collector"
+        assert evidence.head_sha == VALID_HEAD_SHA
+        assert evidence.changed_paths == ("reverse_agent/platform_v1/cli.py",)
+        assert evidence.git_diff_check_passed is True
+        assert evidence.tests_passed is True
+
+    def test_head_sha_mismatch_raises_error(self) -> None:
+        bundle = _make_bundle()
+        git = FakeGitAdapter(head_sha="0" * 40)
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            collect_live_evidence(
+                bundle=bundle,
+                git_adapter=git,
+                github_adapter=FakeGitHubAdapter(),
+            )
+        assert exc_info.value.code == "head_sha_mismatch"
+
+    def test_git_adapter_failure_raises_error(self) -> None:
+        bundle = _make_bundle()
+        git = FakeGitAdapter(
+            head_sha=VALID_HEAD_SHA,
+            fail_with=EvidenceCollectionError("git_rev_parse_failed", "test"),
+        )
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            collect_live_evidence(
+                bundle=bundle,
+                git_adapter=git,
+                github_adapter=FakeGitHubAdapter(),
+            )
+        assert exc_info.value.code == "git_rev_parse_failed"
+
+    def test_github_adapter_failure_raises_error(self) -> None:
+        bundle = _make_bundle()
+        git = FakeGitAdapter(
+            changed_paths=("a.py",),
+            diff_check_passed=True,
+            head_sha=VALID_HEAD_SHA,
+        )
+        gh = FakeGitHubAdapter(
+            fail_with=GitHubAdapterError("gh_run_list_failed", "exit=1"),
+        )
+        with pytest.raises(GitHubAdapterError) as exc_info:
+            collect_live_evidence(
+                bundle=bundle,
+                git_adapter=git,
+                github_adapter=gh,
+            )
+        assert exc_info.value.code == "gh_run_list_failed"
+
+    def test_workflow_validation_failure_raises_error(self) -> None:
+        bundle = _make_bundle()
+        git = FakeGitAdapter(
+            changed_paths=("a.py",),
+            diff_check_passed=True,
+            head_sha=VALID_HEAD_SHA,
+        )
+        # Only CI provided, missing the other three required workflows
+        gh = FakeGitHubAdapter(runs=(
+            WorkflowRun(workflow_name="CI", event="pull_request",
+                        run_id="1", head_sha=VALID_HEAD_SHA,
+                        status="COMPLETED", conclusion="SUCCESS"),
+        ))
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            collect_live_evidence(
+                bundle=bundle,
+                git_adapter=git,
+                github_adapter=gh,
+            )
+        assert exc_info.value.code == "workflow_validation_failed"
+
+    def test_test_command_failure_marks_tests_failed(self) -> None:
+        bundle = _make_bundle()
+        git = FakeGitAdapter(
+            changed_paths=("a.py",),
+            diff_check_passed=True,
+            head_sha=VALID_HEAD_SHA,
+        )
+        gh = FakeGitHubAdapter(runs=_all_required_runs())
+        runner = FakeCommandRunner(exit_code=1)  # test failure
+
+        evidence = collect_live_evidence(
+            bundle=bundle,
+            git_adapter=git,
+            github_adapter=gh,
+            command_runner=runner,
+        )
+        assert evidence.tests_passed is False
+
+    def test_collector_uses_command_id_not_caller_supplied_command(self) -> None:
+        """F19: The collector selects commands from the bundle, not from stdin.
+
+        Verify that the command runner receives the argv from the bundle's
+        Command Plan, not from any caller-supplied test_command string.
+        """
+        bundle = _make_bundle(allowed_commands=(
+            {"command_id": "test.pytest_platform_v1",
+             "command": "python -m pytest tests/platform_v1 -q",
+             "phase": "test", "required": True},
+        ))
+        git = FakeGitAdapter(
+            changed_paths=("a.py",),
+            diff_check_passed=True,
+            head_sha=VALID_HEAD_SHA,
+        )
+        gh = FakeGitHubAdapter(runs=_all_required_runs())
+        runner = FakeCommandRunner(exit_code=0)
+
+        collect_live_evidence(
+            bundle=bundle,
+            git_adapter=git,
+            github_adapter=gh,
+            command_runner=runner,
+        )
+        # The runner should have received the argv from the bundle's command
+        assert len(runner.calls) == 1
+        assert runner.calls[0] == ["python", "-m", "pytest", "tests/platform_v1", "-q"]
+
+    def test_collector_rejects_command_with_shell_metacharacters(self) -> None:
+        """F19: If a Command Plan command contains shell metacharacters, the
+        collector records it as a failed test rather than executing it."""
+        bundle = _make_bundle(allowed_commands=(
+            {"command_id": "test.malicious", "command": "python; rm -rf /",
+             "phase": "test", "required": True},
+        ))
+        git = FakeGitAdapter(
+            changed_paths=("a.py",),
+            diff_check_passed=True,
+            head_sha=VALID_HEAD_SHA,
+        )
+        gh = FakeGitHubAdapter(runs=_all_required_runs())
+        runner = FakeCommandRunner(exit_code=0)
+
+        evidence = collect_live_evidence(
+            bundle=bundle,
+            git_adapter=git,
+            github_adapter=gh,
+            command_runner=runner,
+        )
+        # The malicious command is recorded as failed; runner was never called
+        assert evidence.tests_passed is False
+        assert runner.calls == []
 
 
 # ---------------------------------------------------------------------------
-# assemble_evidence
+# F27: assemble_evidence is deprecated — produces fixture only
 # ---------------------------------------------------------------------------
 
-class TestAssembleEvidence:
-    def test_assembles_from_git_state(self, tmp_path) -> None:
+class TestAssembleEvidenceDeprecated:
+    """F27: assemble_evidence produces fixture evidence only.
+
+    It must NOT produce live evidence, regardless of inputs. Live evidence
+    can only come from collect_live_evidence → _create_trusted_evidence.
+    """
+
+    def test_assemble_evidence_returns_fixture_mode(self, tmp_path) -> None:
         repo = tmp_path / "repo"
         repo.mkdir()
         _git(repo, "init")
@@ -310,18 +535,14 @@ class TestAssembleEvidence:
             repo_dir=str(repo),
             test_results={"passed": True},
             ci_checks=({"name": "CI", "conclusion": "SUCCESS"},),
-            agent_completion_claim="done",
         )
-        assert "b.py" in evidence.changed_paths
-        assert evidence.git_diff_check_passed is True
-        assert evidence.tests_passed is True
-        assert evidence.ci_passed is True
-        assert evidence.agent_completion_claim == "done"
-        assert evidence.repository == "dddd2024/reverse-agent"
-        assert evidence.pr_number == 97
-        assert evidence.required_workflows == ("CI",)
+        # F27: assemble_evidence returns fixture, not live
+        assert evidence.collection_mode == "fixture"
+        assert evidence.provenance == "caller_asserted"
+        assert evidence.is_live is False
+        assert evidence.live_ready is False
 
-    def test_sets_collection_mode_live_and_trusted_provenance(self, tmp_path) -> None:
+    def test_assemble_evidence_cannot_produce_live_evidence(self, tmp_path) -> None:
         repo = tmp_path / "repo"
         repo.mkdir()
         _git(repo, "init")
@@ -345,180 +566,112 @@ class TestAssembleEvidence:
             required_workflows=("CI",),
             repo_dir=str(repo),
         )
-        assert evidence.collection_mode == "live"
-        assert evidence.provenance == "trusted_git_github_collector"
-        assert evidence.is_live is True
-
-    def test_raises_on_git_failure(self, tmp_path) -> None:
-        # Non-existent base SHA -> get_changed_paths raises EvidenceCollectionError
-        with pytest.raises(EvidenceCollectionError):
-            assemble_evidence(
-                execution_id="exec-1",
-                repository="dddd2024/reverse-agent",
-                base_sha="0" * 40,
-                head_sha="HEAD",
-                pr_number=97,
-                required_workflows=("CI",),
-                repo_dir=str(tmp_path),
-            )
+        # Even with all-success inputs, evidence is fixture, not live
+        assert evidence.collection_mode == "fixture"
+        assert evidence.is_live is False
 
 
 # ---------------------------------------------------------------------------
-# collect_live_evidence (F14: collector owns truth)
+# F27: _create_trusted_evidence is the sole live evidence factory
 # ---------------------------------------------------------------------------
 
-class TestCollectLiveEvidence:
-    """F14: The collector collects all facts through injectable adapters.
+class TestTrustedEvidenceFactory:
+    """F27: Only _create_trusted_evidence can produce live evidence."""
 
-    It does NOT accept caller-supplied test pass/fail booleans or CI success
-    lists. Git/GitHub/test collector failures return non-zero errors.
-    """
-
-    def _make_work_item(self):
-        from reverse_agent.platform_v1.contracts import PlatformWorkItem
-        return PlatformWorkItem(
-            source_issue_number=99,
+    def test_create_trusted_evidence_produces_live(self) -> None:
+        evidence = _create_trusted_evidence(
+            execution_id="exec-1",
             repository="dddd2024/reverse-agent",
             base_sha=VALID_BASE_SHA,
-            allowed_paths=("reverse_agent/platform_v1/**",),
-            forbidden_operations=(),
-            acceptance_criteria=(),
-            goal="test",
-            required_checks=("CI", "Decision Preflight"),
-            approved_issue_body_digest="a" * 40,
-            risk_tier="R0",
-            target_branch="agent/platform-v1-openhands-codex-acp",
-        )
-
-    def test_collects_live_evidence_with_fake_adapters(self) -> None:
-        wi = self._make_work_item()
-        git = FakeGitAdapter(
-            changed_paths=("reverse_agent/platform_v1/cli.py",),
-            diff_check_passed=True,
             head_sha=VALID_HEAD_SHA,
-        )
-        gh = FakeGitHubAdapter(checks=(
-            WorkflowCheck(name="CI", run_id="1", head_sha=VALID_HEAD_SHA, event="push", status="COMPLETED", conclusion="SUCCESS"),
-            WorkflowCheck(name="Decision Preflight", run_id="2", head_sha=VALID_HEAD_SHA, event="push", status="COMPLETED", conclusion="SUCCESS"),
-        ))
-        runner = FakeCommandRunner(exit_code=0)
-
-        evidence = collect_live_evidence(
-            execution_id=wi.execution_id,
-            repository=wi.repository,
-            base_sha=wi.base_sha,
-            expected_head_sha=VALID_HEAD_SHA,
             pr_number=97,
-            required_workflows=wi.required_checks,
-            expected_branch=wi.target_branch,
-            authority_digest=wi.digest,
-            work_item=wi,
-            git_adapter=git,
-            github_adapter=gh,
-            test_command_runner=runner,
-            test_command="pytest -q",
+            required_workflows=("CI",),
         )
-        assert evidence.is_live is True
         assert evidence.collection_mode == "live"
         assert evidence.provenance == "trusted_git_github_collector"
-        assert evidence.head_sha == VALID_HEAD_SHA
-        assert evidence.changed_paths == ("reverse_agent/platform_v1/cli.py",)
-        assert evidence.git_diff_check_passed is True
-        assert evidence.tests_passed is True
+        assert evidence.is_live is True
 
-    def test_head_sha_mismatch_raises_error(self) -> None:
-        wi = self._make_work_item()
-        git = FakeGitAdapter(head_sha="0" * 40)
-        with pytest.raises(EvidenceCollectionError) as exc_info:
-            collect_live_evidence(
-                execution_id=wi.execution_id,
-                repository=wi.repository,
-                base_sha=wi.base_sha,
-                expected_head_sha=VALID_HEAD_SHA,
+    def test_direct_construction_without_token_rejected(self) -> None:
+        """F27: Direct ExecutionEvidence construction with collection_mode=live
+        without the trusted factory token must fail."""
+        with pytest.raises(ValueError, match="live_mode_requires_trusted_factory"):
+            ExecutionEvidence(
+                execution_id="exec-1",
+                repository="dddd2024/reverse-agent",
+                base_sha=VALID_BASE_SHA,
+                head_sha=VALID_HEAD_SHA,
                 pr_number=97,
-                required_workflows=wi.required_checks,
-                expected_branch=wi.target_branch,
-                authority_digest=wi.digest,
-                work_item=wi,
-                git_adapter=git,
-                github_adapter=FakeGitHubAdapter(),
+                required_workflows=("CI",),
+                collection_mode="live",
+                provenance="trusted_git_github_collector",
+                _factory_token=None,
             )
-        assert exc_info.value.code == "head_sha_mismatch"
 
-    def test_git_adapter_failure_raises_error(self) -> None:
-        wi = self._make_work_item()
-        git = FakeGitAdapter(
-            head_sha=VALID_HEAD_SHA,
-            fail_with=EvidenceCollectionError("git_rev_parse_failed", "test"),
-        )
-        with pytest.raises(EvidenceCollectionError) as exc_info:
-            collect_live_evidence(
-                execution_id=wi.execution_id,
-                repository=wi.repository,
-                base_sha=wi.base_sha,
-                expected_head_sha=VALID_HEAD_SHA,
+    def test_direct_construction_with_wrong_token_rejected(self) -> None:
+        """F27: A non-None token that is not _LIVE_FACTORY_TOKEN is rejected."""
+        with pytest.raises(ValueError, match="live_mode_requires_trusted_factory"):
+            ExecutionEvidence(
+                execution_id="exec-1",
+                repository="dddd2024/reverse-agent",
+                base_sha=VALID_BASE_SHA,
+                head_sha=VALID_HEAD_SHA,
                 pr_number=97,
-                required_workflows=wi.required_checks,
-                expected_branch=wi.target_branch,
-                authority_digest=wi.digest,
-                work_item=wi,
-                git_adapter=git,
-                github_adapter=FakeGitHubAdapter(),
+                required_workflows=("CI",),
+                collection_mode="live",
+                provenance="trusted_git_github_collector",
+                _factory_token=object(),  # wrong token
             )
-        assert exc_info.value.code == "git_rev_parse_failed"
 
-    def test_github_adapter_failure_raises_error(self) -> None:
-        wi = self._make_work_item()
-        git = FakeGitAdapter(
-            changed_paths=("a.py",),
-            diff_check_passed=True,
-            head_sha=VALID_HEAD_SHA,
-        )
-        gh = FakeGitHubAdapter(
-            fail_with=GitHubAdapterError("gh_pr_checks_failed", "exit=1"),
-        )
-        with pytest.raises(GitHubAdapterError) as exc_info:
-            collect_live_evidence(
-                execution_id=wi.execution_id,
-                repository=wi.repository,
-                base_sha=wi.base_sha,
-                expected_head_sha=VALID_HEAD_SHA,
-                pr_number=97,
-                required_workflows=wi.required_checks,
-                expected_branch=wi.target_branch,
-                authority_digest=wi.digest,
-                work_item=wi,
-                git_adapter=git,
-                github_adapter=gh,
-            )
-        assert exc_info.value.code == "gh_pr_checks_failed"
+    def test_token_is_module_private_sentinel(self) -> None:
+        """F27: The _LIVE_FACTORY_TOKEN is a module-private sentinel object."""
+        # It must be an object instance, not a string or None
+        assert _LIVE_FACTORY_TOKEN is not None
+        assert not isinstance(_LIVE_FACTORY_TOKEN, (str, int, bytes))
 
-    def test_workflow_validation_failure_raises_error(self) -> None:
-        wi = self._make_work_item()
-        git = FakeGitAdapter(
-            changed_paths=("a.py",),
-            diff_check_passed=True,
-            head_sha=VALID_HEAD_SHA,
-        )
-        # Only CI provided, missing Decision Preflight
-        gh = FakeGitHubAdapter(checks=(
-            WorkflowCheck(name="CI", run_id="1", head_sha=VALID_HEAD_SHA, event="push", status="COMPLETED", conclusion="SUCCESS"),
-        ))
-        with pytest.raises(EvidenceCollectionError) as exc_info:
-            collect_live_evidence(
-                execution_id=wi.execution_id,
-                repository=wi.repository,
-                base_sha=wi.base_sha,
-                expected_head_sha=VALID_HEAD_SHA,
-                pr_number=97,
-                required_workflows=wi.required_checks,
-                expected_branch=wi.target_branch,
-                authority_digest=wi.digest,
-                work_item=wi,
-                git_adapter=git,
-                github_adapter=gh,
-            )
-        assert exc_info.value.code == "workflow_validation_failed"
+
+# ---------------------------------------------------------------------------
+# merge_evidence (F15: no untrusted fallback)
+# ---------------------------------------------------------------------------
+
+class TestMergeEvidence:
+    def test_trusted_changed_paths_override_untrusted(self) -> None:
+        untrusted = _make_evidence(changed_paths=("claimed.py",))
+        trusted = _make_evidence(changed_paths=("actual.py",))
+        merged = merge_evidence(untrusted, trusted)
+        assert merged.changed_paths == ("actual.py",)
+
+    def test_trusted_test_results_override_untrusted(self) -> None:
+        untrusted = _make_evidence(test_results={"passed": True})
+        trusted = _make_evidence(test_results={"passed": False})
+        merged = merge_evidence(untrusted, trusted)
+        assert merged.tests_passed is False
+
+    def test_trusted_git_diff_check_overrides(self) -> None:
+        untrusted = _make_evidence(git_diff_check_passed=True)
+        trusted = _make_evidence(git_diff_check_passed=False)
+        merged = merge_evidence(untrusted, trusted)
+        assert merged.git_diff_check_passed is False
+
+    def test_trusted_empty_paths_do_not_fallback_to_untrusted(self) -> None:
+        # F15: When trusted changed_paths is empty, it stays empty — NO fallback
+        untrusted = _make_evidence(changed_paths=("from_agent.py",))
+        trusted = _make_evidence(changed_paths=())
+        merged = merge_evidence(untrusted, trusted)
+        assert merged.changed_paths == ()
+
+    def test_trusted_empty_test_results_do_not_fallback_to_untrusted(self) -> None:
+        # F15: When trusted test_results is empty, it stays empty — NO fallback
+        untrusted = _make_evidence(test_results={"passed": True})
+        trusted = _make_evidence(test_results={})
+        merged = merge_evidence(untrusted, trusted)
+        assert merged.test_results == {}
+        assert merged.tests_passed is False
+
+    def test_agent_completion_claim_preserved_from_untrusted(self) -> None:
+        untrusted = _make_evidence(agent_completion_claim="agent says done")
+        trusted = _make_evidence()
+        merged = merge_evidence(untrusted, trusted)
+        assert merged.agent_completion_claim == "agent says done"
 
 
 # ---------------------------------------------------------------------------

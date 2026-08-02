@@ -22,12 +22,13 @@ from reverse_agent.platform_v1.contracts import (
     ExecutionBinding,
     ExecutionEvidence,
     PlatformWorkItem,
+    _LIVE_FACTORY_TOKEN,
 )
 
 
 VALID_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
 VALID_HEAD_SHA = "e702a3c5f50b9373e0af8087a76268d4a01cd9b1"
-VALID_ISSUE_BODY_DIGEST = "a" * 40
+VALID_ISSUE_BODY_DIGEST = "a" * 64  # F25: SHA-256, 64 hex chars
 
 
 def _make_work_item(**overrides) -> PlatformWorkItem:
@@ -69,10 +70,13 @@ def _make_evidence(work_item: PlatformWorkItem, **overrides) -> ExecutionEvidenc
         "test_results": {"passed": True},
         "git_diff_check_passed": True,
         "agent_completion_claim": "",
-        "ci_checks": ({"name": "CI", "conclusion": "SUCCESS"},),
+        "ci_checks": ({"name": "CI", "status": "completed", "conclusion": "success"},),
         "collected_at": "",
     }
     defaults.update(overrides)
+    # F27: live mode requires the module-private trusted factory token.
+    if defaults.get("collection_mode") == "live":
+        defaults["_factory_token"] = _LIVE_FACTORY_TOKEN
     return ExecutionEvidence(**defaults)
 
 
@@ -119,8 +123,8 @@ class TestEvaluateAcceptance:
             binding.work_item,
             required_workflows=("CI", "State Gate"),
             ci_checks=(
-                {"name": "CI", "conclusion": "SUCCESS"},
-                {"name": "State Gate", "conclusion": "FAILURE"},
+                {"name": "CI", "status": "completed", "conclusion": "success"},
+                {"name": "State Gate", "status": "completed", "conclusion": "FAILURE"},
             ),
         )
         result = evaluate_acceptance(binding, evidence)

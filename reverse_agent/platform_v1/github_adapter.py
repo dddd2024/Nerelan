@@ -1,9 +1,18 @@
 """Structured GitHub adapter for Platform V1 live-evidence collection.
 
-F13: Replaces tabular ``gh pr checks`` parsing with structured JSON/API
-results. Preserves full multi-word workflow names, run IDs, head SHAs,
-events, statuses, conclusions, and workflow IDs. Correctly distinguishes
-``State Gate (push)`` from ``State Gate (pull_request)``.
+F22: Replaces unsupported ``gh pr checks --json ... detail`` with
+``gh run list --commit <exact-head> --json ...`` which provides structured
+exact-head workflow run data including ``workflowName``, ``event``,
+``headSha``, ``status``, and ``conclusion``.
+
+F23: Required runs are modeled as canonical ``(workflowName, event)`` keys.
+The job ``name`` (e.g. ``baseline``) is never confused with the workflow
+name (e.g. ``CI``). Push and pull_request State Gate runs remain distinct.
+
+F24: Strict success — ``status=completed`` AND ``conclusion=success``.
+Empty conclusion never passes. Pending, queued, in_progress, skipped,
+cancelled, neutral, stale, timed_out, action_required, unknown, and
+failure all block.
 
 The adapter is injectable so provider-free tests can use
 :class:`FakeGitHubAdapter` without network access.
@@ -21,11 +30,7 @@ from typing import Any, Protocol, Sequence
 # ---------------------------------------------------------------------------
 
 class GitHubAdapterError(Exception):
-    """Raised when GitHub API/CLI collection fails.
-
-    The message is a stable, machine-readable error code so callers can map
-    it to a documented nonzero exit code.
-    """
+    """Raised when GitHub API/CLI collection fails."""
 
     def __init__(self, code: str, detail: str = "") -> None:
         self.code = code
@@ -34,12 +39,30 @@ class GitHubAdapterError(Exception):
 
 
 # ---------------------------------------------------------------------------
-# Canonical workflow check record
+# Canonical workflow/event key mapping
 # ---------------------------------------------------------------------------
 
-# Non-SUCCESS conclusions that fail closed.
+# Maps (workflowName, event) to the composite name used in required_workflows.
+# F23: Do not manufacture composite names inside observed GitHub facts;
+# this mapping is only used to bridge observed runs to the required_workflows
+# list format used by ExecutionEvidence.
+_KEY_TO_COMPOSITE_NAME: dict[tuple[str, str], str] = {
+    ("CI", "pull_request"): "CI",
+    ("Decision Preflight", "pull_request"): "Decision Preflight",
+    ("State Gate", "pull_request"): "State Gate (pull_request)",
+    ("State Gate", "push"): "State Gate (push)",
+}
+
+# Reverse mapping: composite name → (workflowName, event)
+_COMPOSITE_NAME_TO_KEY: dict[str, tuple[str, str]] = {
+    v: k for k, v in _KEY_TO_COMPOSITE_NAME.items()
+}
+
+# Non-success conclusions that fail closed. F24.
 _REJECTED_CONCLUSIONS = frozenset({
     "PENDING",
+    "QUEUED",
+    "IN_PROGRESS",
     "SKIPPED",
     "CANCELLED",
     "UNKNOWN",
@@ -48,63 +71,124 @@ _REJECTED_CONCLUSIONS = frozenset({
     "ACTION_REQUIRED",
     "STALE",
     "NEUTRAL",
+    "",  # empty conclusion never passes
+})
+
+# Non-completed statuses that fail closed.
+_REJECTED_STATUSES = frozenset({
+    "PENDING",
+    "QUEUED",
+    "IN_PROGRESS",
+    "SKIPPED",
+    "CANCELLED",
+    "UNKNOWN",
+    "STALE",
+    "TIMED_OUT",
+    "ACTION_REQUIRED",
+    "NEUTRAL",
 })
 
 
-class WorkflowCheck:
+def composite_name(workflow_name: str, event: str) -> str:
+    """Map (workflowName, event) to composite name for required_workflows."""
+
+    return _KEY_TO_COMPOSITE_NAME.get(
+        (workflow_name, event),
+        f"{workflow_name} ({event})",
+    )
+
+
+# ---------------------------------------------------------------------------
+# WorkflowRun — observed GitHub Actions run
+# ---------------------------------------------------------------------------
+
+class WorkflowRun:
     """A single GitHub Actions workflow run observation.
 
-    Preserves the full workflow name (including multi-word names like
-    ``Decision Preflight`` and ``State Gate (push)``), the run ID, head SHA,
-    event, status, conclusion, and workflow ID.
+    F22/F23: Preserves the real ``workflow_name`` (e.g. ``CI``,
+    ``Decision Preflight``, ``State Gate``) and ``event`` (e.g.
+    ``pull_request``, ``push``) from ``gh run list``. The job ``name``
+    (e.g. ``baseline``) is NOT used as the workflow identifier.
     """
 
     __slots__ = (
-        "name",
+        "workflow_name",
+        "event",
         "run_id",
         "head_sha",
-        "event",
+        "head_branch",
         "status",
         "conclusion",
         "workflow_id",
+        "attempt",
     )
 
     def __init__(
         self,
         *,
-        name: str,
+        workflow_name: str,
+        event: str,
         run_id: str,
         head_sha: str,
-        event: str,
-        status: str,
-        conclusion: str,
+        head_branch: str = "",
+        status: str = "",
+        conclusion: str = "",
         workflow_id: str = "",
+        attempt: int = 0,
     ) -> None:
-        self.name = name
+        self.workflow_name = workflow_name
+        self.event = event
         self.run_id = str(run_id)
         self.head_sha = head_sha
-        self.event = event
+        self.head_branch = head_branch
         self.status = status.upper()
         self.conclusion = conclusion.upper()
         self.workflow_id = str(workflow_id)
+        self.attempt = int(attempt)
+
+    @property
+    def composite_name(self) -> str:
+        """Composite name for comparison with required_workflows."""
+
+        return composite_name(self.workflow_name, self.event)
+
+    @property
+    def key(self) -> tuple[str, str]:
+        """Canonical (workflowName, event) key."""
+
+        return (self.workflow_name, self.event)
+
+    @property
+    def is_success(self) -> bool:
+        """F24: True only when status=completed AND conclusion=success."""
+
+        return self.status == "COMPLETED" and self.conclusion == "SUCCESS"
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "name": self.name,
+            "name": self.composite_name,
+            "workflow_name": self.workflow_name,
+            "event": self.event,
             "run_id": self.run_id,
             "head_sha": self.head_sha,
-            "event": self.event,
+            "head_branch": self.head_branch,
             "status": self.status,
             "conclusion": self.conclusion,
             "workflow_id": self.workflow_id,
+            "attempt": self.attempt,
         }
 
     def __repr__(self) -> str:
         return (
-            f"WorkflowCheck(name={self.name!r}, run_id={self.run_id!r}, "
-            f"head_sha={self.head_sha!r}, event={self.event!r}, "
-            f"status={self.status!r}, conclusion={self.conclusion!r})"
+            f"WorkflowRun(workflow_name={self.workflow_name!r}, "
+            f"event={self.event!r}, run_id={self.run_id!r}, "
+            f"head_sha={self.head_sha!r}, status={self.status!r}, "
+            f"conclusion={self.conclusion!r})"
         )
+
+
+# Backward-compatible alias
+WorkflowCheck = WorkflowRun
 
 
 # ---------------------------------------------------------------------------
@@ -112,19 +196,14 @@ class WorkflowCheck:
 # ---------------------------------------------------------------------------
 
 class GitHubAdapter(Protocol):
-    """Injectable GitHub adapter protocol.
+    """Injectable GitHub adapter protocol."""
 
-    Production code uses :class:`LiveGitHubAdapter` which calls the GitHub
-    CLI/API. Tests inject :class:`FakeGitHubAdapter` to avoid network access.
-    """
-
-    def get_pr_checks(
+    def get_workflow_runs(
         self,
-        pr_number: int,
         repository: str,
-        expected_head_sha: str,
-    ) -> tuple[WorkflowCheck, ...]:
-        """Return workflow checks for the PR, filtered to expected_head_sha.
+        exact_head_sha: str,
+    ) -> tuple[WorkflowRun, ...]:
+        """Return workflow runs for the exact head SHA.
 
         Raises :class:`GitHubAdapterError` on any failure.
         """
@@ -132,28 +211,38 @@ class GitHubAdapter(Protocol):
 
 
 # ---------------------------------------------------------------------------
-# Live adapter
+# Live adapter — uses ``gh run list --commit``
 # ---------------------------------------------------------------------------
 
 class LiveGitHubAdapter:
-    """Production GitHub adapter using ``gh pr checks --json``.
+    """Production GitHub adapter using ``gh run list --commit``.
 
-    F13: Uses structured JSON output, not tabular parsing. Preserves full
-    multi-word workflow names and all metadata fields.
+    F22: Uses structured JSON output from ``gh run list`` which provides
+    ``workflowName``, ``event``, ``headSha``, ``status``, ``conclusion``,
+    ``databaseId``, and ``workflowDatabaseId`` — all structured fields.
+
+    F23: Does NOT use ``gh pr checks`` (which has unsupported fields and
+    confuses job name with workflow name).
     """
 
-    def get_pr_checks(
+    # Fields requested from gh run list — all supported structured fields.
+    _JSON_FIELDS = (
+        "attempt,conclusion,databaseId,event,headBranch,headSha,"
+        "name,status,workflowDatabaseId,workflowName"
+    )
+
+    def get_workflow_runs(
         self,
-        pr_number: int,
         repository: str,
-        expected_head_sha: str,
-    ) -> tuple[WorkflowCheck, ...]:
+        exact_head_sha: str,
+    ) -> tuple[WorkflowRun, ...]:
         result = subprocess.run(
             [
-                "gh", "pr", "checks", str(pr_number),
+                "gh", "run", "list",
                 "--repo", repository,
-                "--json", "name,workflow,state,conclusion,startedAt,completedAt,link,detail",
-                "--required",
+                "--commit", exact_head_sha,
+                "--json", self._JSON_FIELDS,
+                "--limit", "50",
             ],
             capture_output=True,
             text=True,
@@ -161,43 +250,51 @@ class LiveGitHubAdapter:
         )
         if result.returncode != 0:
             raise GitHubAdapterError(
-                "gh_pr_checks_failed",
+                "gh_run_list_failed",
                 f"exit={result.returncode}",
             )
         try:
-            raw_checks = json.loads(result.stdout) if result.stdout.strip() else []
+            raw_runs = json.loads(result.stdout) if result.stdout.strip() else []
         except json.JSONDecodeError as exc:
-            raise GitHubAdapterError("gh_pr_checks_json_parse_failed", str(exc))
+            raise GitHubAdapterError("gh_run_list_json_parse_failed", str(exc))
 
-        checks: list[WorkflowCheck] = []
-        for raw in raw_checks:
+        runs: list[WorkflowRun] = []
+        for raw in raw_runs:
             if not isinstance(raw, dict):
                 continue
-            name = str(raw.get("name", raw.get("workflow", "")))
-            if not name:
+            workflow_name = str(raw.get("workflowName", ""))
+            if not workflow_name:
                 continue
-            state = str(raw.get("state", "")).upper()
-            conclusion = str(raw.get("conclusion", "")).upper()
-            # Map GitHub API states to status/conclusion
-            if state in ("SUCCESS", "NEUTRAL", "SKIPPED", "CANCELLED", "FAILURE", "TIMED_OUT", "ACTION_REQUIRED", "STALE"):
-                status = "COMPLETED"
-                final_conclusion = state
-            elif state in ("PENDING", "QUEUED", "IN_PROGRESS"):
-                status = state
-                final_conclusion = ""
-            else:
-                status = state or "UNKNOWN"
-                final_conclusion = conclusion
-            checks.append(WorkflowCheck(
-                name=name,
-                run_id=str(raw.get("databaseId", raw.get("link", ""))),
-                head_sha=expected_head_sha,  # bound to expected head
-                event=str(raw.get("event", "")),
-                status=status,
-                conclusion=final_conclusion,
-                workflow_id=str(raw.get("workflowId", "")),
+            event = str(raw.get("event", ""))
+            if not event:
+                continue
+            runs.append(WorkflowRun(
+                workflow_name=workflow_name,
+                event=event,
+                run_id=str(raw.get("databaseId", "")),
+                head_sha=str(raw.get("headSha", "")),
+                head_branch=str(raw.get("headBranch", "")),
+                status=str(raw.get("status", "")),
+                conclusion=str(raw.get("conclusion", "")),
+                workflow_id=str(raw.get("workflowDatabaseId", "")),
+                attempt=int(raw.get("attempt", 0)),
             ))
-        return tuple(checks)
+        return tuple(runs)
+
+    # Backward-compatible alias for existing callers
+    def get_pr_checks(
+        self,
+        pr_number: int,
+        repository: str,
+        expected_head_sha: str,
+    ) -> tuple[WorkflowRun, ...]:
+        """DEPRECATED alias for :meth:`get_workflow_runs`.
+
+        F22: The ``pr_number`` parameter is ignored. Workflow runs are
+        queried by exact head SHA, not by PR number.
+        """
+
+        return self.get_workflow_runs(repository, expected_head_sha)
 
 
 # ---------------------------------------------------------------------------
@@ -205,32 +302,37 @@ class LiveGitHubAdapter:
 # ---------------------------------------------------------------------------
 
 class FakeGitHubAdapter:
-    """Fake GitHub adapter for provider-free tests.
-
-    Accepts pre-configured workflow checks and optional failure modes.
-    """
+    """Fake GitHub adapter for provider-free tests."""
 
     def __init__(
         self,
-        checks: Sequence[WorkflowCheck] | None = None,
+        runs: Sequence[WorkflowRun] | None = None,
         *,
         fail_with: GitHubAdapterError | None = None,
     ) -> None:
-        self._checks = tuple(checks) if checks else ()
+        self._runs = tuple(runs) if runs else ()
         self._fail_with = fail_with
         self.call_count = 0
 
+    def get_workflow_runs(
+        self,
+        repository: str,
+        exact_head_sha: str,
+    ) -> tuple[WorkflowRun, ...]:
+        self.call_count += 1
+        if self._fail_with is not None:
+            raise self._fail_with
+        # Filter to exact head SHA — preserve observed head_sha, don't overwrite
+        return tuple(r for r in self._runs if r.head_sha == exact_head_sha)
+
+    # Backward-compatible alias
     def get_pr_checks(
         self,
         pr_number: int,
         repository: str,
         expected_head_sha: str,
-    ) -> tuple[WorkflowCheck, ...]:
-        self.call_count += 1
-        if self._fail_with is not None:
-            raise self._fail_with
-        # Filter to expected head SHA
-        return tuple(c for c in self._checks if c.head_sha == expected_head_sha)
+    ) -> tuple[WorkflowRun, ...]:
+        return self.get_workflow_runs(repository, expected_head_sha)
 
 
 # ---------------------------------------------------------------------------
@@ -238,18 +340,25 @@ class FakeGitHubAdapter:
 # ---------------------------------------------------------------------------
 
 def validate_workflow_observations(
-    observed: tuple[WorkflowCheck, ...],
+    observed: tuple[WorkflowRun, ...],
     required_workflows: tuple[str, ...],
     expected_head_sha: str,
 ) -> tuple[list[str], list[str]]:
-    """Validate observed workflow checks against required set.
+    """Validate observed workflow runs against required set.
 
-    F13: Returns (blocking_reasons, info_messages). Blocking reasons include:
+    F22/F23/F24: Returns (blocking_reasons, info_messages).
+
+    Required workflows are composite names (e.g. ``State Gate (push)``).
+    Observed runs are matched by their composite_name property, which maps
+    (workflowName, event) to the composite name.
+
+    Blocking reasons include:
+    - wrong head SHA (runs not matching expected_head_sha)
     - missing required workflows
-    - duplicate workflow names
-    - wrong head SHA
-    - stale/pending/skipped/cancelled/unknown/neutral/action_required/timed_out/failure
-    - extra unexpected workflows (set mismatch)
+    - duplicate runs for the same required key
+    - extra unexpected workflows
+    - any non-success status/conclusion (F24: strict success required)
+    - empty conclusion (F24: never passes)
     """
 
     blocking: list[str] = []
@@ -259,23 +368,28 @@ def validate_workflow_observations(
         blocking.append("no_workflow_observations")
         return blocking, info
 
-    # Check for wrong head SHA
-    for check in observed:
-        if check.head_sha != expected_head_sha:
+    # F22: Check for wrong head SHA — observed head_sha is read from GitHub,
+    # not assigned from expected_head_sha.
+    for run in observed:
+        if run.head_sha != expected_head_sha:
             blocking.append(
-                f"wrong_head_workflow:{check.name}:head={check.head_sha}:expected={expected_head_sha}"
+                f"wrong_head_workflow:{run.workflow_name}/{run.event}:"
+                f"head={run.head_sha}:expected={expected_head_sha}"
             )
 
-    # Check for duplicate workflow names
-    names = [c.name for c in observed]
-    seen: set[str] = set()
-    for name in names:
-        if name in seen:
-            blocking.append(f"duplicate_workflow:{name}")
-        seen.add(name)
+    # Map composite names to runs
+    runs_by_composite: dict[str, list[WorkflowRun]] = {}
+    for run in observed:
+        comp = run.composite_name
+        runs_by_composite.setdefault(comp, []).append(run)
+
+    # Check for duplicate runs per required key
+    for comp, runs in runs_by_composite.items():
+        if len(runs) > 1:
+            blocking.append(f"duplicate_workflow:{comp}:count={len(runs)}")
 
     # Check observed set matches required set exactly (F12)
-    observed_set = set(names)
+    observed_set = set(runs_by_composite.keys())
     required_set = set(required_workflows)
     missing = required_set - observed_set
     extra = observed_set - required_set
@@ -284,27 +398,26 @@ def validate_workflow_observations(
     if extra:
         blocking.append(f"extra_workflows:{','.join(sorted(extra))}")
 
-    # Check each required workflow has a valid conclusion
-    checks_by_name = {c.name: c for c in observed}
+    # F24: Check each required workflow has strict success
     for required in required_workflows:
-        check = checks_by_name.get(required)
-        if check is None:
+        runs = runs_by_composite.get(required, [])
+        if not runs:
             continue  # already reported as missing
-        if check.conclusion in _REJECTED_CONCLUSIONS:
-            blocking.append(
-                f"workflow_not_success:{required}:conclusion={check.conclusion}"
-            )
-        elif check.conclusion not in ("SUCCESS", "COMPLETED", ""):
-            # Empty conclusion with COMPLETED status is acceptable (e.g., success)
-            if check.status not in ("COMPLETED", "SUCCESS"):
+        for run in runs:
+            if not run.is_success:
                 blocking.append(
-                    f"workflow_not_success:{required}:status={check.status}"
+                    f"workflow_not_success:{required}:"
+                    f"status={run.status}:conclusion={run.conclusion}"
                 )
 
     return blocking, info
 
 
-def checks_to_ci_tuples(checks: tuple[WorkflowCheck, ...]) -> tuple[dict[str, Any], ...]:
-    """Convert WorkflowCheck objects to the ci_checks dict format."""
+def checks_to_ci_tuples(runs: tuple[WorkflowRun, ...]) -> tuple[dict[str, Any], ...]:
+    """Convert WorkflowRun objects to the ci_checks dict format.
 
-    return tuple(c.to_dict() for c in checks)
+    Each dict includes ``name`` (composite), ``workflow_name``, ``event``,
+    ``status``, ``conclusion``, ``head_sha``, and ``run_id``.
+    """
+
+    return tuple(r.to_dict() for r in runs)

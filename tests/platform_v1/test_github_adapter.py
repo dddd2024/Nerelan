@@ -1,24 +1,32 @@
-"""Tests for the structured GitHub adapter (F13).
+"""Tests for the structured GitHub adapter (F22/F23/F24).
 
 Covers:
+- ``gh run list --commit`` structured fields (workflowName, event, headSha)
 - Multi-word workflow names are preserved exactly
 - State Gate (push) and State Gate (pull_request) are distinguishable
+- ``baseline`` job name is never confused with ``CI`` workflow name (F23)
 - Wrong head SHA workflow observations are rejected
 - Required workflow subsets are rejected
 - Duplicate workflows are rejected
-- Non-SUCCESS conclusions (PENDING, SKIPPED, CANCELLED, FAILURE, etc.) are rejected
+- Non-SUCCESS conclusions (PENDING, SKIPPED, CANCELLED, FAILURE, etc.) rejected
+- Empty conclusion with completed status is rejected (F24)
 - FakeGitHubAdapter filters by expected head SHA
 - validate_workflow_observations blocking reasons
+- LiveGitHubAdapter requests only supported JSON fields (no ``detail``)
 """
 
 from __future__ import annotations
+
+import inspect
 
 import pytest
 
 from reverse_agent.platform_v1.github_adapter import (
     FakeGitHubAdapter,
     GitHubAdapterError,
-    WorkflowCheck,
+    LiveGitHubAdapter,
+    WorkflowRun,
+    composite_name,
     validate_workflow_observations,
 )
 
@@ -34,77 +42,146 @@ REQUIRED_WORKFLOWS = (
 )
 
 
-def _make_check(
-    name: str,
+def _make_run(
+    workflow_name: str,
+    event: str = "pull_request",
     *,
     head_sha: str = VALID_HEAD_SHA,
     conclusion: str = "SUCCESS",
     status: str = "COMPLETED",
-) -> WorkflowCheck:
-    return WorkflowCheck(
-        name=name,
-        run_id="123",
+    run_id: str = "123",
+) -> WorkflowRun:
+    return WorkflowRun(
+        workflow_name=workflow_name,
+        event=event,
+        run_id=run_id,
         head_sha=head_sha,
-        event="push",
         status=status,
         conclusion=conclusion,
     )
 
 
-def _all_required_success(head_sha: str = VALID_HEAD_SHA) -> tuple[WorkflowCheck, ...]:
-    return tuple(
-        _make_check(name, head_sha=head_sha)
-        for name in REQUIRED_WORKFLOWS
+def _all_required_success(head_sha: str = VALID_HEAD_SHA) -> tuple[WorkflowRun, ...]:
+    """Return one SUCCESS run for each required (workflowName, event) key."""
+
+    return (
+        _make_run("CI", "pull_request", head_sha=head_sha),
+        _make_run("Decision Preflight", "pull_request", head_sha=head_sha),
+        _make_run("State Gate", "pull_request", head_sha=head_sha),
+        _make_run("State Gate", "push", head_sha=head_sha),
     )
 
 
 # ---------------------------------------------------------------------------
-# WorkflowCheck
+# WorkflowRun
 # ---------------------------------------------------------------------------
 
-class TestWorkflowCheck:
+class TestWorkflowRun:
     def test_multi_word_workflow_name_preserved(self) -> None:
-        check = _make_check("Decision Preflight")
-        assert check.name == "Decision Preflight"
+        run = _make_run("Decision Preflight")
+        assert run.workflow_name == "Decision Preflight"
 
-    def test_state_gate_push_preserved(self) -> None:
-        check = _make_check("State Gate (push)")
-        assert check.name == "State Gate (push)"
+    def test_state_gate_push_composite_name(self) -> None:
+        run = _make_run("State Gate", "push")
+        assert run.composite_name == "State Gate (push)"
 
-    def test_state_gate_pull_request_preserved(self) -> None:
-        check = _make_check("State Gate (pull_request)")
-        assert check.name == "State Gate (pull_request)"
+    def test_state_gate_pull_request_composite_name(self) -> None:
+        run = _make_run("State Gate", "pull_request")
+        assert run.composite_name == "State Gate (pull_request)"
+
+    def test_ci_composite_name_is_ci(self) -> None:
+        run = _make_run("CI", "pull_request")
+        assert run.composite_name == "CI"
+
+    def test_decision_preflight_composite_name(self) -> None:
+        run = _make_run("Decision Preflight", "pull_request")
+        assert run.composite_name == "Decision Preflight"
 
     def test_to_dict_preserves_all_fields(self) -> None:
-        check = WorkflowCheck(
-            name="CI",
+        run = WorkflowRun(
+            workflow_name="CI",
+            event="pull_request",
             run_id="42",
             head_sha=VALID_HEAD_SHA,
-            event="pull_request",
+            head_branch="agent/branch",
             status="COMPLETED",
             conclusion="SUCCESS",
             workflow_id="wf-123",
+            attempt=1,
         )
-        d = check.to_dict()
+        d = run.to_dict()
+        assert d["workflow_name"] == "CI"
+        assert d["event"] == "pull_request"
         assert d["name"] == "CI"
         assert d["run_id"] == "42"
         assert d["head_sha"] == VALID_HEAD_SHA
-        assert d["event"] == "pull_request"
+        assert d["head_branch"] == "agent/branch"
         assert d["status"] == "COMPLETED"
         assert d["conclusion"] == "SUCCESS"
         assert d["workflow_id"] == "wf-123"
+        assert d["attempt"] == 1
 
     def test_status_and_conclusion_uppercased(self) -> None:
-        check = WorkflowCheck(
-            name="CI",
+        run = WorkflowRun(
+            workflow_name="CI",
+            event="push",
             run_id="1",
             head_sha=VALID_HEAD_SHA,
-            event="push",
             status="completed",
             conclusion="success",
         )
-        assert check.status == "COMPLETED"
-        assert check.conclusion == "SUCCESS"
+        assert run.status == "COMPLETED"
+        assert run.conclusion == "SUCCESS"
+
+    def test_is_success_true_only_when_completed_and_success(self) -> None:
+        ok = _make_run("CI")
+        assert ok.is_success is True
+        not_completed = _make_run("CI", status="IN_PROGRESS")
+        assert not_completed.is_success is False
+        not_success = _make_run("CI", conclusion="FAILURE")
+        assert not_success.is_success is False
+
+
+# ---------------------------------------------------------------------------
+# composite_name helper
+# ---------------------------------------------------------------------------
+
+class TestCompositeName:
+    def test_ci_pull_request(self) -> None:
+        assert composite_name("CI", "pull_request") == "CI"
+
+    def test_decision_preflight_pull_request(self) -> None:
+        assert composite_name("Decision Preflight", "pull_request") == "Decision Preflight"
+
+    def test_state_gate_push(self) -> None:
+        assert composite_name("State Gate", "push") == "State Gate (push)"
+
+    def test_state_gate_pull_request(self) -> None:
+        assert composite_name("State Gate", "pull_request") == "State Gate (pull_request)"
+
+    def test_unknown_workflow_falls_back_to_parenthesized_event(self) -> None:
+        # Unknown (workflowName, event) pairs fall back to "Name (event)" form.
+        assert composite_name("Custom", "workflow_dispatch") == "Custom (workflow_dispatch)"
+
+
+# ---------------------------------------------------------------------------
+# F23: baseline (job name) is never confused with CI (workflow name)
+# ---------------------------------------------------------------------------
+
+class TestBaselineIsNotCI:
+    """F23: The job ``name`` (e.g. ``baseline``) is never confused with the
+    workflow ``workflowName`` (e.g. ``CI``)."""
+
+    def test_baseline_run_does_not_satisfy_ci_requirement(self) -> None:
+        # If a run with workflowName=baseline were observed (it should not be),
+        # its composite_name would be "baseline (pull_request)", NOT "CI".
+        run = _make_run("baseline", "pull_request")
+        assert run.composite_name != "CI"
+        assert run.composite_name == "baseline (pull_request)"
+
+    def test_ci_workflow_name_satisfies_ci_requirement(self) -> None:
+        run = _make_run("CI", "pull_request")
+        assert run.composite_name == "CI"
 
 
 # ---------------------------------------------------------------------------
@@ -112,40 +189,46 @@ class TestWorkflowCheck:
 # ---------------------------------------------------------------------------
 
 class TestStateGateDisambiguation:
-    """F13: State Gate (push) and State Gate (pull_request) are distinct."""
+    """F23: State Gate (push) and State Gate (pull_request) are distinct."""
 
-    def test_push_and_pull_request_are_different_names(self) -> None:
-        push = _make_check("State Gate (push)")
-        pr = _make_check("State Gate (pull_request)")
-        assert push.name != pr.name
+    def test_push_and_pull_request_are_different_composite_names(self) -> None:
+        push = _make_run("State Gate", "push")
+        pr = _make_run("State Gate", "pull_request")
+        assert push.composite_name != pr.composite_name
 
     def test_both_required_workflows_can_coexist(self) -> None:
-        checks = _all_required_success()
+        runs = _all_required_success()
         blocking, _ = validate_workflow_observations(
-            checks, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
+            runs, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
         )
         assert blocking == []
 
     def test_only_push_without_pull_request_rejected(self) -> None:
-        checks = tuple(
-            _make_check(name)
-            for name in REQUIRED_WORKFLOWS
-            if name != "State Gate (pull_request)"
+        runs = tuple(
+            _make_run(wf, ev)
+            for wf, ev in [
+                ("CI", "pull_request"),
+                ("Decision Preflight", "pull_request"),
+                ("State Gate", "push"),
+            ]
         )
         blocking, _ = validate_workflow_observations(
-            checks, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
+            runs, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
         )
         assert any("missing_workflows" in b for b in blocking)
         assert "State Gate (pull_request)" in ",".join(blocking)
 
     def test_only_pull_request_without_push_rejected(self) -> None:
-        checks = tuple(
-            _make_check(name)
-            for name in REQUIRED_WORKFLOWS
-            if name != "State Gate (push)"
+        runs = tuple(
+            _make_run(wf, ev)
+            for wf, ev in [
+                ("CI", "pull_request"),
+                ("Decision Preflight", "pull_request"),
+                ("State Gate", "pull_request"),
+            ]
         )
         blocking, _ = validate_workflow_observations(
-            checks, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
+            runs, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
         )
         assert any("missing_workflows" in b for b in blocking)
         assert "State Gate (push)" in ",".join(blocking)
@@ -156,25 +239,35 @@ class TestStateGateDisambiguation:
 # ---------------------------------------------------------------------------
 
 class TestWrongHeadRejection:
-    """F13: Workflow observations with wrong head SHA are rejected."""
+    """F22: Workflow observations with wrong head SHA are rejected."""
 
     def test_wrong_head_workflow_rejected(self) -> None:
-        checks = tuple(
-            _make_check(name, head_sha=WRONG_HEAD_SHA)
-            for name in REQUIRED_WORKFLOWS
+        runs = tuple(
+            _make_run(wf, ev, head_sha=WRONG_HEAD_SHA)
+            for wf, ev in [
+                ("CI", "pull_request"),
+                ("Decision Preflight", "pull_request"),
+                ("State Gate", "pull_request"),
+                ("State Gate", "push"),
+            ]
         )
         blocking, _ = validate_workflow_observations(
-            checks, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
+            runs, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
         )
         assert any("wrong_head_workflow" in b for b in blocking)
 
     def test_partial_wrong_head_rejected(self) -> None:
-        checks = tuple(
-            _make_check(name, head_sha=WRONG_HEAD_SHA if name == "CI" else VALID_HEAD_SHA)
-            for name in REQUIRED_WORKFLOWS
+        runs = tuple(
+            _make_run(wf, ev, head_sha=WRONG_HEAD_SHA if wf == "CI" else VALID_HEAD_SHA)
+            for wf, ev in [
+                ("CI", "pull_request"),
+                ("Decision Preflight", "pull_request"),
+                ("State Gate", "pull_request"),
+                ("State Gate", "push"),
+            ]
         )
         blocking, _ = validate_workflow_observations(
-            checks, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
+            runs, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
         )
         assert any("wrong_head_workflow" in b for b in blocking)
         assert "CI" in ",".join(blocking)
@@ -185,24 +278,24 @@ class TestWrongHeadRejection:
 # ---------------------------------------------------------------------------
 
 class TestWorkflowSubsetRejection:
-    """F12/F13: A subset of required workflows is rejected."""
+    """F12/F22: A subset of required workflows is rejected."""
 
     def test_subset_rejected(self) -> None:
-        checks = tuple(
-            _make_check(name)
-            for name in REQUIRED_WORKFLOWS[:2]  # only CI + Decision Preflight
+        runs = (
+            _make_run("CI", "pull_request"),
+            _make_run("Decision Preflight", "pull_request"),
         )
         blocking, _ = validate_workflow_observations(
-            checks, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
+            runs, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
         )
         assert any("missing_workflows" in b for b in blocking)
 
     def test_superset_rejected(self) -> None:
-        checks = _all_required_success() + (
-            _make_check("Extra Workflow"),
+        runs = _all_required_success() + (
+            _make_run("Extra Workflow", "pull_request"),
         )
         blocking, _ = validate_workflow_observations(
-            checks, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
+            runs, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
         )
         assert any("extra_workflows" in b for b in blocking)
 
@@ -219,36 +312,95 @@ class TestWorkflowSubsetRejection:
 
 class TestDuplicateWorkflowRejection:
     def test_duplicate_workflow_rejected(self) -> None:
-        checks = _all_required_success() + (
-            _make_check("CI"),
+        runs = _all_required_success() + (
+            _make_run("CI", "pull_request"),
         )
         blocking, _ = validate_workflow_observations(
-            checks, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
+            runs, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
         )
         assert any("duplicate_workflow" in b for b in blocking)
 
 
 # ---------------------------------------------------------------------------
-# Non-SUCCESS conclusion rejection
+# Non-SUCCESS conclusion rejection (F24)
 # ---------------------------------------------------------------------------
 
 class TestNonSuccessConclusionRejection:
-    """F13: Non-SUCCESS conclusions are rejected."""
+    """F24: Non-SUCCESS conclusions are rejected."""
 
     @pytest.mark.parametrize("conclusion", [
         "PENDING", "SKIPPED", "CANCELLED", "UNKNOWN", "FAILURE",
         "TIMED_OUT", "ACTION_REQUIRED", "STALE", "NEUTRAL",
     ])
     def test_rejected_conclusion_blocked(self, conclusion: str) -> None:
-        checks = tuple(
-            _make_check(name, conclusion=conclusion if name == "CI" else "SUCCESS")
-            for name in REQUIRED_WORKFLOWS
+        runs = tuple(
+            _make_run(wf, ev, conclusion=conclusion if wf == "CI" else "SUCCESS")
+            for wf, ev in [
+                ("CI", "pull_request"),
+                ("Decision Preflight", "pull_request"),
+                ("State Gate", "pull_request"),
+                ("State Gate", "push"),
+            ]
         )
         blocking, _ = validate_workflow_observations(
-            checks, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
+            runs, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
         )
         assert any("workflow_not_success" in b for b in blocking)
         assert "CI" in ",".join(blocking)
+
+
+# ---------------------------------------------------------------------------
+# F24: completed + empty conclusion never passes
+# ---------------------------------------------------------------------------
+
+class TestEmptyConclusionRejected:
+    """F24: A completed run with empty conclusion never passes."""
+
+    def test_empty_conclusion_blocked(self) -> None:
+        runs = tuple(
+            _make_run(wf, ev, conclusion="" if wf == "CI" else "SUCCESS")
+            for wf, ev in [
+                ("CI", "pull_request"),
+                ("Decision Preflight", "pull_request"),
+                ("State Gate", "pull_request"),
+                ("State Gate", "push"),
+            ]
+        )
+        blocking, _ = validate_workflow_observations(
+            runs, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
+        )
+        assert any("workflow_not_success" in b for b in blocking)
+        assert "CI" in ",".join(blocking)
+
+    def test_empty_conclusion_not_success_on_run(self) -> None:
+        run = _make_run("CI", conclusion="")
+        assert run.is_success is False
+
+
+# ---------------------------------------------------------------------------
+# Pending/in_progress status rejected (F24)
+# ---------------------------------------------------------------------------
+
+class TestNonCompletedStatusRejected:
+    """F24: Pending/queued/in_progress statuses are rejected."""
+
+    @pytest.mark.parametrize("status", [
+        "PENDING", "QUEUED", "IN_PROGRESS", "SKIPPED", "CANCELLED",
+    ])
+    def test_non_completed_status_blocked(self, status: str) -> None:
+        runs = tuple(
+            _make_run(wf, ev, status=status if wf == "CI" else "COMPLETED")
+            for wf, ev in [
+                ("CI", "pull_request"),
+                ("Decision Preflight", "pull_request"),
+                ("State Gate", "pull_request"),
+                ("State Gate", "push"),
+            ]
+        )
+        blocking, _ = validate_workflow_observations(
+            runs, REQUIRED_WORKFLOWS, VALID_HEAD_SHA,
+        )
+        assert any("workflow_not_success" in b for b in blocking)
 
 
 # ---------------------------------------------------------------------------
@@ -256,34 +408,82 @@ class TestNonSuccessConclusionRejection:
 # ---------------------------------------------------------------------------
 
 class TestFakeGitHubAdapter:
-    def test_returns_configured_checks(self) -> None:
-        checks = _all_required_success()
-        adapter = FakeGitHubAdapter(checks=checks)
-        result = adapter.get_pr_checks(97, "dddd2024/reverse-agent", VALID_HEAD_SHA)
-        assert len(result) == len(checks)
+    def test_returns_configured_runs(self) -> None:
+        runs = _all_required_success()
+        adapter = FakeGitHubAdapter(runs=runs)
+        result = adapter.get_workflow_runs("dddd2024/reverse-agent", VALID_HEAD_SHA)
+        assert len(result) == len(runs)
 
     def test_filters_by_expected_head_sha(self) -> None:
-        checks = _all_required_success() + tuple(
-            _make_check(name, head_sha=WRONG_HEAD_SHA)
-            for name in REQUIRED_WORKFLOWS
+        runs = _all_required_success() + tuple(
+            _make_run(wf, ev, head_sha=WRONG_HEAD_SHA)
+            for wf, ev in [
+                ("CI", "pull_request"),
+                ("Decision Preflight", "pull_request"),
+                ("State Gate", "pull_request"),
+                ("State Gate", "push"),
+            ]
         )
-        adapter = FakeGitHubAdapter(checks=checks)
-        result = adapter.get_pr_checks(97, "dddd2024/reverse-agent", VALID_HEAD_SHA)
-        # Only the 4 checks with matching head_sha are returned
+        adapter = FakeGitHubAdapter(runs=runs)
+        result = adapter.get_workflow_runs("dddd2024/reverse-agent", VALID_HEAD_SHA)
+        # Only the 4 runs with matching head_sha are returned
         assert len(result) == 4
 
     def test_raises_when_configured_to_fail(self) -> None:
         adapter = FakeGitHubAdapter(
-            fail_with=GitHubAdapterError("gh_pr_checks_failed", "exit=1"),
+            fail_with=GitHubAdapterError("gh_run_list_failed", "exit=1"),
         )
         with pytest.raises(GitHubAdapterError) as exc_info:
-            adapter.get_pr_checks(97, "dddd2024/reverse-agent", VALID_HEAD_SHA)
-        assert exc_info.value.code == "gh_pr_checks_failed"
+            adapter.get_workflow_runs("dddd2024/reverse-agent", VALID_HEAD_SHA)
+        assert exc_info.value.code == "gh_run_list_failed"
 
     def test_call_count_increments(self) -> None:
-        adapter = FakeGitHubAdapter(checks=_all_required_success())
+        adapter = FakeGitHubAdapter(runs=_all_required_success())
         assert adapter.call_count == 0
-        adapter.get_pr_checks(97, "dddd2024/reverse-agent", VALID_HEAD_SHA)
+        adapter.get_workflow_runs("dddd2024/reverse-agent", VALID_HEAD_SHA)
         assert adapter.call_count == 1
-        adapter.get_pr_checks(97, "dddd2024/reverse-agent", VALID_HEAD_SHA)
+        adapter.get_workflow_runs("dddd2024/reverse-agent", VALID_HEAD_SHA)
         assert adapter.call_count == 2
+
+
+# ---------------------------------------------------------------------------
+# F23: LiveGitHubAdapter requests only supported JSON fields (no ``detail``)
+# ---------------------------------------------------------------------------
+
+class TestLiveGitHubAdapterJsonFields:
+    """F23: The live adapter uses ``gh run list`` with structured fields only.
+
+    The unsupported ``detail`` field (used by ``gh pr checks``) must never
+    be requested.
+    """
+
+    def _json_fields_string(self) -> str:
+        # Inspect the LiveGitHubAdapter._JSON_FIELDS class attribute.
+        return str(LiveGitHubAdapter._JSON_FIELDS)
+
+    def test_requests_workflow_name_field(self) -> None:
+        assert "workflowName" in self._json_fields_string()
+
+    def test_requests_event_field(self) -> None:
+        assert "event" in self._json_fields_string()
+
+    def test_requests_head_sha_field(self) -> None:
+        assert "headSha" in self._json_fields_string()
+
+    def test_requests_status_field(self) -> None:
+        assert "status" in self._json_fields_string()
+
+    def test_requests_conclusion_field(self) -> None:
+        assert "conclusion" in self._json_fields_string()
+
+    def test_does_not_request_detail_field(self) -> None:
+        # F23: ``detail`` is not a supported field on ``gh run list``.
+        fields = self._json_fields_string()
+        assert "detail" not in fields.lower()
+
+    def test_uses_run_list_subcommand(self) -> None:
+        # Inspect the source of get_workflow_runs to verify it calls
+        # ``gh run list`` (not ``gh pr checks``).
+        source = inspect.getsource(LiveGitHubAdapter.get_workflow_runs)
+        assert '"run"' in source and '"list"' in source
+        assert "pr checks" not in source

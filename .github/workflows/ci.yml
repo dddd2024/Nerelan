@@ -45,6 +45,9 @@ jobs:
       - name: Project gate and workflow contract tests
         run: python -m pytest tests/test_project_gate.py -q
 
+      - name: Platform V1 blocking gate
+        run: python -m pytest tests/platform_v1 -q
+
       - name: Repository-wide diagnostic (legacy debt, nonblocking)
         continue-on-error: true
         run: python -m pytest -q

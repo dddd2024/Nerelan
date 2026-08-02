@@ -31,7 +31,7 @@ from reverse_agent.platform_v1.policy_adapter import (
 
 
 VALID_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
-VALID_ISSUE_BODY_DIGEST = "a" * 40
+VALID_ISSUE_BODY_DIGEST = "a" * 64  # F25: SHA-256, 64 hex chars
 
 
 def _make_work_item(**overrides) -> PlatformWorkItem:
