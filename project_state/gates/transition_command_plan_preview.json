@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260802_issue98_platform_v1_trust_binding_rework_v2",
-  "round_id": "round_20260802_issue98_platform_v1_trust_binding_rework_v2",
+  "decision_id": "decision_20260802_issue99_platform_v1_live_evidence_boundary_v3",
+  "round_id": "round_20260802_issue99_platform_v1_live_evidence_boundary_v3",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -160,8 +160,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.issue98_comment",
-      "command": "gh issue comment 98 --repo dddd2024/reverse-agent --body-file -",
+      "command_id": "publication.issue99_comment",
+      "command": "gh issue comment 99 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
