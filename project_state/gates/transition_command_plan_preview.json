@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260802_issue94_v08_findings_remediation_v9",
-  "round_id": "round_20260802_issue94_v08_findings_remediation_v9",
+  "decision_id": "decision_20260802_issue95_pr93_merge_readiness_closure_v10",
+  "round_id": "round_20260802_issue95_pr93_merge_readiness_closure_v10",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -48,8 +48,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.pytest_operation_prompt_consistency",
-      "command": "python -m pytest tests/test_supervisor_validate.py -q -k operation_prompt_consistency",
+      "command_id": "test.pytest_mainline_audits",
+      "command": "python -m pytest tests/test_mainline_landing.py tests/test_project_audits.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -148,6 +148,29 @@
       "execution_surface": "local",
       "operations": [
         "repository_observation",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "publication.issue95_comment",
+      "command": "gh issue comment 95 --repo dddd2024/reverse-agent --body-file -",
+      "phase": "publication",
+      "required": false,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "issue_comment",
         "network_access"
       ],
       "network_access": true,
