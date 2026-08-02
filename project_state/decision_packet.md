@@ -215,6 +215,10 @@
     "tests/platform_v1/test_evidence_adapter.py",
     "tests/platform_v1/test_github_adapter.py",
     "tests/platform_v1/test_merge_intent.py",
+    "tests/platform_v1/test_forbidden_capabilities.py",
+    "tests/platform_v1/test_idempotency.py",
+    "tests/platform_v1/test_policy_adapter.py",
+    "tests/test_project_gate.py",
     ".github/workflows/ci.yml"
   ],
   "reference_paths": [
@@ -226,7 +230,6 @@
     "tests/test_supervisor_validate.py",
     "tests/test_integration_baseline.py",
     "tests/test_mainline_landing.py",
-    "tests/test_project_gate.py",
     "reverse_agent/project_gate.py",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/transition.py",
@@ -305,10 +308,7 @@
     "docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md",
     "deploy/agent-canvas/**",
     "examples/platform_v1_target/**",
-    "tests/platform_v1/test_forbidden_capabilities.py",
-    "tests/platform_v1/test_idempotency.py",
     "tests/platform_v1/test_openhands_adapter.py",
-    "tests/platform_v1/test_policy_adapter.py",
     "project_state/schemas/**",
     "project_state/rounds/**",
     "project_state/audits/**",
@@ -329,7 +329,6 @@
     "tests/test_mainline_landing.py",
     "tests/test_local_reverse_forced_ida_extract.py",
     "tests/test_codex_skills.py",
-    "tests/test_project_gate.py",
     "tests/test_project_audits.py"
   ],
   "forbidden_operations": [
@@ -404,6 +403,7 @@
     "docs/platform_v1/**",
     "reverse_agent/platform_v1/**",
     "tests/platform_v1/**",
+    "tests/test_project_gate.py",
     ".github/workflows/ci.yml"
   ],
   "path_risk_floor": [
@@ -421,6 +421,14 @@
     },
     {
       "pattern": "reverse_agent/platform_v1/**",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "tests/platform_v1/**",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "tests/test_project_gate.py",
       "minimum_risk": "R2"
     },
     {
