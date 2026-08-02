@@ -1,12 +1,13 @@
 """Tests for the Platform V1 policy adapter.
 
 Covers:
-- R3+ risk tier rejection (fail-closed)
+- R0/R1 pass; R2/R3 blocked_approval (fail-closed)
 - broad path scope rejection (fail-closed)
 - empty path scope rejection (fail-closed)
 - forbidden publication operation rejection
 - changed-path scope validation
 - task prompt generation (no credential injection)
+- is_blocked_approval_violation helper
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from reverse_agent.platform_v1.contracts import (
 from reverse_agent.platform_v1.policy_adapter import (
     PolicyViolation,
     generate_task_prompt,
+    is_blocked_approval_violation,
     validate_binding,
     validate_changed_paths,
     validate_publication_operation,
@@ -29,6 +31,7 @@ from reverse_agent.platform_v1.policy_adapter import (
 
 
 VALID_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
+VALID_ISSUE_BODY_DIGEST = "a" * 40
 
 
 def _make_work_item(**overrides) -> PlatformWorkItem:
@@ -39,7 +42,10 @@ def _make_work_item(**overrides) -> PlatformWorkItem:
         "allowed_paths": ("reverse_agent/platform_v1/**", "tests/platform_v1/**"),
         "forbidden_operations": ("push_main", "merge"),
         "acceptance_criteria": ("pytest passes",),
-        "risk_tier": "R2",
+        "goal": "test goal",
+        "required_checks": ("pytest",),
+        "approved_issue_body_digest": VALID_ISSUE_BODY_DIGEST,
+        "risk_tier": "R0",
         "target_branch": "agent/platform-v1-openhands-codex-acp",
     }
     defaults.update(overrides)
@@ -51,24 +57,39 @@ def _make_work_item(**overrides) -> PlatformWorkItem:
 # ---------------------------------------------------------------------------
 
 class TestValidateWorkItem:
-    def test_valid_R2_work_item_passes(self) -> None:
-        # Should not raise
-        validate_work_item(_make_work_item(risk_tier="R2"))
-
     def test_valid_R0_work_item_passes(self) -> None:
+        # Should not raise
         validate_work_item(_make_work_item(risk_tier="R0"))
 
     def test_valid_R1_work_item_passes(self) -> None:
         validate_work_item(_make_work_item(risk_tier="R1"))
 
+    def test_R2_raises_blocked_approval(self) -> None:
+        # R2 is valid at construction but blocked by policy.
+        with pytest.raises(PolicyViolation, match="blocked_approval"):
+            validate_work_item(_make_work_item(risk_tier="R2"))
+
+    def test_R3_raises_blocked_approval(self) -> None:
+        # R3 is valid at construction but blocked by policy.
+        with pytest.raises(PolicyViolation, match="blocked_approval"):
+            validate_work_item(_make_work_item(risk_tier="R3"))
+
     @pytest.mark.parametrize("tier", ["R3", "R4", "R5"])
     def test_R3_or_higher_fail_closed(self, tier: str) -> None:
-        # PlatformWorkItem.__post_init__ rejects these too, but we construct
-        # via __new__ to test validate_work_item independently.
+        # PlatformWorkItem.__post_init__ rejects R4+ at construction, so we
+        # construct with a valid tier then mutate via object.__setattr__ to
+        # test validate_work_item independently.
         wi = _make_work_item()
         object.__setattr__(wi, "risk_tier", tier)
-        with pytest.raises(PolicyViolation, match="risk_tier_exceeds_R2"):
+        with pytest.raises(PolicyViolation, match="blocked_approval"):
             validate_work_item(wi)
+
+    def test_blocked_approval_violation_carries_tier_as_detail(self) -> None:
+        wi = _make_work_item(risk_tier="R2")
+        with pytest.raises(PolicyViolation) as exc_info:
+            validate_work_item(wi)
+        assert exc_info.value.code == "blocked_approval"
+        assert exc_info.value.detail == "R2"
 
     def test_empty_path_scope_fail_closed(self) -> None:
         wi = _make_work_item()
@@ -86,6 +107,7 @@ class TestValidateWorkItem:
     def test_forbidden_operations_listed_in_deny_list_passes(self) -> None:
         # forbidden_operations is a deny-list: listing push_main/merge there
         # is correct and expected. validate_work_item should NOT reject.
+        # R0 so the tier check passes and we isolate the deny-list behavior.
         wi = PlatformWorkItem(
             source_issue_number=1,
             repository="a/b",
@@ -93,8 +115,30 @@ class TestValidateWorkItem:
             allowed_paths=("a.py",),
             forbidden_operations=("push_main", "merge", "mark_ready"),
             acceptance_criteria=(),
+            goal="g",
+            required_checks=("pytest",),
+            approved_issue_body_digest=VALID_ISSUE_BODY_DIGEST,
+            risk_tier="R0",
         )
         validate_work_item(wi)
+
+
+# ---------------------------------------------------------------------------
+# is_blocked_approval_violation
+# ---------------------------------------------------------------------------
+
+class TestIsBlockedApprovalViolation:
+    def test_returns_true_for_blocked_approval(self) -> None:
+        exc = PolicyViolation("blocked_approval", "R2")
+        assert is_blocked_approval_violation(exc) is True
+
+    def test_returns_false_for_other_violations(self) -> None:
+        exc = PolicyViolation("empty_path_scope")
+        assert is_blocked_approval_violation(exc) is False
+
+    def test_returns_false_for_broad_path_rejected(self) -> None:
+        exc = PolicyViolation("broad_path_rejected", "**")
+        assert is_blocked_approval_violation(exc) is False
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +149,11 @@ class TestValidateBinding:
     def test_valid_binding_passes(self) -> None:
         binding = ExecutionBinding(work_item=_make_work_item(), attempt=1)
         validate_binding(binding)
+
+    def test_R2_binding_raises_blocked_approval(self) -> None:
+        binding = ExecutionBinding(work_item=_make_work_item(risk_tier="R2"), attempt=1)
+        with pytest.raises(PolicyViolation, match="blocked_approval"):
+            validate_binding(binding)
 
     def test_attempt_zero_rejected(self) -> None:
         binding = ExecutionBinding(work_item=_make_work_item(), attempt=1)
@@ -197,6 +246,17 @@ class TestGenerateTaskPrompt:
         prompt = generate_task_prompt(wi)
         assert "push_main" in prompt
         assert "merge" in prompt
+
+    def test_prompt_contains_goal(self) -> None:
+        wi = _make_work_item(goal="Ship the platform v1 slice")
+        prompt = generate_task_prompt(wi)
+        assert "Ship the platform v1 slice" in prompt
+
+    def test_prompt_contains_required_checks(self) -> None:
+        wi = _make_work_item(required_checks=("pytest", "git diff --check"))
+        prompt = generate_task_prompt(wi)
+        assert "pytest" in prompt
+        assert "git diff --check" in prompt
 
     def test_prompt_does_not_inject_credential_values(self) -> None:
         wi = _make_work_item()

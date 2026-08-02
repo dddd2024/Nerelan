@@ -113,13 +113,32 @@ def cmd_ingest_events(args: Sequence[str]) -> int:
         data = _read_stdin_json()
         events = data.get("events", [])
         execution_id = data["execution_id"]
-        evidence = openhands_adapter.ingest_events(events, execution_id)
+        repository = data["repository"]
+        base_sha = data["base_sha"]
+        head_sha = data["head_sha"]
+        pr_number = int(data["pr_number"])
+        required_workflows = data.get("required_workflows", [])
+        evidence = openhands_adapter.ingest_events(
+            events,
+            execution_id,
+            repository,
+            base_sha,
+            head_sha,
+            pr_number,
+            required_workflows,
+        )
         _print_json({
             "status": "OK",
             "evidence": {
                 "execution_id": evidence.execution_id,
+                "repository": evidence.repository,
+                "base_sha": evidence.base_sha,
+                "head_sha": evidence.head_sha,
+                "pr_number": evidence.pr_number,
                 "changed_paths": list(evidence.changed_paths),
                 "agent_completion_claim": evidence.agent_completion_claim,
+                "collection_mode": evidence.collection_mode,
+                "provenance": evidence.provenance,
             },
         })
         return 0

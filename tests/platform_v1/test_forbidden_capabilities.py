@@ -1,7 +1,8 @@
 """Fail-closed and forbidden-capability tests for Platform V1.
 
 Verifies that the platform adapter fails closed for:
-- R3+ risk tiers
+- R4+ risk tiers at construction (R3 is valid at construction, blocked by policy)
+- R2/R3 blocked by policy validator (blocked_approval)
 - broad path scope (**, *, etc.)
 - empty path scope
 - forbidden publication operations (push_main, merge, mark_ready, etc.)
@@ -38,6 +39,7 @@ from reverse_agent.platform_v1.policy_adapter import (
 
 
 VALID_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
+VALID_ISSUE_BODY_DIGEST = "a" * 40
 
 
 def _make_work_item(**overrides) -> PlatformWorkItem:
@@ -48,7 +50,10 @@ def _make_work_item(**overrides) -> PlatformWorkItem:
         "allowed_paths": ("reverse_agent/platform_v1/**",),
         "forbidden_operations": ("push_main", "merge"),
         "acceptance_criteria": (),
-        "risk_tier": "R2",
+        "goal": "test goal",
+        "required_checks": ("pytest",),
+        "approved_issue_body_digest": VALID_ISSUE_BODY_DIGEST,
+        "risk_tier": "R0",
         "target_branch": "agent/platform-v1-openhands-codex-acp",
     }
     defaults.update(overrides)
@@ -60,16 +65,25 @@ def _make_work_item(**overrides) -> PlatformWorkItem:
 # ---------------------------------------------------------------------------
 
 class TestRiskTierFailClosed:
-    @pytest.mark.parametrize("tier", ["R3", "R4", "R5", "R6", "RX", "R99"])
-    def test_R3_or_higher_rejected_at_construction(self, tier: str) -> None:
-        with pytest.raises(ValueError, match="risk_tier_R3_or_higher_rejected"):
+    @pytest.mark.parametrize("tier", ["R4", "R5", "R6", "RX", "R99"])
+    def test_invalid_risk_tier_rejected_at_construction(self, tier: str) -> None:
+        # R3 is now VALID at construction; only R4+ (not in VALID_RISK_TIERS)
+        # are rejected at construction with invalid_risk_tier.
+        with pytest.raises(ValueError, match="invalid_risk_tier"):
             _make_work_item(risk_tier=tier)
 
-    @pytest.mark.parametrize("tier", ["R3", "R4"])
-    def test_R3_or_higher_rejected_by_validator(self, tier: str) -> None:
+    def test_R3_is_valid_at_construction(self) -> None:
+        # R3 is a recognized risk tier now; it is blocked later by policy.
+        wi = _make_work_item(risk_tier="R3")
+        assert wi.risk_tier == "R3"
+
+    @pytest.mark.parametrize("tier", ["R2", "R3", "R4"])
+    def test_R2_or_higher_rejected_by_validator(self, tier: str) -> None:
+        # R3 is valid at construction; R4 is not, so we mutate via
+        # object.__setattr__ to test validate_work_item independently.
         wi = _make_work_item()
         object.__setattr__(wi, "risk_tier", tier)
-        with pytest.raises(PolicyViolation, match="risk_tier_exceeds_R2"):
+        with pytest.raises(PolicyViolation, match="blocked_approval"):
             validate_work_item(wi)
 
 
@@ -88,6 +102,9 @@ class TestPathScopeFailClosed:
                 allowed_paths=(broad,),
                 forbidden_operations=(),
                 acceptance_criteria=(),
+                goal="g",
+                required_checks=("pytest",),
+                approved_issue_body_digest=VALID_ISSUE_BODY_DIGEST,
             )
 
     def test_empty_path_rejected_at_construction(self) -> None:
@@ -99,6 +116,9 @@ class TestPathScopeFailClosed:
                 allowed_paths=(),
                 forbidden_operations=(),
                 acceptance_criteria=(),
+                goal="g",
+                required_checks=("pytest",),
+                approved_issue_body_digest=VALID_ISSUE_BODY_DIGEST,
             )
 
     def test_empty_path_rejected_by_validator(self) -> None:

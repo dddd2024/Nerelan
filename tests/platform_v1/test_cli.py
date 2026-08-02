@@ -1,11 +1,11 @@
 """Tests for the Platform V1 machine-readable CLI.
 
 Covers:
-- validate-work-item exit codes
+- validate-work-item exit codes (R0 valid; R2 blocked_approval)
 - create-binding exit codes
 - generate-prompt exit codes
-- ingest-events exit codes
-- evaluate-acceptance exit codes
+- ingest-events exit codes (with new required binding parameters)
+- evaluate-acceptance exit codes (evidence binding must match)
 - stable error codes for policy/schema errors
 - unknown command handling
 - help output
@@ -20,9 +20,12 @@ from contextlib import redirect_stdout
 import pytest
 
 from reverse_agent.platform_v1.cli import main
+from reverse_agent.platform_v1.contracts import PlatformWorkItem
 
 
 VALID_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
+VALID_HEAD_SHA = "e702a3c5f50b9373e0af8087a76268d4a01cd9b1"
+VALID_ISSUE_BODY_DIGEST = "a" * 40
 
 
 def _run_cli(args: list[str], stdin_data: str = "") -> tuple[int, dict]:
@@ -54,11 +57,45 @@ def _valid_work_item_payload(**overrides) -> dict:
         "allowed_paths": ["reverse_agent/platform_v1/**", "tests/platform_v1/**"],
         "forbidden_operations": ["push_main", "merge"],
         "acceptance_criteria": ["pytest passes"],
-        "risk_tier": "R2",
+        "goal": "test goal",
+        "required_checks": ["pytest"],
+        "approved_issue_body_digest": VALID_ISSUE_BODY_DIGEST,
+        # R0 so the work item passes policy and the CLI commands succeed.
+        # Tests that need R2 override this explicitly.
+        "risk_tier": "R0",
         "target_branch": "agent/platform-v1-openhands-codex-acp",
     }
     payload.update(overrides)
     return payload
+
+
+def _evidence_payload_for(work_item_payload: dict, **evidence_overrides) -> dict:
+    """Build an evidence payload whose execution_id matches the work item.
+
+    The evidence binding requires execution_id, repository, and base_sha to
+    match the work item. We construct the work item first to read its
+    execution_id, then seed the evidence with it.
+    """
+
+    work_item = PlatformWorkItem.from_mapping(work_item_payload)
+    evidence = {
+        "execution_id": work_item.execution_id,
+        "repository": work_item.repository,
+        "base_sha": work_item.base_sha,
+        "head_sha": VALID_HEAD_SHA,
+        "pr_number": 97,
+        "required_workflows": ["CI"],
+        "changed_paths": ["reverse_agent/platform_v1/__init__.py"],
+        "test_results": {"passed": True},
+        "git_diff_check_passed": True,
+        "agent_completion_claim": "",
+        "ci_checks": [{"name": "CI", "conclusion": "SUCCESS"}],
+        "collected_at": "",
+        "collection_mode": "fixture",
+        "provenance": "caller_asserted",
+    }
+    evidence.update(evidence_overrides)
+    return evidence
 
 
 # ---------------------------------------------------------------------------
@@ -79,15 +116,21 @@ class TestValidateWorkItemCmd:
         assert code == 10
         assert out["status"] == "SCHEMA_ERROR"
 
-    def test_policy_violation_returns_20(self) -> None:
-        # R3 risk tier triggers policy violation
+    def test_R2_returns_20_blocked_approval(self) -> None:
+        # R2 is valid at construction but blocked by policy.
+        payload = _valid_work_item_payload(risk_tier="R2")
+        code, out = _run_cli(["validate-work-item"], json.dumps(payload))
+        assert code == 20
+        assert out["status"] == "POLICY_VIOLATION"
+        assert out["code"] == "blocked_approval"
+        assert out["detail"] == "R2"
+
+    def test_broad_path_returns_10_schema_error(self) -> None:
+        # broad path is rejected at construction -> SCHEMA_ERROR
         payload = _valid_work_item_payload()
-        # Build a valid R2 work item, then craft a payload that would be R3
-        # Since PlatformWorkItem rejects R3 at construction, we send a
-        # malformed payload that passes schema but fails policy.
         payload["allowed_paths"] = ["**"]
         code, out = _run_cli(["validate-work-item"], json.dumps(payload))
-        assert code == 10  # ValueError at construction -> SCHEMA_ERROR
+        assert code == 10
         assert out["status"] == "SCHEMA_ERROR"
 
 
@@ -119,6 +162,13 @@ class TestCreateBindingCmd:
         assert code == 10
         assert out["status"] == "SCHEMA_ERROR"
 
+    def test_R2_returns_20_blocked_approval(self) -> None:
+        payload = _valid_work_item_payload(risk_tier="R2")
+        code, out = _run_cli(["create-binding"], json.dumps(payload))
+        assert code == 20
+        assert out["status"] == "POLICY_VIOLATION"
+        assert out["code"] == "blocked_approval"
+
 
 # ---------------------------------------------------------------------------
 # generate-prompt
@@ -131,6 +181,15 @@ class TestGeneratePromptCmd:
         assert out["status"] == "OK"
         assert "prompt" in out
         assert "execution_id" in out["prompt"]
+        assert "test goal" in out["prompt"]
+        assert "pytest" in out["prompt"]
+
+    def test_R2_returns_20_blocked_approval(self) -> None:
+        payload = _valid_work_item_payload(risk_tier="R2")
+        code, out = _run_cli(["generate-prompt"], json.dumps(payload))
+        assert code == 20
+        assert out["status"] == "POLICY_VIOLATION"
+        assert out["code"] == "blocked_approval"
 
     def test_prompt_does_not_contain_credential_values(self) -> None:
         code, out = _run_cli(["generate-prompt"], json.dumps(_valid_work_item_payload()))
@@ -162,6 +221,11 @@ class TestIngestEventsCmd:
     def test_valid_events_returns_zero(self) -> None:
         payload = {
             "execution_id": "exec-1",
+            "repository": "dddd2024/reverse-agent",
+            "base_sha": VALID_BASE_SHA,
+            "head_sha": VALID_HEAD_SHA,
+            "pr_number": 97,
+            "required_workflows": ["CI"],
             "events": [
                 {"type": "workspace.file_write", "path": "a.py"},
                 {"type": "agent.completion_claim", "claim": "done"},
@@ -172,9 +236,35 @@ class TestIngestEventsCmd:
         assert out["status"] == "OK"
         assert "a.py" in out["evidence"]["changed_paths"]
         assert out["evidence"]["agent_completion_claim"] == "done"
+        assert out["evidence"]["repository"] == "dddd2024/reverse-agent"
+        assert out["evidence"]["base_sha"] == VALID_BASE_SHA
+        assert out["evidence"]["head_sha"] == VALID_HEAD_SHA
+        assert out["evidence"]["pr_number"] == 97
+        assert out["evidence"]["collection_mode"] == "fixture"
+        assert out["evidence"]["provenance"] == "agent_event_stream"
 
     def test_missing_execution_id_returns_10(self) -> None:
-        payload = {"events": []}
+        payload = {
+            "events": [],
+            "repository": "dddd2024/reverse-agent",
+            "base_sha": VALID_BASE_SHA,
+            "head_sha": VALID_HEAD_SHA,
+            "pr_number": 97,
+            "required_workflows": ["CI"],
+        }
+        code, out = _run_cli(["ingest-events"], json.dumps(payload))
+        assert code == 10
+        assert out["status"] == "SCHEMA_ERROR"
+
+    def test_missing_repository_returns_10(self) -> None:
+        payload = {
+            "execution_id": "exec-1",
+            "base_sha": VALID_BASE_SHA,
+            "head_sha": VALID_HEAD_SHA,
+            "pr_number": 97,
+            "required_workflows": ["CI"],
+            "events": [],
+        }
         code, out = _run_cli(["ingest-events"], json.dumps(payload))
         assert code == 10
         assert out["status"] == "SCHEMA_ERROR"
@@ -185,20 +275,15 @@ class TestIngestEventsCmd:
 # ---------------------------------------------------------------------------
 
 class TestEvaluateAcceptanceCmd:
-    def _payload(self, evidence_overrides: dict | None = None) -> dict:
-        evidence = {
-            "execution_id": "exec-1",
-            "changed_paths": ["reverse_agent/platform_v1/__init__.py"],
-            "test_results": {"passed": True},
-            "git_diff_check_passed": True,
-            "agent_completion_claim": "",
-            "ci_checks": [{"name": "CI", "conclusion": "SUCCESS"}],
-            "collected_at": "",
-        }
+    def _payload(self, work_item_overrides: dict | None = None, evidence_overrides: dict | None = None) -> dict:
+        work_item_payload = _valid_work_item_payload()
+        if work_item_overrides:
+            work_item_payload.update(work_item_overrides)
+        evidence = _evidence_payload_for(work_item_payload)
         if evidence_overrides:
             evidence.update(evidence_overrides)
         return {
-            "work_item": _valid_work_item_payload(),
+            "work_item": work_item_payload,
             "attempt": 1,
             "evidence": evidence,
         }
@@ -207,32 +292,63 @@ class TestEvaluateAcceptanceCmd:
         code, out = _run_cli(["evaluate-acceptance"], json.dumps(self._payload()))
         assert code == 0
         assert out["status"] == "ACCEPTED"
+        assert out["live_ready"] is False  # fixture evidence
+
+    def test_all_pass_live_returns_zero_and_live_ready(self) -> None:
+        code, out = _run_cli(
+            ["evaluate-acceptance"],
+            json.dumps(self._payload(evidence_overrides={"collection_mode": "live"})),
+        )
+        assert code == 0
+        assert out["status"] == "ACCEPTED"
+        assert out["live_ready"] is True
 
     def test_tests_failed_returns_40(self) -> None:
-        payload = self._payload({"test_results": {"passed": False}})
+        payload = self._payload(evidence_overrides={"test_results": {"passed": False}})
         code, out = _run_cli(["evaluate-acceptance"], json.dumps(payload))
         assert code == 40
         assert out["status"] == "REWORK_REQUIRED"
 
     def test_out_of_scope_returns_50(self) -> None:
-        payload = self._payload({
-            "changed_paths": ["reverse_agent/other/foo.py"],
-        })
+        # changed_paths outside the allowed scope -> BLOCKED_APPROVAL
+        work_item_payload = _valid_work_item_payload()
+        evidence = _evidence_payload_for(work_item_payload)
+        evidence["changed_paths"] = ["reverse_agent/other/foo.py"]
+        payload = {"work_item": work_item_payload, "attempt": 1, "evidence": evidence}
         code, out = _run_cli(["evaluate-acceptance"], json.dumps(payload))
         assert code == 50
         assert out["status"] == "BLOCKED_APPROVAL"
+        assert any("out_of_scope" in r for r in out["reasons"])
 
-    def test_policy_failed_returns_50(self) -> None:
-        payload = self._payload()
-        # Tamper with risk tier to fail policy validation
-        payload["work_item"]["risk_tier"] = "R3"
+    def test_R2_returns_50_blocked_approval(self) -> None:
+        # R2 is valid at construction but blocked by policy -> BLOCKED_APPROVAL
+        payload = self._payload(work_item_overrides={"risk_tier": "R2"})
         code, out = _run_cli(["evaluate-acceptance"], json.dumps(payload))
-        # R3 is rejected at PlatformWorkItem construction -> SCHEMA_ERROR
-        assert code == 10
-        assert out["status"] == "SCHEMA_ERROR"
+        assert code == 50
+        assert out["status"] == "BLOCKED_APPROVAL"
+        assert any("blocked_approval" in r for r in out["reasons"])
+
+    def test_R3_returns_50_blocked_approval(self) -> None:
+        # R3 is valid at construction but blocked by policy -> BLOCKED_APPROVAL
+        payload = self._payload(work_item_overrides={"risk_tier": "R3"})
+        code, out = _run_cli(["evaluate-acceptance"], json.dumps(payload))
+        assert code == 50
+        assert out["status"] == "BLOCKED_APPROVAL"
+        assert any("blocked_approval" in r for r in out["reasons"])
+
+    def test_evidence_binding_mismatch_returns_50_failed_terminal(self) -> None:
+        # evidence execution_id doesn't match work_item -> FAILED_TERMINAL
+        work_item_payload = _valid_work_item_payload()
+        evidence = _evidence_payload_for(work_item_payload)
+        evidence["execution_id"] = "exec-different"
+        payload = {"work_item": work_item_payload, "attempt": 1, "evidence": evidence}
+        code, out = _run_cli(["evaluate-acceptance"], json.dumps(payload))
+        assert code == 50
+        assert out["status"] == "FAILED_TERMINAL"
+        assert any("evidence_binding_failed" in r for r in out["reasons"])
 
     def test_agent_claim_does_not_override_tests_failed(self) -> None:
-        payload = self._payload({
+        payload = self._payload(evidence_overrides={
             "test_results": {"passed": False},
             "agent_completion_claim": "All tests pass. Task done.",
         })

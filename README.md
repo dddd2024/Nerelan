@@ -56,7 +56,20 @@ Open SWE fork or OpenHands control-plane product
 specific hostile-binary, reverse-solving, crash, patch, malware, or firmware product work
 ```
 
-Security and binary directions remain **extension candidates**, not current implementation scope.
+Security and binary direction remain **extension candidates**, not current implementation scope.
+
+## Platform V1 — bounded OpenHands Agent Canvas + Codex ACP direction
+
+The current selected bounded Platform V1 integration direction is **OpenHands Agent Canvas + Codex ACP**. This is a thin adapter layer (`reverse_agent/platform_v1/`) that binds the repository's governance layer (risk classification, path/operation policy, trusted evidence, deterministic acceptance) to the pinned OpenHands Agent Canvas + Codex ACP platform surface.
+
+```text
+do not fork OpenHands
+do not copy its frontend or Agent Loop
+do not build a second control platform
+do not auto-merge
+```
+
+The adapter does not implement an executor, agent loop, sandbox, database, or frontend. Live compatibility probes (Agent Canvas startup, Agent Server health, Codex ACP authentication, restart recovery) require a trusted host with explicit opt-in and are not executable in the provider-free CI environment. The current status is `PR97_CODE_REWORK_COMPLETE_AWAITING_TRUSTED_HOST_LIVE_PROBE` — the full vertical slice is not yet accepted.
 
 ## Reference documents
 

@@ -1,7 +1,9 @@
 """Policy adapter: fail-closed validation for Platform V1 execution.
 
-Enforces that only authorized R2 operations proceed. R3, broad path scope,
-empty path scope, and forbidden publication operations all fail closed.
+Enforces that only R0/R1 risk tiers may proceed through unattended execution.
+R2 and R3 return ``BLOCKED_APPROVAL`` before any OpenHands, Codex, GitHub
+publication, or other backend invocation. Broad path scope, empty path
+scope, and forbidden publication operations all fail closed.
 """
 
 from __future__ import annotations
@@ -11,6 +13,7 @@ from typing import Any
 
 from .contracts import (
     FORBIDDEN_PUBLICATION_OPERATIONS,
+    UNATTENDED_ALLOWED_TIERS,
     ExecutionBinding,
     PlatformWorkItem,
 )
@@ -58,7 +61,8 @@ def validate_work_item(work_item: PlatformWorkItem) -> None:
     """Validate a Work Item against the platform policy.
 
     Raises ``PolicyViolation`` on any failure. Fail-closed for:
-    - R3 or higher risk tier
+    - R2 or higher risk tier (only R0/R1 may proceed through unattended
+      execution; R2/R3 return ``blocked_approval`` before backend invocation)
     - broad or empty path scope
 
     Note: ``work_item.forbidden_operations`` is a deny-list (operations the
@@ -68,12 +72,11 @@ def validate_work_item(work_item: PlatformWorkItem) -> None:
     actually attempted.
     """
 
-    # R3+ is never authorized by this platform.
-    if work_item.risk_tier not in ("R0", "R1", "R2"):
-        raise PolicyViolation("risk_tier_exceeds_R2", work_item.risk_tier)
+    # R2+ is blocked before any backend invocation. Only R0/R1 may proceed.
+    if work_item.risk_tier not in UNATTENDED_ALLOWED_TIERS:
+        raise PolicyViolation("blocked_approval", work_item.risk_tier)
 
-    # R2 requires explicit path binding; broad/empty is rejected in __post_init__.
-    # Re-check here for defense in depth.
+    # Re-check path scope for defense in depth.
     if not work_item.allowed_paths:
         raise PolicyViolation("empty_path_scope")
 
@@ -112,6 +115,12 @@ def validate_publication_operation(operation: str) -> None:
         raise PolicyViolation("forbidden_publication_operation", operation)
 
 
+def is_blocked_approval_violation(exc: PolicyViolation) -> bool:
+    """Return True if the violation is a blocked-approval (R2/R3) result."""
+
+    return exc.code == "blocked_approval"
+
+
 def generate_task_prompt(work_item: PlatformWorkItem) -> str:
     """Generate a bounded OpenHands/Codex task prompt from the Work Item.
 
@@ -125,7 +134,10 @@ def generate_task_prompt(work_item: PlatformWorkItem) -> str:
         f"execution_id: {work_item.execution_id}\n"
         f"branch: {work_item.branch_name}\n"
         f"base_sha: {work_item.base_sha}\n"
-        f"repository: {work_item.repository}\n\n"
+        f"repository: {work_item.repository}\n"
+        f"digest: {work_item.digest}\n\n"
+        f"## Goal\n"
+        f"{work_item.goal}\n\n"
         f"## Allowed paths\n"
         + "\n".join(f"- {p}" for p in work_item.allowed_paths)
         + "\n\n"
@@ -134,6 +146,9 @@ def generate_task_prompt(work_item: PlatformWorkItem) -> str:
         + "\n\n"
         f"## Acceptance criteria\n"
         + "\n".join(f"- {c}" for c in work_item.acceptance_criteria)
+        + "\n\n"
+        f"## Required checks\n"
+        + "\n".join(f"- {c}" for c in work_item.required_checks)
         + "\n\n"
         f"## Constraints\n"
         f"- Modify only the allowed paths listed above.\n"

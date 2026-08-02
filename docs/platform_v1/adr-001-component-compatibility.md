@@ -1,8 +1,8 @@
 # ADR-001: Platform V1 Component Compatibility
 
-Status: ACCEPTED
+Status: PR97_CODE_REWORK_COMPLETE_AWAITING_TRUSTED_HOST_LIVE_PROBE
 Date: 2026-08-02
-Decision: Pin Agent Canvas v1.6.0 lineage; use v1.6.1 for npm installation
+Decision: Pin Agent Canvas v1.6.0 lineage; use v1.6.1 for npm installation; live compatibility not yet verified
 
 ## Context
 

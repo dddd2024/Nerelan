@@ -120,6 +120,19 @@ Trust Layer
 Binary Evidence Firewall
 ```
 
+## Platform V1 — bounded OpenHands Agent Canvas + Codex ACP direction
+
+The current selected bounded Platform V1 integration direction is **OpenHands Agent Canvas + Codex ACP**. This is a thin adapter layer that binds the repository's governance layer (risk classification, path/operation policy, trusted evidence, deterministic acceptance) to the pinned OpenHands Agent Canvas + Codex ACP platform surface.
+
+```text
+do not fork OpenHands
+do not copy its frontend or Agent Loop
+do not build a second control platform
+do not auto-merge
+```
+
+The adapter does not implement an executor, agent loop, sandbox, database, or frontend. Live compatibility probes require a trusted host with explicit opt-in. The current status is `PR97_CODE_REWORK_COMPLETE_AWAITING_TRUSTED_HOST_LIVE_PROBE` — the full vertical slice is not yet accepted. This section is planning reference only and does not authorize commands, file changes, or merge.
+
 ## After acceptance
 
 ### Historical one-time transition (PR #27, superseded by the carve-out)

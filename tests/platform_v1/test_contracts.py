@@ -4,7 +4,8 @@ Covers:
 - PlatformWorkItem normalization, validation, and digest determinism
 - ExecutionBinding attempt limits
 - ExecutionEvidence immutability and derived flags
-- PlatformAcceptanceResult status whitelist
+- ExecutionEvidence binding validation
+- PlatformAcceptanceResult status whitelist and live_ready property
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import pytest
 from reverse_agent.platform_v1.contracts import (
     MAX_ATTEMPTS,
     VALID_ACCEPTANCE_STATUSES,
+    EvidenceBindingError,
     ExecutionBinding,
     ExecutionEvidence,
     PlatformAcceptanceResult,
@@ -26,6 +28,8 @@ from reverse_agent.platform_v1.contracts import (
 # ---------------------------------------------------------------------------
 
 VALID_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
+VALID_HEAD_SHA = "e702a3c5f50b9373e0af8087a76268d4a01cd9b1"
+VALID_ISSUE_BODY_DIGEST = "a" * 40
 
 
 def _make_work_item(**overrides) -> PlatformWorkItem:
@@ -36,11 +40,33 @@ def _make_work_item(**overrides) -> PlatformWorkItem:
         "allowed_paths": ("reverse_agent/platform_v1/**", "tests/platform_v1/**"),
         "forbidden_operations": ("push_main", "merge"),
         "acceptance_criteria": ("pytest passes",),
+        "goal": "test goal",
+        "required_checks": ("pytest",),
+        "approved_issue_body_digest": VALID_ISSUE_BODY_DIGEST,
         "risk_tier": "R2",
         "target_branch": "agent/platform-v1-openhands-codex-acp",
     }
     defaults.update(overrides)
     return PlatformWorkItem(**defaults)
+
+
+def _make_evidence(**overrides) -> ExecutionEvidence:
+    defaults = {
+        "execution_id": "exec-1",
+        "repository": "dddd2024/reverse-agent",
+        "base_sha": VALID_BASE_SHA,
+        "head_sha": VALID_HEAD_SHA,
+        "pr_number": 97,
+        "required_workflows": ("CI",),
+        "changed_paths": ("reverse_agent/platform_v1/__init__.py",),
+        "test_results": {"passed": True},
+        "git_diff_check_passed": True,
+        "agent_completion_claim": "",
+        "ci_checks": ({"name": "CI", "conclusion": "SUCCESS"},),
+        "collected_at": "",
+    }
+    defaults.update(overrides)
+    return ExecutionEvidence(**defaults)
 
 
 # ---------------------------------------------------------------------------
@@ -53,6 +79,20 @@ class TestPlatformWorkItem:
         assert wi.source_issue_number == 96
         assert wi.repository == "dddd2024/reverse-agent"
         assert wi.risk_tier == "R2"
+        assert wi.goal == "test goal"
+        assert wi.required_checks == ("pytest",)
+        assert wi.approved_issue_body_digest == VALID_ISSUE_BODY_DIGEST
+
+    def test_R3_is_valid_at_construction(self) -> None:
+        # R3 is now a recognized risk tier (valid at construction); it is
+        # blocked later by the policy adapter as a blocked_approval.
+        wi = _make_work_item(risk_tier="R3")
+        assert wi.risk_tier == "R3"
+
+    @pytest.mark.parametrize("tier", ["R4", "R5", "RX"])
+    def test_invalid_risk_tier_rejected(self, tier: str) -> None:
+        with pytest.raises(ValueError, match="invalid_risk_tier"):
+            _make_work_item(risk_tier=tier)
 
     def test_path_normalization_strips_leading_dot_slash(self) -> None:
         wi = PlatformWorkItem(
@@ -62,6 +102,9 @@ class TestPlatformWorkItem:
             allowed_paths=("./reverse_agent/platform_v1/foo.py", "reverse_agent\\platform_v1\\bar.py"),
             forbidden_operations=(),
             acceptance_criteria=(),
+            goal="g",
+            required_checks=("pytest",),
+            approved_issue_body_digest=VALID_ISSUE_BODY_DIGEST,
         )
         assert wi.allowed_paths == (
             "reverse_agent/platform_v1/foo.py",
@@ -76,6 +119,9 @@ class TestPlatformWorkItem:
             allowed_paths=("a.py", "b.py", "a.py"),
             forbidden_operations=(),
             acceptance_criteria=(),
+            goal="g",
+            required_checks=("pytest",),
+            approved_issue_body_digest=VALID_ISSUE_BODY_DIGEST,
         )
         assert wi.allowed_paths == ("a.py", "b.py")
 
@@ -89,6 +135,9 @@ class TestPlatformWorkItem:
                 allowed_paths=(broad,),
                 forbidden_operations=(),
                 acceptance_criteria=(),
+                goal="g",
+                required_checks=("pytest",),
+                approved_issue_body_digest=VALID_ISSUE_BODY_DIGEST,
             )
 
     def test_empty_path_scope_rejected(self) -> None:
@@ -100,12 +149,26 @@ class TestPlatformWorkItem:
                 allowed_paths=(),
                 forbidden_operations=(),
                 acceptance_criteria=(),
+                goal="g",
+                required_checks=("pytest",),
+                approved_issue_body_digest=VALID_ISSUE_BODY_DIGEST,
             )
 
-    @pytest.mark.parametrize("tier", ["R3", "R4", "R5", "RX"])
-    def test_risk_tier_R3_or_higher_rejected(self, tier: str) -> None:
-        with pytest.raises(ValueError, match="risk_tier_R3_or_higher_rejected"):
-            _make_work_item(risk_tier=tier)
+    def test_empty_goal_rejected(self) -> None:
+        with pytest.raises(ValueError, match="goal_must_be_non_empty_string"):
+            _make_work_item(goal="")
+
+    def test_empty_required_checks_rejected(self) -> None:
+        with pytest.raises(ValueError, match="required_checks_must_not_be_empty"):
+            _make_work_item(required_checks=())
+
+    def test_invalid_approved_issue_body_digest_rejected(self) -> None:
+        with pytest.raises(ValueError, match="invalid_approved_issue_body_digest"):
+            _make_work_item(approved_issue_body_digest="not-a-digest")
+
+    def test_short_approved_issue_body_digest_rejected(self) -> None:
+        with pytest.raises(ValueError, match="invalid_approved_issue_body_digest"):
+            _make_work_item(approved_issue_body_digest="a" * 39)
 
     def test_invalid_base_sha_rejected(self) -> None:
         with pytest.raises(ValueError, match="invalid_base_sha"):
@@ -127,7 +190,8 @@ class TestPlatformWorkItem:
         wi1 = _make_work_item()
         wi2 = _make_work_item()
         assert wi1.execution_id == wi2.execution_id
-        assert wi1.execution_id == f"exec-issue-96-{VALID_BASE_SHA[:12]}"
+        # execution_id is now derived from the canonical digest, not base_sha
+        assert wi1.execution_id == f"exec-issue-96-{wi1.digest[:12]}"
 
     def test_branch_name_uses_target_branch_when_set(self) -> None:
         wi = _make_work_item(target_branch="agent/some-branch")
@@ -141,12 +205,16 @@ class TestPlatformWorkItem:
             allowed_paths=("a.py",),
             forbidden_operations=(),
             acceptance_criteria=(),
+            goal="g",
+            required_checks=("pytest",),
+            approved_issue_body_digest=VALID_ISSUE_BODY_DIGEST,
         )
         assert wi.branch_name == "agent/work-item-42"
 
     def test_pr_marker_is_deterministic(self) -> None:
         wi = _make_work_item()
-        assert wi.pr_marker == f"pr-marker-issue-96-{VALID_BASE_SHA[:12]}"
+        # pr_marker is now derived from the canonical digest, not base_sha
+        assert wi.pr_marker == f"pr-marker-issue-96-{wi.digest[:12]}"
 
     def test_digest_is_deterministic(self) -> None:
         wi1 = _make_work_item()
@@ -159,6 +227,39 @@ class TestPlatformWorkItem:
         wi2 = _make_work_item(allowed_paths=("b.py",))
         assert wi1.digest != wi2.digest
 
+    def test_material_field_change_changes_identity(self) -> None:
+        # Changing any materially meaningful field changes digest, execution_id,
+        # and pr_marker — preventing collision with stale execution state.
+        base = _make_work_item()
+
+        for field, new_value in [
+            ("goal", "different goal"),
+            ("allowed_paths", ("some/other/path.py",)),
+            ("acceptance_criteria", ("different criterion",)),
+            ("required_checks", ("different-check",)),
+            ("risk_tier", "R0"),
+            ("target_branch", "agent/other-branch"),
+            ("approved_issue_body_digest", "b" * 40),
+            ("base_sha", "0" * 40),
+            ("source_issue_number", 97),
+            ("repository", "other/repo"),
+            ("forbidden_operations", ("force_push",)),
+        ]:
+            changed = _make_work_item(**{field: new_value})
+            assert changed.digest != base.digest, f"digest must change for {field}"
+            assert changed.execution_id != base.execution_id, f"execution_id must change for {field}"
+            assert changed.pr_marker != base.pr_marker, f"pr_marker must change for {field}"
+
+    def test_to_digest_payload_includes_material_fields(self) -> None:
+        wi = _make_work_item()
+        payload = wi.to_digest_payload()
+        assert "goal" in payload
+        assert "required_checks" in payload
+        assert "approved_issue_body_digest" in payload
+        assert payload["goal"] == "test goal"
+        assert payload["required_checks"] == ["pytest"]
+        assert payload["approved_issue_body_digest"] == VALID_ISSUE_BODY_DIGEST
+
     def test_from_mapping_roundtrip(self) -> None:
         wi = _make_work_item()
         data = {
@@ -168,6 +269,9 @@ class TestPlatformWorkItem:
             "allowed_paths": list(wi.allowed_paths),
             "forbidden_operations": list(wi.forbidden_operations),
             "acceptance_criteria": list(wi.acceptance_criteria),
+            "goal": wi.goal,
+            "required_checks": list(wi.required_checks),
+            "approved_issue_body_digest": wi.approved_issue_body_digest,
             "risk_tier": wi.risk_tier,
             "target_branch": wi.target_branch,
         }
@@ -233,32 +337,88 @@ class TestExecutionBinding:
 
 class TestExecutionEvidence:
     def test_default_evidence(self) -> None:
-        evidence = ExecutionEvidence(execution_id="exec-1")
-        assert evidence.changed_paths == ()
-        assert evidence.test_results == {}
-        assert evidence.git_diff_check_passed is False
+        # All binding fields are now required; defaults cannot be used.
+        evidence = _make_evidence()
+        assert evidence.changed_paths == ("reverse_agent/platform_v1/__init__.py",)
+        assert evidence.test_results == {"passed": True}
+        assert evidence.git_diff_check_passed is True
         assert evidence.agent_completion_claim == ""
-        assert evidence.ci_checks == ()
-        assert evidence.tests_passed is False
-        assert evidence.ci_passed is False
+        assert evidence.ci_checks == ({"name": "CI", "conclusion": "SUCCESS"},)
+        assert evidence.tests_passed is True
+        assert evidence.ci_passed is True
+        assert evidence.collection_mode == "fixture"
+        assert evidence.provenance == "caller_asserted"
+        assert evidence.is_live is False
+
+    def test_evidence_requires_repository(self) -> None:
+        with pytest.raises(ValueError, match="invalid_repository"):
+            ExecutionEvidence(
+                execution_id="exec-1",
+                repository="no-slash",
+                base_sha=VALID_BASE_SHA,
+                head_sha=VALID_HEAD_SHA,
+                pr_number=97,
+                required_workflows=("CI",),
+            )
+
+    def test_evidence_requires_valid_base_sha(self) -> None:
+        with pytest.raises(ValueError, match="invalid_base_sha"):
+            ExecutionEvidence(
+                execution_id="exec-1",
+                repository="a/b",
+                base_sha="not-a-sha",
+                head_sha=VALID_HEAD_SHA,
+                pr_number=97,
+                required_workflows=("CI",),
+            )
+
+    def test_evidence_requires_valid_head_sha(self) -> None:
+        with pytest.raises(ValueError, match="invalid_head_sha"):
+            ExecutionEvidence(
+                execution_id="exec-1",
+                repository="a/b",
+                base_sha=VALID_BASE_SHA,
+                head_sha="not-a-sha",
+                pr_number=97,
+                required_workflows=("CI",),
+            )
+
+    def test_evidence_requires_positive_pr_number(self) -> None:
+        with pytest.raises(ValueError, match="invalid_pr_number"):
+            ExecutionEvidence(
+                execution_id="exec-1",
+                repository="a/b",
+                base_sha=VALID_BASE_SHA,
+                head_sha=VALID_HEAD_SHA,
+                pr_number=0,
+                required_workflows=("CI",),
+            )
+
+    def test_evidence_rejects_invalid_collection_mode(self) -> None:
+        with pytest.raises(ValueError, match="invalid_collection_mode"):
+            ExecutionEvidence(
+                execution_id="exec-1",
+                repository="a/b",
+                base_sha=VALID_BASE_SHA,
+                head_sha=VALID_HEAD_SHA,
+                pr_number=97,
+                required_workflows=("CI",),
+                collection_mode="bogus",
+            )
 
     def test_tests_passed_reads_passed_key(self) -> None:
-        evidence = ExecutionEvidence(
-            execution_id="exec-1",
+        evidence = _make_evidence(
             test_results={"passed": True, "total": 10, "failed": 0},
         )
         assert evidence.tests_passed is True
 
     def test_tests_passed_false_when_missing(self) -> None:
-        evidence = ExecutionEvidence(
-            execution_id="exec-1",
-            test_results={"total": 10},
-        )
+        evidence = _make_evidence(test_results={"total": 10})
         assert evidence.tests_passed is False
 
     def test_ci_passed_all_success(self) -> None:
-        evidence = ExecutionEvidence(
-            execution_id="exec-1",
+        evidence = _make_evidence(
+            required_workflows=("CI", "Decision Preflight"),
             ci_checks=(
                 {"name": "CI", "conclusion": "SUCCESS"},
                 {"name": "Decision Preflight", "conclusion": "SUCCESS"},
@@ -267,8 +427,8 @@ class TestExecutionEvidence:
         assert evidence.ci_passed is True
 
     def test_ci_passed_false_when_any_failure(self) -> None:
-        evidence = ExecutionEvidence(
-            execution_id="exec-1",
+        evidence = _make_evidence(
+            required_workflows=("CI", "State Gate"),
             ci_checks=(
                 {"name": "CI", "conclusion": "SUCCESS"},
                 {"name": "State Gate", "conclusion": "FAILURE"},
@@ -277,32 +437,126 @@ class TestExecutionEvidence:
         assert evidence.ci_passed is False
 
     def test_ci_passed_false_when_empty(self) -> None:
-        evidence = ExecutionEvidence(execution_id="exec-1", ci_checks=())
+        evidence = _make_evidence(ci_checks=())
+        assert evidence.ci_passed is False
+
+    def test_ci_passed_false_when_required_workflow_missing(self) -> None:
+        evidence = _make_evidence(
+            required_workflows=("CI", "State Gate"),
+            ci_checks=({"name": "CI", "conclusion": "SUCCESS"},),
+        )
+        assert evidence.ci_passed is False
+
+    def test_ci_passed_false_on_duplicate_workflow(self) -> None:
+        evidence = _make_evidence(
+            required_workflows=("CI",),
+            ci_checks=(
+                {"name": "CI", "conclusion": "SUCCESS"},
+                {"name": "CI", "conclusion": "SUCCESS"},
+            ),
+        )
         assert evidence.ci_passed is False
 
     def test_ci_passed_accepts_status_field(self) -> None:
-        evidence = ExecutionEvidence(
-            execution_id="exec-1",
+        evidence = _make_evidence(
+            required_workflows=("CI",),
             ci_checks=({"name": "CI", "status": "SUCCESS"},),
         )
         assert evidence.ci_passed is True
 
+    def test_is_live_true_only_for_live_mode(self) -> None:
+        live = _make_evidence(collection_mode="live")
+        fixture = _make_evidence(collection_mode="fixture")
+        assert live.is_live is True
+        assert fixture.is_live is False
+
     def test_from_mapping_roundtrip(self) -> None:
         data = {
             "execution_id": "exec-1",
+            "repository": "dddd2024/reverse-agent",
+            "base_sha": VALID_BASE_SHA,
+            "head_sha": VALID_HEAD_SHA,
+            "pr_number": 97,
+            "required_workflows": ["CI"],
             "changed_paths": ["a.py", "b.py"],
             "test_results": {"passed": True},
             "git_diff_check_passed": True,
             "agent_completion_claim": "done",
             "ci_checks": [{"name": "CI", "conclusion": "SUCCESS"}],
             "collected_at": "2026-08-02T00:00:00Z",
+            "collection_mode": "fixture",
+            "provenance": "caller_asserted",
         }
         evidence = ExecutionEvidence.from_mapping(data)
         assert evidence.execution_id == "exec-1"
+        assert evidence.repository == "dddd2024/reverse-agent"
+        assert evidence.base_sha == VALID_BASE_SHA
+        assert evidence.head_sha == VALID_HEAD_SHA
+        assert evidence.pr_number == 97
+        assert evidence.required_workflows == ("CI",)
         assert evidence.changed_paths == ("a.py", "b.py")
         assert evidence.tests_passed is True
         assert evidence.git_diff_check_passed is True
         assert evidence.ci_passed is True
+
+
+# ---------------------------------------------------------------------------
+# ExecutionEvidence.validate_binding
+# ---------------------------------------------------------------------------
+
+class TestValidateBinding:
+    def test_valid_binding_passes(self) -> None:
+        wi = _make_work_item()
+        evidence = _make_evidence(
+            execution_id=wi.execution_id,
+            repository=wi.repository,
+            base_sha=wi.base_sha,
+        )
+        # Should not raise
+        evidence.validate_binding(wi)
+
+    def test_mismatched_execution_id_rejected(self) -> None:
+        wi = _make_work_item()
+        evidence = _make_evidence(
+            execution_id="exec-different",
+            repository=wi.repository,
+            base_sha=wi.base_sha,
+        )
+        with pytest.raises(EvidenceBindingError, match="execution_id_mismatch"):
+            evidence.validate_binding(wi)
+
+    def test_mismatched_repository_rejected(self) -> None:
+        wi = _make_work_item()
+        evidence = _make_evidence(
+            execution_id=wi.execution_id,
+            repository="other/repo",
+            base_sha=wi.base_sha,
+        )
+        with pytest.raises(EvidenceBindingError, match="repository_mismatch"):
+            evidence.validate_binding(wi)
+
+    def test_mismatched_base_sha_rejected(self) -> None:
+        wi = _make_work_item()
+        evidence = _make_evidence(
+            execution_id=wi.execution_id,
+            repository=wi.repository,
+            base_sha="0" * 40,
+        )
+        with pytest.raises(EvidenceBindingError, match="base_sha_mismatch"):
+            evidence.validate_binding(wi)
+
+    def test_evidence_binding_error_carries_code_and_detail(self) -> None:
+        wi = _make_work_item()
+        evidence = _make_evidence(
+            execution_id="exec-different",
+            repository=wi.repository,
+            base_sha=wi.base_sha,
+        )
+        with pytest.raises(EvidenceBindingError) as exc_info:
+            evidence.validate_binding(wi)
+        assert exc_info.value.code == "execution_id_mismatch"
+        assert "exec-different" in exc_info.value.detail
+        assert wi.execution_id in exc_info.value.detail
 
 
 # ---------------------------------------------------------------------------
@@ -330,14 +584,41 @@ class TestPlatformAcceptanceResult:
         with pytest.raises(ValueError, match="invalid_acceptance_status"):
             PlatformAcceptanceResult(execution_id="exec-1", status="UNKNOWN")
 
-    def test_to_mapping_serializes_evidence(self) -> None:
-        evidence = ExecutionEvidence(
+    def test_live_ready_true_only_when_accepted_and_live_evidence(self) -> None:
+        live_evidence = _make_evidence(collection_mode="live")
+        fixture_evidence = _make_evidence(collection_mode="fixture")
+
+        accepted_live = PlatformAcceptanceResult(
             execution_id="exec-1",
-            changed_paths=("a.py",),
-            test_results={"passed": True},
-            git_diff_check_passed=True,
-            ci_checks=({"name": "CI", "conclusion": "SUCCESS"},),
+            status="ACCEPTED",
+            reasons=("ok",),
+            evidence=live_evidence,
         )
+        accepted_fixture = PlatformAcceptanceResult(
+            execution_id="exec-1",
+            status="ACCEPTED",
+            reasons=("ok",),
+            evidence=fixture_evidence,
+        )
+        rework_live = PlatformAcceptanceResult(
+            execution_id="exec-1",
+            status="REWORK_REQUIRED",
+            reasons=("tests_failed",),
+            evidence=live_evidence,
+        )
+        accepted_no_evidence = PlatformAcceptanceResult(
+            execution_id="exec-1",
+            status="ACCEPTED",
+            reasons=("ok",),
+        )
+
+        assert accepted_live.live_ready is True
+        assert accepted_fixture.live_ready is False
+        assert rework_live.live_ready is False
+        assert accepted_no_evidence.live_ready is False
+
+    def test_to_mapping_serializes_evidence(self) -> None:
+        evidence = _make_evidence()
         result = PlatformAcceptanceResult(
             execution_id="exec-1",
             status="ACCEPTED",
@@ -346,9 +627,12 @@ class TestPlatformAcceptanceResult:
         )
         mapping = result.to_mapping()
         assert mapping["status"] == "ACCEPTED"
+        assert mapping["live_ready"] is False  # fixture evidence
         assert mapping["evidence"]["tests_passed"] is True
         assert mapping["evidence"]["git_diff_check_passed"] is True
         assert mapping["evidence"]["ci_passed"] is True
+        assert mapping["evidence"]["collection_mode"] == "fixture"
+        assert mapping["evidence"]["provenance"] == "caller_asserted"
 
     def test_to_mapping_handles_none_evidence(self) -> None:
         result = PlatformAcceptanceResult(
@@ -358,6 +642,7 @@ class TestPlatformAcceptanceResult:
         )
         mapping = result.to_mapping()
         assert mapping["evidence"] is None
+        assert mapping["live_ready"] is False
 
     def test_all_valid_acceptance_statuses_accepted(self) -> None:
         for status in VALID_ACCEPTANCE_STATUSES:
