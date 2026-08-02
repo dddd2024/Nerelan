@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260802_issue92_fresh_shadow_audit_v8",
-  "round_id": "round_20260802_issue92_fresh_shadow_audit_v8",
-  "expired_at": "2026-08-02T01:06:54+00:00"
+  "decision_id": "decision_20260802_issue94_v08_findings_remediation_v9",
+  "round_id": "round_20260802_issue94_v08_findings_remediation_v9",
+  "expired_at": "2026-08-02T01:45:06+00:00"
 }
