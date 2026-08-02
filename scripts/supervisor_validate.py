@@ -217,8 +217,12 @@ _DIRECT_NEGATION_BEFORE_RE = re.compile(
     r"(?:[a-z0-9_-]+\s+){0,3}$",
     re.IGNORECASE,
 )
+# A repository path needs either a relative directory plus a filename suffix,
+# or a standalone filename whose suffix starts with a letter. This excludes
+# slash-separated prose and decimal/version numbers.
 _EXPLICIT_FILE_TARGET_RE = re.compile(
-    r"(?:[/\\]|(?:^|\s)(?:\*|[a-z0-9_.-]+)\.[a-z0-9]+(?:\s|$))",
+    r"(?:^|\s)(?:(?:[a-z0-9_.-]+[/\\])+(?:[a-z0-9_.-]+\.[a-z][a-z0-9.-]*)|"
+    r"(?:\*|[a-z0-9_-]+)\.[a-z][a-z0-9]*)(?=\s|$)",
     re.IGNORECASE,
 )
 _URL_RE = re.compile(r"(?:https?://\S+|(?:www\.)?github\.com/\S+)", re.IGNORECASE)
@@ -228,23 +232,28 @@ _DRAFT_PR_TARGET_RE = re.compile(
     r"\bgithub\.com/\S+/pull/\d+(?:\S*)?\s+(?:description|body)\b",
     re.IGNORECASE,
 )
-_UNSUPPORTED_GITHUB_TARGET_RE = re.compile(
-    r"\bissue\s+(?:comment|body|status|title|labels?|assignees?)\b|"
-    r"\bissue\s*#?\d+\b|"
-    r"\b(?:pr|pull\s+request)\s+(?:comment|review|review\s+comment|labels?)\b",
+_UNSUPPORTED_GITHUB_ACTION_TARGET_PATTERNS = (
+    # Issue fields and comments, with an optional number between target and field.
+    r"(?:edit|modify|update|change|create|write|add|remove|delete)"
+    r"(?:\s+[a-z0-9#_-]+){0,3}\s+issue(?:\s*#\d+)?\s+"
+    r"(?:body|comment|state|title|labels?|assignees?)",
+    # Issue lifecycle and direct interaction actions.
+    r"(?:close|reopen|assign|unassign|comment\s+on)\s+(?:the\s+)?"
+    r"issue(?:\s*#\d+)?",
+    # Ordinary PR comment/review/label mutations.
+    r"(?:edit|modify|update|change|create|write|add|remove|delete)"
+    r"(?:\s+[a-z0-9#_-]+){0,3}\s+(?:pr|pull\s+request)(?:\s*#\d+)?\s+"
+    r"(?:comment|review|review\s+comment|labels?)",
+    r"(?:comment\s+on|review|approve|label)\s+(?:the\s+)?"
+    r"(?:pr|pull\s+request)(?:\s*#\d+)?",
+    r"mark\s+(?:the\s+)?(?:pr|pull\s+request)(?:\s*#\d+)?\s+ready",
+    # Branch lifecycle writes. Branch push is a separately authorized surface.
+    r"(?:create|delete|rename)\s+(?:the\s+|a\s+)?branch",
+)
+_PUSH_VERB_PATTERN = r"push(?:es|ed|ing)?"
+_PUSH_TARGET_RE = re.compile(
+    r"\b(?:named\s+branch|branch(?:es)?|origin)\b",
     re.IGNORECASE,
-)
-_BRANCH_TARGET_RE = re.compile(r"\bbranch(?:es)?\b", re.IGNORECASE)
-_BRANCH_MUTATION_VERB_PATTERNS = (
-    r"create(?:s|d|ing)?",
-    r"delete(?:s|d|ing)?",
-    r"rename(?:s|d|ing)?",
-)
-_ISSUE_LIFECYCLE_MUTATION_VERB_PATTERNS = (
-    r"close(?:s|d|ing)?",
-    r"reopen(?:s|ed|ing)?",
-    r"assign(?:s|ed|ing)?",
-    r"unassign(?:s|ed|ing)?",
 )
 _REPORTING_TARGETS = (
     "audit report", "test report", "status report", "result summary",
@@ -709,17 +718,58 @@ def _clause_has_positive_verb(clause: str, patterns: Sequence[str]) -> bool:
     return False
 
 
+def _clause_has_positive_action_target(
+    clause: str, patterns: Sequence[str]
+) -> bool:
+    """Match a finite action-target phrase whose action is not negated."""
+
+    for pattern in patterns:
+        for match in re.finditer(rf"\b(?:{pattern})\b", clause, re.IGNORECASE):
+            if not _occurrence_is_directly_negated(clause, match.start()):
+                return True
+    return False
+
+
+def _phrase_spans_longest_first(
+    text: str, phrases: Sequence[str]
+) -> tuple[tuple[int, int], ...]:
+    """Return non-overlapping phrase spans, preferring the longest phrase."""
+
+    spans: list[tuple[int, int]] = []
+    for phrase in sorted(phrases, key=lambda value: (-len(value), value)):
+        escaped = r"\s+".join(re.escape(part) for part in phrase.split())
+        pattern = rf"(?<![a-z0-9_-]){escaped}(?![a-z0-9_-])"
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            candidate = (match.start(), match.end())
+            if any(candidate[0] < end and start < candidate[1] for start, end in spans):
+                continue
+            spans.append(candidate)
+    return tuple(sorted(spans))
+
+
 def _clause_has_repository_artifact_target(clause: str) -> bool:
     without_urls = _URL_RE.sub(" ", clause)
-    normalized = _normalize_for_scan(without_urls)
-    return (
-        any(_matches_word(normalized, target) for target in _REPOSITORY_ARTIFACT_TARGETS)
-        or _EXPLICIT_FILE_TARGET_RE.search(without_urls) is not None
-    )
+    if _EXPLICIT_FILE_TARGET_RE.search(without_urls) is not None:
+        return True
+
+    reporting_spans = _phrase_spans_longest_first(without_urls, _REPORTING_TARGETS)
+    for target in sorted(
+        _REPOSITORY_ARTIFACT_TARGETS, key=lambda value: (-len(value), value)
+    ):
+        escaped = r"\s+".join(re.escape(part) for part in target.split())
+        pattern = rf"(?<![a-z0-9_-]){escaped}(?![a-z0-9_-])"
+        for match in re.finditer(pattern, without_urls, re.IGNORECASE):
+            if any(
+                start <= match.start() and match.end() <= end
+                for start, end in reporting_spans
+            ):
+                continue
+            return True
+    return False
 
 
 def _classify_positive_mutation_surface(*texts: str) -> frozenset[str]:
-    """Classify positive mutation clauses into finite operation surfaces."""
+    """Add all positive mutation surfaces found in each finite clause."""
 
     surfaces: set[str] = set()
     for text in texts:
@@ -730,47 +780,62 @@ def _classify_positive_mutation_surface(*texts: str) -> frozenset[str]:
             has_mutation_verb = _clause_has_positive_verb(
                 clause, _GITHUB_MUTATION_VERB_PATTERNS
             )
-            if not has_mutation_verb:
-                surfaces.add(_NONE)
-                continue
-            if _DRAFT_PR_TARGET_RE.search(clause):
+            clause_surfaces: set[str] = set()
+            has_draft_pr_mutation = (
+                has_mutation_verb and _DRAFT_PR_TARGET_RE.search(clause) is not None
+            )
+            if has_draft_pr_mutation:
                 surfaces.add(_DRAFT_PR_MUTATION)
-                continue
-            if (
-                _UNSUPPORTED_GITHUB_TARGET_RE.search(clause)
-                or (
-                    _matches_word(_normalize_for_scan(clause), "issue")
-                    and _clause_has_positive_verb(
-                        clause, _ISSUE_LIFECYCLE_MUTATION_VERB_PATTERNS
-                    )
-                )
-                or (
-                    _BRANCH_TARGET_RE.search(clause)
-                    and _clause_has_positive_verb(
-                        clause, _BRANCH_MUTATION_VERB_PATTERNS
-                    )
-                )
+                clause_surfaces.add(_DRAFT_PR_MUTATION)
+            if _clause_has_positive_action_target(
+                clause, _UNSUPPORTED_GITHUB_ACTION_TARGET_PATTERNS
             ):
                 surfaces.add(_UNSUPPORTED_GITHUB_MUTATION)
-                continue
-            normalized = _normalize_for_scan(_URL_RE.sub(" ", clause))
-            if (
-                any(_matches_word(normalized, target) for target in _REPORTING_TARGETS)
-                and _EXPLICIT_FILE_TARGET_RE.search(_URL_RE.sub(" ", clause)) is None
-            ):
-                surfaces.add(_READ_ONLY)
-                continue
-            if _clause_has_positive_verb(clause, _STRONG_EDIT_VERB_PATTERNS):
+                clause_surfaces.add(_UNSUPPORTED_GITHUB_MUTATION)
+
+            target_analysis = _URL_RE.sub(" ", clause)
+            has_repository_target = _clause_has_repository_artifact_target(clause)
+            has_reporting_target = bool(
+                _phrase_spans_longest_first(target_analysis, _REPORTING_TARGETS)
+            )
+            has_strong_edit = _clause_has_positive_verb(
+                clause, _STRONG_EDIT_VERB_PATTERNS
+            )
+            has_ambiguous_edit = _clause_has_positive_verb(
+                clause, _AMBIGUOUS_EDIT_VERB_PATTERNS
+            )
+            if has_repository_target and (has_strong_edit or has_ambiguous_edit):
                 surfaces.add(_REPOSITORY_MUTATION)
-                continue
-            if (
-                _clause_has_repository_artifact_target(clause)
-                and _clause_has_positive_verb(clause, _AMBIGUOUS_EDIT_VERB_PATTERNS)
+                clause_surfaces.add(_REPOSITORY_MUTATION)
+            elif (
+                has_strong_edit
+                and not has_reporting_target
+                and not clause_surfaces
             ):
                 surfaces.add(_REPOSITORY_MUTATION)
-                continue
-            surfaces.add(_READ_ONLY)
+                clause_surfaces.add(_REPOSITORY_MUTATION)
+
+            if not clause_surfaces:
+                surfaces.add(_READ_ONLY if has_mutation_verb else _NONE)
     return frozenset(surfaces)
+
+
+def _has_positive_named_branch_push_intent(*texts: str) -> bool:
+    """Detect positive push publication bound to a branch/origin target."""
+
+    for text in texts:
+        for raw_clause in _EDIT_CLAUSE_SPLIT_RE.split(normalize_text(text).lower()):
+            clause = " ".join(raw_clause.split())
+            if not clause:
+                continue
+            for match in re.finditer(
+                rf"\b(?:{_PUSH_VERB_PATTERN})\b", clause, re.IGNORECASE
+            ):
+                if _occurrence_is_directly_negated(clause, match.start()):
+                    continue
+                if _PUSH_TARGET_RE.search(clause[match.end():]):
+                    return True
+    return False
 
 
 def _check_operation_prompt_consistency(
@@ -787,8 +852,7 @@ def _check_operation_prompt_consistency(
       read-only unless ``edit_bounded_files`` is requested.
     - Positive clauses are first classified by mutation surface, then checked
       against the permission for that surface.
-    - If goal or execution_prompt mentions "push" (whole word),
-      ``push_named_branch`` must be in ``requested_operations``.
+    - Positive branch/origin push intent requires ``push_named_branch``.
     """
 
     ops = {str(o) for o in requested_operations if isinstance(o, str)}
@@ -815,10 +879,8 @@ def _check_operation_prompt_consistency(
             f"{OPERATION_PROMPT_INCONSISTENCY}:unsupported_mutation_surface"
         )
 
-    combined = _normalize_for_scan(f"{goal} {execution_prompt}")
-
     # Pushing a named branch requires push_named_branch.
-    if _matches_word(combined, "push"):
+    if _has_positive_named_branch_push_intent(goal, execution_prompt):
         if "push_named_branch" not in ops:
             errors.append(f"{OPERATION_PROMPT_INCONSISTENCY}:push_named_branch_required")
 

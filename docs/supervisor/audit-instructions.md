@@ -205,28 +205,42 @@ describes:
 - `requested_operations` remains the authoritative permission grant. When
   `edit_bounded_files` is absent, every repository path in `allowed_scope` is
   read-only.
-- Each bounded positive clause is classified before permission checking as
-  `REPOSITORY_MUTATION`, `DRAFT_PR_MUTATION`,
-  `UNSUPPORTED_GITHUB_MUTATION`, `READ_ONLY`, or `NONE`.
+- Each bounded positive clause is classified before permission checking. A
+  clause may add multiple surfaces from `REPOSITORY_MUTATION`,
+  `DRAFT_PR_MUTATION`, and `UNSUPPORTED_GITHUB_MUTATION`; clauses without a
+  supported positive mutation are `READ_ONLY` or `NONE`. Target order does not
+  change the required permissions.
 - Repository edits require `edit_bounded_files`. Draft PR metadata changes
   (`draft PR`, `draft pull request`, `PR description`, `pull request
   description`, or `PR body`) require only `create_or_update_draft_pr`, even
   when the clause uses a strong verb such as `fix`, `edit`, or `modify`.
-- Issue writes, ordinary PR comments/reviews/labels, and branch
-  create/delete/rename operations are unsupported surfaces. They are rejected
+- Finite positive action-target patterns bind Issue writes, ordinary PR
+  comments/reviews/approvals/labels/mark-ready, and branch
+  create/delete/rename operations to unsupported surfaces. They are rejected
   with `OPERATION_PROMPT_INCONSISTENCY:unsupported_mutation_surface`; neither
-  repository-edit nor Draft-PR authority permits them.
-- Reporting and status/result language without a repository target is
-  read-only. For example, modifying an audit report or creating a test report
-  does not require repository-edit authority.
-- URL text is not treated as a repository path. A GitHub pull-request URL plus
-  `description` or `body` remains a Draft-PR metadata target.
+  repository-edit nor Draft-PR authority permits them. Merely referencing an
+  Issue or PR number in a report, status, or evidence summary is read-only.
+- Reporting and status/result language is read-only only when its clause has
+  no repository artifact or valid repository-relative path. A report generator
+  function, status report module, report-building code, or report file remains
+  a repository mutation target. Reporting phrases are matched longest-first,
+  and artifact tokens wholly contained inside a recognized phrase are consumed:
+  `test` in `test report` and `audit report` language do not independently
+  establish repository mutation. Independent artifact targets outside that
+  phrase (for example, `test report file`) and explicit relative paths still do.
+- URL text, slash-separated prose such as `pass/fail` or `read/write`, and
+  decimal/version values are not repository paths. Relative files such as
+  `scripts/supervisor_validate.py` and `README.md` remain path evidence. A
+  GitHub pull-request URL plus `description` or `body` remains a Draft-PR
+  metadata target.
 - Direct negations (`do not`, `don't`, `never`, `must not`, `should not`,
   `without`, `under no circumstances`, and their bounded forms) affect only
   the associated verb occurrence. Finite clause splitting keeps a later
   positive instruction visible.
-- If `goal` or `execution_prompt` mentions `push` (whole word),
-  `push_named_branch` MUST be in `requested_operations`.
+- A positive `push` bound to a branch or `origin` requires
+  `push_named_branch`. Negated pushes and non-publication phrases such as
+  pushing evidence into a report do not require that permission; a separate
+  later positive branch push is still detected.
 
 A mismatch is rejected with `OPERATION_PROMPT_INCONSISTENCY`.
 
