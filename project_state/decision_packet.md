@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260802_platform_v1_openhands_codex_acp_v1",
-  "round_id": "round_20260802_platform_v1_openhands_codex_acp_v1",
+  "decision_id": "decision_20260802_issue98_platform_v1_trust_binding_rework_v2",
+  "round_id": "round_20260802_issue98_platform_v1_trust_binding_rework_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,15 +16,16 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260802_issue95_scoped_merge_gate_repair_v11",
-  "follows_last_round_id": "round_20260802_issue95_scoped_merge_gate_repair_v11",
-  "previous_audit_outcome": "PR93_MERGED_PLATFORM_V1_AUTHORIZED",
-  "workstream_id": "platform-v1-openhands-codex-acp-v1",
-  "source_issue": 96,
+  "follows_last_decision_id": "decision_20260802_platform_v1_openhands_codex_acp_v1",
+  "follows_last_round_id": "round_20260802_platform_v1_openhands_codex_acp_v1",
+  "previous_audit_outcome": "PLATFORM_V1_CLAIM_REJECTED_GATE1_AND_TRUST_BINDING_INCOMPLETE",
+  "workstream_id": "issue98-platform-v1-trust-binding-rework-v2",
+  "source_issue": 98,
   "parent_issue": 90,
-  "active_pr": null,
+  "predecessor_issue": 96,
+  "active_pr": 97,
   "required_branch": "agent/platform-v1-openhands-codex-acp",
-  "starting_head": "705a0bfd6638d51c688752f154433020225c4e99",
+  "starting_head": "e702a3c5f50b9373e0af8087a76268d4a01cd9b1",
   "activation_base_sha": "705a0bfd6638d51c688752f154433020225c4e99",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -38,6 +39,8 @@
   "mark_ready_allowed": false,
   "auto_merge_allowed": false,
   "force_push_allowed": false,
+  "release_allowed": false,
+  "deployment_allowed": false,
   "real_provider_credential_allowed": false,
   "live_work_item_publication_allowed": false,
   "repair_attempt_limit": 1,
@@ -117,6 +120,20 @@
       "produced_artifacts": []
     },
     {
+      "command_id": "test.pytest_project_gate",
+      "command": "python -m pytest tests/test_project_gate.py -q",
+      "phase": "test",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
       "command_id": "publication.push_branch",
       "command": "git push origin agent/platform-v1-openhands-codex-acp",
       "phase": "publication",
@@ -145,8 +162,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "publication.issue96_comment",
-      "command": "gh issue comment 96 --repo dddd2024/reverse-agent --body-file -",
+      "command_id": "publication.issue98_comment",
+      "command": "gh issue comment 98 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "expected_exit_codes": [0],
@@ -180,19 +197,23 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "project_state/mainline_merge_intents/**",
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr97_v1.json",
     "README.md",
     "AGENTS.md",
     "docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md",
-    "docs/architecture/**",
-    "docs/platform_v1/**",
+    "docs/platform_v1/adr-001-component-compatibility.md",
+    "docs/platform_v1/component-lock.json",
     "deploy/agent-canvas/**",
-    ".openhands/**",
-    "reverse_agent/platform_v1/**",
+    "reverse_agent/platform_v1/contracts.py",
+    "reverse_agent/platform_v1/policy_adapter.py",
+    "reverse_agent/platform_v1/openhands_adapter.py",
+    "reverse_agent/platform_v1/evidence_adapter.py",
+    "reverse_agent/platform_v1/acceptance.py",
+    "reverse_agent/platform_v1/cli.py",
+    "reverse_agent/platform_v1/github_adapter.py",
     "tests/platform_v1/**",
-    "examples/platform_v1_target/**",
-    ".github/workflows/platform-v1-*.yml",
-    ".gitignore"
+    "examples/platform_v1_target/**"
   ],
   "reference_paths": [
     "docs/supervisor/audit-result.schema.json",
@@ -201,6 +222,9 @@
     "scripts/supervisor_validate.py",
     "tests/test_repository_hygiene.py",
     "tests/test_supervisor_validate.py",
+    "tests/test_integration_baseline.py",
+    "tests/test_mainline_landing.py",
+    "tests/test_project_gate.py",
     "reverse_agent/project_gate.py",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/transition.py",
@@ -273,6 +297,7 @@
     "reverse_agent/solver_dispatch_plan.py",
     "reverse_agent/cleanup_apply_safety.py",
     "reverse_agent/__init__.py",
+    "reverse_agent/platform_v1/__init__.py",
     "project_state/schemas/**",
     "project_state/rounds/**",
     "project_state/audits/**",
@@ -321,7 +346,9 @@
     "add custom frontend second executor new database custom sandbox or custom agent loop",
     "fork or copy OpenHands source",
     "expose long-lived credentials to task code",
-    "close sandbox isolation"
+    "close sandbox isolation",
+    "claim live compatibility from fixtures or documentation",
+    "manufacture live success without trusted-host probe results"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -341,7 +368,7 @@
       "git push origin agent/platform-v1-openhands-codex-acp",
       "gh pr create --draft --base main --head agent/platform-v1-openhands-codex-acp --repo dddd2024/reverse-agent",
       "gh pr checks --repo dddd2024/reverse-agent --watch",
-      "gh issue comment 96 --repo dddd2024/reverse-agent --body-file -",
+      "gh issue comment 98 --repo dddd2024/reverse-agent --body-file -",
       "gh pr comment --repo dddd2024/reverse-agent --body-file -"
     ],
     "ci_network_exceptions": []
@@ -354,15 +381,11 @@
     "README.md",
     "AGENTS.md",
     "docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md",
-    "docs/architecture/**",
     "docs/platform_v1/**",
     "deploy/agent-canvas/**",
-    ".openhands/**",
     "reverse_agent/platform_v1/**",
     "tests/platform_v1/**",
-    "examples/platform_v1_target/**",
-    ".github/workflows/platform-v1-*.yml",
-    ".gitignore"
+    "examples/platform_v1_target/**"
   ],
   "path_risk_floor": [
     {
@@ -382,10 +405,6 @@
       "minimum_risk": "R2"
     },
     {
-      "pattern": ".openhands/**",
-      "minimum_risk": "R2"
-    },
-    {
       "pattern": "deploy/agent-canvas/**",
       "minimum_risk": "R2"
     }
@@ -395,8 +414,8 @@
 
 ## Goal
 
-Implement Platform V1 as a bounded OpenHands Agent Canvas + Codex ACP vertical slice. Pin Agent Canvas v1.6.0 and compatible OpenHands Agent Server, Software Agent SDK, and Codex ACP versions. Perform a Gate 1 compatibility probe before broad implementation. If compatible, implement only the thin reverse-agent policy/evidence/acceptance adapter (`reverse_agent/platform_v1/**`), provider-free contract and idempotency tests (`tests/platform_v1/**`), ADR and component lock documentation (`docs/platform_v1/**`), deployment configuration (`deploy/agent-canvas/**`), and one fixture task (`examples/platform_v1_target/**`). Update README.md and AGENTS.md to resolve the documentation contradiction about OpenHands scope. Do not add Temporal, LiteLLM, Langfuse, Spec Kit, custom frontend, second executor, new database, custom sandbox, custom agent loop, auto-merge, production deployment, or reverse-specific tools. Push only the named branch, create/update one Draft PR, require exact-head checks, publish desensitized evidence, and stop.
+Rework the Platform V1 trust-binding adapter on the existing branch `agent/platform-v1-openhands-codex-acp` starting from exact head `e702a3c5f50b9373e0af8087a76268d4a01cd9b1`. Remediate findings F1 through F8 from Issue #98: enforce that only R0/R1 may enter unattended execution while R2/R3 return BLOCKED_APPROVAL before any backend invocation; bind the full Work Item identity (goal, allowed_paths, acceptance_criteria, required_checks, risk_tier, target_branch, approved Issue body digest) into the canonical digest, execution ID, branch name, and PR marker; bind ExecutionEvidence to repository, base SHA, exact head SHA, PR number, required workflows, changed paths, test results, git_diff_check, ci_checks, collection_mode, and provenance with fail-closed rejection of mismatches, stale heads, missing/duplicate/pending/skipped/cancelled/unknown workflows, and Git/GitHub read failures (never converting read failure into empty changed-path lists); enforce CLI fixture-mode marking and require trusted Git/GitHub collectors for live acceptance so caller-asserted stdin evidence cannot produce a live merge-ready result; implement an injectable minimal OpenHands/ACP lifecycle (start, get_status, collect_events, cancel, collect_result) with provider-free fake-transport tests; correct the component lock so no version_range, TBD, PENDING_*, unknown license, or mutable image tag without digest is described as locked or compatible, preserving `PR97_CODE_REWORK_COMPLETE_AWAITING_TRUSTED_HOST_LIVE_PROBE` until real probes pass; archive the v1 merge intent verbatim and bind the active intent to source_pr 97 with exact v2 Decision and Command Plan digests; update README.md, AGENTS.md, and the active roadmap to identify OpenHands Agent Canvas + Codex ACP as the selected bounded Platform V1 integration while preserving the prohibition on forking, copying, rebuilding the platform, auto-merge, and production deployment. Do not add Temporal, LiteLLM, Langfuse, Spec Kit, custom frontend, second executor, new database, custom sandbox, custom agent loop, auto-merge, production deployment, or reverse-specific tools. Push only the existing branch, update only Draft PR #97, require exact-head checks, publish desensitized evidence, and stop.
 
 ## Acceptance boundary
 
-The Platform V1 vertical slice is complete only when: the Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is 18/18 PASS with `blocking_reasons=[]` before implementation; Gate 1 compatibility probe passes (Agent Canvas v1.6.0 starts, Agent Server health and WebSocket/event path work, isolated workspace executes a harmless command, Codex ACP authenticates without committing credentials, one no-publication fixture conversation runs, restart preserves or safely reconciles state, no credential enters the repository); the thin adapter layer implements PlatformWorkItem, ExecutionBinding, ExecutionEvidence, PlatformAcceptanceResult, policy adapter, OpenHands event adapter, Git/GitHub evidence adapter, deterministic accepter, and machine-readable CLI; R2/R3, broad path, and empty path scope all fail closed; main push, mark-ready, merge, release, deployment, and secret access are rejected; the Agent's completion declaration cannot override Git or test failures; the same Work Item uses a deterministic execution ID, branch name, and PR marker; duplicate events do not create a second execution, branch, or Draft PR; live publication failure, policy rejection, and backend errors return stable error codes with non-zero exit; at most one bounded retry is allowed and the third attempt is rejected; `python -m pytest tests/platform_v1 -q` passes; `python -m pytest tests/test_supervisor_validate.py tests/test_mainline_landing.py tests/test_integration_baseline.py -q` passes; `git diff --check 705a0bfd6638d51c688752f154433020225c4e99..HEAD` passes; exact-head CI, Decision Preflight, and State Gate succeed; the PR remains Draft and unmerged. Success is `PLATFORM_V1_OPENHANDS_CODEX_VERTICAL_SLICE_ACCEPTED`. Any component incompatibility, credential exposure risk, idempotency failure, scope conflict, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` or `BLOCKED_COMPONENT_COMPATIBILITY` without retry or repair.
+The Platform V1 trust-binding rework is complete only when: the Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is 18/18 PASS with `blocking_reasons=[]` before implementation; R2 and R3 Work Items return BLOCKED_APPROVAL before any OpenHands, Codex, GitHub publication, or other backend call (only R0/R1 may proceed); PlatformWorkItem explicitly carries source_issue_number, approved_issue_body_digest, repository, base_sha, target_branch, goal, allowed_paths, forbidden_operations, acceptance_criteria, required_checks, and risk_tier, and the canonical digest covers all materially meaningful fields so that any change to goal, allowed_paths, acceptance_criteria, required_checks, risk_tier, target_branch, or the approved Issue body digest changes the digest, execution ID, and PR marker; ExecutionEvidence binds execution_id, repository, base_sha, head_sha, pr_number, required_workflows, changed_paths, test_results, git_diff_check, ci_checks, collection_mode, and provenance, and rejects execution-ID mismatch, repository mismatch, base/head mismatch, PR mismatch, stale-head workflows, missing required workflows, duplicate authoritative workflows, pending/skipped/cancelled/unknown workflows, and Git/GitHub query failures without converting read failure into empty changed-path lists; the CLI marks fixture mode explicitly and fixture evidence cannot produce a live merge-ready result, live acceptance calls trusted Git/GitHub collectors, and backend/publication failures use documented nonzero exit codes; the OpenHands/ACP boundary implements start, get_status, collect_events, cancel, and collect_result via an injectable transport with provider-free fake-transport tests and no real Codex, Agent Server, or user credentials in tests; the component lock uses exact versions and immutable digests with no version_range, TBD, PENDING_*, unknown license, or mutable image tag without digest described as locked or compatible, and the overall status reflects `PR97_CODE_REWORK_COMPLETE_AWAITING_TRUSTED_HOST_LIVE_PROBE` until real trusted-host probes pass; the v1 merge intent is archived verbatim to `project_state/mainline_merge_intents/archive/pr97_v1.json` and the active intent binds source_pr 97, locked base `705a0bfd...`, exact v2 Decision digest, exact v2 Command Plan digest, merge method `merge`, the four canonical workflows (CI, Decision Preflight, State Gate pull_request, State Gate push), and a bounded expiry; README.md, AGENTS.md, and `docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md` identify OpenHands Agent Canvas + Codex ACP as the selected bounded Platform V1 integration and explicitly state the prohibitions on forking, copying the frontend or Agent Loop, rebuilding a second control platform, and auto-merge; `python -m pytest tests/platform_v1 -q` passes; `python -m pytest tests/test_supervisor_validate.py tests/test_mainline_landing.py tests/test_integration_baseline.py -q` passes; `python -m pytest tests/test_project_gate.py -q` passes; `git diff --check 705a0bfd6638d51c688752f154433020225c4e99..HEAD` passes; exact-head CI, Decision Preflight, State Gate push, and State Gate pull_request succeed; the PR remains Draft and unmerged. Without trusted-host Gate 1 probes the terminal status is `PR97_CODE_REWORK_COMPLETE_AWAITING_TRUSTED_HOST_LIVE_PROBE`; only after all trusted-host probes pass with exact versions, image digests, and credential-isolation evidence may the status become `PR97_PLATFORM_V1_AWAITING_OWNER_MERGE_REVIEW`. Any scope conflict, credential exposure, idempotency failure, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` or `BLOCKED_COMPONENT_COMPATIBILITY` without retry or repair.
