@@ -214,12 +214,17 @@ describes:
   (`draft PR`, `draft pull request`, `PR description`, `pull request
   description`, or `PR body`) require only `create_or_update_draft_pr`, even
   when the clause uses a strong verb such as `fix`, `edit`, or `modify`.
+  Numbered forms such as `PR #93 body` and `pull request #93 description` are
+  also recognized as Draft-PR metadata targets.
 - Finite positive action-target patterns bind Issue writes, ordinary PR
   comments/reviews/approvals/labels/mark-ready, and branch
   create/delete/rename operations to unsupported surfaces. They are rejected
   with `OPERATION_PROMPT_INCONSISTENCY:unsupported_mutation_surface`; neither
   repository-edit nor Draft-PR authority permits them. Merely referencing an
   Issue or PR number in a report, status, or evidence summary is read-only.
+  Action-target order where the field precedes the target via `to` (for
+  example, `Add label to PR #93` or `Add comment to Issue #92`) is also
+  rejected as an unsupported mutation surface.
 - Reporting and status/result language is read-only only when its clause has
   no repository artifact or valid repository-relative path. A report generator
   function, status report module, report-building code, or report file remains

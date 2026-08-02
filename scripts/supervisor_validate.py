@@ -221,14 +221,14 @@ _DIRECT_NEGATION_BEFORE_RE = re.compile(
 # or a standalone filename whose suffix starts with a letter. This excludes
 # slash-separated prose and decimal/version numbers.
 _EXPLICIT_FILE_TARGET_RE = re.compile(
-    r"(?:^|\s)(?:(?:[a-z0-9_.-]+[/\\])+(?:[a-z0-9_.-]+\.[a-z][a-z0-9.-]*)|"
-    r"(?:\*|[a-z0-9_-]+)\.[a-z][a-z0-9]*)(?=\s|$)",
+    r"(?:^|\s|[\"'(])(?:(?:[a-z0-9_.-]+[/\\])+(?:[a-z0-9_.-]+\.[a-z][a-z0-9.-]*)|"
+    r"(?:\*|[a-z0-9_-]+)\.[a-z][a-z0-9]*)(?=\s|$|[\"')])",
     re.IGNORECASE,
 )
 _URL_RE = re.compile(r"(?:https?://\S+|(?:www\.)?github\.com/\S+)", re.IGNORECASE)
 _DRAFT_PR_TARGET_RE = re.compile(
-    r"\b(?:draft\s+(?:pr|pull\s+request)|pr\s+(?:description|body)|"
-    r"pull\s+request\s+(?:description|body))\b|"
+    r"\b(?:draft\s+(?:pr|pull\s+request)|pr(?:\s*#\d+)?\s+(?:description|body)|"
+    r"pull\s+request(?:\s*#\d+)?\s+(?:description|body))\b|"
     r"\bgithub\.com/\S+/pull/\d+(?:\S*)?\s+(?:description|body)\b",
     re.IGNORECASE,
 )
@@ -247,6 +247,9 @@ _UNSUPPORTED_GITHUB_ACTION_TARGET_PATTERNS = (
     r"(?:comment\s+on|review|approve|label)\s+(?:the\s+)?"
     r"(?:pr|pull\s+request)(?:\s*#\d+)?",
     r"mark\s+(?:the\s+)?(?:pr|pull\s+request)(?:\s*#\d+)?\s+ready",
+    # Action-target order where the field precedes the target via "to".
+    r"(?:add|remove)\s+(?:comment|review|review\s+comment|labels?)\s+to\s+"
+    r"(?:the\s+)?(?:pr|pull\s+request|issue)(?:\s*#\d+)?",
     # Branch lifecycle writes. Branch push is a separately authorized surface.
     r"(?:create|delete|rename)\s+(?:the\s+|a\s+)?branch",
 )

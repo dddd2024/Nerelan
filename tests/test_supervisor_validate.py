@@ -1756,6 +1756,10 @@ def test_operation_prompt_consistency_draft_pr_with_permission_passes() -> None:
         "Modify the draft pull request description with evidence.",
         "Update github.com/dddd2024/reverse-agent/pull/93 description.",
         "Update https://github.com/dddd2024/reverse-agent/pull/93 description.",
+        "Update PR #93 body.",
+        "Update pull request #93 description.",
+        "Edit PR #93 body with evidence.",
+        "Modify pull request #93 description with evidence.",
     ],
 )
 def test_operation_prompt_consistency_draft_pr_surface_never_requires_file_edit(
@@ -1765,6 +1769,40 @@ def test_operation_prompt_consistency_draft_pr_surface_never_requires_file_edit(
     task["goal"] = "Inspect the bounded evidence."
     task["execution_prompt"] = execution_prompt
     task["requested_operations"] = ["read_repository", "create_or_update_draft_pr"]
+    ok, errors, _ = sv.validate_audit_result(
+        _safe_result(task=task),
+        expected_repository=REPO,
+        expected_main_sha=MAIN_SHA,
+    )
+    assert ok and not errors
+
+
+@pytest.mark.parametrize(
+    "execution_prompt",
+    [
+        "Update PR #93 body.",
+        "Update pull request #93 description.",
+        "Edit PR #93 body with evidence.",
+        "Modify pull request #93 description.",
+    ],
+)
+def test_operation_prompt_consistency_numbered_draft_pr_metadata_requires_permission(
+    execution_prompt: str,
+) -> None:
+    """Numbered Draft PR metadata phrases must require create_or_update_draft_pr."""
+    task = _safe_task()
+    task["goal"] = "Inspect the bounded evidence."
+    task["execution_prompt"] = execution_prompt
+    task["requested_operations"] = ["read_repository"]
+    ok, errors, _ = sv.validate_audit_result(
+        _safe_result(task=task),
+        expected_repository=REPO,
+        expected_main_sha=MAIN_SHA,
+    )
+    assert not ok
+    assert f"{sv.OPERATION_PROMPT_INCONSISTENCY}:create_or_update_draft_pr_required" in errors
+
+    task["requested_operations"].append("create_or_update_draft_pr")
     ok, errors, _ = sv.validate_audit_result(
         _safe_result(task=task),
         expected_repository=REPO,
@@ -1988,6 +2026,13 @@ def test_operation_prompt_consistency_reporting_noun_does_not_hide_repository_ta
         "Create a branch.",
         "Delete the branch.",
         "Rename the branch.",
+        "Add label to PR #93.",
+        "Add labels to PR #93.",
+        "Add comment to PR #93.",
+        "Add review to PR #93.",
+        "Add label to pull request #93.",
+        "Add comment to Issue #92.",
+        "Add label to Issue #92.",
     ],
 )
 def test_operation_prompt_consistency_unsupported_github_mutation_rejected(
@@ -2123,6 +2168,10 @@ def test_operation_prompt_consistency_nonpaths_do_not_require_file_edit(
         "Update README.md.",
         "Update config.json.",
         "Update src/module.py.",
+        'Update "README.md".',
+        'Update (README.md).',
+        'Edit "config.json".',
+        'Modify (src/module.py).',
     ],
 )
 def test_operation_prompt_consistency_real_relative_paths_require_file_edit(
