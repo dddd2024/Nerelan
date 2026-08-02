@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260802_issue94_v08_findings_remediation_v9",
-  "round_id": "round_20260802_issue94_v08_findings_remediation_v9",
+  "decision_id": "decision_20260802_issue95_pr93_merge_readiness_closure_v10",
+  "round_id": "round_20260802_issue95_pr93_merge_readiness_closure_v10",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,15 +16,15 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260802_issue92_fresh_shadow_audit_v8",
-  "follows_last_round_id": "round_20260802_issue92_fresh_shadow_audit_v8",
-  "previous_audit_outcome": "FRESH_SHADOW_AUDIT_VALIDATED_REVISE_FOUR_FINDINGS",
-  "workstream_id": "issue94-v08-findings-remediation-v9",
-  "source_issue": 94,
+  "follows_last_decision_id": "decision_20260802_issue94_v08_findings_remediation_v9",
+  "follows_last_round_id": "round_20260802_issue94_v08_findings_remediation_v9",
+  "previous_audit_outcome": "V08_FINDINGS_REMEDIATED_FULL_SUITE_BLOCKED_BY_STALE_GOVERNANCE",
+  "workstream_id": "issue95-pr93-merge-readiness-closure-v10",
+  "source_issue": 95,
   "parent_issue": 90,
   "active_pr": 93,
   "required_branch": "agent/codex-supervisor-foundation-v0",
-  "starting_head": "d3e81d760da0730b49eef19558b184c9a1605ff0",
+  "starting_head": "f29145efe0b67583422f39eaf8e384fcb3dd7095",
   "activation_base_sha": "16526801bda2a816fc707342f903c1ad037de9bd",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -91,8 +91,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "test.pytest_operation_prompt_consistency",
-      "command": "python -m pytest tests/test_supervisor_validate.py -q -k operation_prompt_consistency",
+      "command_id": "test.pytest_mainline_audits",
+      "command": "python -m pytest tests/test_mainline_landing.py tests/test_project_audits.py -q",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -161,6 +161,20 @@
       "produced_artifacts": []
     },
     {
+      "command_id": "publication.issue95_comment",
+      "command": "gh issue comment 95 --repo dddd2024/reverse-agent --body-file -",
+      "phase": "publication",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["issue_comment", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
       "command_id": "publication.issue94_comment",
       "command": "gh issue comment 94 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
@@ -210,21 +224,34 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "docs/supervisor/audit-instructions.md",
-    "scripts/supervisor_validate.py",
-    "tests/test_supervisor_validate.py"
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr67_v5.json",
+    "tests/test_mainline_landing.py",
+    "tests/test_project_audits.py",
+    "tests/test_project_gate.py",
+    ".github/workflows/ci.yml"
   ],
   "reference_paths": [
     "AGENTS.md",
     "docs/supervisor/audit-result.schema.json",
     "scripts/supervisor_context.py",
     "scripts/supervisor_publish.py",
+    "scripts/supervisor_validate.py",
     "tests/test_repository_hygiene.py",
+    "tests/test_supervisor_validate.py",
     "project_state/decision_packet.md",
+    "project_state/audits/audit_20260629_rework_required_audit_inventory_gate.md",
+    "project_state/audits/audit_20260629_rework_required_clean_baseline_jobs_inventory_gate.md",
+    "project_state/audits/audit_20260701_rework_required_audit_readiness_packet.md",
+    "project_state/audits/audit_20260701_rework_required_current_handoff_packet_readiness_mismatch.md",
     "reverse_agent/project_gate.py",
+    "reverse_agent/project_audits.py",
+    "reverse_agent/mainline_landing.py",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/transition.py",
-    ".codex-skills/registry.json"
+    ".codex-skills/registry.json",
+    ".github/workflows/state-gate.yml",
+    ".github/workflows/decision-preflight.yml"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -234,7 +261,8 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "forbidden_mutated_paths": [
-    ".github/workflows/**",
+    ".github/workflows/state-gate.yml",
+    ".github/workflows/decision-preflight.yml",
     "reverse_agent/**",
     "project_state/schemas/**",
     "project_state/rounds/**",
@@ -245,13 +273,16 @@
     "AGENTS.md",
     "pyproject.toml",
     "docs/supervisor/audit-result.schema.json",
+    "docs/supervisor/audit-instructions.md",
     "scripts/supervisor_context.py",
     "scripts/supervisor_publish.py",
-    "tests/test_repository_hygiene.py"
+    "scripts/supervisor_validate.py",
+    "tests/test_repository_hygiene.py",
+    "tests/test_supervisor_validate.py"
   ],
   "forbidden_operations": [
     "shadow-audit generation or execution",
-    "generate v09 or any other audit version",
+    "generate v11 or any other audit version",
     "read, parse, modify, rename, or publish v07 audit content",
     "modify, rename, parse, or publish v08 audit file",
     "invoke a second model or nested agent",
@@ -274,7 +305,10 @@
     "runner dispatch",
     "unknown binary execution",
     "external reverse-tool invocation",
-    "modify paths outside the three allowed source files and gate artifacts"
+    "modify paths outside the allowed implementation files and gate artifacts",
+    "delete or modify unknown ignored or untracked files",
+    "weaken validate_audits_dir or ignore malformed tracked audit records",
+    "skip xfail delete or weaken tests to manufacture green status"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -293,6 +327,7 @@
     "local_network_exceptions": [
       "git push origin agent/codex-supervisor-foundation-v0",
       "gh pr checks 93 --repo dddd2024/reverse-agent --watch",
+      "gh issue comment 95 --repo dddd2024/reverse-agent --body-file -",
       "gh issue comment 94 --repo dddd2024/reverse-agent --body-file -",
       "gh issue comment 92 --repo dddd2024/reverse-agent --body-file -",
       "gh pr comment 93 --repo dddd2024/reverse-agent --body-file -"
@@ -303,9 +338,12 @@
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
     "project_state/gates/**",
-    "docs/supervisor/audit-instructions.md",
-    "scripts/supervisor_validate.py",
-    "tests/test_supervisor_validate.py"
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr67_v5.json",
+    "tests/test_mainline_landing.py",
+    "tests/test_project_audits.py",
+    "tests/test_project_gate.py",
+    ".github/workflows/ci.yml"
   ],
   "path_risk_floor": [
     {
@@ -315,6 +353,10 @@
     {
       "pattern": "project_state/gates/**",
       "minimum_risk": "R2"
+    },
+    {
+      "pattern": "project_state/mainline_merge_intents/**",
+      "minimum_risk": "R2"
     }
   ]
 }
@@ -322,18 +364,16 @@
 
 ## Goal
 
-Remediate the four v08 fresh shadow-audit findings in one bounded implementation attempt. Correct numbered Draft PR metadata phrase recognition so that "PR #93 body" and "pull request #93 description" require `create_or_update_draft_pr`. Correct the unsupported GitHub mutation detector so that action-target order "Add label to PR #93" is rejected as an unsupported mutation surface. Correct path recognition so that quoted and parenthesized valid filenames like `"README.md"` and `(README.md)` require `edit_bounded_files`. Do not generate new audits, do not perform live publication, do not merge or mark ready, and do not broaden scope beyond the three allowed source files.
+Restore PR #93 full-suite merge readiness by archiving the stale PR67 active merge intent, creating a new PR #93 active merge intent bound to the v10 Decision and command plan, converting hard-coded PR67 tests to generic active-intent tests, independently diagnosing the project-audits failure, and adding the full `python -m pytest -q` to GitHub CI. Do not generate another shadow audit, do not merge or mark ready, and do not broaden scope beyond the allowed implementation files.
 
-## v08 findings summary (bounded, preserved meaning)
+## Three full-suite failure dispositions
 
-1. **Positive finding** — The accepted implementation (commit `14be457be4f2a7195c6882df3bbb2cf94be3cafd`) preserves the core fail-closed schema, exact repository/main binding, fresh Context binding, additive surfaces, reporting-span consumption, occurrence-bounded push handling, and dry-run/live publication separation. No remediation required.
+1. **test_committed_pr67_intent_binds_exact_v5_authority** — The test hard-codes `decision_20260729_pr67_final_intent_rebind_v5` and reads `active.json` which still binds PR67. The Decision has since transitioned to v9/v10. Root cause: stale active intent + hard-coded PR67 identity. Fix: archive PR67 intent, replace active intent with PR #93 binding, convert test to read archived intent for PR67 assertions.
 
-2. **Numbered Draft-PR metadata false negatives** — Phrases "Update PR #93 body." and "Update pull request #93 description." are false negatives in operation-prompt consistency; the `_DRAFT_PR_TARGET_RE` regex matches unnumbered metadata but not the `#<number>` form, so a prompt can describe a PR body or description write without requiring `create_or_update_draft_pr`.
+2. **test_production_pre_merge_simulation** — The test hard-codes `source_pr: 67` and `locked_base_sha: 68026521710c50fa9a70f3851472941605d9ead1`. The active intent now binds PR #93 with `locked_base_sha: 16526801...`. Root cause: hard-coded PR67 values in test. Fix: derive `source_pr` and `locked_base_sha` from the active intent.
 
-3. **Action-target order "Add label to PR #93" missed** — The unsupported GitHub mutation detector accepts fields after the PR target or direct "label PR" wording, but does not accept "add label to PR" where the field precedes the target and includes "to", allowing that write intent to be treated as read-only.
-
-4. **Quoted/parenthesized filename false negatives** — Valid standalone repository filenames wrapped in quotes or parentheses (`"README.md"`, `(README.md)`) are path-recognition false negatives; `_EXPLICIT_FILE_TARGET_RE` requires start/whitespace before and whitespace/end after the filename, so quote and parenthesis delimiters prevent matching.
+3. **test_validate_audits_dir_accepts_current_audit_record** — The test is non-hermetic (reads real `project_state/audits/`). Two tracked audit files (`audit_20260701_rework_required_audit_readiness_packet.md` and `audit_20260701_rework_required_current_handoff_packet_readiness_mismatch.md`) use `json audit_result_summary` instead of `json audit_summary`, causing `validate_audits_dir` to report them as malformed. Root cause: non-hermetic test + pre-existing tracked audit format mismatch. Fix: make the test hermetic (use tmp_path with controlled audit files). Do not weaken `validate_audits_dir`.
 
 ## Acceptance boundary
 
-The v9 remediation is complete only when the Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is 18/18 PASS with `blocking_reasons=[]` before source changes; all four findings are remediated with regression tests in one implementation attempt; `python -m pytest tests/test_supervisor_validate.py -q -k operation_prompt_consistency` passes; `python -m pytest tests/test_supervisor_validate.py tests/test_repository_hygiene.py -q` passes; `python -m pytest -q` passes; `git diff --check 16526801bda2a816fc707342f903c1ad037de9bd..HEAD` passes; each of the four v08 probes classifies correctly against the final code; exact-head CI, Decision Preflight, and State Gate succeed; the v08 audit file SHA-256 remains `81943cf31b1bb0e3ebfd685dfa9faf2b3ad08bf6ef021e594babab2b25af9d0e`; v07 remains hash-only and unread; PR #93 remains Open, Draft, and unmerged; no new branch, Issue, PR, or audit version is created. Success is `V08_FINDINGS_REMEDIATED_AWAITING_OWNER_MERGE_REVIEW`. Any drift, hash mismatch, scope conflict, Gate block, or test failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
+The v10 merge-readiness closure is complete only when the Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is 18/18 PASS with `blocking_reasons=[]` before implementation; the PR67 intent is archived verbatim; the new PR #93 active intent binds the exact v10 Decision content SHA-256 and command-plan SHA-256; hard-coded PR67 tests are converted to generic active-intent tests; the project-audits test is made hermetic without weakening `validate_audits_dir`; CI runs `python -m pytest -q`; `python -m pytest tests/test_mainline_landing.py tests/test_project_audits.py -q` passes; `python -m pytest tests/test_supervisor_validate.py tests/test_repository_hygiene.py -q` passes; `python -m pytest -q` passes with exit code 0 in both the primary worktree and a clean detached worktree; `git diff --check 16526801bda2a816fc707342f903c1ad037de9bd..HEAD` passes; exact-head CI (including full-suite step), Decision Preflight, State Gate push, and State Gate pull_request all succeed; PR #93 remains Open, Draft, and unmerged; no new branch, Issue, PR, or audit version is created. Success is `PR53_FULL_SUITE_GREEN_AWAITING_OWNER_MERGE`. Any drift, scope conflict, Gate block, or test failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
