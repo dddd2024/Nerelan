@@ -31631,8 +31631,10 @@ def test_transition_packaging_and_workflow_boundary() -> None:
         "- name: Install package",
         "- name: Import check",
         "- name: Focused tests",
+        "- name: Full test suite",
     ]
     assert f"run: {contract['focused_test_command']}" in ci
+    assert "run: python -m pytest -q" in ci
 
     legacy_commands = {
         "state-gate.yml": (
