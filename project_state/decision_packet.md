@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260802_issue100_platform_v1_authority_collector_v4",
-  "round_id": "round_20260802_issue100_platform_v1_authority_collector_v4",
+  "decision_id": "decision_20260802_issue101_platform_v1_scope_freeze_v1",
+  "round_id": "round_20260802_issue101_platform_v1_scope_freeze_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,16 +16,16 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260802_issue99_platform_v1_live_evidence_boundary_v3",
-  "follows_last_round_id": "round_20260802_issue99_platform_v1_live_evidence_boundary_v3",
-  "previous_audit_outcome": "PLATFORM_V1_V3_REJECTED_SELF_ASSERTED_AUTHORITY_AND_SHELL_EXECUTION",
-  "workstream_id": "issue100-platform-v1-authority-collector-v4",
-  "source_issue": 100,
+  "follows_last_decision_id": "decision_20260802_issue100_platform_v1_authority_collector_v4",
+  "follows_last_round_id": "round_20260802_issue100_platform_v1_authority_collector_v4",
+  "previous_audit_outcome": "PLATFORM_V1_V4_ACCEPTED_AS_PROVIDER_FREE_EXPERIMENTAL_BASELINE",
+  "workstream_id": "issue101-platform-v1-scope-freeze",
+  "source_issue": 101,
   "parent_issue": 90,
-  "predecessor_issue": 99,
+  "predecessor_issue": 100,
   "active_pr": 97,
   "required_branch": "agent/platform-v1-openhands-codex-acp",
-  "starting_head": "853cec8aadbcde8e5ae801e4eb7d7c11d1d0fc89",
+  "starting_head": "2e6dd422188c3c77928c4496049f763f81048ba7",
   "activation_base_sha": "705a0bfd6638d51c688752f154433020225c4e99",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -35,15 +35,20 @@
   "pr_body_update_allowed": true,
   "pr_comment_allowed": true,
   "issue_comment_allowed": true,
-  "merge_allowed": false,
-  "mark_ready_allowed": false,
+  "merge_allowed": true,
+  "mark_ready_allowed": true,
+  "allowed_merge_method": "merge",
   "auto_merge_allowed": false,
   "force_push_allowed": false,
   "release_allowed": false,
   "deployment_allowed": false,
   "real_provider_credential_allowed": false,
   "live_work_item_publication_allowed": false,
-  "repair_attempt_limit": 1,
+  "repair_attempt_limit": 0,
+  "product_code_changes_allowed": false,
+  "test_semantics_changes_allowed": false,
+  "new_security_hardening_allowed": false,
+  "trusted_host_live_probe_allowed": false,
   "audit_generation_allowed": false,
   "prior_audits_immutable": true,
   "bootstrap_state_initial": "BOOTSTRAP_OPEN",
@@ -148,8 +153,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "observation.pr_checks",
-      "command": "gh pr checks 97 --repo dddd2024/reverse-agent --watch",
+      "command_id": "observation.workflow_runs",
+      "command": "gh run list --repo dddd2024/reverse-agent --commit <EXACT_HEAD> --json attempt,conclusion,databaseId,event,headBranch,headSha,name,status,workflowDatabaseId,workflowName",
       "phase": "observation",
       "required": false,
       "expected_exit_codes": [0],
@@ -162,8 +167,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "publication.issue100_comment",
-      "command": "gh issue comment 100 --repo dddd2024/reverse-agent --body-file -",
+      "command_id": "publication.issue101_comment",
+      "command": "gh issue comment 101 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "expected_exit_codes": [0],
@@ -198,28 +203,9 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr97_v3.json",
+    "project_state/mainline_merge_intents/archive/pr97_v4.json",
     "docs/platform_v1/adr-001-component-compatibility.md",
-    "docs/platform_v1/component-lock.json",
-    "reverse_agent/platform_v1/authority_adapter.py",
-    "reverse_agent/platform_v1/contracts.py",
-    "reverse_agent/platform_v1/acceptance.py",
-    "reverse_agent/platform_v1/cli.py",
-    "reverse_agent/platform_v1/evidence_adapter.py",
-    "reverse_agent/platform_v1/github_adapter.py",
-    "reverse_agent/platform_v1/policy_adapter.py",
-    "tests/platform_v1/test_authority_adapter.py",
-    "tests/platform_v1/test_acceptance.py",
-    "tests/platform_v1/test_cli.py",
-    "tests/platform_v1/test_contracts.py",
-    "tests/platform_v1/test_evidence_adapter.py",
-    "tests/platform_v1/test_github_adapter.py",
-    "tests/platform_v1/test_merge_intent.py",
-    "tests/platform_v1/test_forbidden_capabilities.py",
-    "tests/platform_v1/test_idempotency.py",
-    "tests/platform_v1/test_policy_adapter.py",
-    "tests/test_project_gate.py",
-    ".github/workflows/ci.yml"
+    "docs/platform_v1/component-lock.json"
   ],
   "reference_paths": [
     "docs/supervisor/audit-result.schema.json",
@@ -230,6 +216,7 @@
     "tests/test_supervisor_validate.py",
     "tests/test_integration_baseline.py",
     "tests/test_mainline_landing.py",
+    "tests/test_project_gate.py",
     "reverse_agent/project_gate.py",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/transition.py",
@@ -238,7 +225,10 @@
     "reverse_agent/project_audits.py",
     ".codex-skills/registry.json",
     ".github/workflows/state-gate.yml",
-    ".github/workflows/decision-preflight.yml"
+    ".github/workflows/decision-preflight.yml",
+    ".github/workflows/ci.yml",
+    "reverse_agent/platform_v1/**",
+    "tests/platform_v1/**"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -250,65 +240,14 @@
   "forbidden_mutated_paths": [
     ".github/workflows/state-gate.yml",
     ".github/workflows/decision-preflight.yml",
-    "reverse_agent/adapters/**",
-    "reverse_agent/architecture/**",
-    "reverse_agent/control_plane/**",
-    "reverse_agent/executor_neutral/**",
-    "reverse_agent/ida_scripts/**",
-    "reverse_agent/olly_scripts/**",
-    "reverse_agent/probes/**",
-    "reverse_agent/profiles/**",
-    "reverse_agent/strategies/**",
-    "reverse_agent/transforms/**",
-    "reverse_agent/trust/**",
-    "reverse_agent/workflows/**",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/project_audits.py",
-    "reverse_agent/project_state.py",
-    "reverse_agent/project_state_manifest.py",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/github_remote_verifier.py",
-    "reverse_agent/decision_preflight.py",
-    "reverse_agent/models.py",
-    "reverse_agent/project_ci.py",
-    "reverse_agent/project_jobs.py",
-    "reverse_agent/project_runner_contract.py",
-    "reverse_agent/project_agent_runner.py",
-    "reverse_agent/project_context.py",
-    "reverse_agent/project_context_builder.py",
-    "reverse_agent/project_control_plane.py",
-    "reverse_agent/project_workstreams.py",
-    "reverse_agent/skills.py",
-    "reverse_agent/state_governance.py",
-    "reverse_agent/state_hygiene.py",
-    "reverse_agent/state_index_readiness.py",
-    "reverse_agent/round_compaction.py",
-    "reverse_agent/reporter.py",
-    "reverse_agent/evidence.py",
-    "reverse_agent/evidence_quality.py",
-    "reverse_agent/tool_capabilities.py",
-    "reverse_agent/tool_capability_inventory.py",
-    "reverse_agent/tool_profiles.py",
-    "reverse_agent/tool_runners.py",
-    "reverse_agent/orchestrator_api.py",
-    "reverse_agent/orchestrator_context.py",
-    "reverse_agent/orchestrator_console_schema.py",
-    "reverse_agent/manual_execution_handoff.py",
-    "reverse_agent/manual_result_bridge.py",
-    "reverse_agent/post_final_evidence_sync.py",
-    "reverse_agent/pipeline.py",
-    "reverse_agent/sidecar_health.py",
-    "reverse_agent/solver_dispatch_plan.py",
-    "reverse_agent/cleanup_apply_safety.py",
-    "reverse_agent/__init__.py",
-    "reverse_agent/platform_v1/__init__.py",
-    "reverse_agent/platform_v1/openhands_adapter.py",
+    ".github/workflows/ci.yml",
+    "reverse_agent/**",
+    "tests/**",
     "README.md",
     "AGENTS.md",
     "docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md",
-    "deploy/agent-canvas/**",
-    "examples/platform_v1_target/**",
-    "tests/platform_v1/test_openhands_adapter.py",
+    "deploy/**",
+    "examples/**",
     "project_state/schemas/**",
     "project_state/rounds/**",
     "project_state/audits/**",
@@ -317,19 +256,13 @@
     "project_state/artifactindex.json",
     "project_state/mainline_merge_intents/archive/pr97_v1.json",
     "project_state/mainline_merge_intents/archive/pr97_v2.json",
+    "project_state/mainline_merge_intents/archive/pr97_v3.json",
     "pyproject.toml",
     "docs/supervisor/audit-result.schema.json",
     "docs/supervisor/audit-instructions.md",
     "scripts/supervisor_context.py",
     "scripts/supervisor_publish.py",
-    "scripts/supervisor_validate.py",
-    "tests/test_repository_hygiene.py",
-    "tests/test_supervisor_validate.py",
-    "tests/test_integration_baseline.py",
-    "tests/test_mainline_landing.py",
-    "tests/test_local_reverse_forced_ida_extract.py",
-    "tests/test_codex_skills.py",
-    "tests/test_project_audits.py"
+    "scripts/supervisor_validate.py"
   ],
   "forbidden_operations": [
     "shadow-audit generation or execution",
@@ -338,8 +271,6 @@
     "live generated Work Item publication",
     "new issue",
     "direct push to main",
-    "mark ready",
-    "merge",
     "auto merge",
     "force push",
     "rebase",
@@ -351,7 +282,9 @@
     "runner dispatch",
     "unknown binary execution",
     "external reverse-tool invocation",
-    "modify paths outside the allowed implementation files and gate artifacts",
+    "modify product code under reverse_agent/**",
+    "modify test semantics under tests/**",
+    "modify workflow files under .github/workflows/**",
     "delete or modify unknown ignored or untracked files",
     "skip xfail delete or weaken tests to manufacture green status",
     "add Temporal LiteLLM Langfuse Spec Kit or specialized reverse tooling",
@@ -371,7 +304,8 @@
     "confuse baseline job name with CI workflow name",
     "accept empty conclusion as success for completed workflow runs",
     "retry BLOCKED_APPROVAL automatically without a new approved Work Item",
-    "run or claim the trusted-host OpenHands/Codex live probe"
+    "run or claim the trusted-host OpenHands/Codex live probe",
+    "create the next repair Issue or propose a new F-numbered finding"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -382,15 +316,17 @@
     "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
-    "merge_allowed": false,
+    "merge_allowed": true,
+    "mark_ready_allowed": true,
+    "auto_merge_allowed": false,
     "force_push_allowed": false,
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
       "git push origin agent/platform-v1-openhands-codex-acp",
-      "gh pr checks 97 --repo dddd2024/reverse-agent --watch",
-      "gh issue comment 100 --repo dddd2024/reverse-agent --body-file -",
+      "gh run list --repo dddd2024/reverse-agent --commit <EXACT_HEAD> --json attempt,conclusion,databaseId,event,headBranch,headSha,name,status,workflowDatabaseId,workflowName",
+      "gh issue comment 101 --repo dddd2024/reverse-agent --body-file -",
       "gh pr comment 97 --repo dddd2024/reverse-agent --body-file -"
     ],
     "ci_network_exceptions": []
@@ -400,11 +336,7 @@
     "project_state/decision_packet.md",
     "project_state/gates/**",
     "project_state/mainline_merge_intents/**",
-    "docs/platform_v1/**",
-    "reverse_agent/platform_v1/**",
-    "tests/platform_v1/**",
-    "tests/test_project_gate.py",
-    ".github/workflows/ci.yml"
+    "docs/platform_v1/**"
   ],
   "path_risk_floor": [
     {
@@ -416,23 +348,11 @@
       "minimum_risk": "R2"
     },
     {
-      "pattern": ".github/workflows/**",
+      "pattern": "project_state/mainline_merge_intents/**",
       "minimum_risk": "R2"
     },
     {
-      "pattern": "reverse_agent/platform_v1/**",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "tests/platform_v1/**",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "tests/test_project_gate.py",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "deploy/agent-canvas/**",
+      "pattern": "docs/platform_v1/**",
       "minimum_risk": "R2"
     }
   ]
@@ -441,8 +361,8 @@
 
 ## Goal
 
-Rework the Platform V1 authority and execution boundary on the existing branch `agent/platform-v1-openhands-codex-acp` starting from exact head `853cec8aadbcde8e5ae801e4eb7d7c11d1d0fc89`. Remediate findings F18 through F28 from Issue #100: introduce an immutable Authority Bundle loaded internally from `decision_packet.md`, generated `command_plan.json`, active merge intent, and the exact GitHub Issue body, cross-verifying Decision ID, Decision content SHA-256, Command Plan SHA-256, Issue number, Issue body SHA-256, Issue state, required labels, repository, PR number, branch, base SHA, risk tier, allowed paths, allowed command IDs, and required workflow/event keys — the live CLI accepts only target identifiers (repo_dir, repository, issue_number, pr_number) via stdin, never a raw Work Item or authority digest; compute `approved_issue_body_digest` as a 64-character lowercase hex SHA-256 over the exact approved Issue body or documented canonical payload, invalidating the old digest on Issue body drift and rejecting the previous 40-character SHA-1 validation; remove caller-supplied `test_command` from stdin and select required commands by exact `command_id` from the approved generated Command Plan, executing an argv list with `shell=False`, exact command match, exact working directory, and matching network/mutation permissions, rejecting unknown command IDs, command content drift, shell metacharacters, extra arguments, unauthorized network access, and unauthorized mutated paths; independently observe PR metadata (number, state, isDraft, repository, headRefName, headRefOid, baseRefName, baseRefOid) through structured GitHub data and reject wrong repository, wrong PR, closed/merged PR, non-Draft PR, wrong base branch, wrong base SHA, wrong head branch, or wrong head SHA; replace the unsupported `gh pr checks --json name,workflow,state,conclusion,startedAt,completedAt,link,detail` with supported structured data from `gh run list --commit <exact-head> --json attempt,conclusion,databaseId,event,headBranch,headSha,name,status,workflowDatabaseId,workflowName` or equivalent GitHub Actions API, modeling required runs as canonical `(workflowName, event)` keys — `(CI, pull_request)`, `(Decision Preflight, pull_request)`, `(State Gate, pull_request)`, `(State Gate, push)` — requiring exactly one authoritative success result per key with `headSha == exact expected head`, `status == completed`, `conclusion == success`, and blocking on missing, duplicate, extra authoritative run, wrong head, wrong event, pending, queued, in_progress, skipped, cancelled, neutral, stale, timed_out, action_required, unknown, failure, or empty conclusion, never confusing the `baseline` job name with the `CI` workflow name; remove or deactivate deprecated `assemble_evidence()` as an acceptance-grade live path so it cannot produce live acceptance from caller-supplied `test_results` and `ci_checks`, restricting `ExecutionEvidence.create_live()` so it is not a public general-purpose factory, with fixture APIs remaining explicitly `FIXTURE_VALIDATED` and `live_ready=false`; add a blocking CI step in `.github/workflows/ci.yml` that runs exactly `python -m pytest tests/platform_v1 -q` without `continue-on-error`, `|| true`, or failure-swallowing patterns, keeping the repository-wide diagnostic nonblocking but not as a substitute; update `tests/platform_v1/test_merge_intent.py` to verify the v4 Decision, the `pr97_v1`, `pr97_v2`, `pr97_v3` archive chain, and the active v4 intent binding PR #97 and exact v4 digests, removing stale v2 active expectations; archive the v3 merge intent verbatim to `project_state/mainline_merge_intents/archive/pr97_v3.json` and bind the new active intent to `source_pr: 97`, locked base `705a0bfd...`, exact v4 Decision SHA-256, exact v4 Command Plan SHA-256, merge method `merge`, canonical workflow/event requirements, and a bounded expiry. Do not run or claim the trusted-host OpenHands/Codex live probe. Push only the existing branch, update only Draft PR #97, require exact-head checks, publish desensitized evidence, and stop at `PR97_AUTHORITY_AND_EXECUTION_BOUNDARY_CLOSED_AWAITING_LIVE_PROBE`.
+Freeze Platform V1 as a provider-free experimental reference implementation and ratify the exact product tree at head `2e6dd422188c3c77928c4496049f763f81048ba7` for Owner merge. This is a finalization task, not a rework round. No product code, test semantics, workflow files, or new security hardening may change. The Decision ratifies the existing v4 product tree, archives the v4 merge intent verbatim as `archive/pr97_v4.json`, and creates a new active merge intent binding the scope-freeze Decision, the accepted product head, the canonical workflow/event requirements, and a bounded expiry. The product definition is: Platform V1 is a provider-free experimental reference implementation. It is not a production trusted executor, not an unattended R2/R3 platform, not a cryptographically rooted trust system, and not a verified live OpenHands/Codex integration. Trusted-host OpenHands/Codex compatibility remains unverified. R2/R3 live execution remains blocked pending a separate approved live-probe task. The executor must not mark Ready, merge, auto-merge, push main, release, deploy, access credentials, or run the trusted-host probe. The terminal status is `PR97_EXPERIMENTAL_BASELINE_READY_FOR_OWNER_MERGE` after exact-head CI, Decision Preflight, State Gate push, and State Gate pull_request all succeed.
 
 ## Acceptance boundary
 
-The Platform V1 authority and execution boundary rework is complete only when: the Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is 18/18 PASS with `blocking_reasons=[]` before implementation; an immutable Authority Bundle is loaded internally from `decision_packet.md`, generated `command_plan.json`, active merge intent, and the exact GitHub Issue, cross-verifying Decision ID, Decision content SHA-256, Command Plan SHA-256, Issue number, Issue body SHA-256, Issue state, required labels, repository, PR number, branch, base SHA, risk tier, allowed paths, allowed command IDs, and required workflow/event keys; the live CLI accepts only target identifiers (repo_dir, repository, issue_number, pr_number) via stdin and never accepts a raw Work Item or authority digest; `approved_issue_body_digest` is a 64-character lowercase hex SHA-256 computed from the exact approved Issue body or documented canonical payload, validated with a SHA-256 regex, and invalidates on Issue body drift; caller-supplied `test_command` is removed from stdin and commands are selected by exact `command_id` from the approved generated Command Plan, executed as an argv list with `shell=False`, exact command match, exact working directory, and matching network/mutation permissions, rejecting unknown command IDs, command content drift, shell metacharacters, extra arguments, unauthorized network access, and unauthorized mutated paths, with no `shell=True` in production command execution; PR metadata (number, state, isDraft, repository, headRefName, headRefOid, baseRefName, baseRefOid) is independently observed through structured GitHub data and rejects wrong repository, wrong PR, closed/merged PR, non-Draft PR, wrong base branch, wrong base SHA, wrong head branch, or wrong head SHA; workflow runs use supported structured fields from `gh run list --commit <exact-head> --json attempt,conclusion,databaseId,event,headBranch,headSha,name,status,workflowDatabaseId,workflowName` or equivalent API data, modeled as canonical `(workflowName, event)` keys requiring exactly one authoritative success result per key with `headSha == exact expected head`, `status == completed`, `conclusion == success`, blocking on missing, duplicate, extra, wrong-head, wrong-event, pending, queued, in_progress, skipped, cancelled, neutral, stale, timed_out, action_required, unknown, failure, and empty conclusion, without requesting unsupported `gh pr checks` JSON fields, without confusing `baseline` job name with `CI` workflow name, and keeping push and pull_request State Gate runs distinct; deprecated `assemble_evidence()` cannot produce acceptance-grade live evidence from caller-supplied `test_results` and `ci_checks`, and `ExecutionEvidence.create_live()` is not a public general-purpose factory; fixture APIs remain explicitly `FIXTURE_VALIDATED` with `live_ready=false`; `.github/workflows/ci.yml` includes a blocking step running exactly `python -m pytest tests/platform_v1 -q` without `continue-on-error`, `|| true`, or failure-swallowing patterns; `tests/platform_v1/test_merge_intent.py` verifies the v4 Decision, the `pr97_v1`, `pr97_v2`, `pr97_v3` archive chain, and the active v4 intent; the v3 merge intent is archived verbatim to `project_state/mainline_merge_intents/archive/pr97_v3.json` and the new active intent binds `source_pr: 97`, locked base `705a0bfd...`, exact v4 Decision SHA-256, exact v4 Command Plan SHA-256, merge method `merge`, canonical workflow/event requirements, and a bounded expiry; `python -m pytest tests/platform_v1 -q` passes with zero failures, zero new skips, and zero xfails; `python -m pytest tests/test_supervisor_validate.py tests/test_mainline_landing.py tests/test_integration_baseline.py -q` passes; `python -m pytest tests/test_project_gate.py -q` passes; `git diff --check 705a0bfd6638d51c688752f154433020225c4e99..HEAD` passes; exact-head CI, Decision Preflight, State Gate push, and State Gate pull_request succeed, including the new blocking Platform V1 CI step; the PR remains Draft and unmerged. The terminal status is `PR97_AUTHORITY_AND_EXECUTION_BOUNDARY_CLOSED_AWAITING_LIVE_PROBE` since no trusted-host live probe is performed. Any scope conflict, credential exposure, idempotency failure, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
+The Platform V1 scope freeze is complete only when: the Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is 18/18 PASS with `blocking_reasons=[]` before the finalization commit; the finalization commit only modifies `project_state/mainline_merge_intents/active.json`, `project_state/mainline_merge_intents/archive/pr97_v4.json`, `docs/platform_v1/adr-001-component-compatibility.md`, and `docs/platform_v1/component-lock.json`; the v4 active intent is archived verbatim to `project_state/mainline_merge_intents/archive/pr97_v4.json`; the new active intent binds `source_pr: 97`, `locked_base_sha: 705a0bfd...`, `accepted_product_head: 2e6dd422...`, `allowed_merge_method: merge`, exact scope-freeze Decision content SHA-256, exact scope-freeze Command Plan SHA-256, `classification: provider_free_experimental_baseline`, `live_compatibility_verified: false`, canonical workflow/event requirements, and a bounded expiry; `git diff --name-only 2e6dd422..HEAD` contains only the 10 authorized governance/status paths; `python -m pytest tests/platform_v1 -q` passes with zero failures; `python -m pytest tests/test_supervisor_validate.py tests/test_mainline_landing.py tests/test_integration_baseline.py -q` passes; `python -m pytest tests/test_project_gate.py -q` passes; `git diff --check 705a0bfd..HEAD` passes; exact-head CI, Decision Preflight, State Gate push, and State Gate pull_request succeed; the PR remains Draft and unmerged. The terminal status is `PR97_EXPERIMENTAL_BASELINE_READY_FOR_OWNER_MERGE`. Any scope conflict, need to change product code or test semantics, credential exposure, idempotency failure, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
