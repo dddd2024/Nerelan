@@ -1,8 +1,22 @@
 # ADR-001: Platform V1 Component Compatibility
 
-Status: PR97_CODE_REWORK_COMPLETE_AWAITING_TRUSTED_HOST_LIVE_PROBE
+Status: PR97_EXPERIMENTAL_BASELINE_READY_FOR_OWNER_MERGE
 Date: 2026-08-02
 Decision: Pin Agent Canvas v1.6.0 lineage; use v1.6.1 for npm installation; live compatibility not yet verified
+
+## Scope freeze statement
+
+Platform V1 is a provider-free experimental baseline.
+Trusted-host OpenHands/Codex compatibility remains unverified.
+R2/R3 live execution remains blocked pending a separate approved live-probe task.
+
+Platform V1 is a provider-free experimental reference implementation.
+
+It is not:
+- a production trusted executor
+- an unattended R2/R3 platform
+- a cryptographically rooted trust system
+- a verified live OpenHands/Codex integration
 
 ## Context
 

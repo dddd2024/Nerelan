@@ -5,7 +5,7 @@
   "source_issue": 98,
   "decision_id": "decision_20260802_issue98_platform_v1_trust_binding_rework_v2",
   "round_id": "round_20260802_issue98_platform_v1_trust_binding_rework_v2",
-  "overall_status": "PR97_CODE_REWORK_COMPLETE_AWAITING_TRUSTED_HOST_LIVE_PROBE",
+  "overall_status": "PR97_EXPERIMENTAL_BASELINE_READY_FOR_OWNER_MERGE",
   "components": {
     "agent_canvas": {
       "package": "@openhands/agent-canvas",
