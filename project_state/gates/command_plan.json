@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260802_issue95_scoped_merge_gate_repair_v11",
-  "round_id": "round_20260802_issue95_scoped_merge_gate_repair_v11",
+  "decision_id": "decision_20260802_platform_v1_openhands_codex_acp_v1",
+  "round_id": "round_20260802_platform_v1_openhands_codex_acp_v1",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -27,7 +27,7 @@
     },
     {
       "command_id": "validation.diff_check",
-      "command": "git diff --check 16526801bda2a816fc707342f903c1ad037de9bd..HEAD",
+      "command": "git diff --check 705a0bfd6638d51c688752f154433020225c4e99..HEAD",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -48,8 +48,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.pytest_codex_skills",
-      "command": "python -m pytest tests/test_codex_skills.py -q",
+      "command_id": "test.pytest_platform_v1",
+      "command": "python -m pytest tests/platform_v1 -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -70,52 +70,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.pytest_integration_mainline_audits",
-      "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
-      "phase": "test",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "run_checks"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "test.pytest_supervisor_hygiene",
-      "command": "python -m pytest tests/test_supervisor_validate.py tests/test_repository_hygiene.py -q",
-      "phase": "test",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "run_checks"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "test.pytest_project_gate",
-      "command": "python -m pytest tests/test_project_gate.py -q",
+      "command_id": "test.pytest_supervisor_mainline_integration",
+      "command": "python -m pytest tests/test_supervisor_validate.py tests/test_mainline_landing.py tests/test_integration_baseline.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -137,7 +93,7 @@
     },
     {
       "command_id": "publication.push_branch",
-      "command": "git push origin agent/codex-supervisor-foundation-v0",
+      "command": "git push origin agent/platform-v1-openhands-codex-acp",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -159,8 +115,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.pr93_checks",
-      "command": "gh pr checks 93 --repo dddd2024/reverse-agent --watch",
+      "command_id": "observation.pr_checks",
+      "command": "gh pr checks --repo dddd2024/reverse-agent --watch",
       "phase": "observation",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -182,8 +138,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.issue95_comment",
-      "command": "gh issue comment 95 --repo dddd2024/reverse-agent --body-file -",
+      "command_id": "publication.issue96_comment",
+      "command": "gh issue comment 96 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -205,31 +161,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.issue92_comment",
-      "command": "gh issue comment 92 --repo dddd2024/reverse-agent --body-file -",
-      "phase": "publication",
-      "required": false,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "issue_comment",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "publication.pr93_comment",
-      "command": "gh pr comment 93 --repo dddd2024/reverse-agent --body-file -",
+      "command_id": "publication.pr_comment",
+      "command": "gh pr comment --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",

@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260802_issue95_scoped_merge_gate_repair_v11",
-  "round_id": "round_20260802_issue95_scoped_merge_gate_repair_v11",
-  "expired_at": "2026-08-02T03:45:19+00:00"
+  "decision_id": "decision_20260802_platform_v1_openhands_codex_acp_v1",
+  "round_id": "round_20260802_platform_v1_openhands_codex_acp_v1",
+  "expired_at": "2026-08-02T06:14:29+00:00"
 }
