@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260802_issue99_platform_v1_live_evidence_boundary_v3",
-  "round_id": "round_20260802_issue99_platform_v1_live_evidence_boundary_v3",
+  "decision_id": "decision_20260802_issue100_platform_v1_authority_collector_v4",
+  "round_id": "round_20260802_issue100_platform_v1_authority_collector_v4",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -138,7 +138,7 @@
     },
     {
       "command_id": "observation.pr_checks",
-      "command": "gh pr checks --repo dddd2024/reverse-agent --watch",
+      "command": "gh pr checks 97 --repo dddd2024/reverse-agent --watch",
       "phase": "observation",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -160,8 +160,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.issue99_comment",
-      "command": "gh issue comment 99 --repo dddd2024/reverse-agent --body-file -",
+      "command_id": "publication.issue100_comment",
+      "command": "gh issue comment 100 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -184,7 +184,7 @@
     },
     {
       "command_id": "publication.pr_comment",
-      "command": "gh pr comment --repo dddd2024/reverse-agent --body-file -",
+      "command": "gh pr comment 97 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",

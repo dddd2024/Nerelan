@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260802_issue99_platform_v1_live_evidence_boundary_v3",
-  "round_id": "round_20260802_issue99_platform_v1_live_evidence_boundary_v3",
+  "decision_id": "decision_20260802_issue100_platform_v1_authority_collector_v4",
+  "round_id": "round_20260802_issue100_platform_v1_authority_collector_v4",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260802_issue99_platform_v1_live_evidence_boundary_v3 expected=decision_20260802_issue99_platform_v1_live_evidence_boundary_v3"
+      "detail": "observed=decision_20260802_issue100_platform_v1_authority_collector_v4 expected=decision_20260802_issue100_platform_v1_authority_collector_v4"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260802_issue99_platform_v1_live_evidence_boundary_v3 expected=round_20260802_issue99_platform_v1_live_evidence_boundary_v3"
+      "detail": "observed=round_20260802_issue100_platform_v1_authority_collector_v4 expected=round_20260802_issue100_platform_v1_authority_collector_v4"
     },
     {
       "name": "decision_approved",
@@ -43,12 +43,12 @@
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=52aad4e1d91c2f41f2f66e213dd5363653dff452"
+      "detail": "decision_commit=0ac9a189a67a6e97801e6733a38ae6207b142ad8"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260802_issue99_platform_v1_live_evidence_boundary_v3/round_20260802_issue99_platform_v1_live_evidence_boundary_v3"
+      "detail": "plan=decision_20260802_issue100_platform_v1_authority_collector_v4/round_20260802_issue100_platform_v1_authority_collector_v4"
     },
     {
       "name": "command_plan_contract",
