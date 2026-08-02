@@ -33,3 +33,12 @@ project_state/triage_*/
 .git_corrupt/
 .git_corrupt_v2/
 .git_old2/
+
+# Platform V1 credential isolation — never commit provider credentials
+.env
+*.env
+!examples/platform_v1_target/*.json
+.codex/
+codex_login*
+*.token
+*.api_key
