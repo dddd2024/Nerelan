@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260802_platform_v1_openhands_codex_acp_v1",
-  "round_id": "round_20260802_platform_v1_openhands_codex_acp_v1",
+  "decision_id": "decision_20260802_issue98_platform_v1_trust_binding_rework_v2",
+  "round_id": "round_20260802_issue98_platform_v1_trust_binding_rework_v2",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -92,6 +92,28 @@
       "allowed_mutated_paths": []
     },
     {
+      "command_id": "test.pytest_project_gate",
+      "command": "python -m pytest tests/test_project_gate.py -q",
+      "phase": "test",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
       "command_id": "publication.push_branch",
       "command": "git push origin agent/platform-v1-openhands-codex-acp",
       "phase": "publication",
@@ -138,8 +160,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.issue96_comment",
-      "command": "gh issue comment 96 --repo dddd2024/reverse-agent --body-file -",
+      "command_id": "publication.issue98_comment",
+      "command": "gh issue comment 98 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
