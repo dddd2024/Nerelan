@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260802_issue95_scoped_merge_gate_repair_v11",
-  "round_id": "round_20260802_issue95_scoped_merge_gate_repair_v11",
+  "decision_id": "decision_20260802_platform_v1_openhands_codex_acp_v1",
+  "round_id": "round_20260802_platform_v1_openhands_codex_acp_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,21 +16,21 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260802_issue95_pr93_merge_readiness_closure_v10",
-  "follows_last_round_id": "round_20260802_issue95_pr93_merge_readiness_closure_v10",
-  "previous_audit_outcome": "PR93_MERGE_READINESS_CI_FAILED_UNSCOPED_LEGACY_SUITE",
-  "workstream_id": "issue95-scoped-merge-gate-repair-v11",
-  "source_issue": 95,
+  "follows_last_decision_id": "decision_20260802_issue95_scoped_merge_gate_repair_v11",
+  "follows_last_round_id": "round_20260802_issue95_scoped_merge_gate_repair_v11",
+  "previous_audit_outcome": "PR93_MERGED_PLATFORM_V1_AUTHORIZED",
+  "workstream_id": "platform-v1-openhands-codex-acp-v1",
+  "source_issue": 96,
   "parent_issue": 90,
-  "active_pr": 93,
-  "required_branch": "agent/codex-supervisor-foundation-v0",
-  "starting_head": "33d1272e1c8a4d9b51d361d091ea28adf85c414b",
-  "activation_base_sha": "16526801bda2a816fc707342f903c1ad037de9bd",
+  "active_pr": null,
+  "required_branch": "agent/platform-v1-openhands-codex-acp",
+  "starting_head": "705a0bfd6638d51c688752f154433020225c4e99",
+  "activation_base_sha": "705a0bfd6638d51c688752f154433020225c4e99",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
-  "pr_creation_allowed": false,
+  "pr_creation_allowed": true,
   "pr_body_update_allowed": true,
   "pr_comment_allowed": true,
   "issue_comment_allowed": true,
@@ -43,8 +43,6 @@
   "repair_attempt_limit": 1,
   "audit_generation_allowed": false,
   "prior_audits_immutable": true,
-  "v07_observation_only": true,
-  "v08_read_only_remediation_input": true,
   "bootstrap_state_initial": "BOOTSTRAP_OPEN",
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
@@ -78,7 +76,7 @@
     },
     {
       "command_id": "validation.diff_check",
-      "command": "git diff --check 16526801bda2a816fc707342f903c1ad037de9bd..HEAD",
+      "command": "git diff --check 705a0bfd6638d51c688752f154433020225c4e99..HEAD",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -91,8 +89,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "test.pytest_codex_skills",
-      "command": "python -m pytest tests/test_codex_skills.py -q",
+      "command_id": "test.pytest_platform_v1",
+      "command": "python -m pytest tests/platform_v1 -q",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -105,36 +103,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "test.pytest_integration_mainline_audits",
-      "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
-      "phase": "test",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "test.pytest_supervisor_hygiene",
-      "command": "python -m pytest tests/test_supervisor_validate.py tests/test_repository_hygiene.py -q",
-      "phase": "test",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "test.pytest_project_gate",
-      "command": "python -m pytest tests/test_project_gate.py -q",
+      "command_id": "test.pytest_supervisor_mainline_integration",
+      "command": "python -m pytest tests/test_supervisor_validate.py tests/test_mainline_landing.py tests/test_integration_baseline.py -q",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -148,7 +118,7 @@
     },
     {
       "command_id": "publication.push_branch",
-      "command": "git push origin agent/codex-supervisor-foundation-v0",
+      "command": "git push origin agent/platform-v1-openhands-codex-acp",
       "phase": "publication",
       "required": false,
       "expected_exit_codes": [0],
@@ -161,8 +131,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "observation.pr93_checks",
-      "command": "gh pr checks 93 --repo dddd2024/reverse-agent --watch",
+      "command_id": "observation.pr_checks",
+      "command": "gh pr checks --repo dddd2024/reverse-agent --watch",
       "phase": "observation",
       "required": false,
       "expected_exit_codes": [0],
@@ -175,8 +145,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "publication.issue95_comment",
-      "command": "gh issue comment 95 --repo dddd2024/reverse-agent --body-file -",
+      "command_id": "publication.issue96_comment",
+      "command": "gh issue comment 96 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "expected_exit_codes": [0],
@@ -189,22 +159,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "publication.issue92_comment",
-      "command": "gh issue comment 92 --repo dddd2024/reverse-agent --body-file -",
-      "phase": "publication",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["issue_comment", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "publication.pr93_comment",
-      "command": "gh pr comment 93 --repo dddd2024/reverse-agent --body-file -",
+      "command_id": "publication.pr_comment",
+      "command": "gh pr comment --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "expected_exit_codes": [0],
@@ -224,17 +180,20 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    ".github/workflows/ci.yml",
-    "tools/sync_codex_skills.ps1",
-    "tests/test_codex_skills.py",
-    "tests/test_mainline_landing.py",
-    "tests/test_project_gate.py",
-    "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr93_v10.json",
-    "docs/testing/legacy-full-suite-debt.md"
+    "README.md",
+    "AGENTS.md",
+    "docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md",
+    "docs/architecture/**",
+    "docs/platform_v1/**",
+    "deploy/agent-canvas/**",
+    ".openhands/**",
+    "reverse_agent/platform_v1/**",
+    "tests/platform_v1/**",
+    "examples/platform_v1_target/**",
+    ".github/workflows/platform-v1-*.yml",
+    ".gitignore"
   ],
   "reference_paths": [
-    "AGENTS.md",
     "docs/supervisor/audit-result.schema.json",
     "scripts/supervisor_context.py",
     "scripts/supervisor_publish.py",
@@ -242,15 +201,12 @@
     "tests/test_repository_hygiene.py",
     "tests/test_supervisor_validate.py",
     "project_state/decision_packet.md",
-    "project_state/audits/audit_20260629_rework_required_audit_inventory_gate.md",
-    "project_state/audits/audit_20260629_rework_required_clean_baseline_jobs_inventory_gate.md",
-    "project_state/audits/audit_20260701_rework_required_audit_readiness_packet.md",
-    "project_state/audits/audit_20260701_rework_required_current_handoff_packet_readiness_mismatch.md",
     "reverse_agent/project_gate.py",
-    "reverse_agent/project_audits.py",
-    "reverse_agent/mainline_landing.py",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/transition.py",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/project_audits.py",
     ".codex-skills/registry.json",
     ".github/workflows/state-gate.yml",
     ".github/workflows/decision-preflight.yml"
@@ -265,14 +221,65 @@
   "forbidden_mutated_paths": [
     ".github/workflows/state-gate.yml",
     ".github/workflows/decision-preflight.yml",
-    "reverse_agent/**",
+    ".github/workflows/ci.yml",
+    "reverse_agent/adapters/**",
+    "reverse_agent/architecture/**",
+    "reverse_agent/control_plane/**",
+    "reverse_agent/executor_neutral/**",
+    "reverse_agent/ida_scripts/**",
+    "reverse_agent/olly_scripts/**",
+    "reverse_agent/probes/**",
+    "reverse_agent/profiles/**",
+    "reverse_agent/strategies/**",
+    "reverse_agent/transforms/**",
+    "reverse_agent/trust/**",
+    "reverse_agent/workflows/**",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/project_audits.py",
+    "reverse_agent/project_state.py",
+    "reverse_agent/project_state_manifest.py",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/decision_preflight.py",
+    "reverse_agent/models.py",
+    "reverse_agent/project_ci.py",
+    "reverse_agent/project_jobs.py",
+    "reverse_agent/project_runner_contract.py",
+    "reverse_agent/project_agent_runner.py",
+    "reverse_agent/project_context.py",
+    "reverse_agent/project_context_builder.py",
+    "reverse_agent/project_control_plane.py",
+    "reverse_agent/project_workstreams.py",
+    "reverse_agent/skills.py",
+    "reverse_agent/state_governance.py",
+    "reverse_agent/state_hygiene.py",
+    "reverse_agent/state_index_readiness.py",
+    "reverse_agent/round_compaction.py",
+    "reverse_agent/reporter.py",
+    "reverse_agent/evidence.py",
+    "reverse_agent/evidence_quality.py",
+    "reverse_agent/tool_capabilities.py",
+    "reverse_agent/tool_capability_inventory.py",
+    "reverse_agent/tool_profiles.py",
+    "reverse_agent/tool_runners.py",
+    "reverse_agent/orchestrator_api.py",
+    "reverse_agent/orchestrator_context.py",
+    "reverse_agent/orchestrator_console_schema.py",
+    "reverse_agent/manual_execution_handoff.py",
+    "reverse_agent/manual_result_bridge.py",
+    "reverse_agent/post_final_evidence_sync.py",
+    "reverse_agent/pipeline.py",
+    "reverse_agent/sidecar_health.py",
+    "reverse_agent/solver_dispatch_plan.py",
+    "reverse_agent/cleanup_apply_safety.py",
+    "reverse_agent/__init__.py",
     "project_state/schemas/**",
     "project_state/rounds/**",
     "project_state/audits/**",
     "project_state/current_state.json",
     "project_state/state_manifest.json",
     "project_state/artifactindex.json",
-    "AGENTS.md",
+    "project_state/mainline_merge_intents/**",
     "pyproject.toml",
     "docs/supervisor/audit-result.schema.json",
     "docs/supervisor/audit-instructions.md",
@@ -282,19 +289,18 @@
     "tests/test_repository_hygiene.py",
     "tests/test_supervisor_validate.py",
     "tests/test_integration_baseline.py",
-    "tests/test_local_reverse_forced_ida_extract.py"
+    "tests/test_mainline_landing.py",
+    "tests/test_local_reverse_forced_ida_extract.py",
+    "tests/test_codex_skills.py",
+    "tests/test_project_gate.py",
+    "tests/test_project_audits.py"
   ],
   "forbidden_operations": [
     "shadow-audit generation or execution",
-    "generate v12 or any other audit version",
-    "read, parse, modify, rename, or publish v07 audit content",
-    "modify, rename, parse, or publish v08 audit file",
     "invoke a second model or nested agent",
     "live publication or apply_result",
     "live generated Work Item publication",
-    "new branch",
     "new issue",
-    "new pull request",
     "direct push to main",
     "mark ready",
     "merge",
@@ -311,10 +317,12 @@
     "external reverse-tool invocation",
     "modify paths outside the allowed implementation files and gate artifacts",
     "delete or modify unknown ignored or untracked files",
-    "weaken validate_audits_dir or ignore malformed tracked audit records",
     "skip xfail delete or weaken tests to manufacture green status",
-    "modify dedicated reverse-tool production code or reverse-tool tests",
-    "add frontend database workflow engine Spec Kit or specialized reverse tooling"
+    "add Temporal LiteLLM Langfuse Spec Kit or specialized reverse tooling",
+    "add custom frontend second executor new database custom sandbox or custom agent loop",
+    "fork or copy OpenHands source",
+    "expose long-lived credentials to task code",
+    "close sandbox isolation"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -331,11 +339,11 @@
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
-      "git push origin agent/codex-supervisor-foundation-v0",
-      "gh pr checks 93 --repo dddd2024/reverse-agent --watch",
-      "gh issue comment 95 --repo dddd2024/reverse-agent --body-file -",
-      "gh issue comment 92 --repo dddd2024/reverse-agent --body-file -",
-      "gh pr comment 93 --repo dddd2024/reverse-agent --body-file -"
+      "git push origin agent/platform-v1-openhands-codex-acp",
+      "gh pr create --draft --base main --head agent/platform-v1-openhands-codex-acp --repo dddd2024/reverse-agent",
+      "gh pr checks --repo dddd2024/reverse-agent --watch",
+      "gh issue comment 96 --repo dddd2024/reverse-agent --body-file -",
+      "gh pr comment --repo dddd2024/reverse-agent --body-file -"
     ],
     "ci_network_exceptions": []
   },
@@ -343,14 +351,18 @@
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
     "project_state/gates/**",
-    "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr93_v10.json",
-    ".github/workflows/ci.yml",
-    "tools/sync_codex_skills.ps1",
-    "tests/test_codex_skills.py",
-    "tests/test_mainline_landing.py",
-    "tests/test_project_gate.py",
-    "docs/testing/legacy-full-suite-debt.md"
+    "README.md",
+    "AGENTS.md",
+    "docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md",
+    "docs/architecture/**",
+    "docs/platform_v1/**",
+    "deploy/agent-canvas/**",
+    ".openhands/**",
+    "reverse_agent/platform_v1/**",
+    "tests/platform_v1/**",
+    "examples/platform_v1_target/**",
+    ".github/workflows/platform-v1-*.yml",
+    ".gitignore"
   ],
   "path_risk_floor": [
     {
@@ -362,7 +374,19 @@
       "minimum_risk": "R2"
     },
     {
-      "pattern": "project_state/mainline_merge_intents/**",
+      "pattern": ".github/workflows/**",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/**",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": ".openhands/**",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "deploy/agent-canvas/**",
       "minimum_risk": "R2"
     }
   ]
@@ -371,18 +395,8 @@
 
 ## Goal
 
-Establish scoped merge gates for PR #93 by adding `fetch-depth: 0` to CI checkout, fixing `tools/sync_codex_skills.ps1` for Linux dot-prefixed hidden directory access, defining required CI gate suites covering the reusable base-platform surfaces, documenting legacy reverse-tool test debt, archiving the v10 PR93 intent, and rebinding the active intent to the v11 Decision and command plan. Do not add reverse tooling, frontend, database, workflow engine, or Spec Kit.
-
-## v10 CI failure dispositions
-
-1. **PowerShell hidden-directory portability — 5 failures** in `tests/test_codex_skills.py`. Root cause: `Get-Item` cannot see `.codex-skills` on Linux without `-Force`. Fix: add `-Force` to `Get-Item` in `tools/sync_codex_skills.ps1`.
-
-2. **Shallow Git checkout — 6 failures** across `tests/test_integration_baseline.py` and `tests/test_mainline_landing.py`. Root cause: `fetch-depth: 1` omits historical git objects needed by baseline, PR60 recovery, and pre-merge simulation tests. Fix: set `fetch-depth: 0` in CI checkout.
-
-3. **Dedicated reverse-tool tests — 4 failures** in `tests/test_local_reverse_forced_ida_extract.py`. Root cause: fixtures reference local Windows binaries and reverse-specific behavior outside the reusable base-platform scope. Fix: document as legacy debt in `docs/testing/legacy-full-suite-debt.md`; do not require them as merge gates.
-
-4. **PR93 simulation defect — 1 failure** in `test_production_pre_merge_simulation`. Root cause: shallow checkout lacks base object `16526801...`. Fix: resolved by `fetch-depth: 0`.
+Implement Platform V1 as a bounded OpenHands Agent Canvas + Codex ACP vertical slice. Pin Agent Canvas v1.6.0 and compatible OpenHands Agent Server, Software Agent SDK, and Codex ACP versions. Perform a Gate 1 compatibility probe before broad implementation. If compatible, implement only the thin reverse-agent policy/evidence/acceptance adapter (`reverse_agent/platform_v1/**`), provider-free contract and idempotency tests (`tests/platform_v1/**`), ADR and component lock documentation (`docs/platform_v1/**`), deployment configuration (`deploy/agent-canvas/**`), and one fixture task (`examples/platform_v1_target/**`). Update README.md and AGENTS.md to resolve the documentation contradiction about OpenHands scope. Do not add Temporal, LiteLLM, Langfuse, Spec Kit, custom frontend, second executor, new database, custom sandbox, custom agent loop, auto-merge, production deployment, or reverse-specific tools. Push only the named branch, create/update one Draft PR, require exact-head checks, publish desensitized evidence, and stop.
 
 ## Acceptance boundary
 
-The v11 scoped merge-gate repair is complete only when the Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is 18/18 PASS with `blocking_reasons=[]` before implementation; CI uses `fetch-depth: 0`; `sync_codex_skills.ps1` handles dot-prefixed directories on Linux; required CI gate suites cover focused, supervisor/hygiene, codex-skills, integration-baseline/mainline-landing/project-audit, and project-gate tests; the repository-wide diagnostic step is nonblocking and labelled as legacy debt with its failing node set recorded in `docs/testing/legacy-full-suite-debt.md`; the v10 active PR93 intent is archived verbatim as `project_state/mainline_merge_intents/archive/pr93_v10.json`; the new active intent binds the exact v11 Decision content SHA-256 and command-plan SHA-256 with `source_pr: 93`, locked base `16526801...`, merge method `merge`, canonical four workflows, and expiry no later than `2026-08-09T23:59:59Z`; all required suites pass in both the primary worktree and a clean detached worktree; `git diff --check 16526801bda2a816fc707342f903c1ad037de9bd..HEAD` passes; exact-head CI (all required scoped gates), Decision Preflight, State Gate push, and State Gate pull_request all succeed; PR #93 remains Open, Draft, and unmerged; no new branch, Issue, PR, or audit version is created. Success is `PR93_SCOPED_GATES_GREEN_AWAITING_OWNER_MERGE`. Any drift, scope conflict, Gate block, required-suite failure, or new non-legacy failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
+The Platform V1 vertical slice is complete only when: the Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is 18/18 PASS with `blocking_reasons=[]` before implementation; Gate 1 compatibility probe passes (Agent Canvas v1.6.0 starts, Agent Server health and WebSocket/event path work, isolated workspace executes a harmless command, Codex ACP authenticates without committing credentials, one no-publication fixture conversation runs, restart preserves or safely reconciles state, no credential enters the repository); the thin adapter layer implements PlatformWorkItem, ExecutionBinding, ExecutionEvidence, PlatformAcceptanceResult, policy adapter, OpenHands event adapter, Git/GitHub evidence adapter, deterministic accepter, and machine-readable CLI; R2/R3, broad path, and empty path scope all fail closed; main push, mark-ready, merge, release, deployment, and secret access are rejected; the Agent's completion declaration cannot override Git or test failures; the same Work Item uses a deterministic execution ID, branch name, and PR marker; duplicate events do not create a second execution, branch, or Draft PR; live publication failure, policy rejection, and backend errors return stable error codes with non-zero exit; at most one bounded retry is allowed and the third attempt is rejected; `python -m pytest tests/platform_v1 -q` passes; `python -m pytest tests/test_supervisor_validate.py tests/test_mainline_landing.py tests/test_integration_baseline.py -q` passes; `git diff --check 705a0bfd6638d51c688752f154433020225c4e99..HEAD` passes; exact-head CI, Decision Preflight, and State Gate succeed; the PR remains Draft and unmerged. Success is `PLATFORM_V1_OPENHANDS_CODEX_VERTICAL_SLICE_ACCEPTED`. Any component incompatibility, credential exposure risk, idempotency failure, scope conflict, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` or `BLOCKED_COMPONENT_COMPATIBILITY` without retry or repair.
