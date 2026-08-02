@@ -31624,16 +31624,25 @@ def test_transition_packaging_and_workflow_boundary() -> None:
     for text in workflows.values():
         assert f"run: {contract['install_command']}" in text
     ci = workflows["ci.yml"]
-    assert "fetch-depth:" not in ci
+    assert "fetch-depth: 0" in ci
     assert [line.strip() for line in ci.splitlines() if line.strip().startswith("- name:")] == [
         "- name: Checkout",
         "- name: Set up Python",
         "- name: Install package",
         "- name: Import check",
         "- name: Focused tests",
-        "- name: Full test suite",
+        "- name: Supervisor and repository hygiene tests",
+        "- name: Codex skills sync tests",
+        "- name: Integration baseline, mainline landing and project audit tests",
+        "- name: Project gate and workflow contract tests",
+        "- name: Repository-wide diagnostic (legacy debt, nonblocking)",
     ]
     assert f"run: {contract['focused_test_command']}" in ci
+    assert "run: python -m pytest tests/test_supervisor_validate.py tests/test_repository_hygiene.py -q" in ci
+    assert "run: python -m pytest tests/test_codex_skills.py -q" in ci
+    assert "run: python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q" in ci
+    assert "run: python -m pytest tests/test_project_gate.py -q" in ci
+    assert "continue-on-error: true" in ci
     assert "run: python -m pytest -q" in ci
 
     legacy_commands = {

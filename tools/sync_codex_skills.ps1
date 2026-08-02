@@ -25,7 +25,7 @@ if (-not $DestinationRoot) {
 function Get-RepoRootForSource {
     param([string]$SourceRootPath)
 
-    $sourceItem = Get-Item -LiteralPath $SourceRootPath
+    $sourceItem = Get-Item -LiteralPath $SourceRootPath -Force
     if ($sourceItem.Name -eq ".codex-skills") {
         return $sourceItem.Parent.FullName
     }

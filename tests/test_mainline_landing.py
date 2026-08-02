@@ -568,6 +568,33 @@ def test_committed_pr67_archived_intent_preserves_exact_v5_authority() -> None:
     assert intent["expires_at"] == "2026-08-19T23:59:59Z"
 
 
+def test_committed_pr93_archived_intent_preserves_exact_v10_authority() -> None:
+    """The archived PR93 v10 intent must preserve its historical binding verbatim."""
+    intent = json.loads(
+        _committed_blob(
+            "project_state/mainline_merge_intents/archive/pr93_v10.json"
+        )
+    )
+    assert intent["intent_id"] == "mainline_merge_intent_pr93_v1"
+    assert intent["source_pr"] == 93
+    assert intent["locked_base_sha"] == "16526801bda2a816fc707342f903c1ad037de9bd"
+    assert (
+        intent["decision_identity"]["decision_id"]
+        == "decision_20260802_issue95_pr93_merge_readiness_closure_v10"
+    )
+    assert (
+        intent["decision_identity"]["decision_content_sha256"]
+        == "4e6f283feb6c0fabde64b7e5086be992acfb2c250b04f354d702007b9c56c954"
+    )
+    assert (
+        intent["command_plan_sha256"]
+        == "6e2cdebfd8e2bd900fad6ec0ad0ba6051bde1c91190d0eee83ecc25af8283a60"
+    )
+    assert intent["merge_tree_policy"] == "equal_to_accepted_head_tree"
+    assert intent["required_workflows"] == list(CANONICAL_WORKFLOW_POLICY)
+    assert intent["expires_at"] == "2026-08-09T23:59:59Z"
+
+
 def test_committed_active_intent_binds_exact_current_authority() -> None:
     """The active merge intent must bind the current Decision and command plan."""
     intent = json.loads(
