@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260802_issue101_platform_v1_scope_freeze_v1",
-  "round_id": "round_20260802_issue101_platform_v1_scope_freeze_v1",
+  "decision_id": "decision_20260802_issue100_platform_v1_authority_collector_v4",
+  "round_id": "round_20260802_issue100_platform_v1_authority_collector_v4",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -137,8 +137,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.workflow_runs",
-      "command": "gh run list --repo dddd2024/reverse-agent --commit <EXACT_HEAD> --json attempt,conclusion,databaseId,event,headBranch,headSha,name,status,workflowDatabaseId,workflowName",
+      "command_id": "observation.pr_checks",
+      "command": "gh pr checks 97 --repo dddd2024/reverse-agent --watch",
       "phase": "observation",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -160,8 +160,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.issue101_comment",
-      "command": "gh issue comment 101 --repo dddd2024/reverse-agent --body-file -",
+      "command_id": "publication.issue100_comment",
+      "command": "gh issue comment 100 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
