@@ -3,10 +3,10 @@
   "artifact_name": "startup_snapshot.json",
   "gate_name": "startup-snapshot",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260802_issue92_reporting_phrase_precedence_v7",
-  "round_id": "round_20260802_issue92_reporting_phrase_precedence_v7",
+  "decision_id": "decision_20260802_issue92_fresh_shadow_audit_v8",
+  "round_id": "round_20260802_issue92_fresh_shadow_audit_v8",
   "mainline": "engineering_branch",
-  "generated_at": "2026-08-02T00:43:58.444587Z",
+  "generated_at": "2026-08-02T01:06:53.396892Z",
   "artifact_path": "project_state/gates/startup_snapshot.json",
   "startup_sequence": [
     {
@@ -32,31 +32,17 @@
     {
       "command": "git status --short",
       "exit_code": 0,
-      "stdout_lines": [
-        " M docs/supervisor/audit-instructions.md",
-        " M scripts/supervisor_validate.py",
-        " M tests/test_supervisor_validate.py"
-      ]
+      "stdout_lines": []
     }
   ],
   "repository_root": "F:/reverse-agent",
   "expected_repository_root": "F:\\reverse-agent",
   "repository_root_matches": true,
-  "head_commit": "5b02dfe6da77",
-  "raw_git_status_short": [
-    " M docs/supervisor/audit-instructions.md",
-    " M scripts/supervisor_validate.py",
-    " M tests/test_supervisor_validate.py"
-  ],
-  "dirty_files": [
-    "docs/supervisor/audit-instructions.md",
-    "scripts/supervisor_validate.py",
-    "tests/test_supervisor_validate.py"
-  ],
+  "head_commit": "9a07e546004d",
+  "raw_git_status_short": [],
+  "dirty_files": [],
   "source_test_dirty_files": [],
-  "authorized_source_test_dirty_files": [
-    "tests/test_supervisor_validate.py"
-  ],
+  "authorized_source_test_dirty_files": [],
   "generated_state_dirty_files": [],
   "source_test_clean_start": true,
   "blocking_reasons": [],
