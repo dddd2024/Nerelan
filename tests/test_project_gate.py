@@ -31635,6 +31635,7 @@ def test_transition_packaging_and_workflow_boundary() -> None:
         "- name: Codex skills sync tests",
         "- name: Integration baseline, mainline landing and project audit tests",
         "- name: Project gate and workflow contract tests",
+        "- name: Platform V1 blocking gate",
         "- name: Repository-wide diagnostic (legacy debt, nonblocking)",
     ]
     assert f"run: {contract['focused_test_command']}" in ci
@@ -31642,6 +31643,8 @@ def test_transition_packaging_and_workflow_boundary() -> None:
     assert "run: python -m pytest tests/test_codex_skills.py -q" in ci
     assert "run: python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q" in ci
     assert "run: python -m pytest tests/test_project_gate.py -q" in ci
+    # F28: Platform V1 blocking gate must not use continue-on-error or fallbacks.
+    assert "run: python -m pytest tests/platform_v1 -q" in ci
     assert "continue-on-error: true" in ci
     assert "run: python -m pytest -q" in ci
 
