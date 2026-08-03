@@ -6,6 +6,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +17,9 @@ import pytest
 from reverse_agent.github_remote_verifier import (
     GitHubEvidenceError,
     GitHubRemoteAcceptanceVerifier,
+    StateGateReceiptValidationError,
+    compute_state_gate_receipt_digest,
+    validate_state_gate_receipt_payload,
 )
 from reverse_agent.mainline_landing import (
     CANONICAL_WORKFLOW_POLICY,
@@ -1207,7 +1211,8 @@ def test_state_gate_receipt_rejects_missing_receipt_field() -> None:
         expected_pr_number=106,
     )
     assert result["verified"] is False
-    assert "receipt_field_mismatch" in result["reason"]
+    assert "receipt_mismatch" in result["reason"]
+    assert "missing_fields" in result["reason"]
 
 
 def test_state_gate_receipt_rejects_extra_receipt_field() -> None:
@@ -1225,7 +1230,8 @@ def test_state_gate_receipt_rejects_extra_receipt_field() -> None:
         expected_pr_number=106,
     )
     assert result["verified"] is False
-    assert "receipt_field_mismatch" in result["reason"]
+    assert "receipt_mismatch" in result["reason"]
+    assert "extra_fields" in result["reason"]
 
 
 def test_state_gate_receipt_rejects_wrong_candidate_head() -> None:
@@ -1379,3 +1385,344 @@ def test_compute_receipt_digest_excludes_content_sha256() -> None:
     del receipt["content_sha256"]
     recomputed = GitHubRemoteAcceptanceVerifier._compute_receipt_digest(receipt)
     assert recomputed == digest
+
+
+# ---------------------------------------------------------------------------
+# Shared payload validator behavior tests (v7)
+#
+# These tests exercise the single shared ``validate_state_gate_receipt_payload``
+# function directly — the SAME function used by BOTH:
+#   - the workflow-facing CLI (``project_gate verify-state-gate-receipt``)
+#   - ``GitHubRemoteAcceptanceVerifier.verify_state_gate_receipt()``
+#
+# No simulated workflow logic is duplicated here.  The positive test proves
+# the same exact receipt passes both the CLI and the remote verifier path.
+# ---------------------------------------------------------------------------
+
+_V7_REPO = "dddd2024/reverse-agent"
+_V7_PR = 106
+_V7_WORKFLOW = ".github/workflows/state-gate.yml"
+_V7_EVENT = "pull_request_target"
+_V7_RUN_ID = 123456
+_V7_RUN_ATTEMPT = 1
+_V7_TRUSTED_BASE = "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+_V7_CAND_BASE = "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+_V7_CAND_HEAD = "063438a295bd61d03f75432b94af7c5929e44be4"
+_V7_DIGEST = "a" * 64
+
+
+def _v7_receipt() -> dict[str, Any]:
+    receipt: dict[str, Any] = {
+        "schema_version": "0.1",
+        "receipt_kind": "state_gate",
+        "repository": _V7_REPO,
+        "pr_number": _V7_PR,
+        "workflow_path": _V7_WORKFLOW,
+        "workflow_event": _V7_EVENT,
+        "workflow_run_id": _V7_RUN_ID,
+        "workflow_run_attempt": _V7_RUN_ATTEMPT,
+        "trusted_base_sha": _V7_TRUSTED_BASE,
+        "trusted_verifier_tree_sha": _V7_TRUSTED_BASE,
+        "candidate_head_sha": _V7_CAND_HEAD,
+        "candidate_base_sha": _V7_CAND_BASE,
+        "changed_paths_sha256": _V7_DIGEST,
+        "selected_mode": "transition",
+        "authority_identity": "trusted_base_verifier",
+        "authority_revision": _V7_TRUSTED_BASE,
+        "authority_result": "SUCCESS",
+        "candidate_tests_result": "SUCCESS",
+        "final_gate_result": "PASS",
+        "generated_at": "2026-08-03T12:00:00+00:00",
+    }
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    return receipt
+
+
+def _v7_expected() -> dict[str, Any]:
+    return {
+        "expected_repository": _V7_REPO,
+        "expected_pr_number": _V7_PR,
+        "expected_workflow_path": _V7_WORKFLOW,
+        "expected_workflow_event": _V7_EVENT,
+        "expected_run_id": _V7_RUN_ID,
+        "expected_run_attempt": _V7_RUN_ATTEMPT,
+        "expected_trusted_base_sha": _V7_TRUSTED_BASE,
+        "expected_candidate_base_sha": _V7_CAND_BASE,
+        "expected_candidate_head_sha": _V7_CAND_HEAD,
+        "expected_changed_paths_sha256": _V7_DIGEST,
+    }
+
+
+def _v7_assert_error(receipt: dict[str, Any], **overrides: Any) -> None:
+    kwargs = _v7_expected()
+    kwargs.update(overrides)
+    with pytest.raises(StateGateReceiptValidationError):
+        validate_state_gate_receipt_payload(receipt, **kwargs)
+
+
+def test_v7_shared_validator_accepts_valid_receipt() -> None:
+    validate_state_gate_receipt_payload(_v7_receipt(), **_v7_expected())
+
+
+def test_v7_rejects_wrong_repository() -> None:
+    receipt = _v7_receipt()
+    receipt["repository"] = "other/repo"
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_wrong_pr_number() -> None:
+    receipt = _v7_receipt()
+    receipt["pr_number"] = 999
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_wrong_workflow_path() -> None:
+    receipt = _v7_receipt()
+    receipt["workflow_path"] = ".github/workflows/ci.yml"
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_workflow_path_with_owner_repo_prefix() -> None:
+    receipt = _v7_receipt()
+    receipt["workflow_path"] = f"{_V7_REPO}/{_V7_WORKFLOW}"
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_wrong_workflow_event() -> None:
+    receipt = _v7_receipt()
+    receipt["workflow_event"] = "push"
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_wrong_run_id() -> None:
+    receipt = _v7_receipt()
+    receipt["workflow_run_id"] = 999999
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_wrong_run_attempt() -> None:
+    receipt = _v7_receipt()
+    receipt["workflow_run_attempt"] = 2
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_wrong_trusted_base_sha() -> None:
+    receipt = _v7_receipt()
+    receipt["trusted_base_sha"] = "b" * 40
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_wrong_candidate_base_sha() -> None:
+    receipt = _v7_receipt()
+    receipt["candidate_base_sha"] = "c" * 40
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_wrong_candidate_head_sha() -> None:
+    receipt = _v7_receipt()
+    receipt["candidate_head_sha"] = "d" * 40
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_wrong_changed_paths_digest() -> None:
+    receipt = _v7_receipt()
+    receipt["changed_paths_sha256"] = "b" * 64
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_wrong_authority_revision() -> None:
+    receipt = _v7_receipt()
+    receipt["authority_revision"] = "e" * 40
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_wrong_trusted_verifier_tree_sha() -> None:
+    receipt = _v7_receipt()
+    receipt["trusted_verifier_tree_sha"] = "f" * 40
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_wrong_but_formatted_content_sha256() -> None:
+    receipt = _v7_receipt()
+    receipt["content_sha256"] = "0" * 64
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_missing_field() -> None:
+    receipt = _v7_receipt()
+    del receipt["generated_at"]
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_extra_field() -> None:
+    receipt = _v7_receipt()
+    receipt["unexpected_extra"] = "value"
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_wrong_schema_version() -> None:
+    receipt = _v7_receipt()
+    receipt["schema_version"] = "0.2"
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_wrong_receipt_kind() -> None:
+    receipt = _v7_receipt()
+    receipt["receipt_kind"] = "other_kind"
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_blocked_final_gate_result() -> None:
+    receipt = _v7_receipt()
+    receipt["final_gate_result"] = "BLOCKED"
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_rejects_unsupported_selected_mode() -> None:
+    receipt = _v7_receipt()
+    receipt["selected_mode"] = "unsupported_mode"
+    receipt["content_sha256"] = compute_state_gate_receipt_digest(receipt)
+    _v7_assert_error(receipt)
+
+
+def test_v7_same_receipt_passes_cli_and_remote_verifier_payload_path(
+    tmp_path: Path,
+) -> None:
+    """Prove the same exact receipt passes BOTH:
+
+    1. The workflow-facing CLI (``verify-state-gate-receipt``)
+    2. The remote verifier's shared payload validation path
+
+    Both call paths use the SAME ``validate_state_gate_receipt_payload``
+    function.  No simulated workflow logic is used.
+    """
+
+    receipt = _v7_receipt()
+    trusted_route: dict[str, Any] = {
+        "schema_version": 1,
+        "repository": _V7_REPO,
+        "base_sha": _V7_CAND_BASE,
+        "head_sha": _V7_CAND_HEAD,
+        "merge_base_sha": _V7_CAND_BASE,
+        "trusted_checkout_sha": _V7_TRUSTED_BASE,
+        "changed_paths": ["docs/example.md"],
+        "changed_paths_sha256": _V7_DIGEST,
+    }
+    event: dict[str, Any] = {
+        "name": "pull_request_target",
+        "number": _V7_PR,
+        "repository": {"full_name": _V7_REPO},
+        "pull_request": {
+            "number": _V7_PR,
+            "head": {"ref": "agent/test", "sha": _V7_CAND_HEAD},
+            "base": {"ref": "main", "sha": _V7_CAND_BASE},
+        },
+    }
+
+    receipt_path = tmp_path / "state_gate_receipt.json"
+    route_path = tmp_path / "trusted_route.json"
+    event_path = tmp_path / "event.json"
+    receipt_path.write_text(
+        json.dumps(receipt, indent=2) + "\n", encoding="utf-8"
+    )
+    route_path.write_text(
+        json.dumps(trusted_route, indent=2) + "\n", encoding="utf-8"
+    )
+    event_path.write_text(
+        json.dumps(event, indent=2) + "\n", encoding="utf-8"
+    )
+
+    # --- 1. CLI path ---
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "reverse_agent.project_gate",
+            "verify-state-gate-receipt",
+            "--receipt-path",
+            str(receipt_path),
+            "--trusted-route-path",
+            str(route_path),
+            "--event-path",
+            str(event_path),
+            "--repository",
+            _V7_REPO,
+            "--run-id",
+            str(_V7_RUN_ID),
+            "--run-attempt",
+            str(_V7_RUN_ATTEMPT),
+            "--workflow-path",
+            _V7_WORKFLOW,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (
+        f"CLI failed:\nstdout={result.stdout}\nstderr={result.stderr}"
+    )
+    assert json.loads(result.stdout)["gate_status"] == "PASS"
+
+    # --- 2. Remote verifier shared payload validation path ---
+    verifier = GitHubRemoteAcceptanceVerifier(
+        repository=_V7_REPO,
+        token="test",
+    )
+    run_payload: dict[str, Any] = {
+        "repository": {"full_name": _V7_REPO},
+        "path": _V7_WORKFLOW,
+        "event": _V7_EVENT,
+        "id": _V7_RUN_ID,
+        "run_attempt": _V7_RUN_ATTEMPT,
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": _V7_TRUSTED_BASE,
+    }
+    artifacts_payload: list[dict[str, Any]] = [
+        {
+            "id": 789,
+            "name": f"state-gate-receipt-pr{_V7_PR}-{_V7_CAND_HEAD}",
+        }
+    ]
+
+    def mock_request(path: str) -> Any:
+        if path.startswith(f"/repos/{_V7_REPO}/actions/runs/"):
+            if path.endswith("/artifacts?per_page=100"):
+                return {"artifacts": artifacts_payload}
+            return run_payload
+        raise RuntimeError(f"unexpected_path:{path}")
+
+    verifier._request_json = mock_request  # type: ignore[method-assign]
+    verifier._download_artifact_json = lambda _aid: receipt  # type: ignore[method-assign]
+
+    remote_result = verifier.verify_state_gate_receipt(
+        run_id=_V7_RUN_ID,
+        expected_repository=_V7_REPO,
+        expected_workflow_path=_V7_WORKFLOW,
+        expected_event=_V7_EVENT,
+        expected_run_attempt=_V7_RUN_ATTEMPT,
+        trusted_base_sha=_V7_TRUSTED_BASE,
+        accepted_candidate_head=_V7_CAND_HEAD,
+        locked_base_sha=_V7_CAND_BASE,
+        expected_pr_number=_V7_PR,
+        expected_changed_paths_sha256=_V7_DIGEST,
+    )
+    assert remote_result["verified"] is True, (
+        f"Remote verifier rejected: {remote_result.get('reason')}"
+    )

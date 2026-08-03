@@ -56,7 +56,13 @@ from .architecture.report_truth import (
     RemoteObservation,
     ReportTruth,
 )
-from .github_remote_verifier import GitHubEvidenceError, GitHubRemoteAcceptanceVerifier
+from .github_remote_verifier import (
+    GitHubEvidenceError,
+    GitHubRemoteAcceptanceVerifier,
+    StateGateReceiptValidationError,
+    compute_state_gate_receipt_digest,
+    validate_state_gate_receipt_payload,
+)
 from .mainline_landing import (
     emit_mainline_integration_receipt,
     integration_baseline,
@@ -36834,6 +36840,119 @@ def _run_trusted_pr_route(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_verify_state_gate_receipt(args: argparse.Namespace) -> int:
+    """Validate a State Gate receipt payload against expected bindings.
+
+    This is the workflow-facing CLI helper.  It performs NO network access.
+    It reads the receipt JSON, trusted_route.json, and the GitHub event JSON
+    from local files, derives the expected bindings, and delegates to the
+    shared ``validate_state_gate_receipt_payload`` function — the SAME
+    function used by ``GitHubRemoteAcceptanceVerifier.verify_state_gate_receipt``.
+
+    Fails closed (non-zero exit) on any missing, extra, or mismatched field.
+    """
+
+    expected_workflow_event = "pull_request_target"
+    try:
+        receipt = json.loads(Path(args.receipt_path).read_text(encoding="utf-8"))
+        if not isinstance(receipt, dict):
+            raise ValueError("receipt_json_must_be_object")
+        trusted_route = json.loads(
+            Path(args.trusted_route_path).read_text(encoding="utf-8")
+        )
+        if not isinstance(trusted_route, dict):
+            raise ValueError("trusted_route_json_must_be_object")
+        event = json.loads(Path(args.event_path).read_text(encoding="utf-8"))
+        if not isinstance(event, dict):
+            raise ValueError("event_json_must_be_object")
+
+        expected_repository = str(args.repository or "").strip()
+        if not expected_repository:
+            raise ValueError("repository_must_be_non_empty")
+
+        pr_object = event.get("pull_request") or {}
+        expected_pr_number = int(pr_object.get("number") or 0)
+        if expected_pr_number <= 0:
+            raise ValueError("event_missing_pull_request_number")
+        expected_candidate_base_sha = str(
+            (pr_object.get("base") or {}).get("sha") or ""
+        ).lower()
+        expected_candidate_head_sha = str(
+            (pr_object.get("head") or {}).get("sha") or ""
+        ).lower()
+        if not expected_candidate_base_sha or not expected_candidate_head_sha:
+            raise ValueError("event_missing_base_or_head_sha")
+
+        expected_trusted_base_sha = str(
+            trusted_route.get("trusted_checkout_sha") or ""
+        ).lower()
+        expected_changed_paths_sha256 = str(
+            trusted_route.get("changed_paths_sha256") or ""
+        ).lower()
+        if not expected_trusted_base_sha or not expected_changed_paths_sha256:
+            raise ValueError("trusted_route_missing_required_sha")
+
+        expected_workflow_path = str(args.workflow_path or "").strip()
+        if not expected_workflow_path:
+            raise ValueError("workflow_path_must_be_non_empty")
+
+        validate_state_gate_receipt_payload(
+            receipt,
+            expected_repository=expected_repository,
+            expected_pr_number=expected_pr_number,
+            expected_workflow_path=expected_workflow_path,
+            expected_workflow_event=expected_workflow_event,
+            expected_run_id=int(args.run_id),
+            expected_run_attempt=int(args.run_attempt),
+            expected_trusted_base_sha=expected_trusted_base_sha,
+            expected_candidate_base_sha=expected_candidate_base_sha,
+            expected_candidate_head_sha=expected_candidate_head_sha,
+            expected_changed_paths_sha256=expected_changed_paths_sha256,
+        )
+    except StateGateReceiptValidationError as exc:
+        print(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "gate_name": "verify-state-gate-receipt",
+                    "gate_status": "BLOCKED",
+                    "errors": exc.errors,
+                },
+                ensure_ascii=True,
+                indent=2,
+            ),
+            file=sys.stderr,
+        )
+        return 1
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "gate_name": "verify-state-gate-receipt",
+                    "gate_status": "BLOCKED",
+                    "error": str(exc),
+                },
+                ensure_ascii=True,
+                indent=2,
+            ),
+            file=sys.stderr,
+        )
+        return 2
+    print(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "gate_name": "verify-state-gate-receipt",
+                "gate_status": "PASS",
+            },
+            ensure_ascii=True,
+            indent=2,
+        )
+    )
+    return 0
+
+
 def _run_path_a_r1_gate(args: argparse.Namespace) -> int:
     """Run the Path-A R1 authority gate using locally-provided GitHub state.
 
@@ -37315,6 +37434,48 @@ def main(argv: list[str] | None = None) -> int:
         help="Expected repository full_name (e.g. dddd2024/reverse-agent).",
     )
 
+    verify_receipt_parser = subparsers.add_parser(
+        "verify-state-gate-receipt",
+        help="Validate a State Gate receipt payload against expected bindings.",
+    )
+    verify_receipt_parser.add_argument(
+        "--receipt-path",
+        required=True,
+        help="Path to state_gate_receipt.json.",
+    )
+    verify_receipt_parser.add_argument(
+        "--trusted-route-path",
+        required=True,
+        help="Path to trusted_route.json.",
+    )
+    verify_receipt_parser.add_argument(
+        "--event-path",
+        required=True,
+        help="Path to the GitHub event JSON (pull_request_target).",
+    )
+    verify_receipt_parser.add_argument(
+        "--repository",
+        required=True,
+        help="Expected repository full_name (e.g. dddd2024/reverse-agent).",
+    )
+    verify_receipt_parser.add_argument(
+        "--run-id",
+        type=int,
+        required=True,
+        help="GitHub run ID.",
+    )
+    verify_receipt_parser.add_argument(
+        "--run-attempt",
+        type=int,
+        default=1,
+        help="GitHub run attempt.",
+    )
+    verify_receipt_parser.add_argument(
+        "--workflow-path",
+        required=True,
+        help="Canonical workflow path (e.g. .github/workflows/state-gate.yml).",
+    )
+
     args = parser.parse_args(argv)
     if args.command == "control-plane-mode":
         # When --event-path, --output, and --repository are ALL supplied,
@@ -37344,6 +37505,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "trusted-pr-route":
         return _run_trusted_pr_route(args)
+    if args.command == "verify-state-gate-receipt":
+        return _run_verify_state_gate_receipt(args)
     if args.command == "path-a-r1-gate":
         return _run_path_a_r1_gate(args)
     if args.command == "transition-lint":

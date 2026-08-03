@@ -471,9 +471,10 @@ jobs:
           event_name = os.environ['GITHUB_EVENT_NAME']
           run_id = os.environ['GITHUB_RUN_ID']
           run_attempt = os.environ.get('GITHUB_RUN_ATTEMPT', '1')
-          workflow_path = os.environ.get('GITHUB_WORKFLOW_REF', '.github/workflows/state-gate.yml')
-          # Extract just the workflow path portion
-          workflow_path = workflow_path.split('@')[0] if '@' in workflow_path else workflow_path
+          # Use the fixed canonical workflow path.  Do NOT use
+          # GITHUB_WORKFLOW_REF.split('@')[0] because that variable includes
+          # the owner/repository prefix (e.g. dddd2024/reverse-agent/.github/...).
+          workflow_path = '.github/workflows/state-gate.yml'
 
           event = json.load(open(os.environ['GITHUB_EVENT_PATH']))
           pr = event.get('pull_request', {})
@@ -574,70 +575,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -c "
-          import json, os, sys
-
-          receipt_path = os.path.join(os.environ['RUNNER_TEMP'], 'state_gate_receipt.json')
-          if not os.path.exists(receipt_path):
-              print('ERROR: receipt file missing', file=sys.stderr)
-              sys.exit(1)
-
-          with open(receipt_path) as f:
-              receipt = json.load(f)
-
-          if not isinstance(receipt, dict):
-              print('ERROR: receipt not a JSON object', file=sys.stderr)
-              sys.exit(1)
-
-          final_gate_result = receipt.get('final_gate_result', '')
-          selected_mode = receipt.get('selected_mode', '')
-          authority_result = receipt.get('authority_result', '')
-          candidate_tests_result = receipt.get('candidate_tests_result', '')
-          trusted_verifier_tree = receipt.get('trusted_verifier_tree_sha', '')
-          trusted_base = receipt.get('trusted_base_sha', '')
-          changed_paths_sha = receipt.get('changed_paths_sha256', '')
-          authority_revision = receipt.get('authority_revision', '')
-          content_sha = receipt.get('content_sha256', '')
-
-          errors = []
-
-          # final_gate_result must be PASS
-          if final_gate_result != 'PASS':
-              errors.append(f'final_gate_result={final_gate_result} (expected PASS)')
-
-          # selected_mode must be supported
-          if selected_mode not in {'transition', 'path_a_r1', 'legacy'}:
-              errors.append(f'unsupported selected_mode={selected_mode!r}')
-
-          # authority_result must be SUCCESS
-          if authority_result != 'SUCCESS':
-              errors.append(f'authority_result={authority_result} (expected SUCCESS)')
-
-          # candidate_tests_result must be SUCCESS
-          if candidate_tests_result != 'SUCCESS':
-              errors.append(f'candidate_tests_result={candidate_tests_result} (expected SUCCESS)')
-
-          # trusted verifier tree must equal trusted base
-          if trusted_verifier_tree != trusted_base:
-              errors.append(f'trusted_verifier_tree_sha={trusted_verifier_tree} != trusted_base_sha={trusted_base}')
-
-          # changed_paths_sha256 must be lowercase SHA-256
-          import re
-          if not re.fullmatch(r'[0-9a-f]{64}', str(changed_paths_sha)):
-              errors.append(f'changed_paths_sha256 format invalid: {changed_paths_sha!r}')
-
-          # authority_revision must be nonempty
-          if not str(authority_revision).strip():
-              errors.append('authority_revision empty')
-
-          # content_sha256 must be lowercase SHA-256
-          if not re.fullmatch(r'[0-9a-f]{64}', str(content_sha)):
-              errors.append(f'content_sha256 format invalid: {content_sha!r}')
-
-          if errors:
-              for e in errors:
-                  print(f'RECEIPT_GATE_FAILURE: {e}', file=sys.stderr)
-              sys.exit(1)
-
-          print('RECEIPT_GATE_PASS: all checks passed')
-          "
+          # Delegate to the shared receipt payload validator via the
+          # workflow-facing CLI.  This is the SAME validator used by
+          # GitHubRemoteAcceptanceVerifier.verify_state_gate_receipt().
+          # No inline weakened verifier is maintained here.
+          python -m reverse_agent.project_gate verify-state-gate-receipt \
+            --receipt-path "$RUNNER_TEMP/state_gate_receipt.json" \
+            --trusted-route-path "$RUNNER_TEMP/authority-evidence/trusted_route.json" \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --repository "$GITHUB_REPOSITORY" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "${GITHUB_RUN_ATTEMPT:-1}" \
+            --workflow-path ".github/workflows/state-gate.yml"
