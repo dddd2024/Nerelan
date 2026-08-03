@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v7",
-  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v7",
+  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v8",
+  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v8",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,10 +16,10 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v6",
-  "follows_last_round_id": "round_20260803_restore_path_a_state_gate_current_main_v6",
-  "previous_audit_outcome": "PR106_V6_REJECTED_RECEIPT_BINDINGS_AND_WORKFLOW_PATH",
-  "workstream_id": "issue105-restore-path-a-state-gate-current-main-v7",
+  "follows_last_decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v7",
+  "follows_last_round_id": "round_20260803_restore_path_a_state_gate_current_main_v7",
+  "previous_audit_outcome": "PR106_V7_REJECTED_MAINLINE_ACCEPTANCE_TOPOLOGY",
+  "workstream_id": "issue105-restore-path-a-state-gate-current-main-v8",
   "source_issue": 105,
   "parent_issue": 90,
   "bootstrap_issue": 107,
@@ -28,7 +28,7 @@
   "active_pr": 106,
   "historical_reference_pr": 49,
   "required_branch": "agent/restore-path-a-state-gate-current-main-v1",
-  "starting_head": "56ae7eb0248bd199b813d66fa6b40f6d51dc61dc",
+  "starting_head": "797b3a79d5a1eee5fa69987b6c6a1dc90ae9435f",
   "activation_base_sha": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -261,11 +261,15 @@
     "project_state/mainline_merge_intents/archive/pr106_v4.json",
     "project_state/mainline_merge_intents/archive/pr106_v5.json",
     "project_state/mainline_merge_intents/archive/pr106_v6.json",
+    "project_state/mainline_merge_intents/archive/pr106_v7.json",
     ".github/workflows/state-gate.yml",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/path_a.py",
     "reverse_agent/project_gate.py",
     "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/platform_v1/authority_adapter.py",
+    "reverse_agent/platform_v1/github_adapter.py",
     "tests/test_path_a_gate.py",
     "tests/test_mainline_landing.py",
     "tests/platform_v1/test_merge_intent.py",
@@ -313,10 +317,7 @@
     "reverse_agent/platform_v1/acceptance.py",
     "reverse_agent/platform_v1/policy_adapter.py",
     "reverse_agent/platform_v1/openhands_adapter.py",
-    "reverse_agent/platform_v1/github_adapter.py",
-    "reverse_agent/platform_v1/authority_adapter.py",
     "reverse_agent/platform_v1/evidence_adapter.py",
-    "reverse_agent/mainline_landing.py",
     "reverse_agent/adapters/**",
     "reverse_agent/architecture/**",
     "reverse_agent/control_plane/transition.py",
@@ -468,7 +469,15 @@
     "write workflow_path with the owner/repository prefix from GITHUB_WORKFLOW_REF",
     "validate receipt changed_paths_sha256 as format-only instead of exact equality with trusted_route.json digest",
     "validate receipt content_sha256 as format-only instead of canonical recomputation",
-    "skip exact repository/PR/run-id/run-attempt/base/head bindings in the receipt validator"
+    "skip exact repository/PR/run-id/run-attempt/base/head bindings in the receipt validator",
+    "require State Gate push as a pre-merge attestation observation",
+    "treat pull_request_target run head_sha as the candidate head SHA in mainline attestation",
+    "use a single head_sha field to represent both trusted run head and candidate head in State Gate target observation",
+    "make expected_changed_paths_sha256 optional in production verify_state_gate_receipt calls",
+    "fall back to receipt changed_paths_sha256 when expected_changed_paths_sha256 is omitted",
+    "call verify_workflow_run instead of verify_state_gate_receipt for State Gate pull_request_target in mainline attestation",
+    "rewrite or weaken historical four-workflow archive policy records",
+    "claim trusted-target State Gate has passed before Issue #107 bootstrap executes"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -501,11 +510,15 @@
     "project_state/mainline_merge_intents/archive/pr106_v4.json",
     "project_state/mainline_merge_intents/archive/pr106_v5.json",
     "project_state/mainline_merge_intents/archive/pr106_v6.json",
+    "project_state/mainline_merge_intents/archive/pr106_v7.json",
     ".github/workflows/state-gate.yml",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/path_a.py",
     "reverse_agent/project_gate.py",
     "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/platform_v1/authority_adapter.py",
+    "reverse_agent/platform_v1/github_adapter.py",
     "tests/test_path_a_gate.py",
     "tests/test_mainline_landing.py",
     "tests/platform_v1/test_merge_intent.py",
@@ -590,8 +603,8 @@
 
 ## Goal
 
-Repair three v6 audit findings on the existing branch `agent/restore-path-a-state-gate-current-main-v1` continuing on Draft PR #106, starting from exact head `56ae7eb0248bd199b813d66fa6b40f6d51dc61dc`. The v6 attempt was rejected because: (F1) the workflow's blocking receipt check validates shapes, not the claimed authority bindings — it only checks `final_gate_result`, supported mode, SUCCESS tokens, verifier-tree equals the receipt's own trusted-base field, SHA-256 string formats, and nonempty authority revision, but does not validate the receipt against independent expected values from the event, environment and trusted route observation; (F2) the receipt `workflow_path` is generated incorrectly — `GITHUB_WORKFLOW_REF.split('@')[0]` retains the `owner/repository/` prefix, writing `dddd2024/reverse-agent/.github/workflows/state-gate.yml` instead of the canonical `.github/workflows/state-gate.yml`; (F3) the existing stronger `GitHubRemoteAcceptanceVerifier.verify_state_gate_receipt()` is not reused and the workflow maintains a divergent handwritten inline validator. The v7 rework must: (1) create one repository-owned deterministic network-free shared receipt payload validator that enforces the exact field set, `schema_version == 0.1`, `receipt_kind == state_gate`, repository, PR number, canonical workflow path, workflow event, run ID/attempt, trusted base, authority revision == trusted base, trusted verifier tree == trusted base, candidate base/head, changed-path digest equality with trusted_route.json, supported selected mode, `authority_identity == trusted_base_verifier`, `authority_result == SUCCESS`, `candidate_tests_result == SUCCESS`, `final_gate_result == PASS`, and `content_sha256 == canonical recomputation`; (2) reuse the shared validator from both the workflow-facing CLI/helper and `GitHubRemoteAcceptanceVerifier.verify_state_gate_receipt()`, deleting the duplicated inline workflow validator; (3) write the receipt `workflow_path` as exactly `.github/workflows/state-gate.yml`, not the `GITHUB_WORKFLOW_REF` value with the owner/repository prefix; (4) have the workflow call the repository-owned CLI/helper passing the receipt, `trusted_route.json`, `GITHUB_EVENT_PATH`, `GITHUB_REPOSITORY`, `GITHUB_RUN_ID`, `GITHUB_RUN_ATTEMPT`, and canonical workflow path, exiting nonzero on validation failure while preserving artifact upload with `if: always()` for failed evidence; (5) add behavior tests proving failure for every wrong binding and for a format-valid but incorrect content digest, plus one positive shared-validator test that proves the same exact receipt passes both the workflow-facing validator and the remote verifier's shared payload path. Archive the v6 `active.json` verbatim as `archive/pr106_v6.json` with identical SHA-256 before binding the new v7 active intent. Preserve all historical intent archives (pr97_v1, pr97_v2, pr97_v3, pr97_v4, pr106_v2, pr106_v3, pr106_v4, pr106_v5, pr106_v6). Do not modify `ci.yml`, `decision-preflight.yml`, `reverse_agent/mainline_landing.py`, `reverse_agent/platform_v1/**`, or any read-only regression test. Do not run Issue #102, Issue #107 bootstrap, Docker, OpenHands, or Codex ACP. Push only to the existing branch, update only PR #106, publish desensitized evidence, and stop at `PR106_V7_RECEIPT_BINDINGS_READY_FOR_OWNER_BOOTSTRAP_AUDIT`.
+Repair four v7 audit findings on the existing branch `agent/restore-path-a-state-gate-current-main-v1` continuing on Draft PR #106, starting from exact head `797b3a79d5a1eee5fa69987b6c6a1dc90ae9435f`. The v7 attempt was rejected because: (F1) `reverse_agent/mainline_landing.py::_validate_attestation()` still loops over every canonical workflow and calls only `verifier.verify_workflow_run(...)`, never calling `verifier.verify_state_gate_receipt(...)` for `State Gate (pull_request_target)`, and the local binding requires every observation's `head_sha` to equal the accepted candidate head — incorrect for `pull_request_target` where the workflow run head is the trusted base context while the candidate head is bound inside the receipt artifact; (F2) the active Intent requires `State Gate (push)` as a pre-merge attestation prerequisite, but `push` only triggers on `main` after merge, creating a circular merge dependency; (F3) `GitHubRemoteAcceptanceVerifier.verify_state_gate_receipt()` accepts `expected_changed_paths_sha256: str = ""` and falls back to the receipt's own digest when omitted, which is self-consistency rather than independent binding; (F4) the mainline tests encode the wrong event topology, assigning the accepted candidate head to every workflow observation including `pull_request_target` and `push`, and `FakeVerifier` exposes only generic `verify_workflow_run()` behavior, so the tests cannot detect F1 or F2. The v8 rework must: (1) define an explicit pre-merge evidence policy containing only `CI`, `Decision Preflight` and `State Gate (pull_request_target)`, keeping `State Gate (push)` as the post-merge integration enforcement workflow that must not be required inside the pre-merge human attestation or active Merge Intent, while preserving immutable historical four-workflow policies for archived Intents and historical recovery records; (2) model ordinary PR workflows (`CI`, `Decision Preflight`) with candidate-head semantics using `verify_workflow_run()` with `event == pull_request` and `workflow run head == accepted candidate head`; (3) extend the State Gate target observation schema to carry dual identity — `workflow run trusted head == locked base SHA`, `candidate head == accepted exact head SHA`, `candidate base == locked base SHA`, `changed-path SHA-256 == exact Owner-audited canonical digest` — and call `verify_state_gate_receipt()` instead of overloading a single `head_sha` field; (4) wire `verify_state_gate_receipt()` into `_validate_attestation()` for `State Gate (pull_request_target)`, passing exact repository, PR number, canonical workflow path, `pull_request_target` event, run ID/attempt, trusted base, candidate base/head and changed-path digest, failing closed on missing/duplicate/malformed receipt, wrong run base, wrong candidate head/base, wrong changed-path digest, wrong workflow event/path, wrong run ID/attempt, remote API failure or receipt payload validation failure; (5) make `expected_changed_paths_sha256` mandatory for production `verify_state_gate_receipt()` calls, removing the fallback that trusts the receipt's own digest; (6) replace the synthetic all-heads-equal test topology with real event semantics where `CI`/`Decision Preflight` run head equals candidate head, `State Gate target` run head equals trusted base, `State Gate receipt` candidate head equals candidate head, candidate base equals trusted base, changed-path digest equals attested exact digest, and no `State Gate push` observation exists in pre-merge attestation, with `FakeVerifier` exposing and recording `verify_state_gate_receipt()` calls so tests prove the production dispatch path, plus tests for wrong trusted base, wrong candidate head/base, wrong changed-path digest, missing/duplicate/malformed receipt, receipt verifier API failure, rejection of `State Gate push` added back to pre-merge policy, and historical four-workflow archive policy still validating. Archive the v7 `active.json` verbatim as `archive/pr106_v7.json` with identical SHA-256 before binding the new v8 active intent. Preserve all historical intent archives (pr97_v1, pr97_v2, pr97_v3, pr97_v4, pr106_v2, pr106_v3, pr106_v4, pr106_v5, pr106_v6, pr106_v7). Do not modify `ci.yml`, `decision-preflight.yml`, `reverse_agent/platform_v1/contracts.py`, `reverse_agent/platform_v1/acceptance.py`, `reverse_agent/platform_v1/policy_adapter.py`, or any read-only regression test. Do not run Issue #102, Issue #107 bootstrap, Docker, OpenHands, or Codex ACP. Push only to the existing branch, update only PR #106, publish desensitized evidence, and stop at `PR106_V8_MAINLINE_ACCEPTANCE_READY_FOR_OWNER_BOOTSTRAP_AUDIT`.
 
 ## Acceptance boundary
 
-The v7 receipt-binding rework is complete only when: the v7 Decision commit precedes any implementation; `PRE_EXECUTION_AUTHORIZED` is achieved with `blocking_reasons=[]` before implementation; the v6 `active.json` is archived verbatim as `archive/pr106_v6.json` with identical SHA-256; the new `active.json` binds `source_pr: 106`, `locked_base_sha: fa4f240f7dffff78cdb182ce8655c2e2d7cb241f`, the v7 Decision identity, exact v7 Decision blob SHA-256, exact v7 Command Plan blob SHA-256, `allowed_merge_method: merge`, the four canonical required workflows, and a bounded expiry; one shared network-free receipt payload validator exists and is called from both the workflow-facing CLI/helper and `GitHubRemoteAcceptanceVerifier.verify_state_gate_receipt()`; the workflow no longer contains a handwritten inline receipt validator; the receipt `workflow_path` is exactly `.github/workflows/state-gate.yml` with no owner/repository prefix; the shared validator enforces exact equality on every binding field including `changed_paths_sha256` against `trusted_route.json` and `content_sha256` against canonical recomputation; the workflow calls the repository-owned CLI/helper to validate the receipt and exits nonzero on failure; behavior tests cover every negative binding mismatch, format-valid-but-incorrect content digest, missing/extra fields, wrong schema/kind, BLOCKED result, unsupported mode, and one positive test proving the same receipt passes both surfaces; all required local test suites pass with zero failures; `transition-lint` passes; `transition-preflight` returns `PRE_EXECUTION_AUTHORIZED`; `git diff --check fa4f240f7dffff78cdb182ce8655c2e2d7cb241f..HEAD` passes; exact-head CI and Decision Preflight succeed; the PR remains Draft and unmerged. The terminal status is `PR106_V7_RECEIPT_BINDINGS_READY_FOR_OWNER_BOOTSTRAP_AUDIT`. Any scope conflict, credential exposure, idempotency failure, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
+The v8 mainline-acceptance topology repair is complete only when: the v8 Decision commit precedes any implementation; `PRE_EXECUTION_AUTHORIZED` is achieved with `blocking_reasons=[]` before implementation; the v7 `active.json` is archived verbatim as `archive/pr106_v7.json` with identical SHA-256; the new `active.json` binds `source_pr: 106`, `locked_base_sha: fa4f240f7dffff78cdb182ce8655c2e2d7cb241f`, the v8 Decision identity, exact v8 Decision blob SHA-256, exact v8 Command Plan blob SHA-256, `allowed_merge_method: merge`, the three pre-merge required workflows (`CI`, `Decision Preflight`, `State Gate (pull_request_target)`), and a bounded expiry; the pre-merge evidence policy is separated from post-merge enforcement, with `State Gate (push)` removed from the active Intent `required_workflows` and not required as a pre-merge attestation observation; `_validate_attestation()` uses `verify_workflow_run()` for `CI` and `Decision Preflight` with candidate-head semantics and `verify_state_gate_receipt()` for `State Gate (pull_request_target)` with trusted-base run semantics and exact candidate base/head, PR number and changed-path digest; the State Gate target observation schema carries explicit independent receipt bindings (trusted head, candidate head, candidate base, changed-path digest); `expected_changed_paths_sha256` is mandatory for production `verify_state_gate_receipt()` calls with no fallback to the receipt's own digest; behavior tests use the real topology (CI/DP candidate head, SG target trusted base, no push pre-merge) and prove the receipt verifier is called, with tests for wrong trusted base, wrong candidate head/base, wrong changed-path digest, missing/duplicate/malformed receipt, receipt verifier API failure, rejection of `State Gate push` as pre-merge observation, and historical four-workflow archive policy validation; all required local test suites pass with zero failures; `transition-lint` passes; `transition-preflight` returns `PRE_EXECUTION_AUTHORIZED`; `git diff --check fa4f240f7dffff78cdb182ce8655c2e2d7cb241f..HEAD` passes; exact-head CI and Decision Preflight succeed; the PR remains Draft and unmerged. The terminal status is `PR106_V8_MAINLINE_ACCEPTANCE_READY_FOR_OWNER_BOOTSTRAP_AUDIT`. Any scope conflict, credential exposure, idempotency failure, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
