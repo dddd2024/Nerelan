@@ -89,6 +89,11 @@ class TestWorkflowRun:
         run = _make_run("State Gate", "pull_request")
         assert run.composite_name == "State Gate (pull_request)"
 
+    def test_state_gate_pull_request_target_composite_name(self) -> None:
+        # v9: pull_request_target is distinct from pull_request
+        run = _make_run("State Gate", "pull_request_target")
+        assert run.composite_name == "State Gate (pull_request_target)"
+
     def test_ci_composite_name_is_ci(self) -> None:
         run = _make_run("CI", "pull_request")
         assert run.composite_name == "CI"
@@ -158,6 +163,11 @@ class TestCompositeName:
 
     def test_state_gate_pull_request(self) -> None:
         assert composite_name("State Gate", "pull_request") == "State Gate (pull_request)"
+
+    def test_state_gate_pull_request_target(self) -> None:
+        # v9: pull_request_target is the trusted-target event, distinct from
+        # pull_request and push.
+        assert composite_name("State Gate", "pull_request_target") == "State Gate (pull_request_target)"
 
     def test_unknown_workflow_falls_back_to_parenthesized_event(self) -> None:
         # Unknown (workflowName, event) pairs fall back to "Name (event)" form.

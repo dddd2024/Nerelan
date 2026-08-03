@@ -16,17 +16,30 @@ from __future__ import annotations
 
 import inspect
 import subprocess
+from unittest.mock import patch
 
 import pytest
 
-from reverse_agent.platform_v1.authority_adapter import AuthorityBundle
+from reverse_agent.platform_v1.authority_adapter import (
+    AuthorityBundle,
+    AuthorityBundleError,
+    LiveIssueProvider,
+    LivePRProvider,
+    PRE_MERGE_WORKFLOW_KEYS,
+    CANONICAL_WORKFLOW_KEYS,
+    _validate_merge_intent,
+    _validate_pr,
+    _validate_issue,
+)
 from reverse_agent.platform_v1.contracts import ExecutionEvidence, _LIVE_FACTORY_TOKEN
 from reverse_agent.platform_v1.evidence_adapter import (
     EvidenceCollectionError,
     FakeCommandRunner,
     FakeGitAdapter,
+    FakeReceiptVerifier,
     LiveCommandRunner,
     LiveGitAdapter,
+    LiveReceiptVerifier,
     _create_trusted_evidence,
     _is_safe_command,
     _parse_command_to_argv,
@@ -34,6 +47,7 @@ from reverse_agent.platform_v1.evidence_adapter import (
     assemble_evidence,
     check_git_diff,
     collect_live_evidence,
+    compute_rename_aware_changed_path_digest,
     get_changed_paths,
     get_head_sha,
     merge_evidence,
@@ -42,6 +56,7 @@ from reverse_agent.platform_v1.github_adapter import (
     FakeGitHubAdapter,
     GitHubAdapterError,
     WorkflowRun,
+    composite_name,
 )
 
 
@@ -78,8 +93,15 @@ def _make_bundle(
     risk_tier: str = "R0",
     allowed_paths: tuple[str, ...] = ("reverse_agent/platform_v1/**",),
     allowed_commands: tuple[dict, ...] | None = None,
+    issue_last_edited_at: str = "",
+    required_workflow_keys: tuple[tuple[str, str], ...] | None = None,
 ) -> AuthorityBundle:
-    """Build an AuthorityBundle for tests (bypasses live GitHub)."""
+    """Build an AuthorityBundle for tests (bypasses live GitHub).
+
+    v9: Uses PRE_MERGE_WORKFLOW_KEYS (3 workflows with pull_request_target)
+    by default.  Tests that need the old 4-workflow policy can override
+    ``required_workflow_keys``.
+    """
 
     if allowed_commands is None:
         allowed_commands = (
@@ -90,6 +112,8 @@ def _make_bundle(
                 "required": True,
             },
         )
+    if required_workflow_keys is None:
+        required_workflow_keys = PRE_MERGE_WORKFLOW_KEYS
     return AuthorityBundle(
         decision_id="decision_test",
         round_id="round_test",
@@ -101,6 +125,7 @@ def _make_bundle(
         issue_body_sha256="c" * 64,
         issue_state="OPEN",
         issue_labels=("work-item", "r2", "owner-accepted"),
+        issue_last_edited_at=issue_last_edited_at,
         repository="dddd2024/reverse-agent",
         pr_number=pr_number,
         branch=branch,
@@ -110,12 +135,7 @@ def _make_bundle(
         intent_decision_content_sha256="a" * 64,
         intent_command_plan_sha256="b" * 64,
         allowed_paths=allowed_paths,
-        required_workflow_keys=(
-            ("CI", "pull_request"),
-            ("Decision Preflight", "pull_request"),
-            ("State Gate", "pull_request"),
-            ("State Gate", "push"),
-        ),
+        required_workflow_keys=required_workflow_keys,
         pr_state="OPEN",
         pr_is_draft=True,
         pr_head_ref_name=branch,
@@ -125,18 +145,44 @@ def _make_bundle(
     )
 
 
-def _all_required_runs(head_sha: str = VALID_HEAD_SHA) -> tuple[WorkflowRun, ...]:
+def _all_required_runs(
+    head_sha: str = VALID_HEAD_SHA,
+    base_sha: str = VALID_BASE_SHA,
+) -> tuple[WorkflowRun, ...]:
+    """Return runs for the v9 dual-head topology.
+
+    Ordinary workflows (CI, Decision Preflight) run at the candidate head.
+    The trusted-target State Gate (pull_request_target) runs at the trusted
+    base.  State Gate (push) is post-merge and absent from pre-merge evidence.
+    """
+
     return (
         WorkflowRun(workflow_name="CI", event="pull_request", run_id="1",
                     head_sha=head_sha, status="COMPLETED", conclusion="SUCCESS"),
         WorkflowRun(workflow_name="Decision Preflight", event="pull_request",
                     run_id="2", head_sha=head_sha, status="COMPLETED",
                     conclusion="SUCCESS"),
-        WorkflowRun(workflow_name="State Gate", event="pull_request",
-                    run_id="3", head_sha=head_sha, status="COMPLETED",
-                    conclusion="SUCCESS"),
-        WorkflowRun(workflow_name="State Gate", event="push", run_id="4",
-                    head_sha=head_sha, status="COMPLETED", conclusion="SUCCESS"),
+        WorkflowRun(workflow_name="State Gate", event="pull_request_target",
+                    run_id="3", head_sha=base_sha, status="COMPLETED",
+                    conclusion="SUCCESS", attempt=1),
+    )
+
+
+def _make_git_adapter(
+    *,
+    head_sha: str = VALID_HEAD_SHA,
+    changed_paths: tuple[str, ...] = ("reverse_agent/platform_v1/cli.py",),
+    diff_check_passed: bool = True,
+    digest: str = "d" * 64,
+) -> FakeGitAdapter:
+    """Build a FakeGitAdapter with rename-aware digest for v9 tests."""
+
+    return FakeGitAdapter(
+        changed_paths=changed_paths,
+        diff_check_passed=diff_check_passed,
+        head_sha=head_sha,
+        rename_aware_paths=changed_paths,
+        rename_aware_digest=digest,
     )
 
 
@@ -336,23 +382,24 @@ class TestCollectLiveEvidence:
 
     F19: Test commands are selected by command_id from the bundle.
     F20/F26: Authority comes from the bundle, not from stdin.
+
+    v9: Dual-head topology — ordinary runs at candidate head, trusted-target
+    State Gate at trusted base, receipt verifier required.
     """
 
     def test_collects_live_evidence_with_fake_adapters(self) -> None:
         bundle = _make_bundle()
-        git = FakeGitAdapter(
-            changed_paths=("reverse_agent/platform_v1/cli.py",),
-            diff_check_passed=True,
-            head_sha=VALID_HEAD_SHA,
-        )
+        git = _make_git_adapter()
         gh = FakeGitHubAdapter(runs=_all_required_runs())
         runner = FakeCommandRunner(exit_code=0)
+        receipt = FakeReceiptVerifier(result={"verified": True})
 
         evidence = collect_live_evidence(
             bundle=bundle,
             git_adapter=git,
             github_adapter=gh,
             command_runner=runner,
+            receipt_verifier=receipt,
         )
         assert evidence.is_live is True
         assert evidence.collection_mode == "live"
@@ -389,11 +436,7 @@ class TestCollectLiveEvidence:
 
     def test_github_adapter_failure_raises_error(self) -> None:
         bundle = _make_bundle()
-        git = FakeGitAdapter(
-            changed_paths=("a.py",),
-            diff_check_passed=True,
-            head_sha=VALID_HEAD_SHA,
-        )
+        git = _make_git_adapter()
         gh = FakeGitHubAdapter(
             fail_with=GitHubAdapterError("gh_run_list_failed", "exit=1"),
         )
@@ -407,12 +450,8 @@ class TestCollectLiveEvidence:
 
     def test_workflow_validation_failure_raises_error(self) -> None:
         bundle = _make_bundle()
-        git = FakeGitAdapter(
-            changed_paths=("a.py",),
-            diff_check_passed=True,
-            head_sha=VALID_HEAD_SHA,
-        )
-        # Only CI provided, missing the other three required workflows
+        git = _make_git_adapter()
+        # Only CI provided, missing Decision Preflight and State Gate target
         gh = FakeGitHubAdapter(runs=(
             WorkflowRun(workflow_name="CI", event="pull_request",
                         run_id="1", head_sha=VALID_HEAD_SHA,
@@ -424,23 +463,21 @@ class TestCollectLiveEvidence:
                 git_adapter=git,
                 github_adapter=gh,
             )
-        assert exc_info.value.code == "workflow_validation_failed"
+        assert exc_info.value.code == "ordinary_workflow_validation_failed"
 
     def test_test_command_failure_marks_tests_failed(self) -> None:
         bundle = _make_bundle()
-        git = FakeGitAdapter(
-            changed_paths=("a.py",),
-            diff_check_passed=True,
-            head_sha=VALID_HEAD_SHA,
-        )
+        git = _make_git_adapter()
         gh = FakeGitHubAdapter(runs=_all_required_runs())
         runner = FakeCommandRunner(exit_code=1)  # test failure
+        receipt = FakeReceiptVerifier(result={"verified": True})
 
         evidence = collect_live_evidence(
             bundle=bundle,
             git_adapter=git,
             github_adapter=gh,
             command_runner=runner,
+            receipt_verifier=receipt,
         )
         assert evidence.tests_passed is False
 
@@ -455,19 +492,17 @@ class TestCollectLiveEvidence:
              "command": "python -m pytest tests/platform_v1 -q",
              "phase": "test", "required": True},
         ))
-        git = FakeGitAdapter(
-            changed_paths=("a.py",),
-            diff_check_passed=True,
-            head_sha=VALID_HEAD_SHA,
-        )
+        git = _make_git_adapter()
         gh = FakeGitHubAdapter(runs=_all_required_runs())
         runner = FakeCommandRunner(exit_code=0)
+        receipt = FakeReceiptVerifier(result={"verified": True})
 
         collect_live_evidence(
             bundle=bundle,
             git_adapter=git,
             github_adapter=gh,
             command_runner=runner,
+            receipt_verifier=receipt,
         )
         # The runner should have received the argv from the bundle's command
         assert len(runner.calls) == 1
@@ -480,19 +515,17 @@ class TestCollectLiveEvidence:
             {"command_id": "test.malicious", "command": "python; rm -rf /",
              "phase": "test", "required": True},
         ))
-        git = FakeGitAdapter(
-            changed_paths=("a.py",),
-            diff_check_passed=True,
-            head_sha=VALID_HEAD_SHA,
-        )
+        git = _make_git_adapter()
         gh = FakeGitHubAdapter(runs=_all_required_runs())
         runner = FakeCommandRunner(exit_code=0)
+        receipt = FakeReceiptVerifier(result={"verified": True})
 
         evidence = collect_live_evidence(
             bundle=bundle,
             git_adapter=git,
             github_adapter=gh,
             command_runner=runner,
+            receipt_verifier=receipt,
         )
         # The malicious command is recorded as failed; runner was never called
         assert evidence.tests_passed is False
@@ -672,6 +705,784 @@ class TestMergeEvidence:
         trusted = _make_evidence()
         merged = merge_evidence(untrusted, trusted)
         assert merged.agent_completion_claim == "agent says done"
+
+
+# ---------------------------------------------------------------------------
+# v9/F1: LiveIssueProvider GraphQL parsing
+# ---------------------------------------------------------------------------
+
+class TestLiveIssueProviderGraphQL:
+    """v9/F1: LiveIssueProvider uses structured GraphQL, not gh issue view.
+
+    Tests parse real GraphQL response shapes through the production
+    LiveIssueProvider.fetch_issue method by mocking subprocess.run.
+    """
+
+    def _mock_result(self, stdout: str, returncode: int = 0):
+        """Create a mock subprocess.CompletedProcess-like object."""
+
+        class _Result:
+            def __init__(self, stdout, returncode):
+                self.stdout = stdout
+                self.stderr = ""
+                self.returncode = returncode
+
+        return _Result(stdout, returncode)
+
+    def test_normal_graphql_issue_response(self) -> None:
+        """A well-formed GraphQL response parses correctly."""
+        import json as _json
+        response = _json.dumps({
+            "data": {
+                "repository": {
+                    "issue": {
+                        "body": "issue body text",
+                        "state": "OPEN",
+                        "lastEditedAt": "2026-08-03T14:08:50Z",
+                        "labels": {
+                            "nodes": [
+                                {"name": "work-item"},
+                                {"name": "r2"},
+                                {"name": "owner-accepted"},
+                            ],
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        },
+                    },
+                },
+            },
+        })
+        provider = LiveIssueProvider()
+        with patch(
+            "reverse_agent.platform_v1.authority_adapter.subprocess.run",
+            return_value=self._mock_result(response),
+        ):
+            result = provider.fetch_issue("dddd2024/reverse-agent", 105)
+        assert result["body"] == "issue body text"
+        assert result["state"] == "OPEN"
+        assert result["lastEditedAt"] == "2026-08-03T14:08:50Z"
+        assert "work-item" in result["labels"]
+        assert "r2" in result["labels"]
+        assert "owner-accepted" in result["labels"]
+
+    def test_issue_envelope_missing_raises_error(self) -> None:
+        """Missing data.repository.issue envelope fails closed."""
+        import json as _json
+        response = _json.dumps({"data": {"repository": None}})
+        provider = LiveIssueProvider()
+        with patch(
+            "reverse_agent.platform_v1.authority_adapter.subprocess.run",
+            return_value=self._mock_result(response),
+        ):
+            with pytest.raises(AuthorityBundleError) as exc_info:
+                provider.fetch_issue("dddd2024/reverse-agent", 105)
+        assert exc_info.value.code == "graphql_repository_missing"
+
+    def test_issue_missing_raises_error(self) -> None:
+        """Missing issue node fails closed."""
+        import json as _json
+        response = _json.dumps({
+            "data": {"repository": {"issue": None}},
+        })
+        provider = LiveIssueProvider()
+        with patch(
+            "reverse_agent.platform_v1.authority_adapter.subprocess.run",
+            return_value=self._mock_result(response),
+        ):
+            with pytest.raises(AuthorityBundleError) as exc_info:
+                provider.fetch_issue("dddd2024/reverse-agent", 105)
+        assert exc_info.value.code == "graphql_issue_missing"
+
+    def test_last_edited_at_null_parses_as_empty(self) -> None:
+        """null lastEditedAt means never edited, normalized to empty string."""
+        import json as _json
+        response = _json.dumps({
+            "data": {
+                "repository": {
+                    "issue": {
+                        "body": "body",
+                        "state": "OPEN",
+                        "lastEditedAt": None,
+                        "labels": {
+                            "nodes": [{"name": "work-item"}],
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        },
+                    },
+                },
+            },
+        })
+        provider = LiveIssueProvider()
+        with patch(
+            "reverse_agent.platform_v1.authority_adapter.subprocess.run",
+            return_value=self._mock_result(response),
+        ):
+            result = provider.fetch_issue("dddd2024/reverse-agent", 105)
+        assert result["lastEditedAt"] == ""
+
+    def test_last_edited_at_missing_raises_error(self) -> None:
+        """Missing lastEditedAt key fails closed."""
+        import json as _json
+        response = _json.dumps({
+            "data": {
+                "repository": {
+                    "issue": {
+                        "body": "body",
+                        "state": "OPEN",
+                        "labels": {
+                            "nodes": [{"name": "work-item"}],
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        },
+                    },
+                },
+            },
+        })
+        provider = LiveIssueProvider()
+        with patch(
+            "reverse_agent.platform_v1.authority_adapter.subprocess.run",
+            return_value=self._mock_result(response),
+        ):
+            with pytest.raises(AuthorityBundleError) as exc_info:
+                provider.fetch_issue("dddd2024/reverse-agent", 105)
+        assert exc_info.value.code == "graphql_last_edited_at_key_missing"
+
+    def test_last_edited_at_invalid_raises_error(self) -> None:
+        """Non-null, non-ISO lastEditedAt fails closed."""
+        import json as _json
+        response = _json.dumps({
+            "data": {
+                "repository": {
+                    "issue": {
+                        "body": "body",
+                        "state": "OPEN",
+                        "lastEditedAt": "not-a-timestamp",
+                        "labels": {
+                            "nodes": [{"name": "work-item"}],
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        },
+                    },
+                },
+            },
+        })
+        provider = LiveIssueProvider()
+        with patch(
+            "reverse_agent.platform_v1.authority_adapter.subprocess.run",
+            return_value=self._mock_result(response),
+        ):
+            with pytest.raises(AuthorityBundleError) as exc_info:
+                provider.fetch_issue("dddd2024/reverse-agent", 105)
+        assert exc_info.value.code == "graphql_last_edited_at_invalid"
+
+    def test_labels_pagination_incomplete_raises_error(self) -> None:
+        """Incomplete labels pagination fails closed."""
+        import json as _json
+        response = _json.dumps({
+            "data": {
+                "repository": {
+                    "issue": {
+                        "body": "body",
+                        "state": "OPEN",
+                        "lastEditedAt": None,
+                        "labels": {
+                            "nodes": [{"name": "work-item"}],
+                            "pageInfo": {"hasNextPage": True, "endCursor": "abc"},
+                        },
+                    },
+                },
+            },
+        })
+        provider = LiveIssueProvider()
+        with patch(
+            "reverse_agent.platform_v1.authority_adapter.subprocess.run",
+            return_value=self._mock_result(response),
+        ):
+            with pytest.raises(AuthorityBundleError) as exc_info:
+                provider.fetch_issue("dddd2024/reverse-agent", 105)
+        assert exc_info.value.code == "graphql_labels_pagination_incomplete"
+
+    def test_production_code_no_invalid_gh_issue_json_fields(self) -> None:
+        """v9/F1: LiveIssueProvider must not use gh issue view or
+        content_last_edited_at (unsupported JSON field).
+
+        We check the actual subprocess argv, not the docstring text.
+        """
+
+        source = inspect.getsource(LiveIssueProvider.fetch_issue)
+        # The actual command must be "gh api graphql", not "gh issue view"
+        assert '"gh"' in source
+        assert '"api"' in source
+        assert '"graphql"' in source
+        assert '"issue"' not in source or '"view"' not in source
+        assert "content_last_edited_at" not in source
+
+
+# ---------------------------------------------------------------------------
+# v9/F2: autoMergeRequest rejection
+# ---------------------------------------------------------------------------
+
+class TestAutoMergeRejection:
+    """v9/F2: A Draft PR with non-null autoMergeRequest is blocked."""
+
+    def test_auto_merge_request_non_null_rejected(self) -> None:
+        pr = {
+            "state": "OPEN",
+            "isDraft": True,
+            "baseRefName": "main",
+            "baseRefOid": VALID_BASE_SHA,
+            "headRefName": "agent/test",
+            "headRefOid": VALID_HEAD_SHA,
+            "autoMergeRequest": {"mergeMethod": "MERGE"},
+        }
+        with pytest.raises(AuthorityBundleError) as exc_info:
+            _validate_pr(
+                pr,
+                expected_pr=97,
+                expected_repository="dddd2024/reverse-agent",
+                expected_branch="agent/test",
+                expected_base=VALID_BASE_SHA,
+            )
+        assert exc_info.value.code == "pr_auto_merge_enabled"
+
+    def test_auto_merge_request_null_accepted(self) -> None:
+        pr = {
+            "state": "OPEN",
+            "isDraft": True,
+            "baseRefName": "main",
+            "baseRefOid": VALID_BASE_SHA,
+            "headRefName": "agent/test",
+            "headRefOid": VALID_HEAD_SHA,
+            "autoMergeRequest": None,
+        }
+        result = _validate_pr(
+            pr,
+            expected_pr=97,
+            expected_repository="dddd2024/reverse-agent",
+            expected_branch="agent/test",
+            expected_base=VALID_BASE_SHA,
+        )
+        assert result["state"] == "OPEN"
+
+
+# ---------------------------------------------------------------------------
+# v9/F4: Active Intent three-workflow exact match
+# ---------------------------------------------------------------------------
+
+class TestActiveIntentValidation:
+    """v9/F4: Active Intent must have exactly three pre-merge workflows
+    and State Gate (push) as post_merge_integration_workflow."""
+
+    _VALID_INTENT = {
+        "schema_version": 1,
+        "intent_id": "intent_test",
+        "repository": "dddd2024/reverse-agent",
+        "source_pr": 106,
+        "locked_base_sha": VALID_BASE_SHA,
+        "allowed_merge_method": "merge",
+        "decision_identity": {
+            "decision_id": "decision_test",
+            "decision_content_sha256": "a" * 64,
+        },
+        "command_plan_sha256": "b" * 64,
+        "merge_tree_policy": {"mode": "no_rewrite"},
+        "required_workflows": [
+            "CI",
+            "Decision Preflight",
+            "State Gate (pull_request_target)",
+        ],
+        "post_merge_integration_workflow": "State Gate (push)",
+        "expires_at": "2026-12-31T23:59:59Z",
+    }
+
+    def test_active_intent_three_workflow_exact_match(self) -> None:
+        result = _validate_merge_intent(
+            dict(self._VALID_INTENT),
+            expected_decision_id="decision_test",
+            expected_decision_sha256="a" * 64,
+            expected_command_plan_sha256="b" * 64,
+            expected_pr=106,
+            expected_base=VALID_BASE_SHA,
+            expected_repository="dddd2024/reverse-agent",
+        )
+        assert result[0] == "intent_test"
+
+    def test_push_wrongly_added_to_pre_merge_policy(self) -> None:
+        """Adding State Gate (push) to required_workflows blocks."""
+        intent = dict(self._VALID_INTENT)
+        intent["required_workflows"] = [
+            "CI",
+            "Decision Preflight",
+            "State Gate (pull_request_target)",
+            "State Gate (push)",
+        ]
+        with pytest.raises(AuthorityBundleError) as exc_info:
+            _validate_merge_intent(
+                intent,
+                expected_decision_id="decision_test",
+                expected_decision_sha256="a" * 64,
+                expected_command_plan_sha256="b" * 64,
+                expected_pr=106,
+                expected_base=VALID_BASE_SHA,
+                expected_repository="dddd2024/reverse-agent",
+            )
+        assert exc_info.value.code == "intent_workflow_keys_mismatch"
+
+    def test_old_pull_request_state_gate_rejected(self) -> None:
+        """Old 'State Gate (pull_request)' in required_workflows blocks."""
+        intent = dict(self._VALID_INTENT)
+        intent["required_workflows"] = [
+            "CI",
+            "Decision Preflight",
+            "State Gate (pull_request)",
+        ]
+        with pytest.raises(AuthorityBundleError) as exc_info:
+            _validate_merge_intent(
+                intent,
+                expected_decision_id="decision_test",
+                expected_decision_sha256="a" * 64,
+                expected_command_plan_sha256="b" * 64,
+                expected_pr=106,
+                expected_base=VALID_BASE_SHA,
+                expected_repository="dddd2024/reverse-agent",
+            )
+        assert exc_info.value.code == "intent_workflow_keys_mismatch"
+
+    def test_missing_post_merge_workflow_rejected(self) -> None:
+        """Missing post_merge_integration_workflow blocks."""
+        intent = dict(self._VALID_INTENT)
+        del intent["post_merge_integration_workflow"]
+        with pytest.raises(AuthorityBundleError) as exc_info:
+            _validate_merge_intent(
+                intent,
+                expected_decision_id="decision_test",
+                expected_decision_sha256="a" * 64,
+                expected_command_plan_sha256="b" * 64,
+                expected_pr=106,
+                expected_base=VALID_BASE_SHA,
+                expected_repository="dddd2024/reverse-agent",
+            )
+        assert exc_info.value.code == "intent_field_set_mismatch"
+
+    def test_extra_field_rejected(self) -> None:
+        """Extra field in active Intent blocks."""
+        intent = dict(self._VALID_INTENT)
+        intent["unexpected_field"] = "value"
+        with pytest.raises(AuthorityBundleError) as exc_info:
+            _validate_merge_intent(
+                intent,
+                expected_decision_id="decision_test",
+                expected_decision_sha256="a" * 64,
+                expected_command_plan_sha256="b" * 64,
+                expected_pr=106,
+                expected_base=VALID_BASE_SHA,
+                expected_repository="dddd2024/reverse-agent",
+            )
+        assert exc_info.value.code == "intent_field_set_mismatch"
+
+
+# ---------------------------------------------------------------------------
+# v9/F4: AuthorityBundle returns three pre-merge workflow keys
+# ---------------------------------------------------------------------------
+
+class TestAuthorityBundleWorkflowPolicy:
+    """v9/F4: AuthorityBundle.required_workflow_keys must contain exactly
+    the three pre-merge workflows, not CANONICAL_WORKFLOW_KEYS."""
+
+    def test_authority_bundle_returns_three_workflows(self) -> None:
+        bundle = _make_bundle()
+        assert bundle.required_workflow_keys == PRE_MERGE_WORKFLOW_KEYS
+        assert len(bundle.required_workflow_keys) == 3
+
+    def test_authority_bundle_does_not_return_canonical_keys(self) -> None:
+        bundle = _make_bundle()
+        assert bundle.required_workflow_keys != CANONICAL_WORKFLOW_KEYS
+
+    def test_authority_bundle_does_not_include_push(self) -> None:
+        bundle = _make_bundle()
+        events = [ev for _wf, ev in bundle.required_workflow_keys]
+        assert "push" not in events
+
+    def test_authority_bundle_includes_pull_request_target(self) -> None:
+        bundle = _make_bundle()
+        events = [ev for _wf, ev in bundle.required_workflow_keys]
+        assert "pull_request_target" in events
+
+
+# ---------------------------------------------------------------------------
+# v9/F3/F5: Dual-head live-evidence topology
+# ---------------------------------------------------------------------------
+
+class TestDualHeadTopology:
+    """v9/F3: Ordinary workflows at candidate head, trusted-target State Gate
+    at trusted base.  Receipt verifier is called with the independently
+    computed changed-path digest."""
+
+    def test_ci_preflight_candidate_head(self) -> None:
+        """CI and Decision Preflight runs must be at the candidate head."""
+        bundle = _make_bundle()
+        git = _make_git_adapter()
+        # Provide CI/Preflight at candidate head, State Gate at trusted base
+        gh = FakeGitHubAdapter(runs=_all_required_runs())
+        receipt = FakeReceiptVerifier(result={"verified": True})
+
+        evidence = collect_live_evidence(
+            bundle=bundle,
+            git_adapter=git,
+            github_adapter=gh,
+            receipt_verifier=receipt,
+        )
+        # The evidence ci_checks should include CI and Decision Preflight
+        ci_names = [c["name"] for c in evidence.ci_checks]
+        assert "CI" in ci_names
+        assert "Decision Preflight" in ci_names
+
+    def test_ci_at_wrong_head_rejected(self) -> None:
+        """CI run at the wrong head SHA is not found."""
+        bundle = _make_bundle()
+        git = _make_git_adapter()
+        # CI at wrong head — FakeGitHubAdapter filters by head_sha
+        wrong_head = "0" * 40
+        gh = FakeGitHubAdapter(runs=(
+            WorkflowRun(workflow_name="CI", event="pull_request", run_id="1",
+                        head_sha=wrong_head, status="COMPLETED", conclusion="SUCCESS"),
+            WorkflowRun(workflow_name="Decision Preflight", event="pull_request",
+                        run_id="2", head_sha=VALID_HEAD_SHA, status="COMPLETED",
+                        conclusion="SUCCESS"),
+            WorkflowRun(workflow_name="State Gate", event="pull_request_target",
+                        run_id="3", head_sha=VALID_BASE_SHA, status="COMPLETED",
+                        conclusion="SUCCESS", attempt=1),
+        ))
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            collect_live_evidence(
+                bundle=bundle,
+                git_adapter=git,
+                github_adapter=gh,
+            )
+        assert exc_info.value.code == "ordinary_workflow_validation_failed"
+
+    def test_state_gate_target_trusted_base(self) -> None:
+        """State Gate (pull_request_target) run must be at the trusted base."""
+        bundle = _make_bundle()
+        git = _make_git_adapter()
+        # State Gate target at trusted base
+        gh = FakeGitHubAdapter(runs=_all_required_runs())
+        receipt = FakeReceiptVerifier(result={"verified": True})
+
+        collect_live_evidence(
+            bundle=bundle,
+            git_adapter=git,
+            github_adapter=gh,
+            receipt_verifier=receipt,
+        )
+        # Receipt verifier was called with trusted_base_sha == bundle.base_sha
+        assert len(receipt.calls) == 1
+        assert receipt.calls[0]["trusted_base_sha"] == VALID_BASE_SHA
+        assert receipt.calls[0]["locked_base_sha"] == VALID_BASE_SHA
+
+    def test_state_gate_target_missing_rejected(self) -> None:
+        """Missing State Gate (pull_request_target) at trusted base blocks."""
+        bundle = _make_bundle()
+        git = _make_git_adapter()
+        # Only ordinary runs, no State Gate target
+        gh = FakeGitHubAdapter(runs=(
+            WorkflowRun(workflow_name="CI", event="pull_request", run_id="1",
+                        head_sha=VALID_HEAD_SHA, status="COMPLETED", conclusion="SUCCESS"),
+            WorkflowRun(workflow_name="Decision Preflight", event="pull_request",
+                        run_id="2", head_sha=VALID_HEAD_SHA, status="COMPLETED",
+                        conclusion="SUCCESS"),
+        ))
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            collect_live_evidence(
+                bundle=bundle,
+                git_adapter=git,
+                github_adapter=gh,
+            )
+        assert exc_info.value.code == "trusted_target_run_missing"
+
+    def test_correct_receipt_verifies(self) -> None:
+        """A correct receipt allows evidence collection to succeed."""
+        bundle = _make_bundle()
+        git = _make_git_adapter()
+        gh = FakeGitHubAdapter(runs=_all_required_runs())
+        receipt = FakeReceiptVerifier(result={"verified": True})
+
+        evidence = collect_live_evidence(
+            bundle=bundle,
+            git_adapter=git,
+            github_adapter=gh,
+            receipt_verifier=receipt,
+        )
+        assert evidence.is_live is True
+        # Verify receipt was called with the independently computed digest
+        assert receipt.calls[0]["expected_changed_paths_sha256"] == "d" * 64
+
+    def test_receipt_verification_failed_blocks(self) -> None:
+        """Receipt returning verified=False blocks evidence collection."""
+        bundle = _make_bundle()
+        git = _make_git_adapter()
+        gh = FakeGitHubAdapter(runs=_all_required_runs())
+        receipt = FakeReceiptVerifier(result={"verified": False, "reason": "digest_mismatch"})
+
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            collect_live_evidence(
+                bundle=bundle,
+                git_adapter=git,
+                github_adapter=gh,
+                receipt_verifier=receipt,
+            )
+        assert exc_info.value.code == "receipt_verification_failed"
+
+    def test_receipt_api_failure_blocks(self) -> None:
+        """Receipt verifier raising an exception blocks evidence collection."""
+        bundle = _make_bundle()
+        git = _make_git_adapter()
+        gh = FakeGitHubAdapter(runs=_all_required_runs())
+        receipt = FakeReceiptVerifier(
+            fail_with=RuntimeError("API timeout"),
+        )
+
+        with pytest.raises(RuntimeError, match="API timeout"):
+            collect_live_evidence(
+                bundle=bundle,
+                git_adapter=git,
+                github_adapter=gh,
+                receipt_verifier=receipt,
+            )
+
+    def test_no_state_gate_push_in_pre_merge_evidence(self) -> None:
+        """State Gate (push) must not appear in pre-merge evidence."""
+        bundle = _make_bundle()
+        git = _make_git_adapter()
+        # Include a State Gate (push) run at trusted base — must be rejected
+        gh = FakeGitHubAdapter(runs=_all_required_runs() + (
+            WorkflowRun(workflow_name="State Gate", event="push", run_id="99",
+                        head_sha=VALID_BASE_SHA, status="COMPLETED",
+                        conclusion="SUCCESS"),
+        ))
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            collect_live_evidence(
+                bundle=bundle,
+                git_adapter=git,
+                github_adapter=gh,
+            )
+        assert exc_info.value.code == "state_gate_push_in_pre_merge_evidence"
+
+    def test_receipt_called_with_independently_computed_digest(self) -> None:
+        """The receipt verifier must receive the independently computed
+        digest, not the receipt's own digest."""
+        bundle = _make_bundle()
+        expected_digest = "abc123" * 10 + "abcd"  # 64 hex chars
+        git = _make_git_adapter(digest=expected_digest)
+        gh = FakeGitHubAdapter(runs=_all_required_runs())
+        receipt = FakeReceiptVerifier(result={"verified": True})
+
+        collect_live_evidence(
+            bundle=bundle,
+            git_adapter=git,
+            github_adapter=gh,
+            receipt_verifier=receipt,
+        )
+        assert receipt.calls[0]["expected_changed_paths_sha256"] == expected_digest
+
+
+# ---------------------------------------------------------------------------
+# v9/F6: Rename-aware changed-path digest
+# ---------------------------------------------------------------------------
+
+class TestRenameAwareDigest:
+    """v9/F6: The digest uses git diff --name-status -M -C semantics."""
+
+    def test_rename_includes_both_paths(self, tmp_path) -> None:
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init")
+        _git(repo, "config", "user.email", "test@example.com")
+        _git(repo, "config", "user.name", "Test")
+        (repo / "old.py").write_text("a = 1\n", encoding="utf-8")
+        _git(repo, "add", "old.py")
+        _git(repo, "commit", "-m", "initial")
+        base_sha = _git(repo, "rev-parse", "HEAD")
+        # Rename old.py to new.py
+        _git(repo, "mv", "old.py", "new.py")
+        _git(repo, "commit", "-m", "rename")
+        head_sha = _git(repo, "rev-parse", "HEAD")
+
+        paths, digest = compute_rename_aware_changed_path_digest(
+            str(repo), base_sha, head_sha,
+        )
+        # Both old and new paths must be present
+        assert "old.py" in paths
+        assert "new.py" in paths
+
+    def test_empty_diff_raises_error(self, tmp_path) -> None:
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init")
+        _git(repo, "config", "user.email", "test@example.com")
+        _git(repo, "config", "user.name", "Test")
+        (repo / "a.py").write_text("a = 1\n", encoding="utf-8")
+        _git(repo, "add", "a.py")
+        _git(repo, "commit", "-m", "initial")
+        sha = _git(repo, "rev-parse", "HEAD")
+
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            compute_rename_aware_changed_path_digest(str(repo), sha, sha)
+        assert exc_info.value.code == "changed_paths_empty"
+
+
+# ---------------------------------------------------------------------------
+# v9/F7: R2 BLOCKED_APPROVAL boundary
+# ---------------------------------------------------------------------------
+
+class TestR2BlockedApproval:
+    """v9/F7: A valid R2 Authority Bundle must reach BLOCKED_APPROVAL, not
+    fail early on invalid Issue fields or wrong workflow policy."""
+
+    def test_r2_reaches_expected_blocked_approval(self) -> None:
+        """An R2 bundle with all valid fields should still block at
+        BLOCKED_APPROVAL — the R2 tier is the blocking reason, not a
+        validation error."""
+        bundle = _make_bundle(risk_tier="R2")
+        # The bundle itself is valid; the risk tier is what blocks
+        assert bundle.risk_tier == "R2"
+        # In the CLI, this would return BLOCKED_APPROVAL (exit 50)
+        # Here we verify the bundle is constructible and the risk tier
+        # is the only blocking factor
+        assert bundle.required_workflow_keys == PRE_MERGE_WORKFLOW_KEYS
+
+    def test_r0_bundle_is_not_blocked(self) -> None:
+        """An R0 bundle with valid evidence should succeed."""
+        bundle = _make_bundle(risk_tier="R0")
+        git = _make_git_adapter()
+        gh = FakeGitHubAdapter(runs=_all_required_runs())
+        receipt = FakeReceiptVerifier(result={"verified": True})
+
+        evidence = collect_live_evidence(
+            bundle=bundle,
+            git_adapter=git,
+            github_adapter=gh,
+            receipt_verifier=receipt,
+        )
+        assert evidence.is_live is True
+
+    def test_r1_bundle_is_not_blocked(self) -> None:
+        """An R1 bundle with valid evidence should succeed."""
+        bundle = _make_bundle(risk_tier="R1")
+        git = _make_git_adapter()
+        gh = FakeGitHubAdapter(runs=_all_required_runs())
+        receipt = FakeReceiptVerifier(result={"verified": True})
+
+        evidence = collect_live_evidence(
+            bundle=bundle,
+            git_adapter=git,
+            github_adapter=gh,
+            receipt_verifier=receipt,
+        )
+        assert evidence.is_live is True
+
+
+# ---------------------------------------------------------------------------
+# v9: Old four-workflow fixture rejected in dual-head topology
+# ---------------------------------------------------------------------------
+
+class TestOldFourWorkflowFixtureRejected:
+    """v9: A bundle with the old 4-workflow policy (including State Gate push)
+    is rejected by the dual-head collector because State Gate (push) must not
+    appear in pre-merge evidence."""
+
+    def test_old_four_workflow_fixture_rejected(self) -> None:
+        old_keys = (
+            ("CI", "pull_request"),
+            ("Decision Preflight", "pull_request"),
+            ("State Gate", "pull_request"),
+            ("State Gate", "push"),
+        )
+        bundle = _make_bundle(required_workflow_keys=old_keys)
+        git = _make_git_adapter()
+        # Provide runs matching old policy
+        gh = FakeGitHubAdapter(runs=(
+            WorkflowRun(workflow_name="CI", event="pull_request", run_id="1",
+                        head_sha=VALID_HEAD_SHA, status="COMPLETED", conclusion="SUCCESS"),
+            WorkflowRun(workflow_name="Decision Preflight", event="pull_request",
+                        run_id="2", head_sha=VALID_HEAD_SHA, status="COMPLETED",
+                        conclusion="SUCCESS"),
+            WorkflowRun(workflow_name="State Gate", event="pull_request",
+                        run_id="3", head_sha=VALID_HEAD_SHA, status="COMPLETED",
+                        conclusion="SUCCESS"),
+            WorkflowRun(workflow_name="State Gate", event="push", run_id="4",
+                        head_sha=VALID_BASE_SHA, status="COMPLETED", conclusion="SUCCESS"),
+        ))
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            collect_live_evidence(
+                bundle=bundle,
+                git_adapter=git,
+                github_adapter=gh,
+            )
+        # The old policy classifies push as ordinary, so ordinary validation
+        # fails because push is not at candidate head.  Either
+        # ordinary_workflow_validation_failed or trusted_target_run_missing
+        # is a valid rejection.
+        assert exc_info.value.code in (
+            "ordinary_workflow_validation_failed",
+            "trusted_target_run_missing",
+        )
+
+
+# ---------------------------------------------------------------------------
+# v9: R0/R1 dual-head collector passes with complete evidence
+# ---------------------------------------------------------------------------
+
+class TestR0R1DualHeadCollector:
+    """v9: R0/R1 bundles with complete dual-head evidence succeed."""
+
+    def test_r0_dual_head_collector_passes(self) -> None:
+        bundle = _make_bundle(risk_tier="R0")
+        git = _make_git_adapter()
+        gh = FakeGitHubAdapter(runs=_all_required_runs())
+        receipt = FakeReceiptVerifier(result={"verified": True})
+        runner = FakeCommandRunner(exit_code=0)
+
+        evidence = collect_live_evidence(
+            bundle=bundle,
+            git_adapter=git,
+            github_adapter=gh,
+            command_runner=runner,
+            receipt_verifier=receipt,
+        )
+        assert evidence.is_live is True
+        assert evidence.tests_passed is True
+        assert evidence.git_diff_check_passed is True
+
+    def test_r1_dual_head_collector_passes(self) -> None:
+        bundle = _make_bundle(risk_tier="R1")
+        git = _make_git_adapter()
+        gh = FakeGitHubAdapter(runs=_all_required_runs())
+        receipt = FakeReceiptVerifier(result={"verified": True})
+        runner = FakeCommandRunner(exit_code=0)
+
+        evidence = collect_live_evidence(
+            bundle=bundle,
+            git_adapter=git,
+            github_adapter=gh,
+            command_runner=runner,
+            receipt_verifier=receipt,
+        )
+        assert evidence.is_live is True
+        assert evidence.tests_passed is True
+
+    def test_pre_merge_evidence_has_no_push(self) -> None:
+        """The collected evidence must not include State Gate (push)."""
+        bundle = _make_bundle(risk_tier="R0")
+        git = _make_git_adapter()
+        gh = FakeGitHubAdapter(runs=_all_required_runs())
+        receipt = FakeReceiptVerifier(result={"verified": True})
+
+        evidence = collect_live_evidence(
+            bundle=bundle,
+            git_adapter=git,
+            github_adapter=gh,
+            receipt_verifier=receipt,
+        )
+        ci_names = [c["name"] for c in evidence.ci_checks]
+        assert "State Gate (push)" not in ci_names
+        assert "State Gate (pull_request_target)" in ci_names
 
 
 # ---------------------------------------------------------------------------

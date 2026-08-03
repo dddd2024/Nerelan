@@ -48,6 +48,18 @@ class AuthorityBundleError(Exception):
 _SHA1_HEX_RE = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 
+# Strict ISO 8601 timestamp for GitHub ``lastEditedAt``.  GitHub emits values
+# like ``2026-08-03T14:08:50Z``.  Non-null ``lastEditedAt`` must match this.
+_ISO_TIMESTAMP_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$"
+)
+
+
+def _parse_strict_iso_timestamp(value: str) -> bool:
+    """Return True iff ``value`` is a strict ISO 8601 GitHub timestamp."""
+
+    return bool(_ISO_TIMESTAMP_RE.match(value))
+
 # Canonical required (workflowName, event) keys for the active merge intent.
 # This is the historical four-workflow policy, kept for validating immutable
 # archive files.  Active intents from v8 onward use PRE_MERGE_WORKFLOW_KEYS.
@@ -107,14 +119,41 @@ class PRProvider(Protocol):
 # ---------------------------------------------------------------------------
 
 class LiveIssueProvider:
-    """Production Issue provider using ``gh issue view``."""
+    """Production Issue provider using structured GraphQL via ``gh api graphql``.
+
+    F1/v9: Replaces the unsupported ``gh issue view --json
+    content_last_edited_at`` command with a structured GraphQL query that
+    retrieves ``data.repository.issue.{body,state,lastEditedAt,labels}``.
+
+    Fail-closed rules:
+    - ``data.repository.issue`` envelope must be present;
+    - ``lastEditedAt`` key must be present (``null`` = never edited);
+    - non-null ``lastEditedAt`` must be a strict ISO 8601 timestamp;
+    - labels pagination must be complete (``hasNextPage == false``) or
+      the provider fails closed;
+    - no fixture/default substitution for a failed live observation.
+    """
 
     def fetch_issue(self, repository: str, issue_number: int) -> dict[str, Any]:
+        parts = repository.split("/")
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            raise AuthorityBundleError("invalid_repository_format", repository)
+        owner, name = parts[0], parts[1]
+        # Single-line GraphQL query to avoid shell quoting issues.
+        query = (
+            "query{"
+            f'repository(owner:"{owner}",name:"{name}"){{'
+            f"issue(number:{int(issue_number)}){{"
+            "body state lastEditedAt"
+            "labels(first:100){nodes{name}pageInfo{hasNextPage endCursor}}"
+            "}}"
+            "}}"
+            "}"
+        )
         result = subprocess.run(
             [
-                "gh", "issue", "view", str(issue_number),
-                "--repo", repository,
-                "--json", "body,state,labels,content_last_edited_at",
+                "gh", "api", "graphql",
+                "-f", f"query={query}",
             ],
             capture_output=True,
             text=True,
@@ -122,24 +161,67 @@ class LiveIssueProvider:
         )
         if result.returncode != 0:
             raise AuthorityBundleError(
-                "gh_issue_view_failed",
+                "gh_api_graphql_failed",
                 f"exit={result.returncode}",
             )
         try:
-            raw = json.loads(result.stdout)
+            envelope = json.loads(result.stdout)
         except json.JSONDecodeError as exc:
-            raise AuthorityBundleError("gh_issue_json_parse_failed", str(exc))
-        labels = []
-        for label in raw.get("labels", []):
-            if isinstance(label, dict):
-                labels.append(str(label.get("name", "")))
-            elif isinstance(label, str):
-                labels.append(label)
+            raise AuthorityBundleError("graphql_json_parse_failed", str(exc))
+
+        data = envelope.get("data")
+        if not isinstance(data, dict):
+            raise AuthorityBundleError(
+                "graphql_missing_data_envelope",
+                str(envelope.get("errors", "")),
+            )
+        repo_data = data.get("repository")
+        if not isinstance(repo_data, dict):
+            raise AuthorityBundleError("graphql_repository_missing", "")
+        issue = repo_data.get("issue")
+        if not isinstance(issue, dict):
+            raise AuthorityBundleError("graphql_issue_missing", "")
+
+        # lastEditedAt key must be present; null = never edited.
+        if "lastEditedAt" not in issue:
+            raise AuthorityBundleError("graphql_last_edited_at_key_missing", "")
+        raw_last_edited = issue.get("lastEditedAt")
+        if raw_last_edited is None:
+            last_edited_at = ""  # normalized: never edited
+        else:
+            last_edited_at = str(raw_last_edited)
+            if not _parse_strict_iso_timestamp(last_edited_at):
+                raise AuthorityBundleError(
+                    "graphql_last_edited_at_invalid",
+                    last_edited_at,
+                )
+
+        # Complete labels pagination or fail closed.
+        labels_data = issue.get("labels")
+        if not isinstance(labels_data, dict):
+            raise AuthorityBundleError("graphql_labels_missing", "")
+        page_info = labels_data.get("pageInfo")
+        if not isinstance(page_info, dict):
+            raise AuthorityBundleError("graphql_labels_page_info_missing", "")
+        if page_info.get("hasNextPage"):
+            raise AuthorityBundleError(
+                "graphql_labels_pagination_incomplete",
+                str(page_info.get("endCursor", "")),
+            )
+        labels_nodes = labels_data.get("nodes")
+        if not isinstance(labels_nodes, list):
+            raise AuthorityBundleError("graphql_labels_nodes_missing", "")
+        labels = [
+            str(n.get("name", ""))
+            for n in labels_nodes
+            if isinstance(n, dict) and n.get("name")
+        ]
+
         return {
-            "body": str(raw.get("body", "")),
-            "state": str(raw.get("state", "")),
+            "body": str(issue.get("body", "")),
+            "state": str(issue.get("state", "")),
             "labels": labels,
-            "content_last_edited_at": raw.get("content_last_edited_at") or "",
+            "lastEditedAt": last_edited_at,
         }
 
 
@@ -204,6 +286,7 @@ class AuthorityBundle:
     issue_body_sha256: str
     issue_state: str
     issue_labels: tuple[str, ...]
+    issue_last_edited_at: str  # "" = never edited; else strict ISO 8601
 
     # Repository and PR
     repository: str
@@ -413,6 +496,31 @@ def _validate_merge_intent(
     expected_base: str,
     expected_repository: str,
 ) -> tuple[str, str, str]:
+    # v9/F6: Enforce the exact active-Intent field set.  Any missing or
+    # extra field blocks.  Historical archives are validated separately via
+    # their historical policy snapshot, not through this function.
+    expected_fields = {
+        "schema_version",
+        "intent_id",
+        "repository",
+        "source_pr",
+        "locked_base_sha",
+        "allowed_merge_method",
+        "decision_identity",
+        "command_plan_sha256",
+        "merge_tree_policy",
+        "required_workflows",
+        "post_merge_integration_workflow",
+        "expires_at",
+    }
+    observed_fields = set(intent.keys())
+    if observed_fields != expected_fields:
+        missing = sorted(expected_fields - observed_fields)
+        extra = sorted(observed_fields - expected_fields)
+        raise AuthorityBundleError(
+            "intent_field_set_mismatch",
+            f"missing={missing} extra={extra}",
+        )
     decision_identity = intent.get("decision_identity", {})
     if not isinstance(decision_identity, dict):
         raise AuthorityBundleError("intent_decision_identity_not_object", "")
@@ -453,10 +561,9 @@ def _validate_merge_intent(
             f"intent={intent.get('repository')} expected={expected_repository}",
         )
     required_workflows = intent.get("required_workflows", [])
-    # F22/F23: Merge intent stores composite names (e.g. "State Gate (push)"),
-    # not bare workflow names. Compare against the composite-name form so
-    # push/pull_request State Gate remain distinct.
-    # v8: Active intents use the pre-merge three-workflow policy.
+    # v9/F6: Active intents must use the exact three-workflow pre-merge
+    # policy.  Composite names are compared so that pull_request_target
+    # remains distinct from push/pull_request State Gate.
     expected_workflow_names = [
         composite_name(wf, ev) for wf, ev in PRE_MERGE_WORKFLOW_KEYS
     ]
@@ -464,6 +571,12 @@ def _validate_merge_intent(
         raise AuthorityBundleError(
             "intent_workflow_keys_mismatch",
             f"intent={required_workflows} expected={expected_workflow_names}",
+        )
+    # v9/F6: post_merge_integration_workflow must be exactly State Gate (push).
+    if intent.get("post_merge_integration_workflow") != "State Gate (push)":
+        raise AuthorityBundleError(
+            "intent_post_merge_workflow_mismatch",
+            f"intent={intent.get('post_merge_integration_workflow')} expected=State Gate (push)",
         )
     return (
         str(intent.get("intent_id", "")),
@@ -477,7 +590,14 @@ def _validate_issue(
     *,
     expected_issue: int,
     expected_repository: str,
-) -> str:
+) -> tuple[str, str]:
+    """Validate the live Issue observation and return (body_sha256, last_edited_at).
+
+    v9/F1: ``lastEditedAt`` must be present in the observation.  ``""`` is
+    the normalized form for never-edited (GraphQL ``null``).  Non-empty
+    values must be strict ISO 8601 timestamps.
+    """
+
     state = str(issue.get("state", "")).upper()
     if state != "OPEN":
         raise AuthorityBundleError("issue_not_open", state)
@@ -487,7 +607,18 @@ def _validate_issue(
     if missing:
         raise AuthorityBundleError("issue_missing_labels", ",".join(sorted(missing)))
     body = str(issue.get("body", ""))
-    return _sha256_bytes(body.encode("utf-8"))
+    body_sha256 = _sha256_bytes(body.encode("utf-8"))
+    # v9/F1: lastEditedAt is a mandatory observed field.
+    if "lastEditedAt" not in issue:
+        raise AuthorityBundleError("issue_last_edited_at_key_missing", "")
+    last_edited = issue.get("lastEditedAt")
+    if last_edited is None:
+        last_edited_at = ""
+    else:
+        last_edited_at = str(last_edited)
+        if not _parse_strict_iso_timestamp(last_edited_at):
+            raise AuthorityBundleError("issue_last_edited_at_invalid", last_edited_at)
+    return body_sha256, last_edited_at
 
 
 def _validate_pr(
@@ -503,6 +634,13 @@ def _validate_pr(
         raise AuthorityBundleError("pr_not_open", state)
     if not pr.get("isDraft", False):
         raise AuthorityBundleError("pr_not_draft", "")
+    # v9/F5: autoMergeRequest must be null — a Draft PR with auto-merge
+    # enabled must not enter the Authority Bundle.
+    if pr.get("autoMergeRequest") is not None:
+        raise AuthorityBundleError(
+            "pr_auto_merge_enabled",
+            str(pr.get("autoMergeRequest")),
+        )
     if pr.get("baseRefName") != "main":
         raise AuthorityBundleError("pr_wrong_base_branch", str(pr.get("baseRefName")))
     if pr.get("baseRefOid") != expected_base:
@@ -612,7 +750,7 @@ def load_authority_bundle(
 
     # 5. Load GitHub Issue
     issue_data = issue_provider.fetch_issue(repository, issue_number)
-    issue_body_sha256 = _validate_issue(
+    issue_body_sha256, issue_last_edited_at = _validate_issue(
         issue_data,
         expected_issue=issue_number,
         expected_repository=repository,
@@ -642,6 +780,7 @@ def load_authority_bundle(
         issue_body_sha256=issue_body_sha256,
         issue_state=str(issue_data.get("state", "")).upper(),
         issue_labels=tuple(str(l) for l in issue_data.get("labels", [])),
+        issue_last_edited_at=issue_last_edited_at,
         repository=repository,
         pr_number=pr_number,
         branch=expected_branch,
@@ -651,7 +790,9 @@ def load_authority_bundle(
         intent_decision_content_sha256=intent_decision_sha,
         intent_command_plan_sha256=intent_plan_sha,
         allowed_paths=allowed_paths,
-        required_workflow_keys=CANONICAL_WORKFLOW_KEYS,
+        # v9/F2: Return exactly the validated three pre-merge workflow keys.
+        # State Gate (push) is post-merge metadata, NOT a pre-merge prerequisite.
+        required_workflow_keys=PRE_MERGE_WORKFLOW_KEYS,
         pr_state=str(pr_observed.get("state", "")).upper(),
         pr_is_draft=bool(pr_observed.get("isDraft", False)),
         pr_head_ref_name=str(pr_observed.get("headRefName", "")),

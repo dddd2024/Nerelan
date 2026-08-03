@@ -338,6 +338,7 @@ def cmd_evaluate_live_acceptance(args: Sequence[str]) -> int:
                 github_adapter=None,  # uses LiveGitHubAdapter
                 command_runner=evidence_adapter.LiveCommandRunner(repo_dir),
                 agent_completion_claim=agent_completion_claim,
+                repo_dir=repo_dir,
             )
         except EvidenceCollectionError as exc:
             _print_json({

@@ -18,6 +18,7 @@ Only :func:`_create_trusted_evidence` can create live evidence.
 
 from __future__ import annotations
 
+import hashlib
 import re
 import shlex
 import subprocess
@@ -36,6 +37,13 @@ from .github_adapter import (
 )
 
 
+# v9/F5: The State Gate workflow path and trusted-target event.  These match
+# the production State Gate workflow accepted in mainline_landing.py.
+_STATE_GATE_WORKFLOW_PATH = ".github/workflows/state-gate.yml"
+_STATE_GATE_TARGET_EVENT = "pull_request_target"
+_STATE_GATE_WORKFLOW_NAME = "State Gate"
+
+
 # ---------------------------------------------------------------------------
 # Errors
 # ---------------------------------------------------------------------------
@@ -47,6 +55,186 @@ class EvidenceCollectionError(Exception):
         self.code = code
         self.detail = detail
         super().__init__(f"{code}:{detail}" if detail else code)
+
+
+# ---------------------------------------------------------------------------
+# v9/F6: Rename-aware changed-path digest (matches State Gate semantics)
+# ---------------------------------------------------------------------------
+
+def _normalize_observation_path(path: str) -> str:
+    """Canonicalize a single changed path (matches State Gate semantics)."""
+
+    if not path:
+        raise EvidenceCollectionError("observation_path_empty", "")
+    if "\x00" in path:
+        raise EvidenceCollectionError("observation_path_nul", "")
+    normalized = path.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    normalized = re.sub(r"/+", "/", normalized)
+    if not normalized or normalized == ".":
+        raise EvidenceCollectionError("observation_path_empty", "")
+    if normalized.startswith("/"):
+        raise EvidenceCollectionError("observation_path_absolute", "")
+    if re.match(r"^[A-Za-z]:", normalized):
+        raise EvidenceCollectionError("observation_path_absolute", "")
+    parts = [p for p in normalized.split("/") if p]
+    if ".." in parts:
+        raise EvidenceCollectionError("observation_path_traversal", "")
+    return "/".join(parts)
+
+
+def compute_rename_aware_changed_path_digest(
+    repo_dir: str,
+    base_sha: str,
+    head_sha: str,
+) -> tuple[tuple[str, ...], str]:
+    """Independently compute the canonical changed-path digest.
+
+    v9/F6: Uses the same rename-aware semantics as the State Gate:
+    ``git diff --name-status -M -C``.  Renames and copies include BOTH the
+    old and new paths.  Paths are normalized, sorted, deduplicated,
+    newline-joined, and SHA-256 hashed.
+
+    This digest is the EXPECTED value passed to the receipt verifier.  The
+    receipt's own digest is never used as the expected value.
+    """
+
+    result = subprocess.run(
+        ["git", "diff", "--name-status", "-M", "-C", f"{base_sha}..{head_sha}"],
+        cwd=repo_dir,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        raise EvidenceCollectionError(
+            "git_diff_name_status_failed",
+            f"exit={result.returncode}",
+        )
+    raw_paths: list[str] = []
+    for line in result.stdout.splitlines():
+        if not line:
+            continue
+        fields = line.split("\t")
+        status = fields[0]
+        if status.startswith(("R", "C")):
+            if len(fields) != 3:
+                raise EvidenceCollectionError(
+                    "git_diff_name_status_malformed", line,
+                )
+            raw_paths.extend((fields[1], fields[2]))
+        else:
+            if len(fields) != 2:
+                raise EvidenceCollectionError(
+                    "git_diff_name_status_malformed", line,
+                )
+            raw_paths.append(fields[1])
+    normalized = [_normalize_observation_path(p) for p in raw_paths]
+    paths = tuple(sorted(dict.fromkeys(normalized)))
+    if not paths:
+        raise EvidenceCollectionError("changed_paths_empty", "")
+    canonical = "\n".join(paths)
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return paths, digest
+
+
+# ---------------------------------------------------------------------------
+# v9/F5: Receipt verifier protocol (injectable for tests)
+# ---------------------------------------------------------------------------
+
+class ReceiptVerifier(Protocol):
+    """Injectable receipt verifier matching the production contract."""
+
+    def verify_state_gate_receipt(
+        self,
+        *,
+        run_id: int,
+        expected_repository: str,
+        expected_workflow_path: str,
+        expected_event: str,
+        expected_run_attempt: int = 1,
+        trusted_base_sha: str,
+        accepted_candidate_head: str,
+        locked_base_sha: str,
+        expected_pr_number: int,
+        expected_changed_paths_sha256: str,
+    ) -> dict[str, Any]:
+        ...
+
+
+class LiveReceiptVerifier:
+    """Production receipt verifier delegating to GitHubRemoteAcceptanceVerifier.
+
+    v9/F5: Calls the SAME production receipt-verification contract used by
+    mainline_landing.py.  Does NOT duplicate a weaker receipt parser.
+    """
+
+    def __init__(self, repository: str, token: str = "") -> None:
+        self.repository = repository
+        self.token = (
+            token
+            or __import__("os").environ.get("GITHUB_TOKEN", "")
+            or __import__("os").environ.get("GH_TOKEN", "")
+        )
+
+    def verify_state_gate_receipt(
+        self,
+        *,
+        run_id: int,
+        expected_repository: str,
+        expected_workflow_path: str,
+        expected_event: str,
+        expected_run_attempt: int = 1,
+        trusted_base_sha: str,
+        accepted_candidate_head: str,
+        locked_base_sha: str,
+        expected_pr_number: int,
+        expected_changed_paths_sha256: str,
+    ) -> dict[str, Any]:
+        from ..github_remote_verifier import GitHubRemoteAcceptanceVerifier
+
+        if not self.token:
+            return {
+                "verified": False,
+                "reason": "receipt_verifier_missing_token",
+            }
+        verifier = GitHubRemoteAcceptanceVerifier(
+            repository=self.repository,
+            token=self.token,
+        )
+        return verifier.verify_state_gate_receipt(
+            run_id=run_id,
+            expected_repository=expected_repository,
+            expected_workflow_path=expected_workflow_path,
+            expected_event=expected_event,
+            expected_run_attempt=expected_run_attempt,
+            trusted_base_sha=trusted_base_sha,
+            accepted_candidate_head=accepted_candidate_head,
+            locked_base_sha=locked_base_sha,
+            expected_pr_number=expected_pr_number,
+            expected_changed_paths_sha256=expected_changed_paths_sha256,
+        )
+
+
+class FakeReceiptVerifier:
+    """Fake receipt verifier for provider-free tests."""
+
+    def __init__(
+        self,
+        *,
+        result: dict[str, Any] | None = None,
+        fail_with: Exception | None = None,
+    ) -> None:
+        self._result = result if result is not None else {"verified": True}
+        self._fail_with = fail_with
+        self.calls: list[dict[str, Any]] = []
+
+    def verify_state_gate_receipt(self, **kwargs: Any) -> dict[str, Any]:
+        self.calls.append(dict(kwargs))
+        if self._fail_with is not None:
+            raise self._fail_with
+        return self._result
 
 
 # ---------------------------------------------------------------------------
@@ -63,6 +251,11 @@ class GitAdapter(Protocol):
         ...
 
     def get_head_sha(self) -> str:
+        ...
+
+    def compute_rename_aware_digest(
+        self, base_sha: str, head_sha: str,
+    ) -> tuple[tuple[str, ...], str]:
         ...
 
 
@@ -115,6 +308,13 @@ class LiveGitAdapter:
             raise EvidenceCollectionError("git_rev_parse_failed", f"exit={result.returncode}")
         return result.stdout.strip()
 
+    def compute_rename_aware_digest(
+        self, base_sha: str, head_sha: str,
+    ) -> tuple[tuple[str, ...], str]:
+        return compute_rename_aware_changed_path_digest(
+            self.repo_dir, base_sha, head_sha,
+        )
+
 
 class FakeGitAdapter:
     """Fake Git adapter for provider-free tests."""
@@ -126,11 +326,17 @@ class FakeGitAdapter:
         diff_check_passed: bool = True,
         head_sha: str = "",
         fail_with: EvidenceCollectionError | None = None,
+        rename_aware_paths: tuple[str, ...] | None = None,
+        rename_aware_digest: str = "",
     ) -> None:
         self._changed_paths = changed_paths
         self._diff_check_passed = diff_check_passed
         self._head_sha = head_sha
         self._fail_with = fail_with
+        self._rename_aware_paths = (
+            rename_aware_paths if rename_aware_paths is not None else changed_paths
+        )
+        self._rename_aware_digest = rename_aware_digest
         self.call_count = 0
 
     def get_changed_paths(self, base_sha: str, head_sha: str) -> tuple[str, ...]:
@@ -148,6 +354,13 @@ class FakeGitAdapter:
         if self._fail_with is not None:
             raise self._fail_with
         return self._head_sha
+
+    def compute_rename_aware_digest(
+        self, base_sha: str, head_sha: str,
+    ) -> tuple[tuple[str, ...], str]:
+        if self._fail_with is not None:
+            raise self._fail_with
+        return self._rename_aware_paths, self._rename_aware_digest
 
 
 # ---------------------------------------------------------------------------
@@ -332,8 +545,10 @@ def collect_live_evidence(
     git_adapter: GitAdapter | None = None,
     github_adapter: GitHubAdapter | None = None,
     command_runner: CommandRunner | None = None,
+    receipt_verifier: ReceiptVerifier | None = None,
     agent_completion_claim: str = "",
     collected_at: str = "",
+    repo_dir: str = ".",
 ) -> ExecutionEvidence:
     """Collect trusted live evidence through injectable adapters.
 
@@ -345,20 +560,33 @@ def collect_live_evidence(
 
     F20/F26: All authority comes from the ``bundle``, not from stdin.
 
+    v9/F3: Dual-head topology — ordinary candidate-head workflows (CI,
+    Decision Preflight) are validated against the candidate head, while the
+    trusted-target State Gate (pull_request_target) run is validated against
+    the trusted base via the production receipt verifier.  ``State Gate
+    (push)`` is post-merge and must NOT appear in pre-merge evidence.
+
     Raises ``EvidenceCollectionError`` or ``GitHubAdapterError`` on failure.
     """
 
     if git_adapter is None:
-        git_adapter = LiveGitAdapter()
+        git_adapter = LiveGitAdapter(repo_dir)
     if github_adapter is None:
         github_adapter = LiveGitHubAdapter()
 
-    # The expected head is the PR head observed by the Authority Bundle.
+    # The expected head is the PR head observed by the Authority Bundle
+    # (candidate head).  The trusted base is the locked base SHA.
     expected_head = bundle.pr_head_ref_oid
     if not expected_head:
         raise EvidenceCollectionError(
             "missing_pr_head_ref_oid",
             "Authority Bundle did not observe PR head SHA",
+        )
+    trusted_base = bundle.base_sha
+    if not trusted_base:
+        raise EvidenceCollectionError(
+            "missing_trusted_base_sha",
+            "Authority Bundle did not observe base SHA",
         )
 
     # 1. Collect Git facts
@@ -369,7 +597,13 @@ def collect_live_evidence(
             f"local={local_head} pr_head={expected_head}",
         )
 
-    changed_paths = git_adapter.get_changed_paths(bundle.base_sha, expected_head)
+    # v9/F6: Independently compute the rename-aware changed-path digest
+    # through the injectable git adapter.  This is the EXPECTED value for
+    # receipt verification — never use the receipt's own digest as the
+    # expected value.
+    changed_paths, changed_paths_digest = git_adapter.compute_rename_aware_digest(
+        bundle.base_sha, expected_head,
+    )
     diff_ok = git_adapter.check_git_diff(bundle.base_sha, expected_head)
 
     # 2. Collect test results (only from approved command_id selections)
@@ -408,26 +642,106 @@ def collect_live_evidence(
             "commands": command_results,
         }
 
-    # 3. Collect CI workflow runs via structured GitHub adapter
-    workflow_runs = github_adapter.get_workflow_runs(
+    # v9/F3: Separate ordinary candidate-head workflows from the
+    # trusted-target State Gate (pull_request_target).  State Gate (push)
+    # is post-merge and must NOT appear in pre-merge evidence.
+    ordinary_keys: list[tuple[str, str]] = []
+    trusted_target_keys: list[tuple[str, str]] = []
+    for wf, ev in bundle.required_workflow_keys:
+        if ev == _STATE_GATE_TARGET_EVENT:
+            trusted_target_keys.append((wf, ev))
+        else:
+            ordinary_keys.append((wf, ev))
+
+    # 3. Collect ordinary workflow runs (candidate head).
+    #    These runs must have head_sha == candidate head.
+    all_candidate_runs = github_adapter.get_workflow_runs(
         bundle.repository, expected_head,
     )
-
-    # 4. Validate workflow observations
-    required_workflows = tuple(
-        composite_name(wf, ev) for wf, ev in bundle.required_workflow_keys
+    ordinary_required_names = {
+        composite_name(wf, ev) for wf, ev in ordinary_keys
+    }
+    # Filter to only the ordinary required workflows so that extra runs
+    # (e.g. a State Gate push run at candidate head) do not trigger
+    # extra_workflows blocking.
+    ordinary_runs = tuple(
+        r for r in all_candidate_runs
+        if r.composite_name in ordinary_required_names
     )
-    blocking, _info = validate_workflow_observations(
-        workflow_runs, required_workflows, expected_head,
+    ordinary_required_tuple = tuple(
+        composite_name(wf, ev) for wf, ev in ordinary_keys
     )
-    if blocking:
+    ordinary_blocking, _info = validate_workflow_observations(
+        ordinary_runs, ordinary_required_tuple, expected_head,
+    )
+    if ordinary_blocking:
         raise EvidenceCollectionError(
-            "workflow_validation_failed",
-            ";".join(blocking),
+            "ordinary_workflow_validation_failed",
+            ";".join(ordinary_blocking),
         )
 
-    # 5. Build live evidence using the trusted factory
-    ci_checks = checks_to_ci_tuples(workflow_runs)
+    # 4. Collect trusted-target State Gate run (trusted base).
+    #    The target run's head_sha is the trusted base, NOT the candidate
+    #    head.  Query runs by trusted base and find the matching target.
+    trusted_target_required_names = {
+        composite_name(wf, ev) for wf, ev in trusted_target_keys
+    }
+    # Reject State Gate (push) — it must NOT appear in pre-merge evidence.
+    # v9: Check ALL trusted-base runs for push before finding the target,
+    # so a push run is never missed even if the target appears first.
+    push_composite = composite_name("State Gate", "push")
+    all_trusted_base_runs = github_adapter.get_workflow_runs(
+        bundle.repository, trusted_base,
+    )
+    for run in all_trusted_base_runs:
+        if run.composite_name == push_composite:
+            # State Gate (push) must never appear in pre-merge evidence.
+            raise EvidenceCollectionError(
+                "state_gate_push_in_pre_merge_evidence",
+                f"run_id={run.run_id}",
+            )
+    target_run: WorkflowRun | None = None
+    for run in all_trusted_base_runs:
+        if run.composite_name in trusted_target_required_names and run.is_success:
+            target_run = run
+            break
+    if target_run is None:
+        raise EvidenceCollectionError(
+            "trusted_target_run_missing",
+            f"required={sorted(trusted_target_required_names)} base={trusted_base}",
+        )
+
+    # 5. Verify the trusted-target State Gate via the production receipt
+    #    verifier.  The independently computed changed-path digest is the
+    #    expected value — never the receipt's own digest.
+    if receipt_verifier is None:
+        receipt_verifier = LiveReceiptVerifier(bundle.repository)
+    receipt_result = receipt_verifier.verify_state_gate_receipt(
+        run_id=int(target_run.run_id),
+        expected_repository=bundle.repository,
+        expected_workflow_path=_STATE_GATE_WORKFLOW_PATH,
+        expected_event=_STATE_GATE_TARGET_EVENT,
+        expected_run_attempt=target_run.attempt or 1,
+        trusted_base_sha=trusted_base,
+        accepted_candidate_head=expected_head,
+        locked_base_sha=trusted_base,
+        expected_pr_number=bundle.pr_number,
+        expected_changed_paths_sha256=changed_paths_digest,
+    )
+    if not receipt_result.get("verified"):
+        raise EvidenceCollectionError(
+            "receipt_verification_failed",
+            str(receipt_result.get("reason", "")),
+        )
+
+    # 6. Build live evidence using the trusted factory.
+    #    Pre-merge evidence includes ordinary runs + the trusted-target
+    #    run.  State Gate (push) is absent.
+    all_pre_merge_runs = ordinary_runs + (target_run,)
+    ci_checks = checks_to_ci_tuples(all_pre_merge_runs)
+    required_workflows = ordinary_required_tuple + tuple(
+        composite_name(wf, ev) for wf, ev in trusted_target_keys
+    )
     return _create_trusted_evidence(
         execution_id=f"exec-issue-{bundle.issue_number}-{bundle.decision_content_sha256[:12]}",
         repository=bundle.repository,
