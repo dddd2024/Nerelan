@@ -897,11 +897,108 @@ class TestRequiredChecksAsWorkflows:
 # F17/F28: Active merge intent binds PR #97 and v4 digests
 # ---------------------------------------------------------------------------
 
-class TestActiveMergeIntentV4:
-    """F17/F28: The active merge intent must bind PR #97 and v4 digests.
+class TestArchivedV4Intent:
+    """PR97/v4 archive contract: pr97_v4.json must preserve v4 authority verbatim."""
 
-    The v1, v2, and v3 intents must be archived verbatim. The active intent
-    must bind the v4 Decision content SHA-256 and Command Plan SHA-256.
+    @pytest.fixture(autouse=True)
+    def _load_v4_archive(self) -> None:
+        import json
+        from pathlib import Path
+        repo_root = Path(__file__).resolve().parents[2]
+        archive_path = repo_root / "project_state" / "mainline_merge_intents" / "archive" / "pr97_v4.json"
+        self._archive_v4 = json.loads(archive_path.read_text(encoding="utf-8"))
+
+    def test_archive_v4_binds_source_pr_97(self) -> None:
+        assert self._archive_v4["source_pr"] == 97
+
+    def test_archive_v4_binds_v4_decision_id(self) -> None:
+        assert self._archive_v4["decision_identity"]["decision_id"] == (
+            "decision_20260802_issue100_platform_v1_authority_collector_v4"
+        )
+
+    def test_archive_v4_preserves_v4_decision_content_sha256(self) -> None:
+        sha = self._archive_v4["decision_identity"]["decision_content_sha256"]
+        assert isinstance(sha, str) and len(sha) == 64
+        assert all(c in "0123456789abcdef" for c in sha)
+
+    def test_archive_v4_preserves_v4_command_plan_sha256(self) -> None:
+        sha = self._archive_v4["command_plan_sha256"]
+        assert isinstance(sha, str) and len(sha) == 64
+        assert all(c in "0123456789abcdef" for c in sha)
+
+    def test_archive_v4_binds_locked_base_sha(self) -> None:
+        assert self._archive_v4["locked_base_sha"] == VALID_BASE_SHA
+
+    def test_archive_v4_binds_merge_method(self) -> None:
+        assert self._archive_v4["allowed_merge_method"] == "merge"
+
+    def test_archive_v4_preserves_v4_required_workflows(self) -> None:
+        workflows = self._archive_v4["required_workflows"]
+        assert "CI" in workflows
+        assert "Decision Preflight" in workflows
+        assert "State Gate (pull_request)" in workflows
+        assert "State Gate (push)" in workflows
+
+    def test_archive_v4_has_bounded_expiry(self) -> None:
+        expires = self._archive_v4.get("expires_at", "")
+        assert expires and expires.endswith("Z")
+
+
+class TestArchivedV2PR106Intent:
+    """PR106/v2 archive contract: pr106_v2.json must preserve v2 authority verbatim."""
+
+    @pytest.fixture(autouse=True)
+    def _load_v2_pr106_archive(self) -> None:
+        import json
+        from pathlib import Path
+        repo_root = Path(__file__).resolve().parents[2]
+        archive_path = repo_root / "project_state" / "mainline_merge_intents" / "archive" / "pr106_v2.json"
+        self._archive_v2_pr106 = json.loads(archive_path.read_text(encoding="utf-8"))
+
+    def test_archive_v2_pr106_binds_source_pr_106(self) -> None:
+        assert self._archive_v2_pr106["source_pr"] == 106
+
+    def test_archive_v2_pr106_binds_v2_decision_id(self) -> None:
+        assert self._archive_v2_pr106["decision_identity"]["decision_id"] == (
+            "decision_20260803_restore_path_a_state_gate_current_main_v2"
+        )
+
+    def test_archive_v2_pr106_preserves_v2_decision_content_sha256(self) -> None:
+        sha = self._archive_v2_pr106["decision_identity"]["decision_content_sha256"]
+        assert isinstance(sha, str) and len(sha) == 64
+        assert all(c in "0123456789abcdef" for c in sha)
+
+    def test_archive_v2_pr106_preserves_v2_command_plan_sha256(self) -> None:
+        sha = self._archive_v2_pr106["command_plan_sha256"]
+        assert isinstance(sha, str) and len(sha) == 64
+        assert all(c in "0123456789abcdef" for c in sha)
+
+    def test_archive_v2_pr106_binds_locked_base_sha(self) -> None:
+        assert self._archive_v2_pr106["locked_base_sha"] == (
+            "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+        )
+
+    def test_archive_v2_pr106_binds_merge_method(self) -> None:
+        assert self._archive_v2_pr106["allowed_merge_method"] == "merge"
+
+    def test_archive_v2_pr106_preserves_v2_required_workflows(self) -> None:
+        workflows = self._archive_v2_pr106["required_workflows"]
+        assert "CI" in workflows
+        assert "Decision Preflight" in workflows
+        assert "State Gate (pull_request)" in workflows
+        assert "State Gate (push)" in workflows
+
+    def test_archive_v2_pr106_has_bounded_expiry(self) -> None:
+        expires = self._archive_v2_pr106.get("expires_at", "")
+        assert expires and expires.endswith("Z")
+
+
+class TestActiveMergeIntentV3:
+    """PR106/v3 active contract: active.json must bind PR #106 and v3 digests.
+
+    The v1, v2, v3 (PR97), v4 (PR97), and v2 (PR106) intents must be archived
+    verbatim. The active intent must bind the v3 Decision content SHA-256 and
+    Command Plan SHA-256, with the unified ``pull_request_target`` event.
     """
 
     @pytest.fixture(autouse=True)
@@ -914,35 +1011,41 @@ class TestActiveMergeIntentV4:
         self._archive_v1_path = intents_dir / "archive" / "pr97_v1.json"
         self._archive_v2_path = intents_dir / "archive" / "pr97_v2.json"
         self._archive_v3_path = intents_dir / "archive" / "pr97_v3.json"
+        self._archive_v4_path = intents_dir / "archive" / "pr97_v4.json"
+        self._archive_v2_pr106_path = intents_dir / "archive" / "pr106_v2.json"
         self._active = json.loads(self._active_path.read_text(encoding="utf-8"))
         self._archive_v1 = json.loads(self._archive_v1_path.read_text(encoding="utf-8"))
         self._archive_v2 = json.loads(self._archive_v2_path.read_text(encoding="utf-8"))
         self._archive_v3 = json.loads(self._archive_v3_path.read_text(encoding="utf-8"))
+        self._archive_v4 = json.loads(self._archive_v4_path.read_text(encoding="utf-8"))
+        self._archive_v2_pr106 = json.loads(self._archive_v2_pr106_path.read_text(encoding="utf-8"))
 
-    def test_active_binds_source_pr_97(self) -> None:
-        assert self._active["source_pr"] == 97
+    def test_active_binds_source_pr_106(self) -> None:
+        assert self._active["source_pr"] == 106
 
-    def test_active_binds_v4_decision_id(self) -> None:
+    def test_active_binds_v3_decision_id(self) -> None:
         assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260802_issue100_platform_v1_authority_collector_v4"
+            "decision_20260803_restore_path_a_state_gate_current_main_v3"
         )
 
-    def test_active_binds_v4_decision_content_sha256(self) -> None:
+    def test_active_binds_v3_decision_content_sha256(self) -> None:
         sha = self._active["decision_identity"]["decision_content_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
-        # Must differ from the v3 decision content SHA-256
-        assert sha != self._archive_v3["decision_identity"]["decision_content_sha256"]
+        # Must differ from the v2 PR106 decision content SHA-256
+        assert sha != self._archive_v2_pr106["decision_identity"]["decision_content_sha256"]
 
-    def test_active_binds_v4_command_plan_sha256(self) -> None:
+    def test_active_binds_v3_command_plan_sha256(self) -> None:
         sha = self._active["command_plan_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
-        # Must differ from the v3 command plan SHA-256
-        assert sha != self._archive_v3["command_plan_sha256"]
+        # Must differ from the v2 PR106 command plan SHA-256
+        assert sha != self._archive_v2_pr106["command_plan_sha256"]
 
     def test_active_binds_locked_base_sha(self) -> None:
-        assert self._active["locked_base_sha"] == VALID_BASE_SHA
+        assert self._active["locked_base_sha"] == (
+            "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+        )
 
     def test_active_binds_merge_method(self) -> None:
         assert self._active["allowed_merge_method"] == "merge"
@@ -951,7 +1054,7 @@ class TestActiveMergeIntentV4:
         workflows = self._active["required_workflows"]
         assert "CI" in workflows
         assert "Decision Preflight" in workflows
-        assert "State Gate (pull_request)" in workflows
+        assert "State Gate (pull_request_target)" in workflows
         assert "State Gate (push)" in workflows
 
     def test_active_has_bounded_expiry(self) -> None:
