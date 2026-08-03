@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v1",
-  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v1",
+  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v2",
+  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v2",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -92,8 +92,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.pytest_minimal_integration_baseline_docs",
-      "command": "python -m pytest tests/test_minimal_integration_baseline_docs.py -q",
+      "command_id": "test.pytest_mainline_landing",
+      "command": "python -m pytest tests/test_mainline_landing.py tests/test_integration_baseline.py tests/test_project_audits.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -116,6 +116,28 @@
     {
       "command_id": "test.pytest_platform_v1",
       "command": "python -m pytest tests/platform_v1 -q",
+      "phase": "test",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "test.pytest_minimal_integration_baseline_docs",
+      "command": "python -m pytest tests/test_minimal_integration_baseline_docs.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -159,7 +181,7 @@
     },
     {
       "command_id": "publication.push_branch",
-      "command": "git push -u origin agent/restore-path-a-state-gate-current-main-v1",
+      "command": "git push origin agent/restore-path-a-state-gate-current-main-v1",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -182,7 +204,7 @@
     },
     {
       "command_id": "observation.pr_checks",
-      "command": "gh pr checks --repo dddd2024/reverse-agent --watch",
+      "command": "gh pr checks 106 --repo dddd2024/reverse-agent --watch",
       "phase": "observation",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -192,6 +214,29 @@
       "execution_surface": "local",
       "operations": [
         "repository_observation",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "publication.pr_edit",
+      "command": "gh pr edit 106 --repo dddd2024/reverse-agent --body-file -",
+      "phase": "publication",
+      "required": false,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "pr_body_update",
         "network_access"
       ],
       "network_access": true,
@@ -228,7 +273,7 @@
     },
     {
       "command_id": "publication.pr_comment",
-      "command": "gh pr comment --repo dddd2024/reverse-agent --body-file -",
+      "command": "gh pr comment 106 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
