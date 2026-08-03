@@ -228,7 +228,7 @@ def integration_baseline(
             _check("tree_identity", _tree(repo_root, merge) == _tree(repo_root, subject) == receipt.get("expected_tree_sha"), f"merge={_tree(repo_root, merge)} subject={_tree(repo_root, subject)}"),
             _check("merge_reachable_from_head", subprocess.run(["git", "merge-base", "--is-ancestor", merge, "HEAD"], cwd=repo_root, capture_output=True, check=False).returncode == 0, f"merge={merge}"),
             _check("exact_head_runs", len(runs) == 4 and all(isinstance(item, dict) and item.get("head_sha") == subject and item.get("conclusion") == "success" for item in runs), f"count={len(runs)}"),
-            _check("required_run_names", set(names) == set(CANONICAL_WORKFLOW_POLICY), f"observed={sorted(str(name) for name in names)}"),
+            _check("required_run_names", set(names) == set(HISTORICAL_WORKFLOW_POLICY_PULL_REQUEST), f"observed={sorted(str(name) for name in names)}"),
         ]
         return _result(
             "integration-baseline",
@@ -571,13 +571,13 @@ def validate_pr60_recovery(
         ids = [int(item.get("run_id") or 0) for item in observations if isinstance(item, Mapping)]
         checks.extend(
             [
-                _check("workflow_names", names == list(CANONICAL_WORKFLOW_POLICY), f"observed={names}"),
+                _check("workflow_names", names == list(HISTORICAL_WORKFLOW_POLICY_PULL_REQUEST), f"observed={names}"),
                 _check("workflow_run_uniqueness", len(ids) == len(set(ids)) == 4, f"run_ids={ids}"),
             ]
         )
-        for index, name in enumerate(CANONICAL_WORKFLOW_POLICY):
+        for index, name in enumerate(HISTORICAL_WORKFLOW_POLICY_PULL_REQUEST):
             observation = observations[index] if index < len(observations) else {}
-            expected_file, expected_event = CANONICAL_WORKFLOW_POLICY[name]
+            expected_file, expected_event = HISTORICAL_WORKFLOW_POLICY_PULL_REQUEST[name]
             verified = verifier.verify_workflow_run(
                 run_id=int(observation.get("run_id") or 0),
                 expected_head_sha=head,
