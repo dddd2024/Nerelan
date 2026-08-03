@@ -1030,7 +1030,7 @@ class TestActiveMergeIntentV5:
 
     def test_active_binds_v6_decision_id(self) -> None:
         assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260803_restore_path_a_state_gate_current_main_v6"
+            "decision_20260803_restore_path_a_state_gate_current_main_v7"
         )
 
     def test_active_binds_v6_decision_content_sha256(self) -> None:
