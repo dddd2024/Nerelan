@@ -70,6 +70,20 @@ jobs:
         shell: bash
         run: echo "mode=$(python -m reverse_agent.project_gate control-plane-mode --state-dir project_state --event-path "$GITHUB_EVENT_PATH")" >> "$GITHUB_OUTPUT"
 
+      - name: Load candidate authority from isolated directory
+        if: github.event_name == 'pull_request_target' && steps.control_plane.outputs.mode == 'transition'
+        shell: bash
+        run: |
+          # Copy candidate project_state from the isolated directory into the
+          # working tree for transition validation.  This is NOT
+          # ``git checkout candidate -- project_state/``; the candidate state
+          # was already extracted via ``git archive`` into an isolated dir.
+          # Mode detection already ran against the trusted base's project_state.
+          if [ -d "$RUNNER_TEMP/candidate_state/project_state" ]; then
+            rm -rf project_state
+            cp -r "$RUNNER_TEMP/candidate_state/project_state" project_state
+          fi
+
       # ----- Transition mode (trusted verifier) -----
       # Branch lifecycle routing (pull_request_target equivalent of
       # github.ref != 'refs/heads/main' from the original pull_request model):
@@ -77,15 +91,15 @@ jobs:
       #   push main  -> integration-baseline, mainline-merge-validation, receipt
       - name: Transition lint
         if: steps.control_plane.outputs.mode == 'transition'
-        run: python -m reverse_agent.project_gate transition-lint --state-dir "${{ steps.candidate_state.outputs.state_dir || 'project_state' }}"
+        run: python -m reverse_agent.project_gate transition-lint --state-dir project_state
 
       - name: Transition command plan
         if: steps.control_plane.outputs.mode == 'transition'
-        run: python -m reverse_agent.project_gate transition-command-plan --state-dir "${{ steps.candidate_state.outputs.state_dir || 'project_state' }}"
+        run: python -m reverse_agent.project_gate transition-command-plan --state-dir project_state
 
       - name: Transition preflight
         if: steps.control_plane.outputs.mode == 'transition' && github.event_name == 'pull_request_target'
-        run: python -m reverse_agent.project_gate transition-preflight --state-dir "${{ steps.candidate_state.outputs.state_dir || 'project_state' }}"
+        run: python -m reverse_agent.project_gate transition-preflight --state-dir project_state
 
       - name: Historical integration baseline
         if: steps.control_plane.outputs.mode == 'transition' && github.event_name == 'push'

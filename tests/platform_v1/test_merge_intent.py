@@ -35,6 +35,9 @@ V4_EXPECTED_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
 EXPECTED_V2_DECISION_ID = (
     "decision_20260803_restore_path_a_state_gate_current_main_v2"
 )
+EXPECTED_V3_DECISION_ID_PR106 = (
+    "decision_20260803_restore_path_a_state_gate_current_main_v3"
+)
 EXPECTED_V4_DECISION_ID = (
     "decision_20260802_issue100_platform_v1_authority_collector_v4"
 )
@@ -87,9 +90,9 @@ class TestActiveMergeIntent:
         data = _load_json(ACTIVE_PATH)
         assert data["allowed_merge_method"] == "merge"
 
-    def test_active_binds_v2_decision_id(self) -> None:
+    def test_active_binds_v3_decision_id(self) -> None:
         data = _load_json(ACTIVE_PATH)
-        assert data["decision_identity"]["decision_id"] == EXPECTED_V2_DECISION_ID
+        assert data["decision_identity"]["decision_id"] == EXPECTED_V3_DECISION_ID_PR106
 
     def test_active_decision_content_sha256_is_64_hex(self) -> None:
         data = _load_json(ACTIVE_PATH)
@@ -122,7 +125,7 @@ class TestActiveMergeIntent:
         workflows = data["required_workflows"]
         assert "CI" in workflows
         assert "Decision Preflight" in workflows
-        assert "State Gate (pull_request)" in workflows
+        assert "State Gate (pull_request_target)" in workflows
         assert "State Gate (push)" in workflows
 
     def test_active_has_bounded_expiry(self) -> None:
