@@ -29,6 +29,11 @@ from .control_plane.legacy_adapter import (
     load_transition_decision,
     persist_bootstrap_state,
 )
+from .control_plane.path_a import (
+    PathAGateError,
+    changed_paths_for_event,
+    verify_path_a_r1,
+)
 from .control_plane.local_seal import evaluate_reconciliation, seal_local
 from .control_plane.models import (
     ExecutionEnvelope,
@@ -36739,6 +36744,74 @@ def _close_round_exit_code(close_status: object) -> int:
     return 0 if close_status == "CLOSED" else 1
 
 
+def _run_path_a_r1_gate(args: argparse.Namespace) -> int:
+    """Run the Path-A R1 authority gate using locally-provided GitHub state.
+
+    All live GitHub state (event, issue, approval events, approver permission)
+    is read from files supplied by the caller — this function performs no
+    network I/O.  ``changed_paths_for_event`` uses local ``git diff`` against
+    the checked-out HEAD, which is the only subprocess use.
+    """
+
+    try:
+        event = json.loads(Path(args.event_path).read_text(encoding="utf-8"))
+        if not isinstance(event, dict):
+            raise ValueError("event_json_must_be_object")
+        issue = json.loads(Path(args.issue_path).read_text(encoding="utf-8"))
+        if not isinstance(issue, dict):
+            raise ValueError("issue_json_must_be_object")
+        approval_events_raw = json.loads(
+            Path(args.approval_events_path).read_text(encoding="utf-8")
+        )
+        if not isinstance(approval_events_raw, list):
+            raise ValueError("approval_events_json_must_be_array")
+        approver_permission = str(args.approver_permission or "").strip().lower()
+        expected_repository = str(args.repository or "").strip()
+        expected_authority_revision = (
+            str(args.expected_authority_revision).strip()
+            if args.expected_authority_revision
+            else None
+        )
+        repo_root = Path.cwd()
+        changed_paths, base_sha, head_sha = changed_paths_for_event(event, repo_root)
+        merge_base_sha = subprocess.check_output(
+            ["git", "merge-base", base_sha, head_sha],
+            cwd=repo_root,
+            text=True,
+        ).strip()
+        result = verify_path_a_r1(
+            event_name="pull_request",
+            event=event,
+            issue=issue,
+            approval_events=approval_events_raw,
+            approver_permission=approver_permission,
+            changed_paths=changed_paths,
+            merge_base_sha=merge_base_sha,
+            expected_repository=expected_repository,
+            expected_authority_revision=expected_authority_revision,
+        )
+    except PathAGateError as exc:
+        print(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "gate_name": "path-a-r1-gate",
+                    "gate_status": "PATH_A_R1_BLOCKED",
+                    "error_code": exc.code,
+                    "detail": exc.detail,
+                },
+                ensure_ascii=True,
+                indent=2,
+            )
+        )
+        return 1
+    except (OSError, ValueError, json.JSONDecodeError, subprocess.CalledProcessError) as exc:
+        print(f"path-a-r1-gate: ERROR: {exc}", file=sys.stderr)
+        return 2
+    print(json.dumps(result, ensure_ascii=True, indent=2))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Project closeout gate checks.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -37041,16 +37114,66 @@ def main(argv: list[str] | None = None) -> int:
     transition_run_command_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     control_plane_mode_parser = subparsers.add_parser("control-plane-mode", help="Print the deterministic control-plane mode token.")
     control_plane_mode_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    control_plane_mode_parser.add_argument(
+        "--event-path",
+        help="Path to a GitHub event JSON file. When supplied, a pull_request event whose head ref does not equal the active Decision's required_branch is routed to path_a_r1.",
+    )
+
+    path_a_r1_gate_parser = subparsers.add_parser(
+        "path-a-r1-gate",
+        help="Run Path-A R1 authority verification for an ordinary R1 pull request.",
+    )
+    path_a_r1_gate_parser.add_argument(
+        "--event-path",
+        required=True,
+        help="Path to the GitHub pull_request event JSON.",
+    )
+    path_a_r1_gate_parser.add_argument(
+        "--issue-path",
+        required=True,
+        help="Path to the source Issue JSON (gh issue view --json output).",
+    )
+    path_a_r1_gate_parser.add_argument(
+        "--approval-events-path",
+        required=True,
+        help="Path to the source Issue timeline events JSON array (labeled/unlabeled transitions).",
+    )
+    path_a_r1_gate_parser.add_argument(
+        "--approver-permission",
+        required=True,
+        help="Collaborator permission of the r1-approved actor (admin, maintain, write, triage, read).",
+    )
+    path_a_r1_gate_parser.add_argument(
+        "--repository",
+        required=True,
+        help="Expected repository full_name (e.g. dddd2024/reverse-agent).",
+    )
+    path_a_r1_gate_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    path_a_r1_gate_parser.add_argument(
+        "--expected-authority-revision",
+        default=None,
+        help="Optional expected authority revision digest for re-validation.",
+    )
 
     args = parser.parse_args(argv)
     if args.command == "control-plane-mode":
         try:
-            mode = detect_control_plane_mode(Path(args.state_dir) / "decision_packet.md")
+            event: Mapping[str, Any] | None = None
+            if args.event_path:
+                event = json.loads(Path(args.event_path).read_text(encoding="utf-8"))
+                if not isinstance(event, dict):
+                    raise ValueError("event_json_must_be_object")
+            mode = detect_control_plane_mode(
+                Path(args.state_dir) / "decision_packet.md",
+                event=event,
+            )
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             print(f"control-plane-mode: ERROR: {exc}", file=sys.stderr)
             return 2
         print(mode)
         return 0
+    if args.command == "path-a-r1-gate":
+        return _run_path_a_r1_gate(args)
     if args.command == "transition-lint":
         result = transition_lint(state_dir=Path(args.state_dir))
         if args.json:

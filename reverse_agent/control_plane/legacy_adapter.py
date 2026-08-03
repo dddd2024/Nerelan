@@ -41,8 +41,19 @@ def is_transition_decision(contract: Mapping[str, Any]) -> bool:
     return contract.get("transition_kernel_required") is True
 
 
-def detect_control_plane_mode(path: Path) -> str:
-    """Return one deterministic mode token, rejecting malformed authority."""
+def detect_control_plane_mode(
+    path: Path,
+    *,
+    event: Mapping[str, Any] | None = None,
+) -> str:
+    """Return one deterministic mode token, rejecting malformed authority.
+
+    Without an event (or a non-pull-request event) the Decision-selected mode
+    (``transition`` or ``legacy``) is returned.  When a pull-request event is
+    supplied, a PR whose head ref does NOT equal the active Decision's
+    ``required_branch`` is routed to ``path_a_r1`` for ordinary R1 authority
+    verification; a PR bound to the Decision's branch keeps the Decision mode.
+    """
 
     decision, contract = load_transition_decision(path)
     if not decision.decision_id:
@@ -58,7 +69,17 @@ def detect_control_plane_mode(path: Path) -> str:
     flag = contract.get("transition_kernel_required", False)
     if not isinstance(flag, bool):
         raise ValueError("transition_kernel_required_must_be_boolean")
-    return "transition" if flag else "legacy"
+    decision_mode = "transition" if flag else "legacy"
+
+    if event is None or not isinstance(event.get("pull_request"), Mapping):
+        return decision_mode
+
+    pr = event["pull_request"]
+    head_ref = str((pr.get("head") or {}).get("ref") or "")
+    required_branch = _required_string(contract, "required_branch")
+    if head_ref == required_branch:
+        return decision_mode
+    return "path_a_r1"
 
 
 def load_legacy_command_plan(path: Path) -> TransitionCommandPlan:

@@ -2,6 +2,8 @@ name: State Gate
 
 on:
   push:
+    branches:
+      - "main"
     paths:
       - "project_state/**"
       - "reverse_agent/**"
@@ -10,6 +12,14 @@ on:
       - ".codex-skills/**"
       - "docs/prompts/**"
   pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+      - ready_for_review
+      - labeled
+      - unlabeled
+      - reopened
     paths:
       - "project_state/**"
       - "reverse_agent/**"
@@ -29,10 +39,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Checkout
+      - name: Checkout exact head
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -45,7 +56,7 @@ jobs:
       - name: Detect control-plane mode
         id: control_plane
         shell: bash
-        run: echo "mode=$(python -m reverse_agent.project_gate control-plane-mode --state-dir project_state)" >> "$GITHUB_OUTPUT"
+        run: echo "mode=$(python -m reverse_agent.project_gate control-plane-mode --state-dir project_state --event-path "$GITHUB_EVENT_PATH")" >> "$GITHUB_OUTPUT"
 
       - name: Transition lint
         if: steps.control_plane.outputs.mode == 'transition'
@@ -168,8 +179,70 @@ jobs:
         if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state
 
+      - name: Path-A R1 collect GitHub state
+        if: steps.control_plane.outputs.mode == 'path_a_r1' && github.event_name == 'pull_request'
+        id: path_a_state
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ISSUE_NUMBER=$(python -c "
+          import json
+          from reverse_agent.control_plane.path_a import parse_snapshot
+          event = json.load(open('$GITHUB_EVENT_PATH'))
+          pr = event.get('pull_request', {})
+          snapshot = parse_snapshot(pr.get('body', ''))
+          print(snapshot.issue_number)
+          ")
+          echo "issue_number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+          gh issue view "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            --json number,body,labels,state,content_last_edited_at \
+            > "$RUNNER_TEMP/path_a_issue.json"
+          gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/events" \
+            --paginate > "$RUNNER_TEMP/path_a_approval_events.json"
+          APPROVER=$(python -c "
+          import json
+          events = json.load(open('$RUNNER_TEMP/path_a_approval_events.json'))
+          transitions = [
+              e for e in events
+              if e.get('event') in ('labeled', 'unlabeled')
+              and (e.get('label') or {}).get('name', '').lower() == 'r1-approved'
+          ]
+          transitions.sort(key=lambda e: (str(e.get('created_at', '')), int(e.get('id', 0))))
+          effective = transitions[-1] if transitions else {}
+          print((effective.get('actor') or {}).get('login', ''))
+          ")
+          if [ -z "$APPROVER" ]; then
+            echo "path-a-r1: no r1-approved label event found on issue $ISSUE_NUMBER" >&2
+            exit 1
+          fi
+          echo "approver=$APPROVER" >> "$GITHUB_OUTPUT"
+          PERMISSION=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$APPROVER/permission" \
+            --jq '.permission')
+          echo "permission=$PERMISSION" >> "$GITHUB_OUTPUT"
+
+      - name: Path-A R1 gate
+        if: steps.control_plane.outputs.mode == 'path_a_r1' && github.event_name == 'pull_request'
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python -m reverse_agent.project_gate path-a-r1-gate \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --issue-path "$RUNNER_TEMP/path_a_issue.json" \
+            --approval-events-path "$RUNNER_TEMP/path_a_approval_events.json" \
+            --approver-permission "${{ steps.path_a_state.outputs.permission }}" \
+            --repository "$GITHUB_REPOSITORY" \
+            --state-dir project_state
+
       - name: Focused gate tests
+        if: steps.control_plane.outputs.mode != 'path_a_r1'
         run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q
+
+      - name: Path-A R1 focused tests
+        if: steps.control_plane.outputs.mode == 'path_a_r1'
+        run: python -m pytest tests/test_path_a_gate.py tests/test_control_plane_transition.py tests/test_planning_and_github_adapters.py -q
 
       - name: Project gate final check
         if: steps.control_plane.outputs.mode == 'legacy'
