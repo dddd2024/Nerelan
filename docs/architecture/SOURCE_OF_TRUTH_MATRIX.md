@@ -94,6 +94,21 @@ Path A permits push to the exact approved non-`main` branch and creation/update 
 
 Agent-initiated, automation-initiated, workflow-initiated, scheduled, delegated, or external-service-initiated `merge` or `mark-ready`, GitHub auto-merge, and `merge`/`mark-ready` of R2/R3 work items or of R1 PRs that fail any final-acceptance condition remain Path-B.
 
+## Cross-Agent memory layers
+
+Different Agent products do not automatically share private memory. The following layers are defined in `docs/architecture/CROSS_AGENT_CONTEXT_CONTRACT.md` and recorded here so their authority status is explicit.
+
+| Memory layer | Authoritative source | Applicable path | Notes |
+|--------------|----------------------|-----------------|-------|
+| Repository-backed shared state | tracked files at an exact commit | both | Shared project fact only at the exact commit read |
+| GitHub-backed shared state | verifiable GitHub state | both | Comments and Issue bodies are not Path-B authority |
+| Product/platform memory | ChatGPT/Codex/OpenHands/Claude/Cursor/Trae product configuration | neither | Not automatically visible to another Agent product; not repository policy |
+| Agent-local persistent memory | role assumptions, prior summaries, cached constraints | neither | Advisory only unless grounded in current repository or GitHub authority |
+| Run/session scratch state | current conversation, scratchpad, runtime state | neither | Not assumed to survive or transfer to another Agent |
+| User-provided transient context | in-session user input | neither | Advisory only; must be grounded in tracked files before being treated as policy |
+
+Product/platform memory, Agent-local persistent memory, run/session scratch state, and user-provided transient context are not authority unless independently grounded in the current repository or GitHub state. Private Agent memory is not repository policy. A constraint local to one Agent product does not establish a repository-wide prohibition.
+
 ## Non-authoritative sources
 
 - roadmap text as execution authority;
@@ -102,4 +117,6 @@ Agent-initiated, automation-initiated, workflow-initiated, scheduled, delegated,
 - local CI mirrors;
 - legacy closeout/final-seal/report artifacts;
 - `project_state/current_state.json` and `state_manifest.json`;
+- product/platform memory and Agent-local memory as repository policy;
+- run/session scratch state and user-provided transient context as repository policy;
 - any new tracked per-run artifact family.

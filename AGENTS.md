@@ -271,3 +271,11 @@ Stop immediately when:
 - independent audit has not accepted the exact head.
 
 When blocked, stop and request a revised Work Item or bounded Decision. Do not invent a new Gate, receipt, verifier, mainline authorization schema, or tracked artifact family to unblock yourself.
+
+## Cross-Agent context and memory
+
+Different Agent products do not automatically share private memory. ChatGPT Project memory, Codex memory, OpenHands persistence, Claude/Cursor/Trae memories, and similar product-level context belong to their respective product scopes and are not automatically synchronized. Only content written into the same Git commit or verifiable GitHub state may be read by different Agents as shared project fact.
+
+When an Agent claims a rule or constraint, it must name the source (`REPOSITORY_POLICY`, `ACTIVE_DECISION`, `GENERATED_COMMAND_PLAN`, `GITHUB_OBSERVATION`, `AGENT_LOCAL_ROLE_CONSTRAINT`, `SESSION_ASSUMPTION`, `USER_PROVIDED_CONTEXT`). It must distinguish repository-wide policy from a constraint local to one Agent product. When sources conflict, the Agent reports `AGENT_CONTEXT_CONFLICT` instead of silently choosing one memory. A constraint local to one Agent product does not establish a repository-wide prohibition.
+
+The full layered memory model, freshness checks, and conflict-resolution order are defined in `docs/architecture/CROSS_AGENT_CONTEXT_CONTRACT.md`. Private Agent memory is not repository policy. GitHub comments and Issue bodies are not Path-B authority.

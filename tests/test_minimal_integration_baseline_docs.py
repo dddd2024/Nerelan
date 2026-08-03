@@ -19,6 +19,8 @@ SOURCE_OF_TRUTH_MD = REPO_ROOT / "docs" / "architecture" / "SOURCE_OF_TRUTH_MATR
 CONTAINMENT_MD = REPO_ROOT / "docs" / "architecture" / "LEGACY_GOVERNANCE_CONTAINMENT.md"
 REUSE_INVENTORY_MD = REPO_ROOT / "docs" / "architecture" / "ARCHITECTURE_SPINE_REUSE_INVENTORY.md"
 R1_TEMPLATE = REPO_ROOT / ".github" / "ISSUE_TEMPLATE" / "minimal-ai-r1-task.yml"
+CROSS_AGENT_CONTRACT_MD = REPO_ROOT / "docs" / "architecture" / "CROSS_AGENT_CONTEXT_CONTRACT.md"
+PROJECT_GOVERNANCE_CONTEXT_MD = REPO_ROOT / "docs" / "project_governance_context.md"
 
 DELIVERABLES = [
     AGENTS_MD,
@@ -669,4 +671,98 @@ def test_f6_r1_template_risk_tier_justification_agent_not_authorized_to_merge() 
     assert "agent is not authorized to merge" in block or "agent is not authorized to merge or mark-ready" in block, (
         "risk_tier_justification placeholder must state the Agent is not "
         "authorized to merge or mark-ready during implementation"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Cross-Agent context contract (Issue #103)
+# ---------------------------------------------------------------------------
+
+
+def test_cross_agent_context_contract_exists() -> None:
+    assert CROSS_AGENT_CONTRACT_MD.exists(), f"{CROSS_AGENT_CONTRACT_MD} must exist"
+    assert _read(CROSS_AGENT_CONTRACT_MD).strip(), (
+        f"{CROSS_AGENT_CONTRACT_MD} must be non-empty"
+    )
+
+
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        "Repository-backed shared state",
+        "GitHub-backed shared state",
+        "Product/platform memory",
+        "Agent-local persistent memory",
+        "Run/session state",
+        "AGENT_CONTEXT_CONFLICT",
+        "AGENT_LOCAL_ROLE_CONSTRAINT",
+    ],
+)
+def test_cross_agent_context_contract_contains_required_phrases(phrase: str) -> None:
+    content = _read(CROSS_AGENT_CONTRACT_MD)
+    assert phrase in content, (
+        f"{CROSS_AGENT_CONTRACT_MD.name} must contain {phrase!r}"
+    )
+
+
+def test_cross_agent_context_contract_states_private_memory_not_shared() -> None:
+    content = _read(CROSS_AGENT_CONTRACT_MD).lower()
+    assert "do not automatically share private memory" in content, (
+        "Contract must state that different Agent products do not automatically "
+        "share private memory"
+    )
+
+
+def test_cross_agent_context_contract_defines_conflict_priority() -> None:
+    content = _read(CROSS_AGENT_CONTRACT_MD).lower()
+    assert "exact git/github fact" in content
+    assert "path-a or path-b authority" in content
+    assert "agent-product/private memory" in content or "agent-product / private memory" in content
+    assert "model recollection or inference" in content
+
+
+def test_cross_agent_context_contract_defines_freshness_checks() -> None:
+    content = _read(CROSS_AGENT_CONTRACT_MD).lower()
+    assert "commit sha" in content
+    assert "decision id" in content
+    assert "round id" in content
+    assert "generated_at" in content
+    assert "source digest" in content
+
+
+def test_cross_agent_context_contract_clarifies_issue_102_not_authorized() -> None:
+    content = _read(CROSS_AGENT_CONTRACT_MD)
+    assert "Issue #102" in content
+    assert "does not authorize" in content.lower() or "not authorize" in content.lower()
+
+
+def test_agents_md_links_to_cross_agent_context_contract() -> None:
+    content = _read(AGENTS_MD)
+    assert "docs/architecture/CROSS_AGENT_CONTEXT_CONTRACT.md" in content, (
+        "AGENTS.md must link to the cross-agent context contract"
+    )
+    assert "AGENT_CONTEXT_CONFLICT" in content
+    assert "AGENT_LOCAL_ROLE_CONSTRAINT" in content
+
+
+def test_source_of_truth_matrix_marks_private_memory_non_authority() -> None:
+    content = _read(SOURCE_OF_TRUTH_MD).lower()
+    assert "product/platform memory" in content
+    assert "agent-local" in content
+    assert "run/session" in content
+    assert "user-provided transient context" in content
+    assert "private agent memory is not repository policy" in content, (
+        "SOURCE_OF_TRUTH_MATRIX.md must state private Agent memory is not "
+        "repository policy"
+    )
+
+
+def test_project_governance_context_states_exact_commit_and_freshness() -> None:
+    content = _read(PROJECT_GOVERNANCE_CONTEXT_MD).lower()
+    assert "current_context_packet.json" in content
+    assert "exact commit" in content
+    assert "freshness" in content
+    assert "does not synchronize chatgpt" in content, (
+        "project_governance_context.md must state current_context_packet.json "
+        "does not synchronize product-private memory"
     )
