@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v5",
-  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v5",
+  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v6",
+  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v6",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,10 +16,10 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v4",
-  "follows_last_round_id": "round_20260803_restore_path_a_state_gate_current_main_v4",
-  "previous_audit_outcome": "PR106_V4_REJECTED_RUNTIME_WIRING_GRAPHQL_AND_RECEIPT",
-  "workstream_id": "issue105-restore-path-a-state-gate-current-main-v5",
+  "follows_last_decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v5",
+  "follows_last_round_id": "round_20260803_restore_path_a_state_gate_current_main_v5",
+  "previous_audit_outcome": "PR106_V5_REJECTED_EVENT_TOPOLOGY_AND_RECEIPT_ENFORCEMENT",
+  "workstream_id": "issue105-restore-path-a-state-gate-current-main-v6",
   "source_issue": 105,
   "parent_issue": 90,
   "bootstrap_issue": 107,
@@ -28,7 +28,7 @@
   "active_pr": 106,
   "historical_reference_pr": 49,
   "required_branch": "agent/restore-path-a-state-gate-current-main-v1",
-  "starting_head": "18ed708bf27f8eac84f14835aaf2a3aebb7be277",
+  "starting_head": "7c6dea5c1aab09ab7c0d7775ae8d01b53a7e847e",
   "activation_base_sha": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -258,6 +258,7 @@
     "project_state/gates/transition_preflight_result.json",
     "project_state/mainline_merge_intents/active.json",
     "project_state/mainline_merge_intents/archive/pr106_v4.json",
+    "project_state/mainline_merge_intents/archive/pr106_v5.json",
     ".github/workflows/state-gate.yml",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/path_a.py",
@@ -455,7 +456,12 @@
     "re-execute git diff in receipt instead of reusing authority observation",
     "accept incomplete label pagination from GraphQL labels(first:100) without full pagination",
     "checkout candidate in authority job before mode selection",
-    "require HEAD==candidate SHA for Path-A changed-path observation"
+    "require HEAD==candidate SHA for Path-A changed-path observation",
+    "pass trusted base Decision historical activation_base_sha into generic initial route observation",
+    "run candidate-tests or PR receipt finalizer on push main events",
+    "dereference github.event.pull_request fields on push main events",
+    "allow BLOCKED or malformed receipt to pass the State Gate job",
+    "use artifact upload success as a substitute for receipt gate PASS"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -486,6 +492,7 @@
     "project_state/gates/**",
     "project_state/mainline_merge_intents/active.json",
     "project_state/mainline_merge_intents/archive/pr106_v4.json",
+    "project_state/mainline_merge_intents/archive/pr106_v5.json",
     ".github/workflows/state-gate.yml",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/path_a.py",
@@ -575,8 +582,8 @@
 
 ## Goal
 
-Restore trusted routing runtime wiring, GraphQL envelope parsing, and receipt observation reuse on the existing branch `agent/restore-path-a-state-gate-current-main-v1` continuing on Draft PR #106, starting from exact head `18ed708bf27f8eac84f14835aaf2a3aebb7be277`. The v4 attempt was rejected because: (a) production CLI only passed event without a trusted changed-path observation, requiring HEAD==candidate for Path-A; (b) candidate checkout was not rejected in the authority job; (c) GraphQL envelope was not unwrapped through `data.repository.issue`; (d) labels were not completely paginated; (e) receipt re-executed `git diff --name-only` instead of reusing authority observation; (f) remote receipt verifier did not reject unsupported modes like `path_b`. The v5 rework must: (1) implement a `TrustedChangedPathObservation` dataclass that reads exact base/head SHA from event, verifies `HEAD==base`, verifies candidate object exists, computes merge-base, runs `git diff --name-status -M -C`, records rename old/new paths, rejects empty/NUL/absolute/`..` paths, canonicalizes, deduplicates, sorts, and produces a canonical SHA-256; (2) wire the observation into a real `trusted-pr-route` CLI subcommand that outputs mode/observation without requiring authority checkout HEAD==candidate; (3) update the State Gate workflow to checkout trusted base with `persist-credentials: false`, fetch candidate object, run `trusted-pr-route`, and select transition or Path-A BEFORE reading candidate `project_state/**`; (4) add `--changed-path-observation-path` to `path-a-r1-gate` so Path-A uses the authority observation file directly; (5) fix GraphQL unwrapping through `data.repository.issue` with fail-closed on errors/missing keys, and complete label pagination via REST with same repository/issue binding; (6) ensure all R2/R3 PRs route to `transition` and candidate Decision is only read after mode selection; (7) make receipt reuse authority observation digests without re-executing git diff; (8) strengthen `verify_state_gate_receipt()` to reject unsupported modes (`path_b`, empty, unknown, null), verify `trusted_verifier_tree_sha==trusted_base_sha`, exact authority identity, exact workflow run ID/attempt, exact artifact name/count/content digest; (9) archive the current v4 `active.json` verbatim as `archive/pr106_v4.json` with identical SHA-256 before binding the new v5 active intent; (10) bind the v5 active intent to PR #106 with exact v5 Decision blob SHA-256, exact v5 Command Plan blob SHA-256, `locked_base_sha: fa4f240f7dffff78cdb182ce8655c2e2d7cb241f`, `allowed_merge_method: merge`, the four canonical required workflows, and a bounded expiry; (11) preserve all historical intent archives (pr97_v1, pr97_v2, pr97_v3, pr97_v4, pr106_v2, pr106_v3, pr106_v4). Do not modify `ci.yml`, `decision-preflight.yml`, `reverse_agent/mainline_landing.py`, `reverse_agent/platform_v1/**`, or any read-only regression test. Do not run Issue #102, Issue #107 bootstrap, Docker, OpenHands, or Codex ACP. Push only to the existing branch, update only PR #106, publish desensitized evidence, and stop at `PR106_V5_RUNTIME_READY_FOR_OWNER_BOOTSTRAP_AUDIT`.
+Repair four v5 audit findings on the existing branch `agent/restore-path-a-state-gate-current-main-v1` continuing on Draft PR #106, starting from exact head `7c6dea5c1aab09ab7c0d7775ae8d01b53a7e847e`. The v5 attempt was rejected because: (F1) trusted routing binds every new PR to the unrelated old Decision activation base — `_run_trusted_pr_route()` loads the Decision from the trusted base and passes its `activation_base_sha` into `build_trusted_changed_path_observation()`, but the Decision on main has `activation_base_sha=705a0bfd...` (PR #97) while PR #106 is based on `fa4f240f...`; (F2) the `push` event still enters PR-only candidate and finalizer jobs — `candidate-tests` has no `pull_request_target` event guard and `finalize-receipt` runs on all events; (F3) `final_gate_result=BLOCKED` does not fail the State Gate workflow — there is no deterministic step that exits nonzero when the PR receipt is BLOCKED or malformed; (F4) current tests do not exercise the exact `main` Decision/base mismatch or event split. The v6 rework must: (1) remove the trusted base Decision's historical `activation_base_sha` from the generic initial route observation — require `checked-out HEAD == live event base SHA` and `merge-base(event base, candidate head) == event base`, then after risk-first routing selects transition, load the isolated candidate Decision and let transition preflight validate the candidate Decision's own base/branch/ancestry; (2) split the workflow topology by event — `pull_request_target` runs authority-gate, tokenless candidate-tests, and enforced PR receipt; `push main` runs only trusted mainline validation and mainline integration receipt, with explicit `github.event_name == 'pull_request_target'` guards on all PR-only jobs/steps; (3) make the PR receipt a blocking gate — invoke the repository-owned receipt verifier or equivalent deterministic validation and exit nonzero unless `final_gate_result == PASS`, the selected mode is supported, authority/candidate results are SUCCESS, the trusted verifier tree equals the base, and all receipt bindings/digest checks pass, while preserving artifact upload with `if: always()` for failed evidence; (4) add behavior-level tests using the actual mismatch shape where main's old Decision `activation_base_sha` differs from the current event base, plus tests for push/PR event separation and BLOCKED-receipt job failure. Archive the v5 `active.json` verbatim as `archive/pr106_v5.json` with identical SHA-256 before binding the new v6 active intent. Preserve all historical intent archives (pr97_v1, pr97_v2, pr97_v3, pr97_v4, pr106_v2, pr106_v3, pr106_v4, pr106_v5). Do not modify `ci.yml`, `decision-preflight.yml`, `reverse_agent/mainline_landing.py`, `reverse_agent/platform_v1/**`, or any read-only regression test. Do not run Issue #102, Issue #107 bootstrap, Docker, OpenHands, or Codex ACP. Push only to the existing branch, update only PR #106, publish desensitized evidence, and stop at `PR106_V6_EVENT_TOPOLOGY_READY_FOR_OWNER_BOOTSTRAP_AUDIT`.
 
 ## Acceptance boundary
 
-The v5 runtime rework is complete only when: the v5 Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is achieved with `blocking_reasons=[]` before implementation; the v4 `active.json` is archived verbatim as `archive/pr106_v4.json` with identical SHA-256; the new `active.json` binds `source_pr: 106`, `locked_base_sha: fa4f240f7dffff78cdb182ce8655c2e2d7cb241f`, the v5 Decision identity, exact v5 Decision blob SHA-256, exact v5 Command Plan blob SHA-256, `allowed_merge_method: merge`, the four canonical required workflows including `State Gate (pull_request_target)`, and a bounded expiry; the production CLI `trusted-pr-route` produces a trusted route observation using trusted base checkout without requiring HEAD==candidate; R2 workflow candidate routes `transition` even when HEAD remains the trusted base; R1 docs candidate routes `path_a_r1`; `path_b` mode is removed from supported modes; GraphQL envelope is unwrapped through `data.repository.issue` with fail-closed on errors/missing keys; complete labels are observed via REST pagination; Path-A uses the authority observation file directly; receipt reuses authority observation digests without re-executing git diff; remote verifier rejects unsupported modes (`path_b`, empty, unknown, null); candidate checkout in authority job is rejected with `trusted_checkout_not_base`; all required local test suites pass with zero failures; `transition-lint` passes; `transition-preflight` returns `PRE_EXECUTION_AUTHORIZED`; `git diff --check fa4f240f7dffff78cdb182ce8655c2e2d7cb241f..HEAD` passes; exact-head CI and Decision Preflight succeed; the PR remains Draft and unmerged. The terminal status is `PR106_V5_RUNTIME_READY_FOR_OWNER_BOOTSTRAP_AUDIT`. Any scope conflict, credential exposure, idempotency failure, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
+The v6 event-topology rework is complete only when: the v6 Decision commit precedes any implementation; `PRE_EXECUTION_AUTHORIZED` is achieved with `blocking_reasons=[]` before implementation; the v5 `active.json` is archived verbatim as `archive/pr106_v5.json` with identical SHA-256; the new `active.json` binds `source_pr: 106`, `locked_base_sha: fa4f240f7dffff78cdb182ce8655c2e2d7cb241f`, the v6 Decision identity, exact v6 Decision blob SHA-256, exact v6 Command Plan blob SHA-256, `allowed_merge_method: merge`, the four canonical required workflows, and a bounded expiry; the trusted initial route uses the live event base SHA (not the trusted base Decision's historical `activation_base_sha`) for merge-base validation; `push main` events do not enter candidate-tests or PR receipt finalizer and do not dereference `github.event.pull_request` fields; a BLOCKED or malformed PR receipt causes the State Gate job to fail nonzero; behavior-level tests cover the main Decision/base mismatch, push/PR event separation, and BLOCKED-receipt job failure; all required local test suites pass with zero failures; `transition-lint` passes; `transition-preflight` returns `PRE_EXECUTION_AUTHORIZED`; `git diff --check fa4f240f7dffff78cdb182ce8655c2e2d7cb241f..HEAD` passes; exact-head CI and Decision Preflight succeed; the PR remains Draft and unmerged. The terminal status is `PR106_V6_EVENT_TOPOLOGY_READY_FOR_OWNER_BOOTSTRAP_AUDIT`. Any scope conflict, credential exposure, idempotency failure, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
