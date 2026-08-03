@@ -48,8 +48,18 @@ class AuthorityBundleError(Exception):
 _SHA1_HEX_RE = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 
-# Canonical required (workflowName, event) keys for PR #97.
+# Canonical required (workflowName, event) keys for the active merge intent.
 CANONICAL_WORKFLOW_KEYS: tuple[tuple[str, str], ...] = (
+    ("CI", "pull_request"),
+    ("Decision Preflight", "pull_request"),
+    ("State Gate", "pull_request_target"),
+    ("State Gate", "push"),
+)
+
+# Historical canonical keys for archived intents that were created when the
+# State Gate PR trigger was ``pull_request``.  Used only for validating
+# immutable archive files.
+HISTORICAL_WORKFLOW_KEYS_PULL_REQUEST: tuple[tuple[str, str], ...] = (
     ("CI", "pull_request"),
     ("Decision Preflight", "pull_request"),
     ("State Gate", "pull_request"),
@@ -91,7 +101,7 @@ class LiveIssueProvider:
             [
                 "gh", "issue", "view", str(issue_number),
                 "--repo", repository,
-                "--json", "body,state,labels",
+                "--json", "body,state,labels,content_last_edited_at",
             ],
             capture_output=True,
             text=True,
@@ -116,6 +126,7 @@ class LiveIssueProvider:
             "body": str(raw.get("body", "")),
             "state": str(raw.get("state", "")),
             "labels": labels,
+            "content_last_edited_at": raw.get("content_last_edited_at") or "",
         }
 
 
@@ -127,7 +138,7 @@ class LivePRProvider:
             [
                 "gh", "pr", "view", str(pr_number),
                 "--repo", repository,
-                "--json", "state,isDraft,baseRefName,baseRefOid,headRefName,headRefOid",
+                "--json", "state,isDraft,baseRefName,baseRefOid,headRefName,headRefOid,autoMergeRequest",
             ],
             capture_output=True,
             text=True,
@@ -149,6 +160,7 @@ class LivePRProvider:
             "baseRefOid": str(raw.get("baseRefOid", "")),
             "headRefName": str(raw.get("headRefName", "")),
             "headRefOid": str(raw.get("headRefOid", "")),
+            "autoMergeRequest": raw.get("autoMergeRequest"),
         }
 
 

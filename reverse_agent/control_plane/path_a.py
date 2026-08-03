@@ -383,7 +383,7 @@ def _build_authority_revision(
         pr_draft_state=(
             pr.get("draft") if isinstance(pr.get("draft"), bool) else None
         ),
-        pr_auto_merge_state=pr.get("auto_merge"),
+        pr_auto_merge_state=pr.get("autoMergeRequest") if pr.get("autoMergeRequest") is not None else pr.get("auto_merge"),
         base_sha=str((pr.get("base") or {}).get("sha") or "").lower(),
         exact_head_sha=str((pr.get("head") or {}).get("sha") or "").lower(),
     )
@@ -693,7 +693,8 @@ def verify_path_a_r1(
         raise PathAGateError("base_sha_mismatch")
     if merge_base_sha.lower() != snapshot.base_sha:
         raise PathAGateError("merge_base_mismatch")
-    if pr.get("auto_merge") not in (None, False):
+    _auto_merge = pr.get("autoMergeRequest") if pr.get("autoMergeRequest") is not None else pr.get("auto_merge")
+    if _auto_merge not in (None, False):
         raise PathAGateError("auto_merge_forbidden")
 
     changed = tuple(dict.fromkeys(path.replace("\\", "/") for path in changed_paths))

@@ -45,12 +45,17 @@ jobs:
           ref: ${{ github.event.pull_request.base.sha || github.sha }}
           persist-credentials: false
 
-      - name: Overlay candidate project_state (for transition/legacy authority)
+      - name: Extract candidate project_state to isolated directory
         if: github.event_name == 'pull_request_target'
+        id: candidate_state
         shell: bash
         run: |
           git fetch origin "${{ github.event.pull_request.head.sha }}"
-          git checkout "${{ github.event.pull_request.head.sha }}" -- project_state/
+          # Extract candidate project_state to an isolated directory.
+          # Never overlay candidate authority files onto the trusted workspace.
+          mkdir -p "$RUNNER_TEMP/candidate_state"
+          git archive "${{ github.event.pull_request.head.sha }}" -- project_state/ | tar -x -C "$RUNNER_TEMP/candidate_state"
+          echo "state_dir=$RUNNER_TEMP/candidate_state/project_state" >> "$GITHUB_OUTPUT"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -72,15 +77,15 @@ jobs:
       #   push main  -> integration-baseline, mainline-merge-validation, receipt
       - name: Transition lint
         if: steps.control_plane.outputs.mode == 'transition'
-        run: python -m reverse_agent.project_gate transition-lint --state-dir project_state
+        run: python -m reverse_agent.project_gate transition-lint --state-dir "${{ steps.candidate_state.outputs.state_dir || 'project_state' }}"
 
       - name: Transition command plan
         if: steps.control_plane.outputs.mode == 'transition'
-        run: python -m reverse_agent.project_gate transition-command-plan --state-dir project_state
+        run: python -m reverse_agent.project_gate transition-command-plan --state-dir "${{ steps.candidate_state.outputs.state_dir || 'project_state' }}"
 
       - name: Transition preflight
         if: steps.control_plane.outputs.mode == 'transition' && github.event_name == 'pull_request_target'
-        run: python -m reverse_agent.project_gate transition-preflight --state-dir project_state
+        run: python -m reverse_agent.project_gate transition-preflight --state-dir "${{ steps.candidate_state.outputs.state_dir || 'project_state' }}"
 
       - name: Historical integration baseline
         if: steps.control_plane.outputs.mode == 'transition' && github.event_name == 'push'
@@ -230,7 +235,7 @@ jobs:
           # Live re-query PR state
           PR_NUMBER="${{ github.event.pull_request.number }}"
           gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
-            --json number,state,isDraft,body,autoMerge,headRefName,headRefOid,baseRefName,baseRefOid \
+            --json number,state,isDraft,body,autoMergeRequest,headRefName,headRefOid,baseRefName,baseRefOid \
             > "$RUNNER_TEMP/path_a_pr.json"
 
           # Merge live PR data into event for authority verification
@@ -243,7 +248,7 @@ jobs:
               'state': live_pr.get('state', event['pull_request'].get('state')),
               'draft': live_pr.get('isDraft', event['pull_request'].get('draft')),
               'body': live_pr.get('body', event['pull_request'].get('body')),
-              'auto_merge': live_pr.get('autoMerge', event['pull_request'].get('auto_merge')),
+              'auto_merge': live_pr.get('autoMergeRequest', event['pull_request'].get('auto_merge')),
               'head': {
                   'ref': live_pr.get('headRefName', event['pull_request']['head']['ref']),
                   'sha': live_pr.get('headRefOid', event['pull_request']['head']['sha']),
@@ -356,3 +361,123 @@ jobs:
           path: |
             project_state/gates/*.json
             project_state/pytest_result.txt
+
+  # ===========================================================================
+  # Finalize receipt job (trusted, no candidate code)
+  #
+  # Runs always (even if candidate-tests fail).  Does NOT execute candidate
+  # code.  Generates a verifiable receipt artifact bound to PR and candidate
+  # head.  Candidate tests failure => receipt final_gate_result = BLOCKED.
+  # ===========================================================================
+  finalize-receipt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [authority-gate, candidate-tests]
+    if: always()
+    steps:
+      - name: Checkout trusted base (no candidate code)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install trusted package
+        run: python -m pip install -e ".[test]"
+
+      - name: Generate State Gate receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -c "
+          import hashlib, json, os, subprocess
+          from datetime import datetime, timezone
+
+          repo = os.environ['GITHUB_REPOSITORY']
+          event_name = os.environ['GITHUB_EVENT_NAME']
+          run_id = os.environ['GITHUB_RUN_ID']
+          run_attempt = os.environ.get('GITHUB_RUN_ATTEMPT', '1')
+          workflow_path = os.environ.get('GITHUB_WORKFLOW_REF', '.github/workflows/state-gate.yml')
+          # Extract just the workflow path portion
+          workflow_path = workflow_path.split('@')[0] if '@' in workflow_path else workflow_path
+
+          event = json.load(open(os.environ['GITHUB_EVENT_PATH']))
+          pr = event.get('pull_request', {})
+          pr_number = pr.get('number', 0)
+          candidate_head = pr.get('head', {}).get('sha', '')
+          candidate_base = pr.get('base', {}).get('sha', '')
+          trusted_base = candidate_base
+
+          # Compute changed_paths_sha256 from git diff (trusted verifier)
+          changed = subprocess.check_output(
+              ['git', 'diff', '--name-only', f'{trusted_base}..{candidate_head}'],
+              text=True
+          ).strip().split('\n') if candidate_head else []
+          changed.sort()
+          changed_paths_sha = hashlib.sha256(
+              '\n'.join(changed).encode('utf-8')
+          ).hexdigest()
+
+          # Authority and candidate test results
+          authority_result = 'SUCCESS' if '${{ needs.authority-gate.result }}' == 'success' else 'FAILED'
+          candidate_tests_result = 'SUCCESS' if '${{ needs.candidate-tests.result }}' == 'success' else 'FAILED'
+          selected_mode = '${{ needs.authority-gate.outputs.mode }}'
+
+          # Final gate result
+          if authority_result != 'SUCCESS':
+              final_gate_result = 'BLOCKED'
+          elif candidate_tests_result != 'SUCCESS':
+              final_gate_result = 'BLOCKED'
+          else:
+              final_gate_result = 'PASS'
+
+          # Trusted verifier tree SHA (current HEAD = trusted base)
+          trusted_verifier_tree = subprocess.check_output(
+              ['git', 'rev-parse', 'HEAD'], text=True
+          ).strip()
+
+          receipt = {
+              'schema_version': '0.1',
+              'receipt_kind': 'state_gate',
+              'repository': repo,
+              'pr_number': pr_number,
+              'workflow_path': workflow_path,
+              'workflow_event': event_name,
+              'workflow_run_id': int(run_id),
+              'workflow_run_attempt': int(run_attempt),
+              'trusted_base_sha': trusted_base,
+              'trusted_verifier_tree_sha': trusted_verifier_tree,
+              'candidate_head_sha': candidate_head,
+              'candidate_base_sha': candidate_base,
+              'changed_paths_sha256': changed_paths_sha,
+              'selected_mode': selected_mode,
+              'authority_identity': 'trusted_base_verifier',
+              'authority_revision': trusted_verifier_tree,
+              'authority_result': authority_result,
+              'candidate_tests_result': candidate_tests_result,
+              'final_gate_result': final_gate_result,
+              'generated_at': datetime.now(timezone.utc).isoformat(),
+          }
+
+          # Compute content_sha256 over the canonical receipt (excluding itself)
+          canonical = json.dumps(receipt, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+          receipt['content_sha256'] = hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+
+          out_path = os.path.join(os.environ['RUNNER_TEMP'], 'state_gate_receipt.json')
+          with open(out_path, 'w') as f:
+              json.dump(receipt, f, indent=2, sort_keys=True)
+          print(f'Receipt written to {out_path}')
+          print(f'final_gate_result={final_gate_result}')
+          "
+
+      - name: Upload State Gate receipt artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: state-gate-receipt-pr${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/state_gate_receipt.json

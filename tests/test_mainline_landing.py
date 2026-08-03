@@ -19,6 +19,7 @@ from reverse_agent.github_remote_verifier import (
 )
 from reverse_agent.mainline_landing import (
     CANONICAL_WORKFLOW_POLICY,
+    HISTORICAL_WORKFLOW_POLICY_PULL_REQUEST,
     _validate_intent,
     canonical_digest,
     emit_mainline_integration_receipt,
@@ -564,7 +565,7 @@ def test_committed_pr67_archived_intent_preserves_exact_v5_authority() -> None:
         == "b15e68f720ecb4b6325a03249b2824204ec8aac92ba78db4878e28fd40d5f821"
     )
     assert intent["merge_tree_policy"] == "equal_to_accepted_head_tree"
-    assert intent["required_workflows"] == list(CANONICAL_WORKFLOW_POLICY)
+    assert intent["required_workflows"] == list(HISTORICAL_WORKFLOW_POLICY_PULL_REQUEST)
     assert intent["expires_at"] == "2026-08-19T23:59:59Z"
 
 
@@ -591,7 +592,7 @@ def test_committed_pr93_archived_intent_preserves_exact_v10_authority() -> None:
         == "6e2cdebfd8e2bd900fad6ec0ad0ba6051bde1c91190d0eee83ecc25af8283a60"
     )
     assert intent["merge_tree_policy"] == "equal_to_accepted_head_tree"
-    assert intent["required_workflows"] == list(CANONICAL_WORKFLOW_POLICY)
+    assert intent["required_workflows"] == list(HISTORICAL_WORKFLOW_POLICY_PULL_REQUEST)
     assert intent["expires_at"] == "2026-08-09T23:59:59Z"
 
 

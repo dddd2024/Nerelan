@@ -49,7 +49,7 @@ class GitHubAdapterError(Exception):
 _KEY_TO_COMPOSITE_NAME: dict[tuple[str, str], str] = {
     ("CI", "pull_request"): "CI",
     ("Decision Preflight", "pull_request"): "Decision Preflight",
-    ("State Gate", "pull_request"): "State Gate (pull_request)",
+    ("State Gate", "pull_request_target"): "State Gate (pull_request_target)",
     ("State Gate", "push"): "State Gate (push)",
 }
 

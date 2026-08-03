@@ -29,6 +29,24 @@ CANONICAL_WORKFLOW_POLICY: dict[str, tuple[str, str]] = {
         ".github/workflows/decision-preflight.yml",
         "pull_request",
     ),
+    "State Gate (pull_request_target)": (
+        ".github/workflows/state-gate.yml",
+        "pull_request_target",
+    ),
+    "State Gate (push)": (".github/workflows/state-gate.yml", "push"),
+}
+
+# Historical workflow policy for validating archived intents that were
+# created when the State Gate PR trigger was ``pull_request``.  Archived
+# intents are immutable and retain their original ``required_workflows``
+# list; tests that validate archives must compare against this snapshot,
+# not against the live ``CANONICAL_WORKFLOW_POLICY``.
+HISTORICAL_WORKFLOW_POLICY_PULL_REQUEST: dict[str, tuple[str, str]] = {
+    "CI": (".github/workflows/ci.yml", "pull_request"),
+    "Decision Preflight": (
+        ".github/workflows/decision-preflight.yml",
+        "pull_request",
+    ),
     "State Gate (pull_request)": (
         ".github/workflows/state-gate.yml",
         "pull_request",
