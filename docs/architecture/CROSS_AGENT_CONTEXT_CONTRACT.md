@@ -7,13 +7,13 @@ AUTHORITY: PLANNING_REFERENCE_ONLY
 
 This contract defines how context is shared — and explicitly not shared — across different Agent products that operate on this repository. It is a planning reference; it does not itself authorize commands, file changes, closeout, or merge.
 
-Transient execution facts (the Path-A authority snapshot — repository, Issue number, approval state, approver, approval event/time, body digest, immutable observation ref, work-item identity, target branch, base SHA) belong only in the Draft PR body for the specific Work Item. They must not be embedded in this permanent contract, because they would otherwise become stale dynamic metadata that contradicts the contract's own freshness rules. The active Work Item snapshot for this contract is recorded in PR #104.
+Transient execution facts (the Path-A authority snapshot — repository, Issue number, approval state, approver, approval event/time, body digest, immutable observation ref, work-item identity, target branch, base SHA) belong only in the Draft PR body for the specific Work Item. They must not be embedded in this permanent contract, because they would otherwise become stale dynamic metadata that contradicts the contract's own freshness rules.
 
 ## Why this contract is needed
 
 Different Agent products do not automatically share private memory.
 
-ChatGPT Project memory, Codex memory, OpenHands persistence, Claude/Cursor/Trae memories, and similar product-level context belong to their respective product scopes. Each product may retain its own role assumptions, prior summaries, cached constraints, conversation state, and session caches. Those private memories are not automatically synchronized across products and may be stale or contradictory.
+ChatGPT Project memory, Codex project instructions, OpenHands persistence, Claude/Cursor/Trae memories, and similar product-level context belong to their respective product scopes. Each product may retain its own role assumptions, prior summaries, cached constraints, conversation state, and session caches. Those private memories are not automatically synchronized across products and may be stale or contradictory.
 
 Only content written into the same Git commit or verifiable GitHub state may be read by different Agents as shared project fact. Even shared state must be checked for freshness before it is trusted.
 
