@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260802_issue100_platform_v1_authority_collector_v4",
-  "round_id": "round_20260802_issue100_platform_v1_authority_collector_v4",
+  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v1",
+  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v1",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260802_issue100_platform_v1_authority_collector_v4 expected=decision_20260802_issue100_platform_v1_authority_collector_v4"
+      "detail": "observed=decision_20260803_restore_path_a_state_gate_current_main_v1 expected=decision_20260803_restore_path_a_state_gate_current_main_v1"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260802_issue100_platform_v1_authority_collector_v4 expected=round_20260802_issue100_platform_v1_authority_collector_v4"
+      "detail": "observed=round_20260803_restore_path_a_state_gate_current_main_v1 expected=round_20260803_restore_path_a_state_gate_current_main_v1"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=agent/platform-v1-openhands-codex-acp expected=agent/platform-v1-openhands-codex-acp"
+      "detail": "observed=agent/restore-path-a-state-gate-current-main-v1 expected=agent/restore-path-a-state-gate-current-main-v1"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=705a0bfd6638d51c688752f154433020225c4e99 merge_base=705a0bfd6638d51c688752f154433020225c4e99"
+      "detail": "base=fa4f240f7dffff78cdb182ce8655c2e2d7cb241f merge_base=fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=9ccb236ebabf6f7e53b2acbf217433ae1eea3d26"
+      "detail": "decision_commit=53be31ea961f041d02936e232f8727f434d2a7bd"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260802_issue100_platform_v1_authority_collector_v4/round_20260802_issue100_platform_v1_authority_collector_v4"
+      "detail": "plan=decision_20260803_restore_path_a_state_gate_current_main_v1/round_20260803_restore_path_a_state_gate_current_main_v1"
     },
     {
       "name": "command_plan_contract",
