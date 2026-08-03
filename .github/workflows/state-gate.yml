@@ -236,10 +236,42 @@ jobs:
           ")
           echo "issue_number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
 
-          # Live re-query Issue using gh api (supported REST fields, no content_last_edited_at)
-          gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER" \
-            --jq '{number: .number, state: .state, body: .body, labels: .labels}' \
-            > "$RUNNER_TEMP/path_a_issue.json"
+          # Live re-query Issue using GraphQL (includes lastEditedAt for edit identity)
+          REPO_OWNER="${GITHUB_REPOSITORY%%/*}"
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          gh api graphql \
+            -f owner="$REPO_OWNER" \
+            -f name="$REPO_NAME" \
+            -F number="$ISSUE_NUMBER" \
+            -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){issue(number:$number){number state body createdAt lastEditedAt labels(first:100){nodes{name}}}}}' \
+            > "$RUNNER_TEMP/path_a_issue_graphql.json"
+
+          # Process GraphQL response into deterministic path_a_issue.json using trusted Python
+          python -c "
+          import json, sys
+          raw = json.load(open('$RUNNER_TEMP/path_a_issue_graphql.json'))
+          if not isinstance(raw, dict) or 'errors' in raw:
+              print('issue_graphql_errors_or_malformed', file=sys.stderr); sys.exit(1)
+          repo = raw.get('repository')
+          if not isinstance(repo, dict) or not isinstance(repo.get('issue'), dict):
+              print('issue_graphql_missing_issue', file=sys.stderr); sys.exit(1)
+          issue = repo['issue']
+          for key in ('number', 'state', 'body', 'createdAt', 'lastEditedAt'):
+              if key not in issue:
+                  print(f'issue_graphql_missing_key:{key}', file=sys.stderr); sys.exit(1)
+          labels_nodes = (issue.get('labels') or {}).get('nodes', [])
+          if not isinstance(labels_nodes, list):
+              print('issue_graphql_invalid_labels', file=sys.stderr); sys.exit(1)
+          normalized = {
+              'number': issue['number'],
+              'state': issue['state'],
+              'body': issue['body'],
+              'createdAt': issue['createdAt'],
+              'lastEditedAt': issue['lastEditedAt'],
+              'labels': [{'name': n.get('name', '')} for n in labels_nodes if isinstance(n, dict)],
+          }
+          json.dump(normalized, open('$RUNNER_TEMP/path_a_issue.json', 'w'), ensure_ascii=False, sort_keys=True)
+          "
 
           # Paginated events with --slurp for deterministic array-of-pages
           gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/events" \

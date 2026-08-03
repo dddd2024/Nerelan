@@ -374,8 +374,8 @@ def _build_authority_revision(
         ),
         latest_r1_approved_transition=event_name,
         source_issue_last_edited_at=(
-            str(issue.get("content_last_edited_at"))
-            if issue.get("content_last_edited_at")
+            str(issue["lastEditedAt"])
+            if "lastEditedAt" in issue and issue["lastEditedAt"] is not None
             else None
         ),
         pr_number=pr_number,
@@ -661,10 +661,14 @@ def verify_path_a_r1(
     if str(effective_approval.get("created_at") or "") != snapshot.approval_event_or_time:
         raise PathAGateError("approval_event_mismatch")
 
-    last_edited_at = issue.get("content_last_edited_at")
-    if last_edited_at:
+    if "lastEditedAt" not in issue:
+        raise PathAGateError("issue_edit_identity_missing")
+    last_edited_at = issue["lastEditedAt"]
+    if last_edited_at is None:
+        pass  # never-edited, continue
+    elif isinstance(last_edited_at, str):
         try:
-            last_edit = datetime.fromisoformat(str(last_edited_at).replace("Z", "+00:00"))
+            last_edit = datetime.fromisoformat(last_edited_at.replace("Z", "+00:00"))
             approval_time = datetime.fromisoformat(
                 snapshot.approval_event_or_time.replace("Z", "+00:00")
             )
@@ -672,6 +676,8 @@ def verify_path_a_r1(
             raise PathAGateError("issue_edit_time_invalid") from exc
         if last_edit >= approval_time:
             raise PathAGateError("issue_body_edit_not_strictly_before_approval")
+    else:
+        raise PathAGateError("issue_edit_identity_missing")
 
     issue_body = str(issue.get("body") or "")
     if issue_body_digest(issue_body) != snapshot.body_digest_sha256:

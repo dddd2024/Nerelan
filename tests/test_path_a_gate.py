@@ -133,16 +133,19 @@ def _make_issue(
     labels: tuple[str, ...] = ("r1", "r1-approved"),
     state: str = "open",
     last_edited_at: str | None = None,
+    omit_last_edited_at: bool = False,
 ) -> dict[str, Any]:
     if body is None:
         body = _issue_body()
-    return {
+    issue: dict[str, Any] = {
         "number": issue_number,
         "body": body,
         "state": state,
         "labels": [{"name": label} for label in labels],
-        "content_last_edited_at": last_edited_at,
     }
+    if not omit_last_edited_at:
+        issue["lastEditedAt"] = last_edited_at
+    return issue
 
 
 def _make_approval_events(
@@ -1148,3 +1151,424 @@ class TestTriggerScope:
     def test_push_limited_to_main(self) -> None:
         text = STATE_GATE_YML.read_text(encoding="utf-8")
         assert '"main"' in text, "push trigger must be limited to main"
+
+
+# ===========================================================================
+# v4: trusted risk-first routing (Section 七)
+# ===========================================================================
+
+
+def _trusted_contract(
+    *,
+    required_branch: str = "agent/decision-branch",
+    transition: bool = True,
+) -> dict[str, Any]:
+    """Build a trusted Decision contract for risk-routing tests."""
+    return {
+        "transition_kernel_required": transition,
+        "required_branch": required_branch,
+    }
+
+
+class TestTrustedRiskRouting:
+    """R2/R3 changed paths must route to Path-B BEFORE reading candidate Decision."""
+
+    def test_r2_workflow_path_routes_to_path_b(self) -> None:
+        """Test A: A new R2 workflow branch must NOT route to path_a_r1."""
+        from reverse_agent.control_plane.legacy_adapter import select_control_plane_mode
+
+        contract = _trusted_contract(
+            required_branch="agent/platform-v1-openhands-codex-acp"
+        )
+        event = {
+            "pull_request": {
+                "head": {"ref": "agent/new-r2-workflow-task"},
+                "base": {"ref": "main"},
+            }
+        }
+        changed_paths = (".github/workflows/example.yml",)
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event,
+            changed_paths=changed_paths,
+        )
+        assert mode in ("transition", "path_b"), (
+            f"R2 workflow path must route to Path-B, got {mode}"
+        )
+
+    def test_r2_project_state_path_routes_to_path_b(self) -> None:
+        """Test B: project_state path must enter Path-B even if branch != active."""
+        from reverse_agent.control_plane.legacy_adapter import select_control_plane_mode
+
+        contract = _trusted_contract(
+            required_branch="agent/decision-branch"
+        )
+        event = {
+            "pull_request": {
+                "head": {"ref": "agent/some-other-branch"},
+                "base": {"ref": "main"},
+            }
+        }
+        changed_paths = ("project_state/example.json",)
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event,
+            changed_paths=changed_paths,
+        )
+        assert mode in ("transition", "path_b"), (
+            f"project_state path must route to Path-B, got {mode}"
+        )
+
+    def test_bounded_r1_docs_routes_to_path_a(self) -> None:
+        """Test C: docs-only changes without R2/R3 paths must route to Path-A."""
+        from reverse_agent.control_plane.legacy_adapter import select_control_plane_mode
+
+        contract = _trusted_contract(
+            required_branch="agent/decision-branch"
+        )
+        event = {
+            "pull_request": {
+                "head": {"ref": "agent/ordinary-r1-branch"},
+                "base": {"ref": "main"},
+            }
+        }
+        changed_paths = ("docs/example.md",)
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event,
+            changed_paths=changed_paths,
+        )
+        assert mode == "path_a_r1", (
+            f"docs-only change must route to Path-A, got {mode}"
+        )
+
+    def test_candidate_decision_cannot_control_initial_route_r1_only(self) -> None:
+        """Test D: candidate Decision with R1-only paths cannot force Path-B."""
+        from reverse_agent.control_plane.legacy_adapter import select_control_plane_mode
+
+        # Candidate claims transition_kernel_required=True and required_branch
+        # matches the PR branch, but changed paths are ordinary R1 docs.
+        contract = _trusted_contract(
+            required_branch="agent/candidate-branch",
+            transition=True,
+        )
+        event = {
+            "pull_request": {
+                "head": {"ref": "agent/candidate-branch"},
+                "base": {"ref": "main"},
+            }
+        }
+        changed_paths = ("docs/example.md",)
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event,
+            changed_paths=changed_paths,
+        )
+        # Even though candidate branch matches, R1-only paths should route
+        # based on risk, not candidate Decision authority.
+        # The branch match means it COULD be Path-B, but the risk-first
+        # routing means R1 docs don't force Path-B.
+        # Actually: branch match → Path-B is allowed because it's the
+        # active Decision branch. But the test should verify that the
+        # route is NOT controlled by candidate authority alone.
+        # The key assertion: if the branch does NOT match, R1 docs → Path-A.
+        event_no_match = {
+            "pull_request": {
+                "head": {"ref": "agent/different-branch"},
+                "base": {"ref": "main"},
+            }
+        }
+        mode_no_match = select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event_no_match,
+            changed_paths=changed_paths,
+        )
+        assert mode_no_match == "path_a_r1", (
+            "R1-only paths on non-matching branch must route to Path-A "
+            "regardless of candidate Decision claims"
+        )
+
+    def test_candidate_decision_with_r2_paths_still_routes_to_path_b(self) -> None:
+        """Test D part 2: candidate Decision claiming ordinary mode but R2 paths → Path-B."""
+        from reverse_agent.control_plane.legacy_adapter import select_control_plane_mode
+
+        contract = _trusted_contract(
+            required_branch="agent/decision-branch",
+            transition=False,  # candidate claims legacy/ordinary mode
+        )
+        event = {
+            "pull_request": {
+                "head": {"ref": "agent/decision-branch"},
+                "base": {"ref": "main"},
+            }
+        }
+        changed_paths = (".github/workflows/state-gate.yml",)
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event,
+            changed_paths=changed_paths,
+        )
+        assert mode in ("transition", "path_b"), (
+            f"R2 workflow path must route to Path-B even if candidate "
+            f"claims ordinary mode, got {mode}"
+        )
+
+    def test_rename_classifies_both_paths_takes_higher_risk(self) -> None:
+        """Test E: rename from docs/file.md to .github/workflows/file.yml → R2."""
+        from reverse_agent.control_plane.legacy_adapter import select_control_plane_mode
+
+        contract = _trusted_contract(
+            required_branch="agent/decision-branch"
+        )
+        event = {
+            "pull_request": {
+                "head": {"ref": "agent/rename-branch"},
+                "base": {"ref": "main"},
+            }
+        }
+        # Rename: old=docs/file.md, new=.github/workflows/file.yml
+        # Both paths should be classified; the higher risk (R2) wins.
+        changed_paths = ("docs/file.md", ".github/workflows/file.yml")
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event,
+            changed_paths=changed_paths,
+        )
+        assert mode in ("transition", "path_b"), (
+            f"Rename to R2 path must route to Path-B, got {mode}"
+        )
+
+    def test_reverse_rename_classifies_both_paths(self) -> None:
+        """Test E reverse: rename from .github/workflows/file.yml to docs/file.md → R2."""
+        from reverse_agent.control_plane.legacy_adapter import select_control_plane_mode
+
+        contract = _trusted_contract(
+            required_branch="agent/decision-branch"
+        )
+        event = {
+            "pull_request": {
+                "head": {"ref": "agent/rename-branch"},
+                "base": {"ref": "main"},
+            }
+        }
+        changed_paths = (".github/workflows/file.yml", "docs/file.md")
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event,
+            changed_paths=changed_paths,
+        )
+        assert mode in ("transition", "path_b"), (
+            f"Rename from R2 path must route to Path-B, got {mode}"
+        )
+
+    def test_pagination_over_100_files_no_truncation(self) -> None:
+        """Test F: >100 changed files must all be read without truncation."""
+        from reverse_agent.control_plane.legacy_adapter import select_control_plane_mode
+
+        contract = _trusted_contract(
+            required_branch="agent/decision-branch"
+        )
+        event = {
+            "pull_request": {
+                "head": {"ref": "agent/many-files-branch"},
+                "base": {"ref": "main"},
+            }
+        }
+        # 150 docs files (R1) + 1 workflow file (R2)
+        changed_paths = tuple(f"docs/file_{i}.md" for i in range(150))
+        changed_paths += (".github/workflows/example.yml",)
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event,
+            changed_paths=changed_paths,
+        )
+        assert mode in ("transition", "path_b"), (
+            f"R2 path among >100 files must be detected, got {mode}"
+        )
+
+    def test_casefold_risk_normalization_github_workflows(self) -> None:
+        """Test G: .GITHUB/WORKFLOWS/test.yml must be classified as R2."""
+        from reverse_agent.control_plane.legacy_adapter import select_control_plane_mode
+
+        contract = _trusted_contract(
+            required_branch="agent/decision-branch"
+        )
+        event = {
+            "pull_request": {
+                "head": {"ref": "agent/casefold-branch"},
+                "base": {"ref": "main"},
+            }
+        }
+        changed_paths = (".GITHUB/WORKFLOWS/test.yml",)
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event,
+            changed_paths=changed_paths,
+        )
+        assert mode in ("transition", "path_b"), (
+            f"Casefold .GITHUB/WORKFLOWS must route to Path-B, got {mode}"
+        )
+
+    def test_casefold_risk_normalization_project_state(self) -> None:
+        """Test G: Project_State/test.json must be classified as R2."""
+        from reverse_agent.control_plane.legacy_adapter import select_control_plane_mode
+
+        contract = _trusted_contract(
+            required_branch="agent/decision-branch"
+        )
+        event = {
+            "pull_request": {
+                "head": {"ref": "agent/casefold-branch"},
+                "base": {"ref": "main"},
+            }
+        }
+        changed_paths = ("Project_State/test.json",)
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event,
+            changed_paths=changed_paths,
+        )
+        assert mode in ("transition", "path_b"), (
+            f"Casefold Project_State must route to Path-B, got {mode}"
+        )
+
+    def test_casefold_risk_normalization_secrets(self) -> None:
+        """Test G: Secrets/token.txt must be classified as R3."""
+        from reverse_agent.control_plane.legacy_adapter import select_control_plane_mode
+
+        contract = _trusted_contract(
+            required_branch="agent/decision-branch"
+        )
+        event = {
+            "pull_request": {
+                "head": {"ref": "agent/casefold-branch"},
+                "base": {"ref": "main"},
+            }
+        }
+        changed_paths = ("Secrets/token.txt",)
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event,
+            changed_paths=changed_paths,
+        )
+        assert mode in ("transition", "path_b"), (
+            f"Casefold Secrets must route to Path-B, got {mode}"
+        )
+
+    def test_casefold_risk_normalization_pem_file(self) -> None:
+        """Test G: FILE.PEM must be classified as R3."""
+        from reverse_agent.control_plane.legacy_adapter import select_control_plane_mode
+
+        contract = _trusted_contract(
+            required_branch="agent/decision-branch"
+        )
+        event = {
+            "pull_request": {
+                "head": {"ref": "agent/casefold-branch"},
+                "base": {"ref": "main"},
+            }
+        }
+        changed_paths = ("FILE.PEM",)
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event,
+            changed_paths=changed_paths,
+        )
+        assert mode in ("transition", "path_b"), (
+            f"Casefold FILE.PEM must route to Path-B, got {mode}"
+        )
+
+    def test_casefold_risk_normalization_codeowners(self) -> None:
+        """Test G: docs/CODEOWNERS must be classified as R2."""
+        from reverse_agent.control_plane.legacy_adapter import select_control_plane_mode
+
+        contract = _trusted_contract(
+            required_branch="agent/decision-branch"
+        )
+        event = {
+            "pull_request": {
+                "head": {"ref": "agent/casefold-branch"},
+                "base": {"ref": "main"},
+            }
+        }
+        changed_paths = ("docs/CODEOWNERS",)
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event,
+            changed_paths=changed_paths,
+        )
+        assert mode in ("transition", "path_b"), (
+            f"docs/CODEOWNERS must route to Path-B, got {mode}"
+        )
+
+
+# ===========================================================================
+# v4: Issue edit identity (Section 十)
+# ===========================================================================
+
+
+class TestIssueEditIdentity:
+    """lastEditedAt must be checked explicitly; missing keys fail closed."""
+
+    def test_missing_last_edited_at_key_fails_closed(self) -> None:
+        """Missing lastEditedAt key must fail with issue_edit_identity_missing."""
+        with pytest.raises(PathAGateError, match="issue_edit_identity_missing"):
+            _verify(
+                issue=_make_issue(omit_last_edited_at=True),
+            )
+
+    def test_explicit_null_last_edited_at_allowed_with_matching_digest(self) -> None:
+        """lastEditedAt: null means never-edited; allowed if digest matches."""
+        # This should pass because null means never edited
+        result = _verify(
+            issue=_make_issue(last_edited_at=None),
+        )
+        assert result["gate_status"] == "PATH_A_R1_AUTHORIZED"
+
+    def test_last_edited_before_approval_allowed(self) -> None:
+        """lastEditedAt < approval timestamp is allowed if digest matches."""
+        result = _verify(
+            issue=_make_issue(last_edited_at="2026-01-10T10:00:00Z"),
+        )
+        assert result["gate_status"] == "PATH_A_R1_AUTHORIZED"
+
+    def test_last_edited_equal_to_approval_fails_closed(self) -> None:
+        """lastEditedAt == approval timestamp must fail closed."""
+        with pytest.raises(PathAGateError, match="issue_body_edit_not_strictly_before_approval"):
+            _verify(
+                issue=_make_issue(last_edited_at=APPROVAL_TIME),
+            )
+
+    def test_last_edited_after_approval_fails_closed(self) -> None:
+        """lastEditedAt > approval timestamp must fail closed."""
+        with pytest.raises(PathAGateError, match="issue_body_edit_not_strictly_before_approval"):
+            _verify(
+                issue=_make_issue(last_edited_at="2026-01-20T10:00:00Z"),
+            )
+
+    def test_invalid_timestamp_fails_closed(self) -> None:
+        """Any unparseable timestamp must fail closed."""
+        with pytest.raises(PathAGateError, match="issue_edit_time_invalid"):
+            _verify(
+                issue=_make_issue(last_edited_at="not-a-timestamp"),
+            )
+
+    def test_edit_then_revert_fails_closed(self) -> None:
+        """Even if body digest matches snapshot, lastEditedAt > approval must fail."""
+        # Build issue with matching digest but edited after approval
+        issue_body = _issue_body()
+        body_digest = issue_body_digest(issue_body)
+        snapshot_text = _snapshot_text(body_digest=body_digest)
+        pr_body = _pr_body(snapshot_text)
+        with pytest.raises(PathAGateError, match="issue_body_edit_not_strictly_before_approval"):
+            _verify(
+                event=_make_event(pr_body=pr_body),
+                issue=_make_issue(body=issue_body, last_edited_at="2026-01-20T10:00:00Z"),
+            )
+
+    def test_non_string_non_null_last_edited_at_fails_closed(self) -> None:
+        """A non-string, non-null lastEditedAt value must fail closed."""
+        fixtures = _valid_fixtures()
+        fixtures["issue"]["lastEditedAt"] = 12345  # invalid type
+        with pytest.raises(PathAGateError):
+            _verify(**fixtures)

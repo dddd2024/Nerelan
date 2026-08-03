@@ -993,12 +993,13 @@ class TestArchivedV2PR106Intent:
         assert expires and expires.endswith("Z")
 
 
-class TestActiveMergeIntentV3:
-    """PR106/v3 active contract: active.json must bind PR #106 and v3 digests.
+class TestActiveMergeIntentV4:
+    """PR106/v4 active contract: active.json must bind PR #106 and v4 digests.
 
-    The v1, v2, v3 (PR97), v4 (PR97), and v2 (PR106) intents must be archived
-    verbatim. The active intent must bind the v3 Decision content SHA-256 and
-    Command Plan SHA-256, with the unified ``pull_request_target`` event.
+    The v1, v2, v3 (PR97), v4 (PR97), v2 (PR106), and v3 (PR106) intents must
+    be archived verbatim. The active intent must bind the v4 Decision content
+    SHA-256 and Command Plan SHA-256, with the unified ``pull_request_target``
+    event.
     """
 
     @pytest.fixture(autouse=True)
@@ -1013,34 +1014,36 @@ class TestActiveMergeIntentV3:
         self._archive_v3_path = intents_dir / "archive" / "pr97_v3.json"
         self._archive_v4_path = intents_dir / "archive" / "pr97_v4.json"
         self._archive_v2_pr106_path = intents_dir / "archive" / "pr106_v2.json"
+        self._archive_v3_pr106_path = intents_dir / "archive" / "pr106_v3.json"
         self._active = json.loads(self._active_path.read_text(encoding="utf-8"))
         self._archive_v1 = json.loads(self._archive_v1_path.read_text(encoding="utf-8"))
         self._archive_v2 = json.loads(self._archive_v2_path.read_text(encoding="utf-8"))
         self._archive_v3 = json.loads(self._archive_v3_path.read_text(encoding="utf-8"))
         self._archive_v4 = json.loads(self._archive_v4_path.read_text(encoding="utf-8"))
         self._archive_v2_pr106 = json.loads(self._archive_v2_pr106_path.read_text(encoding="utf-8"))
+        self._archive_v3_pr106 = json.loads(self._archive_v3_pr106_path.read_text(encoding="utf-8"))
 
     def test_active_binds_source_pr_106(self) -> None:
         assert self._active["source_pr"] == 106
 
-    def test_active_binds_v3_decision_id(self) -> None:
+    def test_active_binds_v4_decision_id(self) -> None:
         assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260803_restore_path_a_state_gate_current_main_v3"
+            "decision_20260803_restore_path_a_state_gate_current_main_v4"
         )
 
-    def test_active_binds_v3_decision_content_sha256(self) -> None:
+    def test_active_binds_v4_decision_content_sha256(self) -> None:
         sha = self._active["decision_identity"]["decision_content_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
-        # Must differ from the v2 PR106 decision content SHA-256
-        assert sha != self._archive_v2_pr106["decision_identity"]["decision_content_sha256"]
+        # Must differ from the v3 PR106 decision content SHA-256
+        assert sha != self._archive_v3_pr106["decision_identity"]["decision_content_sha256"]
 
-    def test_active_binds_v3_command_plan_sha256(self) -> None:
+    def test_active_binds_v4_command_plan_sha256(self) -> None:
         sha = self._active["command_plan_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
-        # Must differ from the v2 PR106 command plan SHA-256
-        assert sha != self._archive_v2_pr106["command_plan_sha256"]
+        # Must differ from the v3 PR106 command plan SHA-256
+        assert sha != self._archive_v3_pr106["command_plan_sha256"]
 
     def test_active_binds_locked_base_sha(self) -> None:
         assert self._active["locked_base_sha"] == (
@@ -1078,3 +1081,16 @@ class TestActiveMergeIntentV3:
 
     def test_archive_v3_preserves_v3_source_pr(self) -> None:
         assert self._archive_v3["source_pr"] == 97
+
+    def test_archive_pr106_v3_exists_and_preserves_v3_decision_id(self) -> None:
+        assert self._archive_v3_pr106["decision_identity"]["decision_id"] == (
+            "decision_20260803_restore_path_a_state_gate_current_main_v3"
+        )
+
+    def test_archive_pr106_v3_preserves_source_pr(self) -> None:
+        assert self._archive_v3_pr106["source_pr"] == 106
+
+    def test_archive_pr106_v3_preserves_locked_base_sha(self) -> None:
+        assert self._archive_v3_pr106["locked_base_sha"] == (
+            "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+        )

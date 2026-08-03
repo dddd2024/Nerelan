@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from .evidence_source import normalize_evidence_source
 from .models import (
@@ -45,14 +45,20 @@ def detect_control_plane_mode(
     path: Path,
     *,
     event: Mapping[str, Any] | None = None,
+    changed_paths: Iterable[str] | None = None,
 ) -> str:
     """Return one deterministic mode token, rejecting malformed authority.
 
     Without an event (or a non-pull-request event) the Decision-selected mode
     (``transition`` or ``legacy``) is returned.  When a pull-request event is
-    supplied, a PR whose head ref does NOT equal the active Decision's
-    ``required_branch`` is routed to ``path_a_r1`` for ordinary R1 authority
-    verification; a PR bound to the Decision's branch keeps the Decision mode.
+    supplied, risk-first routing is applied:
+
+    1. R2/R3 changed paths → Path-B (``transition`` or ``path_b``)
+    2. exact trusted active-Decision branch → Path-B (decision mode)
+    3. other bounded R1 → ``path_a_r1``
+
+    If ``changed_paths`` is not provided, falls back to branch-only routing
+    for backward compatibility.
     """
 
     decision, contract = load_transition_decision(path)
@@ -74,11 +80,61 @@ def detect_control_plane_mode(
     if event is None or not isinstance(event.get("pull_request"), Mapping):
         return decision_mode
 
+    if changed_paths is not None:
+        return select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event,
+            changed_paths=changed_paths,
+        )
+
     pr = event["pull_request"]
     head_ref = str((pr.get("head") or {}).get("ref") or "")
     required_branch = _required_string(contract, "required_branch")
     if head_ref == required_branch:
         return decision_mode
+    return "path_a_r1"
+
+
+def select_control_plane_mode(
+    *,
+    trusted_decision_contract: Mapping[str, Any],
+    event: Mapping[str, Any] | None,
+    changed_paths: Iterable[str],
+) -> str:
+    """Select control plane mode using trusted risk-first routing.
+
+    Routing order:
+    1. R2/R3 changed paths → Path-B (``transition`` or ``path_b``)
+    2. exact trusted active-Decision branch → Path-B (decision mode)
+    3. other bounded R1 → ``path_a_r1``
+
+    Inputs must come from trusted base code, GitHub event identity, trusted
+    git diff, and repository-owned risk policy. Candidate
+    ``project_state/**`` must NOT be an initial route input.
+    """
+
+    from .path_a import _minimum_path_risk
+
+    flag = trusted_decision_contract.get("transition_kernel_required", False)
+    if not isinstance(flag, bool):
+        flag = False
+    decision_mode = "transition" if flag else "legacy"
+
+    # Step 1: R2/R3 changed paths → Path-B
+    for path in changed_paths:
+        risk = _minimum_path_risk(path)
+        if risk is not None:
+            return "transition" if flag else "path_b"
+
+    # Step 2: exact trusted active-Decision branch → Path-B
+    required_branch = str(trusted_decision_contract.get("required_branch") or "")
+    if event is not None and isinstance(event.get("pull_request"), Mapping):
+        pr = event["pull_request"]
+        head_ref = str((pr.get("head") or {}).get("ref") or "")
+        if head_ref and head_ref == required_branch:
+            return decision_mode
+
+    # Step 3: other bounded R1 → Path-A
     return "path_a_r1"
 
 
