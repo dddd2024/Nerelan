@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v2",
-  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v2",
+  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v3",
+  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v3",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,10 +16,10 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v1",
-  "follows_last_round_id": "round_20260803_restore_path_a_state_gate_current_main_v1",
-  "previous_audit_outcome": "PR106_V1_REJECTED_CI_INTENT_AND_UNTRUSTED_PATH_A_BOOTSTRAP",
-  "workstream_id": "issue105-restore-path-a-state-gate-current-main-v2",
+  "follows_last_decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v2",
+  "follows_last_round_id": "round_20260803_restore_path_a_state_gate_current_main_v2",
+  "previous_audit_outcome": "PR106_V2_REJECTED_UNTRUSTED_ROUTE_AND_UNEXECUTED_TARGET_GATE",
+  "workstream_id": "issue105-restore-path-a-state-gate-current-main-v3",
   "source_issue": 105,
   "parent_issue": 90,
   "blocked_issue": 103,
@@ -27,7 +27,7 @@
   "active_pr": 106,
   "historical_reference_pr": 49,
   "required_branch": "agent/restore-path-a-state-gate-current-main-v1",
-  "starting_head": "62cf0636f7abd8c7a7a1b4711884dc8f5b176583",
+  "starting_head": "62ed0e9774ff284c9839f074646e319c43a52202",
   "activation_base_sha": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -257,24 +257,32 @@
     "project_state/gates/transition_preflight_result.json",
     "project_state/mainline_merge_intents/active.json",
     "project_state/mainline_merge_intents/archive/pr97_v4.json",
+    "project_state/mainline_merge_intents/archive/pr106_v2.json",
     ".github/workflows/state-gate.yml",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/path_a.py",
     "reverse_agent/project_gate.py",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/platform_v1/github_adapter.py",
+    "reverse_agent/platform_v1/authority_adapter.py",
+    "reverse_agent/platform_v1/evidence_adapter.py",
     "tests/test_path_a_gate.py",
-    "tests/platform_v1/test_merge_intent.py"
+    "tests/test_mainline_landing.py",
+    "tests/platform_v1/test_merge_intent.py",
+    "tests/platform_v1/test_contracts.py",
+    "tests/platform_v1/test_github_adapter.py",
+    "tests/platform_v1/test_evidence_adapter.py"
   ],
   "reference_paths": [
     "reverse_agent/control_plane/transition.py",
     "reverse_agent/control_plane/models.py",
     "reverse_agent/control_plane/evidence_source.py",
     "reverse_agent/control_plane/command_authority.py",
-    "reverse_agent/mainline_landing.py",
     "tests/test_control_plane_transition.py",
     "tests/test_planning_and_github_adapters.py",
     "tests/test_project_gate.py",
     "tests/test_minimal_integration_baseline_docs.py",
-    "tests/test_mainline_landing.py",
     "tests/test_integration_baseline.py",
     "tests/test_project_audits.py",
     ".github/workflows/ci.yml",
@@ -293,7 +301,10 @@
   "forbidden_mutated_paths": [
     ".github/workflows/ci.yml",
     ".github/workflows/decision-preflight.yml",
-    "reverse_agent/platform_v1/**",
+    "reverse_agent/platform_v1/contracts.py",
+    "reverse_agent/platform_v1/acceptance.py",
+    "reverse_agent/platform_v1/policy_adapter.py",
+    "reverse_agent/platform_v1/openhands_adapter.py",
     "reverse_agent/adapters/**",
     "reverse_agent/architecture/**",
     "reverse_agent/control_plane/transition.py",
@@ -316,8 +327,6 @@
     "reverse_agent/project_audits.py",
     "reverse_agent/project_state.py",
     "reverse_agent/project_state_manifest.py",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/github_remote_verifier.py",
     "reverse_agent/decision_preflight.py",
     "reverse_agent/models.py",
     "reverse_agent/project_ci.py",
@@ -364,7 +373,6 @@
     "tests/test_repository_hygiene.py",
     "tests/test_supervisor_validate.py",
     "tests/test_integration_baseline.py",
-    "tests/test_mainline_landing.py",
     "tests/test_local_reverse_forced_ida_extract.py",
     "tests/test_codex_skills.py",
     "tests/test_project_audits.py",
@@ -424,7 +432,14 @@
     "execute candidate code before authority gate passes",
     "pass GITHUB_TOKEN or GH_TOKEN to candidate code execution context",
     "use persist-credentials: true in any checkout",
-    "allow candidate verifier to self-authorize"
+    "allow candidate verifier to self-authorize",
+    "allow candidate Decision to participate in initial route selection",
+    "git checkout candidate -- project_state/ to overlay trusted workspace",
+    "accept CI success as a substitute for independently verifiable State Gate receipt",
+    "treat pull_request_target run base-context head_sha as candidate SHA",
+    "forge State Gate run or receipt",
+    "use autoMerge field instead of autoMergeRequest in PR queries",
+    "compare only current body digest without material-edit timestamp for Issue authority"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -455,12 +470,22 @@
     "project_state/gates/**",
     "project_state/mainline_merge_intents/active.json",
     "project_state/mainline_merge_intents/archive/pr97_v4.json",
+    "project_state/mainline_merge_intents/archive/pr106_v2.json",
     ".github/workflows/state-gate.yml",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/path_a.py",
     "reverse_agent/project_gate.py",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/platform_v1/github_adapter.py",
+    "reverse_agent/platform_v1/authority_adapter.py",
+    "reverse_agent/platform_v1/evidence_adapter.py",
     "tests/test_path_a_gate.py",
-    "tests/platform_v1/test_merge_intent.py"
+    "tests/test_mainline_landing.py",
+    "tests/platform_v1/test_merge_intent.py",
+    "tests/platform_v1/test_contracts.py",
+    "tests/platform_v1/test_github_adapter.py",
+    "tests/platform_v1/test_evidence_adapter.py"
   ],
   "path_risk_floor": [
     {
@@ -488,11 +513,47 @@
       "minimum_risk": "R2"
     },
     {
+      "pattern": "reverse_agent/mainline_landing.py",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "reverse_agent/github_remote_verifier.py",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/github_adapter.py",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/authority_adapter.py",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/evidence_adapter.py",
+      "minimum_risk": "R2"
+    },
+    {
       "pattern": "tests/test_path_a_gate.py",
       "minimum_risk": "R2"
     },
     {
+      "pattern": "tests/test_mainline_landing.py",
+      "minimum_risk": "R2"
+    },
+    {
       "pattern": "tests/platform_v1/test_merge_intent.py",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "tests/platform_v1/test_contracts.py",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "tests/platform_v1/test_github_adapter.py",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "tests/platform_v1/test_evidence_adapter.py",
       "minimum_risk": "R2"
     },
     {
@@ -505,8 +566,8 @@
 
 ## Goal
 
-Restore ordinary Path-A R1 State Gate routing on the current `main` starting from exact head `62cf0636f7abd8c7a7a1b4711884dc8f5b176583` on branch `agent/restore-path-a-state-gate-current-main-v1`, continuing on the existing Draft PR #106. The v1 attempt (PR #106 head `62cf0636`) failed CI baseline because the committed mainline merge intent still bound `decision_20260802_issue100_platform_v1_authority_collector_v4` / PR #97, which mismatched the activated v1 Decision. The v1 State Gate workflow also had an untrusted verifier boundary: candidate code was checked out and its verifier was used to self-authorize the candidate PR, allowing a malicious PR to modify `path_a.py`, `project_gate.py`, `legacy_adapter.py`, or `state-gate.yml` to pass itself. The v2 rework must: (1) rebind the mainline merge intent from PR #97/v4 to PR #106/v2 by archiving the current `active.json` verbatim as `archive/pr97_v4.json` and creating a new `active.json` binding `source_pr: 106`, the v2 Decision identity, and exact v2 Decision and Command Plan blob SHA-256 digests; (2) establish a trusted Path-A verifier boundary where routing and authority verification code comes from the trusted base/main tree, candidate head code only runs as the verified object after authority passes, candidate code execution steps receive no `GITHUB_TOKEN`/`GH_TOKEN`, and all checkouts use `persist-credentials: false`; (3) implement real-time GitHub re-observation of Issue and PR state (not just event payload) with deterministic multi-page event flattening for >100 Issue events; (4) restrict the allowed-path grammar in `parse_allowed_paths()` to only exact paths and `directory/subtree/**` patterns, rejecting `*`, `**`, `**/*`, `docs/*.md`, `docs/**/file.md`, `?`, `[ab]`, `src/*/file.py`, and any pattern where `*` crosses `/`; (5) expand workflow trigger scope to all ordinary PRs without `pull_request.paths` filtering, covering `opened`, `edited`, `synchronize`, `reopened`, `ready_for_review`, `converted_to_draft`, `labeled`, `unlabeled`, `auto_merge_enabled`, `auto_merge_disabled`, while keeping `push` limited to `main`; (6) preserve Decision-bound transition routing, legacy routing, main-only historical integration baseline, current mainline merge validation, mainline integration receipt, Decision Preflight, Platform V1 blocking CI, Supervisor tests, and PR #104 historical state. Do not modify read-only test files, `ci.yml`, `AGENTS.md`, `docs/**`, `reverse_agent/platform_v1/**`, or `reverse_agent/mainline_landing.py`. Do not run Issue #102, Docker, OpenHands, or Codex ACP. Push only to the existing branch, update only PR #106, publish desensitized evidence, and stop at `PATH_A_STATE_GATE_CURRENT_MAIN_V2_READY_FOR_INDEPENDENT_AUDIT`.
+Restore ordinary Path-A R1 State Gate routing on the current `main` starting from exact head `62ed0e9774ff284c9839f074646e319c43a52202` on branch `agent/restore-path-a-state-gate-current-main-v1`, continuing on the existing Draft PR #106. The v2 attempt (PR #106 head `62ed0e97`) was rejected because: (a) the State Gate workflow used `git checkout candidate -- project_state/` to overlay the trusted verifier workspace with candidate authority files, violating the trusted routing boundary; (b) the canonical State Gate event was `pull_request` while the workflow trigger was `pull_request_target`, creating a contradictory event contract; (c) `tests/platform_v1/test_contracts.py::TestActiveMergeIntentV4` hardcoded v4 as active but was read-only under v2 scope, causing 3 CI failures after the v2 intent rebind; (d) no independently verifiable State Gate Receipt was produced, so the State Gate run could not be remotely validated against the accepted exact head. The v3 architecture rework must: (1) establish trusted routing that runs BEFORE any candidate overlay — the trusted verifier checks out the exact base SHA, computes changed paths from Git objects, classifies minimum risk, and selects Path-A or Path-B without reading candidate Decision/Command Plan/Gate files; (2) unify the workflow event contract to `pull_request_target` consistently across `state-gate.yml`, `mainline_landing.py`, `github_remote_verifier.py`, and Platform V1 adapters, using `State Gate (pull_request_target)` as the canonical name; (3) implement a trusted State Gate Receipt with three jobs (`authority-gate`, `candidate-tests`, `finalize-receipt`) where the receipt records `schema_version`, `receipt_kind`, `repository`, `pr_number`, `workflow_path`, `workflow_event`, `workflow_run_id`, `workflow_run_attempt`, `trusted_base_sha`, `trusted_verifier_tree_sha`, `candidate_head_sha`, `candidate_base_sha`, `changed_paths_sha256`, `selected_mode`, `authority_identity`, `authority_revision`, `authority_result`, `candidate_tests_result`, `final_gate_result`, `generated_at`, `content_sha256`; (4) extend the remote verifier and Platform V1 adapters to read the State Gate workflow run, download the receipt artifact, verify its digest, and bind `receipt.candidate_head_sha == accepted exact head` and `receipt.workflow_run_id == observed run ID`; (5) fix real-time GitHub PR queries to use `autoMergeRequest` (not `autoMerge`) and Issue queries to include material-edit timestamp/revision; (6) archive the current v2 `active.json` verbatim as `archive/pr106_v2.json` and bind a new active intent to PR #106/v3 with exact v3 Decision and Command Plan blob SHA-256 digests; (7) split `tests/platform_v1/test_contracts.py::TestActiveMergeIntentV4` into PR97/v4 archive, PR106/v2 archive, and PR106/v3 active contracts without deleting historical assertions; (8) preserve Decision-bound transition routing, legacy routing, main-only historical integration baseline, mainline merge validation, Decision Preflight, Platform V1 blocking CI, Supervisor tests, and PR #104 historical state. Do not modify `ci.yml`, `decision-preflight.yml`, `AGENTS.md`, `docs/**`, `reverse_agent/platform_v1/contracts.py`, `reverse_agent/platform_v1/acceptance.py`, or `reverse_agent/platform_v1/policy_adapter.py`. Do not run Issue #102, Docker, OpenHands, or Codex ACP. Push only to the existing branch, update only PR #106, publish desensitized evidence, and stop at `PATH_A_STATE_GATE_CURRENT_MAIN_V3_READY_FOR_INDEPENDENT_AUDIT`.
 
 ## Acceptance boundary
 
-The Path-A State Gate v2 rework is complete only when: the v2 Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is achieved with `blocking_reasons=[]` before implementation; the current `active.json` is archived verbatim as `archive/pr97_v4.json` with identical SHA-256; the new `active.json` binds `source_pr: 106`, `locked_base_sha: fa4f240f7dffff78cdb182ce8655c2e2d7cb241f`, the v2 Decision identity, exact v2 Decision blob SHA-256, exact v2 Command Plan blob SHA-256, `allowed_merge_method: merge`, `merge_tree_policy: equal_to_accepted_head_tree`, the four canonical required workflows, and a bounded expiry; `tests/platform_v1/test_merge_intent.py` continues verifying pr97_v1, pr97_v2, pr97_v3 archives and adds verification for pr97_v4 archive byte-identity and new active intent binding PR #106/v2; `tests/test_mainline_landing.py::test_committed_active_intent_binds_exact_current_authority` passes; `tests/test_mainline_landing.py::test_production_pre_merge_simulation` passes; the State Gate workflow uses a trusted verifier checkout bound to the exact base SHA with `persist-credentials: false`, separates authority verification from candidate code execution, passes no tokens to candidate steps, and runs candidate tests only after the authority gate passes; `detect_control_plane_mode()` preserves v1 semantics; `path_a.py` implements real-time Issue/PR re-observation, multi-page event flattening, strict allowed-path grammar, and all v1 fail-closed checks; `parse_allowed_paths()` rejects all wildcard patterns except `directory/subtree/**`; the workflow triggers on all ordinary PRs without path filtering; all required local test suites pass with zero failures; `transition-lint` passes; `transition-preflight` returns `PRE_EXECUTION_AUTHORIZED`; `git diff --check fa4f240f7dffff78cdb182ce8655c2e2d7cb241f..HEAD` passes; exact-head CI, State Gate pull_request, and Decision Preflight succeed; the PR remains Draft and unmerged. The terminal status is `PATH_A_STATE_GATE_CURRENT_MAIN_V2_READY_FOR_INDEPENDENT_AUDIT`. Any scope conflict, credential exposure, idempotency failure, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
+The Path-A State Gate v3 architecture rework is complete only when: the v3 Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is achieved with `blocking_reasons=[]` before implementation; the v2 `active.json` is archived verbatim as `archive/pr106_v2.json` with identical SHA-256; the new `active.json` binds `source_pr: 106`, `locked_base_sha: fa4f240f7dffff78cdb182ce8655c2e2d7cb241f`, the v3 Decision identity, exact v3 Decision blob SHA-256, exact v3 Command Plan blob SHA-256, `allowed_merge_method: merge`, `merge_tree_policy: equal_to_accepted_head_tree`, the four canonical required workflows including `State Gate (pull_request_target)`, and a bounded expiry; the State Gate workflow uses `pull_request_target` as the sole PR trigger, checks out the trusted base SHA with `persist-credentials: false`, computes changed paths and risk classification BEFORE reading any candidate authority files, routes R2/R3 paths to Path-B, and extracts candidate `project_state` to an isolated directory (not overlaying the trusted workspace); the workflow produces a State Gate Receipt artifact with all required fields, correct digest, and `final_gate_result == PASS` only when both authority and candidate tests succeed; the remote verifier and Platform V1 adapters read the State Gate workflow run, download exactly one matching receipt artifact, verify its digest, and bind `receipt.candidate_head_sha == accepted exact head`; `mainline_landing.py`, `github_remote_verifier.py`, and Platform V1 adapters use `State Gate (pull_request_target)` and `pull_request_target` consistently; PR queries use `autoMergeRequest` (not `autoMerge`); Issue queries include material-edit timestamp/revision; `tests/platform_v1/test_contracts.py` tests PR97/v4 and PR106/v2 as archives and PR106/v3 as active; `tests/test_mainline_landing.py` passes with the v3 active intent; all required local test suites pass with zero failures; `transition-lint` passes; `transition-preflight` returns `PRE_EXECUTION_AUTHORIZED`; `git diff --check fa4f240f7dffff78cdb182ce8655c2e2d7cb241f..HEAD` passes; exact-head CI and Decision Preflight succeed; the PR remains Draft and unmerged. The terminal status is `PATH_A_STATE_GATE_CURRENT_MAIN_V3_READY_FOR_INDEPENDENT_AUDIT`. Any scope conflict, credential exposure, idempotency failure, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
