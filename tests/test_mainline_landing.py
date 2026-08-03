@@ -949,3 +949,433 @@ def test_production_verifier_accepts_empty_base64_content() -> None:
         expected_content=b"",
     )
     assert result["verified"] is True
+
+
+# ---------------------------------------------------------------------------
+# State Gate Receipt verification (pull_request_target)
+# ---------------------------------------------------------------------------
+
+_VALID_RECEIPT_FIELDS: dict[str, object] = {
+    "schema_version": "0.1",
+    "receipt_kind": "state_gate",
+    "repository": "dddd2024/reverse-agent",
+    "pr_number": 106,
+    "workflow_path": ".github/workflows/state-gate.yml",
+    "workflow_event": "pull_request_target",
+    "workflow_run_id": 123456,
+    "workflow_run_attempt": 1,
+    "trusted_base_sha": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+    "trusted_verifier_tree_sha": "abc123",
+    "candidate_head_sha": "063438a295bd61d03f75432b94af7c5929e44be4",
+    "candidate_base_sha": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+    "changed_paths_sha256": "a" * 64,
+    "selected_mode": "transition",
+    "authority_identity": "trusted_base_verifier",
+    "authority_revision": "abc123",
+    "authority_result": "SUCCESS",
+    "candidate_tests_result": "SUCCESS",
+    "final_gate_result": "PASS",
+    "generated_at": "2026-08-03T12:00:00+00:00",
+}
+
+
+def _make_valid_receipt() -> dict[str, object]:
+    receipt = dict(_VALID_RECEIPT_FIELDS)
+    receipt["content_sha256"] = (
+        GitHubRemoteAcceptanceVerifier._compute_receipt_digest(receipt)
+    )
+    return receipt
+
+
+def _make_state_gate_verifier(
+    *,
+    run: dict[str, object] | None = None,
+    artifacts: list[dict[str, object]] | None = None,
+    receipt: dict[str, object] | None = None,
+) -> GitHubRemoteAcceptanceVerifier:
+    verifier = GitHubRemoteAcceptanceVerifier(
+        repository="dddd2024/reverse-agent",
+        token="test",
+    )
+    if run is None:
+        run = {
+            "repository": {"full_name": "dddd2024/reverse-agent"},
+            "path": ".github/workflows/state-gate.yml",
+            "event": "pull_request_target",
+            "id": 123456,
+            "run_attempt": 1,
+            "status": "completed",
+            "conclusion": "success",
+            "head_sha": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        }
+    if artifacts is None:
+        artifacts = [
+            {
+                "id": 789,
+                "name": "state-gate-receipt-pr106-063438a295bd61d03f75432b94af7c5929e44be4",
+            }
+        ]
+    if receipt is None:
+        receipt = _make_valid_receipt()
+
+    call_state = {"count": 0}
+
+    def mock_request(path: str) -> object:
+        call_state["count"] += 1
+        if path.startswith(f"/repos/dddd2024/reverse-agent/actions/runs/"):
+            if path.endswith("/artifacts?per_page=100"):
+                return {"artifacts": artifacts}
+            return run
+        raise GitHubEvidenceError(f"unexpected_path:{path}")
+
+    verifier._request_json = mock_request  # type: ignore[method-assign]
+    verifier._download_artifact_json = lambda _aid: receipt  # type: ignore[method-assign]
+    return verifier
+
+
+def test_state_gate_receipt_verified_successfully() -> None:
+    verifier = _make_state_gate_verifier()
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="dddd2024/reverse-agent",
+        expected_workflow_path=".github/workflows/state-gate.yml",
+        expected_event="pull_request_target",
+        expected_run_attempt=1,
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+    )
+    assert result["verified"] is True
+
+
+def test_state_gate_receipt_rejects_wrong_repository() -> None:
+    verifier = _make_state_gate_verifier()
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="other/repo",
+        expected_workflow_path=".github/workflows/state-gate.yml",
+        expected_event="pull_request_target",
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+    )
+    assert result["verified"] is False
+    assert "run_mismatch" in result["reason"]
+
+
+def test_state_gate_receipt_rejects_wrong_workflow_path() -> None:
+    verifier = _make_state_gate_verifier()
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="dddd2024/reverse-agent",
+        expected_workflow_path=".github/workflows/ci.yml",
+        expected_event="pull_request_target",
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+    )
+    assert result["verified"] is False
+    assert "run_mismatch" in result["reason"]
+
+
+def test_state_gate_receipt_rejects_wrong_event() -> None:
+    verifier = _make_state_gate_verifier()
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="dddd2024/reverse-agent",
+        expected_workflow_path=".github/workflows/state-gate.yml",
+        expected_event="pull_request",
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+    )
+    assert result["verified"] is False
+    assert "run_mismatch" in result["reason"]
+
+
+def test_state_gate_receipt_rejects_incomplete_run() -> None:
+    run = {
+        "repository": {"full_name": "dddd2024/reverse-agent"},
+        "path": ".github/workflows/state-gate.yml",
+        "event": "pull_request_target",
+        "id": 123456,
+        "run_attempt": 1,
+        "status": "in_progress",
+        "conclusion": None,
+        "head_sha": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+    }
+    verifier = _make_state_gate_verifier(run=run)
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="dddd2024/reverse-agent",
+        expected_workflow_path=".github/workflows/state-gate.yml",
+        expected_event="pull_request_target",
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+    )
+    assert result["verified"] is False
+    assert "run_mismatch" in result["reason"]
+
+
+def test_state_gate_receipt_rejects_wrong_trusted_base_for_target_event() -> None:
+    """For pull_request_target, run.head_sha must match trusted_base_sha."""
+    run = {
+        "repository": {"full_name": "dddd2024/reverse-agent"},
+        "path": ".github/workflows/state-gate.yml",
+        "event": "pull_request_target",
+        "id": 123456,
+        "run_attempt": 1,
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "b" * 40,  # wrong base SHA
+    }
+    verifier = _make_state_gate_verifier(run=run)
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="dddd2024/reverse-agent",
+        expected_workflow_path=".github/workflows/state-gate.yml",
+        expected_event="pull_request_target",
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+    )
+    assert result["verified"] is False
+    assert "run_mismatch" in result["reason"]
+
+
+def test_state_gate_receipt_rejects_missing_artifact() -> None:
+    verifier = _make_state_gate_verifier(artifacts=[])
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="dddd2024/reverse-agent",
+        expected_workflow_path=".github/workflows/state-gate.yml",
+        expected_event="pull_request_target",
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+    )
+    assert result["verified"] is False
+    assert result["reason"] == "receipt_artifact_missing"
+
+
+def test_state_gate_receipt_rejects_duplicate_artifacts() -> None:
+    artifacts = [
+        {
+            "id": 789,
+            "name": "state-gate-receipt-pr106-063438a295bd61d03f75432b94af7c5929e44be4",
+        },
+        {
+            "id": 790,
+            "name": "state-gate-receipt-pr106-063438a295bd61d03f75432b94af7c5929e44be4",
+        },
+    ]
+    verifier = _make_state_gate_verifier(artifacts=artifacts)
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="dddd2024/reverse-agent",
+        expected_workflow_path=".github/workflows/state-gate.yml",
+        expected_event="pull_request_target",
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+    )
+    assert result["verified"] is False
+    assert "receipt_artifact_duplicate" in result["reason"]
+
+
+def test_state_gate_receipt_rejects_missing_receipt_field() -> None:
+    receipt = _make_valid_receipt()
+    del receipt["candidate_head_sha"]
+    verifier = _make_state_gate_verifier(receipt=receipt)
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="dddd2024/reverse-agent",
+        expected_workflow_path=".github/workflows/state-gate.yml",
+        expected_event="pull_request_target",
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+    )
+    assert result["verified"] is False
+    assert "receipt_field_mismatch" in result["reason"]
+
+
+def test_state_gate_receipt_rejects_extra_receipt_field() -> None:
+    receipt = _make_valid_receipt()
+    receipt["extra_field"] = "bad"
+    verifier = _make_state_gate_verifier(receipt=receipt)
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="dddd2024/reverse-agent",
+        expected_workflow_path=".github/workflows/state-gate.yml",
+        expected_event="pull_request_target",
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+    )
+    assert result["verified"] is False
+    assert "receipt_field_mismatch" in result["reason"]
+
+
+def test_state_gate_receipt_rejects_wrong_candidate_head() -> None:
+    receipt = _make_valid_receipt()
+    receipt["candidate_head_sha"] = "b" * 40
+    receipt["content_sha256"] = (
+        GitHubRemoteAcceptanceVerifier._compute_receipt_digest(receipt)
+    )
+    verifier = _make_state_gate_verifier(receipt=receipt)
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="dddd2024/reverse-agent",
+        expected_workflow_path=".github/workflows/state-gate.yml",
+        expected_event="pull_request_target",
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+    )
+    assert result["verified"] is False
+    assert "receipt_mismatch" in result["reason"]
+
+
+def test_state_gate_receipt_rejects_wrong_candidate_base() -> None:
+    receipt = _make_valid_receipt()
+    receipt["candidate_base_sha"] = "c" * 40
+    receipt["content_sha256"] = (
+        GitHubRemoteAcceptanceVerifier._compute_receipt_digest(receipt)
+    )
+    verifier = _make_state_gate_verifier(receipt=receipt)
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="dddd2024/reverse-agent",
+        expected_workflow_path=".github/workflows/state-gate.yml",
+        expected_event="pull_request_target",
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+    )
+    assert result["verified"] is False
+    assert "receipt_mismatch" in result["reason"]
+
+
+def test_state_gate_receipt_rejects_wrong_pr_number() -> None:
+    receipt = _make_valid_receipt()
+    receipt["pr_number"] = 999
+    receipt["content_sha256"] = (
+        GitHubRemoteAcceptanceVerifier._compute_receipt_digest(receipt)
+    )
+    verifier = _make_state_gate_verifier(receipt=receipt)
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="dddd2024/reverse-agent",
+        expected_workflow_path=".github/workflows/state-gate.yml",
+        expected_event="pull_request_target",
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+    )
+    assert result["verified"] is False
+    assert "receipt_mismatch" in result["reason"]
+
+
+def test_state_gate_receipt_rejects_wrong_run_id() -> None:
+    receipt = _make_valid_receipt()
+    receipt["workflow_run_id"] = 999999
+    receipt["content_sha256"] = (
+        GitHubRemoteAcceptanceVerifier._compute_receipt_digest(receipt)
+    )
+    verifier = _make_state_gate_verifier(receipt=receipt)
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="dddd2024/reverse-agent",
+        expected_workflow_path=".github/workflows/state-gate.yml",
+        expected_event="pull_request_target",
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+    )
+    assert result["verified"] is False
+    assert "receipt_mismatch" in result["reason"]
+
+
+def test_state_gate_receipt_rejects_blocked_final_gate() -> None:
+    receipt = _make_valid_receipt()
+    receipt["final_gate_result"] = "BLOCKED"
+    receipt["content_sha256"] = (
+        GitHubRemoteAcceptanceVerifier._compute_receipt_digest(receipt)
+    )
+    verifier = _make_state_gate_verifier(receipt=receipt)
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="dddd2024/reverse-agent",
+        expected_workflow_path=".github/workflows/state-gate.yml",
+        expected_event="pull_request_target",
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+    )
+    assert result["verified"] is False
+    assert "receipt_mismatch" in result["reason"]
+
+
+def test_state_gate_receipt_rejects_wrong_content_digest() -> None:
+    receipt = _make_valid_receipt()
+    receipt["content_sha256"] = "0" * 64  # wrong digest
+    verifier = _make_state_gate_verifier(receipt=receipt)
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="dddd2024/reverse-agent",
+        expected_workflow_path=".github/workflows/state-gate.yml",
+        expected_event="pull_request_target",
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+    )
+    assert result["verified"] is False
+    assert "receipt_mismatch" in result["reason"]
+
+
+def test_state_gate_receipt_rejects_failed_candidate_tests() -> None:
+    receipt = _make_valid_receipt()
+    receipt["candidate_tests_result"] = "FAILED"
+    receipt["final_gate_result"] = "BLOCKED"
+    receipt["content_sha256"] = (
+        GitHubRemoteAcceptanceVerifier._compute_receipt_digest(receipt)
+    )
+    verifier = _make_state_gate_verifier(receipt=receipt)
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="dddd2024/reverse-agent",
+        expected_workflow_path=".github/workflows/state-gate.yml",
+        expected_event="pull_request_target",
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+    )
+    assert result["verified"] is False
+
+
+def test_compute_receipt_digest_excludes_content_sha256() -> None:
+    receipt = _make_valid_receipt()
+    digest = receipt["content_sha256"]
+    # Removing content_sha256 and recomputing should match
+    del receipt["content_sha256"]
+    recomputed = GitHubRemoteAcceptanceVerifier._compute_receipt_digest(receipt)
+    assert recomputed == digest

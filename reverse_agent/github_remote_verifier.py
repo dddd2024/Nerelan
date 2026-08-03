@@ -10,11 +10,13 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import io
 import json
 import os
 import re
 import urllib.error
 import urllib.request
+import zipfile
 from typing import Any
 
 
@@ -244,3 +246,221 @@ class GitHubRemoteAcceptanceVerifier:
             if isinstance(exc, GitHubEvidenceError):
                 raise
             raise GitHubEvidenceError(f"invalid_attestation_comment:{type(exc).__name__}") from exc
+
+    # ------------------------------------------------------------------
+    # State Gate Receipt verification (pull_request_target)
+    # ------------------------------------------------------------------
+
+    _RECEIPT_REQUIRED_FIELDS = frozenset({
+        "schema_version",
+        "receipt_kind",
+        "repository",
+        "pr_number",
+        "workflow_path",
+        "workflow_event",
+        "workflow_run_id",
+        "workflow_run_attempt",
+        "trusted_base_sha",
+        "trusted_verifier_tree_sha",
+        "candidate_head_sha",
+        "candidate_base_sha",
+        "changed_paths_sha256",
+        "selected_mode",
+        "authority_identity",
+        "authority_revision",
+        "authority_result",
+        "candidate_tests_result",
+        "final_gate_result",
+        "generated_at",
+        "content_sha256",
+    })
+
+    def _list_run_artifacts(self, run_id: int) -> list[dict[str, Any]]:
+        """List artifacts for a workflow run."""
+
+        payload = self._request_json(
+            f"/repos/{self.repository}/actions/runs/{int(run_id)}/artifacts?per_page=100"
+        )
+        artifacts = payload.get("artifacts")
+        if not isinstance(artifacts, list):
+            raise GitHubEvidenceError("invalid_artifacts_response")
+        return artifacts
+
+    def _download_artifact_json(self, artifact_id: int) -> dict[str, Any]:
+        """Download a workflow artifact (ZIP) and extract the first JSON file."""
+
+        url = f"{self.api_url}/repos/{self.repository}/actions/artifacts/{int(artifact_id)}/zip"
+        request = urllib.request.Request(
+            url,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {self.token}",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "User-Agent": "reverse-agent-mainline-validator",
+            },
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                if response.status != 200:
+                    raise GitHubEvidenceError(f"artifact_http_status:{response.status}")
+                zip_bytes = response.read()
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise GitHubEvidenceError(f"artifact_download_failed:{type(exc).__name__}") from exc
+        try:
+            with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
+                names = archive.namelist()
+                json_names = [n for n in names if n.endswith(".json")]
+                if len(json_names) != 1:
+                    raise GitHubEvidenceError(
+                        f"expected_one_json_in_artifact:observed={len(json_names)}"
+                    )
+                raw = archive.read(json_names[0])
+                payload = json.loads(raw.decode("utf-8"))
+        except (zipfile.BadZipFile, json.JSONDecodeError, OSError) as exc:
+            raise GitHubEvidenceError(f"artifact_extract_failed:{type(exc).__name__}") from exc
+        if not isinstance(payload, dict):
+            raise GitHubEvidenceError("artifact_json_not_object")
+        return payload
+
+    @staticmethod
+    def _compute_receipt_digest(receipt: dict[str, Any]) -> str:
+        """Compute the canonical content_sha256 of a receipt (minus content_sha256)."""
+
+        filtered = {
+            k: v for k, v in receipt.items() if k != "content_sha256"
+        }
+        canonical = json.dumps(
+            filtered, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        return hashlib.sha256(canonical).hexdigest()
+
+    def verify_state_gate_receipt(
+        self,
+        *,
+        run_id: int,
+        expected_repository: str,
+        expected_workflow_path: str,
+        expected_event: str,
+        expected_run_attempt: int = 1,
+        trusted_base_sha: str,
+        accepted_candidate_head: str,
+        locked_base_sha: str,
+        expected_pr_number: int,
+    ) -> dict[str, Any]:
+        """Verify a State Gate workflow run and its receipt artifact.
+
+        For ``pull_request_target`` events, the run's ``head_sha`` is the
+        base-context head (NOT the candidate head).  The candidate head SHA
+        is only verified via the receipt artifact.
+
+        Fails closed on any missing, duplicate, expired, or mismatched field.
+        """
+
+        try:
+            # 1. Verify the workflow run itself
+            run = self._request_json(
+                f"/repos/{self.repository}/actions/runs/{int(run_id)}"
+            )
+            observed_repository = str(
+                ((run.get("repository") or {}).get("full_name")) or ""
+            )
+            run_checks = {
+                "repository": observed_repository == expected_repository,
+                "path": run.get("path") == expected_workflow_path,
+                "event": run.get("event") == expected_event,
+                "run_id": int(run.get("id") or 0) == int(run_id),
+                "run_attempt": int(run.get("run_attempt") or 0)
+                == int(expected_run_attempt),
+                "status": run.get("status") == "completed",
+                "conclusion": run.get("conclusion") == "success",
+            }
+            # For pull_request_target, run.head_sha is the base context head,
+            # NOT the candidate head.  Verify it matches the trusted base SHA.
+            if expected_event == "pull_request_target":
+                run_checks["trusted_base_sha"] = (
+                    run.get("head_sha") == trusted_base_sha
+                )
+            else:
+                run_checks["head_sha"] = run.get("head_sha") == accepted_candidate_head
+
+            if not all(run_checks.values()):
+                return {
+                    "verified": False,
+                    "reason": f"run_mismatch:{run_checks}",
+                }
+
+            # 2. List artifacts and find exactly one matching receipt
+            artifacts = self._list_run_artifacts(run_id)
+            expected_prefix = f"state-gate-receipt-pr{int(expected_pr_number)}-"
+            matching = [
+                a for a in artifacts
+                if isinstance(a, dict)
+                and str(a.get("name", "")).startswith(expected_prefix)
+                and str(a.get("name", "")).endswith(f"-{accepted_candidate_head}")
+            ]
+            if len(matching) == 0:
+                return {
+                    "verified": False,
+                    "reason": "receipt_artifact_missing",
+                }
+            if len(matching) > 1:
+                return {
+                    "verified": False,
+                    "reason": f"receipt_artifact_duplicate:count={len(matching)}",
+                }
+
+            # 3. Download and parse the receipt
+            artifact_id = int(matching[0].get("id") or 0)
+            receipt = self._download_artifact_json(artifact_id)
+
+            # 4. Verify receipt fields
+            receipt_keys = set(receipt.keys())
+            missing_fields = self._RECEIPT_REQUIRED_FIELDS - receipt_keys
+            extra_fields = receipt_keys - self._RECEIPT_REQUIRED_FIELDS
+            if missing_fields or extra_fields:
+                return {
+                    "verified": False,
+                    "reason": f"receipt_field_mismatch:"
+                    f"missing={sorted(missing_fields)}"
+                    f"extra={sorted(extra_fields)}",
+                }
+
+            receipt_checks = {
+                "repository": receipt.get("repository") == expected_repository,
+                "pr_number": int(receipt.get("pr_number") or 0)
+                == int(expected_pr_number),
+                "workflow_path": receipt.get("workflow_path")
+                == expected_workflow_path,
+                "workflow_event": receipt.get("workflow_event") == expected_event,
+                "workflow_run_id": int(receipt.get("workflow_run_id") or 0)
+                == int(run_id),
+                "workflow_run_attempt": int(receipt.get("workflow_run_attempt") or 0)
+                == int(expected_run_attempt),
+                "candidate_head_sha": receipt.get("candidate_head_sha")
+                == accepted_candidate_head,
+                "candidate_base_sha": receipt.get("candidate_base_sha")
+                == locked_base_sha,
+                "trusted_base_sha": receipt.get("trusted_base_sha")
+                == trusted_base_sha,
+                "final_gate_result": receipt.get("final_gate_result") == "PASS",
+                "authority_result": receipt.get("authority_result") == "SUCCESS",
+                "candidate_tests_result": receipt.get("candidate_tests_result")
+                == "SUCCESS",
+            }
+
+            # 5. Verify receipt content digest
+            expected_digest = self._compute_receipt_digest(receipt)
+            receipt_checks["content_sha256"] = (
+                receipt.get("content_sha256") == expected_digest
+            )
+
+            if not all(receipt_checks.values()):
+                return {
+                    "verified": False,
+                    "reason": f"receipt_mismatch:{receipt_checks}",
+                }
+
+            return {"verified": True, "run": run, "receipt": receipt}
+        except (GitHubEvidenceError, TypeError, ValueError) as exc:
+            return {"verified": False, "reason": str(exc)}
