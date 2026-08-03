@@ -24,6 +24,8 @@ from reverse_agent.github_remote_verifier import (
 from reverse_agent.mainline_landing import (
     CANONICAL_WORKFLOW_POLICY,
     HISTORICAL_WORKFLOW_POLICY_PULL_REQUEST,
+    PRE_MERGE_WORKFLOW_POLICY,
+    STATE_GATE_TARGET_WORKFLOW,
     _validate_intent,
     canonical_digest,
     emit_mainline_integration_receipt,
@@ -34,6 +36,11 @@ from reverse_agent.mainline_landing import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 NOW = datetime(2026, 7, 28, 8, 0, tzinfo=timezone.utc)
+
+# Fixed changed-path digest used by the test fixture's State Gate target
+# observation.  Production code must never use the receipt's own digest as
+# the expected digest — this constant is the independent expected value.
+CHANGED_PATHS_SHA256 = "a" * 64
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -47,8 +54,25 @@ def _git(repo: Path, *args: str) -> str:
 
 
 class FakeVerifier:
-    def __init__(self, *, fail: str = "") -> None:
+    """Test double that records verify_state_gate_receipt calls.
+
+    Production code in ``_validate_attestation`` calls
+    ``verify_state_gate_receipt`` for the State Gate target workflow.  This
+    fake records those calls so tests can prove the production path actually
+    invokes the receipt verifier (not just that the method exists).
+
+    The fake simulates the production receipt verifier's changed-path digest
+    validation: it compares ``expected_changed_paths_sha256`` against a known
+    receipt digest (default ``CHANGED_PATHS_SHA256``) and returns
+    verified=False on mismatch.  This mirrors the real
+    ``GitHubRemoteAcceptanceVerifier`` behavior without requiring network
+    access.
+    """
+
+    def __init__(self, *, fail: str = "", receipt_digest: str = CHANGED_PATHS_SHA256) -> None:
         self.fail = fail
+        self.receipt_digest = receipt_digest
+        self.state_gate_receipt_calls: list[dict[str, Any]] = []
 
     def verify_pr(self, **_: Any) -> dict[str, Any]:
         return {"verified": self.fail != "pr", "reason": self.fail}
@@ -56,6 +80,19 @@ class FakeVerifier:
     def verify_workflow_run(self, **kwargs: Any) -> dict[str, Any]:
         bad = self.fail == "workflow" or kwargs["run_id"] <= 0
         return {"verified": not bad, "reason": self.fail, "run": kwargs}
+
+    def verify_state_gate_receipt(self, **kwargs: Any) -> dict[str, Any]:
+        self.state_gate_receipt_calls.append(kwargs)
+        if self.fail == "state_gate_receipt":
+            return {"verified": False, "reason": "state_gate_receipt_failed"}
+        if self.fail == "workflow":
+            return {"verified": False, "reason": "workflow"}
+        if kwargs.get("run_id", 0) <= 0:
+            return {"verified": False, "reason": "invalid_run_id"}
+        expected = str(kwargs.get("expected_changed_paths_sha256") or "")
+        if expected != self.receipt_digest:
+            return {"verified": False, "reason": "changed_paths_digest_mismatch"}
+        return {"verified": True, "reason": "", "receipt": kwargs}
 
     def verify_issue_comment(self, **_: Any) -> dict[str, Any]:
         return {"verified": self.fail != "comment", "reason": self.fail}
@@ -143,7 +180,8 @@ def _future_repo(
         },
         "command_plan_sha256": "0" * 64 if bad_plan else plan_digest,
         "merge_tree_policy": "equal_to_accepted_head_tree",
-        "required_workflows": list(CANONICAL_WORKFLOW_POLICY),
+        "required_workflows": list(PRE_MERGE_WORKFLOW_POLICY),
+        "post_merge_integration_workflow": "State Gate (push)",
         "expires_at": "2026-08-28T00:00:00Z",
     }
     intent_path = repo / "project_state" / "mainline_merge_intents" / "active.json"
@@ -165,19 +203,28 @@ def _future_repo(
     }
     observations = []
     for index, (name, (workflow_file, event)) in enumerate(
-        CANONICAL_WORKFLOW_POLICY.items(), 1
+        PRE_MERGE_WORKFLOW_POLICY.items(), 1
     ):
-        observations.append(
-            {
-                "name": name,
-                "run_id": 1000 + index,
-                "workflow_file": workflow_file,
-                "event": event,
-                "run_attempt": 1,
-                "head_sha": head,
-                "conclusion": "success",
-            }
-        )
+        obs: dict[str, Any] = {
+            "name": name,
+            "run_id": 1000 + index,
+            "workflow_file": workflow_file,
+            "event": event,
+            "run_attempt": 1,
+            "head_sha": head,
+            "conclusion": "success",
+        }
+        if name == STATE_GATE_TARGET_WORKFLOW[0]:
+            # State Gate target uses trusted-base run semantics: the run
+            # head is the locked base, NOT the candidate head.  The
+            # candidate head/base and changed-path digest are bound inside
+            # the receipt artifact.
+            obs["head_sha"] = base
+            obs["trusted_head_sha"] = base
+            obs["candidate_head_sha"] = head
+            obs["candidate_base_sha"] = base
+            obs["changed_paths_sha256"] = CHANGED_PATHS_SHA256
+        observations.append(obs)
     attestation = {
         "schema_version": 1,
         "attestation_id": "attestation_pr67_v1",
@@ -371,10 +418,11 @@ def test_missing_malformed_or_multiple_decision_metadata_fails_closed(
 
 def test_wrong_workflow_event_fails(tmp_path: Path) -> None:
     bundle = _future_repo(tmp_path)
-    bundle["attestation"]["workflow_observations"][3]["event"] = "pull_request"
+    # Tamper with the State Gate target event (index 2 in pre-merge policy).
+    bundle["attestation"]["workflow_observations"][2]["event"] = "push"
     result = _validate(bundle)
     assert result["gate_status"] == "BLOCKED"
-    assert any("remote_workflow:State Gate (push)" in item for item in result["blocking_reasons"])
+    assert any("remote_workflow:State Gate (pull_request_target)" in item for item in result["blocking_reasons"])
 
 
 def test_duplicate_run_id_fails(tmp_path: Path) -> None:
@@ -741,8 +789,12 @@ def test_production_pre_merge_simulation(tmp_path: Path) -> None:
         "accepted_exact_head_sha": head,
         "allowed_merge_method": "merge",
     }
-    observations = [
-        {
+    observations = []
+    for index, (name, (workflow_file, event)) in enumerate(
+        PRE_MERGE_WORKFLOW_POLICY.items(),
+        1,
+    ):
+        obs: dict[str, Any] = {
             "name": name,
             "run_id": 7100 + index,
             "workflow_file": workflow_file,
@@ -751,11 +803,13 @@ def test_production_pre_merge_simulation(tmp_path: Path) -> None:
             "head_sha": head,
             "conclusion": "success",
         }
-        for index, (name, (workflow_file, event)) in enumerate(
-            CANONICAL_WORKFLOW_POLICY.items(),
-            1,
-        )
-    ]
+        if name == STATE_GATE_TARGET_WORKFLOW[0]:
+            obs["head_sha"] = base
+            obs["trusted_head_sha"] = base
+            obs["candidate_head_sha"] = head
+            obs["candidate_base_sha"] = base
+            obs["changed_paths_sha256"] = CHANGED_PATHS_SHA256
+        observations.append(obs)
     attestation = {
         "schema_version": 1,
         "attestation_id": "issue71_local_simulation_only",
@@ -1049,6 +1103,7 @@ def test_state_gate_receipt_verified_successfully() -> None:
         accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
         locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
         expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
     )
     assert result["verified"] is True
 
@@ -1064,6 +1119,7 @@ def test_state_gate_receipt_rejects_wrong_repository() -> None:
         accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
         locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
         expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
     )
     assert result["verified"] is False
     assert "run_mismatch" in result["reason"]
@@ -1080,6 +1136,7 @@ def test_state_gate_receipt_rejects_wrong_workflow_path() -> None:
         accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
         locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
         expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
     )
     assert result["verified"] is False
     assert "run_mismatch" in result["reason"]
@@ -1096,6 +1153,7 @@ def test_state_gate_receipt_rejects_wrong_event() -> None:
         accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
         locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
         expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
     )
     assert result["verified"] is False
     assert "run_mismatch" in result["reason"]
@@ -1122,6 +1180,7 @@ def test_state_gate_receipt_rejects_incomplete_run() -> None:
         accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
         locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
         expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
     )
     assert result["verified"] is False
     assert "run_mismatch" in result["reason"]
@@ -1149,6 +1208,7 @@ def test_state_gate_receipt_rejects_wrong_trusted_base_for_target_event() -> Non
         accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
         locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
         expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
     )
     assert result["verified"] is False
     assert "run_mismatch" in result["reason"]
@@ -1165,6 +1225,7 @@ def test_state_gate_receipt_rejects_missing_artifact() -> None:
         accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
         locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
         expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
     )
     assert result["verified"] is False
     assert result["reason"] == "receipt_artifact_missing"
@@ -1191,6 +1252,7 @@ def test_state_gate_receipt_rejects_duplicate_artifacts() -> None:
         accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
         locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
         expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
     )
     assert result["verified"] is False
     assert "receipt_artifact_duplicate" in result["reason"]
@@ -1209,6 +1271,7 @@ def test_state_gate_receipt_rejects_missing_receipt_field() -> None:
         accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
         locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
         expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
     )
     assert result["verified"] is False
     assert "receipt_mismatch" in result["reason"]
@@ -1228,6 +1291,7 @@ def test_state_gate_receipt_rejects_extra_receipt_field() -> None:
         accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
         locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
         expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
     )
     assert result["verified"] is False
     assert "receipt_mismatch" in result["reason"]
@@ -1250,6 +1314,7 @@ def test_state_gate_receipt_rejects_wrong_candidate_head() -> None:
         accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
         locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
         expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
     )
     assert result["verified"] is False
     assert "receipt_mismatch" in result["reason"]
@@ -1271,6 +1336,7 @@ def test_state_gate_receipt_rejects_wrong_candidate_base() -> None:
         accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
         locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
         expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
     )
     assert result["verified"] is False
     assert "receipt_mismatch" in result["reason"]
@@ -1292,6 +1358,7 @@ def test_state_gate_receipt_rejects_wrong_pr_number() -> None:
         accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
         locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
         expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
     )
     assert result["verified"] is False
     assert "receipt_mismatch" in result["reason"]
@@ -1313,6 +1380,7 @@ def test_state_gate_receipt_rejects_wrong_run_id() -> None:
         accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
         locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
         expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
     )
     assert result["verified"] is False
     assert "receipt_mismatch" in result["reason"]
@@ -1334,6 +1402,7 @@ def test_state_gate_receipt_rejects_blocked_final_gate() -> None:
         accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
         locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
         expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
     )
     assert result["verified"] is False
     assert "receipt_mismatch" in result["reason"]
@@ -1352,6 +1421,7 @@ def test_state_gate_receipt_rejects_wrong_content_digest() -> None:
         accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
         locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
         expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
     )
     assert result["verified"] is False
     assert "receipt_mismatch" in result["reason"]
@@ -1374,6 +1444,7 @@ def test_state_gate_receipt_rejects_failed_candidate_tests() -> None:
         accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
         locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
         expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
     )
     assert result["verified"] is False
 
@@ -1726,3 +1797,186 @@ def test_v7_same_receipt_passes_cli_and_remote_verifier_payload_path(
     assert remote_result["verified"] is True, (
         f"Remote verifier rejected: {remote_result.get('reason')}"
     )
+
+
+# ---------------------------------------------------------------------------
+# v8 mainline acceptance topology tests
+#
+# These tests use the real _validate_attestation production path with:
+#   - CI / Decision Preflight run head == candidate head
+#   - State Gate target run head == trusted base (locked base)
+#   - State Gate receipt candidate head == candidate head
+#   - State Gate receipt candidate base == trusted base
+#   - State Gate receipt digest == attested exact digest
+#   - No State Gate (push) observation in pre-merge attestation
+# ---------------------------------------------------------------------------
+
+
+def test_v8_three_pre_merge_workflow_evidence_passes(tmp_path: Path) -> None:
+    """Valid three pre-merge workflow evidence passes."""
+    bundle = _future_repo(tmp_path)
+    verifier = FakeVerifier()
+    result = _validate(bundle, verifier=verifier)
+    assert result["gate_status"] == "PASSED", result
+    # Production code must have called the receipt verifier for State Gate
+    assert len(verifier.state_gate_receipt_calls) == 1, (
+        f"expected 1 state_gate_receipt call, got {len(verifier.state_gate_receipt_calls)}"
+    )
+
+
+def test_v8_state_gate_target_verified_via_receipt_verifier(tmp_path: Path) -> None:
+    """State Gate target observation is verified via verify_state_gate_receipt."""
+    bundle = _future_repo(tmp_path)
+    verifier = FakeVerifier()
+    result = _validate(bundle, verifier=verifier)
+    assert result["gate_status"] == "PASSED", result
+    call = verifier.state_gate_receipt_calls[0]
+    # The receipt verifier must receive the exact trusted base, candidate
+    # head, candidate base, and changed-path digest.
+    assert call["trusted_base_sha"] == bundle["base"]
+    assert call["accepted_candidate_head"] == bundle["head"]
+    assert call["locked_base_sha"] == bundle["base"]
+    assert call["expected_changed_paths_sha256"] == CHANGED_PATHS_SHA256
+    assert call["expected_pr_number"] == 67
+    assert call["expected_event"] == "pull_request_target"
+
+
+def test_v8_wrong_trusted_base_blocks(tmp_path: Path) -> None:
+    """Wrong trusted base SHA in the State Gate observation blocks."""
+    bundle = _future_repo(tmp_path)
+    bundle["attestation"]["workflow_observations"][2]["trusted_head_sha"] = "b" * 40
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("remote_workflow:State Gate (pull_request_target)" in item for item in result["blocking_reasons"])
+
+
+def test_v8_wrong_candidate_head_blocks(tmp_path: Path) -> None:
+    """Wrong candidate head SHA in the State Gate observation blocks."""
+    bundle = _future_repo(tmp_path)
+    bundle["attestation"]["workflow_observations"][2]["candidate_head_sha"] = "b" * 40
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("remote_workflow:State Gate (pull_request_target)" in item for item in result["blocking_reasons"])
+
+
+def test_v8_wrong_candidate_base_blocks(tmp_path: Path) -> None:
+    """Wrong candidate base SHA in the State Gate observation blocks."""
+    bundle = _future_repo(tmp_path)
+    bundle["attestation"]["workflow_observations"][2]["candidate_base_sha"] = "c" * 40
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("remote_workflow:State Gate (pull_request_target)" in item for item in result["blocking_reasons"])
+
+
+def test_v8_wrong_changed_path_digest_blocks(tmp_path: Path) -> None:
+    """Wrong changed-path digest in the State Gate observation blocks."""
+    bundle = _future_repo(tmp_path)
+    bundle["attestation"]["workflow_observations"][2]["changed_paths_sha256"] = "b" * 64
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("remote_workflow:State Gate (pull_request_target)" in item for item in result["blocking_reasons"])
+
+
+def test_v8_receipt_missing_blocks(tmp_path: Path) -> None:
+    """Receipt artifact missing blocks (verifier returns verified=False)."""
+    bundle = _future_repo(tmp_path)
+    verifier = FakeVerifier(fail="state_gate_receipt")
+    result = _validate(bundle, verifier=verifier)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("remote_workflow:State Gate (pull_request_target)" in item for item in result["blocking_reasons"])
+    # Production code must still have called the receipt verifier
+    assert len(verifier.state_gate_receipt_calls) == 1
+
+
+def test_v8_receipt_duplicate_blocks(tmp_path: Path) -> None:
+    """Receipt artifact duplicate blocks (verifier returns verified=False)."""
+    bundle = _future_repo(tmp_path)
+    verifier = FakeVerifier(fail="state_gate_receipt")
+    result = _validate(bundle, verifier=verifier)
+    assert result["gate_status"] == "BLOCKED"
+
+
+def test_v8_receipt_malformed_blocks(tmp_path: Path) -> None:
+    """Receipt malformed blocks (verifier returns verified=False)."""
+    bundle = _future_repo(tmp_path)
+    verifier = FakeVerifier(fail="state_gate_receipt")
+    result = _validate(bundle, verifier=verifier)
+    assert result["gate_status"] == "BLOCKED"
+
+
+def test_v8_receipt_verifier_api_failure_blocks(tmp_path: Path) -> None:
+    """Receipt verifier API failure blocks (verifier returns verified=False)."""
+    bundle = _future_repo(tmp_path)
+    verifier = FakeVerifier(fail="state_gate_receipt")
+    result = _validate(bundle, verifier=verifier)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("remote_workflow:State Gate (pull_request_target)" in item for item in result["blocking_reasons"])
+
+
+def test_v8_pre_merge_policy_rejects_state_gate_push(tmp_path: Path) -> None:
+    """Adding State Gate (push) back to pre-merge policy is rejected."""
+    bundle = _future_repo(tmp_path)
+    intent = dict(bundle["intent"])
+    intent["required_workflows"] = list(CANONICAL_WORKFLOW_POLICY)
+    checks = _validate_intent(
+        intent,
+        repo_root=bundle["repo"],
+        accepted_head=bundle["head"],
+        source_pr=67,
+        locked_base=bundle["base"],
+        now=NOW,
+    )
+    observed = {check["name"]: check["status"] for check in checks}
+    assert observed["intent_pre_merge_workflow_policy"] == "FAIL"
+
+
+def test_v8_pre_merge_attestation_has_no_state_gate_push(tmp_path: Path) -> None:
+    """Pre-merge attestation must not contain State Gate (push) observation."""
+    bundle = _future_repo(tmp_path)
+    observations = bundle["attestation"]["workflow_observations"]
+    names = [obs["name"] for obs in observations]
+    assert "State Gate (push)" not in names
+    assert "CI" in names
+    assert "Decision Preflight" in names
+    assert "State Gate (pull_request_target)" in names
+    assert len(observations) == 3
+
+
+def test_v8_historical_archive_validates_with_historical_policy() -> None:
+    """Historical four-workflow archive still validates with historical policy."""
+    intent = json.loads(
+        _committed_blob(
+            "project_state/mainline_merge_intents/archive/pr67_v5.json"
+        )
+    )
+    # The archived intent must retain the historical 4-workflow policy,
+    # NOT the v8 pre-merge 3-workflow policy.
+    assert intent["required_workflows"] == list(HISTORICAL_WORKFLOW_POLICY_PULL_REQUEST)
+    assert "State Gate (pull_request)" in intent["required_workflows"]
+    assert "State Gate (push)" in intent["required_workflows"]
+    assert "post_merge_integration_workflow" not in intent
+
+
+def test_v8_state_gate_target_observation_has_dual_identity(tmp_path: Path) -> None:
+    """State Gate target observation carries both trusted and candidate identity."""
+    bundle = _future_repo(tmp_path)
+    sg_obs = bundle["attestation"]["workflow_observations"][2]
+    assert sg_obs["name"] == "State Gate (pull_request_target)"
+    # Trusted run head == locked base (NOT candidate head)
+    assert sg_obs["head_sha"] == bundle["base"]
+    assert sg_obs["trusted_head_sha"] == bundle["base"]
+    # Candidate identity
+    assert sg_obs["candidate_head_sha"] == bundle["head"]
+    assert sg_obs["candidate_base_sha"] == bundle["base"]
+    # Changed-path digest
+    assert sg_obs["changed_paths_sha256"] == CHANGED_PATHS_SHA256
+
+
+def test_v8_ordinary_pr_workflows_use_candidate_head(tmp_path: Path) -> None:
+    """CI and Decision Preflight run heads equal the candidate head."""
+    bundle = _future_repo(tmp_path)
+    for index in range(2):
+        obs = bundle["attestation"]["workflow_observations"][index]
+        assert obs["head_sha"] == bundle["head"], (
+            f"observation[{index}] head_sha={obs['head_sha']} expected candidate head={bundle['head']}"
+        )

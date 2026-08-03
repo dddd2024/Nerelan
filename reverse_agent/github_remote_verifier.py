@@ -512,7 +512,7 @@ class GitHubRemoteAcceptanceVerifier:
         accepted_candidate_head: str,
         locked_base_sha: str,
         expected_pr_number: int,
-        expected_changed_paths_sha256: str = "",
+        expected_changed_paths_sha256: str,
     ) -> dict[str, Any]:
         """Verify a State Gate workflow run and its receipt artifact.
 
@@ -526,8 +526,18 @@ class GitHubRemoteAcceptanceVerifier:
         workflow-facing CLI and the remote verifier enforce identical
         semantics.
 
+        ``expected_changed_paths_sha256`` is MANDATORY for production use.
+        The receipt's own ``changed_paths_sha256`` is NOT used as a fallback
+        expected digest — that would be self-trust, not independent binding.
+
         Fails closed on any missing, duplicate, expired, or mismatched field.
         """
+
+        if not expected_changed_paths_sha256:
+            return {
+                "verified": False,
+                "reason": "expected_changed_paths_sha256_required",
+            }
 
         try:
             # 1. Verify the workflow run itself
@@ -587,12 +597,8 @@ class GitHubRemoteAcceptanceVerifier:
             receipt = self._download_artifact_json(artifact_id)
 
             # 4. Validate receipt payload via the shared network-free validator.
-            # When expected_changed_paths_sha256 is supplied, enforce exact
-            # equality; otherwise fall back to the receipt's own digest (the
-            # caller is responsible for supplying it for production use).
-            expected_digest = expected_changed_paths_sha256 or str(
-                receipt.get("changed_paths_sha256") or ""
-            )
+            # The expected changed-path digest is mandatory and supplied by
+            # the caller — the receipt's own digest is NOT used as a fallback.
             try:
                 validate_state_gate_receipt_payload(
                     receipt,
@@ -605,7 +611,7 @@ class GitHubRemoteAcceptanceVerifier:
                     expected_trusted_base_sha=trusted_base_sha,
                     expected_candidate_base_sha=locked_base_sha,
                     expected_candidate_head_sha=accepted_candidate_head,
-                    expected_changed_paths_sha256=expected_digest,
+                    expected_changed_paths_sha256=expected_changed_paths_sha256,
                 )
             except StateGateReceiptValidationError as exc:
                 return {

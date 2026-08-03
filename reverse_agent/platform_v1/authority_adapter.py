@@ -49,11 +49,24 @@ _SHA1_HEX_RE = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 
 # Canonical required (workflowName, event) keys for the active merge intent.
+# This is the historical four-workflow policy, kept for validating immutable
+# archive files.  Active intents from v8 onward use PRE_MERGE_WORKFLOW_KEYS.
 CANONICAL_WORKFLOW_KEYS: tuple[tuple[str, str], ...] = (
     ("CI", "pull_request"),
     ("Decision Preflight", "pull_request"),
     ("State Gate", "pull_request_target"),
     ("State Gate", "push"),
+)
+
+# Pre-merge evidence policy: the only workflow observations required before
+# merge are CI, Decision Preflight, and the trusted-target State Gate
+# (pull_request_target).  ``State Gate (push)`` is a post-merge mainline
+# integration enforcement gate and must NOT be required as a pre-merge
+# attestation prerequisite.
+PRE_MERGE_WORKFLOW_KEYS: tuple[tuple[str, str], ...] = (
+    ("CI", "pull_request"),
+    ("Decision Preflight", "pull_request"),
+    ("State Gate", "pull_request_target"),
 )
 
 # Historical canonical keys for archived intents that were created when the
@@ -443,8 +456,9 @@ def _validate_merge_intent(
     # F22/F23: Merge intent stores composite names (e.g. "State Gate (push)"),
     # not bare workflow names. Compare against the composite-name form so
     # push/pull_request State Gate remain distinct.
+    # v8: Active intents use the pre-merge three-workflow policy.
     expected_workflow_names = [
-        composite_name(wf, ev) for wf, ev in CANONICAL_WORKFLOW_KEYS
+        composite_name(wf, ev) for wf, ev in PRE_MERGE_WORKFLOW_KEYS
     ]
     if required_workflows != expected_workflow_names:
         raise AuthorityBundleError(

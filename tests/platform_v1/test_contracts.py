@@ -1030,7 +1030,7 @@ class TestActiveMergeIntentV5:
 
     def test_active_binds_v6_decision_id(self) -> None:
         assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260803_restore_path_a_state_gate_current_main_v7"
+            "decision_20260803_restore_path_a_state_gate_current_main_v8"
         )
 
     def test_active_binds_v6_decision_content_sha256(self) -> None:
@@ -1060,7 +1060,14 @@ class TestActiveMergeIntentV5:
         assert "CI" in workflows
         assert "Decision Preflight" in workflows
         assert "State Gate (pull_request_target)" in workflows
-        assert "State Gate (push)" in workflows
+        # v8: State Gate (push) is a post-merge integration gate, not a
+        # pre-merge attestation prerequisite.
+        assert "State Gate (push)" not in workflows
+
+    def test_active_binds_post_merge_integration_workflow(self) -> None:
+        assert self._active.get("post_merge_integration_workflow") == (
+            "State Gate (push)"
+        )
 
     def test_active_has_bounded_expiry(self) -> None:
         expires = self._active.get("expires_at", "")

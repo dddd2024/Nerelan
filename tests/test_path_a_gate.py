@@ -1920,6 +1920,7 @@ class TestUnsupportedModeRejected:
             accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
             locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
             expected_pr_number=106,
+            expected_changed_paths_sha256="a" * 64,
         )
         assert result["verified"] is False
 

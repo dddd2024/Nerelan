@@ -54,7 +54,7 @@ EXPECTED_V4_DECISION_ID_PR106 = (
     "decision_20260803_restore_path_a_state_gate_current_main_v4"
 )
 EXPECTED_V5_DECISION_ID_PR106 = (
-    "decision_20260803_restore_path_a_state_gate_current_main_v7"
+    "decision_20260803_restore_path_a_state_gate_current_main_v8"
 )
 EXPECTED_V4_DECISION_ID = (
     "decision_20260802_issue100_platform_v1_authority_collector_v4"
@@ -138,13 +138,19 @@ class TestActiveMergeIntent:
         expected = hashlib.sha256(plan_blob).hexdigest()
         assert data["command_plan_sha256"] == expected
 
-    def test_active_required_workflows_include_all_four(self) -> None:
+    def test_active_required_workflows_pre_merge_policy(self) -> None:
         data = _load_json(ACTIVE_PATH)
         workflows = data["required_workflows"]
         assert "CI" in workflows
         assert "Decision Preflight" in workflows
         assert "State Gate (pull_request_target)" in workflows
-        assert "State Gate (push)" in workflows
+        # v8: State Gate (push) is a post-merge integration gate, not a
+        # pre-merge attestation prerequisite.
+        assert "State Gate (push)" not in workflows
+
+    def test_active_post_merge_integration_workflow(self) -> None:
+        data = _load_json(ACTIVE_PATH)
+        assert data.get("post_merge_integration_workflow") == "State Gate (push)"
 
     def test_active_has_bounded_expiry(self) -> None:
         data = _load_json(ACTIVE_PATH)

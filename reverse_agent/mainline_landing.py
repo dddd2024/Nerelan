@@ -36,6 +36,41 @@ CANONICAL_WORKFLOW_POLICY: dict[str, tuple[str, str]] = {
     "State Gate (push)": (".github/workflows/state-gate.yml", "push"),
 }
 
+# Pre-merge evidence policy: the only workflow observations required before
+# merge are CI, Decision Preflight, and the trusted-target State Gate
+# (pull_request_target).  ``State Gate (push)`` is a post-merge mainline
+# integration enforcement gate and must NOT be required as a pre-merge
+# attestation prerequisite (doing so creates a circular merge dependency).
+PRE_MERGE_WORKFLOW_POLICY: dict[str, tuple[str, str]] = {
+    "CI": (".github/workflows/ci.yml", "pull_request"),
+    "Decision Preflight": (
+        ".github/workflows/decision-preflight.yml",
+        "pull_request",
+    ),
+    "State Gate (pull_request_target)": (
+        ".github/workflows/state-gate.yml",
+        "pull_request_target",
+    ),
+}
+
+# Ordinary PR workflows use candidate-head semantics: the workflow run head
+# equals the accepted candidate head SHA.
+ORDINARY_PR_WORKFLOWS: dict[str, tuple[str, str]] = {
+    "CI": (".github/workflows/ci.yml", "pull_request"),
+    "Decision Preflight": (
+        ".github/workflows/decision-preflight.yml",
+        "pull_request",
+    ),
+}
+
+# The State Gate target workflow uses trusted-base run semantics: the
+# workflow run head equals the locked base SHA, while the candidate head
+# and candidate base are bound inside the receipt artifact.
+STATE_GATE_TARGET_WORKFLOW: tuple[str, tuple[str, str]] = (
+    "State Gate (pull_request_target)",
+    (".github/workflows/state-gate.yml", "pull_request_target"),
+)
+
 # Historical workflow policy for validating archived intents that were
 # created when the State Gate PR trigger was ``pull_request``.  Archived
 # intents are immutable and retain their original ``required_workflows``
@@ -300,6 +335,7 @@ def _validate_intent(
         "command_plan_sha256",
         "merge_tree_policy",
         "required_workflows",
+        "post_merge_integration_workflow",
         "expires_at",
     }
     return [
@@ -315,7 +351,8 @@ def _validate_intent(
         _check("intent_command_plan_identity", command_plan.get("decision_id") == accepted_decision.get("decision_id") and command_plan.get("round_id") == accepted_decision.get("round_id"), f"plan={command_plan.get('decision_id')}/{command_plan.get('round_id')} decision={accepted_decision.get('decision_id')}/{accepted_decision.get('round_id')}"),
         _check("intent_command_plan_digest", _sha256(intent.get("command_plan_sha256")) and intent.get("command_plan_sha256") == plan_digest, f"observed={intent.get('command_plan_sha256')} expected={plan_digest}"),
         _check("intent_merge_tree_policy", intent.get("merge_tree_policy") == "equal_to_accepted_head_tree", f"observed={intent.get('merge_tree_policy')}"),
-        _check("intent_workflow_policy", required == list(CANONICAL_WORKFLOW_POLICY), f"observed={required}"),
+        _check("intent_pre_merge_workflow_policy", required == list(PRE_MERGE_WORKFLOW_POLICY), f"observed={required}"),
+        _check("intent_post_merge_integration_workflow", intent.get("post_merge_integration_workflow") == "State Gate (push)", f"observed={intent.get('post_merge_integration_workflow')}"),
         _check("intent_expiry", not_expired, f"expires_at={expiry} now={now.isoformat()}"),
     ]
 
@@ -369,7 +406,11 @@ def _validate_attestation(
         "_remote_comment_id",
         "_remote_author",
     }
-    observation_fields = {
+    # Ordinary PR observations (CI, Decision Preflight) carry the 7 base
+    # fields.  The State Gate target observation carries 4 additional
+    # receipt-binding fields: trusted_head_sha, candidate_head_sha,
+    # candidate_base_sha, changed_paths_sha256.
+    ordinary_observation_fields = {
         "name",
         "run_id",
         "workflow_file",
@@ -378,6 +419,13 @@ def _validate_attestation(
         "head_sha",
         "conclusion",
     }
+    state_gate_target_observation_fields = ordinary_observation_fields | {
+        "trusted_head_sha",
+        "candidate_head_sha",
+        "candidate_base_sha",
+        "changed_paths_sha256",
+    }
+    pre_merge_count = len(PRE_MERGE_WORKFLOW_POLICY)
     checks.extend(
         [
             _check("attestation_fields", set(attestation) == attestation_fields, f"observed={sorted(attestation)}"),
@@ -391,9 +439,9 @@ def _validate_attestation(
             _check("attestation_content_digest", attestation.get("content_digest") == canonical_digest(attestation, omit=("content_digest", "_remote_comment_id", "_remote_author")), f"observed={attestation.get('content_digest')}"),
             _check("attestation_status", attestation.get("authorization_status") == "active" and not attestation.get("superseded_by"), f"status={attestation.get('authorization_status')} superseded_by={attestation.get('superseded_by')}"),
             _check("attestation_expiry", active_time, f"expires_at={attestation.get('expires_at')}"),
-            _check("workflow_names", observed_names == list(CANONICAL_WORKFLOW_POLICY), f"observed={observed_names}"),
-            _check("workflow_run_uniqueness", len(run_ids) == len(set(run_ids)) == len(CANONICAL_WORKFLOW_POLICY), f"run_ids={run_ids}"),
-            _check("workflow_observation_fields", len(observations) == 4 and all(isinstance(item, Mapping) and set(item) == observation_fields for item in observations), f"count={len(observations)}"),
+            _check("workflow_names", observed_names == list(PRE_MERGE_WORKFLOW_POLICY), f"observed={observed_names}"),
+            _check("workflow_run_uniqueness", len(run_ids) == len(set(run_ids)) == pre_merge_count, f"run_ids={run_ids}"),
+            _check("workflow_observation_count", len(observations) == pre_merge_count, f"count={len(observations)} expected={pre_merge_count}"),
             _check("approval_remote_identity", remote_comment_id > 0 and approval.get("approval_object_id") == remote_comment_id and attestation.get("_remote_author") in {"dddd2024"}, f"comment={remote_comment_id} author={attestation.get('_remote_author')}"),
             _check("approval_fields", set(approval) == {"approver", "approval_object_id", "approval_payload", "approval_content_digest"}, f"observed={sorted(approval)}"),
             _check("approval_approver", approval.get("approver") == attestation.get("_remote_author") == "dddd2024", f"observed={approval.get('approver')}"),
@@ -401,40 +449,99 @@ def _validate_attestation(
             _check("approval_content_digest", approval.get("approval_content_digest") == canonical_digest(approval_payload), f"observed={approval.get('approval_content_digest')}"),
         ]
     )
+    # Verify each observation has the correct field set for its kind.
+    for index, name in enumerate(PRE_MERGE_WORKFLOW_POLICY):
+        if index >= len(observations) or not isinstance(observations[index], Mapping):
+            checks.append(_check(f"observation_fields:{name}", False, "missing"))
+            continue
+        observation = observations[index]
+        if name == STATE_GATE_TARGET_WORKFLOW[0]:
+            expected_fields = state_gate_target_observation_fields
+        else:
+            expected_fields = ordinary_observation_fields
+        checks.append(
+            _check(
+                f"observation_fields:{name}",
+                set(observation) == expected_fields,
+                f"observed={sorted(observation)} expected={sorted(expected_fields)}",
+            )
+        )
     pr = verifier.verify_pr(
         pr_number=source_pr,
         expected_head_sha=accepted_head,
         expected_base_sha=locked_base,
     )
     checks.append(_check("remote_pr_binding", bool(pr.get("verified")), str(pr.get("reason") or "verified")))
-    for index, name in enumerate(CANONICAL_WORKFLOW_POLICY):
+    for index, name in enumerate(PRE_MERGE_WORKFLOW_POLICY):
         if index >= len(observations) or not isinstance(observations[index], Mapping):
             checks.append(_check(f"remote_workflow:{name}", False, "missing"))
             continue
         observation = observations[index]
-        expected_file, expected_event = CANONICAL_WORKFLOW_POLICY[name]
-        locally_bound = (
-            observation.get("name") == name
-            and observation.get("workflow_file") == expected_file
-            and observation.get("event") == expected_event
-            and observation.get("head_sha") == accepted_head
-            and observation.get("conclusion") == "success"
-            and int(observation.get("run_attempt") or 0) >= 1
-        )
-        verified = verifier.verify_workflow_run(
-            run_id=int(observation.get("run_id") or 0),
-            expected_head_sha=accepted_head,
-            expected_workflow_file=expected_file,
-            expected_event=expected_event,
-            expected_run_attempt=int(observation.get("run_attempt") or 0),
-        )
-        checks.append(
-            _check(
-                f"remote_workflow:{name}",
-                locally_bound and bool(verified.get("verified")),
-                str(verified.get("reason") or "verified"),
+        expected_file, expected_event = PRE_MERGE_WORKFLOW_POLICY[name]
+        if name == STATE_GATE_TARGET_WORKFLOW[0]:
+            # State Gate target uses trusted-base run semantics.
+            # The run head is the trusted base (locked base), NOT the
+            # candidate head.  The candidate head/base and changed-path
+            # digest are bound inside the receipt artifact and verified
+            # via verify_state_gate_receipt().
+            observed_changed_paths = str(observation.get("changed_paths_sha256") or "")
+            locally_bound = (
+                observation.get("name") == name
+                and observation.get("workflow_file") == expected_file
+                and observation.get("event") == expected_event
+                and observation.get("head_sha") == locked_base
+                and observation.get("trusted_head_sha") == locked_base
+                and observation.get("candidate_head_sha") == accepted_head
+                and observation.get("candidate_base_sha") == locked_base
+                and observation.get("conclusion") == "success"
+                and int(observation.get("run_attempt") or 0) >= 1
+                and bool(observed_changed_paths)
             )
-        )
+            verified = verifier.verify_state_gate_receipt(
+                run_id=int(observation.get("run_id") or 0),
+                expected_repository="dddd2024/reverse-agent",
+                expected_workflow_path=expected_file,
+                expected_event=expected_event,
+                expected_run_attempt=int(observation.get("run_attempt") or 0),
+                trusted_base_sha=locked_base,
+                accepted_candidate_head=accepted_head,
+                locked_base_sha=locked_base,
+                expected_pr_number=source_pr,
+                expected_changed_paths_sha256=observed_changed_paths,
+            )
+            checks.append(
+                _check(
+                    f"remote_workflow:{name}",
+                    locally_bound and bool(verified.get("verified")),
+                    str(verified.get("reason") or "verified"),
+                )
+            )
+        else:
+            # Ordinary PR workflow (CI, Decision Preflight) uses
+            # candidate-head semantics: the run head equals the accepted
+            # candidate head.
+            locally_bound = (
+                observation.get("name") == name
+                and observation.get("workflow_file") == expected_file
+                and observation.get("event") == expected_event
+                and observation.get("head_sha") == accepted_head
+                and observation.get("conclusion") == "success"
+                and int(observation.get("run_attempt") or 0) >= 1
+            )
+            verified = verifier.verify_workflow_run(
+                run_id=int(observation.get("run_id") or 0),
+                expected_head_sha=accepted_head,
+                expected_workflow_file=expected_file,
+                expected_event=expected_event,
+                expected_run_attempt=int(observation.get("run_attempt") or 0),
+            )
+            checks.append(
+                _check(
+                    f"remote_workflow:{name}",
+                    locally_bound and bool(verified.get("verified")),
+                    str(verified.get("reason") or "verified"),
+                )
+            )
     return checks
 
 
