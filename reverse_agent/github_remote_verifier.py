@@ -447,6 +447,23 @@ class GitHubRemoteAcceptanceVerifier:
                 "authority_result": receipt.get("authority_result") == "SUCCESS",
                 "candidate_tests_result": receipt.get("candidate_tests_result")
                 == "SUCCESS",
+                "selected_mode_supported": receipt.get("selected_mode")
+                in {"transition", "path_a_r1", "legacy"},
+                "changed_paths_sha256_format": bool(
+                    re.fullmatch(
+                        r"[0-9a-f]{64}",
+                        str(receipt.get("changed_paths_sha256") or ""),
+                    )
+                ),
+                "trusted_verifier_tree_sha_matches_base": receipt.get(
+                    "trusted_verifier_tree_sha"
+                )
+                == trusted_base_sha,
+                "authority_identity_exact": receipt.get("authority_identity")
+                == "trusted_base_verifier",
+                "authority_revision_nonempty": bool(
+                    str(receipt.get("authority_revision") or "").strip()
+                ),
             }
 
             # 5. Verify receipt content digest

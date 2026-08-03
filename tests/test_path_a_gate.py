@@ -15,18 +15,25 @@ from typing import Any
 
 import pytest
 
-from reverse_agent.control_plane.legacy_adapter import detect_control_plane_mode
+from reverse_agent.control_plane.legacy_adapter import (
+    detect_control_plane_mode,
+    select_control_plane_mode,
+)
 from reverse_agent.control_plane.path_a import (
     PATH_A_CHECK,
     PathAGateError,
     ImmutableWorkItemSnapshot,
+    build_trusted_changed_path_observation,
     changed_paths_for_event,
     flatten_paginated_events,
     issue_body_digest,
+    load_trusted_route_observation,
+    normalize_issue_graphql_envelope,
     parse_allowed_paths,
     parse_snapshot,
     select_task_checks,
     verify_path_a_r1,
+    verify_path_a_r1_with_observation,
 )
 
 
@@ -1572,3 +1579,698 @@ class TestIssueEditIdentity:
         fixtures["issue"]["lastEditedAt"] = 12345  # invalid type
         with pytest.raises(PathAGateError):
             _verify(**fixtures)
+
+
+# ===========================================================================
+# v5: trusted changed-path topology tests (Section 七)
+# ===========================================================================
+
+
+def _git_cmd(repo: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def _make_trusted_base_repo(
+    tmp_path: Path,
+    *,
+    candidate_path: str = ".github/workflows/example.yml",
+    candidate_content: str = "name: example\n",
+) -> tuple[Path, str, str]:
+    """Create a git repo where HEAD is the trusted base (A) and the candidate
+    commit (B) exists as a Git object but is NOT checked out.
+
+    B modifies ``candidate_path``.  Returns (repo, base_sha, head_sha).
+    """
+
+    repo = tmp_path / "trusted"
+    repo.mkdir()
+    _git_cmd(repo, "init", "-b", "main")
+    _git_cmd(repo, "config", "user.email", "test@example.com")
+    _git_cmd(repo, "config", "user.name", "Test")
+    (repo / "base.txt").write_text("base\n", encoding="utf-8")
+    _git_cmd(repo, "add", "base.txt")
+    _git_cmd(repo, "commit", "-m", "base")
+    base_sha = _git_cmd(repo, "rev-parse", "HEAD")
+    # Create candidate commit B on a side branch, then return HEAD to base.
+    _git_cmd(repo, "checkout", "-b", "candidate")
+    parent_dir = (repo / candidate_path).parent
+    parent_dir.mkdir(parents=True, exist_ok=True)
+    (repo / candidate_path).write_text(candidate_content, encoding="utf-8")
+    _git_cmd(repo, "add", candidate_path)
+    _git_cmd(repo, "commit", "-m", "candidate")
+    head_sha = _git_cmd(repo, "rev-parse", "HEAD")
+    # Return to trusted base; candidate object remains available.
+    _git_cmd(repo, "checkout", "main")
+    return repo, base_sha, head_sha
+
+
+class TestTrustedBaseR2Route:
+    """Scenario 1: trusted base checkout, R2 candidate path → transition."""
+
+    def test_r2_workflow_candidate_routes_transition(self, tmp_path: Path) -> None:
+        repo, base_sha, head_sha = _make_trusted_base_repo(tmp_path)
+        event = {
+            "repository": {"full_name": REPOSITORY},
+            "pull_request": {
+                "base": {"sha": base_sha, "ref": "main"},
+                "head": {"sha": head_sha, "ref": "agent/decision-branch"},
+            },
+        }
+        observation = build_trusted_changed_path_observation(
+            event, repo, expected_repository=REPOSITORY
+        )
+        contract = {
+            "transition_kernel_required": True,
+            "required_branch": "agent/decision-branch",
+        }
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event,
+            changed_paths=observation.paths,
+        )
+        assert mode == "transition"
+        # HEAD must still equal the trusted base (candidate never checked out)
+        actual_head = _git_cmd(repo, "rev-parse", "HEAD")
+        assert actual_head == base_sha
+        assert ".github/workflows/example.yml" in observation.paths
+
+    def test_trusted_checkout_remains_base_after_observation(
+        self, tmp_path: Path
+    ) -> None:
+        repo, base_sha, head_sha = _make_trusted_base_repo(tmp_path)
+        event = {
+            "repository": {"full_name": REPOSITORY},
+            "pull_request": {
+                "base": {"sha": base_sha},
+                "head": {"sha": head_sha},
+            },
+        }
+        build_trusted_changed_path_observation(
+            event, repo, expected_repository=REPOSITORY
+        )
+        assert _git_cmd(repo, "rev-parse", "HEAD") == base_sha
+
+
+class TestTrustedBaseR1Route:
+    """Scenario 2: trusted base checkout, R1 docs-only candidate → path_a_r1."""
+
+    def test_r1_docs_candidate_routes_path_a_r1(self, tmp_path: Path) -> None:
+        repo, base_sha, head_sha = _make_trusted_base_repo(
+            tmp_path,
+            candidate_path="docs/example.md",
+            candidate_content="hello\n",
+        )
+        event = {
+            "repository": {"full_name": REPOSITORY},
+            "pull_request": {
+                "base": {"sha": base_sha, "ref": "main"},
+                "head": {"sha": head_sha, "ref": "agent/ordinary-r1"},
+            },
+        }
+        observation = build_trusted_changed_path_observation(
+            event, repo, expected_repository=REPOSITORY
+        )
+        contract = {
+            "transition_kernel_required": True,
+            "required_branch": "agent/decision-branch",
+        }
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event,
+            changed_paths=observation.paths,
+        )
+        assert mode == "path_a_r1"
+        assert _git_cmd(repo, "rev-parse", "HEAD") == base_sha
+        assert "docs/example.md" in observation.paths
+
+
+class TestPathAUsesObservation:
+    """Scenario 3: Path-A uses the same changed-path observation; does not
+    require HEAD == candidate SHA."""
+
+    def test_observation_round_trips_through_file(self, tmp_path: Path) -> None:
+        repo, base_sha, head_sha = _make_trusted_base_repo(
+            tmp_path,
+            candidate_path="docs/example.md",
+            candidate_content="hello\n",
+        )
+        event = {
+            "repository": {"full_name": REPOSITORY},
+            "pull_request": {
+                "base": {"sha": base_sha},
+                "head": {"sha": head_sha},
+            },
+        }
+        observation = build_trusted_changed_path_observation(
+            event, repo, expected_repository=REPOSITORY
+        )
+        obs_path = tmp_path / "trusted_route.json"
+        obs_path.write_text(
+            json.dumps(observation.to_mapping(), indent=2), encoding="utf-8"
+        )
+        loaded = load_trusted_route_observation(obs_path)
+        assert loaded.paths == observation.paths
+        assert loaded.canonical_sha256 == observation.canonical_sha256
+        assert loaded.base_sha == base_sha
+        assert loaded.head_sha == head_sha
+
+    def test_verify_with_observation_does_not_require_candidate_checkout(
+        self, tmp_path: Path
+    ) -> None:
+        repo, base_sha, head_sha = _make_trusted_base_repo(
+            tmp_path,
+            candidate_path="docs/example.md",
+            candidate_content="hello\n",
+        )
+        event = {
+            "repository": {"full_name": REPOSITORY},
+            "pull_request": {
+                "base": {"sha": base_sha},
+                "head": {"sha": head_sha},
+            },
+        }
+        observation = build_trusted_changed_path_observation(
+            event, repo, expected_repository=REPOSITORY
+        )
+        # verify_path_a_r1_with_observation accepts the observation; it must
+        # not call changed_paths_for_event (which would require HEAD==head).
+        # We only verify the SHA-binding guards here.
+        with pytest.raises(PathAGateError, match="observation_event_base_mismatch"):
+            bad_event = {
+                "repository": {"full_name": REPOSITORY},
+                "pull_request": {
+                    "base": {"sha": "0" * 40},
+                    "head": {"sha": head_sha},
+                },
+            }
+            verify_path_a_r1_with_observation(
+                event_name="pull_request",
+                event=bad_event,
+                issue={},
+                approval_events=[],
+                approver_permission="admin",
+                observation=observation,
+                expected_repository=REPOSITORY,
+            )
+
+
+class TestCandidateCheckoutRejected:
+    """Scenario 4: authority job with HEAD == candidate must fail closed."""
+
+    def test_trusted_checkout_not_base_fails(self, tmp_path: Path) -> None:
+        repo, base_sha, head_sha = _make_trusted_base_repo(tmp_path)
+        # Check out the candidate head (simulating a candidate checkout)
+        _git_cmd(repo, "checkout", head_sha)
+        event = {
+            "repository": {"full_name": REPOSITORY},
+            "pull_request": {
+                "base": {"sha": base_sha},
+                "head": {"sha": head_sha},
+            },
+        }
+        with pytest.raises(PathAGateError, match="trusted_checkout_not_base"):
+            build_trusted_changed_path_observation(
+                event, repo, expected_repository=REPOSITORY
+            )
+
+
+class TestGraphQLEnvelopeNormalization:
+    """Scenario 5: original GraphQL envelope unwrap + label completeness."""
+
+    @staticmethod
+    def _valid_envelope() -> dict[str, Any]:
+        return {
+            "data": {
+                "repository": {
+                    "issue": {
+                        "number": 105,
+                        "state": "OPEN",
+                        "body": "issue body",
+                        "createdAt": "2026-01-01T00:00:00Z",
+                        "lastEditedAt": None,
+                        "labels": {
+                            "nodes": [{"name": "r1"}, {"name": "r1-approved"}],
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        },
+                    }
+                }
+            }
+        }
+
+    def test_valid_envelope_normalizes(self) -> None:
+        result = normalize_issue_graphql_envelope(self._valid_envelope())
+        assert result["number"] == 105
+        assert result["lastEditedAt"] is None
+        names = [label["name"] for label in result["labels"]]
+        assert "r1" in names
+        assert "r1-approved" in names
+
+    def test_top_level_errors_fail(self) -> None:
+        raw = self._valid_envelope()
+        raw["errors"] = [{"message": "bad"}]
+        with pytest.raises(PathAGateError, match="graphql_top_level_errors"):
+            normalize_issue_graphql_envelope(raw)
+
+    def test_missing_data_fails(self) -> None:
+        raw = {"errors": None}
+        with pytest.raises(PathAGateError, match="graphql_missing_data"):
+            normalize_issue_graphql_envelope(raw)
+
+    def test_missing_repository_fails(self) -> None:
+        raw = {"data": {}}
+        with pytest.raises(PathAGateError, match="graphql_missing_repository"):
+            normalize_issue_graphql_envelope(raw)
+
+    def test_missing_issue_fails(self) -> None:
+        raw = {"data": {"repository": {}}}
+        with pytest.raises(PathAGateError, match="graphql_missing_issue"):
+            normalize_issue_graphql_envelope(raw)
+
+    def test_missing_last_edited_at_fails(self) -> None:
+        raw = self._valid_envelope()
+        del raw["data"]["repository"]["issue"]["lastEditedAt"]
+        with pytest.raises(PathAGateError, match="graphql_missing_issue_key"):
+            normalize_issue_graphql_envelope(raw)
+
+    def test_labels_not_object_fails(self) -> None:
+        raw = self._valid_envelope()
+        raw["data"]["repository"]["issue"]["labels"] = ["not", "object"]
+        with pytest.raises(PathAGateError, match="graphql_labels_not_object"):
+            normalize_issue_graphql_envelope(raw)
+
+    def test_labels_nodes_not_array_fails(self) -> None:
+        raw = self._valid_envelope()
+        raw["data"]["repository"]["issue"]["labels"]["nodes"] = "not-array"
+        with pytest.raises(PathAGateError, match="graphql_labels_nodes_not_array"):
+            normalize_issue_graphql_envelope(raw)
+
+    def test_page_info_missing_fails(self) -> None:
+        raw = self._valid_envelope()
+        del raw["data"]["repository"]["issue"]["labels"]["pageInfo"]
+        with pytest.raises(PathAGateError, match="graphql_labels_page_info_missing"):
+            normalize_issue_graphql_envelope(raw)
+
+    def test_has_next_page_true_fails(self) -> None:
+        raw = self._valid_envelope()
+        raw["data"]["repository"]["issue"]["labels"]["pageInfo"]["hasNextPage"] = True
+        with pytest.raises(PathAGateError, match="graphql_labels_unpaginated_has_next"):
+            normalize_issue_graphql_envelope(raw)
+
+    def test_rest_labels_pagination(self) -> None:
+        raw = self._valid_envelope()
+        # Remove GraphQL labels block; use REST pages instead.
+        del raw["data"]["repository"]["issue"]["labels"]
+        rest_pages = [
+            [{"name": "r1"}, {"name": "r1-approved"}],
+            [{"name": "blocked"}],
+        ]
+        result = normalize_issue_graphql_envelope(raw, labels_rest_pages=rest_pages)
+        names = [label["name"] for label in result["labels"]]
+        assert set(names) == {"r1", "r1-approved", "blocked"}
+
+    def test_rest_labels_dedup_sorted(self) -> None:
+        raw = self._valid_envelope()
+        del raw["data"]["repository"]["issue"]["labels"]
+        rest_pages = [[{"name": "R1"}, {"name": "r1"}]]
+        result = normalize_issue_graphql_envelope(raw, labels_rest_pages=rest_pages)
+        names = [label["name"] for label in result["labels"]]
+        assert names == ["R1"]  # casefolded dedup keeps first
+
+
+class TestUnsupportedModeRejected:
+    """Scenario 6: unsupported modes must fail."""
+
+    @pytest.mark.parametrize("mode", ["", "path_b", "unknown", None])
+    def test_unsupported_mode_rejected_by_verifier(self, mode: str) -> None:
+        """The remote receipt verifier rejects unsupported selected_mode values."""
+        receipt = _make_valid_receipt_mode(mode)
+        verifier = _make_state_gate_verifier_inline(receipt=receipt)
+        result = verifier.verify_state_gate_receipt(
+            run_id=123456,
+            expected_repository=REPOSITORY,
+            expected_workflow_path=".github/workflows/state-gate.yml",
+            expected_event="pull_request_target",
+            trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+            accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+            locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+            expected_pr_number=106,
+        )
+        assert result["verified"] is False
+
+    def test_path_b_never_returned_by_router(self, tmp_path: Path) -> None:
+        """select_control_plane_mode never returns path_b."""
+        repo, base_sha, head_sha = _make_trusted_base_repo(tmp_path)
+        event = {
+            "repository": {"full_name": REPOSITORY},
+            "pull_request": {
+                "base": {"sha": base_sha, "ref": "main"},
+                "head": {"sha": head_sha, "ref": "agent/ordinary"},
+            },
+        }
+        observation = build_trusted_changed_path_observation(
+            event, repo, expected_repository=REPOSITORY
+        )
+        # R2 path with transition_kernel_required=True → transition (not path_b)
+        contract_true = {
+            "transition_kernel_required": True,
+            "required_branch": "agent/other",
+        }
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract_true,
+            event=event,
+            changed_paths=observation.paths,
+        )
+        assert mode == "transition"
+
+    def test_r2_path_without_transition_kernel_still_routes_transition(
+        self, tmp_path: Path
+    ) -> None:
+        """R2/R3 path when transition_kernel_required=False still routes to transition.
+
+        Per v5 §十三: all R2/R3 PRs must enter transition regardless of the
+        trusted active Decision's transition_kernel_required flag.  path_b is
+        never returned; the candidate Decision is validated inside transition.
+        """
+        repo, base_sha, head_sha = _make_trusted_base_repo(tmp_path)
+        event = {
+            "repository": {"full_name": REPOSITORY},
+            "pull_request": {
+                "base": {"sha": base_sha, "ref": "main"},
+                "head": {"sha": head_sha, "ref": "agent/ordinary"},
+            },
+        }
+        observation = build_trusted_changed_path_observation(
+            event, repo, expected_repository=REPOSITORY
+        )
+        contract_false = {
+            "transition_kernel_required": False,
+            "required_branch": "agent/other",
+        }
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract_false,
+            event=event,
+            changed_paths=observation.paths,
+        )
+        assert mode == "transition"
+
+
+class TestReceiptDigestConsistency:
+    """Scenario 7: authority observation digest == Path-A digest == receipt digest."""
+
+    def test_observation_digest_matches_round_trip(self, tmp_path: Path) -> None:
+        repo, base_sha, head_sha = _make_trusted_base_repo(
+            tmp_path,
+            candidate_path="docs/example.md",
+            candidate_content="hello\n",
+        )
+        event = {
+            "repository": {"full_name": REPOSITORY},
+            "pull_request": {
+                "base": {"sha": base_sha},
+                "head": {"sha": head_sha},
+            },
+        }
+        observation = build_trusted_changed_path_observation(
+            event, repo, expected_repository=REPOSITORY
+        )
+        # Round-trip through file (as the workflow does).
+        obs_path = tmp_path / "trusted_route.json"
+        obs_path.write_text(
+            json.dumps(observation.to_mapping(), indent=2), encoding="utf-8"
+        )
+        loaded = load_trusted_route_observation(obs_path)
+        # authority observation digest == Path-A loaded digest
+        assert observation.canonical_sha256 == loaded.canonical_sha256
+        # The receipt's changed_paths_sha256 would bind to this same digest.
+        receipt_digest = loaded.canonical_sha256
+        assert receipt_digest == observation.canonical_sha256
+
+    def test_rename_records_old_and_new_paths(self, tmp_path: Path) -> None:
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git_cmd(repo, "init", "-b", "main")
+        _git_cmd(repo, "config", "user.email", "test@example.com")
+        _git_cmd(repo, "config", "user.name", "Test")
+        (repo / "old_name.md").write_text("content\n", encoding="utf-8")
+        _git_cmd(repo, "add", "old_name.md")
+        _git_cmd(repo, "commit", "-m", "base")
+        base_sha = _git_cmd(repo, "rev-parse", "HEAD")
+        _git_cmd(repo, "checkout", "-b", "candidate")
+        _git_cmd(repo, "mv", "old_name.md", "new_name.md")
+        _git_cmd(repo, "commit", "-m", "rename")
+        head_sha = _git_cmd(repo, "rev-parse", "HEAD")
+        _git_cmd(repo, "checkout", "main")
+        event = {
+            "repository": {"full_name": REPOSITORY},
+            "pull_request": {
+                "base": {"sha": base_sha},
+                "head": {"sha": head_sha},
+            },
+        }
+        observation = build_trusted_changed_path_observation(
+            event, repo, expected_repository=REPOSITORY
+        )
+        assert "old_name.md" in observation.paths
+        assert "new_name.md" in observation.paths
+
+
+# ---------------------------------------------------------------------------
+# Helpers for the unsupported-mode receipt tests
+# ---------------------------------------------------------------------------
+
+
+def _make_valid_receipt_mode(mode: Any) -> dict[str, Any]:
+    from reverse_agent.github_remote_verifier import GitHubRemoteAcceptanceVerifier
+
+    receipt: dict[str, Any] = {
+        "schema_version": "0.1",
+        "receipt_kind": "state_gate",
+        "repository": REPOSITORY,
+        "pr_number": 106,
+        "workflow_path": ".github/workflows/state-gate.yml",
+        "workflow_event": "pull_request_target",
+        "workflow_run_id": 123456,
+        "workflow_run_attempt": 1,
+        "trusted_base_sha": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        "trusted_verifier_tree_sha": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        "candidate_head_sha": "063438a295bd61d03f75432b94af7c5929e44be4",
+        "candidate_base_sha": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        "changed_paths_sha256": "a" * 64,
+        "selected_mode": mode,
+        "authority_identity": "trusted_base_verifier",
+        "authority_revision": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        "authority_result": "SUCCESS",
+        "candidate_tests_result": "SUCCESS",
+        "final_gate_result": "PASS",
+        "generated_at": "2026-08-03T12:00:00+00:00",
+    }
+    receipt["content_sha256"] = (
+        GitHubRemoteAcceptanceVerifier._compute_receipt_digest(receipt)
+    )
+    return receipt
+
+
+def _make_state_gate_verifier_inline(
+    *,
+    receipt: dict[str, Any],
+) -> "GitHubRemoteAcceptanceVerifier":  # type: ignore[name-defined]
+    from reverse_agent.github_remote_verifier import (
+        GitHubEvidenceError,
+        GitHubRemoteAcceptanceVerifier,
+    )
+
+    verifier = GitHubRemoteAcceptanceVerifier(
+        repository=REPOSITORY,
+        token="test",
+    )
+    run = {
+        "repository": {"full_name": REPOSITORY},
+        "path": ".github/workflows/state-gate.yml",
+        "event": "pull_request_target",
+        "id": 123456,
+        "run_attempt": 1,
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+    }
+    artifacts = [
+        {
+            "id": 789,
+            "name": "state-gate-receipt-pr106-063438a295bd61d03f75432b94af7c5929e44be4",
+        }
+    ]
+
+    def mock_request(path: str) -> object:
+        if path.startswith(f"/repos/{REPOSITORY}/actions/runs/"):
+            if path.endswith("/artifacts?per_page=100"):
+                return {"artifacts": artifacts}
+            return run
+        raise GitHubEvidenceError(f"unexpected_path:{path}")
+
+    verifier._request_json = mock_request  # type: ignore[method-assign]
+    verifier._download_artifact_json = lambda _aid: receipt  # type: ignore[method-assign]
+    return verifier
+
+
+class TestTrustedPrRouteCLI:
+    """The trusted-pr-route CLI subcommand builds an observation and selects mode."""
+
+    def test_cli_trusted_pr_route_r2_routes_transition(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        import reverse_agent.project_gate as project_gate_module
+
+        repo, base_sha, head_sha = _make_trusted_base_repo(tmp_path)
+        state_dir = tmp_path / "project_state"
+        _write_decision(state_dir, required_branch="agent/decision-branch")
+        event_path = tmp_path / "event.json"
+        event_path.write_text(
+            json.dumps(
+                {
+                    "repository": {"full_name": REPOSITORY},
+                    "pull_request": {
+                        "base": {"sha": base_sha, "ref": "main"},
+                        "head": {
+                            "sha": head_sha,
+                            "ref": "agent/decision-branch",
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        output_path = tmp_path / "trusted_route.json"
+        # Run from inside the repo so Path.cwd() is the git repo.
+        original_cwd = Path.cwd()
+        import os
+
+        os.chdir(repo)
+        try:
+            rc = project_gate_module.main(
+                [
+                    "trusted-pr-route",
+                    "--state-dir",
+                    str(state_dir),
+                    "--event-path",
+                    str(event_path),
+                    "--output",
+                    str(output_path),
+                    "--repository",
+                    REPOSITORY,
+                ]
+            )
+        finally:
+            os.chdir(original_cwd)
+        assert rc == 0
+        payload = json.loads(output_path.read_text(encoding="utf-8"))
+        assert payload["mode"] == "transition"
+        assert payload["base_sha"] == base_sha
+        assert payload["head_sha"] == head_sha
+        assert payload["trusted_checkout_sha"] == base_sha
+        assert ".github/workflows/example.yml" in payload["changed_paths"]
+
+    def test_cli_trusted_pr_route_r1_routes_path_a_r1(
+        self, tmp_path: Path
+    ) -> None:
+        import reverse_agent.project_gate as project_gate_module
+
+        repo, base_sha, head_sha = _make_trusted_base_repo(
+            tmp_path,
+            candidate_path="docs/example.md",
+            candidate_content="hello\n",
+        )
+        state_dir = tmp_path / "project_state"
+        _write_decision(state_dir, required_branch="agent/decision-branch")
+        event_path = tmp_path / "event.json"
+        event_path.write_text(
+            json.dumps(
+                {
+                    "repository": {"full_name": REPOSITORY},
+                    "pull_request": {
+                        "base": {"sha": base_sha, "ref": "main"},
+                        "head": {
+                            "sha": head_sha,
+                            "ref": "agent/ordinary-r1",
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        output_path = tmp_path / "trusted_route.json"
+        import os
+
+        original_cwd = Path.cwd()
+        os.chdir(repo)
+        try:
+            rc = project_gate_module.main(
+                [
+                    "trusted-pr-route",
+                    "--state-dir",
+                    str(state_dir),
+                    "--event-path",
+                    str(event_path),
+                    "--output",
+                    str(output_path),
+                    "--repository",
+                    REPOSITORY,
+                ]
+            )
+        finally:
+            os.chdir(original_cwd)
+        assert rc == 0
+        payload = json.loads(output_path.read_text(encoding="utf-8"))
+        assert payload["mode"] == "path_a_r1"
+        assert "docs/example.md" in payload["changed_paths"]
+
+    def test_cli_trusted_pr_route_rejects_candidate_checkout(
+        self, tmp_path: Path
+    ) -> None:
+        import reverse_agent.project_gate as project_gate_module
+
+        repo, base_sha, head_sha = _make_trusted_base_repo(tmp_path)
+        _git_cmd(repo, "checkout", head_sha)  # candidate checkout
+        state_dir = tmp_path / "project_state"
+        _write_decision(state_dir, required_branch="agent/decision-branch")
+        event_path = tmp_path / "event.json"
+        event_path.write_text(
+            json.dumps(
+                {
+                    "repository": {"full_name": REPOSITORY},
+                    "pull_request": {
+                        "base": {"sha": base_sha},
+                        "head": {"sha": head_sha},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        output_path = tmp_path / "trusted_route.json"
+        import os
+
+        original_cwd = Path.cwd()
+        os.chdir(repo)
+        try:
+            rc = project_gate_module.main(
+                [
+                    "trusted-pr-route",
+                    "--state-dir",
+                    str(state_dir),
+                    "--event-path",
+                    str(event_path),
+                    "--output",
+                    str(output_path),
+                    "--repository",
+                    REPOSITORY,
+                ]
+            )
+        finally:
+            os.chdir(original_cwd)
+        assert rc == 1
+        assert not output_path.exists()

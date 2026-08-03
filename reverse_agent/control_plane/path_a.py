@@ -854,3 +854,386 @@ def changed_paths_for_event(
     if not changed:
         raise PathAGateError("changed_paths_empty")
     return changed, base_sha, head_sha
+
+
+# ---------------------------------------------------------------------------
+# Trusted changed-path observation (Section 八)
+#
+# A pure data object capturing changed paths observed from a *trusted base
+# checkout*.  The trusted checkout HEAD must equal the event base SHA.  The
+# candidate head Git object must exist but is NEVER checked out.  This is the
+# single canonical observation reused by authority routing, Path-A, and the
+# finalize receipt.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class TrustedChangedPathObservation:
+    """Canonical changed-path observation from a trusted base checkout."""
+
+    repository: str
+    base_sha: str
+    head_sha: str
+    merge_base_sha: str
+    trusted_checkout_sha: str
+    paths: tuple[str, ...]
+    canonical_sha256: str
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "repository": self.repository,
+            "base_sha": self.base_sha,
+            "head_sha": self.head_sha,
+            "merge_base_sha": self.merge_base_sha,
+            "trusted_checkout_sha": self.trusted_checkout_sha,
+            "changed_paths": list(self.paths),
+            "changed_paths_sha256": self.canonical_sha256,
+        }
+
+
+def _validate_observation_path(path: str) -> str:
+    """Validate and canonicalize a single changed path for the trusted observation."""
+
+    if not path:
+        raise PathAGateError("observation_path_empty")
+    if "\x00" in path:
+        raise PathAGateError("observation_path_nul")
+    normalized = path.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    normalized = re.sub(r"/+", "/", normalized)
+    if not normalized or normalized == ".":
+        raise PathAGateError("observation_path_empty")
+    if normalized.startswith("/"):
+        raise PathAGateError("observation_path_absolute")
+    if re.match(r"^[A-Za-z]:", normalized):
+        raise PathAGateError("observation_path_absolute")
+    parts = [p for p in normalized.split("/") if p]
+    if ".." in parts:
+        raise PathAGateError("observation_path_traversal")
+    return "/".join(parts)
+
+
+def build_trusted_changed_path_observation(
+    event: Mapping[str, Any],
+    repo_root: Path,
+    *,
+    expected_repository: str,
+    authorized_base_sha: str | None = None,
+) -> TrustedChangedPathObservation:
+    """Build a trusted changed-path observation from a trusted base checkout.
+
+    The trusted checkout HEAD must equal the event's base SHA.  The candidate
+    head Git object must exist but is NEVER checked out.  ``git diff`` runs
+    against the candidate object directly from the trusted base checkout.
+    """
+
+    repository = str((event.get("repository") or {}).get("full_name") or "")
+    if repository != expected_repository:
+        raise PathAGateError("observation_repository_mismatch", repository)
+
+    pr = event.get("pull_request")
+    if isinstance(pr, Mapping):
+        base_sha = str((pr.get("base") or {}).get("sha") or "").lower()
+        head_sha = str((pr.get("head") or {}).get("sha") or "").lower()
+    else:
+        base_sha = str(event.get("before") or "").lower()
+        head_sha = str(event.get("after") or "").lower()
+
+    if not SHA_RE.fullmatch(base_sha):
+        raise PathAGateError("observation_base_sha_invalid")
+    if not SHA_RE.fullmatch(head_sha):
+        raise PathAGateError("observation_head_sha_invalid")
+
+    trusted_checkout = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=repo_root, text=True
+    ).strip().lower()
+    if trusted_checkout != base_sha:
+        raise PathAGateError(
+            "trusted_checkout_not_base",
+            f"{trusted_checkout}!={base_sha}",
+        )
+
+    # Verify candidate commit object exists without checking it out.
+    cat = subprocess.run(
+        ["git", "cat-file", "-e", f"{head_sha}^{{commit}}"],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if cat.returncode != 0:
+        raise PathAGateError("observation_candidate_object_missing", head_sha)
+
+    merge_base = subprocess.check_output(
+        ["git", "merge-base", base_sha, head_sha],
+        cwd=repo_root,
+        text=True,
+    ).strip().lower()
+    if authorized_base_sha is not None:
+        if merge_base != authorized_base_sha.lower():
+            raise PathAGateError(
+                "observation_merge_base_not_authorized",
+                f"{merge_base}!={authorized_base_sha}",
+            )
+    elif merge_base != base_sha:
+        raise PathAGateError(
+            "observation_merge_base_not_base",
+            f"{merge_base}!={base_sha}",
+        )
+
+    diff = subprocess.run(
+        ["git", "diff", "--name-status", "-M", "-C", f"{base_sha}..{head_sha}"],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if diff.returncode != 0:
+        raise PathAGateError("observation_git_diff_failed", diff.stderr.strip())
+
+    raw_paths: list[str] = []
+    for raw_line in diff.stdout.splitlines():
+        if not raw_line:
+            continue
+        fields = raw_line.split("\t")
+        status = fields[0]
+        if status.startswith(("R", "C")):
+            if len(fields) != 3:
+                raise PathAGateError("observation_diff_malformed", raw_line)
+            raw_paths.extend((fields[1], fields[2]))
+        else:
+            if len(fields) != 2:
+                raise PathAGateError("observation_diff_malformed", raw_line)
+            raw_paths.append(fields[1])
+
+    normalized = [_validate_observation_path(p) for p in raw_paths]
+    # Deterministic dedup + sort.
+    paths = tuple(sorted(dict.fromkeys(normalized)))
+    if not paths:
+        raise PathAGateError("observation_paths_empty")
+
+    canonical = "\n".join(paths)
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    return TrustedChangedPathObservation(
+        repository=repository,
+        base_sha=base_sha,
+        head_sha=head_sha,
+        merge_base_sha=merge_base,
+        trusted_checkout_sha=trusted_checkout,
+        paths=paths,
+        canonical_sha256=digest,
+    )
+
+
+def load_trusted_route_observation(path: Path) -> TrustedChangedPathObservation:
+    """Load and validate a trusted route observation JSON file."""
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise PathAGateError("observation_file_not_object")
+    if int(payload.get("schema_version") or 0) != 1:
+        raise PathAGateError("observation_file_schema_version")
+    repository = str(payload.get("repository") or "")
+    base_sha = str(payload.get("base_sha") or "").lower()
+    head_sha = str(payload.get("head_sha") or "").lower()
+    merge_base_sha = str(payload.get("merge_base_sha") or "").lower()
+    trusted_checkout_sha = str(payload.get("trusted_checkout_sha") or "").lower()
+    raw_paths = payload.get("changed_paths")
+    if not isinstance(raw_paths, list):
+        raise PathAGateError("observation_file_paths_not_array")
+    paths_list = [str(p) for p in raw_paths]
+    normalized = [_validate_observation_path(p) for p in paths_list]
+    paths = tuple(sorted(dict.fromkeys(normalized)))
+    if not paths:
+        raise PathAGateError("observation_file_paths_empty")
+    canonical_sha256 = str(payload.get("changed_paths_sha256") or "").lower()
+    expected = hashlib.sha256("\n".join(paths).encode("utf-8")).hexdigest()
+    if canonical_sha256 != expected:
+        raise PathAGateError(
+            "observation_file_digest_mismatch",
+            f"{canonical_sha256}!={expected}",
+        )
+    for sha_value, field in (
+        (base_sha, "base_sha"),
+        (head_sha, "head_sha"),
+        (merge_base_sha, "merge_base_sha"),
+        (trusted_checkout_sha, "trusted_checkout_sha"),
+    ):
+        if not SHA_RE.fullmatch(sha_value):
+            raise PathAGateError(f"observation_file_invalid_{field}")
+    return TrustedChangedPathObservation(
+        repository=repository,
+        base_sha=base_sha,
+        head_sha=head_sha,
+        merge_base_sha=merge_base_sha,
+        trusted_checkout_sha=trusted_checkout_sha,
+        paths=paths,
+        canonical_sha256=canonical_sha256,
+    )
+
+
+# ---------------------------------------------------------------------------
+# GraphQL envelope normalization (Section 十二)
+#
+# Properly unwrap ``data.repository.issue`` and require complete label
+# observation.  Fails closed on any malformation.
+# ---------------------------------------------------------------------------
+
+
+def normalize_issue_graphql_envelope(
+    raw: Mapping[str, Any],
+    *,
+    labels_rest_pages: Any = None,
+) -> dict[str, Any]:
+    """Normalize a raw GraphQL issue response.
+
+    ``raw`` must follow ``{"data": {"repository": {"issue": {...}}}}``.  Top-
+    level ``errors`` fail closed.  ``lastEditedAt`` must be present (may be
+    ``None`` when the Issue was never edited).
+
+    Labels are taken from ``labels_rest_pages`` (REST ``--paginate --slurp``
+    output, an array of pages each an array of label objects) when supplied.
+    Otherwise the GraphQL ``labels`` block is used, but it must report
+    ``hasNextPage == false`` — an unpaginated partial label set fails closed.
+    """
+
+    if not isinstance(raw, Mapping):
+        raise PathAGateError("graphql_response_not_object")
+    if raw.get("errors"):
+        raise PathAGateError("graphql_top_level_errors")
+    data = raw.get("data")
+    if not isinstance(data, Mapping):
+        raise PathAGateError("graphql_missing_data")
+    repository = data.get("repository")
+    if not isinstance(repository, Mapping):
+        raise PathAGateError("graphql_missing_repository")
+    issue = repository.get("issue")
+    if not isinstance(issue, Mapping):
+        raise PathAGateError("graphql_missing_issue")
+    for key in ("number", "state", "body", "createdAt", "lastEditedAt"):
+        if key not in issue:
+            raise PathAGateError("graphql_missing_issue_key", key)
+
+    labels: list[dict[str, Any]] = []
+    if labels_rest_pages is not None:
+        if not isinstance(labels_rest_pages, list):
+            raise PathAGateError("graphql_labels_rest_not_array")
+        for page_index, page in enumerate(labels_rest_pages):
+            if not isinstance(page, list):
+                raise PathAGateError(
+                    "graphql_labels_rest_page_not_array", str(page_index)
+                )
+            for entry in page:
+                if not isinstance(entry, Mapping):
+                    raise PathAGateError("graphql_labels_rest_entry_not_object")
+                name = str(entry.get("name") or "")
+                if not name:
+                    raise PathAGateError("graphql_labels_rest_entry_missing_name")
+                labels.append({"name": name})
+    else:
+        labels_obj = issue.get("labels")
+        if not isinstance(labels_obj, Mapping):
+            raise PathAGateError("graphql_labels_not_object")
+        nodes = labels_obj.get("nodes")
+        if not isinstance(nodes, list):
+            raise PathAGateError("graphql_labels_nodes_not_array")
+        page_info = labels_obj.get("pageInfo")
+        if not isinstance(page_info, Mapping):
+            raise PathAGateError("graphql_labels_page_info_missing")
+        has_next = page_info.get("hasNextPage")
+        if has_next is True:
+            raise PathAGateError("graphql_labels_unpaginated_has_next")
+        for entry in nodes:
+            if not isinstance(entry, Mapping):
+                raise PathAGateError("graphql_labels_node_not_object")
+            name = str(entry.get("name") or "")
+            if not name:
+                raise PathAGateError("graphql_labels_node_missing_name")
+            labels.append({"name": name})
+
+    # Deterministic dedup + sort by casefolded name.
+    seen: set[str] = set()
+    unique: list[dict[str, Any]] = []
+    for entry in sorted(labels, key=lambda e: str(e.get("name") or "").casefold()):
+        name = str(entry.get("name") or "")
+        cf = name.casefold()
+        if cf in seen:
+            continue
+        seen.add(cf)
+        unique.append({"name": name})
+
+    last_edited = issue["lastEditedAt"]
+    if last_edited is not None and not isinstance(last_edited, str):
+        raise PathAGateError("graphql_last_edited_at_invalid_type")
+
+    return {
+        "number": issue["number"],
+        "state": issue["state"],
+        "body": issue["body"],
+        "createdAt": issue["createdAt"],
+        "lastEditedAt": last_edited,
+        "labels": unique,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Path-A R1 verification reusing a trusted route observation (Section 十一)
+# ---------------------------------------------------------------------------
+
+
+def verify_path_a_r1_with_observation(
+    *,
+    event_name: str,
+    event: Mapping[str, Any],
+    issue: Mapping[str, Any],
+    approval_events: Iterable[Mapping[str, Any]],
+    approver_permission: str,
+    observation: TrustedChangedPathObservation,
+    expected_repository: str,
+    expected_authority_revision: str | None = None,
+) -> dict[str, Any]:
+    """Verify ordinary R1 authority reusing a trusted route observation.
+
+    The observation supplies the canonical changed paths and SHAs.  This never
+    re-runs ``changed_paths_for_event`` (which would require HEAD == candidate
+    head).  The event's base/head SHAs must match the observation.
+    """
+
+    if event_name not in ("pull_request", "pull_request_target") or not isinstance(
+        event.get("pull_request"), Mapping
+    ):
+        raise PathAGateError("event_not_pull_request")
+    repository = str((event.get("repository") or {}).get("full_name") or "")
+    if repository != expected_repository:
+        raise PathAGateError("repository_mismatch", repository)
+    if observation.repository != expected_repository:
+        raise PathAGateError("observation_repository_mismatch", observation.repository)
+
+    pr = event["pull_request"]
+    event_base = str((pr.get("base") or {}).get("sha") or "").lower()
+    event_head = str((pr.get("head") or {}).get("sha") or "").lower()
+    if event_base != observation.base_sha:
+        raise PathAGateError(
+            "observation_event_base_mismatch",
+            f"{event_base}!={observation.base_sha}",
+        )
+    if event_head != observation.head_sha:
+        raise PathAGateError(
+            "observation_event_head_mismatch",
+            f"{event_head}!={observation.head_sha}",
+        )
+
+    return verify_path_a_r1(
+        event_name=event_name,
+        event=event,
+        issue=issue,
+        approval_events=approval_events,
+        approver_permission=approver_permission,
+        changed_paths=observation.paths,
+        merge_base_sha=observation.merge_base_sha,
+        expected_repository=expected_repository,
+        expected_authority_revision=expected_authority_revision,
+    )

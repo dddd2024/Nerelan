@@ -28,12 +28,16 @@ from .control_plane.legacy_adapter import (
     load_transition_scope,
     load_transition_decision,
     persist_bootstrap_state,
+    select_control_plane_mode,
 )
 from .control_plane.path_a import (
     PathAGateError,
+    build_trusted_changed_path_observation,
     changed_paths_for_event,
     flatten_paginated_events,
+    load_trusted_route_observation,
     verify_path_a_r1,
+    verify_path_a_r1_with_observation,
 )
 from .control_plane.local_seal import evaluate_reconciliation, seal_local
 from .control_plane.models import (
@@ -36745,13 +36749,92 @@ def _close_round_exit_code(close_status: object) -> int:
     return 0 if close_status == "CLOSED" else 1
 
 
+def _run_trusted_pr_route(args: argparse.Namespace) -> int:
+    """Build a trusted changed-path observation and select a route mode.
+
+    The trusted checkout HEAD must equal the event base SHA.  The candidate
+    head Git object is read via ``git cat-file`` / ``git diff`` but is NEVER
+    checked out.  Mode selection uses the trusted active Decision contract
+    (read from the trusted base ``project_state``) plus the trusted observation.
+    Candidate ``project_state`` is not consulted for initial routing.
+    """
+
+    try:
+        event = json.loads(Path(args.event_path).read_text(encoding="utf-8"))
+        if not isinstance(event, dict):
+            raise ValueError("event_json_must_be_object")
+        expected_repository = str(args.repository or "").strip()
+        repo_root = Path.cwd()
+        state_dir = Path(args.state_dir)
+        decision, contract = load_transition_decision(state_dir / "decision_packet.md")
+        authorized_base_sha = str(contract.get("activation_base_sha") or "").strip().lower()
+        observation = build_trusted_changed_path_observation(
+            event,
+            repo_root,
+            expected_repository=expected_repository,
+            authorized_base_sha=authorized_base_sha or None,
+        )
+        mode = select_control_plane_mode(
+            trusted_decision_contract=contract,
+            event=event,
+            changed_paths=observation.paths,
+        )
+        if mode not in {"transition", "path_a_r1", "legacy"}:
+            raise ValueError(f"unsupported_route_mode:{mode}")
+        payload = observation.to_mapping()
+        payload["mode"] = mode
+        output_path = Path(args.output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(payload, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        # Emit mode + digest to GITHUB_OUTPUT when available.
+        gh_output = os.environ.get("GITHUB_OUTPUT")
+        if gh_output:
+            with open(gh_output, "a", encoding="utf-8") as handle:
+                handle.write(f"mode={mode}\n")
+                handle.write(
+                    f"changed_paths_sha256={observation.canonical_sha256}\n"
+                )
+                handle.write(f"trusted_checkout_sha={observation.trusted_checkout_sha}\n")
+        print(f"trusted-pr-route: mode={mode}")
+        print(f"trusted-pr-route: changed_paths_sha256={observation.canonical_sha256}")
+        print(f"trusted-pr-route: trusted_checkout_sha={observation.trusted_checkout_sha}")
+        print(f"trusted-pr-route: output={output_path}")
+    except PathAGateError as exc:
+        print(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "gate_name": "trusted-pr-route",
+                    "gate_status": "BLOCKED",
+                    "error_code": exc.code,
+                    "detail": exc.detail,
+                },
+                ensure_ascii=True,
+                indent=2,
+            ),
+            file=sys.stderr,
+        )
+        return 1
+    except (OSError, ValueError, json.JSONDecodeError, subprocess.CalledProcessError) as exc:
+        print(f"trusted-pr-route: ERROR: {exc}", file=sys.stderr)
+        return 2
+    return 0
+
+
 def _run_path_a_r1_gate(args: argparse.Namespace) -> int:
     """Run the Path-A R1 authority gate using locally-provided GitHub state.
 
     All live GitHub state (event, issue, approval events, approver permission)
     is read from files supplied by the caller — this function performs no
-    network I/O.  ``changed_paths_for_event`` uses local ``git diff`` against
-    the checked-out HEAD, which is the only subprocess use.
+    network I/O.  When ``--changed-path-observation-path`` is supplied, the
+    trusted route observation's changed paths and SHAs are reused and
+    ``changed_paths_for_event`` is NOT invoked.  Otherwise
+    ``changed_paths_for_event`` uses local ``git diff`` against the
+    checked-out HEAD.
 
     The event name is read from ``GITHUB_EVENT_NAME`` (set by GitHub Actions);
     it defaults to ``pull_request`` for local testing.  Approval events may be
@@ -36786,23 +36869,37 @@ def _run_path_a_r1_gate(args: argparse.Namespace) -> int:
             else None
         )
         repo_root = Path.cwd()
-        changed_paths, base_sha, head_sha = changed_paths_for_event(event, repo_root)
-        merge_base_sha = subprocess.check_output(
-            ["git", "merge-base", base_sha, head_sha],
-            cwd=repo_root,
-            text=True,
-        ).strip()
-        result = verify_path_a_r1(
-            event_name=event_name,
-            event=event,
-            issue=issue,
-            approval_events=approval_events,
-            approver_permission=approver_permission,
-            changed_paths=changed_paths,
-            merge_base_sha=merge_base_sha,
-            expected_repository=expected_repository,
-            expected_authority_revision=expected_authority_revision,
-        )
+        observation_path = getattr(args, "changed_path_observation_path", None)
+        if observation_path:
+            observation = load_trusted_route_observation(Path(observation_path))
+            result = verify_path_a_r1_with_observation(
+                event_name=event_name,
+                event=event,
+                issue=issue,
+                approval_events=approval_events,
+                approver_permission=approver_permission,
+                observation=observation,
+                expected_repository=expected_repository,
+                expected_authority_revision=expected_authority_revision,
+            )
+        else:
+            changed_paths, base_sha, head_sha = changed_paths_for_event(event, repo_root)
+            merge_base_sha = subprocess.check_output(
+                ["git", "merge-base", base_sha, head_sha],
+                cwd=repo_root,
+                text=True,
+            ).strip()
+            result = verify_path_a_r1(
+                event_name=event_name,
+                event=event,
+                issue=issue,
+                approval_events=approval_events,
+                approver_permission=approver_permission,
+                changed_paths=changed_paths,
+                merge_base_sha=merge_base_sha,
+                expected_repository=expected_repository,
+                expected_authority_revision=expected_authority_revision,
+            )
     except PathAGateError as exc:
         print(
             json.dumps(
@@ -37129,7 +37226,17 @@ def main(argv: list[str] | None = None) -> int:
     control_plane_mode_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     control_plane_mode_parser.add_argument(
         "--event-path",
-        help="Path to a GitHub event JSON file. When supplied, a pull_request event whose head ref does not equal the active Decision's required_branch is routed to path_a_r1.",
+        help="Path to a GitHub event JSON file. When supplied with --output and --repository, builds a trusted changed-path observation and uses trusted risk-first routing.",
+    )
+    control_plane_mode_parser.add_argument(
+        "--output",
+        default=None,
+        help="Path to write the trusted route observation JSON. When supplied with --event-path and --repository, enables trusted risk-first routing.",
+    )
+    control_plane_mode_parser.add_argument(
+        "--repository",
+        default=None,
+        help="Expected repository full_name (e.g. dddd2024/reverse-agent). Required for trusted risk-first routing.",
     )
 
     path_a_r1_gate_parser = subparsers.add_parser(
@@ -37167,9 +37274,50 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Optional expected authority revision digest for re-validation.",
     )
+    path_a_r1_gate_parser.add_argument(
+        "--changed-path-observation-path",
+        default=None,
+        help=(
+            "Path to a trusted route observation JSON file.  When supplied, "
+            "Path-A reuses the authority observation's changed paths and SHAs "
+            "instead of re-running changed_paths_for_event (which would "
+            "require HEAD == candidate head)."
+        ),
+    )
+
+    trusted_pr_route_parser = subparsers.add_parser(
+        "trusted-pr-route",
+        help="Build a trusted changed-path observation and select a route mode.",
+    )
+    trusted_pr_route_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    trusted_pr_route_parser.add_argument(
+        "--event-path",
+        required=True,
+        help="Path to the GitHub pull_request event JSON.",
+    )
+    trusted_pr_route_parser.add_argument(
+        "--output",
+        required=True,
+        help="Path to write the trusted route observation JSON.",
+    )
+    trusted_pr_route_parser.add_argument(
+        "--repository",
+        required=True,
+        help="Expected repository full_name (e.g. dddd2024/reverse-agent).",
+    )
 
     args = parser.parse_args(argv)
     if args.command == "control-plane-mode":
+        # When --event-path, --output, and --repository are ALL supplied,
+        # use trusted risk-first routing (v5): build a trusted changed-path
+        # observation from the trusted base checkout, write it to --output,
+        # and select the mode using select_control_plane_mode.  Otherwise,
+        # fall back to the legacy detect_control_plane_mode behavior.
+        use_trusted_route = bool(
+            args.event_path and args.output and args.repository
+        )
+        if use_trusted_route:
+            return _run_trusted_pr_route(args)
         try:
             event: Mapping[str, Any] | None = None
             if args.event_path:
@@ -37185,6 +37333,8 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         print(mode)
         return 0
+    if args.command == "trusted-pr-route":
+        return _run_trusted_pr_route(args)
     if args.command == "path-a-r1-gate":
         return _run_path_a_r1_gate(args)
     if args.command == "transition-lint":

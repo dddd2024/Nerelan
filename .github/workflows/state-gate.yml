@@ -65,10 +65,25 @@ jobs:
       - name: Install trusted package
         run: python -m pip install -e ".[test]"
 
-      - name: Detect control-plane mode (trusted)
+      - name: Build trusted route observation (trusted base, no candidate checkout)
         id: control_plane
         shell: bash
-        run: echo "mode=$(python -m reverse_agent.project_gate control-plane-mode --state-dir project_state --event-path "$GITHUB_EVENT_PATH")" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "pull_request_target" ]; then
+            # push to main: use existing transition/mainline logic
+            echo "mode=transition" >> "$GITHUB_OUTPUT"
+            echo "changed_paths_sha256=" >> "$GITHUB_OUTPUT"
+            echo "trusted_checkout_sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Fetch the candidate Git object so the trusted base checkout can
+          # diff against it WITHOUT checking it out.
+          git fetch origin "${{ github.event.pull_request.head.sha }}"
+          python -m reverse_agent.project_gate control-plane-mode --state-dir project_state \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --output "$RUNNER_TEMP/trusted_route.json" \
+            --repository "$GITHUB_REPOSITORY"
 
       - name: Load candidate authority from isolated directory
         if: github.event_name == 'pull_request_target' && steps.control_plane.outputs.mode == 'transition'
@@ -78,7 +93,9 @@ jobs:
           # working tree for transition validation.  This is NOT
           # ``git checkout candidate -- project_state/``; the candidate state
           # was already extracted via ``git archive`` into an isolated dir.
-          # Mode detection already ran against the trusted base's project_state.
+          # Mode detection already ran against the trusted base's project_state
+          # and the trusted route observation.  Candidate project_state is only
+          # read AFTER mode is determined to be transition.
           if [ -d "$RUNNER_TEMP/candidate_state/project_state" ]; then
             rm -rf project_state
             cp -r "$RUNNER_TEMP/candidate_state/project_state" project_state
@@ -236,40 +253,33 @@ jobs:
           ")
           echo "issue_number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
 
-          # Live re-query Issue using GraphQL (includes lastEditedAt for edit identity)
+          # Live re-query Issue scalars using GraphQL (includes lastEditedAt
+          # for edit identity).  Labels are fetched separately via REST with
+          # full pagination so the label set is complete.
           REPO_OWNER="${GITHUB_REPOSITORY%%/*}"
           REPO_NAME="${GITHUB_REPOSITORY#*/}"
           gh api graphql \
             -f owner="$REPO_OWNER" \
             -f name="$REPO_NAME" \
             -F number="$ISSUE_NUMBER" \
-            -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){issue(number:$number){number state body createdAt lastEditedAt labels(first:100){nodes{name}}}}}' \
+            -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){issue(number:$number){number state body createdAt lastEditedAt}}}' \
             > "$RUNNER_TEMP/path_a_issue_graphql.json"
 
-          # Process GraphQL response into deterministic path_a_issue.json using trusted Python
+          # Complete label observation via REST with full pagination (--paginate --slurp)
+          gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/labels" \
+            --paginate --slurp \
+            > "$RUNNER_TEMP/path_a_labels_rest.json"
+
+          # Normalize the GraphQL envelope (proper data.repository.issue unwrap)
+          # and bind REST labels.  Fails closed on any malformation.
           python -c "
           import json, sys
-          raw = json.load(open('$RUNNER_TEMP/path_a_issue_graphql.json'))
-          if not isinstance(raw, dict) or 'errors' in raw:
-              print('issue_graphql_errors_or_malformed', file=sys.stderr); sys.exit(1)
-          repo = raw.get('repository')
-          if not isinstance(repo, dict) or not isinstance(repo.get('issue'), dict):
-              print('issue_graphql_missing_issue', file=sys.stderr); sys.exit(1)
-          issue = repo['issue']
-          for key in ('number', 'state', 'body', 'createdAt', 'lastEditedAt'):
-              if key not in issue:
-                  print(f'issue_graphql_missing_key:{key}', file=sys.stderr); sys.exit(1)
-          labels_nodes = (issue.get('labels') or {}).get('nodes', [])
-          if not isinstance(labels_nodes, list):
-              print('issue_graphql_invalid_labels', file=sys.stderr); sys.exit(1)
-          normalized = {
-              'number': issue['number'],
-              'state': issue['state'],
-              'body': issue['body'],
-              'createdAt': issue['createdAt'],
-              'lastEditedAt': issue['lastEditedAt'],
-              'labels': [{'name': n.get('name', '')} for n in labels_nodes if isinstance(n, dict)],
-          }
+          from reverse_agent.control_plane.path_a import normalize_issue_graphql_envelope
+          with open('$RUNNER_TEMP/path_a_issue_graphql.json') as f:
+              raw = json.load(f)
+          with open('$RUNNER_TEMP/path_a_labels_rest.json') as f:
+              labels_rest = json.load(f)
+          normalized = normalize_issue_graphql_envelope(raw, labels_rest_pages=labels_rest)
           json.dump(normalized, open('$RUNNER_TEMP/path_a_issue.json', 'w'), ensure_ascii=False, sort_keys=True)
           "
 
@@ -345,7 +355,8 @@ jobs:
             --approval-events-path "$RUNNER_TEMP/path_a_approval_events.json" \
             --approver-permission "${{ steps.path_a_state.outputs.permission }}" \
             --repository "$GITHUB_REPOSITORY" \
-            --state-dir project_state
+            --state-dir project_state \
+            --changed-path-observation-path "$RUNNER_TEMP/trusted_route.json"
           echo "authorized=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload authority gate evidence
@@ -357,6 +368,7 @@ jobs:
           path: |
             project_state/gates/*.json
             ${{ runner.temp }}/path_a_*.json
+            ${{ runner.temp }}/trusted_route.json
             ${{ runner.temp }}/mainline_integration_receipt.json
 
   # ===========================================================================
@@ -436,6 +448,12 @@ jobs:
       - name: Install trusted package
         run: python -m pip install -e ".[test]"
 
+      - name: Download authority gate evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: authority-gate-evidence
+          path: ${{ runner.temp }}/authority-evidence
+
       - name: Generate State Gate receipt
         shell: bash
         run: |
@@ -459,33 +477,52 @@ jobs:
           candidate_base = pr.get('base', {}).get('sha', '')
           trusted_base = candidate_base
 
-          # Compute changed_paths_sha256 from git diff (trusted verifier)
-          changed = subprocess.check_output(
-              ['git', 'diff', '--name-only', f'{trusted_base}..{candidate_head}'],
-              text=True
-          ).strip().split('\n') if candidate_head else []
-          changed.sort()
-          changed_paths_sha = hashlib.sha256(
-              '\n'.join(changed).encode('utf-8')
-          ).hexdigest()
+          # Reuse the authority observation's changed_paths_sha256.  The
+          # receipt must NOT recompute changed paths from a fresh git diff;
+          # it binds directly to the trusted authority observation.
+          authority_evidence_dir = os.path.join(os.environ['RUNNER_TEMP'], 'authority-evidence')
+          trusted_route_path = os.path.join(authority_evidence_dir, 'trusted_route.json')
+          if os.path.exists(trusted_route_path):
+              with open(trusted_route_path) as f:
+                  observation = json.load(f)
+              changed_paths_sha = observation.get('changed_paths_sha256', '')
+              observed_base = observation.get('base_sha', '')
+              observed_head = observation.get('head_sha', '')
+              trusted_checkout_sha = observation.get('trusted_checkout_sha', '')
+              # Bind receipt to the authority observation, not the event.
+              if observed_base:
+                  candidate_base = observed_base
+                  trusted_base = observed_base
+              if observed_head:
+                  candidate_head = observed_head
+          else:
+              # No route observation: receipt must be BLOCKED, not PASS.
+              changed_paths_sha = ''
+              trusted_checkout_sha = ''
 
           # Authority and candidate test results
           authority_result = 'SUCCESS' if '${{ needs.authority-gate.result }}' == 'success' else 'FAILED'
           candidate_tests_result = 'SUCCESS' if '${{ needs.candidate-tests.result }}' == 'success' else 'FAILED'
           selected_mode = '${{ needs.authority-gate.outputs.mode }}'
 
-          # Final gate result
-          if authority_result != 'SUCCESS':
+          # Trusted verifier tree SHA (current HEAD = trusted base checkout)
+          trusted_verifier_tree = subprocess.check_output(
+              ['git', 'rev-parse', 'HEAD'], text=True
+          ).strip()
+
+          # Final gate result.  Missing route observation => BLOCKED.
+          if not changed_paths_sha:
+              final_gate_result = 'BLOCKED'
+          elif authority_result != 'SUCCESS':
               final_gate_result = 'BLOCKED'
           elif candidate_tests_result != 'SUCCESS':
               final_gate_result = 'BLOCKED'
           else:
               final_gate_result = 'PASS'
 
-          # Trusted verifier tree SHA (current HEAD = trusted base)
-          trusted_verifier_tree = subprocess.check_output(
-              ['git', 'rev-parse', 'HEAD'], text=True
-          ).strip()
+          # authority_revision binds to the trusted authority observation
+          # (trusted checkout SHA), not a fresh git rev-parse.
+          authority_revision = trusted_checkout_sha or trusted_verifier_tree
 
           receipt = {
               'schema_version': '0.1',
@@ -503,7 +540,7 @@ jobs:
               'changed_paths_sha256': changed_paths_sha,
               'selected_mode': selected_mode,
               'authority_identity': 'trusted_base_verifier',
-              'authority_revision': trusted_verifier_tree,
+              'authority_revision': authority_revision,
               'authority_result': authority_result,
               'candidate_tests_result': candidate_tests_result,
               'final_gate_result': final_gate_result,

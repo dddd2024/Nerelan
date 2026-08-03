@@ -104,29 +104,34 @@ def select_control_plane_mode(
     """Select control plane mode using trusted risk-first routing.
 
     Routing order:
-    1. R2/R3 changed paths → Path-B (``transition`` or ``path_b``)
-    2. exact trusted active-Decision branch → Path-B (decision mode)
+    1. R2/R3 changed paths → ``transition`` (always — all R2/R3 PRs must
+       enter transition per v5 §十三; ``path_b`` is never returned)
+    2. exact trusted active-Decision branch → ``transition`` (decision mode)
     3. other bounded R1 → ``path_a_r1``
 
     Inputs must come from trusted base code, GitHub event identity, trusted
     git diff, and repository-owned risk policy. Candidate
-    ``project_state/**`` must NOT be an initial route input.
+    ``project_state/**`` must NOT be an initial route input.  ``path_b`` is a
+    forbidden mode and is never returned.  The trusted active Decision's
+    ``transition_kernel_required`` flag does NOT change R2/R3 routing: per
+    v5 §十三, R2/R3 PRs always enter transition and the candidate Decision
+    is validated inside transition mode.
     """
 
-    from .path_a import _minimum_path_risk
+    from .path_a import PathAGateError, _minimum_path_risk
 
     flag = trusted_decision_contract.get("transition_kernel_required", False)
     if not isinstance(flag, bool):
         flag = False
     decision_mode = "transition" if flag else "legacy"
 
-    # Step 1: R2/R3 changed paths → Path-B
+    # Step 1: R2/R3 changed paths → transition (always, never path_b)
     for path in changed_paths:
         risk = _minimum_path_risk(path)
         if risk is not None:
-            return "transition" if flag else "path_b"
+            return "transition"
 
-    # Step 2: exact trusted active-Decision branch → Path-B
+    # Step 2: exact trusted active-Decision branch → Path-B (decision mode)
     required_branch = str(trusted_decision_contract.get("required_branch") or "")
     if event is not None and isinstance(event.get("pull_request"), Mapping):
         pr = event["pull_request"]
