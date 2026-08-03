@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v4",
-  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v4",
+  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v5",
+  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v5",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,10 +16,10 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v3",
-  "follows_last_round_id": "round_20260803_restore_path_a_state_gate_current_main_v3",
-  "previous_audit_outcome": "PR106_V3_REWORK_REQUIRED_TRUSTED_ROUTING_AND_ISSUE_EDIT_IDENTITY",
-  "workstream_id": "issue105-restore-path-a-state-gate-current-main-v4",
+  "follows_last_decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v4",
+  "follows_last_round_id": "round_20260803_restore_path_a_state_gate_current_main_v4",
+  "previous_audit_outcome": "PR106_V4_REJECTED_RUNTIME_WIRING_GRAPHQL_AND_RECEIPT",
+  "workstream_id": "issue105-restore-path-a-state-gate-current-main-v5",
   "source_issue": 105,
   "parent_issue": 90,
   "bootstrap_issue": 107,
@@ -28,7 +28,7 @@
   "active_pr": 106,
   "historical_reference_pr": 49,
   "required_branch": "agent/restore-path-a-state-gate-current-main-v1",
-  "starting_head": "9d4bce0b7fa3fcc8e1b9d6e60119f0489071689b",
+  "starting_head": "18ed708bf27f8eac84f14835aaf2a3aebb7be277",
   "activation_base_sha": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -257,11 +257,12 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr106_v3.json",
+    "project_state/mainline_merge_intents/archive/pr106_v4.json",
     ".github/workflows/state-gate.yml",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/path_a.py",
     "reverse_agent/project_gate.py",
+    "reverse_agent/github_remote_verifier.py",
     "tests/test_path_a_gate.py",
     "tests/test_mainline_landing.py",
     "tests/platform_v1/test_merge_intent.py",
@@ -272,7 +273,6 @@
     "reverse_agent/control_plane/models.py",
     "reverse_agent/control_plane/evidence_source.py",
     "reverse_agent/control_plane/command_authority.py",
-    "reverse_agent/github_remote_verifier.py",
     "reverse_agent/mainline_landing.py",
     "reverse_agent/platform_v1/contracts.py",
     "reverse_agent/platform_v1/acceptance.py",
@@ -313,7 +313,6 @@
     "reverse_agent/platform_v1/github_adapter.py",
     "reverse_agent/platform_v1/authority_adapter.py",
     "reverse_agent/platform_v1/evidence_adapter.py",
-    "reverse_agent/github_remote_verifier.py",
     "reverse_agent/mainline_landing.py",
     "reverse_agent/adapters/**",
     "reverse_agent/architecture/**",
@@ -451,7 +450,12 @@
     "treat pull_request_target run base-context head_sha as candidate SHA",
     "forge State Gate run or receipt",
     "use autoMerge field instead of autoMergeRequest in PR queries",
-    "compare only current body digest without material-edit timestamp for Issue authority"
+    "compare only current body digest without material-edit timestamp for Issue authority",
+    "return path_b as a supported mode from trusted-pr-route",
+    "re-execute git diff in receipt instead of reusing authority observation",
+    "accept incomplete label pagination from GraphQL labels(first:100) without full pagination",
+    "checkout candidate in authority job before mode selection",
+    "require HEAD==candidate SHA for Path-A changed-path observation"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -481,11 +485,12 @@
     "project_state/decision_packet.md",
     "project_state/gates/**",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr106_v3.json",
+    "project_state/mainline_merge_intents/archive/pr106_v4.json",
     ".github/workflows/state-gate.yml",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/path_a.py",
     "reverse_agent/project_gate.py",
+    "reverse_agent/github_remote_verifier.py",
     "tests/test_path_a_gate.py",
     "tests/test_mainline_landing.py",
     "tests/platform_v1/test_merge_intent.py",
@@ -570,8 +575,8 @@
 
 ## Goal
 
-Restore trusted risk-first routing and Issue edit identity on the existing branch `agent/restore-path-a-state-gate-current-main-v1` continuing on Draft PR #106, starting from exact head `9d4bce0b7fa3fcc8e1b9d6e60119f0489071689b`. The v3 attempt was rework-required because: (a) the control plane mode selection in `legacy_adapter.detect_control_plane_mode()` routed branches based on `head_ref == required_branch` without first computing rename-aware changed paths and minimum risk tier, allowing candidate Decision to influence initial route; (b) the Path-A Issue edit validation used `issue.get("content_last_edited_at")` which treated missing keys and explicit null identically, failing to detect material Issue-body edits after approval; (c) the v3 active merge intent was never archived before binding v4. The v4 rework must: (1) refactor `select_control_plane_mode` to route R2/R3 changed paths to Path-B and exact trusted active-Decision branch to Path-B BEFORE reading any isolated candidate state, using only trusted base code, GitHub event identity, trusted git diff, and repository-owned risk policy as inputs; (2) ensure `legacy_adapter.detect_control_plane_mode()` does not route all non-matching branches to Path-A without risk classification; (3) implement rename-aware changed path enumeration with pagination safety (>100 files), casefold normalization, and fail-closed on empty/malformed pages; (4) replace REST Issue queries with GraphQL queries that always include `lastEditedAt` (nullable), and fail closed on missing keys, schema drift, or parse errors; (5) modify Path-A edit validation to explicitly check `lastEditedAt` presence, distinguish `null` (never-edited) from missing, and fail closed on `lastEditedAt >= approval timestamp` even when body digest matches snapshot; (6) archive the current v3 `active.json` verbatim as `archive/pr106_v3.json` with identical SHA-256 before binding the new v4 active intent; (7) bind the v4 active intent to PR #106 with exact v4 Decision blob SHA-256, exact v4 Command Plan blob SHA-256, `locked_base_sha: fa4f240f7dffff78cdb182ce8655c2e2d7cb241f`, `allowed_merge_method: merge`, the four canonical required workflows, and a bounded expiry; (8) preserve all historical intent archives (pr97_v1, pr97_v2, pr97_v3, pr97_v4, pr106_v2, pr106_v3). Do not modify `ci.yml`, `decision-preflight.yml`, `reverse_agent/github_remote_verifier.py`, `reverse_agent/mainline_landing.py`, `reverse_agent/platform_v1/**`, or any read-only regression test. Do not run Issue #102, Issue #107 bootstrap, Docker, OpenHands, or Codex ACP. Push only to the existing branch, update only PR #106, publish desensitized evidence, and stop at `PR106_V4_CONTENT_READY_FOR_OWNER_BOOTSTRAP_AUDIT`.
+Restore trusted routing runtime wiring, GraphQL envelope parsing, and receipt observation reuse on the existing branch `agent/restore-path-a-state-gate-current-main-v1` continuing on Draft PR #106, starting from exact head `18ed708bf27f8eac84f14835aaf2a3aebb7be277`. The v4 attempt was rejected because: (a) production CLI only passed event without a trusted changed-path observation, requiring HEAD==candidate for Path-A; (b) candidate checkout was not rejected in the authority job; (c) GraphQL envelope was not unwrapped through `data.repository.issue`; (d) labels were not completely paginated; (e) receipt re-executed `git diff --name-only` instead of reusing authority observation; (f) remote receipt verifier did not reject unsupported modes like `path_b`. The v5 rework must: (1) implement a `TrustedChangedPathObservation` dataclass that reads exact base/head SHA from event, verifies `HEAD==base`, verifies candidate object exists, computes merge-base, runs `git diff --name-status -M -C`, records rename old/new paths, rejects empty/NUL/absolute/`..` paths, canonicalizes, deduplicates, sorts, and produces a canonical SHA-256; (2) wire the observation into a real `trusted-pr-route` CLI subcommand that outputs mode/observation without requiring authority checkout HEAD==candidate; (3) update the State Gate workflow to checkout trusted base with `persist-credentials: false`, fetch candidate object, run `trusted-pr-route`, and select transition or Path-A BEFORE reading candidate `project_state/**`; (4) add `--changed-path-observation-path` to `path-a-r1-gate` so Path-A uses the authority observation file directly; (5) fix GraphQL unwrapping through `data.repository.issue` with fail-closed on errors/missing keys, and complete label pagination via REST with same repository/issue binding; (6) ensure all R2/R3 PRs route to `transition` and candidate Decision is only read after mode selection; (7) make receipt reuse authority observation digests without re-executing git diff; (8) strengthen `verify_state_gate_receipt()` to reject unsupported modes (`path_b`, empty, unknown, null), verify `trusted_verifier_tree_sha==trusted_base_sha`, exact authority identity, exact workflow run ID/attempt, exact artifact name/count/content digest; (9) archive the current v4 `active.json` verbatim as `archive/pr106_v4.json` with identical SHA-256 before binding the new v5 active intent; (10) bind the v5 active intent to PR #106 with exact v5 Decision blob SHA-256, exact v5 Command Plan blob SHA-256, `locked_base_sha: fa4f240f7dffff78cdb182ce8655c2e2d7cb241f`, `allowed_merge_method: merge`, the four canonical required workflows, and a bounded expiry; (11) preserve all historical intent archives (pr97_v1, pr97_v2, pr97_v3, pr97_v4, pr106_v2, pr106_v3, pr106_v4). Do not modify `ci.yml`, `decision-preflight.yml`, `reverse_agent/mainline_landing.py`, `reverse_agent/platform_v1/**`, or any read-only regression test. Do not run Issue #102, Issue #107 bootstrap, Docker, OpenHands, or Codex ACP. Push only to the existing branch, update only PR #106, publish desensitized evidence, and stop at `PR106_V5_RUNTIME_READY_FOR_OWNER_BOOTSTRAP_AUDIT`.
 
 ## Acceptance boundary
 
-The v4 content rework is complete only when: the v4 Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is achieved with `blocking_reasons=[]` before implementation; the v3 `active.json` is archived verbatim as `archive/pr106_v3.json` with identical SHA-256; the new `active.json` binds `source_pr: 106`, `locked_base_sha: fa4f240f7dffff78cdb182ce8655c2e2d7cb241f`, the v4 Decision identity, exact v4 Decision blob SHA-256, exact v4 Command Plan blob SHA-256, `allowed_merge_method: merge`, the four canonical required workflows including `State Gate (pull_request_target)`, and a bounded expiry; `select_control_plane_mode` routes R2/R3 changed paths (`.github/workflows/**`, `project_state/**`) to Path-B or transition BEFORE reading candidate Decision, even when the head branch does not match the active Decision branch; bounded R1 docs-only changes route to Path-A; candidate Decision cannot control initial route; rename-aware changed path enumeration handles >100 files without truncation and classifies both old/new paths taking the higher risk; casefold normalization is stable and preserves R2/R3 risk floor; Issue GraphQL queries always include `lastEditedAt` and fail closed on missing keys, schema drift, or parse errors; `lastEditedAt: null` is handled explicitly as never-edited; `lastEditedAt >= approval timestamp` fails closed even when body digest matches snapshot; all required local test suites pass with zero failures; `transition-lint` passes; `transition-preflight` returns `PRE_EXECUTION_AUTHORIZED`; `git diff --check fa4f240f7dffff78cdb182ce8655c2e2d7cb241f..HEAD` passes; exact-head CI and Decision Preflight succeed; the PR remains Draft and unmerged. The terminal status is `PR106_V4_CONTENT_READY_FOR_OWNER_BOOTSTRAP_AUDIT`. Any scope conflict, credential exposure, idempotency failure, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
+The v5 runtime rework is complete only when: the v5 Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is achieved with `blocking_reasons=[]` before implementation; the v4 `active.json` is archived verbatim as `archive/pr106_v4.json` with identical SHA-256; the new `active.json` binds `source_pr: 106`, `locked_base_sha: fa4f240f7dffff78cdb182ce8655c2e2d7cb241f`, the v5 Decision identity, exact v5 Decision blob SHA-256, exact v5 Command Plan blob SHA-256, `allowed_merge_method: merge`, the four canonical required workflows including `State Gate (pull_request_target)`, and a bounded expiry; the production CLI `trusted-pr-route` produces a trusted route observation using trusted base checkout without requiring HEAD==candidate; R2 workflow candidate routes `transition` even when HEAD remains the trusted base; R1 docs candidate routes `path_a_r1`; `path_b` mode is removed from supported modes; GraphQL envelope is unwrapped through `data.repository.issue` with fail-closed on errors/missing keys; complete labels are observed via REST pagination; Path-A uses the authority observation file directly; receipt reuses authority observation digests without re-executing git diff; remote verifier rejects unsupported modes (`path_b`, empty, unknown, null); candidate checkout in authority job is rejected with `trusted_checkout_not_base`; all required local test suites pass with zero failures; `transition-lint` passes; `transition-preflight` returns `PRE_EXECUTION_AUTHORIZED`; `git diff --check fa4f240f7dffff78cdb182ce8655c2e2d7cb241f..HEAD` passes; exact-head CI and Decision Preflight succeed; the PR remains Draft and unmerged. The terminal status is `PR106_V5_RUNTIME_READY_FOR_OWNER_BOOTSTRAP_AUDIT`. Any scope conflict, credential exposure, idempotency failure, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
