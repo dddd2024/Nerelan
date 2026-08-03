@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v1",
-  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v1",
+  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v2",
+  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,23 +16,24 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260802_issue100_platform_v1_authority_collector_v4",
-  "follows_last_round_id": "round_20260802_issue100_platform_v1_authority_collector_v4",
-  "previous_audit_outcome": "PR104_CONTENT_REWORK_COMPLETE_STATE_GATE_SYSTEMIC_BLOCK",
-  "workstream_id": "issue105-restore-path-a-state-gate-current-main-v1",
+  "follows_last_decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v1",
+  "follows_last_round_id": "round_20260803_restore_path_a_state_gate_current_main_v1",
+  "previous_audit_outcome": "PR106_V1_REJECTED_CI_INTENT_AND_UNTRUSTED_PATH_A_BOOTSTRAP",
+  "workstream_id": "issue105-restore-path-a-state-gate-current-main-v2",
   "source_issue": 105,
   "parent_issue": 90,
   "blocked_issue": 103,
   "blocked_pr": 104,
+  "active_pr": 106,
   "historical_reference_pr": 49,
   "required_branch": "agent/restore-path-a-state-gate-current-main-v1",
-  "starting_head": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+  "starting_head": "62cf0636f7abd8c7a7a1b4711884dc8f5b176583",
   "activation_base_sha": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
-  "pr_creation_allowed": true,
+  "pr_creation_allowed": false,
   "pr_body_update_allowed": true,
   "pr_comment_allowed": true,
   "issue_comment_allowed": true,
@@ -121,8 +122,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "test.pytest_minimal_integration_baseline_docs",
-      "command": "python -m pytest tests/test_minimal_integration_baseline_docs.py -q",
+      "command_id": "test.pytest_mainline_landing",
+      "command": "python -m pytest tests/test_mainline_landing.py tests/test_integration_baseline.py tests/test_project_audits.py -q",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -137,6 +138,20 @@
     {
       "command_id": "test.pytest_platform_v1",
       "command": "python -m pytest tests/platform_v1 -q",
+      "phase": "test",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "test.pytest_minimal_integration_baseline_docs",
+      "command": "python -m pytest tests/test_minimal_integration_baseline_docs.py -q",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -164,7 +179,7 @@
     },
     {
       "command_id": "publication.push_branch",
-      "command": "git push -u origin agent/restore-path-a-state-gate-current-main-v1",
+      "command": "git push origin agent/restore-path-a-state-gate-current-main-v1",
       "phase": "publication",
       "required": false,
       "expected_exit_codes": [0],
@@ -178,12 +193,26 @@
     },
     {
       "command_id": "observation.pr_checks",
-      "command": "gh pr checks --repo dddd2024/reverse-agent --watch",
+      "command": "gh pr checks 106 --repo dddd2024/reverse-agent --watch",
       "phase": "observation",
       "required": false,
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["repository_observation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "publication.pr_edit",
+      "command": "gh pr edit 106 --repo dddd2024/reverse-agent --body-file -",
+      "phase": "publication",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["pr_body_update", "network_access"],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "authority_origin": "normal_plan",
@@ -206,7 +235,7 @@
     },
     {
       "command_id": "publication.pr_comment",
-      "command": "gh pr comment --repo dddd2024/reverse-agent --body-file -",
+      "command": "gh pr comment 106 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "expected_exit_codes": [0],
@@ -226,21 +255,28 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr97_v4.json",
     ".github/workflows/state-gate.yml",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/path_a.py",
     "reverse_agent/project_gate.py",
-    "tests/test_path_a_gate.py"
+    "tests/test_path_a_gate.py",
+    "tests/platform_v1/test_merge_intent.py"
   ],
   "reference_paths": [
     "reverse_agent/control_plane/transition.py",
     "reverse_agent/control_plane/models.py",
     "reverse_agent/control_plane/evidence_source.py",
     "reverse_agent/control_plane/command_authority.py",
+    "reverse_agent/mainline_landing.py",
     "tests/test_control_plane_transition.py",
     "tests/test_planning_and_github_adapters.py",
     "tests/test_project_gate.py",
     "tests/test_minimal_integration_baseline_docs.py",
+    "tests/test_mainline_landing.py",
+    "tests/test_integration_baseline.py",
+    "tests/test_project_audits.py",
     ".github/workflows/ci.yml",
     ".github/workflows/decision-preflight.yml",
     "AGENTS.md",
@@ -265,7 +301,6 @@
     "reverse_agent/control_plane/evidence_source.py",
     "reverse_agent/control_plane/command_authority.py",
     "reverse_agent/control_plane/evidence_recorder.py",
-    "reverse_agent/control_plane/evidence_source.py",
     "reverse_agent/control_plane/local_seal.py",
     "reverse_agent/control_plane/report_binding.py",
     "reverse_agent/control_plane/execution_reconciliation.py",
@@ -326,7 +361,6 @@
     "tests/test_planning_and_github_adapters.py",
     "tests/test_project_gate.py",
     "tests/test_minimal_integration_baseline_docs.py",
-    "tests/platform_v1/**",
     "tests/test_repository_hygiene.py",
     "tests/test_supervisor_validate.py",
     "tests/test_integration_baseline.py",
@@ -342,7 +376,6 @@
     "project_state/current_state.json",
     "project_state/state_manifest.json",
     "project_state/artifactindex.json",
-    "project_state/mainline_merge_intents/**",
     "pyproject.toml"
   ],
   "forbidden_operations": [
@@ -351,6 +384,8 @@
     "live publication or apply_result",
     "live generated Work Item publication",
     "new issue",
+    "new branch",
+    "new pull request",
     "direct push to main",
     "mark ready",
     "merge",
@@ -358,9 +393,10 @@
     "force push",
     "rebase",
     "squash",
+    "amend historical commits",
     "tag or release",
     "deployment",
-    "credential access",
+    "credential access or copy",
     "nested model invocation",
     "runner dispatch",
     "unknown binary execution",
@@ -380,9 +416,15 @@
     "create a second generic control plane",
     "weaken or delete State Gate",
     "make State Gate nonblocking",
+    "use continue-on-error to bypass gate failures",
     "accept CI success as a substitute for State Gate",
     "modify read-only test files to make tests pass",
-    "modify .github/workflows/ci.yml"
+    "modify .github/workflows/ci.yml",
+    "delete historical mainline merge intent archives",
+    "execute candidate code before authority gate passes",
+    "pass GITHUB_TOKEN or GH_TOKEN to candidate code execution context",
+    "use persist-credentials: true in any checkout",
+    "allow candidate verifier to self-authorize"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -399,10 +441,11 @@
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
-      "git push -u origin agent/restore-path-a-state-gate-current-main-v1",
-      "gh pr checks --repo dddd2024/reverse-agent --watch",
+      "git push origin agent/restore-path-a-state-gate-current-main-v1",
+      "gh pr checks 106 --repo dddd2024/reverse-agent --watch",
+      "gh pr edit 106 --repo dddd2024/reverse-agent --body-file -",
       "gh issue comment 105 --repo dddd2024/reverse-agent --body-file -",
-      "gh pr comment --repo dddd2024/reverse-agent --body-file -"
+      "gh pr comment 106 --repo dddd2024/reverse-agent --body-file -"
     ],
     "ci_network_exceptions": []
   },
@@ -410,11 +453,14 @@
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
     "project_state/gates/**",
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr97_v4.json",
     ".github/workflows/state-gate.yml",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/path_a.py",
     "reverse_agent/project_gate.py",
-    "tests/test_path_a_gate.py"
+    "tests/test_path_a_gate.py",
+    "tests/platform_v1/test_merge_intent.py"
   ],
   "path_risk_floor": [
     {
@@ -423,6 +469,10 @@
     },
     {
       "pattern": "project_state/gates/**",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "project_state/mainline_merge_intents/**",
       "minimum_risk": "R2"
     },
     {
@@ -442,6 +492,10 @@
       "minimum_risk": "R2"
     },
     {
+      "pattern": "tests/platform_v1/test_merge_intent.py",
+      "minimum_risk": "R2"
+    },
+    {
       "pattern": "deploy/agent-canvas/**",
       "minimum_risk": "R2"
     }
@@ -451,8 +505,8 @@
 
 ## Goal
 
-Restore ordinary Path-A R1 State Gate routing on the current `main` starting from exact head `fa4f240f7dffff78cdb182ce8655c2e2d7cb241f`. The State Gate currently selects transition mode from `main` without recognizing a pull request's Path-A authority, causing ordinary approved R1 PR #104 to be routed through the stale active Issue #100 transition Decision and fail branch/path checks against that unrelated Decision. Extend `detect_control_plane_mode()` in `reverse_agent/control_plane/legacy_adapter.py` to accept a GitHub event context and classify an approved ordinary R1 pull request as `path_a_r1` when the PR head ref does not equal the active Decision's `required_branch`, while preserving the Decision-selected transition/legacy mode for push events and for PRs bound to the active Decision's required_branch. Create `reverse_agent/control_plane/path_a.py` implementing fail-closed Path-A R1 authority verification: live Issue/PR re-observation, immutable Work Item snapshot parsing from the PR body, Issue body digest verification, current effective `r1-approved` label transition verification, post-approval Issue body edit detection (strictly-before, fail-closed on equal timestamps), exact branch/base/head binding, Draft state and no auto-merge enforcement, repository-owned R2/R3 path risk floor applied before Issue allowlist matching, case-normalized security-sensitive path matching, rename/copy previous-path validation, complete changed-file pagination handling, unbounded root glob rejection, stable authority revision digest binding, machine-readable failure codes, no execution of Issue or PR command text, and deterministic task-scoped CI selection from a repository-owned mapping. Add `control-plane-mode --event-path` and `path-a-r1-gate --event-path --repository` CLI subcommands to `reverse_agent/project_gate.py`. Incrementally modify `.github/workflows/state-gate.yml` to add `path_a_r1` verifier routing with exact PR head checkout, pull_request authority-relevant activity types, Path-A focused tests, and restrict feature-branch push to `main` only, while preserving the existing legacy path, transition path, focused gate tests, mainline integration validation, mainline integration receipt emission, and `actions: read` permission. Use historical PR #49 (exact head `40400440e257e0d0a4aa6cabae8672bff937cde4`) as a read-only reference for verified semantics; do not merge or cherry-pick PR #49 wholesale. Create `tests/test_path_a_gate.py` covering all required regression scenarios. Do not modify read-only test files, `ci.yml`, `AGENTS.md`, `docs/**`, `reverse_agent/platform_v1/**`, or `tests/platform_v1/**`. Do not run Issue #102, Docker, OpenHands, or Codex ACP. Push only the unique branch, create only one Draft PR, publish desensitized evidence, and stop at `PATH_A_STATE_GATE_CURRENT_MAIN_V1_READY_FOR_INDEPENDENT_AUDIT`.
+Restore ordinary Path-A R1 State Gate routing on the current `main` starting from exact head `62cf0636f7abd8c7a7a1b4711884dc8f5b176583` on branch `agent/restore-path-a-state-gate-current-main-v1`, continuing on the existing Draft PR #106. The v1 attempt (PR #106 head `62cf0636`) failed CI baseline because the committed mainline merge intent still bound `decision_20260802_issue100_platform_v1_authority_collector_v4` / PR #97, which mismatched the activated v1 Decision. The v1 State Gate workflow also had an untrusted verifier boundary: candidate code was checked out and its verifier was used to self-authorize the candidate PR, allowing a malicious PR to modify `path_a.py`, `project_gate.py`, `legacy_adapter.py`, or `state-gate.yml` to pass itself. The v2 rework must: (1) rebind the mainline merge intent from PR #97/v4 to PR #106/v2 by archiving the current `active.json` verbatim as `archive/pr97_v4.json` and creating a new `active.json` binding `source_pr: 106`, the v2 Decision identity, and exact v2 Decision and Command Plan blob SHA-256 digests; (2) establish a trusted Path-A verifier boundary where routing and authority verification code comes from the trusted base/main tree, candidate head code only runs as the verified object after authority passes, candidate code execution steps receive no `GITHUB_TOKEN`/`GH_TOKEN`, and all checkouts use `persist-credentials: false`; (3) implement real-time GitHub re-observation of Issue and PR state (not just event payload) with deterministic multi-page event flattening for >100 Issue events; (4) restrict the allowed-path grammar in `parse_allowed_paths()` to only exact paths and `directory/subtree/**` patterns, rejecting `*`, `**`, `**/*`, `docs/*.md`, `docs/**/file.md`, `?`, `[ab]`, `src/*/file.py`, and any pattern where `*` crosses `/`; (5) expand workflow trigger scope to all ordinary PRs without `pull_request.paths` filtering, covering `opened`, `edited`, `synchronize`, `reopened`, `ready_for_review`, `converted_to_draft`, `labeled`, `unlabeled`, `auto_merge_enabled`, `auto_merge_disabled`, while keeping `push` limited to `main`; (6) preserve Decision-bound transition routing, legacy routing, main-only historical integration baseline, current mainline merge validation, mainline integration receipt, Decision Preflight, Platform V1 blocking CI, Supervisor tests, and PR #104 historical state. Do not modify read-only test files, `ci.yml`, `AGENTS.md`, `docs/**`, `reverse_agent/platform_v1/**`, or `reverse_agent/mainline_landing.py`. Do not run Issue #102, Docker, OpenHands, or Codex ACP. Push only to the existing branch, update only PR #106, publish desensitized evidence, and stop at `PATH_A_STATE_GATE_CURRENT_MAIN_V2_READY_FOR_INDEPENDENT_AUDIT`.
 
 ## Acceptance boundary
 
-The Path-A State Gate restoration is complete only when: the Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is achieved with `blocking_reasons=[]` before implementation; `detect_control_plane_mode()` accepts an optional `event` keyword argument and returns exactly one deterministic token — `path_a_r1` for a pull request whose head ref does not equal the active Decision's `required_branch`, the Decision-selected mode (`transition` or `legacy`) for push events or PRs bound to the Decision's `required_branch`, and fails closed on malformed authority without falling back to Decision state; `control-plane-mode --event-path` CLI works and the existing `control-plane-mode` CLI without `--event-path` still prints exactly `transition` or `legacy`; `reverse_agent/control_plane/path_a.py` implements fail-closed Path-A R1 authority verification with live GitHub re-observation, snapshot parsing, digest verification, approval transition verification, post-approval edit detection, exact binding verification, Draft and no-auto-merge enforcement, repository-owned path risk floor before Issue allowlist matching, case-normalized security path matching, rename/copy previous-path validation, complete pagination, unbounded glob rejection, authority revision digest, machine-readable failure codes, no Issue/PR command execution, and deterministic task-scoped CI selection; `path-a-r1-gate --event-path --repository` CLI works; `.github/workflows/state-gate.yml` preserves the existing legacy path, transition path, focused gate tests, mainline integration validation, mainline integration receipt, and `actions: read` permission, while adding `path_a_r1` verifier routing with exact PR head checkout, pull_request authority-relevant activity types, Path-A focused tests, and restricting feature-branch push to `main` only; `tests/test_path_a_gate.py` covers all required regression scenarios; `python -m pytest tests/test_path_a_gate.py tests/test_control_plane_transition.py tests/test_planning_and_github_adapters.py -q` passes; `python -m pytest tests/test_project_gate.py -q` passes; `python -m pytest tests/test_minimal_integration_baseline_docs.py -q` passes; `python -m pytest tests/platform_v1 -q` passes; `python -m pytest tests/test_supervisor_validate.py tests/test_repository_hygiene.py -q` passes; `python -m reverse_agent.project_gate transition-lint --state-dir project_state` passes; `python -m reverse_agent.project_gate transition-preflight --state-dir project_state` returns `PRE_EXECUTION_AUTHORIZED`; `git diff --check fa4f240f7dffff78cdb182ce8655c2e2d7cb241f..HEAD` passes; exact-head CI, State Gate pull_request, and Decision Preflight succeed; the PR remains Draft and unmerged. The terminal status is `PATH_A_STATE_GATE_CURRENT_MAIN_V1_READY_FOR_INDEPENDENT_AUDIT`. Any scope conflict, credential exposure, idempotency failure, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
+The Path-A State Gate v2 rework is complete only when: the v2 Decision commit and generated Gate commit are separate; `PRE_EXECUTION_AUTHORIZED` is achieved with `blocking_reasons=[]` before implementation; the current `active.json` is archived verbatim as `archive/pr97_v4.json` with identical SHA-256; the new `active.json` binds `source_pr: 106`, `locked_base_sha: fa4f240f7dffff78cdb182ce8655c2e2d7cb241f`, the v2 Decision identity, exact v2 Decision blob SHA-256, exact v2 Command Plan blob SHA-256, `allowed_merge_method: merge`, `merge_tree_policy: equal_to_accepted_head_tree`, the four canonical required workflows, and a bounded expiry; `tests/platform_v1/test_merge_intent.py` continues verifying pr97_v1, pr97_v2, pr97_v3 archives and adds verification for pr97_v4 archive byte-identity and new active intent binding PR #106/v2; `tests/test_mainline_landing.py::test_committed_active_intent_binds_exact_current_authority` passes; `tests/test_mainline_landing.py::test_production_pre_merge_simulation` passes; the State Gate workflow uses a trusted verifier checkout bound to the exact base SHA with `persist-credentials: false`, separates authority verification from candidate code execution, passes no tokens to candidate steps, and runs candidate tests only after the authority gate passes; `detect_control_plane_mode()` preserves v1 semantics; `path_a.py` implements real-time Issue/PR re-observation, multi-page event flattening, strict allowed-path grammar, and all v1 fail-closed checks; `parse_allowed_paths()` rejects all wildcard patterns except `directory/subtree/**`; the workflow triggers on all ordinary PRs without path filtering; all required local test suites pass with zero failures; `transition-lint` passes; `transition-preflight` returns `PRE_EXECUTION_AUTHORIZED`; `git diff --check fa4f240f7dffff78cdb182ce8655c2e2d7cb241f..HEAD` passes; exact-head CI, State Gate pull_request, and Decision Preflight succeed; the PR remains Draft and unmerged. The terminal status is `PATH_A_STATE_GATE_CURRENT_MAIN_V2_READY_FOR_INDEPENDENT_AUDIT`. Any scope conflict, credential exposure, idempotency failure, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
