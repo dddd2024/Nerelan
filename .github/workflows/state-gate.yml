@@ -4,29 +4,18 @@ on:
   push:
     branches:
       - "main"
-    paths:
-      - "project_state/**"
-      - "reverse_agent/**"
-      - "tests/**"
-      - ".github/workflows/**"
-      - ".codex-skills/**"
-      - "docs/prompts/**"
-  pull_request:
+  pull_request_target:
     types:
       - opened
       - edited
       - synchronize
+      - reopened
       - ready_for_review
+      - converted_to_draft
       - labeled
       - unlabeled
-      - reopened
-    paths:
-      - "project_state/**"
-      - "reverse_agent/**"
-      - "tests/**"
-      - ".github/workflows/**"
-      - ".codex-skills/**"
-      - "docs/prompts/**"
+      - auto_merge_enabled
+      - auto_merge_disabled
 
 permissions:
   contents: read
@@ -35,29 +24,52 @@ permissions:
   issues: read
 
 jobs:
-  state-gate:
+  # ===========================================================================
+  # Trusted authority verification job
+  #
+  # Uses base-branch code for all authority checks.  Candidate code never
+  # executes before the authority gate passes.  No GITHUB_TOKEN is passed to
+  # candidate code.
+  # ===========================================================================
+  authority-gate:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    outputs:
+      mode: ${{ steps.control_plane.outputs.mode }}
+      path_a_authorized: ${{ steps.path_a_authority.outputs.authorized }}
     steps:
-      - name: Checkout exact head
+      - name: Checkout trusted base
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Overlay candidate project_state (for transition/legacy authority)
+        if: github.event_name == 'pull_request_target'
+        shell: bash
+        run: |
+          git fetch origin "${{ github.event.pull_request.head.sha }}"
+          git checkout "${{ github.event.pull_request.head.sha }}" -- project_state/
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
-      - name: Install package
+      - name: Install trusted package
         run: python -m pip install -e ".[test]"
 
-      - name: Detect control-plane mode
+      - name: Detect control-plane mode (trusted)
         id: control_plane
         shell: bash
         run: echo "mode=$(python -m reverse_agent.project_gate control-plane-mode --state-dir project_state --event-path "$GITHUB_EVENT_PATH")" >> "$GITHUB_OUTPUT"
 
+      # ----- Transition mode (trusted verifier) -----
+      # Branch lifecycle routing (pull_request_target equivalent of
+      # github.ref != 'refs/heads/main' from the original pull_request model):
+      #   PR events  -> transition-preflight
+      #   push main  -> integration-baseline, mainline-merge-validation, receipt
       - name: Transition lint
         if: steps.control_plane.outputs.mode == 'transition'
         run: python -m reverse_agent.project_gate transition-lint --state-dir project_state
@@ -67,22 +79,22 @@ jobs:
         run: python -m reverse_agent.project_gate transition-command-plan --state-dir project_state
 
       - name: Transition preflight
-        if: steps.control_plane.outputs.mode == 'transition' && github.ref != 'refs/heads/main'
+        if: steps.control_plane.outputs.mode == 'transition' && github.event_name == 'pull_request_target'
         run: python -m reverse_agent.project_gate transition-preflight --state-dir project_state
 
       - name: Historical integration baseline
-        if: steps.control_plane.outputs.mode == 'transition' && github.ref == 'refs/heads/main'
+        if: steps.control_plane.outputs.mode == 'transition' && github.event_name == 'push'
         run: python -m reverse_agent.project_gate integration-baseline --state-dir project_state
 
       - name: Current mainline merge validation
-        if: steps.control_plane.outputs.mode == 'transition' && github.ref == 'refs/heads/main'
+        if: steps.control_plane.outputs.mode == 'transition' && github.event_name == 'push'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: python -m reverse_agent.project_gate mainline-merge-validation --state-dir project_state
 
       - name: Emit mainline integration receipt
-        if: steps.control_plane.outputs.mode == 'transition' && github.ref == 'refs/heads/main'
+        if: steps.control_plane.outputs.mode == 'transition' && github.event_name == 'push'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -91,6 +103,7 @@ jobs:
           --state-dir project_state
           --output "${{ runner.temp }}/mainline_integration_receipt.json"
 
+      # ----- Legacy mode (trusted verifier) -----
       - name: Project gate preflight
         if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate preflight --state-dir project_state
@@ -179,15 +192,21 @@ jobs:
         if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state
 
-      - name: Path-A R1 collect GitHub state
-        if: steps.control_plane.outputs.mode == 'path_a_r1' && github.event_name == 'pull_request'
+      - name: Project gate final check (legacy)
+        if: steps.control_plane.outputs.mode == 'legacy'
+        run: python -m reverse_agent.project_gate final-check --state-dir project_state
+
+      # ----- Path-A R1 authority verification (trusted, live re-observation) -----
+      - name: Path-A R1 collect GitHub state (live re-observation)
+        if: steps.control_plane.outputs.mode == 'path_a_r1' && github.event_name == 'pull_request_target'
         id: path_a_state
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
+          # Parse issue number from PR body using trusted Python
           ISSUE_NUMBER=$(python -c "
           import json
           from reverse_agent.control_plane.path_a import parse_snapshot
@@ -197,14 +216,53 @@ jobs:
           print(snapshot.issue_number)
           ")
           echo "issue_number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
-          gh issue view "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" \
-            --json number,body,labels,state,content_last_edited_at \
+
+          # Live re-query Issue using gh api (supported REST fields, no content_last_edited_at)
+          gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER" \
+            --jq '{number: .number, state: .state, body: .body, labels: .labels}' \
             > "$RUNNER_TEMP/path_a_issue.json"
+
+          # Paginated events with --slurp for deterministic array-of-pages
           gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/events" \
-            --paginate > "$RUNNER_TEMP/path_a_approval_events.json"
+            --paginate --slurp \
+            > "$RUNNER_TEMP/path_a_approval_events.json"
+
+          # Live re-query PR state
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            --json number,state,isDraft,body,autoMerge,headRefName,headRefOid,baseRefName,baseRefOid \
+            > "$RUNNER_TEMP/path_a_pr.json"
+
+          # Merge live PR data into event for authority verification
+          python -c "
+          import json
+          event = json.load(open('$GITHUB_EVENT_PATH'))
+          live_pr = json.load(open('$RUNNER_TEMP/path_a_pr.json'))
+          event['pull_request'].update({
+              'number': live_pr.get('number', event['pull_request'].get('number')),
+              'state': live_pr.get('state', event['pull_request'].get('state')),
+              'draft': live_pr.get('isDraft', event['pull_request'].get('draft')),
+              'body': live_pr.get('body', event['pull_request'].get('body')),
+              'auto_merge': live_pr.get('autoMerge', event['pull_request'].get('auto_merge')),
+              'head': {
+                  'ref': live_pr.get('headRefName', event['pull_request']['head']['ref']),
+                  'sha': live_pr.get('headRefOid', event['pull_request']['head']['sha']),
+              },
+              'base': {
+                  'ref': live_pr.get('baseRefName', event['pull_request']['base']['ref']),
+                  'sha': live_pr.get('baseRefOid', event['pull_request']['base']['sha']),
+              },
+          })
+          json.dump(event, open('$RUNNER_TEMP/path_a_event.json', 'w'))
+          "
+
+          # Extract approver using trusted Python with flatten_paginated_events
           APPROVER=$(python -c "
           import json
-          events = json.load(open('$RUNNER_TEMP/path_a_approval_events.json'))
+          from reverse_agent.control_plane.path_a import flatten_paginated_events
+          with open('$RUNNER_TEMP/path_a_approval_events.json') as f:
+              raw = json.load(f)
+          events = flatten_paginated_events(raw)
           transitions = [
               e for e in events
               if e.get('event') in ('labeled', 'unlabeled')
@@ -223,38 +281,78 @@ jobs:
             --jq '.permission')
           echo "permission=$PERMISSION" >> "$GITHUB_OUTPUT"
 
-      - name: Path-A R1 gate
-        if: steps.control_plane.outputs.mode == 'path_a_r1' && github.event_name == 'pull_request'
+      - name: Path-A R1 authority gate (trusted verifier)
+        if: steps.control_plane.outputs.mode == 'path_a_r1' && github.event_name == 'pull_request_target'
+        id: path_a_authority
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: |
           python -m reverse_agent.project_gate path-a-r1-gate \
-            --event-path "$GITHUB_EVENT_PATH" \
+            --event-path "$RUNNER_TEMP/path_a_event.json" \
             --issue-path "$RUNNER_TEMP/path_a_issue.json" \
             --approval-events-path "$RUNNER_TEMP/path_a_approval_events.json" \
             --approver-permission "${{ steps.path_a_state.outputs.permission }}" \
             --repository "$GITHUB_REPOSITORY" \
             --state-dir project_state
+          echo "authorized=true" >> "$GITHUB_OUTPUT"
 
-      - name: Focused gate tests
-        if: steps.control_plane.outputs.mode != 'path_a_r1'
-        run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q
-
-      - name: Path-A R1 focused tests
-        if: steps.control_plane.outputs.mode == 'path_a_r1'
-        run: python -m pytest tests/test_path_a_gate.py tests/test_control_plane_transition.py tests/test_planning_and_github_adapters.py -q
-
-      - name: Project gate final check
-        if: steps.control_plane.outputs.mode == 'legacy'
-        run: python -m reverse_agent.project_gate final-check --state-dir project_state
-
-      - name: Upload project gate evidence
+      - name: Upload authority gate evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: project-gate-evidence
+          name: authority-gate-evidence
+          if-no-files-found: warn
+          path: |
+            project_state/gates/*.json
+            ${{ runner.temp }}/path_a_*.json
+            ${{ runner.temp }}/mainline_integration_receipt.json
+
+  # ===========================================================================
+  # Candidate test job (tokenless, post-authority)
+  #
+  # Candidate code runs ONLY after the authority gate passes.  No GITHUB_TOKEN
+  # or GH_TOKEN is passed to candidate steps.  Uses persist-credentials: false.
+  # ===========================================================================
+  candidate-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: authority-gate
+    if: always() && needs.authority-gate.result == 'success'
+    steps:
+      - name: Checkout candidate head (tokenless)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install candidate package
+        run: python -m pip install -e ".[test]"
+
+      - name: Path-A R1 focused tests (tokenless candidate, post-authority)
+        if: needs.authority-gate.outputs.mode == 'path_a_r1' && needs.authority-gate.outputs.path_a_authorized == 'true'
+        run: python -m pytest tests/test_path_a_gate.py tests/test_control_plane_transition.py tests/test_planning_and_github_adapters.py -q
+
+      - name: Transition focused tests (tokenless candidate)
+        if: needs.authority-gate.outputs.mode == 'transition'
+        run: python -m pytest tests/test_path_a_gate.py tests/test_control_plane_transition.py tests/test_planning_and_github_adapters.py -q
+
+      - name: Legacy focused tests (tokenless candidate)
+        if: needs.authority-gate.outputs.mode == 'legacy'
+        run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q
+
+      - name: Upload candidate test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-test-evidence
           if-no-files-found: warn
           path: |
             project_state/gates/*.json
             project_state/pytest_result.txt
-            ${{ runner.temp }}/mainline_integration_receipt.json

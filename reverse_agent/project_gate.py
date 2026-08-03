@@ -32,6 +32,7 @@ from .control_plane.legacy_adapter import (
 from .control_plane.path_a import (
     PathAGateError,
     changed_paths_for_event,
+    flatten_paginated_events,
     verify_path_a_r1,
 )
 from .control_plane.local_seal import evaluate_reconciliation, seal_local
@@ -36751,6 +36752,10 @@ def _run_path_a_r1_gate(args: argparse.Namespace) -> int:
     is read from files supplied by the caller — this function performs no
     network I/O.  ``changed_paths_for_event`` uses local ``git diff`` against
     the checked-out HEAD, which is the only subprocess use.
+
+    The event name is read from ``GITHUB_EVENT_NAME`` (set by GitHub Actions);
+    it defaults to ``pull_request`` for local testing.  Approval events may be
+    either a flat JSON array or a ``--paginate --slurp`` array-of-pages.
     """
 
     try:
@@ -36765,6 +36770,14 @@ def _run_path_a_r1_gate(args: argparse.Namespace) -> int:
         )
         if not isinstance(approval_events_raw, list):
             raise ValueError("approval_events_json_must_be_array")
+        # Detect and flatten paginated --slurp output (list of pages).
+        if approval_events_raw and all(
+            isinstance(page, list) for page in approval_events_raw
+        ):
+            approval_events = flatten_paginated_events(approval_events_raw)
+        else:
+            approval_events = approval_events_raw
+        event_name = os.environ.get("GITHUB_EVENT_NAME", "pull_request")
         approver_permission = str(args.approver_permission or "").strip().lower()
         expected_repository = str(args.repository or "").strip()
         expected_authority_revision = (
@@ -36780,10 +36793,10 @@ def _run_path_a_r1_gate(args: argparse.Namespace) -> int:
             text=True,
         ).strip()
         result = verify_path_a_r1(
-            event_name="pull_request",
+            event_name=event_name,
             event=event,
             issue=issue,
-            approval_events=approval_events_raw,
+            approval_events=approval_events,
             approver_permission=approver_permission,
             changed_paths=changed_paths,
             merge_base_sha=merge_base_sha,

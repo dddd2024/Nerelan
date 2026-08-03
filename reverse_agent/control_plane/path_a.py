@@ -433,6 +433,16 @@ def _section_fenced_block(markdown: str, heading: str) -> str:
 
 
 def parse_allowed_paths(issue_body: str) -> tuple[str, ...]:
+    """Parse the allowed-paths block with a strict grammar.
+
+    Only two forms are accepted:
+    - exact paths: ``docs/file.md``
+    - subtree globs: ``directory/subtree/**``
+
+    All other wildcard patterns (``*``, ``**``, ``**/*``, ``docs/*.md``,
+    ``docs/**/file.md``, ``?``, ``[ab]``, ``src/*/file.py``) are rejected.
+    The only permitted ``*`` is a trailing ``/**`` after a non-empty directory.
+    """
     block = _section_fenced_block(issue_body, "Allowed paths")
     paths: list[str] = []
     for line in block.splitlines():
@@ -449,6 +459,18 @@ def parse_allowed_paths(issue_body: str) -> tuple[str, ...]:
             raise PathAGateError("issue_allowed_paths_unbounded", raw_path)
         if normalized.startswith("/") or ".." in Path(normalized).parts:
             raise PathAGateError("issue_allowed_paths_invalid", raw_path)
+        # Strict grammar: only exact paths and directory/subtree/**
+        # The /** prefix must have at least two path components (e.g. docs/subtree/**)
+        # to prevent overly broad single-directory globs like docs/**
+        if normalized.endswith("/**"):
+            prefix = normalized[:-3].rstrip("/")
+            if not prefix or any(c in prefix for c in "*?[]"):
+                raise PathAGateError("issue_allowed_paths_invalid", raw_path)
+            prefix_parts = [p for p in prefix.split("/") if p]
+            if len(prefix_parts) < 2:
+                raise PathAGateError("issue_allowed_paths_invalid", raw_path)
+        elif any(c in normalized for c in "*?[]"):
+            raise PathAGateError("issue_allowed_paths_invalid", raw_path)
         paths.append(normalized)
     if not paths:
         raise PathAGateError("issue_allowed_paths_empty")
@@ -456,11 +478,55 @@ def parse_allowed_paths(issue_body: str) -> tuple[str, ...]:
 
 
 def _path_matches(path: str, pattern: str) -> bool:
+    """Match a path against an allowed-path pattern.
+
+    Only two pattern forms are supported:
+    - exact path: ``docs/file.md`` matches only ``docs/file.md``
+    - subtree glob: ``docs/sub/**`` matches ``docs/sub`` and ``docs/sub/...``
+
+    ``*`` never crosses ``/``.  ``fnmatchcase`` is not used so that a stray
+    ``*`` cannot match across directory boundaries.
+    """
     normalized = path.replace("\\", "/").lstrip("./")
     candidate = pattern.replace("\\", "/").lstrip("./")
     if candidate.endswith("/**"):
         prefix = candidate[:-3].rstrip("/")
         return normalized == prefix or normalized.startswith(prefix + "/")
+    return normalized == candidate
+
+
+def flatten_paginated_events(raw_pages: Any) -> list[dict[str, Any]]:
+    """Flatten ``gh api --paginate --slurp`` output into a deterministic array.
+
+    The ``--slurp`` flag produces a JSON array of pages, where each page is a
+    JSON array of events.  This function validates the structure and flattens
+    it into a single deterministic list.  Malformed input fails closed.
+    """
+    if not isinstance(raw_pages, list):
+        raise PathAGateError("pagination_pages_not_array")
+    events: list[dict[str, Any]] = []
+    for page_index, page in enumerate(raw_pages):
+        if not isinstance(page, list):
+            raise PathAGateError("pagination_page_not_array", str(page_index))
+        for event in page:
+            if not isinstance(event, dict):
+                raise PathAGateError("pagination_event_not_object")
+            events.append(event)
+    return events
+
+
+def _path_matches_risk(path: str, pattern: str) -> bool:
+    """Match a path against a risk-policy pattern using fnmatch semantics.
+
+    Risk policy patterns use wildcards (``**/*.exe``, ``*credential*``) that
+    must match across directory boundaries.  This is distinct from
+    :func:`_path_matches` which is strict for allowed-path grammar.
+    """
+    normalized = path.replace("\\", "/")
+    candidate = pattern.replace("\\", "/")
+    # fnmatchcase treats * as matching everything except / on some platforms,
+    # but we need * to cross / for risk patterns like **/*.exe.
+    # Use a translation that allows * to match any characters including /.
     return fnmatchcase(normalized, candidate)
 
 
@@ -469,7 +535,7 @@ def _minimum_path_risk(path: str) -> tuple[str, str] | None:
     matches = tuple(
         (minimum_risk, pattern)
         for pattern, minimum_risk in ORDINARY_R1_PATH_RISK_POLICY
-        if _path_matches(canonical_path, pattern.casefold())
+        if _path_matches_risk(canonical_path, pattern.casefold())
     )
     if not matches:
         return None
@@ -517,7 +583,9 @@ def verify_path_a_r1(
 ) -> dict[str, Any]:
     """Verify a complete ordinary R1 authority snapshot without executing Issue text."""
 
-    if event_name != "pull_request" or not isinstance(event.get("pull_request"), Mapping):
+    if event_name not in ("pull_request", "pull_request_target") or not isinstance(
+        event.get("pull_request"), Mapping
+    ):
         raise PathAGateError("event_not_pull_request")
     repository = str((event.get("repository") or {}).get("full_name") or "")
     if repository != expected_repository:
