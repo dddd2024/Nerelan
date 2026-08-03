@@ -7,20 +7,7 @@ AUTHORITY: PLANNING_REFERENCE_ONLY
 
 This contract defines how context is shared — and explicitly not shared — across different Agent products that operate on this repository. It is a planning reference; it does not itself authorize commands, file changes, closeout, or merge.
 
-## Immutable Path-A Authority Snapshot
-
-```text
-repository: dddd2024/reverse-agent
-issue_number: 103
-approval_state: APPROVED
-approved_by: dddd2024 (repository owner/maintainer)
-approval_event_or_time: 2026-08-03T02:03:55Z (r1-approved label applied by dddd2024)
-body_digest_sha256: 885d8ae9e2041ae374c9774cc56a1495423681fecf866726504674be96fcce5d
-immutable_observation_ref: 885d8ae9e2041ae374c9774cc56a1495423681fecf866726504674be96fcce5d
-work_item_identity: dddd2024/reverse-agent#103@885d8ae9e2041ae374c9774cc56a1495423681fecf866726504674be96fcce5d
-target_branch: agent/cross-agent-context-contract-v1
-base_sha: fa4f240f7dffff78cdb182ce8655c2e2d7cb241f
-```
+Transient execution facts (the Path-A authority snapshot — repository, Issue number, approval state, approver, approval event/time, body digest, immutable observation ref, work-item identity, target branch, base SHA) belong only in the Draft PR body for the specific Work Item. They must not be embedded in this permanent contract, because they would otherwise become stale dynamic metadata that contradicts the contract's own freshness rules. The active Work Item snapshot for this contract is recorded in PR #104.
 
 ## Why this contract is needed
 

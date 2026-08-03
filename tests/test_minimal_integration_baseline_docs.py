@@ -766,3 +766,35 @@ def test_project_governance_context_states_exact_commit_and_freshness() -> None:
         "project_governance_context.md must state current_context_packet.json "
         "does not synchronize product-private memory"
     )
+
+
+def test_cross_agent_contract_excludes_transient_authority_snapshot() -> None:
+    """The permanent contract must not embed transient Path-A execution facts.
+
+    The immutable authority snapshot (repository, issue number, approval state,
+    approver, approval event/time, body digest, immutable observation ref,
+    work-item identity, target branch, base SHA) is a one-time Work Item fact
+    that belongs only in the Draft PR body. Embedding it in the permanent
+    contract would create stale dynamic metadata that contradicts the
+    contract's own freshness rules.
+    """
+    content = _read(CROSS_AGENT_CONTRACT_MD)
+
+    assert "## Immutable Path-A Authority Snapshot" not in content, (
+        "Permanent contract must not contain a Path-A authority snapshot section"
+    )
+
+    for token in (
+        "approval_event_or_time",
+        "body_digest_sha256",
+        "immutable_observation_ref",
+        "work_item_identity",
+        "target_branch",
+        "base_sha",
+    ):
+        assert token not in content, (
+            f"Permanent contract must not contain transient field token {token!r}"
+        )
+
+    assert "AUTHORITY: PLANNING_REFERENCE_ONLY" in content
+    assert "This contract does not authorize Issue #102" in content
