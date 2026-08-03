@@ -374,14 +374,16 @@ jobs:
   # ===========================================================================
   # Candidate test job (tokenless, post-authority)
   #
-  # Candidate code runs ONLY after the authority gate passes.  No GITHUB_TOKEN
-  # or GH_TOKEN is passed to candidate steps.  Uses persist-credentials: false.
+  # Candidate code runs ONLY after the authority gate passes AND only for
+  # pull_request_target events.  No GITHUB_TOKEN or GH_TOKEN is passed to
+  # candidate steps.  Uses persist-credentials: false.  Push events skip this
+  # job entirely.
   # ===========================================================================
   candidate-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     needs: authority-gate
-    if: always() && needs.authority-gate.result == 'success'
+    if: always() && github.event_name == 'pull_request_target' && needs.authority-gate.result == 'success'
     steps:
       - name: Checkout candidate head (tokenless)
         uses: actions/checkout@v4
@@ -423,15 +425,18 @@ jobs:
   # ===========================================================================
   # Finalize receipt job (trusted, no candidate code)
   #
-  # Runs always (even if candidate-tests fail).  Does NOT execute candidate
-  # code.  Generates a verifiable receipt artifact bound to PR and candidate
-  # head.  Candidate tests failure => receipt final_gate_result = BLOCKED.
+  # Runs only for pull_request_target events (even if candidate-tests fail).
+  # Does NOT execute candidate code.  Generates a verifiable receipt artifact
+  # bound to PR and candidate head, then ENFORCES the receipt as a blocking
+  # gate.  Push events skip this job entirely.  Candidate tests failure or
+  # missing/malformed receipt => receipt final_gate_result = BLOCKED => job
+  # failure.
   # ===========================================================================
   finalize-receipt:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [authority-gate, candidate-tests]
-    if: always()
+    if: always() && github.event_name == 'pull_request_target'
     steps:
       - name: Checkout trusted base (no candidate code)
         uses: actions/checkout@v4
@@ -564,3 +569,76 @@ jobs:
         with:
           name: state-gate-receipt-pr${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
           path: ${{ runner.temp }}/state_gate_receipt.json
+
+      - name: Enforce receipt as blocking gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -c "
+          import json, os, sys
+
+          receipt_path = os.path.join(os.environ['RUNNER_TEMP'], 'state_gate_receipt.json')
+          if not os.path.exists(receipt_path):
+              print('ERROR: receipt file missing', file=sys.stderr)
+              sys.exit(1)
+
+          with open(receipt_path) as f:
+              receipt = json.load(f)
+
+          if not isinstance(receipt, dict):
+              print('ERROR: receipt not a JSON object', file=sys.stderr)
+              sys.exit(1)
+
+          final_gate_result = receipt.get('final_gate_result', '')
+          selected_mode = receipt.get('selected_mode', '')
+          authority_result = receipt.get('authority_result', '')
+          candidate_tests_result = receipt.get('candidate_tests_result', '')
+          trusted_verifier_tree = receipt.get('trusted_verifier_tree_sha', '')
+          trusted_base = receipt.get('trusted_base_sha', '')
+          changed_paths_sha = receipt.get('changed_paths_sha256', '')
+          authority_revision = receipt.get('authority_revision', '')
+          content_sha = receipt.get('content_sha256', '')
+
+          errors = []
+
+          # final_gate_result must be PASS
+          if final_gate_result != 'PASS':
+              errors.append(f'final_gate_result={final_gate_result} (expected PASS)')
+
+          # selected_mode must be supported
+          if selected_mode not in {'transition', 'path_a_r1', 'legacy'}:
+              errors.append(f'unsupported selected_mode={selected_mode!r}')
+
+          # authority_result must be SUCCESS
+          if authority_result != 'SUCCESS':
+              errors.append(f'authority_result={authority_result} (expected SUCCESS)')
+
+          # candidate_tests_result must be SUCCESS
+          if candidate_tests_result != 'SUCCESS':
+              errors.append(f'candidate_tests_result={candidate_tests_result} (expected SUCCESS)')
+
+          # trusted verifier tree must equal trusted base
+          if trusted_verifier_tree != trusted_base:
+              errors.append(f'trusted_verifier_tree_sha={trusted_verifier_tree} != trusted_base_sha={trusted_base}')
+
+          # changed_paths_sha256 must be lowercase SHA-256
+          import re
+          if not re.fullmatch(r'[0-9a-f]{64}', str(changed_paths_sha)):
+              errors.append(f'changed_paths_sha256 format invalid: {changed_paths_sha!r}')
+
+          # authority_revision must be nonempty
+          if not str(authority_revision).strip():
+              errors.append('authority_revision empty')
+
+          # content_sha256 must be lowercase SHA-256
+          if not re.fullmatch(r'[0-9a-f]{64}', str(content_sha)):
+              errors.append(f'content_sha256 format invalid: {content_sha!r}')
+
+          if errors:
+              for e in errors:
+                  print(f'RECEIPT_GATE_FAILURE: {e}', file=sys.stderr)
+              sys.exit(1)
+
+          print('RECEIPT_GATE_PASS: all checks passed')
+          "
+

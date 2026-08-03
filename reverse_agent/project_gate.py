@@ -36757,6 +36757,12 @@ def _run_trusted_pr_route(args: argparse.Namespace) -> int:
     checked out.  Mode selection uses the trusted active Decision contract
     (read from the trusted base ``project_state``) plus the trusted observation.
     Candidate ``project_state`` is not consulted for initial routing.
+
+    The trusted base Decision's historical ``activation_base_sha`` is NOT
+    passed into the generic initial route observation.  The initial route
+    constrains merge-base to the live event base SHA only.  The candidate
+    Decision's own base/branch/ancestry is validated later by transition
+    preflight after mode selection.
     """
 
     try:
@@ -36767,12 +36773,15 @@ def _run_trusted_pr_route(args: argparse.Namespace) -> int:
         repo_root = Path.cwd()
         state_dir = Path(args.state_dir)
         decision, contract = load_transition_decision(state_dir / "decision_packet.md")
-        authorized_base_sha = str(contract.get("activation_base_sha") or "").strip().lower()
+        # Do NOT pass the trusted base Decision's historical activation_base_sha
+        # into the generic initial route observation.  The initial route uses
+        # the live event base SHA as the merge-base constraint.  The candidate
+        # Decision's own base/branch/ancestry is validated by transition
+        # preflight after mode selection.
         observation = build_trusted_changed_path_observation(
             event,
             repo_root,
             expected_repository=expected_repository,
-            authorized_base_sha=authorized_base_sha or None,
         )
         mode = select_control_plane_mode(
             trusted_decision_contract=contract,
