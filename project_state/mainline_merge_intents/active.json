@@ -7,7 +7,7 @@
   "allowed_merge_method": "merge",
   "decision_identity": {
     "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v8",
-    "decision_content_sha256": "7a48f1e27572aad675d47f0fdd55716481c81d14d69c1d37596c9e1e21c010bf"
+    "decision_content_sha256": "f4c99d9252963d8c496ad9d7efbdffc24eb4346c0478223364f5c75d047b18ef"
   },
   "command_plan_sha256": "97017c19edf93c01ba8a088943bfb43abb5aff9cff9e7e63f38f010fb3f778b3",
   "merge_tree_policy": "equal_to_accepted_head_tree",
