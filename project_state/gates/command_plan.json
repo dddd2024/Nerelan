@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v8",
-  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v8",
+  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v9",
+  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v9",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -37,6 +37,28 @@
       "execution_surface": "local",
       "operations": [
         "diff_validation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "test.pytest_platform_v1_focused",
+      "command": "python -m pytest tests/platform_v1/test_contracts.py tests/platform_v1/test_merge_intent.py tests/platform_v1/test_evidence_adapter.py tests/platform_v1/test_github_adapter.py tests/platform_v1/test_cli.py -q",
+      "phase": "test",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
       ],
       "network_access": false,
       "diagnostic_only": false,
