@@ -54,7 +54,7 @@ EXPECTED_V4_DECISION_ID_PR106 = (
     "decision_20260803_restore_path_a_state_gate_current_main_v4"
 )
 EXPECTED_V5_DECISION_ID_PR106 = (
-    "decision_20260803_restore_path_a_state_gate_current_main_v5"
+    "decision_20260803_restore_path_a_state_gate_current_main_v6"
 )
 EXPECTED_V4_DECISION_ID = (
     "decision_20260802_issue100_platform_v1_authority_collector_v4"

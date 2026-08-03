@@ -641,4 +641,3 @@ jobs:
 
           print('RECEIPT_GATE_PASS: all checks passed')
           "
-

@@ -1028,19 +1028,19 @@ class TestActiveMergeIntentV5:
     def test_active_binds_source_pr_106(self) -> None:
         assert self._active["source_pr"] == 106
 
-    def test_active_binds_v5_decision_id(self) -> None:
+    def test_active_binds_v6_decision_id(self) -> None:
         assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260803_restore_path_a_state_gate_current_main_v5"
+            "decision_20260803_restore_path_a_state_gate_current_main_v6"
         )
 
-    def test_active_binds_v5_decision_content_sha256(self) -> None:
+    def test_active_binds_v6_decision_content_sha256(self) -> None:
         sha = self._active["decision_identity"]["decision_content_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
         # Must differ from the v4 PR106 decision content SHA-256
         assert sha != self._archive_v4_pr106["decision_identity"]["decision_content_sha256"]
 
-    def test_active_binds_v5_command_plan_sha256(self) -> None:
+    def test_active_binds_v6_command_plan_sha256(self) -> None:
         sha = self._active["command_plan_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
