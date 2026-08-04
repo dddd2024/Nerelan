@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260804_issue111_pr112_candidate_test_semantic_guard_v2",
-  "round_id": "round_20260804_issue111_pr112_candidate_test_semantic_guard_v2",
+  "decision_id": "decision_20260804_issue111_pr112_utf8_semantic_guard_v3",
+  "round_id": "round_20260804_issue111_pr112_utf8_semantic_guard_v3",
   "commands": [
     {
       "command_id": "observation.git_status",
