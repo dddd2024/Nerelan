@@ -919,6 +919,7 @@ class TestActiveMergeIntentV6:
         self._archive_v4_path = intents_dir / "archive" / "pr97_v4.json"
         self._archive_pr108_path = intents_dir / "archive" / "pr108_v1.json"
         self._archive_pr110_path = intents_dir / "archive" / "pr110_v1.json"
+        self._archive_pr112_path = intents_dir / "archive" / "pr112_v1.json"
         self._decision_path = repo_root / "project_state" / "decision_packet.md"
         self._command_plan_path = repo_root / "project_state" / "gates" / "command_plan.json"
         self._active = json.loads(self._active_path.read_text(encoding="utf-8"))
@@ -932,13 +933,16 @@ class TestActiveMergeIntentV6:
         self._archive_pr110 = json.loads(
             self._archive_pr110_path.read_text(encoding="utf-8")
         )
+        self._archive_pr112 = json.loads(
+            self._archive_pr112_path.read_text(encoding="utf-8")
+        )
 
     def test_active_binds_source_pr_112(self) -> None:
         assert self._active["source_pr"] == 112
 
     def test_active_binds_bootstrap_decision_id(self) -> None:
         assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260804_issue111_pr112_bootstrap_v13_retry_v1"
+            "decision_20260804_issue111_pr112_candidate_test_semantic_guard_v2"
         )
 
     def test_active_binds_bootstrap_decision_content_sha256(self) -> None:
@@ -1035,4 +1039,20 @@ class TestActiveMergeIntentV6:
         header = f"blob {len(payload)}\0".encode("ascii")
         assert hashlib.sha1(header + payload).hexdigest() == (
             "bb7ce4c1c61a88e63e0bdc14e0ce2fa4967fc842"
+        )
+
+    def test_archive_pr112_v1_preserves_rejected_identity(self) -> None:
+        assert self._archive_pr112["source_pr"] == 112
+        assert self._archive_pr112["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_bootstrap_v13_retry_v1"
+        )
+        assert self._archive_pr112["locked_base_sha"] == (
+            "93984db182b7ee11b3ccb8795bb5fc3741205b92"
+        )
+
+    def test_archive_pr112_v1_is_exact_rejected_active_blob(self) -> None:
+        payload = self._archive_pr112_path.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "639581296b8dfd8038871010f99aa68401568353"
         )

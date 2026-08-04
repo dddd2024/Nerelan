@@ -2,7 +2,7 @@
 
 Verifies that the active Bootstrap intent binds PR #112, B2, and the exact
 Issue #111 Decision and Command Plan digests. The PR97 v1-v4, PR108 v1, and
-PR110 v1 intents remain archived byte-for-byte.
+PR110 v1 and rejected PR112 v1 intents remain archived byte-for-byte.
 """
 
 from __future__ import annotations
@@ -23,13 +23,14 @@ ARCHIVE_V3_PATH = INTENTS_DIR / "archive" / "pr97_v3.json"
 ARCHIVE_V4_PATH = INTENTS_DIR / "archive" / "pr97_v4.json"
 ARCHIVE_PR108_PATH = INTENTS_DIR / "archive" / "pr108_v1.json"
 ARCHIVE_PR110_PATH = INTENTS_DIR / "archive" / "pr110_v1.json"
+ARCHIVE_PR112_PATH = INTENTS_DIR / "archive" / "pr112_v1.json"
 DECISION_PATH = REPO_ROOT / "project_state" / "decision_packet.md"
 COMMAND_PLAN_PATH = REPO_ROOT / "project_state" / "gates" / "command_plan.json"
 
 EXPECTED_PR97_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
 EXPECTED_BOOTSTRAP_BASE_SHA = "93984db182b7ee11b3ccb8795bb5fc3741205b92"
 EXPECTED_BOOTSTRAP_DECISION_ID = (
-    "decision_20260804_issue111_pr112_bootstrap_v13_retry_v1"
+    "decision_20260804_issue111_pr112_candidate_test_semantic_guard_v2"
 )
 EXPECTED_V4_DECISION_ID = (
     "decision_20260802_issue100_platform_v1_authority_collector_v4"
@@ -44,6 +45,7 @@ EXPECTED_V1_DECISION_ID = "decision_20260802_platform_v1_openhands_codex_acp_v1"
 EXPECTED_PR97_V4_GIT_BLOB = "1afd619ef90df7b01255d1cd16b483190f616df6"
 EXPECTED_PR108_V1_GIT_BLOB = "32ca8e328e28467fcbe1857b7d300152fc89bdf4"
 EXPECTED_PR110_V1_GIT_BLOB = "bb7ce4c1c61a88e63e0bdc14e0ce2fa4967fc842"
+EXPECTED_PR112_V1_GIT_BLOB = "639581296b8dfd8038871010f99aa68401568353"
 
 
 def _load_json(path: Path) -> dict:
@@ -253,6 +255,30 @@ class TestArchivedPR110Intent:
         assert data["locked_base_sha"] == (
             "4aacd7f614342f5ca123b2afccdb9a49df886775"
         )
+
+
+# ---------------------------------------------------------------------------
+# Archived rejected PR112 v1 intent (exact v1 active bytes)
+# ---------------------------------------------------------------------------
+
+class TestArchivedPR112V1Intent:
+    def test_archive_pr112_v1_file_exists(self) -> None:
+        assert ARCHIVE_PR112_PATH.exists(), (
+            f"pr112_v1.json not found at {ARCHIVE_PR112_PATH}"
+        )
+
+    def test_archive_pr112_v1_is_exact_rejected_active_blob(self) -> None:
+        payload = ARCHIVE_PR112_PATH.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == EXPECTED_PR112_V1_GIT_BLOB
+
+    def test_archive_pr112_v1_preserves_identity_and_base(self) -> None:
+        data = _load_json(ARCHIVE_PR112_PATH)
+        assert data["source_pr"] == 112
+        assert data["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_bootstrap_v13_retry_v1"
+        )
+        assert data["locked_base_sha"] == EXPECTED_BOOTSTRAP_BASE_SHA
 
 
 # ---------------------------------------------------------------------------
