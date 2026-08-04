@@ -1121,7 +1121,8 @@ def _semantic_h0_sources() -> dict[str, str]:
         path: subprocess.check_output(
             ["git", "show", f"{SEMANTIC_H0}:{path}"],
             cwd=Path(__file__).resolve().parents[2],
-            text=True,
+            encoding="utf-8",
+            errors="strict",
         )
         for path in SEMANTIC_PATHS
     }

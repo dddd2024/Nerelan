@@ -395,7 +395,8 @@ jobs:
                   ["git", "diff", "--name-status", "-M", "-C", f"{start}..{end}"],
                   check=True,
                   capture_output=True,
-                  text=True,
+                  encoding="utf-8",
+                  errors="strict",
               )
               raw_paths: list[str] = []
               for line in result.stdout.splitlines():
@@ -415,7 +416,9 @@ jobs:
 
           def commit_paths(commit: str) -> set[str]:
               parent = subprocess.check_output(
-                  ["git", "rev-parse", f"{commit}^1"], text=True
+                  ["git", "rev-parse", f"{commit}^1"],
+                  encoding="utf-8",
+                  errors="strict",
               ).strip()
               return set(changed_paths(parent, commit))
 
@@ -424,13 +427,18 @@ jobs:
               raise SystemExit(f"unexpected B2..B3 paths: {sorted(b3_paths)}")
           chain = subprocess.check_output(
               ["git", "rev-list", "--first-parent", "--reverse", f"{h0}..{candidate_head}"],
-              text=True,
+              encoding="utf-8",
+              errors="strict",
           ).splitlines()
           merge_tree = subprocess.check_output(
-              ["git", "rev-parse", f"{chain[0]}^{{tree}}"], text=True
+              ["git", "rev-parse", f"{chain[0]}^{{tree}}"],
+              encoding="utf-8",
+              errors="strict",
           ).strip()
           h0_tree = subprocess.check_output(
-              ["git", "rev-parse", f"{h0}^{{tree}}"], text=True
+              ["git", "rev-parse", f"{h0}^{{tree}}"],
+              encoding="utf-8",
+              errors="strict",
           ).strip()
           if merge_tree != h0_tree:
               raise SystemExit("PR106 H0+B3 merge tree differs from H0")
@@ -452,28 +460,38 @@ jobs:
 
           workflow_path = ".github/workflows/state-gate.yml"
           h0_workflow = subprocess.check_output(
-              ["git", "rev-parse", f"{h0}:{workflow_path}"], text=True
+              ["git", "rev-parse", f"{h0}:{workflow_path}"],
+              encoding="utf-8",
+              errors="strict",
           ).strip()
           candidate_workflow = subprocess.check_output(
-              ["git", "rev-parse", f"{candidate_head}:{workflow_path}"], text=True
+              ["git", "rev-parse", f"{candidate_head}:{workflow_path}"],
+              encoding="utf-8",
+              errors="strict",
           ).strip()
           if h0_workflow != candidate_workflow:
               raise SystemExit("candidate workflow blob differs from H0")
           h0_production = subprocess.check_output(
-              ["git", "rev-parse", f"{h0}:reverse_agent"], text=True
+              ["git", "rev-parse", f"{h0}:reverse_agent"],
+              encoding="utf-8",
+              errors="strict",
           ).strip()
           candidate_production = subprocess.check_output(
-              ["git", "rev-parse", f"{candidate_head}:reverse_agent"], text=True
+              ["git", "rev-parse", f"{candidate_head}:reverse_agent"],
+              encoding="utf-8",
+              errors="strict",
           ).strip()
           if h0_production != candidate_production:
               raise SystemExit("candidate production Python tree differs from H0")
           archived = subprocess.check_output(
               ["git", "rev-parse", f"{candidate_head}:project_state/mainline_merge_intents/archive/pr106_v11r2.json"],
-              text=True,
+              encoding="utf-8",
+              errors="strict",
           ).strip()
           prior_active = subprocess.check_output(
               ["git", "rev-parse", f"{h0}:project_state/mainline_merge_intents/active.json"],
-              text=True,
+              encoding="utf-8",
+              errors="strict",
           ).strip()
           if archived != prior_active:
               raise SystemExit("pr106_v11r2 archive differs from H0 active Intent")
@@ -481,16 +499,21 @@ jobs:
           archive_prefix = "project_state/mainline_merge_intents/archive/"
           historical_archives = subprocess.check_output(
               ["git", "ls-tree", "-r", "--name-only", h0, archive_prefix],
-              text=True,
+              encoding="utf-8",
+              errors="strict",
           ).splitlines()
           if not historical_archives:
               raise SystemExit("H0 historical archive inventory is empty")
           for archive_path in historical_archives:
               h0_archive = subprocess.check_output(
-                  ["git", "rev-parse", f"{h0}:{archive_path}"], text=True
+                  ["git", "rev-parse", f"{h0}:{archive_path}"],
+                  encoding="utf-8",
+                  errors="strict",
               ).strip()
               candidate_archive = subprocess.check_output(
-                  ["git", "rev-parse", f"{candidate_head}:{archive_path}"], text=True
+                  ["git", "rev-parse", f"{candidate_head}:{archive_path}"],
+                  encoding="utf-8",
+                  errors="strict",
               ).strip()
               if h0_archive != candidate_archive:
                   raise SystemExit(f"historical archive changed: {archive_path}")
