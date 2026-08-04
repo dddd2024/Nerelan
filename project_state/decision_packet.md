@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260804_issue111_pr112_utf8_semantic_guard_v3",
-  "round_id": "round_20260804_issue111_pr112_utf8_semantic_guard_v3",
+  "decision_id": "decision_20260804_issue111_pr112_marker_movement_guard_v4",
+  "round_id": "round_20260804_issue111_pr112_marker_movement_guard_v4",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,10 +16,10 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260804_issue111_pr112_candidate_test_semantic_guard_v2",
-  "follows_last_round_id": "round_20260804_issue111_pr112_candidate_test_semantic_guard_v2",
-  "previous_audit_outcome": "PR112_V2_REJECTED_WINDOWS_DEFAULT_GBK_GIT_SHOW_DECODE",
-  "workstream_id": "issue111-pr112-utf8-semantic-guard-v3",
+  "follows_last_decision_id": "decision_20260804_issue111_pr112_utf8_semantic_guard_v3",
+  "follows_last_round_id": "round_20260804_issue111_pr112_utf8_semantic_guard_v3",
+  "previous_audit_outcome": "PR112_V3_REJECTED_MARKER_MOVED_FIXTURE_STOPITERATION",
+  "workstream_id": "issue111-pr112-marker-movement-guard-v4",
   "source_issue": 111,
   "parent_issue": 90,
   "dependent_issue": 105,
@@ -28,7 +28,7 @@
   "prior_bootstrap_pr": 110,
   "active_pr": 112,
   "required_branch": "owner/state-gate-bootstrap-v13-retry-v3",
-  "starting_head": "79b926b6797771ad58bfd2bf57f38217b373132a",
+  "starting_head": "9bc2e2fd0a9a0c402f4c63361718927f49d9c0c7",
   "activation_base_sha": "93984db182b7ee11b3ccb8795bb5fc3741205b92",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -249,6 +249,7 @@
     "project_state/mainline_merge_intents/archive/pr110_v1.json",
     "project_state/mainline_merge_intents/archive/pr112_v1.json",
     "project_state/mainline_merge_intents/archive/pr112_v2.json",
+    "project_state/mainline_merge_intents/archive/pr112_v3.json",
     "tests/platform_v1/test_contracts.py",
     "tests/platform_v1/test_merge_intent.py"
   ],
@@ -361,6 +362,7 @@
     "project_state/mainline_merge_intents/archive/pr110_v1.json",
     "project_state/mainline_merge_intents/archive/pr112_v1.json",
     "project_state/mainline_merge_intents/archive/pr112_v2.json",
+    "project_state/mainline_merge_intents/archive/pr112_v3.json",
     "tests/platform_v1/test_contracts.py",
     "tests/platform_v1/test_merge_intent.py"
   ],
@@ -393,11 +395,11 @@
 
 Repair the exact-head Owner finding on existing Draft PR #112 by replacing the test-name-only candidate guard with a closed normalized-AST semantic-body allowlist. The v2 round starts from rejected v1 head `d19439387756c2b2516f9ca7af5a3d585a0b45a7` on branch `owner/state-gate-bootstrap-v13-retry-v3` and retains activation base B2 `93984db182b7ee11b3ccb8795bb5fc3741205b92`.
 
-The cumulative implementation is limited to the exact thirteen paths in `allowed_mutated_paths`; rejected v1 and v2 active Intents are archived byte-for-byte as `pr112_v1.json` and `pr112_v2.json`, while existing `pr110_v1.json` and every earlier archive remain immutable. The v2 semantic bridge design is preserved, and v3 only removes locale-dependent Git-output decoding by requiring strict UTF-8. The bridge must preserve helpers, fixtures, decorators, assertions, imports, collection controls and module statements by normalized AST, allowing only the explicit v14 base/Decision/archive transformations. It must not import, compile, execute or run candidate Python in the token-bearing authority job.
+The cumulative implementation is limited to the exact fourteen paths in `allowed_mutated_paths`; rejected v1, v2 and v3 active Intents are archived byte-for-byte as `pr112_v1.json`, `pr112_v2.json` and `pr112_v3.json`, while existing `pr110_v1.json` and every earlier archive remain immutable. The v2 semantic bridge design and v3 strict UTF-8 correction are preserved. V4 only makes the `marker_moved` adversarial constructor deterministically move the same prohibited marker between existing qualified tests. The bridge must preserve helpers, fixtures, decorators, assertions, imports, collection controls and module statements by normalized AST, allowing only the explicit v14 base/Decision/archive transformations. It must not import, compile, execute or run candidate Python in the token-bearing authority job.
 
 ## Acceptance boundary
 
-The v3 Decision is committed after the append-only failed-v2 evidence commit and before regenerated authority or implementation. The standard transition Gate sequence must produce `transition-lint == PASSED`, `PRE_EXECUTION_AUTHORIZED`, `blocking_reasons == []`, and 18/18 checks `PASS` for the exact branch and B2 base. Rejected v2 active Intent is archived byte-for-byte as `archive/pr112_v2.json`; the new active Intent binds PR #112, B2, the committed v3 Decision and generated Command Plan, merge method `merge`, the current four-workflow policy, and a bounded expiry. The focused semantic-body regression must pass once with `python -X utf8=0` before the complete validation sequence.
+The v4 Decision is committed after the append-only failed-v3 evidence commit and before regenerated authority or implementation. The standard transition Gate sequence must produce `transition-lint == PASSED`, `PRE_EXECUTION_AUTHORIZED`, `blocking_reasons == []`, and 18/18 checks `PASS` for the exact branch and B2 base. Rejected v3 active Intent is archived byte-for-byte as `archive/pr112_v3.json`; the new active Intent binds PR #112, B2, the committed v4 Decision and generated Command Plan, merge method `merge`, the current four-workflow policy, and a bounded expiry. The focused semantic-body regression must pass all 17 cases once with `python -X utf8=0` before the complete validation sequence.
 
 The trusted bridge derives B3 and the candidate head from the bound PR #106 event, proves B3 is the PR #112 ordered merge descendant of B2, and proves the exact four-commit H0-to-v14 topology and eleven-path net change. Candidate tests are parsed only as data. Qualified identities, class bases, decorators, arguments and normalized bodies are compared to H0 with only fixed transformations for runtime B3, v14 identity, historical-base separation and the exact v11r2 archive assertions; duplicate identities, collection controls, unknown calls, import changes, body weakening, assertion removal, fixture/helper changes and marker changes fail closed.
 
