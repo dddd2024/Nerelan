@@ -60,7 +60,7 @@ EXPECTED_V4_DECISION_ID_PR106 = (
     "decision_20260803_restore_path_a_state_gate_current_main_v4"
 )
 EXPECTED_ACTIVE_DECISION_ID_PR106 = (
-    "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+    "decision_20260804_restore_path_a_state_gate_current_main_v14"
 )
 EXPECTED_V4_DECISION_ID = (
     "decision_20260802_issue100_platform_v1_authority_collector_v4"
@@ -73,8 +73,11 @@ EXPECTED_V2_DECISION_ID_PR97 = (
 )
 EXPECTED_V1_DECISION_ID = "decision_20260802_platform_v1_openhands_codex_acp_v1"
 
-EXPECTED_ACTIVE_BASE_SHA = V4_ACTIVATION_BASE_SHA
+EXPECTED_ACTIVE_BASE_SHA = "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507"
 EXPECTED_ACTIVE_SOURCE_PR = 106
+PR106_HISTORICAL_BASE_SHA = "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+ARCHIVE_PR106_V11R2_PATH = INTENTS_DIR / "archive" / "pr106_v11r2.json"
+PR106_V11R2_ACTIVE_COMMIT = "ff7dd9091a48c5c2fad315812e672d5089824d09"
 
 
 def _load_json(path: Path) -> dict:
@@ -371,7 +374,7 @@ class TestArchivedPr106V3Intent:
 
     def test_archive_pr106_v3_preserves_locked_base_sha(self) -> None:
         data = _load_json(ARCHIVE_PR106_V3_PATH)
-        assert data["locked_base_sha"] == EXPECTED_ACTIVE_BASE_SHA
+        assert data["locked_base_sha"] == PR106_HISTORICAL_BASE_SHA
 
     def test_archive_pr106_v3_preserves_decision_content_sha256(self) -> None:
         data = _load_json(ARCHIVE_PR106_V3_PATH)
@@ -475,7 +478,7 @@ class TestArchivedPr106V4Intent:
 
     def test_archive_pr106_v4_preserves_locked_base_sha(self) -> None:
         data = _load_json(ARCHIVE_PR106_V4_PATH)
-        assert data["locked_base_sha"] == EXPECTED_ACTIVE_BASE_SHA
+        assert data["locked_base_sha"] == PR106_HISTORICAL_BASE_SHA
 
     def test_archive_pr106_v4_preserves_decision_content_sha256(self) -> None:
         data = _load_json(ARCHIVE_PR106_V4_PATH)
@@ -599,3 +602,31 @@ class TestActiveV2DiffersFromV4Archive:
         active = _load_json(ACTIVE_PATH)
         v4 = _load_json(ARCHIVE_V4_PATH)
         assert active["locked_base_sha"] != v4["locked_base_sha"]
+
+
+class TestArchivedPr106V11r2Intent:
+    def test_archive_pr106_v11r2_file_exists(self) -> None:
+        assert ARCHIVE_PR106_V11R2_PATH.exists()
+
+    def test_archive_pr106_v11r2_is_exact_h0_active(self) -> None:
+        payload = ARCHIVE_PR106_V11R2_PATH.read_bytes()
+        original = _committed_blob(
+            "project_state/mainline_merge_intents/active.json",
+            ref=PR106_V11R2_ACTIVE_COMMIT,
+        )
+        assert payload == original
+
+    def test_archive_pr106_v11r2_has_exact_git_blob(self) -> None:
+        payload = ARCHIVE_PR106_V11R2_PATH.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "27b0a28c0b227df07dbc6829057d04875dc930ac"
+        )
+
+    def test_archive_pr106_v11r2_preserves_identity_and_base(self) -> None:
+        data = _load_json(ARCHIVE_PR106_V11R2_PATH)
+        assert data["source_pr"] == 106
+        assert data["decision_identity"]["decision_id"] == (
+            "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+        )
+        assert data["locked_base_sha"] == PR106_HISTORICAL_BASE_SHA

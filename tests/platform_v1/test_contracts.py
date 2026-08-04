@@ -1034,13 +1034,17 @@ class TestActiveMergeIntentV5:
         self._archive_v11_pr106 = json.loads(self._archive_v11_pr106_path.read_text(encoding="utf-8"))
         self._archive_v11r1_pr106 = json.loads(self._archive_v11r1_pr106_path.read_text(encoding="utf-8"))
         self._repo_root = repo_root
+        self._archive_v11r2_pr106_path = intents_dir / "archive" / "pr106_v11r2.json"
+        self._archive_v11r2_pr106 = json.loads(
+            self._archive_v11r2_pr106_path.read_text(encoding="utf-8")
+        )
 
     def test_active_binds_source_pr_106(self) -> None:
         assert self._active["source_pr"] == 106
 
     def test_active_binds_v11r1_decision_id(self) -> None:
         assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+            "decision_20260804_restore_path_a_state_gate_current_main_v14"
         )
 
     def test_active_binds_v6_decision_content_sha256(self) -> None:
@@ -1117,7 +1121,7 @@ class TestActiveMergeIntentV5:
 
     def test_active_binds_locked_base_sha(self) -> None:
         assert self._active["locked_base_sha"] == (
-            "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+            "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507"
         )
 
     def test_active_binds_merge_method(self) -> None:
@@ -1182,5 +1186,29 @@ class TestActiveMergeIntentV5:
 
     def test_archive_pr106_v4_preserves_locked_base_sha(self) -> None:
         assert self._archive_v4_pr106["locked_base_sha"] == (
+            "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+        )
+
+    def test_archive_pr106_v11r2_is_exact_h0_active(self) -> None:
+        payload = self._archive_v11r2_pr106_path.read_bytes()
+        original = subprocess.check_output(
+            [
+                "git", "cat-file", "blob",
+                "ff7dd9091a48c5c2fad315812e672d5089824d09:project_state/mainline_merge_intents/active.json",
+            ],
+            cwd=self._repo_root,
+        )
+        assert payload == original
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "27b0a28c0b227df07dbc6829057d04875dc930ac"
+        )
+
+    def test_archive_pr106_v11r2_preserves_identity_and_base(self) -> None:
+        assert self._archive_v11r2_pr106["source_pr"] == 106
+        assert self._archive_v11r2_pr106["decision_identity"]["decision_id"] == (
+            "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+        )
+        assert self._archive_v11r2_pr106["locked_base_sha"] == (
             "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
         )

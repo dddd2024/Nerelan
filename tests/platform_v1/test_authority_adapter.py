@@ -20,7 +20,7 @@ AUTHORITY_PATHS = (
     "project_state/gates/command_plan.json",
     "project_state/mainline_merge_intents/active.json",
 )
-BASE = "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+BASE = "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507"
 BRANCH = "agent/restore-path-a-state-gate-current-main-v1"
 
 
