@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260804_issue109_pr110_bootstrap_test_rebind_v1",
-  "round_id": "round_20260804_issue109_pr110_bootstrap_test_rebind_v1",
+  "decision_id": "decision_20260804_issue111_pr112_bootstrap_v13_retry_v1",
+  "round_id": "round_20260804_issue111_pr112_bootstrap_v13_retry_v1",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -137,7 +137,7 @@
     },
     {
       "command_id": "validation.diff_check",
-      "command": "git diff --check 4aacd7f614342f5ca123b2afccdb9a49df886775..HEAD",
+      "command": "git diff --check 93984db182b7ee11b3ccb8795bb5fc3741205b92..HEAD",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -159,7 +159,7 @@
     },
     {
       "command_id": "publication.push_branch",
-      "command": "git push origin owner/state-gate-bootstrap-test-rebind-v2",
+      "command": "git push origin owner/state-gate-bootstrap-v13-retry-v3",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -182,7 +182,7 @@
     },
     {
       "command_id": "observation.pr_metadata",
-      "command": "gh pr view 110 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
+      "command": "gh pr view 112 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
       "phase": "observation",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -205,7 +205,7 @@
     },
     {
       "command_id": "observation.pr_checks",
-      "command": "gh pr checks 110 --repo dddd2024/reverse-agent --watch",
+      "command": "gh pr checks 112 --repo dddd2024/reverse-agent --watch",
       "phase": "observation",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -228,7 +228,7 @@
     },
     {
       "command_id": "publication.pr_edit",
-      "command": "gh pr edit 110 --repo dddd2024/reverse-agent --body-file -",
+      "command": "gh pr edit 112 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -251,7 +251,7 @@
     },
     {
       "command_id": "publication.pr_comment",
-      "command": "gh pr comment 110 --repo dddd2024/reverse-agent --body-file -",
+      "command": "gh pr comment 112 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
