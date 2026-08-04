@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260804_restore_path_a_state_gate_current_main_v11r1",
-  "round_id": "round_20260804_restore_path_a_state_gate_current_main_v11r1",
+  "decision_id": "decision_20260804_restore_path_a_state_gate_current_main_v11r2",
+  "round_id": "round_20260804_restore_path_a_state_gate_current_main_v11r2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,10 +16,10 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260804_restore_path_a_state_gate_current_main_v11",
-  "follows_last_round_id": "round_20260804_restore_path_a_state_gate_current_main_v11",
-  "previous_audit_outcome": "BLOCKED_V11_REFERENCE_TESTS_REQUIRE_REVISED_DECISION",
-  "workstream_id": "issue105-restore-path-a-state-gate-current-main-v11r1",
+  "follows_last_decision_id": "decision_20260804_restore_path_a_state_gate_current_main_v11r1",
+  "follows_last_round_id": "round_20260804_restore_path_a_state_gate_current_main_v11r1",
+  "previous_audit_outcome": "PR106_V11R1_REJECTED_PREIMPORT_AND_EXACT_HEAD_AUTHORITY",
+  "workstream_id": "issue105-restore-path-a-state-gate-current-main-v11r2",
   "source_issue": 105,
   "parent_issue": 90,
   "bootstrap_issue": 107,
@@ -28,7 +28,7 @@
   "active_pr": 106,
   "historical_reference_pr": 49,
   "required_branch": "agent/restore-path-a-state-gate-current-main-v1",
-  "starting_head": "32e969c3ef80bba834c8a5c53fe799210cc273b6",
+  "starting_head": "c485f155a13f8ea5c23c54d0103ab61d6925d487",
   "activation_base_sha": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -97,8 +97,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "test.pytest_v11_focused",
-      "command": "python -m pytest tests/test_github_workflow_identity.py tests/test_mainline_landing.py tests/platform_v1/test_github_adapter.py tests/platform_v1/test_evidence_adapter.py tests/platform_v1/test_cli.py -q",
+      "command_id": "test.pytest_v11r2_trusted_authority",
+      "command": "python -m pytest tests/platform_v1/test_trusted_live_launcher.py tests/platform_v1/test_authority_adapter.py tests/platform_v1/test_cli.py tests/platform_v1/test_evidence_adapter.py tests/platform_v1/test_contracts.py tests/platform_v1/test_merge_intent.py -q",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -111,8 +111,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "test.pytest_platform_v1_contracts",
-      "command": "python -m pytest tests/platform_v1/test_contracts.py tests/platform_v1/test_merge_intent.py -q",
+      "command_id": "test.pytest_v11r1_read_only_surfaces",
+      "command": "python -m pytest tests/test_github_workflow_identity.py tests/test_mainline_landing.py tests/platform_v1/test_github_adapter.py -q",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -287,22 +287,24 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr106_v11.json",
-    "reverse_agent/github_workflow_identity.py",
-    "reverse_agent/github_remote_verifier.py",
+    "project_state/mainline_merge_intents/archive/pr106_v11r1.json",
+    "reverse_agent/platform_v1/trusted_live_launcher.py",
+    "reverse_agent/platform_v1/trusted_runtime.py",
     "reverse_agent/platform_v1/evidence_adapter.py",
-    "reverse_agent/platform_v1/github_adapter.py",
     "reverse_agent/platform_v1/cli.py",
-    "tests/test_github_workflow_identity.py",
+    "reverse_agent/platform_v1/authority_adapter.py",
     "tests/test_mainline_landing.py",
+    "tests/platform_v1/test_trusted_live_launcher.py",
+    "tests/platform_v1/test_authority_adapter.py",
     "tests/platform_v1/test_evidence_adapter.py",
-    "tests/platform_v1/test_github_adapter.py",
     "tests/platform_v1/test_cli.py",
     "tests/platform_v1/test_contracts.py",
     "tests/platform_v1/test_merge_intent.py"
   ],
   "reference_paths": [
     ".github/workflows/state-gate.yml",
+    "reverse_agent/github_workflow_identity.py",
+    "reverse_agent/github_remote_verifier.py",
     "reverse_agent/mainline_landing.py",
     "reverse_agent/project_gate.py",
     "reverse_agent/control_plane/path_a.py",
@@ -311,11 +313,13 @@
     "reverse_agent/control_plane/models.py",
     "reverse_agent/control_plane/evidence_source.py",
     "reverse_agent/control_plane/command_authority.py",
-    "reverse_agent/platform_v1/authority_adapter.py",
+    "reverse_agent/platform_v1/github_adapter.py",
     "reverse_agent/platform_v1/contracts.py",
     "reverse_agent/platform_v1/acceptance.py",
     "reverse_agent/platform_v1/policy_adapter.py",
     "tests/test_path_a_gate.py",
+    "tests/test_github_workflow_identity.py",
+    "tests/platform_v1/test_github_adapter.py",
     "tests/test_control_plane_transition.py",
     "tests/test_planning_and_github_adapters.py",
     "tests/test_project_gate.py",
@@ -337,6 +341,7 @@
     "project_state/mainline_merge_intents/archive/pr106_v8.json",
     "project_state/mainline_merge_intents/archive/pr106_v9.json",
     "project_state/mainline_merge_intents/archive/pr106_v10.json",
+    "project_state/mainline_merge_intents/archive/pr106_v11.json",
     ".github/workflows/ci.yml",
     ".github/workflows/decision-preflight.yml",
     "AGENTS.md",
@@ -612,16 +617,16 @@
     "project_state/decision_packet.md",
     "project_state/gates/**",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr106_v11.json",
-    "reverse_agent/github_workflow_identity.py",
-    "reverse_agent/github_remote_verifier.py",
+    "project_state/mainline_merge_intents/archive/pr106_v11r1.json",
+    "reverse_agent/platform_v1/trusted_live_launcher.py",
+    "reverse_agent/platform_v1/trusted_runtime.py",
     "reverse_agent/platform_v1/evidence_adapter.py",
-    "reverse_agent/platform_v1/github_adapter.py",
     "reverse_agent/platform_v1/cli.py",
-    "tests/test_github_workflow_identity.py",
+    "reverse_agent/platform_v1/authority_adapter.py",
     "tests/test_mainline_landing.py",
+    "tests/platform_v1/test_trusted_live_launcher.py",
+    "tests/platform_v1/test_authority_adapter.py",
     "tests/platform_v1/test_evidence_adapter.py",
-    "tests/platform_v1/test_github_adapter.py",
     "tests/platform_v1/test_cli.py",
     "tests/platform_v1/test_contracts.py",
     "tests/platform_v1/test_merge_intent.py"
@@ -701,10 +706,10 @@
 
 ## Goal
 
-Repair the v11 reference-test authority drift on the existing branch `agent/restore-path-a-state-gate-current-main-v1` and Draft PR #106, starting from exact head `32e969c3ef80bba834c8a5c53fe799210cc273b6`. The prior outcome is `BLOCKED_V11_REFERENCE_TESTS_REQUIRE_REVISED_DECISION`: two exact active-Intent tests remained bound to v10 while v11 had classified them as reference-only. This bounded revision preserves v11 and authorizes only exact v11r1 active identity plus byte-immutable v10/v11 archive assertions. Issue #107 remains planning-only and is not executable here.
+Repair the v11r1 pre-import and exact-head authority findings on the existing branch `agent/restore-path-a-state-gate-current-main-v1` and Draft PR #106, starting from exact head `c485f155a13f8ea5c23c54d0103ab61d6925d487`. The prior outcome is `PR106_V11R1_REJECTED_PREIMPORT_AND_EXACT_HEAD_AUTHORITY`: direct module launch imports candidate-controlled code before validation, and Authority Bundle reads mutable candidate working-tree authority rather than exact live-head Git blobs. Issue #107 remains planning-only and is not executable here.
 
-The v11r1 work must preserve the stashed v11 implementation, archive the v11 `active.json` byte-for-byte as `archive/pr106_v11.json`, bind active Intent to v11r1, and update only the two newly authorized tests so active Decision and Command Plan digests match committed blobs while `pr106_v10.json` and `pr106_v11.json` remain exact historical snapshots. All shared canonicalizer, trusted/candidate separation and accepted v10 behaviors remain required. Do not modify State Gate, Path-A/control-plane, project gate, mainline landing, authority adapter, contracts, acceptance, `tests/test_path_a_gate.py`, `archive/pr106_v10.json`, or any earlier archive. Do not execute Issue #102 or #107, start Docker/OpenHands/Agent Canvas/Codex ACP, access credentials, deploy, tag, release, merge, mark ready or enable auto-merge. Push only the existing branch, update only Draft PR #106, and stop at `PR106_V11R1_TRUSTED_RUNTIME_AND_REFERENCE_TESTS_READY_FOR_OWNER_AUDIT`.
+The v11r2 work must add an absolute isolated launcher that validates its trusted Git tree before any project import, reject the ordinary CLI live route, and load Decision/Plan/Intent solely as regular blobs from the exact live PR head with hardened no-replace Git reads. Archive v11r1 `active.json` byte-for-byte as `archive/pr106_v11r1.json`, bind v11r2, and preserve all earlier archives and accepted v11r1 workflow/receipt/Path-A/mainline surfaces read-only. Do not execute Issue #102 or #107, start Docker/OpenHands/Agent Canvas/Codex ACP, access credentials, deploy, tag, release, merge, mark ready or enable auto-merge. Push only the existing branch, update only Draft PR #106, and stop at `PR106_V11R2_ISOLATED_LAUNCH_AND_EXACT_OBJECT_AUTHORITY_READY_FOR_OWNER_AUDIT`.
 
 ## Acceptance boundary
 
-The v11r1 closure is complete only when: the v11r1 Decision precedes regenerated authority, v11 archive/Intent and implementation commits; transition-lint is `PASSED`; transition-preflight is `PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]` and every check `PASS`; the v11 active Intent is archived byte-identically as `archive/pr106_v11.json`; the v10 archive remains byte-identical to active Intent at `a8e361989cdc74dd56c1ec57195b1b92c5a276d3`; exact active Decision and Command Plan blob digests are asserted; all v11 implementation and accepted v10 behavior tests pass; every Issue #105 command passes with exact counts recorded; exact-head CI and Decision Preflight succeed; Issue #107 and #102 remain unexecuted; and PR #106 remains Draft with merge, mark-ready and auto-merge false. The terminal status is `PR106_V11R1_TRUSTED_RUNTIME_AND_REFERENCE_TESTS_READY_FOR_OWNER_AUDIT`. Any scope conflict, archive mismatch, Gate block, required-suite failure or exact-head CI failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
+The v11r2 closure is complete only when: the v11r2 Decision precedes regenerated authority, v11r1 archive/Intent and implementation commits; transition-lint is `PASSED`; transition-preflight is `PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]` and every check `PASS`; the v11r1 active Intent is archived byte-identically as `archive/pr106_v11r1.json`; real isolated-subprocess tests prove hostile candidate startup cannot run or shadow code; ordinary direct live CLI fails before GitHub/candidate operations; exact live-head regular Git blobs exclusively determine Authority Bundle digests despite dirty working-tree replacements; all required tests and exact-head CI/Decision Preflight pass; Issue #107 and #102 remain unexecuted; and PR #106 remains Draft with merge, mark-ready and auto-merge false. The terminal status is `PR106_V11R2_ISOLATED_LAUNCH_AND_EXACT_OBJECT_AUTHORITY_READY_FOR_OWNER_AUDIT`. Any scope conflict, archive mismatch, Gate block, required-suite failure or exact-head CI failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
