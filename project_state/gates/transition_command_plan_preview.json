@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260804_restore_path_a_state_gate_current_main_v11",
-  "round_id": "round_20260804_restore_path_a_state_gate_current_main_v11",
+  "decision_id": "decision_20260804_restore_path_a_state_gate_current_main_v11r1",
+  "round_id": "round_20260804_restore_path_a_state_gate_current_main_v11r1",
   "commands": [
     {
       "command_id": "observation.git_status",
