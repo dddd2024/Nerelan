@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v10",
-  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v10",
-  "expired_at": "2026-08-04T01:21:58+00:00"
+  "decision_id": "decision_20260804_restore_path_a_state_gate_current_main_v11",
+  "round_id": "round_20260804_restore_path_a_state_gate_current_main_v11",
+  "expired_at": "2026-08-04T02:26:25+00:00"
 }
