@@ -31,6 +31,7 @@ ARCHIVE_PR106_V3_PATH = INTENTS_DIR / "archive" / "pr106_v3.json"
 ARCHIVE_PR106_V4_PATH = INTENTS_DIR / "archive" / "pr106_v4.json"
 ARCHIVE_PR106_V10_PATH = INTENTS_DIR / "archive" / "pr106_v10.json"
 ARCHIVE_PR106_V11_PATH = INTENTS_DIR / "archive" / "pr106_v11.json"
+ARCHIVE_PR106_V11R1_PATH = INTENTS_DIR / "archive" / "pr106_v11r1.json"
 
 # The v4 intent was the active intent on main at activation base fa4f240f.
 V4_ACTIVATION_BASE_SHA = "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
@@ -47,6 +48,7 @@ PR106_V3_ACTIVE_COMMIT = "a96a0ef7a5c706316f03401959e12bcf3a9f8c1c"
 PR106_V4_ACTIVE_COMMIT = "810bfff5446ac2e54e85bc8624a1cf83d241778e"
 PR106_V10_ACTIVE_COMMIT = "a8e361989cdc74dd56c1ec57195b1b92c5a276d3"
 PR106_V11_ACTIVE_COMMIT = "32e969c3ef80bba834c8a5c53fe799210cc273b6"
+PR106_V11R1_ACTIVE_COMMIT = "c485f155a13f8ea5c23c54d0103ab61d6925d487"
 
 EXPECTED_V2_DECISION_ID = (
     "decision_20260803_restore_path_a_state_gate_current_main_v2"
@@ -58,7 +60,7 @@ EXPECTED_V4_DECISION_ID_PR106 = (
     "decision_20260803_restore_path_a_state_gate_current_main_v4"
 )
 EXPECTED_ACTIVE_DECISION_ID_PR106 = (
-    "decision_20260804_restore_path_a_state_gate_current_main_v11r1"
+    "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
 )
 EXPECTED_V4_DECISION_ID = (
     "decision_20260802_issue100_platform_v1_authority_collector_v4"
@@ -176,6 +178,11 @@ class TestRecentPR106IntentArchives:
                 ARCHIVE_PR106_V11_PATH,
                 PR106_V11_ACTIVE_COMMIT,
                 "decision_20260804_restore_path_a_state_gate_current_main_v11",
+            ),
+            (
+                ARCHIVE_PR106_V11R1_PATH,
+                PR106_V11R1_ACTIVE_COMMIT,
+                "decision_20260804_restore_path_a_state_gate_current_main_v11r1",
             ),
         ],
     )

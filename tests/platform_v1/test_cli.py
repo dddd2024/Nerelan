@@ -27,6 +27,7 @@ from reverse_agent.platform_v1.evidence_adapter import (
     TrustedRuntimeBinding,
     _create_trusted_evidence,
 )
+from reverse_agent.platform_v1.trusted_runtime import ActiveTrustedLauncher
 
 
 VALID_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
@@ -413,6 +414,22 @@ class TestEvaluateAcceptanceCmd:
 # evaluate-live-acceptance (F10/F11/F18/F19/F20/F26/F27)
 # ---------------------------------------------------------------------------
 
+def test_direct_live_cli_requires_isolated_trusted_launcher() -> None:
+    with patch(
+        "reverse_agent.platform_v1.cli.authority_adapter.load_authority_bundle",
+    ) as authority, patch(
+        "reverse_agent.platform_v1.cli.evidence_adapter.validate_trusted_runtime_binding",
+    ) as runtime:
+        code, out = _run_cli(
+            ["evaluate-live-acceptance"],
+            json.dumps({"repository": "dddd2024/reverse-agent"}),
+        )
+    assert code == 60
+    assert out["status"] == "TRUSTED_LAUNCHER_REQUIRED"
+    authority.assert_not_called()
+    runtime.assert_not_called()
+
+
 class TestEvaluateLiveAcceptanceCmd:
     """F18/F20/F26: The live path accepts ONLY target identifiers from stdin.
 
@@ -420,6 +437,17 @@ class TestEvaluateLiveAcceptanceCmd:
     ``expected_head_sha``, and ``expected_branch`` are all rejected.
     Authority is loaded internally from repository state and GitHub facts.
     """
+
+    @pytest.fixture(autouse=True)
+    def _trusted_launcher_context(self):
+        binding = ActiveTrustedLauncher(
+            "C:/trusted-verifier", "C:/candidate-repository", VALID_BASE_SHA,
+        )
+        with patch(
+            "reverse_agent.platform_v1.cli.trusted_runtime.get_active_launcher",
+            return_value=binding,
+        ):
+            yield
 
     def _identifier_payload(self, **overrides) -> dict:
         payload = {

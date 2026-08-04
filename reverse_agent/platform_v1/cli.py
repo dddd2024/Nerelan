@@ -37,7 +37,10 @@ import json
 import sys
 from typing import Any, Sequence
 
-from . import acceptance, authority_adapter, evidence_adapter, openhands_adapter, policy_adapter
+from . import (
+    acceptance, authority_adapter, evidence_adapter, openhands_adapter,
+    policy_adapter, trusted_runtime,
+)
 from .contracts import (
     ExecutionBinding,
     ExecutionEvidence,
@@ -224,6 +227,11 @@ def cmd_evaluate_live_acceptance(args: Sequence[str]) -> int:
     :func:`evidence_adapter._create_trusted_evidence`.
     """
 
+    launcher_binding = trusted_runtime.get_active_launcher()
+    if launcher_binding is None:
+        _print_json({"status": "TRUSTED_LAUNCHER_REQUIRED"})
+        return 60
+
     try:
         data = _read_stdin_json()
 
@@ -252,6 +260,13 @@ def cmd_evaluate_live_acceptance(args: Sequence[str]) -> int:
         trusted_verifier_root = data.get("trusted_verifier_root")
         candidate_repository_root = data.get("candidate_repository_root")
         expected_trusted_revision = data.get("expected_trusted_revision")
+        if (
+            trusted_verifier_root != launcher_binding.trusted_verifier_root
+            or candidate_repository_root != launcher_binding.candidate_repository_root
+            or expected_trusted_revision != launcher_binding.trusted_revision
+        ):
+            _print_json({"status": "TRUSTED_RUNTIME_ERROR", "code": "launcher_binding_mismatch"})
+            return 60
         repository = str(data.get("repository", ""))
         try:
             issue_number = int(data.get("issue_number", 0))

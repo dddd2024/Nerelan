@@ -1021,6 +1021,7 @@ class TestActiveMergeIntentV5:
         self._archive_v4_pr106_path = intents_dir / "archive" / "pr106_v4.json"
         self._archive_v10_pr106_path = intents_dir / "archive" / "pr106_v10.json"
         self._archive_v11_pr106_path = intents_dir / "archive" / "pr106_v11.json"
+        self._archive_v11r1_pr106_path = intents_dir / "archive" / "pr106_v11r1.json"
         self._active = json.loads(self._active_path.read_text(encoding="utf-8"))
         self._archive_v1 = json.loads(self._archive_v1_path.read_text(encoding="utf-8"))
         self._archive_v2 = json.loads(self._archive_v2_path.read_text(encoding="utf-8"))
@@ -1031,6 +1032,7 @@ class TestActiveMergeIntentV5:
         self._archive_v4_pr106 = json.loads(self._archive_v4_pr106_path.read_text(encoding="utf-8"))
         self._archive_v10_pr106 = json.loads(self._archive_v10_pr106_path.read_text(encoding="utf-8"))
         self._archive_v11_pr106 = json.loads(self._archive_v11_pr106_path.read_text(encoding="utf-8"))
+        self._archive_v11r1_pr106 = json.loads(self._archive_v11r1_pr106_path.read_text(encoding="utf-8"))
         self._repo_root = repo_root
 
     def test_active_binds_source_pr_106(self) -> None:
@@ -1038,7 +1040,7 @@ class TestActiveMergeIntentV5:
 
     def test_active_binds_v11r1_decision_id(self) -> None:
         assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260804_restore_path_a_state_gate_current_main_v11r1"
+            "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
         )
 
     def test_active_binds_v6_decision_content_sha256(self) -> None:
@@ -1083,6 +1085,11 @@ class TestActiveMergeIntentV5:
                 "pr106_v11.json",
                 "32e969c3ef80bba834c8a5c53fe799210cc273b6",
                 "decision_20260804_restore_path_a_state_gate_current_main_v11",
+            ),
+            (
+                "pr106_v11r1.json",
+                "c485f155a13f8ea5c23c54d0103ab61d6925d487",
+                "decision_20260804_restore_path_a_state_gate_current_main_v11r1",
             ),
         ],
     )

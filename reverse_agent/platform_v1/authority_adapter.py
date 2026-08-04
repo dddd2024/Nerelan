@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import subprocess
 from dataclasses import dataclass
@@ -309,13 +310,89 @@ def _sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _read_blob(repo_root: Path, path: str) -> bytes:
-    """Read a file from the working tree (not git objects)."""
+_AUTHORITY_PATHS = (
+    "project_state/decision_packet.md",
+    "project_state/gates/command_plan.json",
+    "project_state/mainline_merge_intents/active.json",
+)
 
-    full = repo_root / path
-    if not full.is_file():
-        raise AuthorityBundleError("missing_authority_file", path)
-    return full.read_bytes()
+
+def _hardened_git_env() -> dict[str, str]:
+    blocked = {
+        "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_REPLACE_REF_BASE", "GIT_COMMON_DIR",
+        "GIT_CONFIG", "GIT_EXTERNAL_DIFF", "GIT_DIFF_OPTS",
+    }
+    env = {
+        key: value for key, value in os.environ.items()
+        if key not in blocked
+        and not key.startswith("GIT_CONFIG_KEY_")
+        and not key.startswith("GIT_CONFIG_VALUE_")
+    }
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    env["GIT_CONFIG_GLOBAL"] = os.devnull
+    env["GIT_CONFIG_SYSTEM"] = os.devnull
+    return env
+
+
+def _git_object_command(repo_root: Path, args: list[str]) -> bytes:
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), *args], capture_output=True,
+        timeout=30, env=_hardened_git_env(),
+    )
+    if result.returncode != 0:
+        raise AuthorityBundleError(
+            "authority_git_object_read_failed",
+            f"command={args[0]}:exit={result.returncode}",
+        )
+    return result.stdout
+
+
+def _require_commit(repo_root: Path, head_sha: str) -> None:
+    _git_object_command(repo_root, ["cat-file", "-e", f"{head_sha}^{{commit}}"])
+
+
+def _read_exact_authority_blob(repo_root: Path, head_sha: str, path: str) -> bytes:
+    if path not in _AUTHORITY_PATHS:
+        raise AuthorityBundleError("authority_path_not_allowed", path)
+    raw = _git_object_command(repo_root, ["ls-tree", "-z", head_sha, "--", path])
+    records = [record for record in raw.split(b"\0") if record]
+    if len(records) != 1:
+        raise AuthorityBundleError("authority_tree_entry_count_invalid", path)
+    try:
+        identity, observed_path = records[0].split(b"\t", 1)
+        mode, object_type, _oid = identity.split(b" ", 2)
+        decoded_path = observed_path.decode("utf-8")
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise AuthorityBundleError("authority_tree_entry_malformed", path) from exc
+    if decoded_path != path:
+        raise AuthorityBundleError("authority_tree_path_mismatch", decoded_path)
+    if mode not in (b"100644", b"100755") or object_type != b"blob":
+        raise AuthorityBundleError(
+            "authority_tree_entry_not_regular_blob",
+            f"path={path}:mode={mode.decode(errors='replace')}:type={object_type.decode(errors='replace')}",
+        )
+    return _git_object_command(repo_root, ["cat-file", "blob", f"{head_sha}:{path}"])
+
+
+def _validate_live_pr_shape(pr: dict[str, Any]) -> dict[str, Any]:
+    state = str(pr.get("state", "")).upper()
+    if state != "OPEN":
+        raise AuthorityBundleError("pr_not_open", state)
+    if not pr.get("isDraft", False):
+        raise AuthorityBundleError("pr_not_draft", "")
+    if pr.get("autoMergeRequest") is not None:
+        raise AuthorityBundleError("pr_auto_merge_enabled", str(pr.get("autoMergeRequest")))
+    if pr.get("baseRefName") != "main":
+        raise AuthorityBundleError("pr_wrong_base_branch", str(pr.get("baseRefName")))
+    for field in ("baseRefOid", "headRefOid"):
+        value = str(pr.get(field, ""))
+        if not _SHA1_HEX_RE.fullmatch(value):
+            raise AuthorityBundleError("pr_oid_invalid", f"{field}={value}")
+    if not str(pr.get("headRefName", "")):
+        raise AuthorityBundleError("pr_head_branch_missing", "")
+    return pr
 
 
 def _parse_decision_packet(raw: bytes) -> tuple[dict[str, Any], dict[str, Any], str]:
@@ -711,17 +788,25 @@ def load_authority_bundle(
     if pr_provider is None:
         pr_provider = LivePRProvider()
 
-    repo_root = Path(repo_dir)
+    repo_root = Path(repo_dir).resolve(strict=True)
 
-    # 1. Load decision_packet.md
-    decision_raw = _read_blob(repo_root, "project_state/decision_packet.md")
+    # 1. Observe the live PR before parsing any candidate authority.
+    pr_data = pr_provider.fetch_pr(repository, pr_number)
+    pr_observed = _validate_live_pr_shape(pr_data)
+    live_head = str(pr_observed["headRefOid"])
+    _require_commit(repo_root, live_head)
+
+    # 2. Load Decision from the exact live-head regular blob.
+    decision_raw = _read_exact_authority_blob(
+        repo_root, live_head, "project_state/decision_packet.md",
+    )
     meta, contract, decision_sha256 = _parse_decision_packet(decision_raw)
     _validate_decision_meta(meta)
 
     decision_id = meta["decision_id"]
     round_id = meta["round_id"]
 
-    # 2. Extract expected bindings from contract
+    # 3. Extract expected bindings from contract
     expected_issue = int(contract.get("source_issue", 0))
     expected_pr = int(contract.get("active_pr", 0))
     expected_branch = str(contract.get("required_branch", ""))
@@ -748,8 +833,10 @@ def load_authority_bundle(
         expected_base=expected_base,
     )
 
-    # 3. Load command_plan.json
-    plan_raw = _read_blob(repo_root, "project_state/gates/command_plan.json")
+    # 4. Load Command Plan from the exact live-head regular blob.
+    plan_raw = _read_exact_authority_blob(
+        repo_root, live_head, "project_state/gates/command_plan.json",
+    )
     plan, plan_sha256 = _parse_command_plan(plan_raw)
     command_ids, allowed_commands = _validate_command_plan(
         plan,
@@ -757,8 +844,10 @@ def load_authority_bundle(
         expected_round_id=round_id,
     )
 
-    # 4. Load active merge intent
-    intent_raw = _read_blob(repo_root, "project_state/mainline_merge_intents/active.json")
+    # 5. Load active Intent from the exact live-head regular blob.
+    intent_raw = _read_exact_authority_blob(
+        repo_root, live_head, "project_state/mainline_merge_intents/active.json",
+    )
     intent, _intent_sha = _parse_merge_intent(intent_raw)
     intent_id, intent_decision_sha, intent_plan_sha = _validate_merge_intent(
         intent,
@@ -771,7 +860,16 @@ def load_authority_bundle(
         validation_time=validation_time,
     )
 
-    # 5. Load GitHub Issue
+    # 6. Validate the already-observed PR against exact Decision bindings.
+    pr_observed = _validate_pr(
+        pr_observed,
+        expected_pr=pr_number,
+        expected_repository=repository,
+        expected_branch=expected_branch,
+        expected_base=expected_base,
+    )
+
+    # 7. Load GitHub Issue
     issue_data = issue_provider.fetch_issue(repository, issue_number)
     issue_body_sha256 = _validate_issue(
         issue_data,
@@ -779,17 +877,7 @@ def load_authority_bundle(
         expected_repository=repository,
     )
 
-    # 6. Load GitHub PR
-    pr_data = pr_provider.fetch_pr(repository, pr_number)
-    pr_observed = _validate_pr(
-        pr_data,
-        expected_pr=pr_number,
-        expected_repository=repository,
-        expected_branch=expected_branch,
-        expected_base=expected_base,
-    )
-
-    # 7. Extract allowed paths from contract
+    # 8. Extract allowed paths from contract
     allowed_paths = tuple(str(p) for p in contract.get("allowed_mutated_paths", []))
 
     return AuthorityBundle(
