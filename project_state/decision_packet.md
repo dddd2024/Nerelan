@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v9",
-  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v9",
+  "decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v10",
+  "round_id": "round_20260803_restore_path_a_state_gate_current_main_v10",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,10 +16,10 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v8",
-  "follows_last_round_id": "round_20260803_restore_path_a_state_gate_current_main_v8",
-  "previous_audit_outcome": "PR106_V8_REJECTED_PLATFORM_V1_LIVE_EVIDENCE_TOPOLOGY",
-  "workstream_id": "issue105-restore-path-a-state-gate-current-main-v9",
+  "follows_last_decision_id": "decision_20260803_restore_path_a_state_gate_current_main_v9",
+  "follows_last_round_id": "round_20260803_restore_path_a_state_gate_current_main_v9",
+  "previous_audit_outcome": "PR106_V9_REJECTED_LIVE_EVIDENCE_CLOSURE",
+  "workstream_id": "issue105-restore-path-a-state-gate-current-main-v10",
   "source_issue": 105,
   "parent_issue": 90,
   "bootstrap_issue": 107,
@@ -28,7 +28,7 @@
   "active_pr": 106,
   "historical_reference_pr": 49,
   "required_branch": "agent/restore-path-a-state-gate-current-main-v1",
-  "starting_head": "1001e7e83d6460e87f5a037d35a12174bc4fd1a6",
+  "starting_head": "d26bd8e441fe71ca76dd9add01c502a0c56d761f",
   "activation_base_sha": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -47,6 +47,7 @@
   "deployment_allowed": false,
   "real_provider_credential_allowed": false,
   "live_work_item_publication_allowed": false,
+  "trusted_host_live_probe_allowed": false,
   "repair_attempt_limit": 1,
   "audit_generation_allowed": false,
   "prior_audits_immutable": true,
@@ -272,7 +273,7 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr106_v8.json",
+    "project_state/mainline_merge_intents/archive/pr106_v9.json",
     "reverse_agent/platform_v1/authority_adapter.py",
     "reverse_agent/platform_v1/evidence_adapter.py",
     "reverse_agent/platform_v1/github_adapter.py",
@@ -317,6 +318,7 @@
     "project_state/mainline_merge_intents/archive/pr106_v5.json",
     "project_state/mainline_merge_intents/archive/pr106_v6.json",
     "project_state/mainline_merge_intents/archive/pr106_v7.json",
+    "project_state/mainline_merge_intents/archive/pr106_v8.json",
     ".github/workflows/ci.yml",
     ".github/workflows/decision-preflight.yml",
     "AGENTS.md",
@@ -438,6 +440,7 @@
     "project_state/mainline_merge_intents/archive/pr106_v5.json",
     "project_state/mainline_merge_intents/archive/pr106_v6.json",
     "project_state/mainline_merge_intents/archive/pr106_v7.json",
+    "project_state/mainline_merge_intents/archive/pr106_v8.json",
     "pyproject.toml"
   ],
   "forbidden_operations": [
@@ -481,7 +484,7 @@
     "make State Gate nonblocking",
     "use continue-on-error to bypass gate failures",
     "accept CI success as a substitute for State Gate",
-    "modify read-only v8/v7 test files to make tests pass",
+    "modify read-only v9/v8/v7 core files or tests to make tests pass",
     "modify .github/workflows/ci.yml",
     "modify .github/workflows/decision-preflight.yml",
     "modify .github/workflows/state-gate.yml",
@@ -546,8 +549,15 @@
     "duplicate a weaker receipt validator in evidence_adapter.py or github_adapter.py",
     "use the receipt's own changed_paths_sha256 as the expected digest",
     "fail R2 Authority Bundle loading before reaching intended BLOCKED_APPROVAL",
-    "use stale four-workflow candidate-head fixture for the active v9 contract",
-    "modify accepted v8 mainline landing or v7 receipt-generation semantics without a new Decision"
+    "use stale four-workflow candidate-head fixture for the active v10 contract",
+    "fail when a trusted-base State Gate push run merely coexists with the target run",
+    "select a State Gate target run through fixed-limit or first-success scanning",
+    "fall back to an older successful target run after the latest current-PR run fails",
+    "execute candidate repository commands in the credential-bearing Platform V1 live collector",
+    "derive candidate test success without a verified receipt object returned by the production verifier",
+    "accept expired or semantically invalid active Intent values",
+    "claim lastEditedAt provides Platform V1 edit or revert protection without an approval comparison",
+    "modify accepted v9 Path-A, workflow receipt, or mainline-landing core semantics without a new Decision"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -577,7 +587,7 @@
     "project_state/decision_packet.md",
     "project_state/gates/**",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr106_v8.json",
+    "project_state/mainline_merge_intents/archive/pr106_v9.json",
     "reverse_agent/platform_v1/authority_adapter.py",
     "reverse_agent/platform_v1/evidence_adapter.py",
     "reverse_agent/platform_v1/github_adapter.py",
@@ -651,10 +661,10 @@
 
 ## Goal
 
-Repair six v8 audit findings on the existing branch `agent/restore-path-a-state-gate-current-main-v1` continuing on Draft PR #106, starting from exact head `1001e7e83d6460e87f5a037d35a12174bc4fd1a6`. The v8 attempt was rejected because: (F1) `reverse_agent/platform_v1/authority_adapter.py::LiveIssueProvider.fetch_issue()` reintroduced the unsupported `gh issue view --json content_last_edited_at` field, causing production Authority Bundle loading to fail with `gh_issue_view_failed` before live acceptance can reach its intended risk-tier decision; (F2) `_validate_merge_intent()` correctly compares the v8 active Intent against `PRE_MERGE_WORKFLOW_KEYS`, but `load_authority_bundle()` returns `required_workflow_keys=CANONICAL_WORKFLOW_KEYS` (the historical four-workflow policy), contradicting the accepted v8 Intent and recreating the impossible pre-merge push prerequisite in Platform V1; (F3) `collect_live_evidence()` queries every required workflow using only `gh run list --commit <candidate-head>` and validates every observation with `validate_workflow_observations(..., expected_head=candidate_head)`, which cannot validate `pull_request_target` whose run head is the trusted base — the collector neither observes the trusted-base target run independently nor invokes the shared production receipt verifier; (F4) Platform V1 tests still encode the stale four-workflow candidate-head topology, using `State Gate (pull_request)` rather than the target event and assigning every run the same candidate head, so the full Platform V1 suite is green while F2-F3 remain; (F5) `LivePRProvider` fetches `autoMergeRequest` but `_validate_pr()` does not check it, so a Draft PR with auto-merge enabled can enter the Authority Bundle despite the Decision and bootstrap policy requiring auto-merge to remain disabled; (F6) the Platform V1 merge-intent validator checks the three required workflow names but does not enforce the exact active Intent field set or require `post_merge_integration_workflow == State Gate (push)`.
+Repair the four v9 audit findings on the existing branch `agent/restore-path-a-state-gate-current-main-v1` and existing Draft PR #106, starting from exact head `d26bd8e441fe71ca76dd9add01c502a0c56d761f`. The v9 exact-head audit outcome is `PR106_V9_REJECTED_LIVE_EVIDENCE_CLOSURE`: (F1) a legitimate trusted-base `State Gate (push)` run incorrectly blocks pre-merge collection instead of being excluded; (F2) target-run discovery uses a fixed 50-run, first-success base-level scan that is not bound to the current PR before selection; (F3) the token-bearing live collector executes candidate-controlled commands through `LiveCommandRunner`; and (F4) active Intent semantic validation omits schema, identity, merge method, tree policy and expiry checks while `lastEditedAt` is retained without any approval-time comparison.
 
-The v9 rework must: (1) replace the unsupported `gh issue view --json content_last_edited_at` request with a supported structured GraphQL Issue observation that retrieves `data.repository.issue.body`, `data.repository.issue.state`, `data.repository.issue.lastEditedAt`, `data.repository.issue.labels.nodes.name` and `data.repository.issue.labels.pageInfo`, requiring the normal `data.repository.issue` envelope, failing closed on missing repository or issue, requiring the `lastEditedAt` key to be present (with `null` permitted for never edited), parsing non-null timestamps strictly, retrieving every label page or failing closed when `hasNextPage` remains true, never silently replacing a failed live observation with fixture data, and removing `lastEditedAt` from the Authority Bundle contract entirely if Platform V1 does not consume it; (2) require `autoMergeRequest == null` in `_validate_pr()` and add a behavior test; (3) make the Platform V1 active Intent contract exact by validating the exact active v9 Intent field set, requiring `required_workflows == ["CI", "Decision Preflight", "State Gate (pull_request_target)"]` and `post_merge_integration_workflow == "State Gate (push)"`, rejecting missing fields, extra fields, reordered workflows, a pre-merge push workflow, an old `pull_request` State Gate, or any other post-merge value, while keeping historical archived Intents byte-identical and continuing to validate them against their historical policy snapshots; (4) make `load_authority_bundle()` return exactly the three validated pre-merge workflow keys (the same `PRE_MERGE_WORKFLOW_KEYS` that were validated), representing post-merge push metadata separately rather than mixing it into `required_workflow_keys`; (5) repair Platform V1 workflow collection topology by separating ordinary candidate-head workflows (`CI`/`pull_request`, `Decision Preflight`/`pull_request`, with `run head == candidate head`) from the trusted-base State Gate target (`State Gate`/`pull_request_target`, with `run head == locked trusted base`, candidate head/base bound inside the receipt artifact, changed-path digest bound by independent observation), invoking the same production receipt-verification contract already used by `mainline_landing.py` (`verify_state_gate_receipt()`) rather than duplicating a weaker receipt validator, and never using `gh run list --commit <candidate-head>` as the sole source for `pull_request_target` run discovery, while keeping `State Gate (push)` outside pre-merge evidence collection; (6) independently compute the canonical changed-path digest from the locked base and exact candidate head using the same rename-aware semantics accepted by State Gate (`git diff --name-status -M -C`, including both old and new paths for renames/copies, sorting, deduplicating, newline-joining, SHA-256), passing that independently computed digest to receipt verification and never using the receipt's own digest as the expected digest; (7) preserve the intended R2 boundary so that `evaluate-live-acceptance` for an R2 Work Item terminates as intentional `BLOCKED_APPROVAL` rather than failing because of an unsupported Issue field or workflow-policy mismatch, while an R0/R1 test fixture exercises the production live-evidence collector with the real dual-head topology and proves it can construct trusted evidence only when all ordinary runs and the target receipt pass. Archive the v8 `active.json` verbatim as `archive/pr106_v8.json` with identical SHA-256 before binding the new v9 active intent. Preserve all historical intent archives (pr97_v1, pr97_v2, pr97_v3, pr97_v4, pr106_v2, pr106_v3, pr106_v4, pr106_v5, pr106_v6, pr106_v7, pr106_v8). Do not modify `.github/workflows/state-gate.yml`, `reverse_agent/github_remote_verifier.py`, `reverse_agent/mainline_landing.py`, `reverse_agent/project_gate.py`, `reverse_agent/control_plane/path_a.py`, `reverse_agent/control_plane/legacy_adapter.py`, `ci.yml`, `decision-preflight.yml`, `reverse_agent/platform_v1/contracts.py`, `reverse_agent/platform_v1/acceptance.py`, `reverse_agent/platform_v1/policy_adapter.py`, `tests/test_mainline_landing.py`, `tests/test_path_a_gate.py`, or any read-only regression test. Do not run Issue #102, Issue #107 bootstrap, Docker, OpenHands, or Codex ACP. Push only to the existing branch, update only PR #106, publish desensitized evidence, and stop at `PR106_V9_PLATFORM_V1_TOPOLOGY_READY_FOR_OWNER_BOOTSTRAP_AUDIT`.
+The v10 rework must: (1) exclude trusted-base `State Gate (push)` observations from pre-merge evidence without failing when they coexist with a valid target run; (2) query the canonical State Gate workflow and `pull_request_target` event with complete pagination, fail closed on incomplete pagination or API failure, bind runs to source PR #106 through remote association, deterministically select only the latest current-PR run, require it to be completed and successful, verify its exact receipt, ignore other PRs sharing the base, and never fall back to an older success; (3) remove `LiveCommandRunner` from production `evaluate-live-acceptance`, execute no candidate code in the credential-bearing collector process or HOME, construct candidate test results only from the receipt object returned by the production verifier, and fail closed when no verified receipt object is returned; (4) validate `schema_version == 1`, a non-empty bounded `intent_id`, the exact `decision_identity` field set, `allowed_merge_method == merge`, `merge_tree_policy == equal_to_accepted_head_tree`, a valid unexpired UTC/ISO `expires_at`, the exact ordered three-workflow pre-merge policy, and `post_merge_integration_workflow == State Gate (push)`, with injectable validation time; and remove `lastEditedAt` from the Platform V1 AuthorityBundle security contract because it is not compared to an approval observation. Archive the v9 `active.json` byte-for-byte as `archive/pr106_v9.json` before binding the v10 Intent. Preserve every historical archive. Do not modify the accepted State Gate workflow, receipt verifier, mainline landing, project gate, Path-A/control-plane core, contracts.py, or their read-only regression tests. Do not execute Issue #102 or #107, start Docker/OpenHands/Codex ACP, access credentials, deploy, tag, release, merge, mark ready or enable auto-merge. Push only the existing branch, update only Draft PR #106, and stop at `PR106_V10_LIVE_EVIDENCE_CLOSURE_READY_FOR_OWNER_BOOTSTRAP_AUDIT`.
 
 ## Acceptance boundary
 
-The v9 Platform V1 live-evidence topology repair is complete only when: the v9 Decision commit precedes any implementation; `PRE_EXECUTION_AUTHORIZED` is achieved with `blocking_reasons=[]` before implementation; the v8 `active.json` is archived verbatim as `archive/pr106_v8.json` with identical SHA-256; the new `active.json` binds `source_pr: 106`, `locked_base_sha: fa4f240f7dffff78cdb182ce8655c2e2d7cb241f`, the v9 Decision identity, exact v9 Decision blob SHA-256, exact v9 Command Plan blob SHA-256, `allowed_merge_method: merge`, the three pre-merge required workflows (`CI`, `Decision Preflight`, `State Gate (pull_request_target)`), `post_merge_integration_workflow: State Gate (push)`, and a bounded expiry; `LiveIssueProvider.fetch_issue()` uses a supported structured GraphQL Issue observation (no `gh issue view --json content_last_edited_at`), requires the `data.repository.issue` envelope, fails closed on missing repository or issue, requires the `lastEditedAt` key to be present (with `null` permitted for never edited), parses non-null timestamps strictly, retrieves every label page or fails closed when `hasNextPage` remains true, and never silently replaces a failed live observation with fixture data, with `lastEditedAt` removed from the Authority Bundle contract entirely if Platform V1 does not consume it; `_validate_pr()` requires `autoMergeRequest == null` and rejects any non-null value; `_validate_merge_intent()` validates the exact active v9 Intent field set, requiring `required_workflows == ["CI", "Decision Preflight", "State Gate (pull_request_target)"]` and `post_merge_integration_workflow == "State Gate (push)"`, rejecting missing fields, extra fields, reordered workflows, a pre-merge push workflow, an old `pull_request` State Gate, or any other post-merge value, while historical archived Intents remain byte-identical and continue to validate against their historical policy snapshots; `load_authority_bundle()` returns `required_workflow_keys = PRE_MERGE_WORKFLOW_KEYS` (exactly the three validated pre-merge workflow keys), with post-merge push metadata represented separately rather than mixed into `required_workflow_keys`; `collect_live_evidence()` separates ordinary candidate-head workflows (`CI`/`Decision Preflight`, run head == candidate head, validated via `validate_workflow_observations()`) from the trusted-base State Gate target (`State Gate`/`pull_request_target`, run head == locked trusted base, candidate head/base bound inside the receipt artifact, changed-path digest bound by independent observation), invoking the same production receipt-verification contract already used by `mainline_landing.py` (`verify_state_gate_receipt()`) rather than duplicating a weaker receipt validator, never using `gh run list --commit <candidate-head>` as the sole source for `pull_request_target` run discovery, and keeping `State Gate (push)` outside pre-merge evidence collection; the changed-path digest is independently computed from the locked base and exact candidate head using rename-aware semantics (`git diff --name-status -M -C`, including both old and new paths for renames/copies, sorting, deduplicating, newline-joining, SHA-256) and passed as the expected digest to receipt verification, never using the receipt's own digest as the expected digest; `evaluate-live-acceptance` for an R2 Work Item terminates as intentional `BLOCKED_APPROVAL` after the Authority Bundle loads successfully from supported live GitHub observations, rather than failing because of an unsupported Issue field or workflow-policy mismatch; an R0/R1 test fixture exercises the production live-evidence collector with the real dual-head topology and proves it can construct trusted evidence only when all ordinary runs and the target receipt pass; behavior tests cover at minimum: normal GraphQL Issue response passes, missing `data.repository.issue` blocks, `lastEditedAt` null passes as never edited, missing `lastEditedAt` key blocks when the contract requires it, invalid non-null `lastEditedAt` blocks, labels `hasNextPage` without complete pagination blocks, unsupported `gh issue` JSON field is absent from production source/argv, `autoMergeRequest` non-null blocks, active Intent exact three-workflow policy passes, active Intent containing `State Gate (push)` blocks, active Intent containing old `pull_request` State Gate blocks, active Intent missing or wrong `post_merge_integration_workflow` blocks, `AuthorityBundle` returns exactly the three validated pre-merge keys, ordinary CI and Decision Preflight use candidate-head semantics, State Gate target uses trusted-base run semantics, valid receipt binds candidate head/base and exact changed-path digest, wrong target base blocks, wrong candidate head blocks, wrong candidate base blocks, wrong changed-path digest blocks, missing receipt blocks, duplicate receipt blocks, malformed receipt blocks, receipt verifier/API failure blocks, `State Gate (push)` is absent from pre-merge evidence, stale four-workflow candidate-head fixture fails for the active contract, historical archives retain their historical workflow policy, valid R2 live target reaches intentional `BLOCKED_APPROVAL`, and valid R0/R1 dual-head evidence collection passes, with tests calling production code paths rather than only checking source-text strings; all required local test suites pass with zero failures; `transition-lint` passes; `transition-preflight` returns `PRE_EXECUTION_AUTHORIZED`; `git diff --check fa4f240f7dffff78cdb182ce8655c2e2d7cb241f..HEAD` passes; exact-head CI and Decision Preflight succeed; the PR remains Draft and unmerged. The terminal status is `PR106_V9_PLATFORM_V1_TOPOLOGY_READY_FOR_OWNER_BOOTSTRAP_AUDIT`. Any scope conflict, credential exposure, idempotency failure, Gate block, or required-suite failure must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
+The v10 live-evidence closure is complete only when: the v10 Decision commit precedes all generated authority, Intent and implementation changes; transition-lint is `PASSED`; transition-preflight is `PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]` and every check `PASS`; the v9 active Intent is archived byte-identically as `archive/pr106_v9.json`; the v10 Intent binds source PR 106, locked base `fa4f240f7dffff78cdb182ce8655c2e2d7cb241f`, exact v10 Decision and Command Plan digests, merge-only/equal-tree policy, exact ordered pre-merge workflows, post-merge State Gate push and a valid bounded future expiry; production behavior tests prove push/target coexistence, other PR isolation, complete pagination, latest-run-only selection, failure without fallback, receipt PR/base/head/digest binding, missing receipt/API/pagination failure closure, no production `LiveCommandRunner`, receipt-only test results, complete Intent semantics, actual CLI R2 `BLOCKED_APPROVAL`, and R0/R1 dual-head acceptance; every Decision-named local suite and `git diff --check fa4f240f7dffff78cdb182ce8655c2e2d7cb241f..HEAD` pass with exact counts recorded; exact-head CI and Decision Preflight succeed; Issue #107 and #102 remain unexecuted; PR #106 remains Draft with merge, mark-ready and auto-merge false. The terminal status is `PR106_V10_LIVE_EVIDENCE_CLOSURE_READY_FOR_OWNER_BOOTSTRAP_AUDIT`. Any scope conflict, credential exposure, Gate block, required-suite failure, exact-head CI failure or pagination/receipt uncertainty must stop as `BLOCKED_WITH_EXACT_EVIDENCE` without retry or repair.
