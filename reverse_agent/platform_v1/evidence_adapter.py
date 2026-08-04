@@ -226,7 +226,12 @@ class FakeReceiptVerifier:
         result: dict[str, Any] | None = None,
         fail_with: Exception | None = None,
     ) -> None:
-        self._result = result if result is not None else {"verified": True}
+        self._result = dict(result) if result is not None else {"verified": True}
+        if self._result.get("verified") is True and "receipt" not in self._result:
+            self._result["receipt"] = {
+                "candidate_tests_result": "SUCCESS",
+                "final_gate_result": "PASS",
+            }
         self._fail_with = fail_with
         self.calls: list[dict[str, Any]] = []
 
@@ -544,7 +549,6 @@ def collect_live_evidence(
     bundle: AuthorityBundle,
     git_adapter: GitAdapter | None = None,
     github_adapter: GitHubAdapter | None = None,
-    command_runner: CommandRunner | None = None,
     receipt_verifier: ReceiptVerifier | None = None,
     agent_completion_claim: str = "",
     collected_at: str = "",
@@ -555,8 +559,9 @@ def collect_live_evidence(
     F14: The collector owns truth. It does NOT accept caller-supplied test
     pass/fail booleans, CI success lists, or shell commands.
 
-    F19: Test commands are selected by ``command_id`` from the Authority
-    Bundle's Command Plan. Execution uses ``shell=False`` with argv lists.
+    v10/F3: This credential-bearing collector never executes candidate
+    repository commands. Candidate-test success is accepted only from the
+    receipt object returned by the production receipt verifier.
 
     F20/F26: All authority comes from the ``bundle``, not from stdin.
 
@@ -606,42 +611,6 @@ def collect_live_evidence(
     )
     diff_ok = git_adapter.check_git_diff(bundle.base_sha, expected_head)
 
-    # 2. Collect test results (only from approved command_id selections)
-    test_results: dict[str, Any] = {}
-    if command_runner is not None:
-        test_commands = _select_required_test_commands(bundle)
-        all_passed = True
-        command_results: list[dict[str, Any]] = []
-        for cmd in test_commands:
-            command_id = str(cmd.get("command_id", ""))
-            command_str = str(cmd.get("command", ""))
-            try:
-                argv = _parse_command_to_argv(command_str)
-            except EvidenceCollectionError as exc:
-                command_results.append({
-                    "command_id": command_id,
-                    "command": command_str,
-                    "passed": False,
-                    "error": exc.code,
-                })
-                all_passed = False
-                continue
-            exit_code, stdout, _stderr = command_runner.run(argv)
-            passed = exit_code == 0
-            command_results.append({
-                "command_id": command_id,
-                "command": command_str,
-                "argv": argv,
-                "passed": passed,
-                "exit_code": exit_code,
-            })
-            if not passed:
-                all_passed = False
-        test_results = {
-            "passed": all_passed,
-            "commands": command_results,
-        }
-
     # v9/F3: Separate ordinary candidate-head workflows from the
     # trusted-target State Gate (pull_request_target).  State Gate (push)
     # is post-merge and must NOT appear in pre-merge evidence.
@@ -680,35 +649,41 @@ def collect_live_evidence(
             ";".join(ordinary_blocking),
         )
 
-    # 4. Collect trusted-target State Gate run (trusted base).
-    #    The target run's head_sha is the trusted base, NOT the candidate
-    #    head.  Query runs by trusted base and find the matching target.
+    # 4. Collect every canonical current-PR trusted-target State Gate run.
+    #    The adapter owns complete pagination and remote PR association.
     trusted_target_required_names = {
         composite_name(wf, ev) for wf, ev in trusted_target_keys
     }
-    # Reject State Gate (push) — it must NOT appear in pre-merge evidence.
-    # v9: Check ALL trusted-base runs for push before finding the target,
-    # so a push run is never missed even if the target appears first.
-    push_composite = composite_name("State Gate", "push")
-    all_trusted_base_runs = github_adapter.get_workflow_runs(
-        bundle.repository, trusted_base,
+    current_pr_target_runs = github_adapter.get_state_gate_target_runs(
+        bundle.repository, bundle.pr_number, trusted_base,
     )
-    for run in all_trusted_base_runs:
-        if run.composite_name == push_composite:
-            # State Gate (push) must never appear in pre-merge evidence.
-            raise EvidenceCollectionError(
-                "state_gate_push_in_pre_merge_evidence",
-                f"run_id={run.run_id}",
-            )
-    target_run: WorkflowRun | None = None
-    for run in all_trusted_base_runs:
-        if run.composite_name in trusted_target_required_names and run.is_success:
-            target_run = run
-            break
-    if target_run is None:
+    eligible_target_runs = tuple(
+        run for run in current_pr_target_runs
+        if run.composite_name in trusted_target_required_names
+    )
+    if not eligible_target_runs:
         raise EvidenceCollectionError(
             "trusted_target_run_missing",
             f"required={sorted(trusted_target_required_names)} base={trusted_base}",
+        )
+    try:
+        target_run = max(
+            eligible_target_runs,
+            key=lambda run: (
+                run.created_at,
+                int(run.run_id),
+                int(run.attempt),
+            ),
+        )
+    except (TypeError, ValueError) as exc:
+        raise EvidenceCollectionError(
+            "trusted_target_run_identity_invalid", str(exc),
+        )
+    if not target_run.is_success:
+        raise EvidenceCollectionError(
+            "trusted_target_latest_not_success",
+            f"run_id={target_run.run_id} status={target_run.status} "
+            f"conclusion={target_run.conclusion}",
         )
 
     # 5. Verify the trusted-target State Gate via the production receipt
@@ -733,6 +708,28 @@ def collect_live_evidence(
             "receipt_verification_failed",
             str(receipt_result.get("reason", "")),
         )
+    receipt = receipt_result.get("receipt")
+    if not isinstance(receipt, dict):
+        raise EvidenceCollectionError(
+            "verified_receipt_missing", "verifier did not return receipt object",
+        )
+    if (
+        receipt.get("candidate_tests_result") != "SUCCESS"
+        or receipt.get("final_gate_result") != "PASS"
+    ):
+        raise EvidenceCollectionError(
+            "verified_receipt_test_result_invalid",
+            f"candidate_tests_result={receipt.get('candidate_tests_result')} "
+            f"final_gate_result={receipt.get('final_gate_result')}",
+        )
+    test_results = {
+        "passed": True,
+        "source": "verified_state_gate_receipt",
+        "candidate_tests_result": receipt["candidate_tests_result"],
+        "final_gate_result": receipt["final_gate_result"],
+        "workflow_run_id": int(target_run.run_id),
+        "workflow_run_attempt": target_run.attempt or 1,
+    }
 
     # 6. Build live evidence using the trusted factory.
     #    Pre-merge evidence includes ordinary runs + the trusted-target

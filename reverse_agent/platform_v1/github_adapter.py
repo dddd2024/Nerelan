@@ -121,6 +121,10 @@ class WorkflowRun:
         "conclusion",
         "workflow_id",
         "attempt",
+        "source_pr",
+        "created_at",
+        "workflow_path",
+        "repository",
     )
 
     def __init__(
@@ -135,6 +139,10 @@ class WorkflowRun:
         conclusion: str = "",
         workflow_id: str = "",
         attempt: int = 0,
+        source_pr: int = 0,
+        created_at: str = "",
+        workflow_path: str = "",
+        repository: str = "",
     ) -> None:
         self.workflow_name = workflow_name
         self.event = event
@@ -145,6 +153,10 @@ class WorkflowRun:
         self.conclusion = conclusion.upper()
         self.workflow_id = str(workflow_id)
         self.attempt = int(attempt)
+        self.source_pr = int(source_pr)
+        self.created_at = created_at
+        self.workflow_path = workflow_path
+        self.repository = repository
 
     @property
     def composite_name(self) -> str:
@@ -176,6 +188,10 @@ class WorkflowRun:
             "conclusion": self.conclusion,
             "workflow_id": self.workflow_id,
             "attempt": self.attempt,
+            "source_pr": self.source_pr,
+            "created_at": self.created_at,
+            "workflow_path": self.workflow_path,
+            "repository": self.repository,
         }
 
     def __repr__(self) -> str:
@@ -209,6 +225,15 @@ class GitHubAdapter(Protocol):
         """
         ...
 
+    def get_state_gate_target_runs(
+        self,
+        repository: str,
+        source_pr: int,
+        trusted_base_sha: str,
+    ) -> tuple[WorkflowRun, ...]:
+        """Return every canonical current-PR State Gate target run."""
+        ...
+
 
 # ---------------------------------------------------------------------------
 # Live adapter — uses ``gh run list --commit``
@@ -230,6 +255,8 @@ class LiveGitHubAdapter:
         "attempt,conclusion,databaseId,event,headBranch,headSha,"
         "name,status,workflowDatabaseId,workflowName"
     )
+
+    _STATE_GATE_WORKFLOW_PATH = ".github/workflows/state-gate.yml"
 
     def get_workflow_runs(
         self,
@@ -278,6 +305,127 @@ class LiveGitHubAdapter:
                 conclusion=str(raw.get("conclusion", "")),
                 workflow_id=str(raw.get("workflowDatabaseId", "")),
                 attempt=int(raw.get("attempt", 0)),
+            ))
+        return tuple(runs)
+
+    def get_state_gate_target_runs(
+        self,
+        repository: str,
+        source_pr: int,
+        trusted_base_sha: str,
+    ) -> tuple[WorkflowRun, ...]:
+        """Observe every canonical State Gate target run for ``source_pr``.
+
+        The REST workflow endpoint is queried with ``--paginate --slurp`` so
+        pagination is owned by ``gh`` and every returned page can be checked
+        against ``total_count``.  Each run is independently bound to the
+        canonical workflow path, repository, target event, trusted base and
+        GitHub's remote pull-request association before it is returned.
+        """
+
+        endpoint = (
+            f"repos/{repository}/actions/workflows/state-gate.yml/runs"
+        )
+        result = subprocess.run(
+            [
+                "gh", "api", "--method", "GET", "--paginate", "--slurp",
+                endpoint,
+                "-f", "event=pull_request_target",
+                "-f", f"head_sha={trusted_base_sha}",
+                "-f", "per_page=100",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            raise GitHubAdapterError(
+                "state_gate_target_api_failed", f"exit={result.returncode}",
+            )
+        try:
+            pages = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            raise GitHubAdapterError(
+                "state_gate_target_json_parse_failed", str(exc),
+            )
+        if not isinstance(pages, list) or not pages:
+            raise GitHubAdapterError("state_gate_target_pagination_incomplete", "no_pages")
+
+        raw_runs: list[dict[str, Any]] = []
+        observed_total: int | None = None
+        for page in pages:
+            if not isinstance(page, dict):
+                raise GitHubAdapterError(
+                    "state_gate_target_pagination_incomplete", "page_not_object",
+                )
+            total_count = page.get("total_count")
+            page_runs = page.get("workflow_runs")
+            if not isinstance(total_count, int) or not isinstance(page_runs, list):
+                raise GitHubAdapterError(
+                    "state_gate_target_pagination_incomplete", "missing_page_fields",
+                )
+            if observed_total is None:
+                observed_total = total_count
+            elif observed_total != total_count:
+                raise GitHubAdapterError(
+                    "state_gate_target_pagination_incomplete", "total_count_changed",
+                )
+            if any(not isinstance(run, dict) for run in page_runs):
+                raise GitHubAdapterError(
+                    "state_gate_target_run_malformed", "run_not_object",
+                )
+            raw_runs.extend(page_runs)
+        if observed_total is None or len(raw_runs) != observed_total:
+            raise GitHubAdapterError(
+                "state_gate_target_pagination_incomplete",
+                f"observed={len(raw_runs)} total={observed_total}",
+            )
+
+        runs: list[WorkflowRun] = []
+        for raw in raw_runs:
+            observed_repository = str(
+                ((raw.get("repository") or {}).get("full_name")) or ""
+            )
+            pull_requests = raw.get("pull_requests")
+            if (
+                observed_repository != repository
+                or raw.get("path") != self._STATE_GATE_WORKFLOW_PATH
+                or raw.get("event") != "pull_request_target"
+                or raw.get("head_sha") != trusted_base_sha
+                or not isinstance(pull_requests, list)
+            ):
+                raise GitHubAdapterError(
+                    "state_gate_target_run_identity_mismatch",
+                    f"run_id={raw.get('id', '')}",
+                )
+            associated_prs = {
+                int(pr.get("number") or 0)
+                for pr in pull_requests
+                if isinstance(pr, dict)
+            }
+            if int(source_pr) not in associated_prs:
+                continue
+            run_id = int(raw.get("id") or 0)
+            attempt = int(raw.get("run_attempt") or 0)
+            created_at = str(raw.get("created_at") or "")
+            if run_id <= 0 or attempt <= 0 or not created_at:
+                raise GitHubAdapterError(
+                    "state_gate_target_run_malformed", f"run_id={run_id}",
+                )
+            runs.append(WorkflowRun(
+                workflow_name="State Gate",
+                event="pull_request_target",
+                run_id=str(run_id),
+                head_sha=str(raw.get("head_sha", "")),
+                head_branch=str(raw.get("head_branch", "")),
+                status=str(raw.get("status", "")),
+                conclusion=str(raw.get("conclusion", "")),
+                workflow_id=str(raw.get("workflow_id", "")),
+                attempt=attempt,
+                source_pr=int(source_pr),
+                created_at=created_at,
+                workflow_path=str(raw.get("path", "")),
+                repository=observed_repository,
             ))
         return tuple(runs)
 
@@ -333,6 +481,23 @@ class FakeGitHubAdapter:
         expected_head_sha: str,
     ) -> tuple[WorkflowRun, ...]:
         return self.get_workflow_runs(repository, expected_head_sha)
+
+    def get_state_gate_target_runs(
+        self,
+        repository: str,
+        source_pr: int,
+        trusted_base_sha: str,
+    ) -> tuple[WorkflowRun, ...]:
+        self.call_count += 1
+        if self._fail_with is not None:
+            raise self._fail_with
+        return tuple(
+            run for run in self._runs
+            if run.workflow_name == "State Gate"
+            and run.event == "pull_request_target"
+            and run.head_sha == trusted_base_sha
+            and run.source_pr in (0, int(source_pr))
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -20,6 +20,7 @@ import json
 import re
 import subprocess
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -48,17 +49,21 @@ class AuthorityBundleError(Exception):
 _SHA1_HEX_RE = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 
-# Strict ISO 8601 timestamp for GitHub ``lastEditedAt``.  GitHub emits values
-# like ``2026-08-03T14:08:50Z``.  Non-null ``lastEditedAt`` must match this.
 _ISO_TIMESTAMP_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$"
 )
 
 
 def _parse_strict_iso_timestamp(value: str) -> bool:
-    """Return True iff ``value`` is a strict ISO 8601 GitHub timestamp."""
+    """Return True iff ``value`` is a strict, timezone-aware ISO timestamp."""
 
-    return bool(_ISO_TIMESTAMP_RE.match(value))
+    if not _ISO_TIMESTAMP_RE.match(value):
+        return False
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None
 
 # Canonical required (workflowName, event) keys for the active merge intent.
 # This is the historical four-workflow policy, kept for validating immutable
@@ -123,12 +128,10 @@ class LiveIssueProvider:
 
     F1/v9: Replaces the unsupported ``gh issue view --json
     content_last_edited_at`` command with a structured GraphQL query that
-    retrieves ``data.repository.issue.{body,state,lastEditedAt,labels}``.
+    retrieves ``data.repository.issue.{body,state,labels}``.
 
     Fail-closed rules:
     - ``data.repository.issue`` envelope must be present;
-    - ``lastEditedAt`` key must be present (``null`` = never edited);
-    - non-null ``lastEditedAt`` must be a strict ISO 8601 timestamp;
     - labels pagination must be complete (``hasNextPage == false``) or
       the provider fails closed;
     - no fixture/default substitution for a failed live observation.
@@ -144,7 +147,7 @@ class LiveIssueProvider:
             "query{"
             f'repository(owner:"{owner}",name:"{name}"){{'
             f"issue(number:{int(issue_number)}){{"
-            "body state lastEditedAt"
+            "body state"
             "labels(first:100){nodes{name}pageInfo{hasNextPage endCursor}}"
             "}}"
             "}}"
@@ -182,20 +185,6 @@ class LiveIssueProvider:
         if not isinstance(issue, dict):
             raise AuthorityBundleError("graphql_issue_missing", "")
 
-        # lastEditedAt key must be present; null = never edited.
-        if "lastEditedAt" not in issue:
-            raise AuthorityBundleError("graphql_last_edited_at_key_missing", "")
-        raw_last_edited = issue.get("lastEditedAt")
-        if raw_last_edited is None:
-            last_edited_at = ""  # normalized: never edited
-        else:
-            last_edited_at = str(raw_last_edited)
-            if not _parse_strict_iso_timestamp(last_edited_at):
-                raise AuthorityBundleError(
-                    "graphql_last_edited_at_invalid",
-                    last_edited_at,
-                )
-
         # Complete labels pagination or fail closed.
         labels_data = issue.get("labels")
         if not isinstance(labels_data, dict):
@@ -221,7 +210,6 @@ class LiveIssueProvider:
             "body": str(issue.get("body", "")),
             "state": str(issue.get("state", "")),
             "labels": labels,
-            "lastEditedAt": last_edited_at,
         }
 
 
@@ -286,8 +274,6 @@ class AuthorityBundle:
     issue_body_sha256: str
     issue_state: str
     issue_labels: tuple[str, ...]
-    issue_last_edited_at: str  # "" = never edited; else strict ISO 8601
-
     # Repository and PR
     repository: str
     pr_number: int
@@ -442,6 +428,7 @@ def _validate_contract(
     # Forbidden operations must all be false
     for key in (
         "merge_allowed", "mark_ready_allowed", "auto_merge_allowed",
+        "force_push_allowed", "rebase_allowed",
         "release_allowed", "deployment_allowed",
         "real_provider_credential_allowed",
         "live_work_item_publication_allowed",
@@ -495,6 +482,7 @@ def _validate_merge_intent(
     expected_pr: int,
     expected_base: str,
     expected_repository: str,
+    validation_time: datetime | None = None,
 ) -> tuple[str, str, str]:
     # v9/F6: Enforce the exact active-Intent field set.  Any missing or
     # extra field blocks.  Historical archives are validated separately via
@@ -521,9 +509,27 @@ def _validate_merge_intent(
             "intent_field_set_mismatch",
             f"missing={missing} extra={extra}",
         )
+    if intent.get("schema_version") != 1:
+        raise AuthorityBundleError(
+            "invalid_intent_schema_version", str(intent.get("schema_version")),
+        )
+    intent_id = intent.get("intent_id")
+    if not isinstance(intent_id, str) or not re.fullmatch(
+        r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", intent_id,
+    ):
+        raise AuthorityBundleError("invalid_intent_id", str(intent_id))
     decision_identity = intent.get("decision_identity", {})
     if not isinstance(decision_identity, dict):
         raise AuthorityBundleError("intent_decision_identity_not_object", "")
+    expected_decision_identity_fields = {
+        "decision_id", "decision_content_sha256",
+    }
+    if set(decision_identity) != expected_decision_identity_fields:
+        raise AuthorityBundleError(
+            "intent_decision_identity_field_set_mismatch",
+            f"observed={sorted(decision_identity)} "
+            f"expected={sorted(expected_decision_identity_fields)}",
+        )
     if decision_identity.get("decision_id") != expected_decision_id:
         raise AuthorityBundleError(
             "intent_decision_id_mismatch",
@@ -560,6 +566,31 @@ def _validate_merge_intent(
             "intent_repository_mismatch",
             f"intent={intent.get('repository')} expected={expected_repository}",
         )
+    if intent.get("allowed_merge_method") != "merge":
+        raise AuthorityBundleError(
+            "intent_merge_method_mismatch",
+            f"intent={intent.get('allowed_merge_method')} expected=merge",
+        )
+    if intent.get("merge_tree_policy") != "equal_to_accepted_head_tree":
+        raise AuthorityBundleError(
+            "intent_merge_tree_policy_mismatch",
+            f"intent={intent.get('merge_tree_policy')} "
+            "expected=equal_to_accepted_head_tree",
+        )
+    expires_at = intent.get("expires_at")
+    if not isinstance(expires_at, str) or not _parse_strict_iso_timestamp(expires_at):
+        raise AuthorityBundleError("intent_expires_at_invalid", str(expires_at))
+    expires_at_datetime = datetime.fromisoformat(
+        expires_at.replace("Z", "+00:00"),
+    ).astimezone(timezone.utc)
+    observed_time = validation_time or datetime.now(timezone.utc)
+    if observed_time.tzinfo is None:
+        raise AuthorityBundleError("intent_validation_time_not_aware", "")
+    if expires_at_datetime <= observed_time.astimezone(timezone.utc):
+        raise AuthorityBundleError(
+            "intent_expired",
+            f"expires_at={expires_at} validation_time={observed_time.isoformat()}",
+        )
     required_workflows = intent.get("required_workflows", [])
     # v9/F6: Active intents must use the exact three-workflow pre-merge
     # policy.  Composite names are compared so that pull_request_target
@@ -579,7 +610,7 @@ def _validate_merge_intent(
             f"intent={intent.get('post_merge_integration_workflow')} expected=State Gate (push)",
         )
     return (
-        str(intent.get("intent_id", "")),
+        intent_id,
         intent_decision_sha,
         intent_plan_sha,
     )
@@ -590,12 +621,12 @@ def _validate_issue(
     *,
     expected_issue: int,
     expected_repository: str,
-) -> tuple[str, str]:
-    """Validate the live Issue observation and return (body_sha256, last_edited_at).
+) -> str:
+    """Validate the live Issue observation and return its body SHA-256.
 
-    v9/F1: ``lastEditedAt`` must be present in the observation.  ``""`` is
-    the normalized form for never-edited (GraphQL ``null``).  Non-empty
-    values must be strict ISO 8601 timestamps.
+    Platform V1 deliberately does not treat ``lastEditedAt`` as an authority
+    control because it has no approved revision or timestamp to compare it
+    against.  Path-A's approval-revision verifier owns edit/revert protection.
     """
 
     state = str(issue.get("state", "")).upper()
@@ -608,17 +639,7 @@ def _validate_issue(
         raise AuthorityBundleError("issue_missing_labels", ",".join(sorted(missing)))
     body = str(issue.get("body", ""))
     body_sha256 = _sha256_bytes(body.encode("utf-8"))
-    # v9/F1: lastEditedAt is a mandatory observed field.
-    if "lastEditedAt" not in issue:
-        raise AuthorityBundleError("issue_last_edited_at_key_missing", "")
-    last_edited = issue.get("lastEditedAt")
-    if last_edited is None:
-        last_edited_at = ""
-    else:
-        last_edited_at = str(last_edited)
-        if not _parse_strict_iso_timestamp(last_edited_at):
-            raise AuthorityBundleError("issue_last_edited_at_invalid", last_edited_at)
-    return body_sha256, last_edited_at
+    return body_sha256
 
 
 def _validate_pr(
@@ -668,6 +689,7 @@ def load_authority_bundle(
     pr_number: int,
     issue_provider: IssueProvider | None = None,
     pr_provider: PRProvider | None = None,
+    validation_time: datetime | None = None,
 ) -> AuthorityBundle:
     """Load and cross-validate the Authority Bundle.
 
@@ -746,11 +768,12 @@ def load_authority_bundle(
         expected_pr=pr_number,
         expected_base=expected_base,
         expected_repository=repository,
+        validation_time=validation_time,
     )
 
     # 5. Load GitHub Issue
     issue_data = issue_provider.fetch_issue(repository, issue_number)
-    issue_body_sha256, issue_last_edited_at = _validate_issue(
+    issue_body_sha256 = _validate_issue(
         issue_data,
         expected_issue=issue_number,
         expected_repository=repository,
@@ -780,7 +803,6 @@ def load_authority_bundle(
         issue_body_sha256=issue_body_sha256,
         issue_state=str(issue_data.get("state", "")).upper(),
         issue_labels=tuple(str(l) for l in issue_data.get("labels", [])),
-        issue_last_edited_at=issue_last_edited_at,
         repository=repository,
         pr_number=pr_number,
         branch=expected_branch,

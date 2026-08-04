@@ -216,8 +216,9 @@ def cmd_evaluate_live_acceptance(args: Sequence[str]) -> int:
     GitHub facts. stdin Work Item payloads, ``authority_digest``, and
     ``test_command`` are rejected.
 
-    F19: Test commands are selected by ``command_id`` from the approved
-    Command Plan. No caller-supplied shell text is executed.
+    v10/F3: The credential-bearing live path never runs candidate repository
+    commands. Candidate test success comes only from a verified State Gate
+    receipt returned by the production verifier.
 
     F27: Live evidence is created only by the trusted factory in
     :func:`evidence_adapter._create_trusted_evidence`.
@@ -336,7 +337,6 @@ def cmd_evaluate_live_acceptance(args: Sequence[str]) -> int:
                 bundle=bundle,
                 git_adapter=evidence_adapter.LiveGitAdapter(repo_dir),
                 github_adapter=None,  # uses LiveGitHubAdapter
-                command_runner=evidence_adapter.LiveCommandRunner(repo_dir),
                 agent_completion_claim=agent_completion_claim,
                 repo_dir=repo_dir,
             )

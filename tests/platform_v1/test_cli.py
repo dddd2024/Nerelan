@@ -16,16 +16,50 @@ from __future__ import annotations
 import io
 import json
 from contextlib import redirect_stdout
+from unittest.mock import patch
 
 import pytest
 
 from reverse_agent.platform_v1.cli import main
+from reverse_agent.platform_v1.authority_adapter import AuthorityBundle, PRE_MERGE_WORKFLOW_KEYS
 from reverse_agent.platform_v1.contracts import PlatformWorkItem
+from reverse_agent.platform_v1.evidence_adapter import _create_trusted_evidence
 
 
 VALID_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
 VALID_HEAD_SHA = "e702a3c5f50b9373e0af8087a76268d4a01cd9b1"
 VALID_ISSUE_BODY_DIGEST = "a" * 64  # F25: SHA-256, 64 hex chars
+
+
+def _live_bundle(risk_tier: str) -> AuthorityBundle:
+    return AuthorityBundle(
+        decision_id="decision_test",
+        round_id="round_test",
+        decision_content_sha256="a" * 64,
+        command_plan_sha256="b" * 64,
+        allowed_command_ids=(),
+        allowed_commands=(),
+        issue_number=100,
+        issue_body_sha256=VALID_ISSUE_BODY_DIGEST,
+        issue_state="OPEN",
+        issue_labels=("work-item", "r2", "owner-accepted"),
+        repository="dddd2024/reverse-agent",
+        pr_number=97,
+        branch="agent/platform-v1-openhands-codex-acp",
+        base_sha=VALID_BASE_SHA,
+        risk_tier=risk_tier,
+        intent_id="intent_test",
+        intent_decision_content_sha256="a" * 64,
+        intent_command_plan_sha256="b" * 64,
+        allowed_paths=("reverse_agent/platform_v1/**",),
+        required_workflow_keys=PRE_MERGE_WORKFLOW_KEYS,
+        pr_state="OPEN",
+        pr_is_draft=True,
+        pr_head_ref_name="agent/platform-v1-openhands-codex-acp",
+        pr_head_ref_oid=VALID_HEAD_SHA,
+        pr_base_ref_name="main",
+        pr_base_ref_oid=VALID_BASE_SHA,
+    )
 
 
 def _run_cli(args: list[str], stdin_data: str = "") -> tuple[int, dict]:
@@ -513,6 +547,53 @@ class TestEvaluateLiveAcceptanceCmd:
         code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
         assert code != 0
         assert out.get("status") != "ACCEPTED"
+
+    def test_actual_r2_cli_returns_blocked_approval_before_collection(self) -> None:
+        payload = self._identifier_payload()
+        with patch(
+            "reverse_agent.platform_v1.cli.authority_adapter.load_authority_bundle",
+            return_value=_live_bundle("R2"),
+        ), patch(
+            "reverse_agent.platform_v1.cli.evidence_adapter.collect_live_evidence",
+        ) as collect:
+            code, out = _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
+        assert code == 50
+        assert out["status"] == "BLOCKED_APPROVAL"
+        collect.assert_not_called()
+
+    def test_production_live_cli_never_constructs_live_command_runner(self) -> None:
+        payload = self._identifier_payload()
+        evidence = _create_trusted_evidence(
+            execution_id="exec-test",
+            repository="dddd2024/reverse-agent",
+            base_sha=VALID_BASE_SHA,
+            head_sha=VALID_HEAD_SHA,
+            pr_number=97,
+            required_workflows=(
+                "CI", "Decision Preflight", "State Gate (pull_request_target)",
+            ),
+            changed_paths=("reverse_agent/platform_v1/cli.py",),
+            test_results={"passed": True, "source": "verified_state_gate_receipt"},
+            git_diff_check_passed=True,
+            ci_checks=(
+                {"name": "CI", "status": "COMPLETED", "conclusion": "SUCCESS"},
+                {"name": "Decision Preflight", "status": "COMPLETED", "conclusion": "SUCCESS"},
+                {"name": "State Gate (pull_request_target)", "status": "COMPLETED", "conclusion": "SUCCESS"},
+            ),
+        )
+        with patch(
+            "reverse_agent.platform_v1.cli.authority_adapter.load_authority_bundle",
+            return_value=_live_bundle("R0"),
+        ), patch(
+            "reverse_agent.platform_v1.cli.evidence_adapter.collect_live_evidence",
+            return_value=evidence,
+        ) as collect, patch(
+            "reverse_agent.platform_v1.cli.evidence_adapter.LiveCommandRunner",
+            side_effect=AssertionError("candidate runner must not be constructed"),
+        ) as runner:
+            _run_cli(["evaluate-live-acceptance"], json.dumps(payload))
+        collect.assert_called_once()
+        runner.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

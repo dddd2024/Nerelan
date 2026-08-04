@@ -18,6 +18,8 @@ Covers:
 from __future__ import annotations
 
 import inspect
+import json
+from unittest.mock import patch
 
 import pytest
 
@@ -497,3 +499,77 @@ class TestLiveGitHubAdapterJsonFields:
         source = inspect.getsource(LiveGitHubAdapter.get_workflow_runs)
         assert '"run"' in source and '"list"' in source
         assert "pr checks" not in source
+
+
+class TestLiveStateGateTargetPagination:
+    """v10: canonical target discovery is complete and PR-associated."""
+
+    @staticmethod
+    def _raw_target(run_id: int, pr_number: int) -> dict:
+        return {
+            "id": run_id,
+            "run_attempt": 1,
+            "created_at": f"2026-08-04T00:00:{run_id:02d}Z",
+            "repository": {"full_name": "dddd2024/reverse-agent"},
+            "path": ".github/workflows/state-gate.yml",
+            "event": "pull_request_target",
+            "head_sha": VALID_HEAD_SHA,
+            "head_branch": "main",
+            "status": "completed",
+            "conclusion": "success",
+            "workflow_id": 123,
+            "pull_requests": [{"number": pr_number}],
+        }
+
+    @staticmethod
+    def _result(stdout: str, returncode: int = 0):
+        class Result:
+            pass
+        result = Result()
+        result.stdout = stdout
+        result.stderr = ""
+        result.returncode = returncode
+        return result
+
+    def test_all_pages_observed_and_other_pr_ignored(self) -> None:
+        pages = [
+            {"total_count": 2, "workflow_runs": [self._raw_target(1, 106)]},
+            {"total_count": 2, "workflow_runs": [self._raw_target(2, 999)]},
+        ]
+        with patch(
+            "reverse_agent.platform_v1.github_adapter.subprocess.run",
+            return_value=self._result(json.dumps(pages)),
+        ) as run:
+            observed = LiveGitHubAdapter().get_state_gate_target_runs(
+                "dddd2024/reverse-agent", 106, VALID_HEAD_SHA,
+            )
+        assert [item.run_id for item in observed] == ["1"]
+        argv = run.call_args.args[0]
+        assert "--paginate" in argv and "--slurp" in argv
+        assert "event=pull_request_target" in argv
+        assert "per_page=100" in argv
+
+    def test_incomplete_pagination_fails_closed(self) -> None:
+        pages = [
+            {"total_count": 2, "workflow_runs": [self._raw_target(1, 106)]},
+        ]
+        with patch(
+            "reverse_agent.platform_v1.github_adapter.subprocess.run",
+            return_value=self._result(json.dumps(pages)),
+        ):
+            with pytest.raises(GitHubAdapterError) as exc_info:
+                LiveGitHubAdapter().get_state_gate_target_runs(
+                    "dddd2024/reverse-agent", 106, VALID_HEAD_SHA,
+                )
+        assert exc_info.value.code == "state_gate_target_pagination_incomplete"
+
+    def test_api_failure_fails_closed(self) -> None:
+        with patch(
+            "reverse_agent.platform_v1.github_adapter.subprocess.run",
+            return_value=self._result("", returncode=1),
+        ):
+            with pytest.raises(GitHubAdapterError) as exc_info:
+                LiveGitHubAdapter().get_state_gate_target_runs(
+                    "dddd2024/reverse-agent", 106, VALID_HEAD_SHA,
+                )
+        assert exc_info.value.code == "state_gate_target_api_failed"

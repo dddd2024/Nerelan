@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import inspect
 import subprocess
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pytest
@@ -93,7 +94,6 @@ def _make_bundle(
     risk_tier: str = "R0",
     allowed_paths: tuple[str, ...] = ("reverse_agent/platform_v1/**",),
     allowed_commands: tuple[dict, ...] | None = None,
-    issue_last_edited_at: str = "",
     required_workflow_keys: tuple[tuple[str, str], ...] | None = None,
 ) -> AuthorityBundle:
     """Build an AuthorityBundle for tests (bypasses live GitHub).
@@ -125,7 +125,6 @@ def _make_bundle(
         issue_body_sha256="c" * 64,
         issue_state="OPEN",
         issue_labels=("work-item", "r2", "owner-accepted"),
-        issue_last_edited_at=issue_last_edited_at,
         repository="dddd2024/reverse-agent",
         pr_number=pr_number,
         branch=branch,
@@ -391,14 +390,12 @@ class TestCollectLiveEvidence:
         bundle = _make_bundle()
         git = _make_git_adapter()
         gh = FakeGitHubAdapter(runs=_all_required_runs())
-        runner = FakeCommandRunner(exit_code=0)
         receipt = FakeReceiptVerifier(result={"verified": True})
 
         evidence = collect_live_evidence(
             bundle=bundle,
             git_adapter=git,
             github_adapter=gh,
-            command_runner=runner,
             receipt_verifier=receipt,
         )
         assert evidence.is_live is True
@@ -408,6 +405,7 @@ class TestCollectLiveEvidence:
         assert evidence.changed_paths == ("reverse_agent/platform_v1/cli.py",)
         assert evidence.git_diff_check_passed is True
         assert evidence.tests_passed is True
+        assert evidence.test_results["source"] == "verified_state_gate_receipt"
 
     def test_head_sha_mismatch_raises_error(self) -> None:
         bundle = _make_bundle()
@@ -465,71 +463,48 @@ class TestCollectLiveEvidence:
             )
         assert exc_info.value.code == "ordinary_workflow_validation_failed"
 
-    def test_test_command_failure_marks_tests_failed(self) -> None:
+    def test_verified_result_without_receipt_object_blocks(self) -> None:
         bundle = _make_bundle()
         git = _make_git_adapter()
         gh = FakeGitHubAdapter(runs=_all_required_runs())
-        runner = FakeCommandRunner(exit_code=1)  # test failure
-        receipt = FakeReceiptVerifier(result={"verified": True})
+        receipt = FakeReceiptVerifier(result={"verified": True, "receipt": None})
 
-        evidence = collect_live_evidence(
-            bundle=bundle,
-            git_adapter=git,
-            github_adapter=gh,
-            command_runner=runner,
-            receipt_verifier=receipt,
-        )
-        assert evidence.tests_passed is False
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            collect_live_evidence(
+                bundle=bundle,
+                git_adapter=git,
+                github_adapter=gh,
+                receipt_verifier=receipt,
+            )
+        assert exc_info.value.code == "verified_receipt_missing"
 
-    def test_collector_uses_command_id_not_caller_supplied_command(self) -> None:
-        """F19: The collector selects commands from the bundle, not from stdin.
-
-        Verify that the command runner receives the argv from the bundle's
-        Command Plan, not from any caller-supplied test_command string.
-        """
+    def test_collector_has_no_candidate_command_runner_parameter(self) -> None:
+        """The token-bearing collector exposes no candidate runner surface."""
         bundle = _make_bundle(allowed_commands=(
             {"command_id": "test.pytest_platform_v1",
              "command": "python -m pytest tests/platform_v1 -q",
              "phase": "test", "required": True},
         ))
-        git = _make_git_adapter()
-        gh = FakeGitHubAdapter(runs=_all_required_runs())
-        runner = FakeCommandRunner(exit_code=0)
-        receipt = FakeReceiptVerifier(result={"verified": True})
+        assert "command_runner" not in inspect.signature(collect_live_evidence).parameters
 
-        collect_live_evidence(
-            bundle=bundle,
-            git_adapter=git,
-            github_adapter=gh,
-            command_runner=runner,
-            receipt_verifier=receipt,
-        )
-        # The runner should have received the argv from the bundle's command
-        assert len(runner.calls) == 1
-        assert runner.calls[0] == ["python", "-m", "pytest", "tests/platform_v1", "-q"]
-
-    def test_collector_rejects_command_with_shell_metacharacters(self) -> None:
-        """F19: If a Command Plan command contains shell metacharacters, the
-        collector records it as a failed test rather than executing it."""
+    def test_candidate_command_plan_text_is_not_executed(self) -> None:
+        """Even a malicious required test command is ignored by live collection."""
         bundle = _make_bundle(allowed_commands=(
             {"command_id": "test.malicious", "command": "python; rm -rf /",
              "phase": "test", "required": True},
         ))
         git = _make_git_adapter()
         gh = FakeGitHubAdapter(runs=_all_required_runs())
-        runner = FakeCommandRunner(exit_code=0)
         receipt = FakeReceiptVerifier(result={"verified": True})
 
         evidence = collect_live_evidence(
             bundle=bundle,
             git_adapter=git,
             github_adapter=gh,
-            command_runner=runner,
             receipt_verifier=receipt,
         )
-        # The malicious command is recorded as failed; runner was never called
-        assert evidence.tests_passed is False
-        assert runner.calls == []
+        assert evidence.tests_passed is True
+        assert evidence.test_results["source"] == "verified_state_gate_receipt"
 
 
 # ---------------------------------------------------------------------------
@@ -759,7 +734,7 @@ class TestLiveIssueProviderGraphQL:
             result = provider.fetch_issue("dddd2024/reverse-agent", 105)
         assert result["body"] == "issue body text"
         assert result["state"] == "OPEN"
-        assert result["lastEditedAt"] == "2026-08-03T14:08:50Z"
+        assert "lastEditedAt" not in result
         assert "work-item" in result["labels"]
         assert "r2" in result["labels"]
         assert "owner-accepted" in result["labels"]
@@ -792,8 +767,8 @@ class TestLiveIssueProviderGraphQL:
                 provider.fetch_issue("dddd2024/reverse-agent", 105)
         assert exc_info.value.code == "graphql_issue_missing"
 
-    def test_last_edited_at_null_parses_as_empty(self) -> None:
-        """null lastEditedAt means never edited, normalized to empty string."""
+    def test_last_edited_at_is_not_part_of_provider_contract(self) -> None:
+        """An observed lastEditedAt value is intentionally not returned."""
         import json as _json
         response = _json.dumps({
             "data": {
@@ -816,10 +791,10 @@ class TestLiveIssueProviderGraphQL:
             return_value=self._mock_result(response),
         ):
             result = provider.fetch_issue("dddd2024/reverse-agent", 105)
-        assert result["lastEditedAt"] == ""
+        assert "lastEditedAt" not in result
 
-    def test_last_edited_at_missing_raises_error(self) -> None:
-        """Missing lastEditedAt key fails closed."""
+    def test_last_edited_at_missing_is_not_an_authority_claim(self) -> None:
+        """No approval timestamp exists, so absence is not treated as protection."""
         import json as _json
         response = _json.dumps({
             "data": {
@@ -840,12 +815,12 @@ class TestLiveIssueProviderGraphQL:
             "reverse_agent.platform_v1.authority_adapter.subprocess.run",
             return_value=self._mock_result(response),
         ):
-            with pytest.raises(AuthorityBundleError) as exc_info:
-                provider.fetch_issue("dddd2024/reverse-agent", 105)
-        assert exc_info.value.code == "graphql_last_edited_at_key_missing"
+            result = provider.fetch_issue("dddd2024/reverse-agent", 105)
+        assert result["body"] == "body"
+        assert "lastEditedAt" not in result
 
-    def test_last_edited_at_invalid_raises_error(self) -> None:
-        """Non-null, non-ISO lastEditedAt fails closed."""
+    def test_last_edited_at_value_is_ignored(self) -> None:
+        """Unused edit metadata cannot be presented as a security binding."""
         import json as _json
         response = _json.dumps({
             "data": {
@@ -867,9 +842,9 @@ class TestLiveIssueProviderGraphQL:
             "reverse_agent.platform_v1.authority_adapter.subprocess.run",
             return_value=self._mock_result(response),
         ):
-            with pytest.raises(AuthorityBundleError) as exc_info:
-                provider.fetch_issue("dddd2024/reverse-agent", 105)
-        assert exc_info.value.code == "graphql_last_edited_at_invalid"
+            result = provider.fetch_issue("dddd2024/reverse-agent", 105)
+        assert result["body"] == "body"
+        assert "lastEditedAt" not in result
 
     def test_labels_pagination_incomplete_raises_error(self) -> None:
         """Incomplete labels pagination fails closed."""
@@ -981,7 +956,7 @@ class TestActiveIntentValidation:
             "decision_content_sha256": "a" * 64,
         },
         "command_plan_sha256": "b" * 64,
-        "merge_tree_policy": {"mode": "no_rewrite"},
+        "merge_tree_policy": "equal_to_accepted_head_tree",
         "required_workflows": [
             "CI",
             "Decision Preflight",
@@ -1000,6 +975,7 @@ class TestActiveIntentValidation:
             expected_pr=106,
             expected_base=VALID_BASE_SHA,
             expected_repository="dddd2024/reverse-agent",
+            validation_time=datetime(2026, 8, 4, tzinfo=timezone.utc),
         )
         assert result[0] == "intent_test"
 
@@ -1043,6 +1019,66 @@ class TestActiveIntentValidation:
                 expected_repository="dddd2024/reverse-agent",
             )
         assert exc_info.value.code == "intent_workflow_keys_mismatch"
+
+    @pytest.mark.parametrize(
+        ("field", "value", "expected_code"),
+        [
+            ("schema_version", 2, "invalid_intent_schema_version"),
+            ("allowed_merge_method", "squash", "intent_merge_method_mismatch"),
+            ("merge_tree_policy", "no_rewrite", "intent_merge_tree_policy_mismatch"),
+        ],
+    )
+    def test_security_semantics_fail_closed(
+        self, field: str, value: object, expected_code: str,
+    ) -> None:
+        intent = dict(self._VALID_INTENT)
+        intent[field] = value
+        with pytest.raises(AuthorityBundleError) as exc_info:
+            _validate_merge_intent(
+                intent,
+                expected_decision_id="decision_test",
+                expected_decision_sha256="a" * 64,
+                expected_command_plan_sha256="b" * 64,
+                expected_pr=106,
+                expected_base=VALID_BASE_SHA,
+                expected_repository="dddd2024/reverse-agent",
+                validation_time=datetime(2026, 8, 4, tzinfo=timezone.utc),
+            )
+        assert exc_info.value.code == expected_code
+
+    def test_expired_intent_fails_at_injected_validation_time(self) -> None:
+        intent = dict(self._VALID_INTENT)
+        intent["expires_at"] = "2026-08-03T23:59:59Z"
+        with pytest.raises(AuthorityBundleError) as exc_info:
+            _validate_merge_intent(
+                intent,
+                expected_decision_id="decision_test",
+                expected_decision_sha256="a" * 64,
+                expected_command_plan_sha256="b" * 64,
+                expected_pr=106,
+                expected_base=VALID_BASE_SHA,
+                expected_repository="dddd2024/reverse-agent",
+                validation_time=datetime(2026, 8, 4, tzinfo=timezone.utc),
+            )
+        assert exc_info.value.code == "intent_expired"
+
+    def test_decision_identity_exact_field_set(self) -> None:
+        intent = dict(self._VALID_INTENT)
+        intent["decision_identity"] = {
+            **intent["decision_identity"], "round_id": "round_test",
+        }
+        with pytest.raises(AuthorityBundleError) as exc_info:
+            _validate_merge_intent(
+                intent,
+                expected_decision_id="decision_test",
+                expected_decision_sha256="a" * 64,
+                expected_command_plan_sha256="b" * 64,
+                expected_pr=106,
+                expected_base=VALID_BASE_SHA,
+                expected_repository="dddd2024/reverse-agent",
+                validation_time=datetime(2026, 8, 4, tzinfo=timezone.utc),
+            )
+        assert exc_info.value.code == "intent_decision_identity_field_set_mismatch"
 
     def test_missing_post_merge_workflow_rejected(self) -> None:
         """Missing post_merge_integration_workflow blocks."""
@@ -1250,19 +1286,103 @@ class TestDualHeadTopology:
         """State Gate (push) must not appear in pre-merge evidence."""
         bundle = _make_bundle()
         git = _make_git_adapter()
-        # Include a State Gate (push) run at trusted base — must be rejected
+        # A historical/post-merge push run may coexist and must be excluded.
         gh = FakeGitHubAdapter(runs=_all_required_runs() + (
             WorkflowRun(workflow_name="State Gate", event="push", run_id="99",
                         head_sha=VALID_BASE_SHA, status="COMPLETED",
                         conclusion="SUCCESS"),
         ))
+        receipt = FakeReceiptVerifier(result={"verified": True})
+        evidence = collect_live_evidence(
+            bundle=bundle,
+            git_adapter=git,
+            github_adapter=gh,
+            receipt_verifier=receipt,
+        )
+        names = [check["name"] for check in evidence.ci_checks]
+        assert "State Gate (pull_request_target)" in names
+        assert "State Gate (push)" not in names
+
+    def test_latest_current_pr_target_run_is_selected(self) -> None:
+        bundle = _make_bundle()
+        runs = _all_required_runs() + (
+            WorkflowRun(
+                workflow_name="State Gate", event="pull_request_target",
+                run_id="4", head_sha=VALID_BASE_SHA, status="COMPLETED",
+                conclusion="SUCCESS", attempt=1, source_pr=97,
+                created_at="2026-08-04T00:04:00Z",
+            ),
+        )
+        receipt = FakeReceiptVerifier(result={"verified": True})
+        collect_live_evidence(
+            bundle=bundle,
+            git_adapter=_make_git_adapter(),
+            github_adapter=FakeGitHubAdapter(runs=runs),
+            receipt_verifier=receipt,
+        )
+        assert receipt.calls[0]["run_id"] == 4
+
+    def test_latest_failed_run_blocks_without_older_success_fallback(self) -> None:
+        bundle = _make_bundle()
+        runs = _all_required_runs() + (
+            WorkflowRun(
+                workflow_name="State Gate", event="pull_request_target",
+                run_id="4", head_sha=VALID_BASE_SHA, status="COMPLETED",
+                conclusion="FAILURE", attempt=1, source_pr=97,
+                created_at="2026-08-04T00:04:00Z",
+            ),
+        )
+        receipt = FakeReceiptVerifier(result={"verified": True})
         with pytest.raises(EvidenceCollectionError) as exc_info:
             collect_live_evidence(
                 bundle=bundle,
-                git_adapter=git,
-                github_adapter=gh,
+                git_adapter=_make_git_adapter(),
+                github_adapter=FakeGitHubAdapter(runs=runs),
+                receipt_verifier=receipt,
             )
-        assert exc_info.value.code == "state_gate_push_in_pre_merge_evidence"
+        assert exc_info.value.code == "trusted_target_latest_not_success"
+        assert receipt.calls == []
+
+    def test_other_pr_sharing_base_is_ignored(self) -> None:
+        bundle = _make_bundle()
+        current = WorkflowRun(
+            workflow_name="State Gate", event="pull_request_target",
+            run_id="3", head_sha=VALID_BASE_SHA, status="COMPLETED",
+            conclusion="SUCCESS", attempt=1, source_pr=97,
+            created_at="2026-08-04T00:03:00Z",
+        )
+        unrelated = WorkflowRun(
+            workflow_name="State Gate", event="pull_request_target",
+            run_id="99", head_sha=VALID_BASE_SHA, status="COMPLETED",
+            conclusion="FAILURE", attempt=1, source_pr=999,
+            created_at="2026-08-04T00:59:00Z",
+        )
+        ordinary = _all_required_runs()[:2]
+        receipt = FakeReceiptVerifier(result={"verified": True})
+        collect_live_evidence(
+            bundle=bundle,
+            git_adapter=_make_git_adapter(),
+            github_adapter=FakeGitHubAdapter(runs=ordinary + (current, unrelated)),
+            receipt_verifier=receipt,
+        )
+        assert receipt.calls[0]["run_id"] == 3
+
+    @pytest.mark.parametrize(
+        "reason",
+        ["wrong_pr", "wrong_base", "wrong_head", "wrong_digest"],
+    )
+    def test_latest_receipt_binding_mismatch_blocks(self, reason: str) -> None:
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            collect_live_evidence(
+                bundle=_make_bundle(),
+                git_adapter=_make_git_adapter(),
+                github_adapter=FakeGitHubAdapter(runs=_all_required_runs()),
+                receipt_verifier=FakeReceiptVerifier(
+                    result={"verified": False, "reason": reason},
+                ),
+            )
+        assert exc_info.value.code == "receipt_verification_failed"
+        assert exc_info.value.detail == reason
 
     def test_receipt_called_with_independently_computed_digest(self) -> None:
         """The receipt verifier must receive the independently computed
@@ -1437,13 +1557,11 @@ class TestR0R1DualHeadCollector:
         git = _make_git_adapter()
         gh = FakeGitHubAdapter(runs=_all_required_runs())
         receipt = FakeReceiptVerifier(result={"verified": True})
-        runner = FakeCommandRunner(exit_code=0)
 
         evidence = collect_live_evidence(
             bundle=bundle,
             git_adapter=git,
             github_adapter=gh,
-            command_runner=runner,
             receipt_verifier=receipt,
         )
         assert evidence.is_live is True
@@ -1455,13 +1573,11 @@ class TestR0R1DualHeadCollector:
         git = _make_git_adapter()
         gh = FakeGitHubAdapter(runs=_all_required_runs())
         receipt = FakeReceiptVerifier(result={"verified": True})
-        runner = FakeCommandRunner(exit_code=0)
 
         evidence = collect_live_evidence(
             bundle=bundle,
             git_adapter=git,
             github_adapter=gh,
-            command_runner=runner,
             receipt_verifier=receipt,
         )
         assert evidence.is_live is True
