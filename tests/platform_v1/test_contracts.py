@@ -896,11 +896,11 @@ class TestRequiredChecksAsWorkflows:
 
 
 # ---------------------------------------------------------------------------
-# F17/F28: Active Bootstrap intent binds PR #110 and exact authority digests
+# F17/F28: Active Bootstrap intent binds PR #112 and exact authority digests
 # ---------------------------------------------------------------------------
 
-class TestActiveMergeIntentV5:
-    """The active intent binds PR #110 while preserving prior intents.
+class TestActiveMergeIntentV6:
+    """The active intent binds PR #112 while preserving prior intents.
 
     The v1, v2, and v3 assertions remain intact, and the v4 archive must be
     the exact B0 active Intent blob.
@@ -918,6 +918,7 @@ class TestActiveMergeIntentV5:
         self._archive_v3_path = intents_dir / "archive" / "pr97_v3.json"
         self._archive_v4_path = intents_dir / "archive" / "pr97_v4.json"
         self._archive_pr108_path = intents_dir / "archive" / "pr108_v1.json"
+        self._archive_pr110_path = intents_dir / "archive" / "pr110_v1.json"
         self._decision_path = repo_root / "project_state" / "decision_packet.md"
         self._command_plan_path = repo_root / "project_state" / "gates" / "command_plan.json"
         self._active = json.loads(self._active_path.read_text(encoding="utf-8"))
@@ -928,13 +929,16 @@ class TestActiveMergeIntentV5:
         self._archive_pr108 = json.loads(
             self._archive_pr108_path.read_text(encoding="utf-8")
         )
+        self._archive_pr110 = json.loads(
+            self._archive_pr110_path.read_text(encoding="utf-8")
+        )
 
-    def test_active_binds_source_pr_110(self) -> None:
-        assert self._active["source_pr"] == 110
+    def test_active_binds_source_pr_112(self) -> None:
+        assert self._active["source_pr"] == 112
 
     def test_active_binds_bootstrap_decision_id(self) -> None:
         assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260804_issue109_pr110_bootstrap_test_rebind_v1"
+            "decision_20260804_issue111_pr112_bootstrap_v13_retry_v1"
         )
 
     def test_active_binds_bootstrap_decision_content_sha256(self) -> None:
@@ -953,7 +957,7 @@ class TestActiveMergeIntentV5:
 
     def test_active_binds_locked_base_sha(self) -> None:
         assert self._active["locked_base_sha"] == (
-            "4aacd7f614342f5ca123b2afccdb9a49df886775"
+            "93984db182b7ee11b3ccb8795bb5fc3741205b92"
         )
 
     def test_active_binds_merge_method(self) -> None:
@@ -1015,4 +1019,20 @@ class TestActiveMergeIntentV5:
         header = f"blob {len(payload)}\0".encode("ascii")
         assert hashlib.sha1(header + payload).hexdigest() == (
             "32ca8e328e28467fcbe1857b7d300152fc89bdf4"
+        )
+
+    def test_archive_pr110_preserves_bootstrap_v2_identity(self) -> None:
+        assert self._archive_pr110["source_pr"] == 110
+        assert self._archive_pr110["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue109_pr110_bootstrap_test_rebind_v1"
+        )
+        assert self._archive_pr110["locked_base_sha"] == (
+            "4aacd7f614342f5ca123b2afccdb9a49df886775"
+        )
+
+    def test_archive_pr110_is_exact_b2_active_blob(self) -> None:
+        payload = self._archive_pr110_path.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "bb7ce4c1c61a88e63e0bdc14e0ce2fa4967fc842"
         )
