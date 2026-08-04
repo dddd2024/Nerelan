@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260804_issue111_pr112_bootstrap_v13_retry_v1",
-  "round_id": "round_20260804_issue111_pr112_bootstrap_v13_retry_v1",
+  "decision_id": "decision_20260804_issue111_pr112_candidate_test_semantic_guard_v2",
+  "round_id": "round_20260804_issue111_pr112_candidate_test_semantic_guard_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,10 +16,10 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260804_issue109_pr110_bootstrap_test_rebind_v1",
-  "follows_last_round_id": "round_20260804_issue109_pr110_bootstrap_test_rebind_v1",
-  "previous_audit_outcome": "PR106_V13_REJECTED_ACTIVE_BASE_ALIAS_LEAKED_INTO_HISTORICAL_ARCHIVES",
-  "workstream_id": "issue111-pr106-bootstrap-v13-retry-v1",
+  "follows_last_decision_id": "decision_20260804_issue111_pr112_bootstrap_v13_retry_v1",
+  "follows_last_round_id": "round_20260804_issue111_pr112_bootstrap_v13_retry_v1",
+  "previous_audit_outcome": "PR112_V1_REJECTED_TEST_NAME_ONLY_GUARD_INSUFFICIENT",
+  "workstream_id": "issue111-pr112-candidate-test-semantic-guard-v2",
   "source_issue": 111,
   "parent_issue": 90,
   "dependent_issue": 105,
@@ -28,7 +28,7 @@
   "prior_bootstrap_pr": 110,
   "active_pr": 112,
   "required_branch": "owner/state-gate-bootstrap-v13-retry-v3",
-  "starting_head": "34e4e7bf3bad770a4f58edf7cc3a12f108818dee",
+  "starting_head": "d19439387756c2b2516f9ca7af5a3d585a0b45a7",
   "activation_base_sha": "93984db182b7ee11b3ccb8795bb5fc3741205b92",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -247,6 +247,7 @@
     "project_state/gates/transition_preflight_result.json",
     "project_state/mainline_merge_intents/active.json",
     "project_state/mainline_merge_intents/archive/pr110_v1.json",
+    "project_state/mainline_merge_intents/archive/pr112_v1.json",
     "tests/platform_v1/test_contracts.py",
     "tests/platform_v1/test_merge_intent.py"
   ],
@@ -357,6 +358,7 @@
     "project_state/gates/**",
     "project_state/mainline_merge_intents/active.json",
     "project_state/mainline_merge_intents/archive/pr110_v1.json",
+    "project_state/mainline_merge_intents/archive/pr112_v1.json",
     "tests/platform_v1/test_contracts.py",
     "tests/platform_v1/test_merge_intent.py"
   ],
@@ -387,14 +389,14 @@
 
 ## Goal
 
-Create the repository-backed Path-B authority for Issue #111 and Draft PR #112, then advance the trusted `pull_request_target` Bootstrap bridge so dependent Draft PR #106 can be reconstructed as v14 after the bounded v13 semantic-test failure. The round starts from reservation head `34e4e7bf3bad770a4f58edf7cc3a12f108818dee` on branch `owner/state-gate-bootstrap-v13-retry-v3` and base B2 `93984db182b7ee11b3ccb8795bb5fc3741205b92`.
+Repair the exact-head Owner finding on existing Draft PR #112 by replacing the test-name-only candidate guard with a closed normalized-AST semantic-body allowlist. The v2 round starts from rejected v1 head `d19439387756c2b2516f9ca7af5a3d585a0b45a7` on branch `owner/state-gate-bootstrap-v13-retry-v3` and retains activation base B2 `93984db182b7ee11b3ccb8795bb5fc3741205b92`.
 
-The implementation is limited to the exact eleven paths in `allowed_mutated_paths`. It must preserve every historical and negative assertion, the existing push and ordinary pull-request routes, read-only permissions, credential-free candidate execution, H0-compatible receipt schema and single-artifact publication. It must not modify PR #106 or execute Docker, OpenHands, Agent Canvas, Codex ACP, Issue #102, deployment, credentials, tag or release operations.
+The cumulative implementation is limited to the exact twelve paths in `allowed_mutated_paths`; rejected v1 archive `pr112_v1.json` is the only new path, while existing `pr110_v1.json` and every earlier archive remain immutable in v2. The bridge must preserve helpers, fixtures, decorators, assertions, imports, collection controls and module statements by normalized AST, allowing only the explicit v14 base/Decision/archive transformations. It must not import, compile, execute or run candidate Python in the token-bearing authority job.
 
 ## Acceptance boundary
 
-The Decision is committed before generated authority or implementation. The standard transition Gate sequence must produce `transition-lint == PASSED`, `PRE_EXECUTION_AUTHORIZED`, `blocking_reasons == []`, and 18/18 checks `PASS` for the exact branch and B2 base. The B2 active PR110 v1 Intent is archived byte-for-byte as `archive/pr110_v1.json`; the new active Intent binds PR #112, B2, the committed Decision and generated Command Plan, merge method `merge`, the current four-workflow policy, and a bounded expiry.
+The v2 Decision is committed before regenerated authority or implementation. The standard transition Gate sequence must produce `transition-lint == PASSED`, `PRE_EXECUTION_AUTHORIZED`, `blocking_reasons == []`, and 18/18 checks `PASS` for the exact branch and B2 base. Rejected v1 active Intent is archived byte-for-byte as `archive/pr112_v1.json` with Git blob `639581296b8dfd8038871010f99aa68401568353`; the new active Intent binds PR #112, B2, the committed v2 Decision and generated Command Plan, merge method `merge`, the current four-workflow policy, and a bounded expiry.
 
-The trusted bridge derives B3 and the candidate head from the bound PR #106 event, proves that B3 is the PR #112 ordered merge descendant of B2, proves the exact four-commit H0-to-v14 topology and exact eleven-path net change, and validates the active-versus-historical base constants by reading candidate test files only as data. It requires the permanent workflow and production Python trees at the candidate to equal H0, preserves all H0 test names and rejects new skip/skipif/xfail markers or changed historical archives, selects only latest exact-head CI and Decision Preflight successes, runs candidate code only in a tokenless `permissions: {}` job, and emits one verifier-compatible receipt bound to B3, the candidate head and canonical B3..candidate changed-path digest.
+The trusted bridge derives B3 and the candidate head from the bound PR #106 event, proves B3 is the PR #112 ordered merge descendant of B2, and proves the exact four-commit H0-to-v14 topology and eleven-path net change. Candidate tests are parsed only as data. Qualified identities, class bases, decorators, arguments and normalized bodies are compared to H0 with only fixed transformations for runtime B3, v14 identity, historical-base separation and the exact v11r2 archive assertions; duplicate identities, collection controls, unknown calls, import changes, body weakening, assertion removal, fixture/helper changes and marker changes fail closed.
 
-All specified tests, YAML and structural workflow checks, and `git diff --check 93984db182b7ee11b3ccb8795bb5fc3741205b92..HEAD` must pass without repair or retry. The cumulative diff remains within the exact eleven-path scope. Publication is limited to pushing the existing branch and updating or commenting on Draft PR #112 plus read-only check observation. Merge, mark-ready and auto-merge remain false. The terminal status is `BOOTSTRAP_V3_PR106_V14_BRIDGE_READY_FOR_OWNER_AUDIT`.
+All specified tests, semantic-body adversarial checks, YAML and workflow/receipt structural checks, and `git diff --check 93984db182b7ee11b3ccb8795bb5fc3741205b92..HEAD` must pass without repair or retry. The cumulative diff remains exactly twelve paths. Publication is limited to the existing branch and Draft PR #112 plus read-only check observation. PR #106 remains untouched; merge, mark-ready and auto-merge remain false. The terminal status is `PR112_BOOTSTRAP_V3_SEMANTIC_BODY_GUARD_READY_FOR_OWNER_AUDIT`.
