@@ -1284,6 +1284,111 @@ class _Holder:
     return {path: ast.unparse(tree) for path, tree in trees.items()}
 
 
+def _qualified_test_functions(tree: ast.Module) -> dict[str, ast.FunctionDef]:
+    found: dict[str, ast.FunctionDef] = {}
+
+    def visit(body: list[ast.stmt], prefix: str = "") -> None:
+        for node in body:
+            if isinstance(node, ast.ClassDef):
+                identity = f"{prefix}.{node.name}" if prefix else node.name
+                visit(node.body, identity)
+            elif isinstance(node, ast.FunctionDef):
+                identity = f"{prefix}.{node.name}" if prefix else node.name
+                if node.name.startswith("test_"):
+                    assert identity not in found, f"duplicate qualified test: {identity}"
+                    found[identity] = node
+                visit(node.body, identity)
+
+    visit(tree.body)
+    return found
+
+
+def _prohibited_marker_nodes(function: ast.FunctionDef) -> list[ast.expr]:
+    prohibited = {"skip", "skipif", "xfail"}
+    markers: list[ast.expr] = []
+    for decorator in function.decorator_list:
+        marker = decorator.func if isinstance(decorator, ast.Call) else decorator
+        if (
+            isinstance(marker, ast.Attribute)
+            and marker.attr in prohibited
+            and isinstance(marker.value, ast.Attribute)
+            and marker.value.attr == "mark"
+            and isinstance(marker.value.value, ast.Name)
+            and marker.value.value.id == "pytest"
+        ):
+            markers.append(decorator)
+    return markers
+
+
+def _marker_moved_fixture(
+    h0_sources: dict[str, str], authorized_sources: dict[str, str]
+) -> tuple[dict[str, str], dict[str, str]]:
+    path = SEMANTIC_PATHS[2]
+    baseline_trees = {name: ast.parse(source) for name, source in h0_sources.items()}
+    candidate_trees = {
+        name: ast.parse(source) for name, source in authorized_sources.items()
+    }
+    baseline_tests = _qualified_test_functions(baseline_trees[path])
+    candidate_tests = _qualified_test_functions(candidate_trees[path])
+    common_identities = sorted(set(baseline_tests) & set(candidate_tests))
+    marker_free = [
+        identity for identity in common_identities
+        if not _prohibited_marker_nodes(candidate_tests[identity])
+    ]
+    targets = [
+        identity for identity in marker_free
+        if candidate_tests[identity].decorator_list
+    ]
+    assert targets, "no marker-free existing qualified test target found"
+    target_identity = targets[0]
+    source_candidates = [
+        identity for identity in marker_free if identity != target_identity
+    ]
+    assert source_candidates, "no existing qualified test available for marker source"
+    seeded_identity = source_candidates[0]
+    marker = ast.parse(
+        "@pytest.mark.skip(reason='semantic marker-movement probe')\n"
+        "def probe():\n"
+        "    pass\n"
+    ).body[0].decorator_list[0]
+    baseline_tests[seeded_identity].decorator_list.append(copy.deepcopy(marker))
+    candidate_tests[seeded_identity].decorator_list.append(marker)
+
+    sources = [
+        (identity, function, _prohibited_marker_nodes(function))
+        for identity, function in sorted(candidate_tests.items())
+        if _prohibited_marker_nodes(function)
+    ]
+    assert sources, "no prohibited-marker source found"
+    source_identity, source_function, source_markers = sources[0]
+    targets = [
+        (identity, function)
+        for identity, function in sorted(candidate_tests.items())
+        if identity != source_identity and not _prohibited_marker_nodes(function)
+    ]
+    assert targets, "no marker-free target found"
+    selected_targets = [pair for pair in targets if pair[0] == target_identity]
+    assert len(selected_targets) == 1, "deterministic marker target disappeared"
+    target_identity, target_function = selected_targets[0]
+    before_count = sum(
+        len(_prohibited_marker_nodes(function))
+        for function in candidate_tests.values()
+    )
+    moved_marker = source_markers[0]
+    source_function.decorator_list.remove(moved_marker)
+    target_function.decorator_list.append(moved_marker)
+    after_count = sum(
+        len(_prohibited_marker_nodes(function))
+        for function in candidate_tests.values()
+    )
+    assert before_count == after_count == 1, "prohibited marker count changed"
+    assert set(candidate_tests) == set(_qualified_test_functions(candidate_trees[path]))
+    return (
+        {name: ast.unparse(tree) for name, tree in baseline_trees.items()},
+        {name: ast.unparse(tree) for name, tree in candidate_trees.items()},
+    )
+
+
 def _mutate_semantic_candidate(sources: dict[str, str], case: str) -> dict[str, str]:
     trees = {path: ast.parse(source) for path, source in sources.items()}
     authority = trees[SEMANTIC_PATHS[0]]
@@ -1303,11 +1408,7 @@ def _mutate_semantic_candidate(sources: dict[str, str], case: str) -> dict[str, 
         helper = next(node for node in authority.body if isinstance(node, ast.FunctionDef) and not node.name.startswith("test_"))
         helper.body = [ast.Return(value=ast.Constant(b"fixed"))]
     elif case == "marker_moved":
-        owner = _class(merge, "TestRecentPR106IntentArchives")
-        marked = next(node for node in owner.body if isinstance(node, ast.FunctionDef) and node.decorator_list)
-        other = next(node for node in owner.body if isinstance(node, ast.FunctionDef) and not node.decorator_list)
-        other.decorator_list = marked.decorator_list
-        marked.decorator_list = []
+        raise AssertionError("marker_moved requires its paired trusted AST fixture")
     elif case == "pytestmark":
         contracts.body.append(ast.parse("pytestmark = pytest.mark.skip").body[0])
     elif case == "test_disabled":
@@ -1379,9 +1480,14 @@ class TestStateGateSemanticBodyGuardV2:
     def test_adversarial_semantic_weakening_is_rejected(self, case: str) -> None:
         h0_sources = _semantic_h0_sources()
         authorized = _authorized_v14_sources(h0_sources)
+        if case == "marker_moved":
+            guard_h0, mutated = _marker_moved_fixture(h0_sources, authorized)
+        else:
+            guard_h0 = h0_sources
+            mutated = _mutate_semantic_candidate(authorized, case)
         with pytest.raises(ValueError):
             _workflow_semantic_guard()(
-                h0_sources,
-                _mutate_semantic_candidate(authorized, case),
+                guard_h0,
+                mutated,
                 SEMANTIC_B3,
             )
