@@ -17,6 +17,12 @@ on:
       - ".github/workflows/**"
       - ".codex-skills/**"
       - "docs/prompts/**"
+  pull_request_target:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
 
 permissions:
   contents: read
@@ -26,6 +32,7 @@ permissions:
 
 jobs:
   state-gate:
+    if: github.event_name != 'pull_request_target'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -33,6 +40,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -185,3 +193,647 @@ jobs:
             project_state/gates/*.json
             project_state/pytest_result.txt
             ${{ runner.temp }}/mainline_integration_receipt.json
+
+  bootstrap-authority:
+    if: >-
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.number == 106 &&
+      github.repository == 'dddd2024/reverse-agent' &&
+      github.event.pull_request.head.repo.full_name == 'dddd2024/reverse-agent' &&
+      github.event.pull_request.head.ref == 'agent/restore-path-a-state-gate-current-main-v1' &&
+      github.event.pull_request.base.repo.full_name == 'dddd2024/reverse-agent' &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      trusted_base_sha: ${{ steps.authority.outputs.trusted_base_sha }}
+      candidate_head_sha: ${{ steps.authority.outputs.candidate_head_sha }}
+      changed_paths_sha256: ${{ steps.authority.outputs.changed_paths_sha256 }}
+      ci_run_id: ${{ steps.authority.outputs.ci_run_id }}
+      preflight_run_id: ${{ steps.authority.outputs.preflight_run_id }}
+    steps:
+      - name: Checkout exact trusted B1
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify bounded B1 and H1 authority
+        id: authority
+        shell: bash
+        env:
+          BOOTSTRAP_API_TOKEN: ${{ github.token }}
+          TRUSTED_RUN_SHA: ${{ github.sha }}
+          EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          EVENT_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_BASE_REPOSITORY: ${{ github.event.pull_request.base.repo.full_name }}
+          EVENT_BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          readonly REPOSITORY='dddd2024/reverse-agent'
+          readonly PR_NUMBER='106'
+          readonly BOOTSTRAP_PR_NUMBER='108'
+          readonly EXPECTED_BRANCH='agent/restore-path-a-state-gate-current-main-v1'
+          readonly BOOTSTRAP_BRANCH='owner/state-gate-target-bootstrap-v1'
+          readonly H0='ff7dd9091a48c5c2fad315812e672d5089824d09'
+          readonly B0='fa4f240f7dffff78cdb182ce8655c2e2d7cb241f'
+          readonly B1="$EVENT_BASE_SHA"
+          readonly H1="$EVENT_HEAD_SHA"
+
+          test "$GITHUB_EVENT_NAME" = 'pull_request_target'
+          test "$GITHUB_REPOSITORY" = "$REPOSITORY"
+          test "$EVENT_PR_NUMBER" = "$PR_NUMBER"
+          test "$EVENT_HEAD_REPOSITORY" = "$REPOSITORY"
+          test "$EVENT_HEAD_BRANCH" = "$EXPECTED_BRANCH"
+          test "$EVENT_BASE_REPOSITORY" = "$REPOSITORY"
+          test "$EVENT_BASE_BRANCH" = 'main'
+          test "$TRUSTED_RUN_SHA" = "$B1"
+          test "$(git rev-parse HEAD)" = "$B1"
+
+          api_get() {
+            curl --fail --silent --show-error \
+              --header 'Accept: application/vnd.github+json' \
+              --header "Authorization: Bearer $BOOTSTRAP_API_TOKEN" \
+              --header 'X-GitHub-Api-Version: 2022-11-28' \
+              "https://api.github.com/$1"
+          }
+
+          api_get "repos/$REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/bootstrap-pr106.json"
+          jq -e \
+            --arg repository "$REPOSITORY" \
+            --arg branch "$EXPECTED_BRANCH" \
+            --arg head "$H1" \
+            --arg base "$B1" \
+            '.number == 106
+             and .state == "open"
+             and .draft == true
+             and .head.repo.full_name == $repository
+             and .head.ref == $branch
+             and .head.sha == $head
+             and .base.repo.full_name == $repository
+             and .base.ref == "main"
+             and .base.sha == $base
+             and .auto_merge == null' \
+            "$RUNNER_TEMP/bootstrap-pr106.json" > /dev/null
+
+          api_get "repos/$REPOSITORY/pulls/$BOOTSTRAP_PR_NUMBER" > "$RUNNER_TEMP/bootstrap-pr108.json"
+          jq -e \
+            --arg repository "$REPOSITORY" \
+            --arg branch "$BOOTSTRAP_BRANCH" \
+            --arg merge_commit "$B1" \
+            '.number == 108
+             and .state == "closed"
+             and .merged == true
+             and .draft == false
+             and .head.repo.full_name == $repository
+             and .head.ref == $branch
+             and .base.repo.full_name == $repository
+             and .base.ref == "main"
+             and .merge_commit_sha == $merge_commit
+             and .auto_merge == null' \
+            "$RUNNER_TEMP/bootstrap-pr108.json" > /dev/null
+          readonly PR108_HEAD="$(jq -r '.head.sha' "$RUNNER_TEMP/bootstrap-pr108.json")"
+
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git fetch --no-tags origin "$B0" "$H0" "$B1" "$H1" "$PR108_HEAD"
+          for revision in "$B0" "$H0" "$B1" "$H1" "$PR108_HEAD"; do
+            test "$(git cat-file -t "$revision")" = 'commit'
+          done
+
+          git merge-base --is-ancestor "$B0" "$B1"
+          read -r -a b1_parents <<< "$(git rev-list --parents -n 1 "$B1")"
+          test "${#b1_parents[@]}" -eq 3
+          test "${b1_parents[1]}" = "$B0"
+          test "${b1_parents[2]}" = "$PR108_HEAD"
+
+          git merge-base --is-ancestor "$H0" "$H1"
+          git merge-base --is-ancestor "$B1" "$H1"
+          mapfile -t h1_chain < <(git rev-list --first-parent --reverse "$H0..$H1")
+          test "${#h1_chain[@]}" -eq 4
+          read -r -a merge_parents <<< "$(git rev-list --parents -n 1 "${h1_chain[0]}")"
+          test "${#merge_parents[@]}" -eq 3
+          test "${merge_parents[1]}" = "$H0"
+          test "${merge_parents[2]}" = "$B1"
+          for index in 1 2 3; do
+            read -r -a linear_parents <<< "$(git rev-list --parents -n 1 "${h1_chain[$index]}")"
+            test "${#linear_parents[@]}" -eq 2
+            test "${linear_parents[1]}" = "${h1_chain[$((index - 1))]}"
+          done
+
+          export B0 H0 B1 H1
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import subprocess
+
+          b0 = os.environ["B0"]
+          h0 = os.environ["H0"]
+          b1 = os.environ["B1"]
+          h1 = os.environ["H1"]
+          pr108_paths = {
+              ".github/workflows/state-gate.yml",
+              "project_state/decision_packet.md",
+              "project_state/gates/bootstrap_state.json",
+              "project_state/gates/command_plan.json",
+              "project_state/gates/startup_snapshot.json",
+              "project_state/gates/transition_command_plan_preview.json",
+              "project_state/gates/transition_preflight_result.json",
+              "project_state/mainline_merge_intents/active.json",
+              "project_state/mainline_merge_intents/archive/pr97_v4.json",
+              "tests/platform_v1/test_contracts.py",
+              "tests/platform_v1/test_merge_intent.py",
+          }
+          pr106_paths = {
+              "project_state/decision_packet.md",
+              "project_state/gates/bootstrap_state.json",
+              "project_state/gates/command_plan.json",
+              "project_state/gates/startup_snapshot.json",
+              "project_state/gates/transition_command_plan_preview.json",
+              "project_state/gates/transition_preflight_result.json",
+              "project_state/mainline_merge_intents/active.json",
+              "project_state/mainline_merge_intents/archive/pr106_v11r2.json",
+          }
+          generated_paths = {
+              "project_state/gates/bootstrap_state.json",
+              "project_state/gates/command_plan.json",
+              "project_state/gates/startup_snapshot.json",
+              "project_state/gates/transition_command_plan_preview.json",
+              "project_state/gates/transition_preflight_result.json",
+          }
+
+          def normalize(path: str) -> str:
+              if not path or "\x00" in path:
+                  raise SystemExit("empty or NUL changed path")
+              normalized = path.replace("\\", "/")
+              while normalized.startswith("./"):
+                  normalized = normalized[2:]
+              normalized = re.sub(r"/+", "/", normalized)
+              if not normalized or normalized == ".":
+                  raise SystemExit("empty changed path")
+              if normalized.startswith("/") or re.match(r"^[A-Za-z]:", normalized):
+                  raise SystemExit("absolute changed path")
+              parts = [part for part in normalized.split("/") if part]
+              if ".." in parts:
+                  raise SystemExit("traversal changed path")
+              return "/".join(parts)
+
+          def changed_paths(start: str, end: str) -> list[str]:
+              result = subprocess.run(
+                  ["git", "diff", "--name-status", "-M", "-C", f"{start}..{end}"],
+                  check=True,
+                  capture_output=True,
+                  text=True,
+              )
+              raw_paths: list[str] = []
+              for line in result.stdout.splitlines():
+                  if not line:
+                      continue
+                  fields = line.split("\t")
+                  status = fields[0]
+                  if status.startswith(("R", "C")):
+                      if len(fields) != 3:
+                          raise SystemExit("malformed rename/copy record")
+                      raw_paths.extend(fields[1:])
+                  else:
+                      if len(fields) != 2:
+                          raise SystemExit("malformed changed-path record")
+                      raw_paths.append(fields[1])
+              return sorted(dict.fromkeys(normalize(path) for path in raw_paths))
+
+          def commit_paths(commit: str) -> set[str]:
+              parent = subprocess.check_output(
+                  ["git", "rev-parse", f"{commit}^1"], text=True
+              ).strip()
+              return set(changed_paths(parent, commit))
+
+          b1_paths = set(changed_paths(b0, b1))
+          if b1_paths != pr108_paths:
+              raise SystemExit(f"unexpected B0..B1 paths: {sorted(b1_paths)}")
+          chain = subprocess.check_output(
+              ["git", "rev-list", "--first-parent", "--reverse", f"{h0}..{h1}"],
+              text=True,
+          ).splitlines()
+          if commit_paths(chain[1]) != {"project_state/decision_packet.md"}:
+              raise SystemExit("PR106 Decision commit path set mismatch")
+          if commit_paths(chain[2]) != generated_paths:
+              raise SystemExit("PR106 generated-authority commit path set mismatch")
+          if commit_paths(chain[3]) != {
+              "project_state/mainline_merge_intents/active.json",
+              "project_state/mainline_merge_intents/archive/pr106_v11r2.json",
+          }:
+              raise SystemExit("PR106 Intent-bind commit path set mismatch")
+          h1_paths = set(changed_paths(h0, h1))
+          if h1_paths != pr106_paths:
+              raise SystemExit(f"unexpected H0..H1 paths: {sorted(h1_paths)}")
+
+          workflow_path = ".github/workflows/state-gate.yml"
+          h0_workflow = subprocess.check_output(
+              ["git", "rev-parse", f"{h0}:{workflow_path}"], text=True
+          ).strip()
+          h1_workflow = subprocess.check_output(
+              ["git", "rev-parse", f"{h1}:{workflow_path}"], text=True
+          ).strip()
+          if h0_workflow != h1_workflow:
+              raise SystemExit("H1 workflow blob differs from H0")
+          archived = subprocess.check_output(
+              ["git", "rev-parse", f"{h1}:project_state/mainline_merge_intents/archive/pr106_v11r2.json"],
+              text=True,
+          ).strip()
+          prior_active = subprocess.check_output(
+              ["git", "rev-parse", f"{h0}:project_state/mainline_merge_intents/active.json"],
+              text=True,
+          ).strip()
+          if archived != prior_active:
+              raise SystemExit("pr106_v11r2 archive differs from H0 active Intent")
+
+          def blob(path: str) -> bytes:
+              return subprocess.check_output(["git", "show", f"{h1}:{path}"])
+
+          def json_blob(path: str) -> dict:
+              return json.loads(blob(path).decode("utf-8"))
+
+          decision_bytes = blob("project_state/decision_packet.md")
+          decision_text = decision_bytes.decode("utf-8")
+          meta_match = re.search(
+              r"\x60\x60\x60json decision_meta\s*(\{.*?\})\s*\x60\x60\x60",
+              decision_text,
+              re.DOTALL,
+          )
+          contract_match = re.search(
+              r"\x60\x60\x60json decision_contract\s*(\{.*?\})\s*\x60\x60\x60",
+              decision_text,
+              re.DOTALL,
+          )
+          if meta_match is None or contract_match is None:
+              raise SystemExit("H1 Decision JSON blocks missing")
+          meta = json.loads(meta_match.group(1))
+          contract = json.loads(contract_match.group(1))
+          plan_bytes = blob("project_state/gates/command_plan.json")
+          plan = json.loads(plan_bytes.decode("utf-8"))
+          intent = json_blob("project_state/mainline_merge_intents/active.json")
+          preflight = json_blob("project_state/gates/transition_preflight_result.json")
+
+          expected_prior = "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+          expected_round = "round_20260804_restore_path_a_state_gate_current_main_v11r2"
+          if contract.get("follows_last_decision_id") != expected_prior:
+              raise SystemExit("H1 Decision does not follow v11r2")
+          if contract.get("follows_last_round_id") != expected_round:
+              raise SystemExit("H1 round does not follow v11r2")
+          expected_contract = {
+              "activation_base_sha": b1,
+              "source_issue": 105,
+              "parent_issue": 90,
+              "bootstrap_issue": 107,
+              "active_pr": 106,
+              "required_branch": "agent/restore-path-a-state-gate-current-main-v1",
+          }
+          for key, expected in expected_contract.items():
+              if contract.get(key) != expected:
+                  raise SystemExit(f"H1 Decision {key} mismatch")
+          if meta.get("status") != "APPROVED":
+              raise SystemExit("H1 Decision is not APPROVED")
+
+          false_flags = {
+              "pr_creation_allowed",
+              "merge_allowed",
+              "mark_ready_allowed",
+              "auto_merge_allowed",
+              "force_push_allowed",
+              "rebase_allowed",
+              "release_allowed",
+              "deployment_allowed",
+              "real_provider_credential_allowed",
+              "live_work_item_publication_allowed",
+              "trusted_host_live_probe_allowed",
+              "audit_generation_allowed",
+          }
+          for key in false_flags:
+              if contract.get(key) is not False:
+                  raise SystemExit(f"H1 Decision dangerous flag enabled: {key}")
+          capability = contract.get("capability_policy", {})
+          for key in (
+              "runner_dispatch_allowed",
+              "model_api_invocation_allowed",
+              "external_reverse_tool_invocation_allowed",
+              "unknown_binary_execution_allowed",
+              "destructive_operations_allowed",
+              "direct_push_to_main_allowed",
+              "merge_allowed",
+              "force_push_allowed",
+              "rebase_during_execution_allowed",
+              "tag_or_release_allowed",
+          ):
+              if capability.get(key) is not False:
+                  raise SystemExit(f"H1 capability enabled: {key}")
+
+          decision_sha256 = hashlib.sha256(decision_bytes).hexdigest()
+          plan_sha256 = hashlib.sha256(plan_bytes).hexdigest()
+          if plan.get("decision_id") != meta.get("decision_id"):
+              raise SystemExit("H1 Command Plan Decision mismatch")
+          if plan.get("round_id") != meta.get("round_id"):
+              raise SystemExit("H1 Command Plan round mismatch")
+          if intent.get("repository") != "dddd2024/reverse-agent":
+              raise SystemExit("H1 Intent repository mismatch")
+          if intent.get("source_pr") != 106:
+              raise SystemExit("H1 Intent PR mismatch")
+          if intent.get("locked_base_sha") != b1:
+              raise SystemExit("H1 Intent locked base mismatch")
+          if intent.get("allowed_merge_method") != "merge":
+              raise SystemExit("H1 Intent merge method mismatch")
+          identity = intent.get("decision_identity", {})
+          if identity.get("decision_id") != meta.get("decision_id"):
+              raise SystemExit("H1 Intent Decision identity mismatch")
+          if identity.get("decision_content_sha256") != decision_sha256:
+              raise SystemExit("H1 Intent Decision digest mismatch")
+          if intent.get("command_plan_sha256") != plan_sha256:
+              raise SystemExit("H1 Intent Command Plan digest mismatch")
+          if preflight.get("gate_status") != "PRE_EXECUTION_AUTHORIZED":
+              raise SystemExit("H1 preflight is not authorized")
+          if preflight.get("decision_id") != meta.get("decision_id"):
+              raise SystemExit("H1 preflight Decision mismatch")
+          if preflight.get("round_id") != meta.get("round_id"):
+              raise SystemExit("H1 preflight round mismatch")
+          if preflight.get("blocking_reasons") != []:
+              raise SystemExit("H1 preflight has blocking reasons")
+          checks = preflight.get("checks")
+          if not isinstance(checks, list) or not checks:
+              raise SystemExit("H1 preflight checks missing")
+          if any(check.get("status") != "PASS" for check in checks):
+              raise SystemExit("H1 preflight contains non-PASS check")
+
+          paths = changed_paths(b1, h1)
+          digest = hashlib.sha256("\n".join(paths).encode("utf-8")).hexdigest()
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"trusted_base_sha={b1}\n")
+              output.write(f"candidate_head_sha={h1}\n")
+              output.write(f"changed_paths_sha256={digest}\n")
+          print(f"B1={b1}")
+          print(f"H1={h1}")
+          print(f"changed_paths_sha256={digest}")
+          PY
+
+          collect_runs() {
+            local page=1
+            local page_file
+            rm -f "$RUNNER_TEMP"/bootstrap-runs-page-*.json
+            while :; do
+              page_file="$RUNNER_TEMP/bootstrap-runs-page-$page.json"
+              api_get "repos/$REPOSITORY/actions/runs?event=pull_request&branch=$EXPECTED_BRANCH&per_page=100&page=$page" > "$page_file"
+              local count
+              count="$(jq '.workflow_runs | length' "$page_file")"
+              if [ "$count" -lt 100 ]; then
+                break
+              fi
+              page=$((page + 1))
+              test "$page" -le 20
+            done
+            jq -s '[.[].workflow_runs[]]' "$RUNNER_TEMP"/bootstrap-runs-page-*.json > "$RUNNER_TEMP/bootstrap-runs.json"
+          }
+
+          latest_run() {
+            local workflow_name="$1"
+            jq -c \
+              --arg name "$workflow_name" \
+              --arg branch "$EXPECTED_BRANCH" \
+              '[.[] |
+                select(.name == $name
+                  and .event == "pull_request"
+                  and .head_branch == $branch
+                  and any(.pull_requests[]?; .number == 106))
+               ] | sort_by(.created_at, .id) | reverse | .[0] // empty' \
+              "$RUNNER_TEMP/bootstrap-runs.json"
+          }
+
+          ci_run_id=''
+          preflight_run_id=''
+          for attempt in $(seq 1 36); do
+            collect_runs
+            ci_run="$(latest_run 'CI')"
+            preflight_run="$(latest_run 'Decision Preflight')"
+            ready=true
+            for record in "$ci_run" "$preflight_run"; do
+              if [ -z "$record" ] || [ "$(jq -r '.head_sha' <<< "$record")" != "$H1" ]; then
+                ready=false
+                continue
+              fi
+              status="$(jq -r '.status' <<< "$record")"
+              conclusion="$(jq -r '.conclusion // ""' <<< "$record")"
+              if [ "$status" = 'completed' ] && [ "$conclusion" != 'success' ]; then
+                echo "latest exact-H1 workflow failed: $record" >&2
+                exit 1
+              fi
+              if [ "$status" != 'completed' ] || [ "$conclusion" != 'success' ]; then
+                ready=false
+              fi
+            done
+            if [ "$ready" = true ]; then
+              ci_run_id="$(jq -r '.id' <<< "$ci_run")"
+              preflight_run_id="$(jq -r '.id' <<< "$preflight_run")"
+              break
+            fi
+            if [ "$attempt" -eq 36 ]; then
+              echo 'timed out waiting for latest exact-H1 CI and Decision Preflight' >&2
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "ci_run_id=$ci_run_id" >> "$GITHUB_OUTPUT"
+          echo "preflight_run_id=$preflight_run_id" >> "$GITHUB_OUTPUT"
+
+  bootstrap-candidate-tests:
+    if: >-
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.number == 106 &&
+      github.repository == 'dddd2024/reverse-agent' &&
+      github.event.pull_request.head.repo.full_name == 'dddd2024/reverse-agent' &&
+      github.event.pull_request.head.ref == 'agent/restore-path-a-state-gate-current-main-v1' &&
+      github.event.pull_request.base.repo.full_name == 'dddd2024/reverse-agent' &&
+      github.event.pull_request.base.ref == 'main'
+    needs: bootstrap-authority
+    permissions: {}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact H1 without credentials
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bootstrap-authority.outputs.candidate_head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          token: ""
+
+      - name: Remove ambient Git credential helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git config --local credential.helper ''
+          rm -f "$HOME/.git-credentials"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install exact H1 test dependencies
+        run: python -m pip install -e ".[test]"
+
+      - name: Validate exact B1 to H1 diff
+        env:
+          CANDIDATE_BASE_SHA: ${{ needs.bootstrap-authority.outputs.trusted_base_sha }}
+        run: git diff --check "$CANDIDATE_BASE_SHA"..HEAD
+
+      - name: Trusted authority tests
+        run: python -m pytest tests/platform_v1/test_trusted_live_launcher.py tests/platform_v1/test_authority_adapter.py tests/platform_v1/test_cli.py tests/platform_v1/test_evidence_adapter.py tests/platform_v1/test_contracts.py tests/platform_v1/test_merge_intent.py -q
+
+      - name: Read-only surface tests
+        run: python -m pytest tests/test_github_workflow_identity.py tests/test_mainline_landing.py tests/platform_v1/test_github_adapter.py -q
+
+      - name: Path-A gate tests
+        run: python -m pytest tests/test_path_a_gate.py tests/test_control_plane_transition.py tests/test_planning_and_github_adapters.py -q
+
+      - name: Project gate tests
+        run: python -m pytest tests/test_project_gate.py -q
+
+      - name: Mainline landing tests
+        run: python -m pytest tests/test_mainline_landing.py tests/test_integration_baseline.py tests/test_project_audits.py -q
+
+      - name: Platform V1 tests
+        run: python -m pytest tests/platform_v1 -q
+
+      - name: Minimal baseline documentation tests
+        run: python -m pytest tests/test_minimal_integration_baseline_docs.py -q
+
+      - name: Supervisor and repository hygiene tests
+        run: python -m pytest tests/test_supervisor_validate.py tests/test_repository_hygiene.py -q
+
+  bootstrap-receipt:
+    if: >-
+      always() &&
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.number == 106 &&
+      github.repository == 'dddd2024/reverse-agent' &&
+      github.event.pull_request.head.repo.full_name == 'dddd2024/reverse-agent' &&
+      github.event.pull_request.head.ref == 'agent/restore-path-a-state-gate-current-main-v1' &&
+      github.event.pull_request.base.repo.full_name == 'dddd2024/reverse-agent' &&
+      github.event.pull_request.base.ref == 'main'
+    needs: [bootstrap-authority, bootstrap-candidate-tests]
+    permissions: {}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Generate trusted Bootstrap receipt
+        shell: bash
+        env:
+          AUTHORITY_JOB_RESULT: ${{ needs.bootstrap-authority.result }}
+          CANDIDATE_JOB_RESULT: ${{ needs.bootstrap-candidate-tests.result }}
+          TRUSTED_BASE_SHA: ${{ needs.bootstrap-authority.outputs.trusted_base_sha }}
+          CANDIDATE_HEAD_SHA: ${{ needs.bootstrap-authority.outputs.candidate_head_sha }}
+          OBSERVED_CHANGED_PATHS_SHA256: ${{ needs.bootstrap-authority.outputs.changed_paths_sha256 }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from datetime import datetime, timezone
+
+          b1 = os.environ.get("TRUSTED_BASE_SHA", "")
+          h1 = os.environ.get("CANDIDATE_HEAD_SHA", "")
+          observed_digest = os.environ.get("OBSERVED_CHANGED_PATHS_SHA256", "")
+          authority_result = (
+              "SUCCESS"
+              if os.environ.get("AUTHORITY_JOB_RESULT") == "success"
+              and len(b1) == 40
+              and len(h1) == 40
+              and len(observed_digest) == 64
+              else "FAILED"
+          )
+          candidate_result = (
+              "SUCCESS"
+              if os.environ.get("CANDIDATE_JOB_RESULT") == "success"
+              else "FAILED"
+          )
+          final_result = (
+              "PASS"
+              if authority_result == "SUCCESS" and candidate_result == "SUCCESS"
+              else "BLOCKED"
+          )
+          receipt = {
+              "schema_version": "0.1",
+              "receipt_kind": "state_gate",
+              "repository": "dddd2024/reverse-agent",
+              "pr_number": 106,
+              "workflow_path": ".github/workflows/state-gate.yml",
+              "workflow_event": "pull_request_target",
+              "workflow_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "workflow_run_attempt": int(os.environ.get("GITHUB_RUN_ATTEMPT", "1")),
+              "trusted_base_sha": b1,
+              "trusted_verifier_tree_sha": b1,
+              "candidate_head_sha": h1,
+              "candidate_base_sha": b1,
+              "changed_paths_sha256": observed_digest,
+              "selected_mode": "transition",
+              "authority_identity": "trusted_base_verifier",
+              "authority_revision": b1,
+              "authority_result": authority_result,
+              "candidate_tests_result": candidate_result,
+              "final_gate_result": final_result,
+              "generated_at": datetime.now(timezone.utc).isoformat(),
+          }
+          canonical = json.dumps(
+              receipt,
+              ensure_ascii=False,
+              sort_keys=True,
+              separators=(",", ":"),
+          ).encode("utf-8")
+          receipt["content_sha256"] = hashlib.sha256(canonical).hexdigest()
+          output = os.path.join(os.environ["RUNNER_TEMP"], "state_gate_receipt.json")
+          with open(output, "w", encoding="utf-8") as stream:
+              json.dump(receipt, stream, indent=2, sort_keys=True)
+              stream.write("\n")
+          print(f"final_gate_result={final_result}")
+          PY
+
+      - name: Upload the only Bootstrap receipt artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: state-gate-receipt-pr106-${{ needs.bootstrap-authority.outputs.candidate_head_sha }}
+          path: ${{ runner.temp }}/state_gate_receipt.json
+          if-no-files-found: error
+
+      - name: Enforce trusted Bootstrap receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+
+          path = os.path.join(os.environ["RUNNER_TEMP"], "state_gate_receipt.json")
+          with open(path, encoding="utf-8") as stream:
+              receipt = json.load(stream)
+          content_sha256 = receipt.pop("content_sha256", "")
+          canonical = json.dumps(
+              receipt,
+              ensure_ascii=False,
+              sort_keys=True,
+              separators=(",", ":"),
+          ).encode("utf-8")
+          if hashlib.sha256(canonical).hexdigest() != content_sha256:
+              raise SystemExit("receipt content digest mismatch")
+          if receipt.get("authority_result") != "SUCCESS":
+              raise SystemExit("Bootstrap authority did not succeed")
+          if receipt.get("candidate_tests_result") != "SUCCESS":
+              raise SystemExit("Bootstrap candidate tests did not succeed")
+          if receipt.get("final_gate_result") != "PASS":
+              raise SystemExit("Bootstrap receipt did not pass")
+          PY

@@ -10,6 +10,8 @@ Covers:
 
 from __future__ import annotations
 
+import hashlib
+
 import pytest
 
 from reverse_agent.platform_v1.contracts import (
@@ -894,14 +896,14 @@ class TestRequiredChecksAsWorkflows:
 
 
 # ---------------------------------------------------------------------------
-# F17/F28: Active merge intent binds PR #97 and v4 digests
+# F17/F28: Active Bootstrap intent binds PR #108 and exact authority digests
 # ---------------------------------------------------------------------------
 
 class TestActiveMergeIntentV4:
-    """F17/F28: The active merge intent must bind PR #97 and v4 digests.
+    """The active intent binds PR #108 while preserving PR97 v1-v4.
 
-    The v1, v2, and v3 intents must be archived verbatim. The active intent
-    must bind the v4 Decision content SHA-256 and Command Plan SHA-256.
+    The v1, v2, and v3 assertions remain intact, and the v4 archive must be
+    the exact B0 active Intent blob.
     """
 
     @pytest.fixture(autouse=True)
@@ -914,35 +916,41 @@ class TestActiveMergeIntentV4:
         self._archive_v1_path = intents_dir / "archive" / "pr97_v1.json"
         self._archive_v2_path = intents_dir / "archive" / "pr97_v2.json"
         self._archive_v3_path = intents_dir / "archive" / "pr97_v3.json"
+        self._archive_v4_path = intents_dir / "archive" / "pr97_v4.json"
+        self._decision_path = repo_root / "project_state" / "decision_packet.md"
+        self._command_plan_path = repo_root / "project_state" / "gates" / "command_plan.json"
         self._active = json.loads(self._active_path.read_text(encoding="utf-8"))
         self._archive_v1 = json.loads(self._archive_v1_path.read_text(encoding="utf-8"))
         self._archive_v2 = json.loads(self._archive_v2_path.read_text(encoding="utf-8"))
         self._archive_v3 = json.loads(self._archive_v3_path.read_text(encoding="utf-8"))
+        self._archive_v4 = json.loads(self._archive_v4_path.read_text(encoding="utf-8"))
 
-    def test_active_binds_source_pr_97(self) -> None:
-        assert self._active["source_pr"] == 97
+    def test_active_binds_source_pr_108(self) -> None:
+        assert self._active["source_pr"] == 108
 
-    def test_active_binds_v4_decision_id(self) -> None:
+    def test_active_binds_bootstrap_decision_id(self) -> None:
         assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260802_issue100_platform_v1_authority_collector_v4"
+            "decision_20260804_issue107_state_gate_bootstrap_pr108_v1"
         )
 
-    def test_active_binds_v4_decision_content_sha256(self) -> None:
+    def test_active_binds_bootstrap_decision_content_sha256(self) -> None:
         sha = self._active["decision_identity"]["decision_content_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
-        # Must differ from the v3 decision content SHA-256
+        assert sha == hashlib.sha256(self._decision_path.read_bytes()).hexdigest()
         assert sha != self._archive_v3["decision_identity"]["decision_content_sha256"]
 
-    def test_active_binds_v4_command_plan_sha256(self) -> None:
+    def test_active_binds_bootstrap_command_plan_sha256(self) -> None:
         sha = self._active["command_plan_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
-        # Must differ from the v3 command plan SHA-256
+        assert sha == hashlib.sha256(self._command_plan_path.read_bytes()).hexdigest()
         assert sha != self._archive_v3["command_plan_sha256"]
 
     def test_active_binds_locked_base_sha(self) -> None:
-        assert self._active["locked_base_sha"] == VALID_BASE_SHA
+        assert self._active["locked_base_sha"] == (
+            "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+        )
 
     def test_active_binds_merge_method(self) -> None:
         assert self._active["allowed_merge_method"] == "merge"
@@ -975,3 +983,16 @@ class TestActiveMergeIntentV4:
 
     def test_archive_v3_preserves_v3_source_pr(self) -> None:
         assert self._archive_v3["source_pr"] == 97
+
+    def test_archive_v4_exists_and_preserves_v4_identity(self) -> None:
+        assert self._archive_v4["source_pr"] == 97
+        assert self._archive_v4["decision_identity"]["decision_id"] == (
+            "decision_20260802_issue100_platform_v1_authority_collector_v4"
+        )
+
+    def test_archive_v4_is_exact_b0_active_blob(self) -> None:
+        payload = self._archive_v4_path.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "1afd619ef90df7b01255d1cd16b483190f616df6"
+        )
