@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260804_issue111_pr112_marker_movement_guard_v4",
-  "round_id": "round_20260804_issue111_pr112_marker_movement_guard_v4",
+  "decision_id": "decision_20260804_issue111_pr112_long_validation_budget_v5",
+  "round_id": "round_20260804_issue111_pr112_long_validation_budget_v5",
   "commands": [
     {
       "command_id": "observation.git_status",

@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260804_issue111_pr112_marker_movement_guard_v4",
-  "round_id": "round_20260804_issue111_pr112_marker_movement_guard_v4",
+  "decision_id": "decision_20260804_issue111_pr112_long_validation_budget_v5",
+  "round_id": "round_20260804_issue111_pr112_long_validation_budget_v5",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260804_issue111_pr112_marker_movement_guard_v4 expected=decision_20260804_issue111_pr112_marker_movement_guard_v4"
+      "detail": "observed=decision_20260804_issue111_pr112_long_validation_budget_v5 expected=decision_20260804_issue111_pr112_long_validation_budget_v5"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260804_issue111_pr112_marker_movement_guard_v4 expected=round_20260804_issue111_pr112_marker_movement_guard_v4"
+      "detail": "observed=round_20260804_issue111_pr112_long_validation_budget_v5 expected=round_20260804_issue111_pr112_long_validation_budget_v5"
     },
     {
       "name": "decision_approved",
@@ -43,12 +43,12 @@
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=00ae9389cfae938be47eb5415e0bdf661fc28e5d"
+      "detail": "decision_commit=7a90c673fa40d78d47aaa33f00f0d9fb4171c264"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260804_issue111_pr112_marker_movement_guard_v4/round_20260804_issue111_pr112_marker_movement_guard_v4"
+      "detail": "plan=decision_20260804_issue111_pr112_long_validation_budget_v5/round_20260804_issue111_pr112_long_validation_budget_v5"
     },
     {
       "name": "command_plan_contract",
