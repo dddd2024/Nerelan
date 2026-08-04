@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260804_issue111_pr112_bootstrap_v13_retry_v1",
-  "round_id": "round_20260804_issue111_pr112_bootstrap_v13_retry_v1",
-  "expired_at": "2026-08-04T08:31:10+00:00"
+  "decision_id": "decision_20260804_issue111_pr112_candidate_test_semantic_guard_v2",
+  "round_id": "round_20260804_issue111_pr112_candidate_test_semantic_guard_v2",
+  "expired_at": "2026-08-04T09:12:20+00:00"
 }
