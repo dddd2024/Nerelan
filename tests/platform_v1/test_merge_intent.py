@@ -1,15 +1,13 @@
 """Tests for the Platform V1 mainline merge intent binding.
 
-F28: Verifies that the active merge intent binds:
-- source_pr: 97 (not 0)
-- The exact v4 Decision content SHA-256 and Command Plan SHA-256
-- locked_base_sha, allowed_merge_method, required_workflows, bounded expiry
-
-The v1, v2, and v3 intents are archived verbatim.
+Verifies that the active Bootstrap intent binds PR #108, B0, and the exact
+Issue #107 Decision and Command Plan digests. The PR97 v1-v4 intents remain
+archived, with v4 preserved byte-for-byte from B0.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -22,8 +20,15 @@ ACTIVE_PATH = INTENTS_DIR / "active.json"
 ARCHIVE_V1_PATH = INTENTS_DIR / "archive" / "pr97_v1.json"
 ARCHIVE_V2_PATH = INTENTS_DIR / "archive" / "pr97_v2.json"
 ARCHIVE_V3_PATH = INTENTS_DIR / "archive" / "pr97_v3.json"
+ARCHIVE_V4_PATH = INTENTS_DIR / "archive" / "pr97_v4.json"
+DECISION_PATH = REPO_ROOT / "project_state" / "decision_packet.md"
+COMMAND_PLAN_PATH = REPO_ROOT / "project_state" / "gates" / "command_plan.json"
 
-EXPECTED_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
+EXPECTED_PR97_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
+EXPECTED_BOOTSTRAP_BASE_SHA = "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+EXPECTED_BOOTSTRAP_DECISION_ID = (
+    "decision_20260804_issue107_state_gate_bootstrap_pr108_v1"
+)
 EXPECTED_V4_DECISION_ID = (
     "decision_20260802_issue100_platform_v1_authority_collector_v4"
 )
@@ -34,6 +39,7 @@ EXPECTED_V2_DECISION_ID = (
     "decision_20260802_issue98_platform_v1_trust_binding_rework_v2"
 )
 EXPECTED_V1_DECISION_ID = "decision_20260802_platform_v1_openhands_codex_acp_v1"
+EXPECTED_PR97_V4_GIT_BLOB = "1afd619ef90df7b01255d1cd16b483190f616df6"
 
 
 def _load_json(path: Path) -> dict:
@@ -41,16 +47,16 @@ def _load_json(path: Path) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Active v4 intent
+# Active PR108 Bootstrap intent
 # ---------------------------------------------------------------------------
 
 class TestActiveMergeIntent:
     def test_active_file_exists(self) -> None:
         assert ACTIVE_PATH.exists(), f"active.json not found at {ACTIVE_PATH}"
 
-    def test_active_binds_source_pr_97(self) -> None:
+    def test_active_binds_source_pr_108(self) -> None:
         data = _load_json(ACTIVE_PATH)
-        assert data["source_pr"] == 97, "active intent must bind source_pr=97"
+        assert data["source_pr"] == 108, "active intent must bind source_pr=108"
 
     def test_active_does_not_have_source_pr_zero(self) -> None:
         data = _load_json(ACTIVE_PATH)
@@ -58,27 +64,29 @@ class TestActiveMergeIntent:
 
     def test_active_binds_locked_base_sha(self) -> None:
         data = _load_json(ACTIVE_PATH)
-        assert data["locked_base_sha"] == EXPECTED_BASE_SHA
+        assert data["locked_base_sha"] == EXPECTED_BOOTSTRAP_BASE_SHA
 
     def test_active_binds_merge_method(self) -> None:
         data = _load_json(ACTIVE_PATH)
         assert data["allowed_merge_method"] == "merge"
 
-    def test_active_binds_v4_decision_id(self) -> None:
+    def test_active_binds_bootstrap_decision_id(self) -> None:
         data = _load_json(ACTIVE_PATH)
-        assert data["decision_identity"]["decision_id"] == EXPECTED_V4_DECISION_ID
+        assert data["decision_identity"]["decision_id"] == EXPECTED_BOOTSTRAP_DECISION_ID
 
     def test_active_decision_content_sha256_is_64_hex(self) -> None:
         data = _load_json(ACTIVE_PATH)
         sha = data["decision_identity"]["decision_content_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
+        assert sha == hashlib.sha256(DECISION_PATH.read_bytes()).hexdigest()
 
     def test_active_command_plan_sha256_is_64_hex(self) -> None:
         data = _load_json(ACTIVE_PATH)
         sha = data["command_plan_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
+        assert sha == hashlib.sha256(COMMAND_PLAN_PATH.read_bytes()).hexdigest()
 
     def test_active_required_workflows_include_all_four(self) -> None:
         data = _load_json(ACTIVE_PATH)
@@ -114,7 +122,7 @@ class TestArchivedV1Intent:
 
     def test_archive_v1_has_locked_base_sha(self) -> None:
         data = _load_json(ARCHIVE_V1_PATH)
-        assert data["locked_base_sha"] == EXPECTED_BASE_SHA
+        assert data["locked_base_sha"] == EXPECTED_PR97_BASE_SHA
 
 
 # ---------------------------------------------------------------------------
@@ -169,6 +177,26 @@ class TestArchivedV3Intent:
         assert "Decision Preflight" in workflows
         assert "State Gate (pull_request)" in workflows
         assert "State Gate (push)" in workflows
+
+
+# ---------------------------------------------------------------------------
+# Archived v4 intent (authority collector, exact B0 active bytes)
+# ---------------------------------------------------------------------------
+
+class TestArchivedV4Intent:
+    def test_archive_v4_file_exists(self) -> None:
+        assert ARCHIVE_V4_PATH.exists(), f"pr97_v4.json not found at {ARCHIVE_V4_PATH}"
+
+    def test_archive_v4_is_exact_b0_active_blob(self) -> None:
+        payload = ARCHIVE_V4_PATH.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == EXPECTED_PR97_V4_GIT_BLOB
+
+    def test_archive_v4_binds_v4_decision_and_pr97(self) -> None:
+        data = _load_json(ARCHIVE_V4_PATH)
+        assert data["source_pr"] == 97
+        assert data["decision_identity"]["decision_id"] == EXPECTED_V4_DECISION_ID
+        assert data["locked_base_sha"] == EXPECTED_PR97_BASE_SHA
 
 
 # ---------------------------------------------------------------------------
