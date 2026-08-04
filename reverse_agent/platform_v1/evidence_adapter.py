@@ -19,9 +19,11 @@ Only :func:`_create_trusted_evidence` can create live evidence.
 from __future__ import annotations
 
 import hashlib
+from pathlib import Path
 import re
 import shlex
 import subprocess
+from dataclasses import dataclass
 from typing import Any, Protocol, Sequence
 
 from .authority_adapter import AuthorityBundle
@@ -42,6 +44,100 @@ from .github_adapter import (
 _STATE_GATE_WORKFLOW_PATH = ".github/workflows/state-gate.yml"
 _STATE_GATE_TARGET_EVENT = "pull_request_target"
 _STATE_GATE_WORKFLOW_NAME = "State Gate"
+
+
+@dataclass(frozen=True)
+class TrustedRuntimeBinding:
+    """Validated separation between trusted verifier code and candidate Git data."""
+
+    trusted_verifier_root: str
+    candidate_repository_root: str
+    trusted_revision: str
+
+
+def _git_read(root: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(root), *args],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        raise EvidenceCollectionError(
+            "trusted_runtime_git_read_failed",
+            f"root={root}:command={' '.join(args)}:exit={result.returncode}",
+        )
+    return result.stdout.strip()
+
+
+def validate_trusted_runtime_binding(
+    *,
+    trusted_verifier_root: str,
+    candidate_repository_root: str,
+    expected_trusted_revision: str,
+) -> TrustedRuntimeBinding:
+    """Validate the imported verifier and candidate as separate real Git trees.
+
+    The candidate tree is queried only through Git.  Its Python package is
+    never installed, imported, or executed by this function.
+    """
+
+    if not all(
+        isinstance(value, str) and value
+        for value in (
+            trusted_verifier_root,
+            candidate_repository_root,
+            expected_trusted_revision,
+        )
+    ):
+        raise EvidenceCollectionError("trusted_runtime_input_invalid")
+    if not re.fullmatch(r"[0-9a-f]{40}", expected_trusted_revision):
+        raise EvidenceCollectionError("trusted_revision_invalid")
+    try:
+        trusted = Path(trusted_verifier_root).resolve(strict=True)
+        candidate = Path(candidate_repository_root).resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise EvidenceCollectionError("trusted_runtime_root_unresolvable", str(exc)) from exc
+    if not trusted.is_dir() or not candidate.is_dir():
+        raise EvidenceCollectionError("trusted_runtime_root_not_directory")
+    if trusted == candidate:
+        raise EvidenceCollectionError("trusted_candidate_roots_same")
+    if trusted in candidate.parents or candidate in trusted.parents:
+        raise EvidenceCollectionError("trusted_candidate_roots_nested")
+
+    import reverse_agent
+
+    package_file = getattr(reverse_agent, "__file__", None)
+    if not isinstance(package_file, str) or not package_file:
+        raise EvidenceCollectionError("trusted_package_file_missing")
+    try:
+        actual_package_root = Path(package_file).resolve(strict=True).parent.parent
+    except (OSError, RuntimeError) as exc:
+        raise EvidenceCollectionError("trusted_package_root_unresolvable", str(exc)) from exc
+    if actual_package_root != trusted:
+        raise EvidenceCollectionError(
+            "trusted_package_root_mismatch",
+            f"actual={actual_package_root}:expected={trusted}",
+        )
+
+    trusted_top = Path(_git_read(trusted, "rev-parse", "--show-toplevel")).resolve()
+    candidate_top = Path(_git_read(candidate, "rev-parse", "--show-toplevel")).resolve()
+    if trusted_top != trusted:
+        raise EvidenceCollectionError("trusted_git_root_mismatch")
+    if candidate_top != candidate:
+        raise EvidenceCollectionError("candidate_git_root_mismatch")
+    trusted_head = _git_read(trusted, "rev-parse", "HEAD")
+    if trusted_head != expected_trusted_revision:
+        raise EvidenceCollectionError(
+            "trusted_revision_mismatch",
+            f"observed={trusted_head}:expected={expected_trusted_revision}",
+        )
+    tracked_status = _git_read(
+        trusted, "status", "--porcelain=v1", "--untracked-files=no", "--", "reverse_agent",
+    )
+    if tracked_status:
+        raise EvidenceCollectionError("trusted_verifier_tracked_files_dirty")
+    return TrustedRuntimeBinding(str(trusted), str(candidate), trusted_head)
 
 
 # ---------------------------------------------------------------------------

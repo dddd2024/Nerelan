@@ -1108,6 +1108,42 @@ def test_state_gate_receipt_verified_successfully() -> None:
     assert result["verified"] is True
 
 
+@pytest.mark.parametrize(
+    "reported_path",
+    [
+        ".github/workflows/state-gate.yml@main",
+        ".github/workflows/state-gate.yml@refs/heads/main",
+        f".github/workflows/state-gate.yml@{'a' * 40}",
+    ],
+)
+def test_state_gate_receipt_accepts_canonical_target_ref_suffix(
+    reported_path: str,
+) -> None:
+    run = {
+        "repository": {"full_name": "dddd2024/reverse-agent"},
+        "path": reported_path,
+        "event": "pull_request_target",
+        "id": 123456,
+        "run_attempt": 1,
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+    }
+    verifier = _make_state_gate_verifier(run=run)
+    result = verifier.verify_state_gate_receipt(
+        run_id=123456,
+        expected_repository="dddd2024/reverse-agent",
+        expected_workflow_path=".github/workflows/state-gate.yml",
+        expected_event="pull_request_target",
+        trusted_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        accepted_candidate_head="063438a295bd61d03f75432b94af7c5929e44be4",
+        locked_base_sha="fa4f240f7dffff78cdb182ce8655c2e2d7cb241f",
+        expected_pr_number=106,
+        expected_changed_paths_sha256="a" * 64,
+    )
+    assert result["verified"] is True
+
+
 def test_state_gate_receipt_rejects_wrong_repository() -> None:
     verifier = _make_state_gate_verifier()
     result = verifier.verify_state_gate_receipt(

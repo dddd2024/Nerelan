@@ -210,8 +210,8 @@ def cmd_evaluate_acceptance(args: Sequence[str]) -> int:
 def cmd_evaluate_live_acceptance(args: Sequence[str]) -> int:
     """Evaluate live acceptance by collecting trusted facts through Authority Bundle.
 
-    F18/F20/F26: Accepts ONLY target identifiers from stdin:
-    ``repo_dir``, ``repository``, ``issue_number``, ``pr_number``.
+    F18/F20/F26: Accepts only explicit trusted/candidate roots, the independent
+    trusted revision, and target identifiers from stdin.
     The Authority Bundle is loaded internally from repository state and
     GitHub facts. stdin Work Item payloads, ``authority_digest``, and
     ``test_command`` are rejected.
@@ -248,8 +248,10 @@ def cmd_evaluate_live_acceptance(args: Sequence[str]) -> int:
             _print_json({"status": "SCHEMA_ERROR", "error": "stdin_binding_forbidden"})
             return 10
 
-        # F20/F26: Accept ONLY target identifiers from stdin
-        repo_dir = str(data.get("repo_dir", "."))
+        # v11: The verifier source tree and candidate Git-data tree are explicit.
+        trusted_verifier_root = data.get("trusted_verifier_root")
+        candidate_repository_root = data.get("candidate_repository_root")
+        expected_trusted_revision = data.get("expected_trusted_revision")
         repository = str(data.get("repository", ""))
         try:
             issue_number = int(data.get("issue_number", 0))
@@ -274,12 +276,28 @@ def cmd_evaluate_live_acceptance(args: Sequence[str]) -> int:
             _print_json({"status": "SCHEMA_ERROR", "error": "pr_number_required"})
             return 10
 
+        # Validate the imported trusted package and both local Git roots before
+        # any credential-bearing remote authority collection.
+        try:
+            runtime_binding = evidence_adapter.validate_trusted_runtime_binding(
+                trusted_verifier_root=trusted_verifier_root,
+                candidate_repository_root=candidate_repository_root,
+                expected_trusted_revision=expected_trusted_revision,
+            )
+        except EvidenceCollectionError as exc:
+            _print_json({
+                "status": "TRUSTED_RUNTIME_ERROR",
+                "code": exc.code,
+                "detail": exc.detail,
+            })
+            return 60
+
         # F20/F26: Load Authority Bundle internally — this cross-validates
         # Decision, Command Plan, merge intent, Issue body SHA-256, and PR
         # metadata. Raises AuthorityBundleError on any mismatch.
         try:
             bundle = authority_adapter.load_authority_bundle(
-                repo_dir=repo_dir,
+                repo_dir=runtime_binding.candidate_repository_root,
                 repository=repository,
                 issue_number=issue_number,
                 pr_number=pr_number,
@@ -292,6 +310,17 @@ def cmd_evaluate_live_acceptance(args: Sequence[str]) -> int:
                 "execution_id": f"exec-issue-{issue_number}-authority-error",
             })
             return 50
+
+        if bundle.base_sha != runtime_binding.trusted_revision:
+            _print_json({
+                "status": "TRUSTED_RUNTIME_ERROR",
+                "code": "trusted_revision_authority_mismatch",
+                "detail": (
+                    f"trusted={runtime_binding.trusted_revision}:"
+                    f"authority={bundle.base_sha}"
+                ),
+            })
+            return 60
 
         # Build a Work Item from the bundle for the acceptance evaluator.
         # The Work Item's approved_issue_body_digest is the SHA-256 of the
@@ -335,10 +364,12 @@ def cmd_evaluate_live_acceptance(args: Sequence[str]) -> int:
         try:
             evidence = evidence_adapter.collect_live_evidence(
                 bundle=bundle,
-                git_adapter=evidence_adapter.LiveGitAdapter(repo_dir),
+                git_adapter=evidence_adapter.LiveGitAdapter(
+                    runtime_binding.candidate_repository_root,
+                ),
                 github_adapter=None,  # uses LiveGitHubAdapter
                 agent_completion_claim=agent_completion_claim,
-                repo_dir=repo_dir,
+                repo_dir=runtime_binding.candidate_repository_root,
             )
         except EvidenceCollectionError as exc:
             _print_json({

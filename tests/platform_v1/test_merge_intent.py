@@ -29,6 +29,8 @@ ARCHIVE_V3_PATH = INTENTS_DIR / "archive" / "pr97_v3.json"
 ARCHIVE_V4_PATH = INTENTS_DIR / "archive" / "pr97_v4.json"
 ARCHIVE_PR106_V3_PATH = INTENTS_DIR / "archive" / "pr106_v3.json"
 ARCHIVE_PR106_V4_PATH = INTENTS_DIR / "archive" / "pr106_v4.json"
+ARCHIVE_PR106_V10_PATH = INTENTS_DIR / "archive" / "pr106_v10.json"
+ARCHIVE_PR106_V11_PATH = INTENTS_DIR / "archive" / "pr106_v11.json"
 
 # The v4 intent was the active intent on main at activation base fa4f240f.
 V4_ACTIVATION_BASE_SHA = "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
@@ -43,6 +45,8 @@ PR106_V3_ACTIVE_COMMIT = "a96a0ef7a5c706316f03401959e12bcf3a9f8c1c"
 # Intent archive and rebind commit.  The pr106_v4 archive must be byte-identical
 # to active.json at that commit.
 PR106_V4_ACTIVE_COMMIT = "810bfff5446ac2e54e85bc8624a1cf83d241778e"
+PR106_V10_ACTIVE_COMMIT = "a8e361989cdc74dd56c1ec57195b1b92c5a276d3"
+PR106_V11_ACTIVE_COMMIT = "32e969c3ef80bba834c8a5c53fe799210cc273b6"
 
 EXPECTED_V2_DECISION_ID = (
     "decision_20260803_restore_path_a_state_gate_current_main_v2"
@@ -53,8 +57,8 @@ EXPECTED_V3_DECISION_ID_PR106 = (
 EXPECTED_V4_DECISION_ID_PR106 = (
     "decision_20260803_restore_path_a_state_gate_current_main_v4"
 )
-EXPECTED_V5_DECISION_ID_PR106 = (
-    "decision_20260803_restore_path_a_state_gate_current_main_v10"
+EXPECTED_ACTIVE_DECISION_ID_PR106 = (
+    "decision_20260804_restore_path_a_state_gate_current_main_v11r1"
 )
 EXPECTED_V4_DECISION_ID = (
     "decision_20260802_issue100_platform_v1_authority_collector_v4"
@@ -108,9 +112,9 @@ class TestActiveMergeIntent:
         data = _load_json(ACTIVE_PATH)
         assert data["allowed_merge_method"] == "merge"
 
-    def test_active_binds_v5_decision_id(self) -> None:
+    def test_active_binds_v11r1_decision_id(self) -> None:
         data = _load_json(ACTIVE_PATH)
-        assert data["decision_identity"]["decision_id"] == EXPECTED_V5_DECISION_ID_PR106
+        assert data["decision_identity"]["decision_id"] == EXPECTED_ACTIVE_DECISION_ID_PR106
 
     def test_active_decision_content_sha256_is_64_hex(self) -> None:
         data = _load_json(ACTIVE_PATH)
@@ -157,6 +161,41 @@ class TestActiveMergeIntent:
         expires = data.get("expires_at", "")
         assert expires, "active intent must have a bounded expiry"
         assert expires.endswith("Z")
+
+
+class TestRecentPR106IntentArchives:
+    @pytest.mark.parametrize(
+        ("archive_path", "active_ref", "expected_decision_id"),
+        [
+            (
+                ARCHIVE_PR106_V10_PATH,
+                PR106_V10_ACTIVE_COMMIT,
+                "decision_20260803_restore_path_a_state_gate_current_main_v10",
+            ),
+            (
+                ARCHIVE_PR106_V11_PATH,
+                PR106_V11_ACTIVE_COMMIT,
+                "decision_20260804_restore_path_a_state_gate_current_main_v11",
+            ),
+        ],
+    )
+    def test_archive_is_byte_identical_to_historical_active_intent(
+        self,
+        archive_path: Path,
+        active_ref: str,
+        expected_decision_id: str,
+    ) -> None:
+        archive_blob = _committed_blob(
+            archive_path.relative_to(REPO_ROOT).as_posix(),
+        )
+        original_blob = _committed_blob(
+            "project_state/mainline_merge_intents/active.json",
+            ref=active_ref,
+        )
+        assert archive_blob == original_blob
+        assert json.loads(archive_blob)["decision_identity"]["decision_id"] == (
+            expected_decision_id
+        )
 
 
 # ---------------------------------------------------------------------------

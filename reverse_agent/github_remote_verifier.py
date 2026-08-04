@@ -19,6 +19,11 @@ import urllib.request
 import zipfile
 from typing import Any
 
+from reverse_agent.github_workflow_identity import (
+    WorkflowRunPathIdentityError,
+    canonicalize_workflow_run_path,
+)
+
 
 class GitHubEvidenceError(RuntimeError):
     """Raised when trusted GitHub evidence cannot be obtained or verified."""
@@ -547,9 +552,16 @@ class GitHubRemoteAcceptanceVerifier:
             observed_repository = str(
                 ((run.get("repository") or {}).get("full_name")) or ""
             )
+            try:
+                observed_workflow_path = canonicalize_workflow_run_path(
+                    run.get("path"), expected_workflow_path,
+                )
+                path_matches = observed_workflow_path == expected_workflow_path
+            except WorkflowRunPathIdentityError:
+                path_matches = False
             run_checks = {
                 "repository": observed_repository == expected_repository,
-                "path": run.get("path") == expected_workflow_path,
+                "path": path_matches,
                 "event": run.get("event") == expected_event,
                 "run_id": int(run.get("id") or 0) == int(run_id),
                 "run_attempt": int(run.get("run_attempt") or 0)

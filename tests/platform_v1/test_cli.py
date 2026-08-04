@@ -23,7 +23,10 @@ import pytest
 from reverse_agent.platform_v1.cli import main
 from reverse_agent.platform_v1.authority_adapter import AuthorityBundle, PRE_MERGE_WORKFLOW_KEYS
 from reverse_agent.platform_v1.contracts import PlatformWorkItem
-from reverse_agent.platform_v1.evidence_adapter import _create_trusted_evidence
+from reverse_agent.platform_v1.evidence_adapter import (
+    TrustedRuntimeBinding,
+    _create_trusted_evidence,
+)
 
 
 VALID_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
@@ -420,7 +423,9 @@ class TestEvaluateLiveAcceptanceCmd:
 
     def _identifier_payload(self, **overrides) -> dict:
         payload = {
-            "repo_dir": ".",
+            "trusted_verifier_root": "C:/trusted-verifier",
+            "candidate_repository_root": "C:/candidate-repository",
+            "expected_trusted_revision": VALID_BASE_SHA,
             "repository": "dddd2024/reverse-agent",
             "issue_number": 100,
             "pr_number": 97,
@@ -551,6 +556,11 @@ class TestEvaluateLiveAcceptanceCmd:
     def test_actual_r2_cli_returns_blocked_approval_before_collection(self) -> None:
         payload = self._identifier_payload()
         with patch(
+            "reverse_agent.platform_v1.cli.evidence_adapter.validate_trusted_runtime_binding",
+            return_value=TrustedRuntimeBinding(
+                "C:/trusted-verifier", "C:/candidate-repository", VALID_BASE_SHA,
+            ),
+        ), patch(
             "reverse_agent.platform_v1.cli.authority_adapter.load_authority_bundle",
             return_value=_live_bundle("R2"),
         ), patch(
@@ -582,6 +592,11 @@ class TestEvaluateLiveAcceptanceCmd:
             ),
         )
         with patch(
+            "reverse_agent.platform_v1.cli.evidence_adapter.validate_trusted_runtime_binding",
+            return_value=TrustedRuntimeBinding(
+                "C:/trusted-verifier", "C:/candidate-repository", VALID_BASE_SHA,
+            ),
+        ), patch(
             "reverse_agent.platform_v1.cli.authority_adapter.load_authority_bundle",
             return_value=_live_bundle("R0"),
         ), patch(

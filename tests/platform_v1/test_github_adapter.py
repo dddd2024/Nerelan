@@ -549,6 +549,53 @@ class TestLiveStateGateTargetPagination:
         assert "event=pull_request_target" in argv
         assert "per_page=100" in argv
 
+    @pytest.mark.parametrize(
+        "reported_path",
+        [
+            ".github/workflows/state-gate.yml",
+            ".github/workflows/state-gate.yml@main",
+            ".github/workflows/state-gate.yml@refs/heads/main",
+            f".github/workflows/state-gate.yml@{'a' * 40}",
+        ],
+    )
+    def test_target_path_variants_share_canonical_identity(
+        self, reported_path: str,
+    ) -> None:
+        raw = self._raw_target(1, 106)
+        raw["path"] = reported_path
+        pages = [{"total_count": 1, "workflow_runs": [raw]}]
+        with patch(
+            "reverse_agent.platform_v1.github_adapter.subprocess.run",
+            return_value=self._result(json.dumps(pages)),
+        ):
+            observed = LiveGitHubAdapter().get_state_gate_target_runs(
+                "dddd2024/reverse-agent", 106, VALID_HEAD_SHA,
+            )
+        assert observed[0].workflow_path == ".github/workflows/state-gate.yml"
+
+    @pytest.mark.parametrize(
+        "reported_path",
+        [
+            ".github/workflows/other.yml",
+            ".github/workflows/state-gate.yml@",
+            ".github/workflows/state-gate.yml@main@refs/heads/main",
+            None,
+        ],
+    )
+    def test_invalid_target_path_fails_closed(self, reported_path: object) -> None:
+        raw = self._raw_target(1, 106)
+        raw["path"] = reported_path
+        pages = [{"total_count": 1, "workflow_runs": [raw]}]
+        with patch(
+            "reverse_agent.platform_v1.github_adapter.subprocess.run",
+            return_value=self._result(json.dumps(pages)),
+        ):
+            with pytest.raises(GitHubAdapterError) as exc_info:
+                LiveGitHubAdapter().get_state_gate_target_runs(
+                    "dddd2024/reverse-agent", 106, VALID_HEAD_SHA,
+                )
+        assert exc_info.value.code == "state_gate_target_run_identity_mismatch"
+
     def test_incomplete_pagination_fails_closed(self) -> None:
         pages = [
             {"total_count": 2, "workflow_runs": [self._raw_target(1, 106)]},

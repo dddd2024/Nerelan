@@ -10,6 +10,9 @@ Covers:
 
 from __future__ import annotations
 
+import hashlib
+import subprocess
+
 import pytest
 
 from reverse_agent.platform_v1.contracts import (
@@ -994,7 +997,7 @@ class TestArchivedV2PR106Intent:
 
 
 class TestActiveMergeIntentV5:
-    """PR106/v5 active contract: active.json must bind PR #106 and v5 digests.
+    """PR106/v11r1 active contract with exact committed authority digests.
 
     The v1, v2, v3 (PR97), v4 (PR97), v2 (PR106), v3 (PR106), and v4 (PR106)
     intents must be archived verbatim. The active intent must bind the v5
@@ -1016,6 +1019,8 @@ class TestActiveMergeIntentV5:
         self._archive_v2_pr106_path = intents_dir / "archive" / "pr106_v2.json"
         self._archive_v3_pr106_path = intents_dir / "archive" / "pr106_v3.json"
         self._archive_v4_pr106_path = intents_dir / "archive" / "pr106_v4.json"
+        self._archive_v10_pr106_path = intents_dir / "archive" / "pr106_v10.json"
+        self._archive_v11_pr106_path = intents_dir / "archive" / "pr106_v11.json"
         self._active = json.loads(self._active_path.read_text(encoding="utf-8"))
         self._archive_v1 = json.loads(self._archive_v1_path.read_text(encoding="utf-8"))
         self._archive_v2 = json.loads(self._archive_v2_path.read_text(encoding="utf-8"))
@@ -1024,13 +1029,16 @@ class TestActiveMergeIntentV5:
         self._archive_v2_pr106 = json.loads(self._archive_v2_pr106_path.read_text(encoding="utf-8"))
         self._archive_v3_pr106 = json.loads(self._archive_v3_pr106_path.read_text(encoding="utf-8"))
         self._archive_v4_pr106 = json.loads(self._archive_v4_pr106_path.read_text(encoding="utf-8"))
+        self._archive_v10_pr106 = json.loads(self._archive_v10_pr106_path.read_text(encoding="utf-8"))
+        self._archive_v11_pr106 = json.loads(self._archive_v11_pr106_path.read_text(encoding="utf-8"))
+        self._repo_root = repo_root
 
     def test_active_binds_source_pr_106(self) -> None:
         assert self._active["source_pr"] == 106
 
-    def test_active_binds_v6_decision_id(self) -> None:
+    def test_active_binds_v11r1_decision_id(self) -> None:
         assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260803_restore_path_a_state_gate_current_main_v10"
+            "decision_20260804_restore_path_a_state_gate_current_main_v11r1"
         )
 
     def test_active_binds_v6_decision_content_sha256(self) -> None:
@@ -1046,6 +1054,59 @@ class TestActiveMergeIntentV5:
         assert all(c in "0123456789abcdef" for c in sha)
         # Must differ from the v4 PR106 command plan SHA-256
         assert sha != self._archive_v4_pr106["command_plan_sha256"]
+
+    def test_active_decision_digest_matches_committed_blob(self) -> None:
+        blob = subprocess.check_output(
+            ["git", "cat-file", "blob", "HEAD:project_state/decision_packet.md"],
+            cwd=self._repo_root,
+        )
+        assert self._active["decision_identity"]["decision_content_sha256"] == (
+            hashlib.sha256(blob).hexdigest()
+        )
+
+    def test_active_command_plan_digest_matches_committed_blob(self) -> None:
+        blob = subprocess.check_output(
+            ["git", "cat-file", "blob", "HEAD:project_state/gates/command_plan.json"],
+            cwd=self._repo_root,
+        )
+        assert self._active["command_plan_sha256"] == hashlib.sha256(blob).hexdigest()
+
+    @pytest.mark.parametrize(
+        ("archive_name", "active_ref", "expected_decision_id"),
+        [
+            (
+                "pr106_v10.json",
+                "a8e361989cdc74dd56c1ec57195b1b92c5a276d3",
+                "decision_20260803_restore_path_a_state_gate_current_main_v10",
+            ),
+            (
+                "pr106_v11.json",
+                "32e969c3ef80bba834c8a5c53fe799210cc273b6",
+                "decision_20260804_restore_path_a_state_gate_current_main_v11",
+            ),
+        ],
+    )
+    def test_recent_archive_is_exact_historical_active(
+        self, archive_name: str, active_ref: str, expected_decision_id: str,
+    ) -> None:
+        archive_blob = subprocess.check_output(
+            [
+                "git", "cat-file", "blob",
+                f"HEAD:project_state/mainline_merge_intents/archive/{archive_name}",
+            ],
+            cwd=self._repo_root,
+        )
+        active_blob = subprocess.check_output(
+            [
+                "git", "cat-file", "blob",
+                f"{active_ref}:project_state/mainline_merge_intents/active.json",
+            ],
+            cwd=self._repo_root,
+        )
+        assert archive_blob == active_blob
+        assert __import__("json").loads(archive_blob)["decision_identity"]["decision_id"] == (
+            expected_decision_id
+        )
 
     def test_active_binds_locked_base_sha(self) -> None:
         assert self._active["locked_base_sha"] == (

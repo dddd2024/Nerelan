@@ -24,6 +24,11 @@ import json
 import subprocess
 from typing import Any, Protocol, Sequence
 
+from reverse_agent.github_workflow_identity import (
+    WorkflowRunPathIdentityError,
+    canonicalize_workflow_run_path,
+)
+
 
 # ---------------------------------------------------------------------------
 # Errors
@@ -383,13 +388,21 @@ class LiveGitHubAdapter:
 
         runs: list[WorkflowRun] = []
         for raw in raw_runs:
+            try:
+                workflow_path = canonicalize_workflow_run_path(
+                    raw.get("path"), self._STATE_GATE_WORKFLOW_PATH,
+                )
+            except WorkflowRunPathIdentityError as exc:
+                raise GitHubAdapterError(
+                    "state_gate_target_run_identity_mismatch",
+                    f"run_id={raw.get('id', '')}:workflow_path={exc}",
+                ) from exc
             observed_repository = str(
                 ((raw.get("repository") or {}).get("full_name")) or ""
             )
             pull_requests = raw.get("pull_requests")
             if (
                 observed_repository != repository
-                or raw.get("path") != self._STATE_GATE_WORKFLOW_PATH
                 or raw.get("event") != "pull_request_target"
                 or raw.get("head_sha") != trusted_base_sha
                 or not isinstance(pull_requests, list)
@@ -424,7 +437,7 @@ class LiveGitHubAdapter:
                 attempt=attempt,
                 source_pr=int(source_pr),
                 created_at=created_at,
-                workflow_path=str(raw.get("path", "")),
+                workflow_path=workflow_path,
                 repository=observed_repository,
             ))
         return tuple(runs)

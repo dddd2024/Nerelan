@@ -15,11 +15,13 @@ Covers:
 from __future__ import annotations
 
 import inspect
+from pathlib import Path
 import subprocess
 from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pytest
+import reverse_agent
 
 from reverse_agent.platform_v1.authority_adapter import (
     AuthorityBundle,
@@ -41,6 +43,7 @@ from reverse_agent.platform_v1.evidence_adapter import (
     LiveCommandRunner,
     LiveGitAdapter,
     LiveReceiptVerifier,
+    TrustedRuntimeBinding,
     _create_trusted_evidence,
     _is_safe_command,
     _parse_command_to_argv,
@@ -52,6 +55,7 @@ from reverse_agent.platform_v1.evidence_adapter import (
     get_changed_paths,
     get_head_sha,
     merge_evidence,
+    validate_trusted_runtime_binding,
 )
 from reverse_agent.platform_v1.github_adapter import (
     FakeGitHubAdapter,
@@ -63,6 +67,103 @@ from reverse_agent.platform_v1.github_adapter import (
 
 VALID_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
 VALID_HEAD_SHA = "e702a3c5f50b9373e0af8087a76268d4a01cd9b1"
+
+
+def _make_git_tree(root: Path, package_text: str = "VALUE = 'trusted'\n") -> str:
+    package = root / "reverse_agent"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text(package_text, encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
+    subprocess.run(["git", "-C", str(root), "add", "reverse_agent/__init__.py"], check=True)
+    subprocess.run(["git", "-C", str(root), "commit", "-q", "-m", "fixture"], check=True)
+    return subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+class TestTrustedRuntimeBinding:
+    def _trees(self, tmp_path: Path) -> tuple[Path, Path, str, str]:
+        trusted = tmp_path / "trusted"
+        candidate = tmp_path / "candidate"
+        trusted_head = _make_git_tree(trusted)
+        candidate_head = _make_git_tree(candidate, "raise RuntimeError('must not execute')\n")
+        return trusted, candidate, trusted_head, candidate_head
+
+    def test_separate_real_git_trees_continue_git_evidence_collection(
+        self, tmp_path: Path,
+    ) -> None:
+        trusted, candidate, trusted_head, candidate_head = self._trees(tmp_path)
+        candidate_package = candidate / "reverse_agent" / "__init__.py"
+        candidate_package.write_text("this is not valid python !!!\n", encoding="utf-8")
+        with patch.object(reverse_agent, "__file__", str(trusted / "reverse_agent" / "__init__.py")):
+            binding = validate_trusted_runtime_binding(
+                trusted_verifier_root=str(trusted),
+                candidate_repository_root=str(candidate),
+                expected_trusted_revision=trusted_head,
+            )
+        assert isinstance(binding, TrustedRuntimeBinding)
+        assert LiveGitAdapter(binding.candidate_repository_root).get_head_sha() == candidate_head
+
+    def test_same_directory_blocked(self, tmp_path: Path) -> None:
+        trusted, _, trusted_head, _ = self._trees(tmp_path)
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            validate_trusted_runtime_binding(
+                trusted_verifier_root=str(trusted),
+                candidate_repository_root=str(trusted),
+                expected_trusted_revision=trusted_head,
+            )
+        assert exc_info.value.code == "trusted_candidate_roots_same"
+
+    def test_nested_directory_blocked(self, tmp_path: Path) -> None:
+        trusted = tmp_path / "trusted"
+        candidate = trusted / "candidate"
+        candidate.mkdir(parents=True)
+        with pytest.raises(EvidenceCollectionError) as exc_info:
+            validate_trusted_runtime_binding(
+                trusted_verifier_root=str(trusted),
+                candidate_repository_root=str(candidate),
+                expected_trusted_revision="a" * 40,
+            )
+        assert exc_info.value.code == "trusted_candidate_roots_nested"
+
+    def test_wrong_trusted_head_blocked(self, tmp_path: Path) -> None:
+        trusted, candidate, _, _ = self._trees(tmp_path)
+        with patch.object(reverse_agent, "__file__", str(trusted / "reverse_agent" / "__init__.py")):
+            with pytest.raises(EvidenceCollectionError) as exc_info:
+                validate_trusted_runtime_binding(
+                    trusted_verifier_root=str(trusted),
+                    candidate_repository_root=str(candidate),
+                    expected_trusted_revision="a" * 40,
+                )
+        assert exc_info.value.code == "trusted_revision_mismatch"
+
+    def test_dirty_tracked_trusted_package_blocked(self, tmp_path: Path) -> None:
+        trusted, candidate, trusted_head, _ = self._trees(tmp_path)
+        (trusted / "reverse_agent" / "__init__.py").write_text("dirty = True\n", encoding="utf-8")
+        with patch.object(reverse_agent, "__file__", str(trusted / "reverse_agent" / "__init__.py")):
+            with pytest.raises(EvidenceCollectionError) as exc_info:
+                validate_trusted_runtime_binding(
+                    trusted_verifier_root=str(trusted),
+                    candidate_repository_root=str(candidate),
+                    expected_trusted_revision=trusted_head,
+                )
+        assert exc_info.value.code == "trusted_verifier_tracked_files_dirty"
+
+    def test_candidate_sourced_imported_module_blocked(self, tmp_path: Path) -> None:
+        trusted, candidate, trusted_head, _ = self._trees(tmp_path)
+        with patch.object(reverse_agent, "__file__", str(candidate / "reverse_agent" / "__init__.py")):
+            with pytest.raises(EvidenceCollectionError) as exc_info:
+                validate_trusted_runtime_binding(
+                    trusted_verifier_root=str(trusted),
+                    candidate_repository_root=str(candidate),
+                    expected_trusted_revision=trusted_head,
+                )
+        assert exc_info.value.code == "trusted_package_root_mismatch"
 
 
 def _make_evidence(**overrides) -> ExecutionEvidence:
