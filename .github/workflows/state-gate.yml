@@ -326,7 +326,7 @@ jobs:
             test "${linear_parents[1]}" = "${candidate_chain[$((index - 1))]}"
           done
 
-          export B2 H0 B3 CANDIDATE_HEAD
+          export B2 H0 B3 CANDIDATE_HEAD PR112_HEAD
           python - <<'PY'
           import ast
           import copy
@@ -340,6 +340,7 @@ jobs:
           h0 = os.environ["H0"]
           b3 = os.environ["B3"]
           candidate_head = os.environ["CANDIDATE_HEAD"]
+          pr112_head = os.environ["PR112_HEAD"]
           pr112_paths = {
               ".github/workflows/state-gate.yml",
               "project_state/decision_packet.md",
@@ -350,6 +351,11 @@ jobs:
               "project_state/gates/transition_preflight_result.json",
               "project_state/mainline_merge_intents/active.json",
               "project_state/mainline_merge_intents/archive/pr110_v1.json",
+              "project_state/mainline_merge_intents/archive/pr112_v1.json",
+              "project_state/mainline_merge_intents/archive/pr112_v2.json",
+              "project_state/mainline_merge_intents/archive/pr112_v3.json",
+              "project_state/mainline_merge_intents/archive/pr112_v4.json",
+              "project_state/mainline_merge_intents/archive/pr112_v5.json",
               "tests/platform_v1/test_contracts.py",
               "tests/platform_v1/test_merge_intent.py",
           }
@@ -405,9 +411,7 @@ jobs:
                   fields = line.split("\t")
                   status = fields[0]
                   if status.startswith(("R", "C")):
-                      if len(fields) != 3:
-                          raise SystemExit("malformed rename/copy record")
-                      raw_paths.extend(fields[1:])
+                      raise SystemExit("rename/copy changed-path record forbidden")
                   else:
                       if len(fields) != 2:
                           raise SystemExit("malformed changed-path record")
@@ -422,9 +426,26 @@ jobs:
               ).strip()
               return set(changed_paths(parent, commit))
 
+          pr112_head_paths = set(changed_paths(b2, pr112_head))
+          if pr112_head_paths != pr112_paths:
+              raise SystemExit(
+                  f"unexpected B2..PR112_HEAD paths: {sorted(pr112_head_paths)}"
+              )
           b3_paths = set(changed_paths(b2, b3))
           if b3_paths != pr112_paths:
               raise SystemExit(f"unexpected B2..B3 paths: {sorted(b3_paths)}")
+          b3_tree = subprocess.check_output(
+              ["git", "rev-parse", f"{b3}^{{tree}}"],
+              encoding="utf-8",
+              errors="strict",
+          ).strip()
+          pr112_head_tree = subprocess.check_output(
+              ["git", "rev-parse", f"{pr112_head}^{{tree}}"],
+              encoding="utf-8",
+              errors="strict",
+          ).strip()
+          if b3_tree != pr112_head_tree:
+              raise SystemExit("B3 merge tree differs from accepted PR112 head tree")
           chain = subprocess.check_output(
               ["git", "rev-list", "--first-parent", "--reverse", f"{h0}..{candidate_head}"],
               encoding="utf-8",

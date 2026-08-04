@@ -928,6 +928,7 @@ class TestActiveMergeIntentV6:
         self._archive_pr112_v2_path = intents_dir / "archive" / "pr112_v2.json"
         self._archive_pr112_v3_path = intents_dir / "archive" / "pr112_v3.json"
         self._archive_pr112_v4_path = intents_dir / "archive" / "pr112_v4.json"
+        self._archive_pr112_v5_path = intents_dir / "archive" / "pr112_v5.json"
         self._decision_path = repo_root / "project_state" / "decision_packet.md"
         self._command_plan_path = repo_root / "project_state" / "gates" / "command_plan.json"
         self._active = json.loads(self._active_path.read_text(encoding="utf-8"))
@@ -953,13 +954,16 @@ class TestActiveMergeIntentV6:
         self._archive_pr112_v4 = json.loads(
             self._archive_pr112_v4_path.read_text(encoding="utf-8")
         )
+        self._archive_pr112_v5 = json.loads(
+            self._archive_pr112_v5_path.read_text(encoding="utf-8")
+        )
 
     def test_active_binds_source_pr_112(self) -> None:
         assert self._active["source_pr"] == 112
 
     def test_active_binds_bootstrap_decision_id(self) -> None:
         assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260804_issue111_pr112_long_validation_budget_v5"
+            "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
         )
 
     def test_active_binds_bootstrap_decision_content_sha256(self) -> None:
@@ -1120,6 +1124,22 @@ class TestActiveMergeIntentV6:
         header = f"blob {len(payload)}\0".encode("ascii")
         assert hashlib.sha1(header + payload).hexdigest() == (
             "78104b6ae6746b0b5bf3b409f7dd2054ca23fcd9"
+        )
+
+    def test_archive_pr112_v5_preserves_rejected_identity(self) -> None:
+        assert self._archive_pr112_v5["source_pr"] == 112
+        assert self._archive_pr112_v5["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_long_validation_budget_v5"
+        )
+        assert self._archive_pr112_v5["locked_base_sha"] == (
+            "93984db182b7ee11b3ccb8795bb5fc3741205b92"
+        )
+
+    def test_archive_pr112_v5_is_exact_rejected_active_blob(self) -> None:
+        payload = self._archive_pr112_v5_path.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "64e555a98a1b748b2e320abb4559922bdc0d3649"
         )
 
 
@@ -1511,3 +1531,179 @@ class TestStateGateSemanticBodyGuardV2:
                 mutated,
                 SEMANTIC_B3,
             )
+
+
+BOOTSTRAP_SEAL_BASE = "bc12fc3d5c92fda3066f3ce6f5043effec918a0e"
+EXPECTED_BOOTSTRAP_SEAL_PATHS = {
+    ".github/workflows/state-gate.yml",
+    "project_state/decision_packet.md",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr110_v1.json",
+    "project_state/mainline_merge_intents/archive/pr112_v1.json",
+    "project_state/mainline_merge_intents/archive/pr112_v2.json",
+    "project_state/mainline_merge_intents/archive/pr112_v3.json",
+    "project_state/mainline_merge_intents/archive/pr112_v4.json",
+    "project_state/mainline_merge_intents/archive/pr112_v5.json",
+    "tests/platform_v1/test_contracts.py",
+    "tests/platform_v1/test_merge_intent.py",
+}
+
+
+def _bootstrap_authority_inline_source(workflow: str | None = None) -> str:
+    if workflow is None:
+        workflow = (
+            Path(__file__).resolve().parents[2]
+            / ".github"
+            / "workflows"
+            / "state-gate.yml"
+        ).read_text(encoding="utf-8")
+    inline = workflow.split("python - <<'PY'\n", 1)[1].split("\n          PY", 1)[0]
+    return textwrap.dedent(inline)
+
+
+def _assignment(tree: ast.Module, name: str) -> ast.Assign:
+    matches = [
+        node for node in tree.body
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id == name
+    ]
+    assert len(matches) == 1, f"expected one assignment for {name}"
+    return matches[0]
+
+
+def _dump_expression(source: str) -> str:
+    return ast.dump(ast.parse(source, mode="eval").body, include_attributes=False)
+
+
+def _validate_bootstrap_path_tree_seal(source: str) -> None:
+    tree = ast.parse(source)
+    paths_assignment = _assignment(tree, "pr112_paths")
+    assert isinstance(paths_assignment.value, ast.Set)
+    observed_paths = {
+        node.value for node in paths_assignment.value.elts
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+    assert len(paths_assignment.value.elts) == len(observed_paths)
+    assert observed_paths == EXPECTED_BOOTSTRAP_SEAL_PATHS
+
+    expected_assignments = {
+        "pr112_head_paths": "set(changed_paths(b2, pr112_head))",
+        "b3_paths": "set(changed_paths(b2, b3))",
+        "b3_tree": (
+            "subprocess.check_output([\"git\", \"rev-parse\", "
+            "f\"{b3}^{{tree}}\"], encoding=\"utf-8\", errors=\"strict\").strip()"
+        ),
+        "pr112_head_tree": (
+            "subprocess.check_output([\"git\", \"rev-parse\", "
+            "f\"{pr112_head}^{{tree}}\"], encoding=\"utf-8\", errors=\"strict\").strip()"
+        ),
+    }
+    for name, expression in expected_assignments.items():
+        assert ast.dump(_assignment(tree, name).value, include_attributes=False) == (
+            _dump_expression(expression)
+        )
+
+    expected_comparisons = {
+        ast.dump(ast.parse("pr112_head_paths != pr112_paths", mode="eval").body, include_attributes=False),
+        ast.dump(ast.parse("b3_paths != pr112_paths", mode="eval").body, include_attributes=False),
+        ast.dump(ast.parse("b3_tree != pr112_head_tree", mode="eval").body, include_attributes=False),
+    }
+    observed_fail_closed = {
+        ast.dump(node.test, include_attributes=False)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.If)
+        and len(node.body) == 1
+        and isinstance(node.body[0], ast.Raise)
+    }
+    assert expected_comparisons <= observed_fail_closed
+    assert "rename/copy changed-path record forbidden" in source
+
+
+class TestStateGateBootstrapPathTreeSealV6:
+    def test_exact_sixteen_path_and_tree_seal_passes(self) -> None:
+        _validate_bootstrap_path_tree_seal(_bootstrap_authority_inline_source())
+
+    @pytest.mark.parametrize(
+        "archive_name",
+        ("pr112_v1.json", "pr112_v2.json", "pr112_v3.json", "pr112_v4.json", "pr112_v5.json"),
+    )
+    def test_missing_any_pr112_archive_path_is_rejected(self, archive_name: str) -> None:
+        source = _bootstrap_authority_inline_source()
+        line = (
+            f'    "project_state/mainline_merge_intents/archive/{archive_name}",\n'
+        )
+        assert source.count(line) == 1
+        with pytest.raises(AssertionError):
+            _validate_bootstrap_path_tree_seal(source.replace(line, "", 1))
+
+    def test_unknown_bootstrap_path_is_rejected(self) -> None:
+        source = _bootstrap_authority_inline_source()
+        anchor = '    "project_state/mainline_merge_intents/archive/pr112_v5.json",\n'
+        assert source.count(anchor) == 1
+        mutated = source.replace(anchor, anchor + '    "unknown/bootstrap.txt",\n', 1)
+        with pytest.raises(AssertionError):
+            _validate_bootstrap_path_tree_seal(mutated)
+
+    @pytest.mark.parametrize(
+        ("original", "replacement"),
+        (
+            ("pr112_head_paths != pr112_paths", "False"),
+            ("b3_paths != pr112_paths", "False"),
+            ("b3_tree != pr112_head_tree", "False"),
+            ("b3_tree != pr112_head_tree", "pr112_head_tree != b3_tree"),
+            ("b3_tree != pr112_head_tree", "b3_tree != b2_tree"),
+            ("f\"{pr112_head}^{{tree}}\"", "f\"{b2}^{{tree}}\""),
+        ),
+    )
+    def test_weakened_path_or_tree_seal_is_rejected(
+        self, original: str, replacement: str
+    ) -> None:
+        source = _bootstrap_authority_inline_source()
+        assert source.count(original) >= 1
+        mutated = source.replace(original, replacement, 1)
+        with pytest.raises(AssertionError):
+            _validate_bootstrap_path_tree_seal(mutated)
+
+    def test_semantic_guard_surfaces_have_no_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        old_contracts = subprocess.check_output(
+            ["git", "show", f"{BOOTSTRAP_SEAL_BASE}:tests/platform_v1/test_contracts.py"],
+            cwd=repo_root,
+        ).decode("utf-8", errors="strict")
+        current_contracts = Path(__file__).read_text(encoding="utf-8")
+
+        def class_dump(source: str) -> str:
+            matches = [
+                node for node in ast.parse(source).body
+                if isinstance(node, ast.ClassDef)
+                and node.name == "TestStateGateSemanticBodyGuardV2"
+            ]
+            assert len(matches) == 1
+            return ast.dump(matches[0], include_attributes=False)
+
+        assert class_dump(old_contracts) == class_dump(current_contracts)
+        old_workflow = subprocess.check_output(
+            ["git", "show", f"{BOOTSTRAP_SEAL_BASE}:.github/workflows/state-gate.yml"],
+            cwd=repo_root,
+        ).decode("utf-8", errors="strict")
+
+        def validator_dump(source: str) -> str:
+            matches = [
+                node for node in ast.parse(_bootstrap_authority_inline_source(source)).body
+                if isinstance(node, ast.FunctionDef)
+                and node.name == "validate_semantic_test_sources"
+            ]
+            assert len(matches) == 1
+            return ast.dump(matches[0], include_attributes=False)
+
+        current_workflow = (
+            repo_root / ".github" / "workflows" / "state-gate.yml"
+        ).read_text(encoding="utf-8")
+        assert validator_dump(old_workflow) == validator_dump(current_workflow)
