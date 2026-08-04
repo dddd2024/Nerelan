@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "intent_id": "state_gate_bootstrap_pr112_marker_movement_guard_v4",
+  "intent_id": "state_gate_bootstrap_pr112_utf8_semantic_guard_v3",
   "repository": "dddd2024/reverse-agent",
   "source_pr": 112,
   "locked_base_sha": "93984db182b7ee11b3ccb8795bb5fc3741205b92",
   "allowed_merge_method": "merge",
   "decision_identity": {
-    "decision_id": "decision_20260804_issue111_pr112_marker_movement_guard_v4",
-    "decision_content_sha256": "1eaadc212b770cb061c36bcc36b2b3dc4fd7aab464f39d67fab802b18bc8f72f"
+    "decision_id": "decision_20260804_issue111_pr112_utf8_semantic_guard_v3",
+    "decision_content_sha256": "9ac4752de76d6f079cc6c3737dda3c507c8b9d6b734811411c6bb2ad49c173bb"
   },
-  "command_plan_sha256": "9cda07e7cace3223bfff75bbc2fa429e31aba901a5c3f055e1b8f1d6e9ab66cf",
+  "command_plan_sha256": "358e089b4e35db87d4e2a798478a41fcb6708aabfb2ede07f4811bd5e16f16c5",
   "merge_tree_policy": "equal_to_accepted_head_tree",
   "required_workflows": [
     "CI",
