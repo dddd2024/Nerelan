@@ -1,8 +1,8 @@
 """Tests for the Platform V1 mainline merge intent binding.
 
-Verifies that the active Bootstrap intent binds PR #110, B1, and the exact
-Issue #109 Decision and Command Plan digests. The PR97 v1-v4 and PR108 v1
-intents remain archived byte-for-byte.
+Verifies that the active Bootstrap intent binds PR #112, B2, and the exact
+Issue #111 Decision and Command Plan digests. The PR97 v1-v4, PR108 v1, and
+PR110 v1 and rejected PR112 v1/v2/v3/v4/v5 intents remain archived byte-for-byte.
 """
 
 from __future__ import annotations
@@ -22,13 +22,19 @@ ARCHIVE_V2_PATH = INTENTS_DIR / "archive" / "pr97_v2.json"
 ARCHIVE_V3_PATH = INTENTS_DIR / "archive" / "pr97_v3.json"
 ARCHIVE_V4_PATH = INTENTS_DIR / "archive" / "pr97_v4.json"
 ARCHIVE_PR108_PATH = INTENTS_DIR / "archive" / "pr108_v1.json"
+ARCHIVE_PR110_PATH = INTENTS_DIR / "archive" / "pr110_v1.json"
+ARCHIVE_PR112_PATH = INTENTS_DIR / "archive" / "pr112_v1.json"
+ARCHIVE_PR112_V2_PATH = INTENTS_DIR / "archive" / "pr112_v2.json"
+ARCHIVE_PR112_V3_PATH = INTENTS_DIR / "archive" / "pr112_v3.json"
+ARCHIVE_PR112_V4_PATH = INTENTS_DIR / "archive" / "pr112_v4.json"
+ARCHIVE_PR112_V5_PATH = INTENTS_DIR / "archive" / "pr112_v5.json"
 DECISION_PATH = REPO_ROOT / "project_state" / "decision_packet.md"
 COMMAND_PLAN_PATH = REPO_ROOT / "project_state" / "gates" / "command_plan.json"
 
 EXPECTED_PR97_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
-EXPECTED_BOOTSTRAP_BASE_SHA = "4aacd7f614342f5ca123b2afccdb9a49df886775"
+EXPECTED_BOOTSTRAP_BASE_SHA = "93984db182b7ee11b3ccb8795bb5fc3741205b92"
 EXPECTED_BOOTSTRAP_DECISION_ID = (
-    "decision_20260804_issue109_pr110_bootstrap_test_rebind_v1"
+    "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
 )
 EXPECTED_V4_DECISION_ID = (
     "decision_20260802_issue100_platform_v1_authority_collector_v4"
@@ -42,6 +48,12 @@ EXPECTED_V2_DECISION_ID = (
 EXPECTED_V1_DECISION_ID = "decision_20260802_platform_v1_openhands_codex_acp_v1"
 EXPECTED_PR97_V4_GIT_BLOB = "1afd619ef90df7b01255d1cd16b483190f616df6"
 EXPECTED_PR108_V1_GIT_BLOB = "32ca8e328e28467fcbe1857b7d300152fc89bdf4"
+EXPECTED_PR110_V1_GIT_BLOB = "bb7ce4c1c61a88e63e0bdc14e0ce2fa4967fc842"
+EXPECTED_PR112_V1_GIT_BLOB = "639581296b8dfd8038871010f99aa68401568353"
+EXPECTED_PR112_V2_GIT_BLOB = "770f19faba9e0f040656341beec0089ca87d3545"
+EXPECTED_PR112_V3_GIT_BLOB = "3c246c1377df2504bb95fbd4d9865860b017b049"
+EXPECTED_PR112_V4_GIT_BLOB = "78104b6ae6746b0b5bf3b409f7dd2054ca23fcd9"
+EXPECTED_PR112_V5_GIT_BLOB = "64e555a98a1b748b2e320abb4559922bdc0d3649"
 
 
 def _load_json(path: Path) -> dict:
@@ -49,16 +61,16 @@ def _load_json(path: Path) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Active PR110 Bootstrap intent
+# Active PR112 Bootstrap intent
 # ---------------------------------------------------------------------------
 
 class TestActiveMergeIntent:
     def test_active_file_exists(self) -> None:
         assert ACTIVE_PATH.exists(), f"active.json not found at {ACTIVE_PATH}"
 
-    def test_active_binds_source_pr_110(self) -> None:
+    def test_active_binds_source_pr_112(self) -> None:
         data = _load_json(ACTIVE_PATH)
-        assert data["source_pr"] == 110, "active intent must bind source_pr=110"
+        assert data["source_pr"] == 112, "active intent must bind source_pr=112"
 
     def test_active_does_not_have_source_pr_zero(self) -> None:
         data = _load_json(ACTIVE_PATH)
@@ -225,6 +237,152 @@ class TestArchivedPR108Intent:
         assert data["locked_base_sha"] == (
             "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
         )
+
+
+# ---------------------------------------------------------------------------
+# Archived PR110 v1 intent (exact B2 active bytes)
+# ---------------------------------------------------------------------------
+
+class TestArchivedPR110Intent:
+    def test_archive_pr110_file_exists(self) -> None:
+        assert ARCHIVE_PR110_PATH.exists(), (
+            f"pr110_v1.json not found at {ARCHIVE_PR110_PATH}"
+        )
+
+    def test_archive_pr110_is_exact_b2_active_blob(self) -> None:
+        payload = ARCHIVE_PR110_PATH.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == EXPECTED_PR110_V1_GIT_BLOB
+
+    def test_archive_pr110_binds_pr110_and_b1(self) -> None:
+        data = _load_json(ARCHIVE_PR110_PATH)
+        assert data["source_pr"] == 110
+        assert data["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue109_pr110_bootstrap_test_rebind_v1"
+        )
+        assert data["locked_base_sha"] == (
+            "4aacd7f614342f5ca123b2afccdb9a49df886775"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Archived rejected PR112 v1 intent (exact v1 active bytes)
+# ---------------------------------------------------------------------------
+
+class TestArchivedPR112V1Intent:
+    def test_archive_pr112_v1_file_exists(self) -> None:
+        assert ARCHIVE_PR112_PATH.exists(), (
+            f"pr112_v1.json not found at {ARCHIVE_PR112_PATH}"
+        )
+
+    def test_archive_pr112_v1_is_exact_rejected_active_blob(self) -> None:
+        payload = ARCHIVE_PR112_PATH.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == EXPECTED_PR112_V1_GIT_BLOB
+
+    def test_archive_pr112_v1_preserves_identity_and_base(self) -> None:
+        data = _load_json(ARCHIVE_PR112_PATH)
+        assert data["source_pr"] == 112
+        assert data["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_bootstrap_v13_retry_v1"
+        )
+        assert data["locked_base_sha"] == EXPECTED_BOOTSTRAP_BASE_SHA
+
+
+# ---------------------------------------------------------------------------
+# Archived rejected PR112 v2 intent (exact v2 active bytes)
+# ---------------------------------------------------------------------------
+
+class TestArchivedPR112V2Intent:
+    def test_archive_pr112_v2_file_exists(self) -> None:
+        assert ARCHIVE_PR112_V2_PATH.exists(), (
+            f"pr112_v2.json not found at {ARCHIVE_PR112_V2_PATH}"
+        )
+
+    def test_archive_pr112_v2_is_exact_rejected_active_blob(self) -> None:
+        payload = ARCHIVE_PR112_V2_PATH.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == EXPECTED_PR112_V2_GIT_BLOB
+
+    def test_archive_pr112_v2_preserves_identity_and_base(self) -> None:
+        data = _load_json(ARCHIVE_PR112_V2_PATH)
+        assert data["source_pr"] == 112
+        assert data["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_candidate_test_semantic_guard_v2"
+        )
+        assert data["locked_base_sha"] == EXPECTED_BOOTSTRAP_BASE_SHA
+
+
+# ---------------------------------------------------------------------------
+# Archived rejected PR112 v3 intent (exact v3 active bytes)
+# ---------------------------------------------------------------------------
+
+class TestArchivedPR112V3Intent:
+    def test_archive_pr112_v3_file_exists(self) -> None:
+        assert ARCHIVE_PR112_V3_PATH.exists(), (
+            f"pr112_v3.json not found at {ARCHIVE_PR112_V3_PATH}"
+        )
+
+    def test_archive_pr112_v3_is_exact_rejected_active_blob(self) -> None:
+        payload = ARCHIVE_PR112_V3_PATH.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == EXPECTED_PR112_V3_GIT_BLOB
+
+    def test_archive_pr112_v3_preserves_identity_and_base(self) -> None:
+        data = _load_json(ARCHIVE_PR112_V3_PATH)
+        assert data["source_pr"] == 112
+        assert data["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_utf8_semantic_guard_v3"
+        )
+        assert data["locked_base_sha"] == EXPECTED_BOOTSTRAP_BASE_SHA
+
+
+# ---------------------------------------------------------------------------
+# Archived rejected PR112 v4 intent (exact v4 active bytes)
+# ---------------------------------------------------------------------------
+
+class TestArchivedPR112V4Intent:
+    def test_archive_pr112_v4_file_exists(self) -> None:
+        assert ARCHIVE_PR112_V4_PATH.exists(), (
+            f"pr112_v4.json not found at {ARCHIVE_PR112_V4_PATH}"
+        )
+
+    def test_archive_pr112_v4_is_exact_rejected_active_blob(self) -> None:
+        payload = ARCHIVE_PR112_V4_PATH.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == EXPECTED_PR112_V4_GIT_BLOB
+
+    def test_archive_pr112_v4_preserves_identity_and_base(self) -> None:
+        data = _load_json(ARCHIVE_PR112_V4_PATH)
+        assert data["source_pr"] == 112
+        assert data["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_marker_movement_guard_v4"
+        )
+        assert data["locked_base_sha"] == EXPECTED_BOOTSTRAP_BASE_SHA
+
+
+# ---------------------------------------------------------------------------
+# Archived rejected PR112 v5 intent (exact v5 active bytes)
+# ---------------------------------------------------------------------------
+
+class TestArchivedPR112V5Intent:
+    def test_archive_pr112_v5_file_exists(self) -> None:
+        assert ARCHIVE_PR112_V5_PATH.exists(), (
+            f"pr112_v5.json not found at {ARCHIVE_PR112_V5_PATH}"
+        )
+
+    def test_archive_pr112_v5_is_exact_rejected_active_blob(self) -> None:
+        payload = ARCHIVE_PR112_V5_PATH.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == EXPECTED_PR112_V5_GIT_BLOB
+
+    def test_archive_pr112_v5_preserves_identity_and_base(self) -> None:
+        data = _load_json(ARCHIVE_PR112_V5_PATH)
+        assert data["source_pr"] == 112
+        assert data["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_long_validation_budget_v5"
+        )
+        assert data["locked_base_sha"] == EXPECTED_BOOTSTRAP_BASE_SHA
 
 
 # ---------------------------------------------------------------------------

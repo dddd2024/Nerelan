@@ -212,14 +212,14 @@ jobs:
       ci_run_id: ${{ steps.authority.outputs.ci_run_id }}
       preflight_run_id: ${{ steps.authority.outputs.preflight_run_id }}
     steps:
-      - name: Checkout exact trusted B2
+      - name: Checkout exact trusted B3
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify bounded B2 and candidate authority
+      - name: Verify bounded B3 and candidate authority
         id: authority
         shell: bash
         env:
@@ -236,12 +236,12 @@ jobs:
           set -euo pipefail
           readonly REPOSITORY='dddd2024/reverse-agent'
           readonly PR_NUMBER='106'
-          readonly BOOTSTRAP_PR_NUMBER='110'
+          readonly BOOTSTRAP_PR_NUMBER='112'
           readonly EXPECTED_BRANCH='agent/restore-path-a-state-gate-current-main-v1'
-          readonly BOOTSTRAP_BRANCH='owner/state-gate-bootstrap-test-rebind-v2'
+          readonly BOOTSTRAP_BRANCH='owner/state-gate-bootstrap-v13-retry-v3'
           readonly H0='ff7dd9091a48c5c2fad315812e672d5089824d09'
-          readonly B1='4aacd7f614342f5ca123b2afccdb9a49df886775'
-          readonly B2="$EVENT_BASE_SHA"
+          readonly B2='93984db182b7ee11b3ccb8795bb5fc3741205b92'
+          readonly B3="$EVENT_BASE_SHA"
           readonly CANDIDATE_HEAD="$EVENT_HEAD_SHA"
 
           test "$GITHUB_EVENT_NAME" = 'pull_request_target'
@@ -251,8 +251,8 @@ jobs:
           test "$EVENT_HEAD_BRANCH" = "$EXPECTED_BRANCH"
           test "$EVENT_BASE_REPOSITORY" = "$REPOSITORY"
           test "$EVENT_BASE_BRANCH" = 'main'
-          test "$TRUSTED_RUN_SHA" = "$B2"
-          test "$(git rev-parse HEAD)" = "$B2"
+          test "$TRUSTED_RUN_SHA" = "$B3"
+          test "$(git rev-parse HEAD)" = "$B3"
 
           api_get() {
             curl --fail --silent --show-error \
@@ -267,7 +267,7 @@ jobs:
             --arg repository "$REPOSITORY" \
             --arg branch "$EXPECTED_BRANCH" \
             --arg head "$CANDIDATE_HEAD" \
-            --arg base "$B2" \
+            --arg base "$B3" \
             '.number == 106
              and .state == "open"
              and .draft == true
@@ -280,13 +280,13 @@ jobs:
              and .auto_merge == null' \
             "$RUNNER_TEMP/bootstrap-pr106.json" > /dev/null
 
-          api_get "repos/$REPOSITORY/pulls/$BOOTSTRAP_PR_NUMBER" > "$RUNNER_TEMP/bootstrap-pr110.json"
+          api_get "repos/$REPOSITORY/pulls/$BOOTSTRAP_PR_NUMBER" > "$RUNNER_TEMP/bootstrap-pr112.json"
           jq -e \
             --arg repository "$REPOSITORY" \
             --arg branch "$BOOTSTRAP_BRANCH" \
-            --arg base "$B1" \
-            --arg merge_commit "$B2" \
-            '.number == 110
+            --arg base "$B2" \
+            --arg merge_commit "$B3" \
+            '.number == 112
              and .state == "closed"
              and .merged == true
              and .draft == false
@@ -297,48 +297,51 @@ jobs:
              and .base.sha == $base
              and .merge_commit_sha == $merge_commit
              and .auto_merge == null' \
-            "$RUNNER_TEMP/bootstrap-pr110.json" > /dev/null
-          readonly PR110_HEAD="$(jq -r '.head.sha' "$RUNNER_TEMP/bootstrap-pr110.json")"
+            "$RUNNER_TEMP/bootstrap-pr112.json" > /dev/null
+          readonly PR112_HEAD="$(jq -r '.head.sha' "$RUNNER_TEMP/bootstrap-pr112.json")"
 
           git config --local --unset-all http.https://github.com/.extraheader || true
-          git fetch --no-tags origin "$B1" "$H0" "$B2" "$CANDIDATE_HEAD" "$PR110_HEAD"
-          for revision in "$B1" "$H0" "$B2" "$CANDIDATE_HEAD" "$PR110_HEAD"; do
+          git fetch --no-tags origin "$B2" "$H0" "$B3" "$CANDIDATE_HEAD" "$PR112_HEAD"
+          for revision in "$B2" "$H0" "$B3" "$CANDIDATE_HEAD" "$PR112_HEAD"; do
             test "$(git cat-file -t "$revision")" = 'commit'
           done
 
-          git merge-base --is-ancestor "$B1" "$B2"
-          read -r -a b2_parents <<< "$(git rev-list --parents -n 1 "$B2")"
-          test "${#b2_parents[@]}" -eq 3
-          test "${b2_parents[1]}" = "$B1"
-          test "${b2_parents[2]}" = "$PR110_HEAD"
+          git merge-base --is-ancestor "$B2" "$B3"
+          read -r -a b3_parents <<< "$(git rev-list --parents -n 1 "$B3")"
+          test "${#b3_parents[@]}" -eq 3
+          test "${b3_parents[1]}" = "$B2"
+          test "${b3_parents[2]}" = "$PR112_HEAD"
 
           git merge-base --is-ancestor "$H0" "$CANDIDATE_HEAD"
-          git merge-base --is-ancestor "$B2" "$CANDIDATE_HEAD"
+          git merge-base --is-ancestor "$B3" "$CANDIDATE_HEAD"
           mapfile -t candidate_chain < <(git rev-list --first-parent --reverse "$H0..$CANDIDATE_HEAD")
           test "${#candidate_chain[@]}" -eq 4
           read -r -a merge_parents <<< "$(git rev-list --parents -n 1 "${candidate_chain[0]}")"
           test "${#merge_parents[@]}" -eq 3
           test "${merge_parents[1]}" = "$H0"
-          test "${merge_parents[2]}" = "$B2"
+          test "${merge_parents[2]}" = "$B3"
           for index in 1 2 3; do
             read -r -a linear_parents <<< "$(git rev-list --parents -n 1 "${candidate_chain[$index]}")"
             test "${#linear_parents[@]}" -eq 2
             test "${linear_parents[1]}" = "${candidate_chain[$((index - 1))]}"
           done
 
-          export B1 H0 B2 CANDIDATE_HEAD
+          export B2 H0 B3 CANDIDATE_HEAD PR112_HEAD
           python - <<'PY'
+          import ast
+          import copy
           import hashlib
           import json
           import os
           import re
           import subprocess
 
-          b1 = os.environ["B1"]
-          h0 = os.environ["H0"]
           b2 = os.environ["B2"]
+          h0 = os.environ["H0"]
+          b3 = os.environ["B3"]
           candidate_head = os.environ["CANDIDATE_HEAD"]
-          pr110_paths = {
+          pr112_head = os.environ["PR112_HEAD"]
+          pr112_paths = {
               ".github/workflows/state-gate.yml",
               "project_state/decision_packet.md",
               "project_state/gates/bootstrap_state.json",
@@ -347,7 +350,12 @@ jobs:
               "project_state/gates/transition_command_plan_preview.json",
               "project_state/gates/transition_preflight_result.json",
               "project_state/mainline_merge_intents/active.json",
-              "project_state/mainline_merge_intents/archive/pr108_v1.json",
+              "project_state/mainline_merge_intents/archive/pr110_v1.json",
+              "project_state/mainline_merge_intents/archive/pr112_v1.json",
+              "project_state/mainline_merge_intents/archive/pr112_v2.json",
+              "project_state/mainline_merge_intents/archive/pr112_v3.json",
+              "project_state/mainline_merge_intents/archive/pr112_v4.json",
+              "project_state/mainline_merge_intents/archive/pr112_v5.json",
               "tests/platform_v1/test_contracts.py",
               "tests/platform_v1/test_merge_intent.py",
           }
@@ -393,7 +401,8 @@ jobs:
                   ["git", "diff", "--name-status", "-M", "-C", f"{start}..{end}"],
                   check=True,
                   capture_output=True,
-                  text=True,
+                  encoding="utf-8",
+                  errors="strict",
               )
               raw_paths: list[str] = []
               for line in result.stdout.splitlines():
@@ -402,9 +411,7 @@ jobs:
                   fields = line.split("\t")
                   status = fields[0]
                   if status.startswith(("R", "C")):
-                      if len(fields) != 3:
-                          raise SystemExit("malformed rename/copy record")
-                      raw_paths.extend(fields[1:])
+                      raise SystemExit("rename/copy changed-path record forbidden")
                   else:
                       if len(fields) != 2:
                           raise SystemExit("malformed changed-path record")
@@ -413,17 +420,49 @@ jobs:
 
           def commit_paths(commit: str) -> set[str]:
               parent = subprocess.check_output(
-                  ["git", "rev-parse", f"{commit}^1"], text=True
+                  ["git", "rev-parse", f"{commit}^1"],
+                  encoding="utf-8",
+                  errors="strict",
               ).strip()
               return set(changed_paths(parent, commit))
 
-          b2_paths = set(changed_paths(b1, b2))
-          if b2_paths != pr110_paths:
-              raise SystemExit(f"unexpected B1..B2 paths: {sorted(b2_paths)}")
+          pr112_head_paths = set(changed_paths(b2, pr112_head))
+          if pr112_head_paths != pr112_paths:
+              raise SystemExit(
+                  f"unexpected B2..PR112_HEAD paths: {sorted(pr112_head_paths)}"
+              )
+          b3_paths = set(changed_paths(b2, b3))
+          if b3_paths != pr112_paths:
+              raise SystemExit(f"unexpected B2..B3 paths: {sorted(b3_paths)}")
+          b3_tree = subprocess.check_output(
+              ["git", "rev-parse", f"{b3}^{{tree}}"],
+              encoding="utf-8",
+              errors="strict",
+          ).strip()
+          pr112_head_tree = subprocess.check_output(
+              ["git", "rev-parse", f"{pr112_head}^{{tree}}"],
+              encoding="utf-8",
+              errors="strict",
+          ).strip()
+          if b3_tree != pr112_head_tree:
+              raise SystemExit("B3 merge tree differs from accepted PR112 head tree")
           chain = subprocess.check_output(
               ["git", "rev-list", "--first-parent", "--reverse", f"{h0}..{candidate_head}"],
-              text=True,
+              encoding="utf-8",
+              errors="strict",
           ).splitlines()
+          merge_tree = subprocess.check_output(
+              ["git", "rev-parse", f"{chain[0]}^{{tree}}"],
+              encoding="utf-8",
+              errors="strict",
+          ).strip()
+          h0_tree = subprocess.check_output(
+              ["git", "rev-parse", f"{h0}^{{tree}}"],
+              encoding="utf-8",
+              errors="strict",
+          ).strip()
+          if merge_tree != h0_tree:
+              raise SystemExit("PR106 H0+B3 merge tree differs from H0")
           if commit_paths(chain[1]) != {"project_state/decision_packet.md"}:
               raise SystemExit("PR106 Decision commit path set mismatch")
           if commit_paths(chain[2]) != generated_paths:
@@ -442,37 +481,381 @@ jobs:
 
           workflow_path = ".github/workflows/state-gate.yml"
           h0_workflow = subprocess.check_output(
-              ["git", "rev-parse", f"{h0}:{workflow_path}"], text=True
+              ["git", "rev-parse", f"{h0}:{workflow_path}"],
+              encoding="utf-8",
+              errors="strict",
           ).strip()
           candidate_workflow = subprocess.check_output(
-              ["git", "rev-parse", f"{candidate_head}:{workflow_path}"], text=True
+              ["git", "rev-parse", f"{candidate_head}:{workflow_path}"],
+              encoding="utf-8",
+              errors="strict",
           ).strip()
           if h0_workflow != candidate_workflow:
               raise SystemExit("candidate workflow blob differs from H0")
           h0_production = subprocess.check_output(
-              ["git", "rev-parse", f"{h0}:reverse_agent"], text=True
+              ["git", "rev-parse", f"{h0}:reverse_agent"],
+              encoding="utf-8",
+              errors="strict",
           ).strip()
           candidate_production = subprocess.check_output(
-              ["git", "rev-parse", f"{candidate_head}:reverse_agent"], text=True
+              ["git", "rev-parse", f"{candidate_head}:reverse_agent"],
+              encoding="utf-8",
+              errors="strict",
           ).strip()
           if h0_production != candidate_production:
               raise SystemExit("candidate production Python tree differs from H0")
           archived = subprocess.check_output(
               ["git", "rev-parse", f"{candidate_head}:project_state/mainline_merge_intents/archive/pr106_v11r2.json"],
-              text=True,
+              encoding="utf-8",
+              errors="strict",
           ).strip()
           prior_active = subprocess.check_output(
               ["git", "rev-parse", f"{h0}:project_state/mainline_merge_intents/active.json"],
-              text=True,
+              encoding="utf-8",
+              errors="strict",
           ).strip()
           if archived != prior_active:
               raise SystemExit("pr106_v11r2 archive differs from H0 active Intent")
+
+          archive_prefix = "project_state/mainline_merge_intents/archive/"
+          historical_archives = subprocess.check_output(
+              ["git", "ls-tree", "-r", "--name-only", h0, archive_prefix],
+              encoding="utf-8",
+              errors="strict",
+          ).splitlines()
+          if not historical_archives:
+              raise SystemExit("H0 historical archive inventory is empty")
+          for archive_path in historical_archives:
+              h0_archive = subprocess.check_output(
+                  ["git", "rev-parse", f"{h0}:{archive_path}"],
+                  encoding="utf-8",
+                  errors="strict",
+              ).strip()
+              candidate_archive = subprocess.check_output(
+                  ["git", "rev-parse", f"{candidate_head}:{archive_path}"],
+                  encoding="utf-8",
+                  errors="strict",
+              ).strip()
+              if h0_archive != candidate_archive:
+                  raise SystemExit(f"historical archive changed: {archive_path}")
 
           def blob(path: str) -> bytes:
               return subprocess.check_output(["git", "show", f"{candidate_head}:{path}"])
 
           def json_blob(path: str) -> dict:
               return json.loads(blob(path).decode("utf-8"))
+
+          semantic_test_paths = (
+              "tests/platform_v1/test_authority_adapter.py",
+              "tests/platform_v1/test_contracts.py",
+              "tests/platform_v1/test_merge_intent.py",
+          )
+
+          def validate_semantic_test_sources(
+              h0_sources: dict[str, str],
+              candidate_sources: dict[str, str],
+              runtime_base: str,
+          ) -> None:
+              historical_base = "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+              v14_decision = (
+                  "decision_20260804_restore_path_a_state_gate_current_main_v14"
+              )
+              expected_paths = set(semantic_test_paths)
+              if set(h0_sources) != expected_paths or set(candidate_sources) != expected_paths:
+                  raise ValueError("semantic source path set mismatch")
+
+              def parse_sources(sources: dict[str, str]) -> dict[str, ast.Module]:
+                  return {
+                      path: ast.parse(source, filename=path)
+                      for path, source in sources.items()
+                  }
+
+              def dumped(node: ast.AST) -> str:
+                  return ast.dump(node, annotate_fields=True, include_attributes=False)
+
+              def identities(tree: ast.Module) -> dict[str, ast.AST]:
+                  found: dict[str, ast.AST] = {}
+
+                  def visit_body(body: list[ast.stmt], prefix: str = "") -> None:
+                      for node in body:
+                          if isinstance(node, ast.ClassDef):
+                              identity = f"{prefix}.{node.name}" if prefix else node.name
+                              if identity in found:
+                                  raise ValueError(f"duplicate qualified identity: {identity}")
+                              found[identity] = node
+                              visit_body(node.body, identity)
+                          elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                              identity = f"{prefix}.{node.name}" if prefix else node.name
+                              if identity in found:
+                                  raise ValueError(f"duplicate qualified identity: {identity}")
+                              found[identity] = node
+                              visit_body(node.body, identity)
+
+                  visit_body(tree.body)
+                  return found
+
+              def module_assignment(tree: ast.Module, name: str) -> ast.Assign:
+                  matches = [
+                      node for node in tree.body
+                      if isinstance(node, ast.Assign)
+                      and len(node.targets) == 1
+                      and isinstance(node.targets[0], ast.Name)
+                      and node.targets[0].id == name
+                  ]
+                  if len(matches) != 1:
+                      raise ValueError(f"expected one module assignment: {name}")
+                  return matches[0]
+
+              def require_string_assignment(
+                  tree: ast.Module, name: str, expected: str
+              ) -> ast.Assign:
+                  assignment = module_assignment(tree, name)
+                  if not isinstance(assignment.value, ast.Constant):
+                      raise ValueError(f"non-literal assignment: {name}")
+                  if assignment.value.value != expected:
+                      raise ValueError(f"assignment mismatch: {name}")
+                  return assignment
+
+              def expression(source: str) -> ast.expr:
+                  return ast.parse(source, mode="eval").body
+
+              h0_trees = parse_sources(h0_sources)
+              candidate_trees = parse_sources(candidate_sources)
+
+              authority_path = "tests/platform_v1/test_authority_adapter.py"
+              h0_authority = h0_trees[authority_path]
+              candidate_authority = candidate_trees[authority_path]
+              if set(identities(candidate_authority)) != set(identities(h0_authority)):
+                  raise ValueError("authority adapter qualified identities changed")
+              h0_base = module_assignment(h0_authority, "BASE")
+              candidate_base = require_string_assignment(
+                  candidate_authority, "BASE", runtime_base
+              )
+              candidate_base.value = copy.deepcopy(h0_base.value)
+              if dumped(candidate_authority) != dumped(h0_authority):
+                  raise ValueError("authority adapter AST differs outside BASE")
+
+              merge_path = "tests/platform_v1/test_merge_intent.py"
+              h0_merge = h0_trees[merge_path]
+              candidate_merge = candidate_trees[merge_path]
+              fixed_merge_class = ast.parse('''
+          class TestArchivedPr106V11r2Intent:
+              def test_archive_pr106_v11r2_file_exists(self) -> None:
+                  assert ARCHIVE_PR106_V11R2_PATH.exists()
+
+              def test_archive_pr106_v11r2_is_exact_h0_active(self) -> None:
+                  payload = ARCHIVE_PR106_V11R2_PATH.read_bytes()
+                  original = _committed_blob(
+                      "project_state/mainline_merge_intents/active.json",
+                      ref=PR106_V11R2_ACTIVE_COMMIT,
+                  )
+                  assert payload == original
+
+              def test_archive_pr106_v11r2_has_exact_git_blob(self) -> None:
+                  payload = ARCHIVE_PR106_V11R2_PATH.read_bytes()
+                  header = f"blob {len(payload)}\\0".encode("ascii")
+                  assert hashlib.sha1(header + payload).hexdigest() == (
+                      "27b0a28c0b227df07dbc6829057d04875dc930ac"
+                  )
+
+              def test_archive_pr106_v11r2_preserves_identity_and_base(self) -> None:
+                  data = _load_json(ARCHIVE_PR106_V11R2_PATH)
+                  assert data["source_pr"] == 106
+                  assert data["decision_identity"]["decision_id"] == (
+                      "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+                  )
+                  assert data["locked_base_sha"] == PR106_HISTORICAL_BASE_SHA
+          ''').body[0]
+              h0_merge_ids = set(identities(h0_merge))
+              candidate_merge_ids = set(identities(candidate_merge))
+              fixed_merge_ids = set(identities(ast.Module(body=[fixed_merge_class])))
+              if candidate_merge_ids != h0_merge_ids | fixed_merge_ids:
+                  raise ValueError("merge-intent qualified identities changed")
+              fixed_candidates = [
+                  node for node in candidate_merge.body
+                  if isinstance(node, ast.ClassDef)
+                  and node.name == "TestArchivedPr106V11r2Intent"
+              ]
+              if len(fixed_candidates) != 1 or dumped(fixed_candidates[0]) != dumped(fixed_merge_class):
+                  raise ValueError("fixed v11r2 merge-intent tests mismatch")
+              candidate_merge.body.remove(fixed_candidates[0])
+
+              active_base = require_string_assignment(
+                  candidate_merge, "EXPECTED_ACTIVE_BASE_SHA", runtime_base
+              )
+              active_base.value = copy.deepcopy(
+                  module_assignment(h0_merge, "EXPECTED_ACTIVE_BASE_SHA").value
+              )
+              historical = require_string_assignment(
+                  candidate_merge, "PR106_HISTORICAL_BASE_SHA", historical_base
+              )
+              archive_path = module_assignment(candidate_merge, "ARCHIVE_PR106_V11R2_PATH")
+              if dumped(archive_path.value) != dumped(
+                  expression('INTENTS_DIR / "archive" / "pr106_v11r2.json"')
+              ):
+                  raise ValueError("v11r2 archive path assignment mismatch")
+              active_commit = require_string_assignment(
+                  candidate_merge,
+                  "PR106_V11R2_ACTIVE_COMMIT",
+                  "ff7dd9091a48c5c2fad315812e672d5089824d09",
+              )
+              active_decision = require_string_assignment(
+                  candidate_merge, "EXPECTED_ACTIVE_DECISION_ID_PR106", v14_decision
+              )
+              active_decision.value = copy.deepcopy(
+                  module_assignment(h0_merge, "EXPECTED_ACTIVE_DECISION_ID_PR106").value
+              )
+              for removable in (historical, archive_path, active_commit):
+                  candidate_merge.body.remove(removable)
+
+              merge_ids = identities(candidate_merge)
+              historical_tests = (
+                  "TestArchivedPr106V3Intent.test_archive_pr106_v3_preserves_locked_base_sha",
+                  "TestArchivedPr106V4Intent.test_archive_pr106_v4_preserves_locked_base_sha",
+              )
+              for identity in historical_tests:
+                  function = merge_ids.get(identity)
+                  if function is None:
+                      raise ValueError(f"historical test missing: {identity}")
+                  replacements = 0
+                  for node in ast.walk(function):
+                      if isinstance(node, ast.Name) and node.id == "PR106_HISTORICAL_BASE_SHA":
+                          node.id = "EXPECTED_ACTIVE_BASE_SHA"
+                          replacements += 1
+                  if replacements != 1:
+                      raise ValueError(f"historical base use mismatch: {identity}")
+              if dumped(candidate_merge) != dumped(h0_merge):
+                  raise ValueError("merge-intent module AST differs outside allowlist")
+
+              contracts_path = "tests/platform_v1/test_contracts.py"
+              h0_contracts = h0_trees[contracts_path]
+              candidate_contracts = candidate_trees[contracts_path]
+              h0_contract_ids = identities(h0_contracts)
+              candidate_contract_ids = identities(candidate_contracts)
+              added_contract_methods_source = '''
+          class _FixedArchiveTests:
+              def test_archive_pr106_v11r2_is_exact_h0_active(self) -> None:
+                  payload = self._archive_v11r2_pr106_path.read_bytes()
+                  original = subprocess.check_output(
+                      [
+                          "git", "cat-file", "blob",
+                          "ff7dd9091a48c5c2fad315812e672d5089824d09:project_state/mainline_merge_intents/active.json",
+                      ],
+                      cwd=self._repo_root,
+                  )
+                  assert payload == original
+                  header = f"blob {len(payload)}\\0".encode("ascii")
+                  assert hashlib.sha1(header + payload).hexdigest() == (
+                      "27b0a28c0b227df07dbc6829057d04875dc930ac"
+                  )
+
+              def test_archive_pr106_v11r2_preserves_identity_and_base(self) -> None:
+                  assert self._archive_v11r2_pr106["source_pr"] == 106
+                  assert self._archive_v11r2_pr106["decision_identity"]["decision_id"] == (
+                      "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+                  )
+                  assert self._archive_v11r2_pr106["locked_base_sha"] == (
+                      "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+                  )
+          '''
+              fixed_contract_class = ast.parse(added_contract_methods_source).body[0]
+              fixed_methods = fixed_contract_class.body
+              expected_added = {
+                  f"TestActiveMergeIntentV5.{node.name}" for node in fixed_methods
+              }
+              if set(candidate_contract_ids) != set(h0_contract_ids) | expected_added:
+                  raise ValueError("contracts qualified identities changed")
+              active_class_matches = [
+                  node for node in candidate_contracts.body
+                  if isinstance(node, ast.ClassDef)
+                  and node.name == "TestActiveMergeIntentV5"
+              ]
+              if len(active_class_matches) != 1:
+                  raise ValueError("active contracts class identity changed")
+              active_class = active_class_matches[0]
+              for expected_method in fixed_methods:
+                  matches = [
+                      node for node in active_class.body
+                      if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                      and node.name == expected_method.name
+                  ]
+                  if len(matches) != 1 or dumped(matches[0]) != dumped(expected_method):
+                      raise ValueError(f"fixed contracts test mismatch: {expected_method.name}")
+                  active_class.body.remove(matches[0])
+
+              candidate_contract_ids = identities(candidate_contracts)
+              fixture = candidate_contract_ids.get("TestActiveMergeIntentV5._load_intents")
+              if fixture is None:
+                  raise ValueError("contracts intent fixture missing")
+              path_value = expression(
+                  'intents_dir / "archive" / "pr106_v11r2.json"'
+              )
+              load_value = expression(
+                  'json.loads(self._archive_v11r2_pr106_path.read_text(encoding="utf-8"))'
+              )
+
+              def remove_fixture_assignment(attribute: str, expected_value: ast.expr) -> None:
+                  matches = [
+                      node for node in fixture.body
+                      if isinstance(node, ast.Assign)
+                      and len(node.targets) == 1
+                      and isinstance(node.targets[0], ast.Attribute)
+                      and isinstance(node.targets[0].value, ast.Name)
+                      and node.targets[0].value.id == "self"
+                      and node.targets[0].attr == attribute
+                  ]
+                  if len(matches) != 1 or dumped(matches[0].value) != dumped(expected_value):
+                      raise ValueError(f"contracts fixture assignment mismatch: {attribute}")
+                  fixture.body.remove(matches[0])
+
+              remove_fixture_assignment("_archive_v11r2_pr106_path", path_value)
+              remove_fixture_assignment("_archive_v11r2_pr106", load_value)
+              candidate_contract_ids = identities(candidate_contracts)
+              decision_test = candidate_contract_ids.get(
+                  "TestActiveMergeIntentV5.test_active_binds_v11r1_decision_id"
+              )
+              locked_base_test = candidate_contract_ids.get(
+                  "TestActiveMergeIntentV5.test_active_binds_locked_base_sha"
+              )
+              if decision_test is None or locked_base_test is None:
+                  raise ValueError("contracts active identity changed")
+              v14_literals = [
+                  node for node in ast.walk(decision_test)
+                  if isinstance(node, ast.Constant) and node.value == v14_decision
+              ]
+              if len(v14_literals) != 1:
+                  raise ValueError("contracts v14 Decision literal mismatch")
+              h0_decision_test = h0_contract_ids[
+                  "TestActiveMergeIntentV5.test_active_binds_v11r1_decision_id"
+              ]
+              h0_literal = next(
+                  node for node in ast.walk(h0_decision_test)
+                  if isinstance(node, ast.Constant)
+                  and node.value == "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+              )
+              v14_literals[0].value = h0_literal.value
+              runtime_literals = [
+                  node for node in ast.walk(locked_base_test)
+                  if isinstance(node, ast.Constant) and node.value == runtime_base
+              ]
+              if len(runtime_literals) != 1:
+                  raise ValueError("contracts active base literal mismatch")
+              runtime_literals[0].value = historical_base
+              if dumped(candidate_contracts) != dumped(h0_contracts):
+                  raise ValueError("contracts module AST differs outside allowlist")
+
+          def source_at(ref: str, path: str) -> str:
+              return subprocess.check_output(
+                  ["git", "show", f"{ref}:{path}"]
+              ).decode("utf-8")
+
+          h0_test_sources = {
+              path: source_at(h0, path) for path in semantic_test_paths
+          }
+          candidate_test_sources = {
+              path: source_at(candidate_head, path) for path in semantic_test_paths
+          }
+          validate_semantic_test_sources(h0_test_sources, candidate_test_sources, b3)
 
           decision_bytes = blob("project_state/decision_packet.md")
           decision_text = decision_bytes.decode("utf-8")
@@ -495,19 +878,19 @@ jobs:
           intent = json_blob("project_state/mainline_merge_intents/active.json")
           preflight = json_blob("project_state/gates/transition_preflight_result.json")
 
-          expected_prior = "decision_20260804_restore_path_a_state_gate_current_main_v12"
-          expected_round = "round_20260804_restore_path_a_state_gate_current_main_v12"
+          expected_prior = "decision_20260804_restore_path_a_state_gate_current_main_v13"
+          expected_round = "round_20260804_restore_path_a_state_gate_current_main_v13"
           if contract.get("follows_last_decision_id") != expected_prior:
-              raise SystemExit("candidate Decision does not follow rejected v12")
+              raise SystemExit("candidate Decision does not follow rejected v13")
           if contract.get("follows_last_round_id") != expected_round:
-              raise SystemExit("candidate round does not follow rejected v12")
-          if contract.get("previous_audit_outcome") != "V12_REJECTED_UNSATISFIABLE_SEMANTIC_TEST_CONTRACT":
-              raise SystemExit("candidate Decision does not record rejected v12 outcome")
+              raise SystemExit("candidate round does not follow rejected v13")
+          if contract.get("previous_audit_outcome") != "V13_REJECTED_ACTIVE_BASE_ALIAS_LEAKED_INTO_HISTORICAL_ARCHIVES":
+              raise SystemExit("candidate Decision does not record rejected v13 outcome")
           expected_contract = {
-              "activation_base_sha": b2,
+              "activation_base_sha": b3,
               "source_issue": 105,
               "parent_issue": 90,
-              "bootstrap_issue": 109,
+              "bootstrap_issue": 111,
               "active_pr": 106,
               "required_branch": "agent/restore-path-a-state-gate-current-main-v1",
           }
@@ -560,7 +943,7 @@ jobs:
               raise SystemExit("candidate Intent repository mismatch")
           if intent.get("source_pr") != 106:
               raise SystemExit("candidate Intent PR mismatch")
-          if intent.get("locked_base_sha") != b2:
+          if intent.get("locked_base_sha") != b3:
               raise SystemExit("candidate Intent locked base mismatch")
           if intent.get("allowed_merge_method") != "merge":
               raise SystemExit("candidate Intent merge method mismatch")
@@ -585,13 +968,13 @@ jobs:
           if any(check.get("status") != "PASS" for check in checks):
               raise SystemExit("candidate preflight contains non-PASS check")
 
-          paths = changed_paths(b2, candidate_head)
+          paths = changed_paths(b3, candidate_head)
           digest = hashlib.sha256("\n".join(paths).encode("utf-8")).hexdigest()
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-              output.write(f"trusted_base_sha={b2}\n")
+              output.write(f"trusted_base_sha={b3}\n")
               output.write(f"candidate_head_sha={candidate_head}\n")
               output.write(f"changed_paths_sha256={digest}\n")
-          print(f"B2={b2}")
+          print(f"B3={b3}")
           print(f"CANDIDATE_HEAD={candidate_head}")
           print(f"changed_paths_sha256={digest}")
           PY
@@ -702,7 +1085,7 @@ jobs:
       - name: Install exact candidate test dependencies
         run: python -m pip install -e ".[test]"
 
-      - name: Validate exact B2 to candidate diff
+      - name: Validate exact B3 to candidate diff
         env:
           CANDIDATE_BASE_SHA: ${{ needs.bootstrap-authority.outputs.trusted_base_sha }}
         run: git diff --check "$CANDIDATE_BASE_SHA"..HEAD
@@ -762,13 +1145,13 @@ jobs:
           import os
           from datetime import datetime, timezone
 
-          b2 = os.environ.get("TRUSTED_BASE_SHA", "")
+          b3 = os.environ.get("TRUSTED_BASE_SHA", "")
           candidate_head = os.environ.get("CANDIDATE_HEAD_SHA", "")
           observed_digest = os.environ.get("OBSERVED_CHANGED_PATHS_SHA256", "")
           authority_result = (
               "SUCCESS"
               if os.environ.get("AUTHORITY_JOB_RESULT") == "success"
-              and len(b2) == 40
+              and len(b3) == 40
               and len(candidate_head) == 40
               and len(observed_digest) == 64
               else "FAILED"
@@ -792,14 +1175,14 @@ jobs:
               "workflow_event": "pull_request_target",
               "workflow_run_id": int(os.environ["GITHUB_RUN_ID"]),
               "workflow_run_attempt": int(os.environ.get("GITHUB_RUN_ATTEMPT", "1")),
-              "trusted_base_sha": b2,
-              "trusted_verifier_tree_sha": b2,
+              "trusted_base_sha": b3,
+              "trusted_verifier_tree_sha": b3,
               "candidate_head_sha": candidate_head,
-              "candidate_base_sha": b2,
+              "candidate_base_sha": b3,
               "changed_paths_sha256": observed_digest,
               "selected_mode": "transition",
               "authority_identity": "trusted_base_verifier",
-              "authority_revision": b2,
+              "authority_revision": b3,
               "authority_result": authority_result,
               "candidate_tests_result": candidate_result,
               "final_gate_result": final_result,

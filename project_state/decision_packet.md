@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260804_issue109_pr110_bootstrap_test_rebind_v1",
-  "round_id": "round_20260804_issue109_pr110_bootstrap_test_rebind_v1",
+  "decision_id": "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
+  "round_id": "round_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,20 +16,20 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260804_issue107_state_gate_bootstrap_pr108_v1",
-  "follows_last_round_id": "round_20260804_issue107_state_gate_bootstrap_pr108_v1",
-  "previous_audit_outcome": "PR106_V12_REJECTED_UNSATISFIABLE_SEMANTIC_TEST_CONTRACT",
-  "workstream_id": "issue109-pr106-bootstrap-test-rebind-v1",
-  "source_issue": 109,
+  "follows_last_decision_id": "decision_20260804_issue111_pr112_long_validation_budget_v5",
+  "follows_last_round_id": "round_20260804_issue111_pr112_long_validation_budget_v5",
+  "previous_audit_outcome": "PR112_V5_REJECTED_BOOTSTRAP_PATH_SET_AND_MERGE_TREE_UNSEALED",
+  "workstream_id": "issue111-pr112-bootstrap-path-tree-seal-v6",
+  "source_issue": 111,
   "parent_issue": 90,
   "dependent_issue": 105,
   "dependent_pr": 106,
-  "prior_bootstrap_issue": 107,
-  "prior_bootstrap_pr": 108,
-  "active_pr": 110,
-  "required_branch": "owner/state-gate-bootstrap-test-rebind-v2",
-  "starting_head": "e7da303e1ae8343eb9c41ee878d012b89030286d",
-  "activation_base_sha": "4aacd7f614342f5ca123b2afccdb9a49df886775",
+  "prior_bootstrap_issue": 109,
+  "prior_bootstrap_pr": 110,
+  "active_pr": 112,
+  "required_branch": "owner/state-gate-bootstrap-v13-retry-v3",
+  "starting_head": "bc12fc3d5c92fda3066f3ce6f5043effec918a0e",
+  "activation_base_sha": "93984db182b7ee11b3ccb8795bb5fc3741205b92",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
@@ -48,7 +48,7 @@
   "real_provider_credential_allowed": false,
   "live_work_item_publication_allowed": false,
   "trusted_host_live_probe_allowed": false,
-  "repair_attempt_limit": 1,
+  "repair_attempt_limit": 0,
   "audit_generation_allowed": false,
   "prior_audits_immutable": true,
   "bootstrap_state_initial": "BOOTSTRAP_OPEN",
@@ -154,7 +154,7 @@
     },
     {
       "command_id": "validation.diff_check",
-      "command": "git diff --check 4aacd7f614342f5ca123b2afccdb9a49df886775..HEAD",
+      "command": "git diff --check 93984db182b7ee11b3ccb8795bb5fc3741205b92..HEAD",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -168,7 +168,7 @@
     },
     {
       "command_id": "publication.push_branch",
-      "command": "git push origin owner/state-gate-bootstrap-test-rebind-v2",
+      "command": "git push origin owner/state-gate-bootstrap-v13-retry-v3",
       "phase": "publication",
       "required": false,
       "expected_exit_codes": [0],
@@ -182,7 +182,7 @@
     },
     {
       "command_id": "observation.pr_metadata",
-      "command": "gh pr view 110 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
+      "command": "gh pr view 112 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
       "phase": "observation",
       "required": false,
       "expected_exit_codes": [0],
@@ -196,7 +196,7 @@
     },
     {
       "command_id": "observation.pr_checks",
-      "command": "gh pr checks 110 --repo dddd2024/reverse-agent --watch",
+      "command": "gh pr checks 112 --repo dddd2024/reverse-agent --watch",
       "phase": "observation",
       "required": false,
       "expected_exit_codes": [0],
@@ -210,7 +210,7 @@
     },
     {
       "command_id": "publication.pr_edit",
-      "command": "gh pr edit 110 --repo dddd2024/reverse-agent --body-file -",
+      "command": "gh pr edit 112 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "expected_exit_codes": [0],
@@ -224,7 +224,7 @@
     },
     {
       "command_id": "publication.pr_comment",
-      "command": "gh pr comment 110 --repo dddd2024/reverse-agent --body-file -",
+      "command": "gh pr comment 112 --repo dddd2024/reverse-agent --body-file -",
       "phase": "publication",
       "required": false,
       "expected_exit_codes": [0],
@@ -246,7 +246,12 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr108_v1.json",
+    "project_state/mainline_merge_intents/archive/pr110_v1.json",
+    "project_state/mainline_merge_intents/archive/pr112_v1.json",
+    "project_state/mainline_merge_intents/archive/pr112_v2.json",
+    "project_state/mainline_merge_intents/archive/pr112_v3.json",
+    "project_state/mainline_merge_intents/archive/pr112_v4.json",
+    "project_state/mainline_merge_intents/archive/pr112_v5.json",
     "tests/platform_v1/test_contracts.py",
     "tests/platform_v1/test_merge_intent.py"
   ],
@@ -267,7 +272,8 @@
     "project_state/mainline_merge_intents/archive/pr97_v1.json",
     "project_state/mainline_merge_intents/archive/pr97_v2.json",
     "project_state/mainline_merge_intents/archive/pr97_v3.json",
-    "project_state/mainline_merge_intents/archive/pr97_v4.json"
+    "project_state/mainline_merge_intents/archive/pr97_v4.json",
+    "project_state/mainline_merge_intents/archive/pr108_v1.json"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -298,7 +304,8 @@
     "project_state/audits/**",
     "project_state/mainline_merge_intents/archive/pr97_v1.json",
     "project_state/mainline_merge_intents/archive/pr97_v2.json",
-    "project_state/mainline_merge_intents/archive/pr97_v3.json"
+    "project_state/mainline_merge_intents/archive/pr97_v3.json",
+    "project_state/mainline_merge_intents/archive/pr108_v1.json"
   ],
   "forbidden_operations": [
     "create a branch or pull request",
@@ -340,11 +347,11 @@
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
-      "git push origin owner/state-gate-bootstrap-test-rebind-v2",
-      "gh pr view 110 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
-      "gh pr checks 110 --repo dddd2024/reverse-agent --watch",
-      "gh pr edit 110 --repo dddd2024/reverse-agent --body-file -",
-      "gh pr comment 110 --repo dddd2024/reverse-agent --body-file -"
+      "git push origin owner/state-gate-bootstrap-v13-retry-v3",
+      "gh pr view 112 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
+      "gh pr checks 112 --repo dddd2024/reverse-agent --watch",
+      "gh pr edit 112 --repo dddd2024/reverse-agent --body-file -",
+      "gh pr comment 112 --repo dddd2024/reverse-agent --body-file -"
     ],
     "ci_network_exceptions": []
   },
@@ -354,7 +361,12 @@
     "project_state/decision_packet.md",
     "project_state/gates/**",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr108_v1.json",
+    "project_state/mainline_merge_intents/archive/pr110_v1.json",
+    "project_state/mainline_merge_intents/archive/pr112_v1.json",
+    "project_state/mainline_merge_intents/archive/pr112_v2.json",
+    "project_state/mainline_merge_intents/archive/pr112_v3.json",
+    "project_state/mainline_merge_intents/archive/pr112_v4.json",
+    "project_state/mainline_merge_intents/archive/pr112_v5.json",
     "tests/platform_v1/test_contracts.py",
     "tests/platform_v1/test_merge_intent.py"
   ],
@@ -385,14 +397,14 @@
 
 ## Goal
 
-Create the repository-backed Path-B authority for Issue #109 and Draft PR #110, then repair the one-time trusted `pull_request_target` Bootstrap bridge so dependent Draft PR #106 can carry the three bounded semantic-test rebinds required by B2. The round starts from reservation head `e7da303e1ae8343eb9c41ee878d012b89030286d` on branch `owner/state-gate-bootstrap-test-rebind-v2` and base B1 `4aacd7f614342f5ca123b2afccdb9a49df886775`.
+Repair the exact-head Owner finding on existing Draft PR #112 by replacing the test-name-only candidate guard with a closed normalized-AST semantic-body allowlist. The v2 round starts from rejected v1 head `d19439387756c2b2516f9ca7af5a3d585a0b45a7` on branch `owner/state-gate-bootstrap-v13-retry-v3` and retains activation base B2 `93984db182b7ee11b3ccb8795bb5fc3741205b92`.
 
-The implementation is limited to the exact eleven paths in `allowed_mutated_paths`. It must preserve every historical and negative assertion, the existing push and ordinary pull-request routes, read-only permissions, credential-free candidate execution, H0-compatible receipt schema and single-artifact publication. It must not modify PR #106 or execute Docker, OpenHands, Agent Canvas, Codex ACP, Issue #102, deployment, credentials, tag or release operations.
+The cumulative implementation is limited to the exact sixteen paths in `allowed_mutated_paths`; rejected v1 through v5 active Intents are archived byte-for-byte as `pr112_v1.json` through `pr112_v5.json`, while existing `pr110_v1.json` and every earlier archive remain immutable. V6 seals the same exact path set for both `B2..PR112_HEAD` and `B2..B3`, and requires the ordered-parent B3 merge tree to equal the accepted PR112 head tree. The semantic transformation allowlist, strict UTF-8 handling, deterministic marker-movement constructor, normalized AST comparison and every PR106/candidate/receipt trusted boundary remain unchanged.
 
 ## Acceptance boundary
 
-The Decision is committed before generated authority or implementation. The standard transition Gate sequence must produce `transition-lint == PASSED`, `PRE_EXECUTION_AUTHORIZED`, `blocking_reasons == []`, and all checks `PASS` for the exact branch and B1 base. The B1 active PR108 v1 Intent is archived byte-for-byte as `archive/pr108_v1.json`; the new active Intent binds PR #110, B1, the committed Decision and generated Command Plan, merge method `merge`, the current four-workflow policy, and a bounded expiry.
+The v6 Decision is committed before regenerated authority or binding updates. The standard transition Gate sequence must produce `transition-lint == PASSED`, `PRE_EXECUTION_AUTHORIZED`, `blocking_reasons == []`, and 18/18 checks `PASS` for the exact branch and B2 base. Rejected v5 active Intent is archived byte-for-byte as `archive/pr112_v5.json`; the new active Intent binds PR #112, B2, the committed v6 Decision and generated Command Plan, merge method `merge`, the current four-workflow policy, and a bounded expiry. The trusted bridge must fail closed on either Bootstrap path-seal mismatch or B3/accepted-head tree mismatch. Every required pytest process must retain an outer execution-harness timeout of at least 900 seconds, and the focused semantic-body regression must pass all 17 unchanged cases once before the complete validation sequence.
 
-The trusted bridge derives B2 and the candidate head from the bound PR #106 event, proves that B2 is the PR #110 merge descendant of B1 with only the eleven authorized paths, proves the exact four-commit H0-to-candidate topology and exact eleven-path net change including the three semantic tests, requires the permanent workflow and production Python blobs at the candidate to equal H0, selects only latest exact-head CI and Decision Preflight successes, runs candidate code only in a tokenless `permissions: {}` job, and emits one verifier-compatible receipt bound to B2, the candidate head and canonical B2..candidate changed-path digest.
+The trusted bridge derives B3 and the candidate head from the bound PR #106 event, proves B3 is the PR #112 ordered merge descendant of B2, and proves the exact four-commit H0-to-v14 topology and eleven-path net change. Candidate tests are parsed only as data. Qualified identities, class bases, decorators, arguments and normalized bodies are compared to H0 with only fixed transformations for runtime B3, v14 identity, historical-base separation and the exact v11r2 archive assertions; duplicate identities, collection controls, unknown calls, import changes, body weakening, assertion removal, fixture/helper changes and marker changes fail closed.
 
-All specified tests, YAML and structural workflow checks, and `git diff --check 4aacd7f614342f5ca123b2afccdb9a49df886775..HEAD` must pass. The cumulative diff remains within the exact eleven-path scope. Publication is limited to pushing the existing branch and updating or commenting on Draft PR #110 plus read-only check observation. Merge, mark-ready and auto-merge remain false. The terminal status is `BOOTSTRAP_V2_PR106_SEMANTIC_TEST_REBIND_READY_FOR_OWNER_AUDIT`.
+All specified tests, semantic-body adversarial checks, YAML and workflow/receipt structural checks, and `git diff --check 93984db182b7ee11b3ccb8795bb5fc3741205b92..HEAD` must pass without repair or retry. The cumulative diff remains exactly twelve paths. Publication is limited to the existing branch and Draft PR #112 plus read-only check observation. PR #106 remains untouched; merge, mark-ready and auto-merge remain false. The terminal status is `PR112_BOOTSTRAP_V3_SEMANTIC_BODY_GUARD_READY_FOR_OWNER_AUDIT`.

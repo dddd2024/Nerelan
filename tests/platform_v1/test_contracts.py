@@ -10,7 +10,12 @@ Covers:
 
 from __future__ import annotations
 
+import ast
+import copy
 import hashlib
+from pathlib import Path
+import subprocess
+import textwrap
 
 import pytest
 
@@ -896,11 +901,11 @@ class TestRequiredChecksAsWorkflows:
 
 
 # ---------------------------------------------------------------------------
-# F17/F28: Active Bootstrap intent binds PR #110 and exact authority digests
+# F17/F28: Active Bootstrap intent binds PR #112 and exact authority digests
 # ---------------------------------------------------------------------------
 
-class TestActiveMergeIntentV5:
-    """The active intent binds PR #110 while preserving prior intents.
+class TestActiveMergeIntentV6:
+    """The active intent binds PR #112 while preserving prior intents.
 
     The v1, v2, and v3 assertions remain intact, and the v4 archive must be
     the exact B0 active Intent blob.
@@ -918,6 +923,12 @@ class TestActiveMergeIntentV5:
         self._archive_v3_path = intents_dir / "archive" / "pr97_v3.json"
         self._archive_v4_path = intents_dir / "archive" / "pr97_v4.json"
         self._archive_pr108_path = intents_dir / "archive" / "pr108_v1.json"
+        self._archive_pr110_path = intents_dir / "archive" / "pr110_v1.json"
+        self._archive_pr112_path = intents_dir / "archive" / "pr112_v1.json"
+        self._archive_pr112_v2_path = intents_dir / "archive" / "pr112_v2.json"
+        self._archive_pr112_v3_path = intents_dir / "archive" / "pr112_v3.json"
+        self._archive_pr112_v4_path = intents_dir / "archive" / "pr112_v4.json"
+        self._archive_pr112_v5_path = intents_dir / "archive" / "pr112_v5.json"
         self._decision_path = repo_root / "project_state" / "decision_packet.md"
         self._command_plan_path = repo_root / "project_state" / "gates" / "command_plan.json"
         self._active = json.loads(self._active_path.read_text(encoding="utf-8"))
@@ -928,13 +939,31 @@ class TestActiveMergeIntentV5:
         self._archive_pr108 = json.loads(
             self._archive_pr108_path.read_text(encoding="utf-8")
         )
+        self._archive_pr110 = json.loads(
+            self._archive_pr110_path.read_text(encoding="utf-8")
+        )
+        self._archive_pr112 = json.loads(
+            self._archive_pr112_path.read_text(encoding="utf-8")
+        )
+        self._archive_pr112_v2 = json.loads(
+            self._archive_pr112_v2_path.read_text(encoding="utf-8")
+        )
+        self._archive_pr112_v3 = json.loads(
+            self._archive_pr112_v3_path.read_text(encoding="utf-8")
+        )
+        self._archive_pr112_v4 = json.loads(
+            self._archive_pr112_v4_path.read_text(encoding="utf-8")
+        )
+        self._archive_pr112_v5 = json.loads(
+            self._archive_pr112_v5_path.read_text(encoding="utf-8")
+        )
 
-    def test_active_binds_source_pr_110(self) -> None:
-        assert self._active["source_pr"] == 110
+    def test_active_binds_source_pr_112(self) -> None:
+        assert self._active["source_pr"] == 112
 
     def test_active_binds_bootstrap_decision_id(self) -> None:
         assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260804_issue109_pr110_bootstrap_test_rebind_v1"
+            "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
         )
 
     def test_active_binds_bootstrap_decision_content_sha256(self) -> None:
@@ -953,7 +982,7 @@ class TestActiveMergeIntentV5:
 
     def test_active_binds_locked_base_sha(self) -> None:
         assert self._active["locked_base_sha"] == (
-            "4aacd7f614342f5ca123b2afccdb9a49df886775"
+            "93984db182b7ee11b3ccb8795bb5fc3741205b92"
         )
 
     def test_active_binds_merge_method(self) -> None:
@@ -1016,3 +1045,665 @@ class TestActiveMergeIntentV5:
         assert hashlib.sha1(header + payload).hexdigest() == (
             "32ca8e328e28467fcbe1857b7d300152fc89bdf4"
         )
+
+    def test_archive_pr110_preserves_bootstrap_v2_identity(self) -> None:
+        assert self._archive_pr110["source_pr"] == 110
+        assert self._archive_pr110["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue109_pr110_bootstrap_test_rebind_v1"
+        )
+        assert self._archive_pr110["locked_base_sha"] == (
+            "4aacd7f614342f5ca123b2afccdb9a49df886775"
+        )
+
+    def test_archive_pr110_is_exact_b2_active_blob(self) -> None:
+        payload = self._archive_pr110_path.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "bb7ce4c1c61a88e63e0bdc14e0ce2fa4967fc842"
+        )
+
+    def test_archive_pr112_v1_preserves_rejected_identity(self) -> None:
+        assert self._archive_pr112["source_pr"] == 112
+        assert self._archive_pr112["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_bootstrap_v13_retry_v1"
+        )
+        assert self._archive_pr112["locked_base_sha"] == (
+            "93984db182b7ee11b3ccb8795bb5fc3741205b92"
+        )
+
+    def test_archive_pr112_v1_is_exact_rejected_active_blob(self) -> None:
+        payload = self._archive_pr112_path.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "639581296b8dfd8038871010f99aa68401568353"
+        )
+
+    def test_archive_pr112_v2_preserves_rejected_identity(self) -> None:
+        assert self._archive_pr112_v2["source_pr"] == 112
+        assert self._archive_pr112_v2["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_candidate_test_semantic_guard_v2"
+        )
+        assert self._archive_pr112_v2["locked_base_sha"] == (
+            "93984db182b7ee11b3ccb8795bb5fc3741205b92"
+        )
+
+    def test_archive_pr112_v2_is_exact_rejected_active_blob(self) -> None:
+        payload = self._archive_pr112_v2_path.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "770f19faba9e0f040656341beec0089ca87d3545"
+        )
+
+    def test_archive_pr112_v3_preserves_rejected_identity(self) -> None:
+        assert self._archive_pr112_v3["source_pr"] == 112
+        assert self._archive_pr112_v3["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_utf8_semantic_guard_v3"
+        )
+        assert self._archive_pr112_v3["locked_base_sha"] == (
+            "93984db182b7ee11b3ccb8795bb5fc3741205b92"
+        )
+
+    def test_archive_pr112_v3_is_exact_rejected_active_blob(self) -> None:
+        payload = self._archive_pr112_v3_path.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "3c246c1377df2504bb95fbd4d9865860b017b049"
+        )
+
+    def test_archive_pr112_v4_preserves_rejected_identity(self) -> None:
+        assert self._archive_pr112_v4["source_pr"] == 112
+        assert self._archive_pr112_v4["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_marker_movement_guard_v4"
+        )
+        assert self._archive_pr112_v4["locked_base_sha"] == (
+            "93984db182b7ee11b3ccb8795bb5fc3741205b92"
+        )
+
+    def test_archive_pr112_v4_is_exact_rejected_active_blob(self) -> None:
+        payload = self._archive_pr112_v4_path.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "78104b6ae6746b0b5bf3b409f7dd2054ca23fcd9"
+        )
+
+    def test_archive_pr112_v5_preserves_rejected_identity(self) -> None:
+        assert self._archive_pr112_v5["source_pr"] == 112
+        assert self._archive_pr112_v5["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_long_validation_budget_v5"
+        )
+        assert self._archive_pr112_v5["locked_base_sha"] == (
+            "93984db182b7ee11b3ccb8795bb5fc3741205b92"
+        )
+
+    def test_archive_pr112_v5_is_exact_rejected_active_blob(self) -> None:
+        payload = self._archive_pr112_v5_path.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "64e555a98a1b748b2e320abb4559922bdc0d3649"
+        )
+
+
+# ---------------------------------------------------------------------------
+# PR112 v2: semantic-body guard adversarial contract
+# ---------------------------------------------------------------------------
+
+SEMANTIC_H0 = "ff7dd9091a48c5c2fad315812e672d5089824d09"
+SEMANTIC_B3 = "b" * 40
+SEMANTIC_PATHS = (
+    "tests/platform_v1/test_authority_adapter.py",
+    "tests/platform_v1/test_contracts.py",
+    "tests/platform_v1/test_merge_intent.py",
+)
+
+
+def _workflow_semantic_guard():
+    workflow = (
+        Path(__file__).resolve().parents[2] / ".github" / "workflows" / "state-gate.yml"
+    ).read_text(encoding="utf-8")
+    inline = workflow.split("python - <<'PY'\n", 1)[1].split("\n          PY", 1)[0]
+    module = ast.parse(textwrap.dedent(inline))
+    function = next(
+        node for node in module.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "validate_semantic_test_sources"
+    )
+    namespace = {
+        "ast": ast,
+        "copy": copy,
+        "semantic_test_paths": SEMANTIC_PATHS,
+    }
+    exec(compile(ast.Module(body=[function], type_ignores=[]), "<trusted-guard>", "exec"), namespace)
+    return namespace["validate_semantic_test_sources"]
+
+
+def _semantic_h0_sources() -> dict[str, str]:
+    return {
+        path: subprocess.check_output(
+            ["git", "show", f"{SEMANTIC_H0}:{path}"],
+            cwd=Path(__file__).resolve().parents[2],
+            encoding="utf-8",
+            errors="strict",
+        )
+        for path in SEMANTIC_PATHS
+    }
+
+
+def _module_assignment(tree: ast.Module, name: str) -> ast.Assign:
+    return next(
+        node for node in tree.body
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id == name
+    )
+
+
+def _class(tree: ast.Module, name: str) -> ast.ClassDef:
+    return next(
+        node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == name
+    )
+
+
+def _method(owner: ast.ClassDef, name: str) -> ast.FunctionDef:
+    return next(
+        node for node in owner.body
+        if isinstance(node, ast.FunctionDef) and node.name == name
+    )
+
+
+def _authorized_v14_sources(h0_sources: dict[str, str]) -> dict[str, str]:
+    trees = {path: ast.parse(source) for path, source in h0_sources.items()}
+
+    authority = trees[SEMANTIC_PATHS[0]]
+    _module_assignment(authority, "BASE").value = ast.Constant(SEMANTIC_B3)
+
+    merge = trees[SEMANTIC_PATHS[2]]
+    _module_assignment(merge, "EXPECTED_ACTIVE_BASE_SHA").value = ast.Constant(SEMANTIC_B3)
+    _module_assignment(merge, "EXPECTED_ACTIVE_DECISION_ID_PR106").value = ast.Constant(
+        "decision_20260804_restore_path_a_state_gate_current_main_v14"
+    )
+    insert_at = next(
+        index for index, node in enumerate(merge.body)
+        if isinstance(node, (ast.FunctionDef, ast.ClassDef))
+    )
+    additions = ast.parse('''
+PR106_HISTORICAL_BASE_SHA = "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+ARCHIVE_PR106_V11R2_PATH = INTENTS_DIR / "archive" / "pr106_v11r2.json"
+PR106_V11R2_ACTIVE_COMMIT = "ff7dd9091a48c5c2fad315812e672d5089824d09"
+''').body
+    merge.body[insert_at:insert_at] = additions
+    for class_name, method_name in (
+        ("TestArchivedPr106V3Intent", "test_archive_pr106_v3_preserves_locked_base_sha"),
+        ("TestArchivedPr106V4Intent", "test_archive_pr106_v4_preserves_locked_base_sha"),
+    ):
+        function = _method(_class(merge, class_name), method_name)
+        target = next(
+            node for node in ast.walk(function)
+            if isinstance(node, ast.Name) and node.id == "EXPECTED_ACTIVE_BASE_SHA"
+        )
+        target.id = "PR106_HISTORICAL_BASE_SHA"
+    merge.body.append(ast.parse('''
+class TestArchivedPr106V11r2Intent:
+    def test_archive_pr106_v11r2_file_exists(self) -> None:
+        assert ARCHIVE_PR106_V11R2_PATH.exists()
+
+    def test_archive_pr106_v11r2_is_exact_h0_active(self) -> None:
+        payload = ARCHIVE_PR106_V11R2_PATH.read_bytes()
+        original = _committed_blob(
+            "project_state/mainline_merge_intents/active.json",
+            ref=PR106_V11R2_ACTIVE_COMMIT,
+        )
+        assert payload == original
+
+    def test_archive_pr106_v11r2_has_exact_git_blob(self) -> None:
+        payload = ARCHIVE_PR106_V11R2_PATH.read_bytes()
+        header = f"blob {len(payload)}\\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "27b0a28c0b227df07dbc6829057d04875dc930ac"
+        )
+
+    def test_archive_pr106_v11r2_preserves_identity_and_base(self) -> None:
+        data = _load_json(ARCHIVE_PR106_V11R2_PATH)
+        assert data["source_pr"] == 106
+        assert data["decision_identity"]["decision_id"] == (
+            "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+        )
+        assert data["locked_base_sha"] == PR106_HISTORICAL_BASE_SHA
+''').body[0])
+
+    contracts = trees[SEMANTIC_PATHS[1]]
+    active_class = _class(contracts, "TestActiveMergeIntentV5")
+    fixture = _method(active_class, "_load_intents")
+    fixture.body.extend(ast.parse('''
+self._archive_v11r2_pr106_path = intents_dir / "archive" / "pr106_v11r2.json"
+self._archive_v11r2_pr106 = json.loads(
+    self._archive_v11r2_pr106_path.read_text(encoding="utf-8")
+)
+''').body)
+    decision_test = _method(active_class, "test_active_binds_v11r1_decision_id")
+    decision_literal = next(
+        node for node in ast.walk(decision_test)
+        if isinstance(node, ast.Constant)
+        and node.value == "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+    )
+    decision_literal.value = "decision_20260804_restore_path_a_state_gate_current_main_v14"
+    base_test = _method(active_class, "test_active_binds_locked_base_sha")
+    base_literal = next(
+        node for node in ast.walk(base_test)
+        if isinstance(node, ast.Constant)
+        and node.value == "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+    )
+    base_literal.value = SEMANTIC_B3
+    active_class.body.extend(ast.parse('''
+class _Holder:
+    def test_archive_pr106_v11r2_is_exact_h0_active(self) -> None:
+        payload = self._archive_v11r2_pr106_path.read_bytes()
+        original = subprocess.check_output(
+            [
+                "git", "cat-file", "blob",
+                "ff7dd9091a48c5c2fad315812e672d5089824d09:project_state/mainline_merge_intents/active.json",
+            ],
+            cwd=self._repo_root,
+        )
+        assert payload == original
+        header = f"blob {len(payload)}\\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "27b0a28c0b227df07dbc6829057d04875dc930ac"
+        )
+
+    def test_archive_pr106_v11r2_preserves_identity_and_base(self) -> None:
+        assert self._archive_v11r2_pr106["source_pr"] == 106
+        assert self._archive_v11r2_pr106["decision_identity"]["decision_id"] == (
+            "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+        )
+        assert self._archive_v11r2_pr106["locked_base_sha"] == (
+            "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+        )
+''').body[0].body)
+
+    return {path: ast.unparse(tree) for path, tree in trees.items()}
+
+
+def _qualified_test_functions(tree: ast.Module) -> dict[str, ast.FunctionDef]:
+    found: dict[str, ast.FunctionDef] = {}
+
+    def visit(body: list[ast.stmt], prefix: str = "") -> None:
+        for node in body:
+            if isinstance(node, ast.ClassDef):
+                identity = f"{prefix}.{node.name}" if prefix else node.name
+                visit(node.body, identity)
+            elif isinstance(node, ast.FunctionDef):
+                identity = f"{prefix}.{node.name}" if prefix else node.name
+                if node.name.startswith("test_"):
+                    assert identity not in found, f"duplicate qualified test: {identity}"
+                    found[identity] = node
+                visit(node.body, identity)
+
+    visit(tree.body)
+    return found
+
+
+def _prohibited_marker_nodes(function: ast.FunctionDef) -> list[ast.expr]:
+    prohibited = {"skip", "skipif", "xfail"}
+    markers: list[ast.expr] = []
+    for decorator in function.decorator_list:
+        marker = decorator.func if isinstance(decorator, ast.Call) else decorator
+        if (
+            isinstance(marker, ast.Attribute)
+            and marker.attr in prohibited
+            and isinstance(marker.value, ast.Attribute)
+            and marker.value.attr == "mark"
+            and isinstance(marker.value.value, ast.Name)
+            and marker.value.value.id == "pytest"
+        ):
+            markers.append(decorator)
+    return markers
+
+
+def _marker_moved_fixture(
+    h0_sources: dict[str, str], authorized_sources: dict[str, str]
+) -> tuple[dict[str, str], dict[str, str]]:
+    path = SEMANTIC_PATHS[2]
+    baseline_trees = {name: ast.parse(source) for name, source in h0_sources.items()}
+    candidate_trees = {
+        name: ast.parse(source) for name, source in authorized_sources.items()
+    }
+    baseline_tests = _qualified_test_functions(baseline_trees[path])
+    candidate_tests = _qualified_test_functions(candidate_trees[path])
+    common_identities = sorted(set(baseline_tests) & set(candidate_tests))
+    marker_free = [
+        identity for identity in common_identities
+        if not _prohibited_marker_nodes(candidate_tests[identity])
+    ]
+    targets = [
+        identity for identity in marker_free
+        if candidate_tests[identity].decorator_list
+    ]
+    assert targets, "no marker-free existing qualified test target found"
+    target_identity = targets[0]
+    source_candidates = [
+        identity for identity in marker_free if identity != target_identity
+    ]
+    assert source_candidates, "no existing qualified test available for marker source"
+    seeded_identity = source_candidates[0]
+    marker = ast.parse(
+        "@pytest.mark.skip(reason='semantic marker-movement probe')\n"
+        "def probe():\n"
+        "    pass\n"
+    ).body[0].decorator_list[0]
+    baseline_tests[seeded_identity].decorator_list.append(copy.deepcopy(marker))
+    candidate_tests[seeded_identity].decorator_list.append(marker)
+
+    sources = [
+        (identity, function, _prohibited_marker_nodes(function))
+        for identity, function in sorted(candidate_tests.items())
+        if _prohibited_marker_nodes(function)
+    ]
+    assert sources, "no prohibited-marker source found"
+    source_identity, source_function, source_markers = sources[0]
+    targets = [
+        (identity, function)
+        for identity, function in sorted(candidate_tests.items())
+        if identity != source_identity and not _prohibited_marker_nodes(function)
+    ]
+    assert targets, "no marker-free target found"
+    selected_targets = [pair for pair in targets if pair[0] == target_identity]
+    assert len(selected_targets) == 1, "deterministic marker target disappeared"
+    target_identity, target_function = selected_targets[0]
+    before_count = sum(
+        len(_prohibited_marker_nodes(function))
+        for function in candidate_tests.values()
+    )
+    moved_marker = source_markers[0]
+    source_function.decorator_list.remove(moved_marker)
+    target_function.decorator_list.append(moved_marker)
+    after_count = sum(
+        len(_prohibited_marker_nodes(function))
+        for function in candidate_tests.values()
+    )
+    assert before_count == after_count == 1, "prohibited marker count changed"
+    assert set(candidate_tests) == set(_qualified_test_functions(candidate_trees[path]))
+    return (
+        {name: ast.unparse(tree) for name, tree in baseline_trees.items()},
+        {name: ast.unparse(tree) for name, tree in candidate_trees.items()},
+    )
+
+
+def _mutate_semantic_candidate(sources: dict[str, str], case: str) -> dict[str, str]:
+    trees = {path: ast.parse(source) for path, source in sources.items()}
+    authority = trees[SEMANTIC_PATHS[0]]
+    contracts = trees[SEMANTIC_PATHS[1]]
+    merge = trees[SEMANTIC_PATHS[2]]
+    first_test = next(
+        node for node in authority.body
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
+    )
+    if case == "assert_true":
+        first_test.body = [ast.Assert(test=ast.Constant(True))]
+    elif case == "assert_removed":
+        first_test.body = [node for node in first_test.body if not isinstance(node, ast.Assert)]
+    elif case == "pass_body":
+        first_test.body = [ast.Pass()]
+    elif case == "fixed_return":
+        helper = next(node for node in authority.body if isinstance(node, ast.FunctionDef) and not node.name.startswith("test_"))
+        helper.body = [ast.Return(value=ast.Constant(b"fixed"))]
+    elif case == "marker_moved":
+        raise AssertionError("marker_moved requires its paired trusted AST fixture")
+    elif case == "pytestmark":
+        contracts.body.append(ast.parse("pytestmark = pytest.mark.skip").body[0])
+    elif case == "test_disabled":
+        contracts.body.append(ast.parse("__test__ = False").body[0])
+    elif case == "collection_hook":
+        contracts.body.append(ast.parse("def pytest_collection_modifyitems(items):\n    items.clear()").body[0])
+    elif case == "fixture_weakened":
+        fixture = _method(_class(contracts, "TestActiveMergeIntentV5"), "_load_intents")
+        fixture.body = [ast.Pass()]
+    elif case == "fixture_decorator":
+        fixture = _method(_class(contracts, "TestActiveMergeIntentV5"), "_load_intents")
+        fixture.decorator_list = ast.parse("@pytest.fixture(scope='session')\ndef f():\n    pass").body[0].decorator_list
+    elif case == "test_moved":
+        source_class = _class(merge, "TestArchivedPr106V3Intent")
+        moved = next(node for node in source_class.body if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"))
+        source_class.body.remove(moved)
+        _class(merge, "TestArchivedPr106V4Intent").body.append(moved)
+    elif case == "duplicate_identity":
+        owner = _class(merge, "TestArchivedPr106V3Intent")
+        owner.body.append(copy.deepcopy(next(node for node in owner.body if isinstance(node, ast.FunctionDef))))
+    elif case == "module_call":
+        authority.body.append(ast.Expr(value=ast.Call(func=ast.Name(id="print"), args=[ast.Constant("x")], keywords=[])))
+    elif case == "import_changed":
+        authority.body.append(ast.Import(names=[ast.alias(name="socket")]))
+    elif case == "unauthorized_test":
+        authority.body.append(ast.parse("def test_unapproved():\n    assert True").body[0])
+    elif case == "historical_active_alias":
+        historical = _method(
+            _class(merge, "TestArchivedPr106V3Intent"),
+            "test_archive_pr106_v3_preserves_locked_base_sha",
+        )
+        next(
+            node for node in ast.walk(historical)
+            if isinstance(node, ast.Name) and node.id == "PR106_HISTORICAL_BASE_SHA"
+        ).id = "EXPECTED_ACTIVE_BASE_SHA"
+    else:
+        raise AssertionError(case)
+    return {path: ast.unparse(tree) for path, tree in trees.items()}
+
+
+class TestStateGateSemanticBodyGuardV2:
+    def test_exact_authorized_v14_ast_transform_passes(self) -> None:
+        h0_sources = _semantic_h0_sources()
+        _workflow_semantic_guard()(
+            h0_sources, _authorized_v14_sources(h0_sources), SEMANTIC_B3
+        )
+
+    @pytest.mark.parametrize(
+        "case",
+        (
+            "assert_true",
+            "assert_removed",
+            "pass_body",
+            "fixed_return",
+            "marker_moved",
+            "pytestmark",
+            "test_disabled",
+            "collection_hook",
+            "fixture_weakened",
+            "fixture_decorator",
+            "test_moved",
+            "duplicate_identity",
+            "module_call",
+            "import_changed",
+            "unauthorized_test",
+            "historical_active_alias",
+        ),
+    )
+    def test_adversarial_semantic_weakening_is_rejected(self, case: str) -> None:
+        h0_sources = _semantic_h0_sources()
+        authorized = _authorized_v14_sources(h0_sources)
+        if case == "marker_moved":
+            guard_h0, mutated = _marker_moved_fixture(h0_sources, authorized)
+        else:
+            guard_h0 = h0_sources
+            mutated = _mutate_semantic_candidate(authorized, case)
+        with pytest.raises(ValueError):
+            _workflow_semantic_guard()(
+                guard_h0,
+                mutated,
+                SEMANTIC_B3,
+            )
+
+
+BOOTSTRAP_SEAL_BASE = "bc12fc3d5c92fda3066f3ce6f5043effec918a0e"
+EXPECTED_BOOTSTRAP_SEAL_PATHS = {
+    ".github/workflows/state-gate.yml",
+    "project_state/decision_packet.md",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr110_v1.json",
+    "project_state/mainline_merge_intents/archive/pr112_v1.json",
+    "project_state/mainline_merge_intents/archive/pr112_v2.json",
+    "project_state/mainline_merge_intents/archive/pr112_v3.json",
+    "project_state/mainline_merge_intents/archive/pr112_v4.json",
+    "project_state/mainline_merge_intents/archive/pr112_v5.json",
+    "tests/platform_v1/test_contracts.py",
+    "tests/platform_v1/test_merge_intent.py",
+}
+
+
+def _bootstrap_authority_inline_source(workflow: str | None = None) -> str:
+    if workflow is None:
+        workflow = (
+            Path(__file__).resolve().parents[2]
+            / ".github"
+            / "workflows"
+            / "state-gate.yml"
+        ).read_text(encoding="utf-8")
+    inline = workflow.split("python - <<'PY'\n", 1)[1].split("\n          PY", 1)[0]
+    return textwrap.dedent(inline)
+
+
+def _assignment(tree: ast.Module, name: str) -> ast.Assign:
+    matches = [
+        node for node in tree.body
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id == name
+    ]
+    assert len(matches) == 1, f"expected one assignment for {name}"
+    return matches[0]
+
+
+def _dump_expression(source: str) -> str:
+    return ast.dump(ast.parse(source, mode="eval").body, include_attributes=False)
+
+
+def _validate_bootstrap_path_tree_seal(source: str) -> None:
+    tree = ast.parse(source)
+    paths_assignment = _assignment(tree, "pr112_paths")
+    assert isinstance(paths_assignment.value, ast.Set)
+    observed_paths = {
+        node.value for node in paths_assignment.value.elts
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+    assert len(paths_assignment.value.elts) == len(observed_paths)
+    assert observed_paths == EXPECTED_BOOTSTRAP_SEAL_PATHS
+
+    expected_assignments = {
+        "pr112_head_paths": "set(changed_paths(b2, pr112_head))",
+        "b3_paths": "set(changed_paths(b2, b3))",
+        "b3_tree": (
+            "subprocess.check_output([\"git\", \"rev-parse\", "
+            "f\"{b3}^{{tree}}\"], encoding=\"utf-8\", errors=\"strict\").strip()"
+        ),
+        "pr112_head_tree": (
+            "subprocess.check_output([\"git\", \"rev-parse\", "
+            "f\"{pr112_head}^{{tree}}\"], encoding=\"utf-8\", errors=\"strict\").strip()"
+        ),
+    }
+    for name, expression in expected_assignments.items():
+        assert ast.dump(_assignment(tree, name).value, include_attributes=False) == (
+            _dump_expression(expression)
+        )
+
+    expected_comparisons = {
+        ast.dump(ast.parse("pr112_head_paths != pr112_paths", mode="eval").body, include_attributes=False),
+        ast.dump(ast.parse("b3_paths != pr112_paths", mode="eval").body, include_attributes=False),
+        ast.dump(ast.parse("b3_tree != pr112_head_tree", mode="eval").body, include_attributes=False),
+    }
+    observed_fail_closed = {
+        ast.dump(node.test, include_attributes=False)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.If)
+        and len(node.body) == 1
+        and isinstance(node.body[0], ast.Raise)
+    }
+    assert expected_comparisons <= observed_fail_closed
+    assert "rename/copy changed-path record forbidden" in source
+
+
+class TestStateGateBootstrapPathTreeSealV6:
+    def test_exact_sixteen_path_and_tree_seal_passes(self) -> None:
+        _validate_bootstrap_path_tree_seal(_bootstrap_authority_inline_source())
+
+    @pytest.mark.parametrize(
+        "archive_name",
+        ("pr112_v1.json", "pr112_v2.json", "pr112_v3.json", "pr112_v4.json", "pr112_v5.json"),
+    )
+    def test_missing_any_pr112_archive_path_is_rejected(self, archive_name: str) -> None:
+        source = _bootstrap_authority_inline_source()
+        line = (
+            f'    "project_state/mainline_merge_intents/archive/{archive_name}",\n'
+        )
+        assert source.count(line) == 1
+        with pytest.raises(AssertionError):
+            _validate_bootstrap_path_tree_seal(source.replace(line, "", 1))
+
+    def test_unknown_bootstrap_path_is_rejected(self) -> None:
+        source = _bootstrap_authority_inline_source()
+        anchor = '    "project_state/mainline_merge_intents/archive/pr112_v5.json",\n'
+        assert source.count(anchor) == 1
+        mutated = source.replace(anchor, anchor + '    "unknown/bootstrap.txt",\n', 1)
+        with pytest.raises(AssertionError):
+            _validate_bootstrap_path_tree_seal(mutated)
+
+    @pytest.mark.parametrize(
+        ("original", "replacement"),
+        (
+            ("pr112_head_paths != pr112_paths", "False"),
+            ("b3_paths != pr112_paths", "False"),
+            ("b3_tree != pr112_head_tree", "False"),
+            ("b3_tree != pr112_head_tree", "pr112_head_tree != b3_tree"),
+            ("b3_tree != pr112_head_tree", "b3_tree != b2_tree"),
+            ("f\"{pr112_head}^{{tree}}\"", "f\"{b2}^{{tree}}\""),
+        ),
+    )
+    def test_weakened_path_or_tree_seal_is_rejected(
+        self, original: str, replacement: str
+    ) -> None:
+        source = _bootstrap_authority_inline_source()
+        assert source.count(original) >= 1
+        mutated = source.replace(original, replacement, 1)
+        with pytest.raises(AssertionError):
+            _validate_bootstrap_path_tree_seal(mutated)
+
+    def test_semantic_guard_surfaces_have_no_drift(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        old_contracts = subprocess.check_output(
+            ["git", "show", f"{BOOTSTRAP_SEAL_BASE}:tests/platform_v1/test_contracts.py"],
+            cwd=repo_root,
+        ).decode("utf-8", errors="strict")
+        current_contracts = Path(__file__).read_text(encoding="utf-8")
+
+        def class_dump(source: str) -> str:
+            matches = [
+                node for node in ast.parse(source).body
+                if isinstance(node, ast.ClassDef)
+                and node.name == "TestStateGateSemanticBodyGuardV2"
+            ]
+            assert len(matches) == 1
+            return ast.dump(matches[0], include_attributes=False)
+
+        assert class_dump(old_contracts) == class_dump(current_contracts)
+        old_workflow = subprocess.check_output(
+            ["git", "show", f"{BOOTSTRAP_SEAL_BASE}:.github/workflows/state-gate.yml"],
+            cwd=repo_root,
+        ).decode("utf-8", errors="strict")
+
+        def validator_dump(source: str) -> str:
+            matches = [
+                node for node in ast.parse(_bootstrap_authority_inline_source(source)).body
+                if isinstance(node, ast.FunctionDef)
+                and node.name == "validate_semantic_test_sources"
+            ]
+            assert len(matches) == 1
+            return ast.dump(matches[0], include_attributes=False)
+
+        current_workflow = (
+            repo_root / ".github" / "workflows" / "state-gate.yml"
+        ).read_text(encoding="utf-8")
+        assert validator_dump(old_workflow) == validator_dump(current_workflow)
