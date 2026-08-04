@@ -10,7 +10,12 @@ Covers:
 
 from __future__ import annotations
 
+import ast
+import copy
 import hashlib
+from pathlib import Path
+import subprocess
+import textwrap
 
 import pytest
 
@@ -1056,3 +1061,286 @@ class TestActiveMergeIntentV6:
         assert hashlib.sha1(header + payload).hexdigest() == (
             "639581296b8dfd8038871010f99aa68401568353"
         )
+
+
+# ---------------------------------------------------------------------------
+# PR112 v2: semantic-body guard adversarial contract
+# ---------------------------------------------------------------------------
+
+SEMANTIC_H0 = "ff7dd9091a48c5c2fad315812e672d5089824d09"
+SEMANTIC_B3 = "b" * 40
+SEMANTIC_PATHS = (
+    "tests/platform_v1/test_authority_adapter.py",
+    "tests/platform_v1/test_contracts.py",
+    "tests/platform_v1/test_merge_intent.py",
+)
+
+
+def _workflow_semantic_guard():
+    workflow = (
+        Path(__file__).resolve().parents[2] / ".github" / "workflows" / "state-gate.yml"
+    ).read_text(encoding="utf-8")
+    inline = workflow.split("python - <<'PY'\n", 1)[1].split("\n          PY", 1)[0]
+    module = ast.parse(textwrap.dedent(inline))
+    function = next(
+        node for node in module.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "validate_semantic_test_sources"
+    )
+    namespace = {
+        "ast": ast,
+        "copy": copy,
+        "semantic_test_paths": SEMANTIC_PATHS,
+    }
+    exec(compile(ast.Module(body=[function], type_ignores=[]), "<trusted-guard>", "exec"), namespace)
+    return namespace["validate_semantic_test_sources"]
+
+
+def _semantic_h0_sources() -> dict[str, str]:
+    return {
+        path: subprocess.check_output(
+            ["git", "show", f"{SEMANTIC_H0}:{path}"],
+            cwd=Path(__file__).resolve().parents[2],
+            text=True,
+        )
+        for path in SEMANTIC_PATHS
+    }
+
+
+def _module_assignment(tree: ast.Module, name: str) -> ast.Assign:
+    return next(
+        node for node in tree.body
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id == name
+    )
+
+
+def _class(tree: ast.Module, name: str) -> ast.ClassDef:
+    return next(
+        node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == name
+    )
+
+
+def _method(owner: ast.ClassDef, name: str) -> ast.FunctionDef:
+    return next(
+        node for node in owner.body
+        if isinstance(node, ast.FunctionDef) and node.name == name
+    )
+
+
+def _authorized_v14_sources(h0_sources: dict[str, str]) -> dict[str, str]:
+    trees = {path: ast.parse(source) for path, source in h0_sources.items()}
+
+    authority = trees[SEMANTIC_PATHS[0]]
+    _module_assignment(authority, "BASE").value = ast.Constant(SEMANTIC_B3)
+
+    merge = trees[SEMANTIC_PATHS[2]]
+    _module_assignment(merge, "EXPECTED_ACTIVE_BASE_SHA").value = ast.Constant(SEMANTIC_B3)
+    _module_assignment(merge, "EXPECTED_ACTIVE_DECISION_ID_PR106").value = ast.Constant(
+        "decision_20260804_restore_path_a_state_gate_current_main_v14"
+    )
+    insert_at = next(
+        index for index, node in enumerate(merge.body)
+        if isinstance(node, (ast.FunctionDef, ast.ClassDef))
+    )
+    additions = ast.parse('''
+PR106_HISTORICAL_BASE_SHA = "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+ARCHIVE_PR106_V11R2_PATH = INTENTS_DIR / "archive" / "pr106_v11r2.json"
+PR106_V11R2_ACTIVE_COMMIT = "ff7dd9091a48c5c2fad315812e672d5089824d09"
+''').body
+    merge.body[insert_at:insert_at] = additions
+    for class_name, method_name in (
+        ("TestArchivedPr106V3Intent", "test_archive_pr106_v3_preserves_locked_base_sha"),
+        ("TestArchivedPr106V4Intent", "test_archive_pr106_v4_preserves_locked_base_sha"),
+    ):
+        function = _method(_class(merge, class_name), method_name)
+        target = next(
+            node for node in ast.walk(function)
+            if isinstance(node, ast.Name) and node.id == "EXPECTED_ACTIVE_BASE_SHA"
+        )
+        target.id = "PR106_HISTORICAL_BASE_SHA"
+    merge.body.append(ast.parse('''
+class TestArchivedPr106V11r2Intent:
+    def test_archive_pr106_v11r2_file_exists(self) -> None:
+        assert ARCHIVE_PR106_V11R2_PATH.exists()
+
+    def test_archive_pr106_v11r2_is_exact_h0_active(self) -> None:
+        payload = ARCHIVE_PR106_V11R2_PATH.read_bytes()
+        original = _committed_blob(
+            "project_state/mainline_merge_intents/active.json",
+            ref=PR106_V11R2_ACTIVE_COMMIT,
+        )
+        assert payload == original
+
+    def test_archive_pr106_v11r2_has_exact_git_blob(self) -> None:
+        payload = ARCHIVE_PR106_V11R2_PATH.read_bytes()
+        header = f"blob {len(payload)}\\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "27b0a28c0b227df07dbc6829057d04875dc930ac"
+        )
+
+    def test_archive_pr106_v11r2_preserves_identity_and_base(self) -> None:
+        data = _load_json(ARCHIVE_PR106_V11R2_PATH)
+        assert data["source_pr"] == 106
+        assert data["decision_identity"]["decision_id"] == (
+            "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+        )
+        assert data["locked_base_sha"] == PR106_HISTORICAL_BASE_SHA
+''').body[0])
+
+    contracts = trees[SEMANTIC_PATHS[1]]
+    active_class = _class(contracts, "TestActiveMergeIntentV5")
+    fixture = _method(active_class, "_load_intents")
+    fixture.body.extend(ast.parse('''
+self._archive_v11r2_pr106_path = intents_dir / "archive" / "pr106_v11r2.json"
+self._archive_v11r2_pr106 = json.loads(
+    self._archive_v11r2_pr106_path.read_text(encoding="utf-8")
+)
+''').body)
+    decision_test = _method(active_class, "test_active_binds_v11r1_decision_id")
+    decision_literal = next(
+        node for node in ast.walk(decision_test)
+        if isinstance(node, ast.Constant)
+        and node.value == "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+    )
+    decision_literal.value = "decision_20260804_restore_path_a_state_gate_current_main_v14"
+    base_test = _method(active_class, "test_active_binds_locked_base_sha")
+    base_literal = next(
+        node for node in ast.walk(base_test)
+        if isinstance(node, ast.Constant)
+        and node.value == "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+    )
+    base_literal.value = SEMANTIC_B3
+    active_class.body.extend(ast.parse('''
+class _Holder:
+    def test_archive_pr106_v11r2_is_exact_h0_active(self) -> None:
+        payload = self._archive_v11r2_pr106_path.read_bytes()
+        original = subprocess.check_output(
+            [
+                "git", "cat-file", "blob",
+                "ff7dd9091a48c5c2fad315812e672d5089824d09:project_state/mainline_merge_intents/active.json",
+            ],
+            cwd=self._repo_root,
+        )
+        assert payload == original
+        header = f"blob {len(payload)}\\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "27b0a28c0b227df07dbc6829057d04875dc930ac"
+        )
+
+    def test_archive_pr106_v11r2_preserves_identity_and_base(self) -> None:
+        assert self._archive_v11r2_pr106["source_pr"] == 106
+        assert self._archive_v11r2_pr106["decision_identity"]["decision_id"] == (
+            "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+        )
+        assert self._archive_v11r2_pr106["locked_base_sha"] == (
+            "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+        )
+''').body[0].body)
+
+    return {path: ast.unparse(tree) for path, tree in trees.items()}
+
+
+def _mutate_semantic_candidate(sources: dict[str, str], case: str) -> dict[str, str]:
+    trees = {path: ast.parse(source) for path, source in sources.items()}
+    authority = trees[SEMANTIC_PATHS[0]]
+    contracts = trees[SEMANTIC_PATHS[1]]
+    merge = trees[SEMANTIC_PATHS[2]]
+    first_test = next(
+        node for node in authority.body
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
+    )
+    if case == "assert_true":
+        first_test.body = [ast.Assert(test=ast.Constant(True))]
+    elif case == "assert_removed":
+        first_test.body = [node for node in first_test.body if not isinstance(node, ast.Assert)]
+    elif case == "pass_body":
+        first_test.body = [ast.Pass()]
+    elif case == "fixed_return":
+        helper = next(node for node in authority.body if isinstance(node, ast.FunctionDef) and not node.name.startswith("test_"))
+        helper.body = [ast.Return(value=ast.Constant(b"fixed"))]
+    elif case == "marker_moved":
+        owner = _class(merge, "TestRecentPR106IntentArchives")
+        marked = next(node for node in owner.body if isinstance(node, ast.FunctionDef) and node.decorator_list)
+        other = next(node for node in owner.body if isinstance(node, ast.FunctionDef) and not node.decorator_list)
+        other.decorator_list = marked.decorator_list
+        marked.decorator_list = []
+    elif case == "pytestmark":
+        contracts.body.append(ast.parse("pytestmark = pytest.mark.skip").body[0])
+    elif case == "test_disabled":
+        contracts.body.append(ast.parse("__test__ = False").body[0])
+    elif case == "collection_hook":
+        contracts.body.append(ast.parse("def pytest_collection_modifyitems(items):\n    items.clear()").body[0])
+    elif case == "fixture_weakened":
+        fixture = _method(_class(contracts, "TestActiveMergeIntentV5"), "_load_intents")
+        fixture.body = [ast.Pass()]
+    elif case == "fixture_decorator":
+        fixture = _method(_class(contracts, "TestActiveMergeIntentV5"), "_load_intents")
+        fixture.decorator_list = ast.parse("@pytest.fixture(scope='session')\ndef f():\n    pass").body[0].decorator_list
+    elif case == "test_moved":
+        source_class = _class(merge, "TestArchivedPr106V3Intent")
+        moved = next(node for node in source_class.body if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"))
+        source_class.body.remove(moved)
+        _class(merge, "TestArchivedPr106V4Intent").body.append(moved)
+    elif case == "duplicate_identity":
+        owner = _class(merge, "TestArchivedPr106V3Intent")
+        owner.body.append(copy.deepcopy(next(node for node in owner.body if isinstance(node, ast.FunctionDef))))
+    elif case == "module_call":
+        authority.body.append(ast.Expr(value=ast.Call(func=ast.Name(id="print"), args=[ast.Constant("x")], keywords=[])))
+    elif case == "import_changed":
+        authority.body.append(ast.Import(names=[ast.alias(name="socket")]))
+    elif case == "unauthorized_test":
+        authority.body.append(ast.parse("def test_unapproved():\n    assert True").body[0])
+    elif case == "historical_active_alias":
+        historical = _method(
+            _class(merge, "TestArchivedPr106V3Intent"),
+            "test_archive_pr106_v3_preserves_locked_base_sha",
+        )
+        next(
+            node for node in ast.walk(historical)
+            if isinstance(node, ast.Name) and node.id == "PR106_HISTORICAL_BASE_SHA"
+        ).id = "EXPECTED_ACTIVE_BASE_SHA"
+    else:
+        raise AssertionError(case)
+    return {path: ast.unparse(tree) for path, tree in trees.items()}
+
+
+class TestStateGateSemanticBodyGuardV2:
+    def test_exact_authorized_v14_ast_transform_passes(self) -> None:
+        h0_sources = _semantic_h0_sources()
+        _workflow_semantic_guard()(
+            h0_sources, _authorized_v14_sources(h0_sources), SEMANTIC_B3
+        )
+
+    @pytest.mark.parametrize(
+        "case",
+        (
+            "assert_true",
+            "assert_removed",
+            "pass_body",
+            "fixed_return",
+            "marker_moved",
+            "pytestmark",
+            "test_disabled",
+            "collection_hook",
+            "fixture_weakened",
+            "fixture_decorator",
+            "test_moved",
+            "duplicate_identity",
+            "module_call",
+            "import_changed",
+            "unauthorized_test",
+            "historical_active_alias",
+        ),
+    )
+    def test_adversarial_semantic_weakening_is_rejected(self, case: str) -> None:
+        h0_sources = _semantic_h0_sources()
+        authorized = _authorized_v14_sources(h0_sources)
+        with pytest.raises(ValueError):
+            _workflow_semantic_guard()(
+                h0_sources,
+                _mutate_semantic_candidate(authorized, case),
+                SEMANTIC_B3,
+            )

@@ -329,6 +329,7 @@ jobs:
           export B2 H0 B3 CANDIDATE_HEAD
           python - <<'PY'
           import ast
+          import copy
           import hashlib
           import json
           import os
@@ -506,80 +507,311 @@ jobs:
               "tests/platform_v1/test_merge_intent.py",
           )
 
-          def parsed_test(ref: str, path: str) -> ast.Module:
-              source = subprocess.check_output(
+          def validate_semantic_test_sources(
+              h0_sources: dict[str, str],
+              candidate_sources: dict[str, str],
+              runtime_base: str,
+          ) -> None:
+              historical_base = "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+              v14_decision = (
+                  "decision_20260804_restore_path_a_state_gate_current_main_v14"
+              )
+              expected_paths = set(semantic_test_paths)
+              if set(h0_sources) != expected_paths or set(candidate_sources) != expected_paths:
+                  raise ValueError("semantic source path set mismatch")
+
+              def parse_sources(sources: dict[str, str]) -> dict[str, ast.Module]:
+                  return {
+                      path: ast.parse(source, filename=path)
+                      for path, source in sources.items()
+                  }
+
+              def dumped(node: ast.AST) -> str:
+                  return ast.dump(node, annotate_fields=True, include_attributes=False)
+
+              def identities(tree: ast.Module) -> dict[str, ast.AST]:
+                  found: dict[str, ast.AST] = {}
+
+                  def visit_body(body: list[ast.stmt], prefix: str = "") -> None:
+                      for node in body:
+                          if isinstance(node, ast.ClassDef):
+                              identity = f"{prefix}.{node.name}" if prefix else node.name
+                              if identity in found:
+                                  raise ValueError(f"duplicate qualified identity: {identity}")
+                              found[identity] = node
+                              visit_body(node.body, identity)
+                          elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                              identity = f"{prefix}.{node.name}" if prefix else node.name
+                              if identity in found:
+                                  raise ValueError(f"duplicate qualified identity: {identity}")
+                              found[identity] = node
+                              visit_body(node.body, identity)
+
+                  visit_body(tree.body)
+                  return found
+
+              def module_assignment(tree: ast.Module, name: str) -> ast.Assign:
+                  matches = [
+                      node for node in tree.body
+                      if isinstance(node, ast.Assign)
+                      and len(node.targets) == 1
+                      and isinstance(node.targets[0], ast.Name)
+                      and node.targets[0].id == name
+                  ]
+                  if len(matches) != 1:
+                      raise ValueError(f"expected one module assignment: {name}")
+                  return matches[0]
+
+              def require_string_assignment(
+                  tree: ast.Module, name: str, expected: str
+              ) -> ast.Assign:
+                  assignment = module_assignment(tree, name)
+                  if not isinstance(assignment.value, ast.Constant):
+                      raise ValueError(f"non-literal assignment: {name}")
+                  if assignment.value.value != expected:
+                      raise ValueError(f"assignment mismatch: {name}")
+                  return assignment
+
+              def expression(source: str) -> ast.expr:
+                  return ast.parse(source, mode="eval").body
+
+              h0_trees = parse_sources(h0_sources)
+              candidate_trees = parse_sources(candidate_sources)
+
+              authority_path = "tests/platform_v1/test_authority_adapter.py"
+              h0_authority = h0_trees[authority_path]
+              candidate_authority = candidate_trees[authority_path]
+              if set(identities(candidate_authority)) != set(identities(h0_authority)):
+                  raise ValueError("authority adapter qualified identities changed")
+              h0_base = module_assignment(h0_authority, "BASE")
+              candidate_base = require_string_assignment(
+                  candidate_authority, "BASE", runtime_base
+              )
+              candidate_base.value = copy.deepcopy(h0_base.value)
+              if dumped(candidate_authority) != dumped(h0_authority):
+                  raise ValueError("authority adapter AST differs outside BASE")
+
+              merge_path = "tests/platform_v1/test_merge_intent.py"
+              h0_merge = h0_trees[merge_path]
+              candidate_merge = candidate_trees[merge_path]
+              fixed_merge_class = ast.parse('''
+          class TestArchivedPr106V11r2Intent:
+              def test_archive_pr106_v11r2_file_exists(self) -> None:
+                  assert ARCHIVE_PR106_V11R2_PATH.exists()
+
+              def test_archive_pr106_v11r2_is_exact_h0_active(self) -> None:
+                  payload = ARCHIVE_PR106_V11R2_PATH.read_bytes()
+                  original = _committed_blob(
+                      "project_state/mainline_merge_intents/active.json",
+                      ref=PR106_V11R2_ACTIVE_COMMIT,
+                  )
+                  assert payload == original
+
+              def test_archive_pr106_v11r2_has_exact_git_blob(self) -> None:
+                  payload = ARCHIVE_PR106_V11R2_PATH.read_bytes()
+                  header = f"blob {len(payload)}\\0".encode("ascii")
+                  assert hashlib.sha1(header + payload).hexdigest() == (
+                      "27b0a28c0b227df07dbc6829057d04875dc930ac"
+                  )
+
+              def test_archive_pr106_v11r2_preserves_identity_and_base(self) -> None:
+                  data = _load_json(ARCHIVE_PR106_V11R2_PATH)
+                  assert data["source_pr"] == 106
+                  assert data["decision_identity"]["decision_id"] == (
+                      "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+                  )
+                  assert data["locked_base_sha"] == PR106_HISTORICAL_BASE_SHA
+          ''').body[0]
+              h0_merge_ids = set(identities(h0_merge))
+              candidate_merge_ids = set(identities(candidate_merge))
+              fixed_merge_ids = set(identities(ast.Module(body=[fixed_merge_class])))
+              if candidate_merge_ids != h0_merge_ids | fixed_merge_ids:
+                  raise ValueError("merge-intent qualified identities changed")
+              fixed_candidates = [
+                  node for node in candidate_merge.body
+                  if isinstance(node, ast.ClassDef)
+                  and node.name == "TestArchivedPr106V11r2Intent"
+              ]
+              if len(fixed_candidates) != 1 or dumped(fixed_candidates[0]) != dumped(fixed_merge_class):
+                  raise ValueError("fixed v11r2 merge-intent tests mismatch")
+              candidate_merge.body.remove(fixed_candidates[0])
+
+              active_base = require_string_assignment(
+                  candidate_merge, "EXPECTED_ACTIVE_BASE_SHA", runtime_base
+              )
+              active_base.value = copy.deepcopy(
+                  module_assignment(h0_merge, "EXPECTED_ACTIVE_BASE_SHA").value
+              )
+              historical = require_string_assignment(
+                  candidate_merge, "PR106_HISTORICAL_BASE_SHA", historical_base
+              )
+              archive_path = module_assignment(candidate_merge, "ARCHIVE_PR106_V11R2_PATH")
+              if dumped(archive_path.value) != dumped(
+                  expression('INTENTS_DIR / "archive" / "pr106_v11r2.json"')
+              ):
+                  raise ValueError("v11r2 archive path assignment mismatch")
+              active_commit = require_string_assignment(
+                  candidate_merge,
+                  "PR106_V11R2_ACTIVE_COMMIT",
+                  "ff7dd9091a48c5c2fad315812e672d5089824d09",
+              )
+              active_decision = require_string_assignment(
+                  candidate_merge, "EXPECTED_ACTIVE_DECISION_ID_PR106", v14_decision
+              )
+              active_decision.value = copy.deepcopy(
+                  module_assignment(h0_merge, "EXPECTED_ACTIVE_DECISION_ID_PR106").value
+              )
+              for removable in (historical, archive_path, active_commit):
+                  candidate_merge.body.remove(removable)
+
+              merge_ids = identities(candidate_merge)
+              historical_tests = (
+                  "TestArchivedPr106V3Intent.test_archive_pr106_v3_preserves_locked_base_sha",
+                  "TestArchivedPr106V4Intent.test_archive_pr106_v4_preserves_locked_base_sha",
+              )
+              for identity in historical_tests:
+                  function = merge_ids.get(identity)
+                  if function is None:
+                      raise ValueError(f"historical test missing: {identity}")
+                  replacements = 0
+                  for node in ast.walk(function):
+                      if isinstance(node, ast.Name) and node.id == "PR106_HISTORICAL_BASE_SHA":
+                          node.id = "EXPECTED_ACTIVE_BASE_SHA"
+                          replacements += 1
+                  if replacements != 1:
+                      raise ValueError(f"historical base use mismatch: {identity}")
+              if dumped(candidate_merge) != dumped(h0_merge):
+                  raise ValueError("merge-intent module AST differs outside allowlist")
+
+              contracts_path = "tests/platform_v1/test_contracts.py"
+              h0_contracts = h0_trees[contracts_path]
+              candidate_contracts = candidate_trees[contracts_path]
+              h0_contract_ids = identities(h0_contracts)
+              candidate_contract_ids = identities(candidate_contracts)
+              added_contract_methods_source = '''
+          class _FixedArchiveTests:
+              def test_archive_pr106_v11r2_is_exact_h0_active(self) -> None:
+                  payload = self._archive_v11r2_pr106_path.read_bytes()
+                  original = subprocess.check_output(
+                      [
+                          "git", "cat-file", "blob",
+                          "ff7dd9091a48c5c2fad315812e672d5089824d09:project_state/mainline_merge_intents/active.json",
+                      ],
+                      cwd=self._repo_root,
+                  )
+                  assert payload == original
+                  header = f"blob {len(payload)}\\0".encode("ascii")
+                  assert hashlib.sha1(header + payload).hexdigest() == (
+                      "27b0a28c0b227df07dbc6829057d04875dc930ac"
+                  )
+
+              def test_archive_pr106_v11r2_preserves_identity_and_base(self) -> None:
+                  assert self._archive_v11r2_pr106["source_pr"] == 106
+                  assert self._archive_v11r2_pr106["decision_identity"]["decision_id"] == (
+                      "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+                  )
+                  assert self._archive_v11r2_pr106["locked_base_sha"] == (
+                      "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+                  )
+          '''
+              fixed_contract_class = ast.parse(added_contract_methods_source).body[0]
+              fixed_methods = fixed_contract_class.body
+              expected_added = {
+                  f"TestActiveMergeIntentV5.{node.name}" for node in fixed_methods
+              }
+              if set(candidate_contract_ids) != set(h0_contract_ids) | expected_added:
+                  raise ValueError("contracts qualified identities changed")
+              active_class_matches = [
+                  node for node in candidate_contracts.body
+                  if isinstance(node, ast.ClassDef)
+                  and node.name == "TestActiveMergeIntentV5"
+              ]
+              if len(active_class_matches) != 1:
+                  raise ValueError("active contracts class identity changed")
+              active_class = active_class_matches[0]
+              for expected_method in fixed_methods:
+                  matches = [
+                      node for node in active_class.body
+                      if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                      and node.name == expected_method.name
+                  ]
+                  if len(matches) != 1 or dumped(matches[0]) != dumped(expected_method):
+                      raise ValueError(f"fixed contracts test mismatch: {expected_method.name}")
+                  active_class.body.remove(matches[0])
+
+              candidate_contract_ids = identities(candidate_contracts)
+              fixture = candidate_contract_ids.get("TestActiveMergeIntentV5._load_intents")
+              if fixture is None:
+                  raise ValueError("contracts intent fixture missing")
+              path_value = expression(
+                  'intents_dir / "archive" / "pr106_v11r2.json"'
+              )
+              load_value = expression(
+                  'json.loads(self._archive_v11r2_pr106_path.read_text(encoding="utf-8"))'
+              )
+
+              def remove_fixture_assignment(attribute: str, expected_value: ast.expr) -> None:
+                  matches = [
+                      node for node in fixture.body
+                      if isinstance(node, ast.Assign)
+                      and len(node.targets) == 1
+                      and isinstance(node.targets[0], ast.Attribute)
+                      and isinstance(node.targets[0].value, ast.Name)
+                      and node.targets[0].value.id == "self"
+                      and node.targets[0].attr == attribute
+                  ]
+                  if len(matches) != 1 or dumped(matches[0].value) != dumped(expected_value):
+                      raise ValueError(f"contracts fixture assignment mismatch: {attribute}")
+                  fixture.body.remove(matches[0])
+
+              remove_fixture_assignment("_archive_v11r2_pr106_path", path_value)
+              remove_fixture_assignment("_archive_v11r2_pr106", load_value)
+              candidate_contract_ids = identities(candidate_contracts)
+              decision_test = candidate_contract_ids.get(
+                  "TestActiveMergeIntentV5.test_active_binds_v11r1_decision_id"
+              )
+              locked_base_test = candidate_contract_ids.get(
+                  "TestActiveMergeIntentV5.test_active_binds_locked_base_sha"
+              )
+              if decision_test is None or locked_base_test is None:
+                  raise ValueError("contracts active identity changed")
+              v14_literals = [
+                  node for node in ast.walk(decision_test)
+                  if isinstance(node, ast.Constant) and node.value == v14_decision
+              ]
+              if len(v14_literals) != 1:
+                  raise ValueError("contracts v14 Decision literal mismatch")
+              h0_decision_test = h0_contract_ids[
+                  "TestActiveMergeIntentV5.test_active_binds_v11r1_decision_id"
+              ]
+              h0_literal = next(
+                  node for node in ast.walk(h0_decision_test)
+                  if isinstance(node, ast.Constant)
+                  and node.value == "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+              )
+              v14_literals[0].value = h0_literal.value
+              runtime_literals = [
+                  node for node in ast.walk(locked_base_test)
+                  if isinstance(node, ast.Constant) and node.value == runtime_base
+              ]
+              if len(runtime_literals) != 1:
+                  raise ValueError("contracts active base literal mismatch")
+              runtime_literals[0].value = historical_base
+              if dumped(candidate_contracts) != dumped(h0_contracts):
+                  raise ValueError("contracts module AST differs outside allowlist")
+
+          def source_at(ref: str, path: str) -> str:
+              return subprocess.check_output(
                   ["git", "show", f"{ref}:{path}"]
               ).decode("utf-8")
-              return ast.parse(source, filename=path)
 
-          def test_names(tree: ast.Module) -> set[str]:
-              return {
-                  node.name for node in ast.walk(tree)
-                  if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                  and node.name.startswith("test_")
-              }
-
-          def prohibited_markers(tree: ast.Module) -> tuple[int, int, int]:
-              counts = {"skip": 0, "skipif": 0, "xfail": 0}
-              for node in ast.walk(tree):
-                  if isinstance(node, ast.Attribute) and node.attr in counts:
-                      counts[node.attr] += 1
-              return counts["skip"], counts["skipif"], counts["xfail"]
-
-          for test_path in semantic_test_paths:
-              h0_test = parsed_test(h0, test_path)
-              candidate_test = parsed_test(candidate_head, test_path)
-              missing_tests = test_names(h0_test) - test_names(candidate_test)
-              if missing_tests:
-                  raise SystemExit(
-                      f"candidate removed H0 tests from {test_path}: {sorted(missing_tests)}"
-                  )
-              if prohibited_markers(candidate_test) != prohibited_markers(h0_test):
-                  raise SystemExit(f"candidate changed skip/skipif/xfail markers: {test_path}")
-
-          merge_intent_tree = parsed_test(
-              candidate_head, "tests/platform_v1/test_merge_intent.py"
-          )
-          constants: dict[str, str] = {}
-          functions: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
-          for node in merge_intent_tree.body:
-              if isinstance(node, ast.Assign) and len(node.targets) == 1:
-                  target = node.targets[0]
-                  if isinstance(target, ast.Name) and isinstance(node.value, ast.Constant):
-                      if isinstance(node.value.value, str):
-                          constants[target.id] = node.value.value
-              if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                  functions[node.name] = node
-              if isinstance(node, ast.ClassDef):
-                  for child in node.body:
-                      if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                          functions[child.name] = child
-          if constants.get("EXPECTED_ACTIVE_BASE_SHA") != b3:
-              raise SystemExit("candidate EXPECTED_ACTIVE_BASE_SHA does not equal B3")
-          historical_base = "fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
-          if constants.get("PR106_HISTORICAL_BASE_SHA") != historical_base:
-              raise SystemExit("candidate historical base constant mismatch")
-
-          def referenced_names(function_name: str) -> set[str]:
-              function = functions.get(function_name)
-              if function is None:
-                  raise SystemExit(f"candidate test function missing: {function_name}")
-              return {
-                  node.id for node in ast.walk(function) if isinstance(node, ast.Name)
-              }
-
-          active_names = referenced_names("test_active_binds_locked_base_sha")
-          if "EXPECTED_ACTIVE_BASE_SHA" not in active_names:
-              raise SystemExit("active locked-base test does not use active base constant")
-          for function_name in (
-              "test_archive_pr106_v3_preserves_locked_base_sha",
-              "test_archive_pr106_v4_preserves_locked_base_sha",
-          ):
-              names = referenced_names(function_name)
-              if "PR106_HISTORICAL_BASE_SHA" not in names:
-                  raise SystemExit(f"historical test lacks historical base constant: {function_name}")
-              if "EXPECTED_ACTIVE_BASE_SHA" in names:
-                  raise SystemExit(f"historical test leaks active base constant: {function_name}")
+          h0_test_sources = {
+              path: source_at(h0, path) for path in semantic_test_paths
+          }
+          candidate_test_sources = {
+              path: source_at(candidate_head, path) for path in semantic_test_paths
+          }
+          validate_semantic_test_sources(h0_test_sources, candidate_test_sources, b3)
 
           decision_bytes = blob("project_state/decision_packet.md")
           decision_text = decision_bytes.decode("utf-8")
