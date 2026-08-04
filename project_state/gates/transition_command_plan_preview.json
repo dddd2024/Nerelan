@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260804_restore_path_a_state_gate_current_main_v11r2",
-  "round_id": "round_20260804_restore_path_a_state_gate_current_main_v11r2",
+  "decision_id": "decision_20260804_restore_path_a_state_gate_current_main_v14",
+  "round_id": "round_20260804_restore_path_a_state_gate_current_main_v14",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -27,7 +27,7 @@
     },
     {
       "command_id": "validation.diff_check",
-      "command": "git diff --check fa4f240f7dffff78cdb182ce8655c2e2d7cb241f..HEAD",
+      "command": "git diff --check 1142dd324fdd4c4bf2a1353d9d5e93bc04b33507..HEAD",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -48,7 +48,7 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.pytest_v11r2_trusted_authority",
+      "command_id": "test.pytest_v14_trusted_authority",
       "command": "python -m pytest tests/platform_v1/test_trusted_live_launcher.py tests/platform_v1/test_authority_adapter.py tests/platform_v1/test_cli.py tests/platform_v1/test_evidence_adapter.py tests/platform_v1/test_contracts.py tests/platform_v1/test_merge_intent.py -q",
       "phase": "test",
       "required": true,

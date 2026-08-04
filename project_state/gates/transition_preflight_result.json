@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260804_restore_path_a_state_gate_current_main_v11r2",
-  "round_id": "round_20260804_restore_path_a_state_gate_current_main_v11r2",
+  "decision_id": "decision_20260804_restore_path_a_state_gate_current_main_v14",
+  "round_id": "round_20260804_restore_path_a_state_gate_current_main_v14",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260804_restore_path_a_state_gate_current_main_v11r2 expected=decision_20260804_restore_path_a_state_gate_current_main_v11r2"
+      "detail": "observed=decision_20260804_restore_path_a_state_gate_current_main_v14 expected=decision_20260804_restore_path_a_state_gate_current_main_v14"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260804_restore_path_a_state_gate_current_main_v11r2 expected=round_20260804_restore_path_a_state_gate_current_main_v11r2"
+      "detail": "observed=round_20260804_restore_path_a_state_gate_current_main_v14 expected=round_20260804_restore_path_a_state_gate_current_main_v14"
     },
     {
       "name": "decision_approved",
@@ -38,17 +38,17 @@
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=fa4f240f7dffff78cdb182ce8655c2e2d7cb241f merge_base=fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+      "detail": "base=1142dd324fdd4c4bf2a1353d9d5e93bc04b33507 merge_base=1142dd324fdd4c4bf2a1353d9d5e93bc04b33507"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=011a58c7c06e94c008b38bfd434ddeb0f6fd5b86"
+      "detail": "decision_commit=49019404755bb7dd3a66d44065b717239c621088"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260804_restore_path_a_state_gate_current_main_v11r2/round_20260804_restore_path_a_state_gate_current_main_v11r2"
+      "detail": "plan=decision_20260804_restore_path_a_state_gate_current_main_v14/round_20260804_restore_path_a_state_gate_current_main_v14"
     },
     {
       "name": "command_plan_contract",
