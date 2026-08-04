@@ -212,14 +212,14 @@ jobs:
       ci_run_id: ${{ steps.authority.outputs.ci_run_id }}
       preflight_run_id: ${{ steps.authority.outputs.preflight_run_id }}
     steps:
-      - name: Checkout exact trusted B1
+      - name: Checkout exact trusted B2
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify bounded B1 and H1 authority
+      - name: Verify bounded B2 and candidate authority
         id: authority
         shell: bash
         env:
@@ -236,13 +236,13 @@ jobs:
           set -euo pipefail
           readonly REPOSITORY='dddd2024/reverse-agent'
           readonly PR_NUMBER='106'
-          readonly BOOTSTRAP_PR_NUMBER='108'
+          readonly BOOTSTRAP_PR_NUMBER='110'
           readonly EXPECTED_BRANCH='agent/restore-path-a-state-gate-current-main-v1'
-          readonly BOOTSTRAP_BRANCH='owner/state-gate-target-bootstrap-v1'
+          readonly BOOTSTRAP_BRANCH='owner/state-gate-bootstrap-test-rebind-v2'
           readonly H0='ff7dd9091a48c5c2fad315812e672d5089824d09'
-          readonly B0='fa4f240f7dffff78cdb182ce8655c2e2d7cb241f'
-          readonly B1="$EVENT_BASE_SHA"
-          readonly H1="$EVENT_HEAD_SHA"
+          readonly B1='4aacd7f614342f5ca123b2afccdb9a49df886775'
+          readonly B2="$EVENT_BASE_SHA"
+          readonly CANDIDATE_HEAD="$EVENT_HEAD_SHA"
 
           test "$GITHUB_EVENT_NAME" = 'pull_request_target'
           test "$GITHUB_REPOSITORY" = "$REPOSITORY"
@@ -251,8 +251,8 @@ jobs:
           test "$EVENT_HEAD_BRANCH" = "$EXPECTED_BRANCH"
           test "$EVENT_BASE_REPOSITORY" = "$REPOSITORY"
           test "$EVENT_BASE_BRANCH" = 'main'
-          test "$TRUSTED_RUN_SHA" = "$B1"
-          test "$(git rev-parse HEAD)" = "$B1"
+          test "$TRUSTED_RUN_SHA" = "$B2"
+          test "$(git rev-parse HEAD)" = "$B2"
 
           api_get() {
             curl --fail --silent --show-error \
@@ -266,8 +266,8 @@ jobs:
           jq -e \
             --arg repository "$REPOSITORY" \
             --arg branch "$EXPECTED_BRANCH" \
-            --arg head "$H1" \
-            --arg base "$B1" \
+            --arg head "$CANDIDATE_HEAD" \
+            --arg base "$B2" \
             '.number == 106
              and .state == "open"
              and .draft == true
@@ -280,12 +280,13 @@ jobs:
              and .auto_merge == null' \
             "$RUNNER_TEMP/bootstrap-pr106.json" > /dev/null
 
-          api_get "repos/$REPOSITORY/pulls/$BOOTSTRAP_PR_NUMBER" > "$RUNNER_TEMP/bootstrap-pr108.json"
+          api_get "repos/$REPOSITORY/pulls/$BOOTSTRAP_PR_NUMBER" > "$RUNNER_TEMP/bootstrap-pr110.json"
           jq -e \
             --arg repository "$REPOSITORY" \
             --arg branch "$BOOTSTRAP_BRANCH" \
-            --arg merge_commit "$B1" \
-            '.number == 108
+            --arg base "$B1" \
+            --arg merge_commit "$B2" \
+            '.number == 110
              and .state == "closed"
              and .merged == true
              and .draft == false
@@ -293,38 +294,39 @@ jobs:
              and .head.ref == $branch
              and .base.repo.full_name == $repository
              and .base.ref == "main"
+             and .base.sha == $base
              and .merge_commit_sha == $merge_commit
              and .auto_merge == null' \
-            "$RUNNER_TEMP/bootstrap-pr108.json" > /dev/null
-          readonly PR108_HEAD="$(jq -r '.head.sha' "$RUNNER_TEMP/bootstrap-pr108.json")"
+            "$RUNNER_TEMP/bootstrap-pr110.json" > /dev/null
+          readonly PR110_HEAD="$(jq -r '.head.sha' "$RUNNER_TEMP/bootstrap-pr110.json")"
 
           git config --local --unset-all http.https://github.com/.extraheader || true
-          git fetch --no-tags origin "$B0" "$H0" "$B1" "$H1" "$PR108_HEAD"
-          for revision in "$B0" "$H0" "$B1" "$H1" "$PR108_HEAD"; do
+          git fetch --no-tags origin "$B1" "$H0" "$B2" "$CANDIDATE_HEAD" "$PR110_HEAD"
+          for revision in "$B1" "$H0" "$B2" "$CANDIDATE_HEAD" "$PR110_HEAD"; do
             test "$(git cat-file -t "$revision")" = 'commit'
           done
 
-          git merge-base --is-ancestor "$B0" "$B1"
-          read -r -a b1_parents <<< "$(git rev-list --parents -n 1 "$B1")"
-          test "${#b1_parents[@]}" -eq 3
-          test "${b1_parents[1]}" = "$B0"
-          test "${b1_parents[2]}" = "$PR108_HEAD"
+          git merge-base --is-ancestor "$B1" "$B2"
+          read -r -a b2_parents <<< "$(git rev-list --parents -n 1 "$B2")"
+          test "${#b2_parents[@]}" -eq 3
+          test "${b2_parents[1]}" = "$B1"
+          test "${b2_parents[2]}" = "$PR110_HEAD"
 
-          git merge-base --is-ancestor "$H0" "$H1"
-          git merge-base --is-ancestor "$B1" "$H1"
-          mapfile -t h1_chain < <(git rev-list --first-parent --reverse "$H0..$H1")
-          test "${#h1_chain[@]}" -eq 4
-          read -r -a merge_parents <<< "$(git rev-list --parents -n 1 "${h1_chain[0]}")"
+          git merge-base --is-ancestor "$H0" "$CANDIDATE_HEAD"
+          git merge-base --is-ancestor "$B2" "$CANDIDATE_HEAD"
+          mapfile -t candidate_chain < <(git rev-list --first-parent --reverse "$H0..$CANDIDATE_HEAD")
+          test "${#candidate_chain[@]}" -eq 4
+          read -r -a merge_parents <<< "$(git rev-list --parents -n 1 "${candidate_chain[0]}")"
           test "${#merge_parents[@]}" -eq 3
           test "${merge_parents[1]}" = "$H0"
-          test "${merge_parents[2]}" = "$B1"
+          test "${merge_parents[2]}" = "$B2"
           for index in 1 2 3; do
-            read -r -a linear_parents <<< "$(git rev-list --parents -n 1 "${h1_chain[$index]}")"
+            read -r -a linear_parents <<< "$(git rev-list --parents -n 1 "${candidate_chain[$index]}")"
             test "${#linear_parents[@]}" -eq 2
-            test "${linear_parents[1]}" = "${h1_chain[$((index - 1))]}"
+            test "${linear_parents[1]}" = "${candidate_chain[$((index - 1))]}"
           done
 
-          export B0 H0 B1 H1
+          export B1 H0 B2 CANDIDATE_HEAD
           python - <<'PY'
           import hashlib
           import json
@@ -332,11 +334,11 @@ jobs:
           import re
           import subprocess
 
-          b0 = os.environ["B0"]
-          h0 = os.environ["H0"]
           b1 = os.environ["B1"]
-          h1 = os.environ["H1"]
-          pr108_paths = {
+          h0 = os.environ["H0"]
+          b2 = os.environ["B2"]
+          candidate_head = os.environ["CANDIDATE_HEAD"]
+          pr110_paths = {
               ".github/workflows/state-gate.yml",
               "project_state/decision_packet.md",
               "project_state/gates/bootstrap_state.json",
@@ -345,7 +347,7 @@ jobs:
               "project_state/gates/transition_command_plan_preview.json",
               "project_state/gates/transition_preflight_result.json",
               "project_state/mainline_merge_intents/active.json",
-              "project_state/mainline_merge_intents/archive/pr97_v4.json",
+              "project_state/mainline_merge_intents/archive/pr108_v1.json",
               "tests/platform_v1/test_contracts.py",
               "tests/platform_v1/test_merge_intent.py",
           }
@@ -358,6 +360,9 @@ jobs:
               "project_state/gates/transition_preflight_result.json",
               "project_state/mainline_merge_intents/active.json",
               "project_state/mainline_merge_intents/archive/pr106_v11r2.json",
+              "tests/platform_v1/test_authority_adapter.py",
+              "tests/platform_v1/test_contracts.py",
+              "tests/platform_v1/test_merge_intent.py",
           }
           generated_paths = {
               "project_state/gates/bootstrap_state.json",
@@ -412,11 +417,11 @@ jobs:
               ).strip()
               return set(changed_paths(parent, commit))
 
-          b1_paths = set(changed_paths(b0, b1))
-          if b1_paths != pr108_paths:
-              raise SystemExit(f"unexpected B0..B1 paths: {sorted(b1_paths)}")
+          b2_paths = set(changed_paths(b1, b2))
+          if b2_paths != pr110_paths:
+              raise SystemExit(f"unexpected B1..B2 paths: {sorted(b2_paths)}")
           chain = subprocess.check_output(
-              ["git", "rev-list", "--first-parent", "--reverse", f"{h0}..{h1}"],
+              ["git", "rev-list", "--first-parent", "--reverse", f"{h0}..{candidate_head}"],
               text=True,
           ).splitlines()
           if commit_paths(chain[1]) != {"project_state/decision_packet.md"}:
@@ -426,23 +431,34 @@ jobs:
           if commit_paths(chain[3]) != {
               "project_state/mainline_merge_intents/active.json",
               "project_state/mainline_merge_intents/archive/pr106_v11r2.json",
+              "tests/platform_v1/test_authority_adapter.py",
+              "tests/platform_v1/test_contracts.py",
+              "tests/platform_v1/test_merge_intent.py",
           }:
               raise SystemExit("PR106 Intent-bind commit path set mismatch")
-          h1_paths = set(changed_paths(h0, h1))
-          if h1_paths != pr106_paths:
-              raise SystemExit(f"unexpected H0..H1 paths: {sorted(h1_paths)}")
+          candidate_paths = set(changed_paths(h0, candidate_head))
+          if candidate_paths != pr106_paths:
+              raise SystemExit(f"unexpected H0..candidate paths: {sorted(candidate_paths)}")
 
           workflow_path = ".github/workflows/state-gate.yml"
           h0_workflow = subprocess.check_output(
               ["git", "rev-parse", f"{h0}:{workflow_path}"], text=True
           ).strip()
-          h1_workflow = subprocess.check_output(
-              ["git", "rev-parse", f"{h1}:{workflow_path}"], text=True
+          candidate_workflow = subprocess.check_output(
+              ["git", "rev-parse", f"{candidate_head}:{workflow_path}"], text=True
           ).strip()
-          if h0_workflow != h1_workflow:
-              raise SystemExit("H1 workflow blob differs from H0")
+          if h0_workflow != candidate_workflow:
+              raise SystemExit("candidate workflow blob differs from H0")
+          h0_production = subprocess.check_output(
+              ["git", "rev-parse", f"{h0}:reverse_agent"], text=True
+          ).strip()
+          candidate_production = subprocess.check_output(
+              ["git", "rev-parse", f"{candidate_head}:reverse_agent"], text=True
+          ).strip()
+          if h0_production != candidate_production:
+              raise SystemExit("candidate production Python tree differs from H0")
           archived = subprocess.check_output(
-              ["git", "rev-parse", f"{h1}:project_state/mainline_merge_intents/archive/pr106_v11r2.json"],
+              ["git", "rev-parse", f"{candidate_head}:project_state/mainline_merge_intents/archive/pr106_v11r2.json"],
               text=True,
           ).strip()
           prior_active = subprocess.check_output(
@@ -453,7 +469,7 @@ jobs:
               raise SystemExit("pr106_v11r2 archive differs from H0 active Intent")
 
           def blob(path: str) -> bytes:
-              return subprocess.check_output(["git", "show", f"{h1}:{path}"])
+              return subprocess.check_output(["git", "show", f"{candidate_head}:{path}"])
 
           def json_blob(path: str) -> dict:
               return json.loads(blob(path).decode("utf-8"))
@@ -471,7 +487,7 @@ jobs:
               re.DOTALL,
           )
           if meta_match is None or contract_match is None:
-              raise SystemExit("H1 Decision JSON blocks missing")
+              raise SystemExit("candidate Decision JSON blocks missing")
           meta = json.loads(meta_match.group(1))
           contract = json.loads(contract_match.group(1))
           plan_bytes = blob("project_state/gates/command_plan.json")
@@ -479,25 +495,27 @@ jobs:
           intent = json_blob("project_state/mainline_merge_intents/active.json")
           preflight = json_blob("project_state/gates/transition_preflight_result.json")
 
-          expected_prior = "decision_20260804_restore_path_a_state_gate_current_main_v11r2"
-          expected_round = "round_20260804_restore_path_a_state_gate_current_main_v11r2"
+          expected_prior = "decision_20260804_restore_path_a_state_gate_current_main_v12"
+          expected_round = "round_20260804_restore_path_a_state_gate_current_main_v12"
           if contract.get("follows_last_decision_id") != expected_prior:
-              raise SystemExit("H1 Decision does not follow v11r2")
+              raise SystemExit("candidate Decision does not follow rejected v12")
           if contract.get("follows_last_round_id") != expected_round:
-              raise SystemExit("H1 round does not follow v11r2")
+              raise SystemExit("candidate round does not follow rejected v12")
+          if contract.get("previous_audit_outcome") != "V12_REJECTED_UNSATISFIABLE_SEMANTIC_TEST_CONTRACT":
+              raise SystemExit("candidate Decision does not record rejected v12 outcome")
           expected_contract = {
-              "activation_base_sha": b1,
+              "activation_base_sha": b2,
               "source_issue": 105,
               "parent_issue": 90,
-              "bootstrap_issue": 107,
+              "bootstrap_issue": 109,
               "active_pr": 106,
               "required_branch": "agent/restore-path-a-state-gate-current-main-v1",
           }
           for key, expected in expected_contract.items():
               if contract.get(key) != expected:
-                  raise SystemExit(f"H1 Decision {key} mismatch")
+                  raise SystemExit(f"candidate Decision {key} mismatch")
           if meta.get("status") != "APPROVED":
-              raise SystemExit("H1 Decision is not APPROVED")
+              raise SystemExit("candidate Decision is not APPROVED")
 
           false_flags = {
               "pr_creation_allowed",
@@ -515,7 +533,7 @@ jobs:
           }
           for key in false_flags:
               if contract.get(key) is not False:
-                  raise SystemExit(f"H1 Decision dangerous flag enabled: {key}")
+                  raise SystemExit(f"candidate Decision dangerous flag enabled: {key}")
           capability = contract.get("capability_policy", {})
           for key in (
               "runner_dispatch_allowed",
@@ -530,51 +548,51 @@ jobs:
               "tag_or_release_allowed",
           ):
               if capability.get(key) is not False:
-                  raise SystemExit(f"H1 capability enabled: {key}")
+                  raise SystemExit(f"candidate capability enabled: {key}")
 
           decision_sha256 = hashlib.sha256(decision_bytes).hexdigest()
           plan_sha256 = hashlib.sha256(plan_bytes).hexdigest()
           if plan.get("decision_id") != meta.get("decision_id"):
-              raise SystemExit("H1 Command Plan Decision mismatch")
+              raise SystemExit("candidate Command Plan Decision mismatch")
           if plan.get("round_id") != meta.get("round_id"):
-              raise SystemExit("H1 Command Plan round mismatch")
+              raise SystemExit("candidate Command Plan round mismatch")
           if intent.get("repository") != "dddd2024/reverse-agent":
-              raise SystemExit("H1 Intent repository mismatch")
+              raise SystemExit("candidate Intent repository mismatch")
           if intent.get("source_pr") != 106:
-              raise SystemExit("H1 Intent PR mismatch")
-          if intent.get("locked_base_sha") != b1:
-              raise SystemExit("H1 Intent locked base mismatch")
+              raise SystemExit("candidate Intent PR mismatch")
+          if intent.get("locked_base_sha") != b2:
+              raise SystemExit("candidate Intent locked base mismatch")
           if intent.get("allowed_merge_method") != "merge":
-              raise SystemExit("H1 Intent merge method mismatch")
+              raise SystemExit("candidate Intent merge method mismatch")
           identity = intent.get("decision_identity", {})
           if identity.get("decision_id") != meta.get("decision_id"):
-              raise SystemExit("H1 Intent Decision identity mismatch")
+              raise SystemExit("candidate Intent Decision identity mismatch")
           if identity.get("decision_content_sha256") != decision_sha256:
-              raise SystemExit("H1 Intent Decision digest mismatch")
+              raise SystemExit("candidate Intent Decision digest mismatch")
           if intent.get("command_plan_sha256") != plan_sha256:
-              raise SystemExit("H1 Intent Command Plan digest mismatch")
+              raise SystemExit("candidate Intent Command Plan digest mismatch")
           if preflight.get("gate_status") != "PRE_EXECUTION_AUTHORIZED":
-              raise SystemExit("H1 preflight is not authorized")
+              raise SystemExit("candidate preflight is not authorized")
           if preflight.get("decision_id") != meta.get("decision_id"):
-              raise SystemExit("H1 preflight Decision mismatch")
+              raise SystemExit("candidate preflight Decision mismatch")
           if preflight.get("round_id") != meta.get("round_id"):
-              raise SystemExit("H1 preflight round mismatch")
+              raise SystemExit("candidate preflight round mismatch")
           if preflight.get("blocking_reasons") != []:
-              raise SystemExit("H1 preflight has blocking reasons")
+              raise SystemExit("candidate preflight has blocking reasons")
           checks = preflight.get("checks")
           if not isinstance(checks, list) or not checks:
-              raise SystemExit("H1 preflight checks missing")
+              raise SystemExit("candidate preflight checks missing")
           if any(check.get("status") != "PASS" for check in checks):
-              raise SystemExit("H1 preflight contains non-PASS check")
+              raise SystemExit("candidate preflight contains non-PASS check")
 
-          paths = changed_paths(b1, h1)
+          paths = changed_paths(b2, candidate_head)
           digest = hashlib.sha256("\n".join(paths).encode("utf-8")).hexdigest()
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-              output.write(f"trusted_base_sha={b1}\n")
-              output.write(f"candidate_head_sha={h1}\n")
+              output.write(f"trusted_base_sha={b2}\n")
+              output.write(f"candidate_head_sha={candidate_head}\n")
               output.write(f"changed_paths_sha256={digest}\n")
-          print(f"B1={b1}")
-          print(f"H1={h1}")
+          print(f"B2={b2}")
+          print(f"CANDIDATE_HEAD={candidate_head}")
           print(f"changed_paths_sha256={digest}")
           PY
 
@@ -618,14 +636,14 @@ jobs:
             preflight_run="$(latest_run 'Decision Preflight')"
             ready=true
             for record in "$ci_run" "$preflight_run"; do
-              if [ -z "$record" ] || [ "$(jq -r '.head_sha' <<< "$record")" != "$H1" ]; then
+              if [ -z "$record" ] || [ "$(jq -r '.head_sha' <<< "$record")" != "$CANDIDATE_HEAD" ]; then
                 ready=false
                 continue
               fi
               status="$(jq -r '.status' <<< "$record")"
               conclusion="$(jq -r '.conclusion // ""' <<< "$record")"
               if [ "$status" = 'completed' ] && [ "$conclusion" != 'success' ]; then
-                echo "latest exact-H1 workflow failed: $record" >&2
+                echo "latest exact-candidate workflow failed: $record" >&2
                 exit 1
               fi
               if [ "$status" != 'completed' ] || [ "$conclusion" != 'success' ]; then
@@ -638,7 +656,7 @@ jobs:
               break
             fi
             if [ "$attempt" -eq 36 ]; then
-              echo 'timed out waiting for latest exact-H1 CI and Decision Preflight' >&2
+              echo 'timed out waiting for latest exact-candidate CI and Decision Preflight' >&2
               exit 1
             fi
             sleep 10
@@ -660,7 +678,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - name: Checkout exact H1 without credentials
+      - name: Checkout exact candidate without credentials
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.bootstrap-authority.outputs.candidate_head_sha }}
@@ -681,10 +699,10 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install exact H1 test dependencies
+      - name: Install exact candidate test dependencies
         run: python -m pip install -e ".[test]"
 
-      - name: Validate exact B1 to H1 diff
+      - name: Validate exact B2 to candidate diff
         env:
           CANDIDATE_BASE_SHA: ${{ needs.bootstrap-authority.outputs.trusted_base_sha }}
         run: git diff --check "$CANDIDATE_BASE_SHA"..HEAD
@@ -744,14 +762,14 @@ jobs:
           import os
           from datetime import datetime, timezone
 
-          b1 = os.environ.get("TRUSTED_BASE_SHA", "")
-          h1 = os.environ.get("CANDIDATE_HEAD_SHA", "")
+          b2 = os.environ.get("TRUSTED_BASE_SHA", "")
+          candidate_head = os.environ.get("CANDIDATE_HEAD_SHA", "")
           observed_digest = os.environ.get("OBSERVED_CHANGED_PATHS_SHA256", "")
           authority_result = (
               "SUCCESS"
               if os.environ.get("AUTHORITY_JOB_RESULT") == "success"
-              and len(b1) == 40
-              and len(h1) == 40
+              and len(b2) == 40
+              and len(candidate_head) == 40
               and len(observed_digest) == 64
               else "FAILED"
           )
@@ -774,14 +792,14 @@ jobs:
               "workflow_event": "pull_request_target",
               "workflow_run_id": int(os.environ["GITHUB_RUN_ID"]),
               "workflow_run_attempt": int(os.environ.get("GITHUB_RUN_ATTEMPT", "1")),
-              "trusted_base_sha": b1,
-              "trusted_verifier_tree_sha": b1,
-              "candidate_head_sha": h1,
-              "candidate_base_sha": b1,
+              "trusted_base_sha": b2,
+              "trusted_verifier_tree_sha": b2,
+              "candidate_head_sha": candidate_head,
+              "candidate_base_sha": b2,
               "changed_paths_sha256": observed_digest,
               "selected_mode": "transition",
               "authority_identity": "trusted_base_verifier",
-              "authority_revision": b1,
+              "authority_revision": b2,
               "authority_result": authority_result,
               "candidate_tests_result": candidate_result,
               "final_gate_result": final_result,

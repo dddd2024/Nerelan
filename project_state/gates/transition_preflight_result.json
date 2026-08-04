@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260804_issue107_state_gate_bootstrap_pr108_v1",
-  "round_id": "round_20260804_issue107_state_gate_bootstrap_pr108_v1",
+  "decision_id": "decision_20260804_issue109_pr110_bootstrap_test_rebind_v1",
+  "round_id": "round_20260804_issue109_pr110_bootstrap_test_rebind_v1",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260804_issue107_state_gate_bootstrap_pr108_v1 expected=decision_20260804_issue107_state_gate_bootstrap_pr108_v1"
+      "detail": "observed=decision_20260804_issue109_pr110_bootstrap_test_rebind_v1 expected=decision_20260804_issue109_pr110_bootstrap_test_rebind_v1"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260804_issue107_state_gate_bootstrap_pr108_v1 expected=round_20260804_issue107_state_gate_bootstrap_pr108_v1"
+      "detail": "observed=round_20260804_issue109_pr110_bootstrap_test_rebind_v1 expected=round_20260804_issue109_pr110_bootstrap_test_rebind_v1"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=owner/state-gate-target-bootstrap-v1 expected=owner/state-gate-target-bootstrap-v1"
+      "detail": "observed=owner/state-gate-bootstrap-test-rebind-v2 expected=owner/state-gate-bootstrap-test-rebind-v2"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=fa4f240f7dffff78cdb182ce8655c2e2d7cb241f merge_base=fa4f240f7dffff78cdb182ce8655c2e2d7cb241f"
+      "detail": "base=4aacd7f614342f5ca123b2afccdb9a49df886775 merge_base=4aacd7f614342f5ca123b2afccdb9a49df886775"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=539dd09e463ed6b6ca6e6e384244ee6910464436"
+      "detail": "decision_commit=158745ffa78c401d1b16f096c8463eadeba102eb"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260804_issue107_state_gate_bootstrap_pr108_v1/round_20260804_issue107_state_gate_bootstrap_pr108_v1"
+      "detail": "plan=decision_20260804_issue109_pr110_bootstrap_test_rebind_v1/round_20260804_issue109_pr110_bootstrap_test_rebind_v1"
     },
     {
       "name": "command_plan_contract",
