@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   reverse-agent Frontend V1 — minimal custom styles
+   Low-saturation palette, light borders, limited shadows.
+   --------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: light;
+  --ra-bg: #f8fafc; /* slate-50 */
+  --ra-surface: #ffffff;
+  --ra-border: #e2e8f0; /* slate-200 */
+  --ra-text: #1e293b; /* slate-800 */
+  --ra-text-muted: #64748b; /* slate-500 */
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--ra-bg);
+  color: var(--ra-text);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Quiet, low-shadow defaults. */
+* {
+  box-sizing: border-box;
+}
+
+/* Smooth focus rings without loud colors. */
+:focus-visible {
+  outline: none;
+}
+
+/* Scrollbar restraint */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1; /* slate-300 */
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Diff viewer line wrapping control */
+pre {
+  tab-size: 2;
+}
+
+/* Reduced motion respect */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
