@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
-  "round_id": "round_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
+  "decision_id": "decision_20260805_issue114_platform_v1_codex_e2e_v3",
+  "round_id": "round_20260805_issue114_platform_v1_codex_e2e_v3",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6 expected=decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
+      "detail": "observed=decision_20260805_issue114_platform_v1_codex_e2e_v3 expected=decision_20260805_issue114_platform_v1_codex_e2e_v3"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260804_issue111_pr112_bootstrap_path_tree_seal_v6 expected=round_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
+      "detail": "observed=round_20260805_issue114_platform_v1_codex_e2e_v3 expected=round_20260805_issue114_platform_v1_codex_e2e_v3"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=owner/state-gate-bootstrap-v13-retry-v3 expected=owner/state-gate-bootstrap-v13-retry-v3"
+      "detail": "observed=agent/platform-v1-codex-e2e-v1 expected=agent/platform-v1-codex-e2e-v1"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=93984db182b7ee11b3ccb8795bb5fc3741205b92 merge_base=93984db182b7ee11b3ccb8795bb5fc3741205b92"
+      "detail": "base=1142dd324fdd4c4bf2a1353d9d5e93bc04b33507 merge_base=1142dd324fdd4c4bf2a1353d9d5e93bc04b33507"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=27f97365b1c3d6b2a872f9dce83e60c5d697d548"
+      "detail": "decision_commit=8480c001ecb7d5f3121cd230a4550724c464fc74"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6/round_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
+      "detail": "plan=decision_20260805_issue114_platform_v1_codex_e2e_v3/round_20260805_issue114_platform_v1_codex_e2e_v3"
     },
     {
       "name": "command_plan_contract",
