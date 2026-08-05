@@ -34,6 +34,71 @@ def redact_secrets(text: str) -> str:
     return value
 
 
+# ---------------------------------------------------------------------------
+# External executor failure classification
+# ---------------------------------------------------------------------------
+#
+# Codex/provider failures that represent external capability or availability
+# problems — not product-test failures. These must classify as BLOCKED_EXTERNAL
+# so they do not consume bounded product-rework attempts.
+#
+# Signatures are deliberately narrow and anchored to observed provider errors:
+#   * quota / usage-limit exhaustion (no model capacity available)
+#   * reasoning-enum / variant protocol mismatch (client/server incompatibility)
+#
+# A non-zero executor exit without one of these signatures falls through to
+# the existing PRODUCT_TEST_FAILURE -> REWORK_REQUIRED path.
+
+_EXECUTOR_QUOTA_SIGNATURES = (
+    re.compile(r"(?i)usage\s*limit"),
+    re.compile(r"(?i)quota\s*(?:exhausted|exceeded|unavailable|reached)"),
+    re.compile(r"(?i)\bno\s*quota\b"),
+    re.compile(r"(?i)rate\s*limit"),
+    re.compile(r"(?i)usage\s*cap"),
+    re.compile(r"(?i)plan\s*limit"),
+    re.compile(r"(?i)capacity\s*exceeded"),
+)
+
+_EXECUTOR_PROTOCOL_SIGNATURES = (
+    re.compile(r"(?i)reasoning\s*enum"),
+    re.compile(r"(?i)unknown\s*variant\b"),
+    re.compile(r"(?i)expected\s+one\s+of\b"),
+    re.compile(r"(?i)protocol\s*mismatch"),
+    re.compile(r"(?i)unsupported\s*variant"),
+    re.compile(r"(?i)variant\s*`[a-z]+`"),
+    re.compile(r"(?i)invalid\s+value\b.*\breasoning\b"),
+    re.compile(r"(?i)\bxhigh\b"),
+)
+
+
+def classify_executor_failure(result: ExecutorResult) -> str | None:
+    """Classify a non-zero executor result as an external blocker or None.
+
+    Returns:
+      * ``"EXECUTOR_QUOTA_UNAVAILABLE"`` — provider quota/usage limit exhausted.
+      * ``"EXECUTOR_PROTOCOL_INCOMPATIBLE"`` — client/server protocol mismatch
+        (e.g. unsupported reasoning enum variant).
+      * ``None`` — no external signature matched; caller applies the default
+        product-failure classification.
+
+    Timeouts and malformed outputs are not external blockers; they remain
+    infrastructure/product failures and return ``None`` here.
+    """
+
+    if result.timed_out or result.malformed:
+        return None
+    text = result.summary or ""
+    if not text:
+        return None
+    for pattern in _EXECUTOR_QUOTA_SIGNATURES:
+        if pattern.search(text):
+            return "EXECUTOR_QUOTA_UNAVAILABLE"
+    for pattern in _EXECUTOR_PROTOCOL_SIGNATURES:
+        if pattern.search(text):
+            return "EXECUTOR_PROTOCOL_INCOMPATIBLE"
+    return None
+
+
 def _digest(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from .execution_adapters import classify_executor_failure
 from .issue_task import LoadedIssueTask
 from .run_store import RunRecord, RunState, SQLiteRunStore, TERMINAL_STATES
 
@@ -65,7 +66,45 @@ class PlatformV1Coordinator:
             result = self.executor.execute(task, worktree, 1800)
             record = self.store.update(record.execution_id, executor_reference=result.executor_reference or f"output:{result.output_sha256[:16]}")
             if result.timed_out or result.exit_code != 0 or result.malformed:
-                classification = "INFRASTRUCTURE_TIMEOUT" if result.timed_out else "PRODUCT_TEST_FAILURE"
+                if result.timed_out:
+                    classification = "INFRASTRUCTURE_TIMEOUT"
+                    record = self.store.update(record.execution_id, failure_classification=classification)
+                    return self.store.transition(
+                        record.execution_id,
+                        RunState.REWORK_REQUIRED,
+                        detail={
+                            "executor": {
+                                "exit_code": result.exit_code,
+                                "timed_out": result.timed_out,
+                                "elapsed_seconds": result.elapsed_seconds,
+                                "output_sha256": result.output_sha256,
+                                "summary": result.summary[:2000],
+                                "malformed": result.malformed,
+                            }
+                        },
+                    )
+                external_blocker = classify_executor_failure(result)
+                if external_blocker is not None:
+                    record = self.store.update(record.execution_id, failure_classification=external_blocker)
+                    record = self.store.transition(
+                        record.execution_id,
+                        RunState.BLOCKED_EXTERNAL,
+                        detail={
+                            "executor": {
+                                "exit_code": result.exit_code,
+                                "timed_out": result.timed_out,
+                                "elapsed_seconds": result.elapsed_seconds,
+                                "output_sha256": result.output_sha256,
+                                "summary": result.summary[:2000],
+                                "malformed": result.malformed,
+                            },
+                            "external_blocker": external_blocker,
+                        },
+                    )
+                    if hasattr(self.publisher, "publish_evidence"):
+                        self.publisher.publish_evidence(record, task)
+                    return record
+                classification = "PRODUCT_TEST_FAILURE"
                 record = self.store.update(record.execution_id, failure_classification=classification)
                 return self.store.transition(
                     record.execution_id,

@@ -479,3 +479,228 @@ class TestFakeEndToEnd:
             "summary": "bounded failure",
             "timed_out": False,
         }
+
+
+class TestExternalExecutorBlockerClassification:
+    """External quota/protocol failures classify as BLOCKED_EXTERNAL.
+
+    They do not enter REWORK_REQUIRED, do not increment attempt, and do not
+    become REWORK_LIMIT_EXHAUSTED. Normal product failures still maintain the
+    existing bounded rework behavior.
+    """
+
+    def test_quota_signature_blocks_external_without_rework(self, tmp_path: Path) -> None:
+        task = _task()
+        store = SQLiteRunStore(tmp_path / "runs.sqlite3")
+        executor = FakeCodexExecutorAdapter(
+            ExecutorResult(
+                exit_code=1,
+                timed_out=False,
+                elapsed_seconds=0.1,
+                output_sha256="q" * 64,
+                summary="codex: usage limit reached; quota exhausted for this plan",
+                executor_reference="fake:quota",
+            )
+        )
+        coordinator = PlatformV1Coordinator(
+            store=store,
+            workspace_manager=_FakeWorkspace(tmp_path / "workspace"),
+            executor=executor,
+            validator=_FakeValidator(),
+            publisher=_FakePublisher(),
+            workflow_observer=_FakeObserver(),
+        )
+        record = coordinator.run(task)
+        assert record.state == RunState.BLOCKED_EXTERNAL
+        assert record.failure_classification == "EXECUTOR_QUOTA_UNAVAILABLE"
+        assert record.attempt == 1
+        assert executor.call_count == 1
+        assert "PRODUCT_TEST_FAILURE" not in record.failure_classification
+        assert "REWORK" not in record.state.value
+
+    def test_reasoning_enum_signature_blocks_external_without_rework(self, tmp_path: Path) -> None:
+        task = _task()
+        store = SQLiteRunStore(tmp_path / "runs.sqlite3")
+        executor = FakeCodexExecutorAdapter(
+            ExecutorResult(
+                exit_code=1,
+                timed_out=False,
+                elapsed_seconds=0.1,
+                output_sha256="p" * 64,
+                summary=(
+                    "error: unknown variant `max`, expected one of low, medium, "
+                    "high, xhigh. reasoning enum protocol mismatch."
+                ),
+                executor_reference="fake:protocol",
+            )
+        )
+        coordinator = PlatformV1Coordinator(
+            store=store,
+            workspace_manager=_FakeWorkspace(tmp_path / "workspace"),
+            executor=executor,
+            validator=_FakeValidator(),
+            publisher=_FakePublisher(),
+            workflow_observer=_FakeObserver(),
+        )
+        record = coordinator.run(task)
+        assert record.state == RunState.BLOCKED_EXTERNAL
+        assert record.failure_classification == "EXECUTOR_PROTOCOL_INCOMPATIBLE"
+        assert record.attempt == 1
+        assert executor.call_count == 1
+        assert "PRODUCT_TEST_FAILURE" not in record.failure_classification
+        assert "REWORK" not in record.state.value
+
+    def test_blocked_external_does_not_become_rework_limit_exhausted(self, tmp_path: Path) -> None:
+        task = _task()
+        store = SQLiteRunStore(tmp_path / "runs.sqlite3")
+        executor = FakeCodexExecutorAdapter(
+            ExecutorResult(
+                exit_code=2,
+                timed_out=False,
+                elapsed_seconds=0.1,
+                output_sha256="q2" * 32,
+                summary="rate limit exceeded; no quota available",
+                executor_reference="fake:quota2",
+            )
+        )
+        coordinator = PlatformV1Coordinator(
+            store=store,
+            workspace_manager=_FakeWorkspace(tmp_path / "workspace"),
+            executor=executor,
+            validator=_FakeValidator(),
+            publisher=_FakePublisher(),
+            workflow_observer=_FakeObserver(),
+        )
+        first = coordinator.run(task)
+        assert first.state == RunState.BLOCKED_EXTERNAL
+        assert first.attempt == 1
+        second = coordinator.run(task)
+        assert second.state == RunState.BLOCKED_EXTERNAL
+        assert second.attempt == 1
+        assert executor.call_count == 1
+        assert second.failure_classification == "EXECUTOR_QUOTA_UNAVAILABLE"
+        assert "REWORK_LIMIT_EXHAUSTED" not in second.failure_classification
+
+    def test_normal_product_failure_still_enters_rework(self, tmp_path: Path) -> None:
+        task = _task()
+        store = SQLiteRunStore(tmp_path / "runs.sqlite3")
+        executor = FakeCodexExecutorAdapter(
+            ExecutorResult(
+                exit_code=1,
+                timed_out=False,
+                elapsed_seconds=0.1,
+                output_sha256="f" * 64,
+                summary="test assertion failed: expected 1 but got 2",
+                executor_reference="fake:product",
+            )
+        )
+        coordinator = PlatformV1Coordinator(
+            store=store,
+            workspace_manager=_FakeWorkspace(tmp_path / "workspace"),
+            executor=executor,
+            validator=_FakeValidator(),
+            publisher=_FakePublisher(),
+            workflow_observer=_FakeObserver(),
+        )
+        record = coordinator.run(task)
+        assert record.state == RunState.REWORK_REQUIRED
+        assert record.failure_classification == "PRODUCT_TEST_FAILURE"
+        assert record.attempt == 1
+
+    def test_blocked_external_executor_not_called_again_on_resume(self, tmp_path: Path) -> None:
+        task = _task()
+        store = SQLiteRunStore(tmp_path / "runs.sqlite3")
+        executor = FakeCodexExecutorAdapter(
+            ExecutorResult(
+                exit_code=1,
+                timed_out=False,
+                elapsed_seconds=0.1,
+                output_sha256="q3" * 32,
+                summary="usage limit reached for this plan",
+                executor_reference="fake:quota3",
+            )
+        )
+        coordinator = PlatformV1Coordinator(
+            store=store,
+            workspace_manager=_FakeWorkspace(tmp_path / "workspace"),
+            executor=executor,
+            validator=_FakeValidator(),
+            publisher=_FakePublisher(),
+            workflow_observer=_FakeObserver(),
+        )
+        first = coordinator.run(task)
+        assert first.state == RunState.BLOCKED_EXTERNAL
+        calls_after_first = executor.call_count
+        second = coordinator.run(task)
+        assert second.state == RunState.BLOCKED_EXTERNAL
+        assert executor.call_count == calls_after_first
+
+
+class TestClassifyExecutorFailure:
+    """Direct unit tests for the executor failure signature classifier."""
+
+    def _result(self, *, summary: str, exit_code: int = 1, timed_out: bool = False, malformed: bool = False) -> ExecutorResult:
+        return ExecutorResult(
+            exit_code=exit_code,
+            timed_out=timed_out,
+            elapsed_seconds=0.1,
+            output_sha256="x" * 64,
+            summary=summary,
+            executor_reference="fake:classify",
+            malformed=malformed,
+        )
+
+    @pytest.mark.parametrize(
+        "summary",
+        [
+            "codex: usage limit reached",
+            "error: quota exhausted for this plan",
+            "no quota available for codex",
+            "rate limit exceeded",
+            "usage cap reached",
+            "plan limit exceeded",
+            "capacity exceeded on provider",
+        ],
+    )
+    def test_quota_signatures_classify_correctly(self, summary: str) -> None:
+        from reverse_agent.platform_v1.execution_adapters import classify_executor_failure
+        assert classify_executor_failure(self._result(summary=summary)) == "EXECUTOR_QUOTA_UNAVAILABLE"
+
+    @pytest.mark.parametrize(
+        "summary",
+        [
+            "unknown variant `max`, expected one of low, medium, high, xhigh",
+            "reasoning enum protocol mismatch",
+            "unsupported variant for reasoning",
+            "invalid value for reasoning field",
+            "error: protocol mismatch on /v1/responses",
+        ],
+    )
+    def test_protocol_signatures_classify_correctly(self, summary: str) -> None:
+        from reverse_agent.platform_v1.execution_adapters import classify_executor_failure
+        assert classify_executor_failure(self._result(summary=summary)) == "EXECUTOR_PROTOCOL_INCOMPATIBLE"
+
+    @pytest.mark.parametrize(
+        "summary",
+        [
+            "test assertion failed",
+            "syntax error in fixture",
+            "bounded failure",
+            "exit code 1 from pytest",
+        ],
+    )
+    def test_non_external_summaries_return_none(self, summary: str) -> None:
+        from reverse_agent.platform_v1.execution_adapters import classify_executor_failure
+        assert classify_executor_failure(self._result(summary=summary)) is None
+
+    def test_timeout_returns_none(self) -> None:
+        from reverse_agent.platform_v1.execution_adapters import classify_executor_failure
+        assert classify_executor_failure(self._result(summary="usage limit", timed_out=True)) is None
+
+    def test_malformed_returns_none(self) -> None:
+        from reverse_agent.platform_v1.execution_adapters import classify_executor_failure
+        assert classify_executor_failure(self._result(summary="usage limit", malformed=True)) is None
+
+    def test_empty_summary_returns_none(self) -> None:
+        from reverse_agent.platform_v1.execution_adapters import classify_executor_failure
+        assert classify_executor_failure(self._result(summary="")) is None
