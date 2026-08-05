@@ -67,7 +67,20 @@ class PlatformV1Coordinator:
             if result.timed_out or result.exit_code != 0 or result.malformed:
                 classification = "INFRASTRUCTURE_TIMEOUT" if result.timed_out else "PRODUCT_TEST_FAILURE"
                 record = self.store.update(record.execution_id, failure_classification=classification)
-                return self.store.transition(record.execution_id, RunState.REWORK_REQUIRED)
+                return self.store.transition(
+                    record.execution_id,
+                    RunState.REWORK_REQUIRED,
+                    detail={
+                        "executor": {
+                            "exit_code": result.exit_code,
+                            "timed_out": result.timed_out,
+                            "elapsed_seconds": result.elapsed_seconds,
+                            "output_sha256": result.output_sha256,
+                            "summary": result.summary[:2000],
+                            "malformed": result.malformed,
+                        }
+                    },
+                )
             record = self.store.transition(record.execution_id, RunState.EXECUTOR_FINISHED)
         if record.state == RunState.EXECUTOR_FINISHED:
             checks = self.validator.run(task.work_item.required_checks, worktree, 1800)

@@ -239,6 +239,9 @@ class TestExecutionAdapters:
         assert result.exit_code == 0
         assert "# Canary" in str(captured["input"])
         assert "The machine-readable task block is the only authority" in str(captured["input"])
+        assert "approval_state: APPROVED" in str(captured["input"])
+        assert "approved_by: dddd2024" in str(captured["input"])
+        assert "approval_event_or_time: 2026-08-05T03:08:56Z" in str(captured["input"])
         assert "Do not commit or publish" in str(captured["input"])
         assert "--full-auto" in captured["argv"]
         assert captured["argv"][:5] == [
@@ -444,3 +447,35 @@ class TestFakeEndToEnd:
         result = coordinator.run(task)
         assert result.state == RunState.FAILED_TERMINAL
         assert result.failure_classification == "REWORK_LIMIT_EXHAUSTED"
+
+    def test_executor_failure_persists_bounded_diagnostic(self, tmp_path: Path) -> None:
+        task = _task()
+        store = SQLiteRunStore(tmp_path / "runs.sqlite3")
+        coordinator = PlatformV1Coordinator(
+            store=store,
+            workspace_manager=_FakeWorkspace(tmp_path / "workspace"),
+            executor=FakeCodexExecutorAdapter(
+                ExecutorResult(
+                    exit_code=7,
+                    timed_out=False,
+                    elapsed_seconds=0.2,
+                    output_sha256="a" * 64,
+                    summary="bounded failure",
+                    executor_reference="fake:failed",
+                )
+            ),
+            validator=_FakeValidator(),
+            publisher=_FakePublisher(),
+            workflow_observer=_FakeObserver(),
+        )
+        record = coordinator.run(task)
+        assert record.state == RunState.REWORK_REQUIRED
+        detail = store.events(record.execution_id)[-1].detail["executor"]
+        assert detail == {
+            "elapsed_seconds": 0.2,
+            "exit_code": 7,
+            "malformed": False,
+            "output_sha256": "a" * 64,
+            "summary": "bounded failure",
+            "timed_out": False,
+        }
