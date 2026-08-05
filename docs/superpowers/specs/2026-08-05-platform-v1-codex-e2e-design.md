@@ -1,10 +1,10 @@
 # Platform V1 Codex End-to-End Coordinator Design
 
-Date: 2026-08-05  
-Source Work Item: #114  
-Parent Product Issue: #90  
-Live Canary: #115  
-Starting Base: `1142dd324fdd4c4bf2a1353d9d5e93bc04b33507`  
+Date: 2026-08-05
+Source Work Item: #114
+Parent Product Issue: #90
+Live Canary: #115
+Starting Base: `1142dd324fdd4c4bf2a1353d9d5e93bc04b33507`
 Implementation Branch: `agent/platform-v1-codex-e2e-v1`
 
 ## 1. Problem
