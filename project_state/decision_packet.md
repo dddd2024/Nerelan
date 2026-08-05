@@ -1,410 +1,60 @@
 # Decision Packet
 
 ```json decision_meta
-{
-  "schema_version": 1,
-  "decision_id": "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
-  "round_id": "round_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
-  "status": "APPROVED",
-  "mainline": "engineering_branch",
-  "skill_profiles": [
-    "reverse-agent-iteration@v2"
-  ]
-}
+{"schema_version":1,"decision_id":"decision_20260805_issue114_platform_v1_codex_e2e_v1","round_id":"round_20260805_issue114_platform_v1_codex_e2e_v1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
 ```
 
 ```json decision_contract
-{
-  "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260804_issue111_pr112_long_validation_budget_v5",
-  "follows_last_round_id": "round_20260804_issue111_pr112_long_validation_budget_v5",
-  "previous_audit_outcome": "PR112_V5_REJECTED_BOOTSTRAP_PATH_SET_AND_MERGE_TREE_UNSEALED",
-  "workstream_id": "issue111-pr112-bootstrap-path-tree-seal-v6",
-  "source_issue": 111,
-  "parent_issue": 90,
-  "dependent_issue": 105,
-  "dependent_pr": 106,
-  "prior_bootstrap_issue": 109,
-  "prior_bootstrap_pr": 110,
-  "active_pr": 112,
-  "required_branch": "owner/state-gate-bootstrap-v13-retry-v3",
-  "starting_head": "bc12fc3d5c92fda3066f3ce6f5043effec918a0e",
-  "activation_base_sha": "93984db182b7ee11b3ccb8795bb5fc3741205b92",
-  "risk_tier": "R2",
-  "governance_artifact_risk_tier": "R2",
-  "decision_commit_must_precede_implementation": true,
-  "decision_content_immutable_after_activation": true,
-  "pr_creation_allowed": false,
-  "pr_body_update_allowed": true,
-  "pr_comment_allowed": true,
-  "issue_comment_allowed": false,
-  "merge_allowed": false,
-  "mark_ready_allowed": false,
-  "auto_merge_allowed": false,
-  "force_push_allowed": false,
-  "rebase_allowed": false,
-  "release_allowed": false,
-  "deployment_allowed": false,
-  "real_provider_credential_allowed": false,
-  "live_work_item_publication_allowed": false,
-  "trusted_host_live_probe_allowed": false,
-  "repair_attempt_limit": 0,
-  "audit_generation_allowed": false,
-  "prior_audits_immutable": true,
-  "bootstrap_state_initial": "BOOTSTRAP_OPEN",
-  "bootstrap_exception_files": [
-    "project_state/decision_packet.md",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
-  ],
-  "bootstrap_exception_commands": [
-    "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-    "git status --short",
-    "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
-    "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
-    "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre"
-  ],
-  "allowed_commands": [
-    {
-      "command_id": "observation.git_status",
-      "command": "git status --short",
-      "phase": "status",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "test.pytest_control_plane_and_gate",
-      "command": "python -m pytest tests/test_control_plane_transition.py tests/test_planning_and_github_adapters.py tests/test_project_gate.py -q",
-      "phase": "test",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "test.pytest_platform_v1_contracts_and_intent",
-      "command": "python -m pytest tests/platform_v1/test_contracts.py tests/platform_v1/test_merge_intent.py -q",
-      "phase": "test",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "test.pytest_platform_v1_all",
-      "command": "python -m pytest tests/platform_v1 -q",
-      "phase": "test",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "test.pytest_repository_hygiene_and_supervisor",
-      "command": "python -m pytest tests/test_repository_hygiene.py tests/test_supervisor_validate.py -q",
-      "phase": "test",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "test.pytest_minimal_integration_baseline_docs",
-      "command": "python -m pytest tests/test_minimal_integration_baseline_docs.py -q",
-      "phase": "test",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "validation.diff_check",
-      "command": "git diff --check 93984db182b7ee11b3ccb8795bb5fc3741205b92..HEAD",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["diff_validation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "publication.push_branch",
-      "command": "git push origin owner/state-gate-bootstrap-v13-retry-v3",
-      "phase": "publication",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["push", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "observation.pr_metadata",
-      "command": "gh pr view 112 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
-      "phase": "observation",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "observation.pr_checks",
-      "command": "gh pr checks 112 --repo dddd2024/reverse-agent --watch",
-      "phase": "observation",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "publication.pr_edit",
-      "command": "gh pr edit 112 --repo dddd2024/reverse-agent --body-file -",
-      "phase": "publication",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["pr_body_update", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "publication.pr_comment",
-      "command": "gh pr comment 112 --repo dddd2024/reverse-agent --body-file -",
-      "phase": "publication",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["pr_comment", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    }
-  ],
-  "allowed_mutated_paths": [
-    ".github/workflows/state-gate.yml",
-    "project_state/decision_packet.md",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr110_v1.json",
-    "project_state/mainline_merge_intents/archive/pr112_v1.json",
-    "project_state/mainline_merge_intents/archive/pr112_v2.json",
-    "project_state/mainline_merge_intents/archive/pr112_v3.json",
-    "project_state/mainline_merge_intents/archive/pr112_v4.json",
-    "project_state/mainline_merge_intents/archive/pr112_v5.json",
-    "tests/platform_v1/test_contracts.py",
-    "tests/platform_v1/test_merge_intent.py"
-  ],
-  "reference_paths": [
-    "AGENTS.md",
-    ".github/workflows/ci.yml",
-    ".github/workflows/decision-preflight.yml",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/github_remote_verifier.py",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/platform_v1/contracts.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_planning_and_github_adapters.py",
-    "tests/test_project_gate.py",
-    "tests/test_repository_hygiene.py",
-    "tests/test_supervisor_validate.py",
-    "tests/test_minimal_integration_baseline_docs.py",
-    "project_state/mainline_merge_intents/archive/pr97_v1.json",
-    "project_state/mainline_merge_intents/archive/pr97_v2.json",
-    "project_state/mainline_merge_intents/archive/pr97_v3.json",
-    "project_state/mainline_merge_intents/archive/pr97_v4.json",
-    "project_state/mainline_merge_intents/archive/pr108_v1.json"
-  ],
-  "generated_artifact_paths": [
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
-  ],
-  "forbidden_mutated_paths": [
-    ".github/workflows/ci.yml",
-    ".github/workflows/decision-preflight.yml",
-    "reverse_agent/**",
-    "docs/**",
-    "deploy/**",
-    "examples/**",
-    "pyproject.toml",
-    "requirements*.txt",
-    "poetry.lock",
-    "uv.lock",
-    "package-lock.json",
-    "pnpm-lock.yaml",
-    "yarn.lock",
-    "project_state/current_state.json",
-    "project_state/state_manifest.json",
-    "project_state/artifact_index.json",
-    "project_state/schemas/**",
-    "project_state/rounds/**",
-    "project_state/audits/**",
-    "project_state/mainline_merge_intents/archive/pr97_v1.json",
-    "project_state/mainline_merge_intents/archive/pr97_v2.json",
-    "project_state/mainline_merge_intents/archive/pr97_v3.json",
-    "project_state/mainline_merge_intents/archive/pr108_v1.json"
-  ],
-  "forbidden_operations": [
-    "create a branch or pull request",
-    "direct push to main",
-    "mark ready",
-    "merge",
-    "auto merge",
-    "force push",
-    "rebase",
-    "squash",
-    "tag or release",
-    "deployment",
-    "credential access or publication",
-    "Issue 102 execution",
-    "Docker OpenHands Agent Canvas or Codex ACP execution",
-    "shadow-audit generation or execution",
-    "invoke a second model or nested agent",
-    "runner dispatch",
-    "unknown binary execution",
-    "external reverse-tool invocation",
-    "modify PR 106",
-    "modify paths outside the exact eleven-path Bootstrap scope",
-    "delete historical or negative assertions",
-    "weaken digest or workflow validation",
-    "fall back to an older successful workflow run"
-  ],
-  "capability_policy": {
-    "runner_dispatch_allowed": false,
-    "model_api_invocation_allowed": false,
-    "external_reverse_tool_invocation_allowed": false,
-    "unknown_binary_execution_allowed": false,
-    "destructive_operations_allowed": false,
-    "bmad_installation_allowed": false,
-    "network_access_default_allowed": false,
-    "direct_push_to_main_allowed": false,
-    "merge_allowed": false,
-    "force_push_allowed": false,
-    "rebase_during_execution_allowed": false,
-    "tag_or_release_allowed": false,
-    "remote_observation_read_only_allowed": true,
-    "local_network_exceptions": [
-      "git push origin owner/state-gate-bootstrap-v13-retry-v3",
-      "gh pr view 112 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
-      "gh pr checks 112 --repo dddd2024/reverse-agent --watch",
-      "gh pr edit 112 --repo dddd2024/reverse-agent --body-file -",
-      "gh pr comment 112 --repo dddd2024/reverse-agent --body-file -"
-    ],
-    "ci_network_exceptions": []
-  },
-  "authorized_risk_tier": "R2",
-  "authorized_risk_paths": [
-    ".github/workflows/state-gate.yml",
-    "project_state/decision_packet.md",
-    "project_state/gates/**",
-    "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr110_v1.json",
-    "project_state/mainline_merge_intents/archive/pr112_v1.json",
-    "project_state/mainline_merge_intents/archive/pr112_v2.json",
-    "project_state/mainline_merge_intents/archive/pr112_v3.json",
-    "project_state/mainline_merge_intents/archive/pr112_v4.json",
-    "project_state/mainline_merge_intents/archive/pr112_v5.json",
-    "tests/platform_v1/test_contracts.py",
-    "tests/platform_v1/test_merge_intent.py"
-  ],
-  "path_risk_floor": [
-    {
-      "pattern": ".github/workflows/**",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "project_state/decision_packet.md",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "project_state/gates/**",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "project_state/mainline_merge_intents/**",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "tests/platform_v1/**",
-      "minimum_risk": "R2"
-    }
-  ]
-}
+{"transition_kernel_required":true,"follows_last_decision_id":"decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6","follows_last_round_id":"round_20260804_issue111_pr112_bootstrap_path_tree_seal_v6","previous_audit_outcome":"ISSUE113_B4_V2_TERMINATED_REQUIRED_FULL_SUITE_TIMEOUT_PLATFORM_V1_E2E_AUTHORITY_REQUIRED","workstream_id":"issue114-platform-v1-codex-e2e-v1","source_issue":114,"parent_issue":90,"canary_issue":115,"dependent_issue":113,"dependent_pr":106,"active_pr":114,"canary_pr":115,"required_branch":"agent/platform-v1-codex-e2e-v1","starting_head":"01ffc2384deb69c271f4305e2cb9c00d2060df39","activation_base_sha":"1142dd324fdd4c4bf2a1353d9d5e93bc04b33507","risk_tier":"R2","governance_artifact_risk_tier":"R2","decision_commit_must_precede_implementation":true,"decision_content_immutable_after_activation":true,"pr_creation_allowed":true,"pr_body_update_allowed":true,"pr_comment_allowed":true,"issue_comment_allowed":true,"branch_creation_allowed":true,"normal_push_allowed":true,"draft_pr_creation_allowed":true,"canary_branch_creation_allowed":true,"canary_draft_pr_creation_allowed":true,"exact_head_workflow_observation_allowed":true,"merge_allowed":false,"mark_ready_allowed":false,"auto_merge_allowed":false,"force_push_allowed":false,"rebase_allowed":false,"release_allowed":false,"deployment_allowed":false,"real_provider_credential_allowed":true,"live_work_item_publication_allowed":true,"trusted_host_live_probe_allowed":true,"repair_attempt_limit":2,"infrastructure_retry_limit":1,"repository_wide_suite_diagnostic_only":true,"audit_generation_allowed":false,"prior_audits_immutable":true,"bootstrap_state_initial":"BOOTSTRAP_OPEN","bootstrap_exception_files":["project_state/decision_packet.md","project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/bootstrap_state.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"],"bootstrap_exception_commands":["python -m reverse_agent.project_gate startup-snapshot --state-dir project_state","git status --short","python -m reverse_agent.project_gate transition-command-plan --state-dir project_state","python -m reverse_agent.project_gate transition-lint --state-dir project_state","python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre"],"allowed_commands":[{"command_id":"observation.git_status","command":"git status --short","phase":"status","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"observation.codex_version","command":"codex --version","phase":"observation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["toolchain_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"observation.codex_exec_help","command":"codex exec --help","phase":"observation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["toolchain_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"observation.gh_auth","command":"gh auth status","phase":"observation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["auth_status_observation","network_access"],"network_access":true,"required_evidence_source":"local_command_evidence"},{"command_id":"test.platform_v1","command":"python -m pytest tests/platform_v1 -q","phase":"test","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"test.supervisor_hygiene","command":"python -m pytest tests/test_supervisor_validate.py tests/test_repository_hygiene.py -q","phase":"test","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"test.baseline_docs","command":"python -m pytest tests/test_minimal_integration_baseline_docs.py -q","phase":"test","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"test.executor_neutral","command":"python -m pytest tests/executor_neutral -q","phase":"test","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"test.control_plane_gate","command":"python -m pytest tests/test_control_plane_transition.py tests/test_planning_and_github_adapters.py tests/test_project_gate.py -q","phase":"test","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"diagnostic.full_suite","command":"python -m pytest -q","phase":"diagnostic","required":false,"expected_exit_codes":[0,1,124],"execution_surface":"local","operations":["run_checks"],"network_access":false,"diagnostic_only":true,"required_evidence_source":"local_command_evidence"},{"command_id":"validation.diff_check","command":"git diff --check 1142dd324fdd4c4bf2a1353d9d5e93bc04b33507..HEAD","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"publication.push_implementation","command":"git push origin agent/platform-v1-codex-e2e-v1","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["push","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation"},{"command_id":"publication.create_pr114","command":"gh api --method POST repos/dddd2024/reverse-agent/pulls -F issue=114 -f head=agent/platform-v1-codex-e2e-v1 -f base=main -F draft=true","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["pr_create","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation"},{"command_id":"execution.canary_run","command":"python -m reverse_agent.platform_v1.cli run-e2e --repo-dir F:/reverse-agent --repository dddd2024/reverse-agent --issue-number 115 --workspace-root F:/reverse-agent-workspaces","phase":"execution","required":true,"expected_exit_codes":[0,40,50,60],"execution_surface":"local","operations":["runner_dispatch","model_api_invocation","worktree_create","branch_create","run_checks","commit","push","pr_create","issue_comment","network_access"],"network_access":true,"required_evidence_source":"local_command_evidence","allowed_mutated_paths":["examples/platform_v1_target/e2e_canary_115.txt"]},{"command_id":"execution.canary_resume","command":"python -m reverse_agent.platform_v1.cli resume --repo-dir F:/reverse-agent --repository dddd2024/reverse-agent --issue-number 115 --workspace-root F:/reverse-agent-workspaces","phase":"execution","required":true,"expected_exit_codes":[0,40,50,60],"execution_surface":"local","operations":["runner_dispatch","model_api_invocation","worktree_reconcile","repository_observation","network_access"],"network_access":true,"required_evidence_source":"local_command_evidence","allowed_mutated_paths":["examples/platform_v1_target/e2e_canary_115.txt"]},{"command_id":"execution.canary_status","command":"python -m reverse_agent.platform_v1.cli status --repo-dir F:/reverse-agent --repository dddd2024/reverse-agent --issue-number 115 --workspace-root F:/reverse-agent-workspaces","phase":"observation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"}],"allowed_mutated_paths":["docs/superpowers/specs/2026-08-05-platform-v1-codex-e2e-design.md","project_state/decision_packet.md","project_state/gates/bootstrap_state.json","project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json","project_state/mainline_merge_intents/active.json","project_state/mainline_merge_intents/archive/pr112_v6.json","reverse_agent/platform_v1/**","tests/platform_v1/**","scripts/platform_v1_*.py","docs/platform_v1/**","docs/testing/legacy-full-suite-debt.md","examples/platform_v1_target/**",".gitignore"],"reference_paths":["AGENTS.md","README.md","pyproject.toml",".github/workflows/**","reverse_agent/project_gate.py","reverse_agent/control_plane/**","reverse_agent/mainline_landing.py","reverse_agent/github_remote_verifier.py","reverse_agent/unattended/**","reverse_agent/executor_neutral/**","scripts/supervisor_*.py","tests/executor_neutral/**","tests/test_supervisor_validate.py","tests/test_repository_hygiene.py","tests/test_minimal_integration_baseline_docs.py","tests/test_control_plane_transition.py","tests/test_planning_and_github_adapters.py","tests/test_project_gate.py","deploy/**","project_state/schemas/**","project_state/rounds/**","project_state/audits/**"],"generated_artifact_paths":["project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/bootstrap_state.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"],"forbidden_mutated_paths":["README.md","pyproject.toml",".github/workflows/**","reverse_agent/project_gate.py","reverse_agent/control_plane/**","reverse_agent/mainline_landing.py","reverse_agent/github_remote_verifier.py","reverse_agent/unattended/**","reverse_agent/executor_neutral/**","scripts/supervisor_*.py","tests/executor_neutral/**","tests/test_supervisor_validate.py","tests/test_repository_hygiene.py","tests/test_minimal_integration_baseline_docs.py","tests/test_control_plane_transition.py","tests/test_planning_and_github_adapters.py","tests/test_project_gate.py","deploy/**","project_state/schemas/**","project_state/rounds/**","project_state/audits/**","project_state/current_state.json","project_state/state_manifest.json","project_state/artifact_index.json"],"forbidden_operations":["direct_push_main","merge","mark_ready","auto_merge","force_push","rebase","squash","tag_or_release","release","deployment","credential_access","credential_publication","external_reverse_tool_invocation","unknown_binary_execution","destructive","bmad_installation","modify_pr_106","rerun_state_gate_30917109303","restore_or_continue_issue113_b4_v2","close_unrelated_issue_or_pr","production_infrastructure_change","unbounded_network_access"],"capability_policy":{"runner_dispatch_allowed":true,"model_api_invocation_allowed":true,"external_reverse_tool_invocation_allowed":false,"unknown_binary_execution_allowed":false,"destructive_operations_allowed":false,"bmad_installation_allowed":false,"network_access_default_allowed":false,"direct_push_to_main_allowed":false,"merge_allowed":false,"force_push_allowed":false,"rebase_during_execution_allowed":false,"tag_or_release_allowed":false,"remote_observation_read_only_allowed":true,"local_network_exceptions":["gh auth status","git push origin agent/platform-v1-codex-e2e-v1","gh api --method POST repos/dddd2024/reverse-agent/pulls -F issue=114 -f head=agent/platform-v1-codex-e2e-v1 -f base=main -F draft=true","python -m reverse_agent.platform_v1.cli run-e2e --repo-dir F:/reverse-agent --repository dddd2024/reverse-agent --issue-number 115 --workspace-root F:/reverse-agent-workspaces","python -m reverse_agent.platform_v1.cli resume --repo-dir F:/reverse-agent --repository dddd2024/reverse-agent --issue-number 115 --workspace-root F:/reverse-agent-workspaces"],"ci_network_exceptions":[]},"authorized_risk_tier":"R2","authorized_risk_paths":["project_state/decision_packet.md","project_state/gates/**","project_state/mainline_merge_intents/**","reverse_agent/platform_v1/**","scripts/platform_v1_*.py"],"path_risk_floor":[{"pattern":"project_state/decision_packet.md","minimum_risk":"R2"},{"pattern":"project_state/gates/**","minimum_risk":"R2"},{"pattern":"project_state/mainline_merge_intents/**","minimum_risk":"R2"}]}
 ```
 
 ## Goal
 
-Repair the exact-head Owner finding on existing Draft PR #112 by replacing the test-name-only candidate guard with a closed normalized-AST semantic-body allowlist. The v2 round starts from rejected v1 head `d19439387756c2b2516f9ca7af5a3d585a0b45a7` on branch `owner/state-gate-bootstrap-v13-retry-v3` and retains activation base B2 `93984db182b7ee11b3ccb8795bb5fc3741205b92`.
+Complete the first usable Platform V1 coordination middleware by reusing the accepted Platform V1 contracts, policy, evidence and GitHub adapters and integrating them with SQLite, isolated Git worktrees, the installed Codex CLI, normal Git publication and Draft PR workflow observation.
 
-The cumulative implementation is limited to the exact sixteen paths in `allowed_mutated_paths`; rejected v1 through v5 active Intents are archived byte-for-byte as `pr112_v1.json` through `pr112_v5.json`, while existing `pr110_v1.json` and every earlier archive remain immutable. V6 seals the same exact path set for both `B2..PR112_HEAD` and `B2..B3`, and requires the ordered-parent B3 merge tree to equal the accepted PR112 head tree. The semantic transformation allowlist, strict UTF-8 handling, deterministic marker-movement constructor, normalized AST comparison and every PR106/candidate/receipt trusted boundary remain unchanged.
+The implementation must prove the complete live chain with Issue #115:
 
-## Acceptance boundary
+```text
+approved Issue
+→ durable execution record
+→ isolated worktree and branch
+→ real Codex invocation
+→ exact bounded change
+→ scoped checks
+→ normal commit and push
+→ one Draft PR
+→ exact-head workflow observation and classification
+→ idempotent resume without a duplicate PR
+```
 
-The v6 Decision is committed before regenerated authority or binding updates. The standard transition Gate sequence must produce `transition-lint == PASSED`, `PRE_EXECUTION_AUTHORIZED`, `blocking_reasons == []`, and 18/18 checks `PASS` for the exact branch and B2 base. Rejected v5 active Intent is archived byte-for-byte as `archive/pr112_v5.json`; the new active Intent binds PR #112, B2, the committed v6 Decision and generated Command Plan, merge method `merge`, the current four-workflow policy, and a bounded expiry. The trusted bridge must fail closed on either Bootstrap path-seal mismatch or B3/accepted-head tree mismatch. Every required pytest process must retain an outer execution-harness timeout of at least 900 seconds, and the focused semantic-body regression must pass all 17 unchanged cases once before the complete validation sequence.
+The known B3 State Gate copy-heuristic defect is an external blocker and must be classified rather than repaired in this round. The implementation and canary PRs must remain Draft and unmerged.
 
-The trusted bridge derives B3 and the candidate head from the bound PR #106 event, proves B3 is the PR #112 ordered merge descendant of B2, and proves the exact four-commit H0-to-v14 topology and eleven-path net change. Candidate tests are parsed only as data. Qualified identities, class bases, decorators, arguments and normalized bodies are compared to H0 with only fixed transformations for runtime B3, v14 identity, historical-base separation and the exact v11r2 archive assertions; duplicate identities, collection controls, unknown calls, import changes, body weakening, assertion removal, fixture/helper changes and marker changes fail closed.
+## Acceptance
 
-All specified tests, semantic-body adversarial checks, YAML and workflow/receipt structural checks, and `git diff --check 93984db182b7ee11b3ccb8795bb5fc3741205b92..HEAD` must pass without repair or retry. The cumulative diff remains exactly twelve paths. Publication is limited to the existing branch and Draft PR #112 plus read-only check observation. PR #106 remains untouched; merge, mark-ready and auto-merge remain false. The terminal status is `PR112_BOOTSTRAP_V3_SEMANTIC_BODY_GUARD_READY_FOR_OWNER_AUDIT`.
+Required completion evidence:
+
+1. Generated transition Command Plan and preflight report bind this exact Decision, branch and base and report `PRE_EXECUTION_AUTHORIZED` with no blocking reasons.
+2. Provider-free Platform V1, Supervisor/hygiene, baseline-document, executor-neutral and control-plane/project-gate suites pass.
+3. The coordinator persists execution state in SQLite, resumes from side-effect boundaries and prevents duplicate branch/PR publication.
+4. Fake end-to-end coverage reaches `READY_FOR_HUMAN` without a model or network call.
+5. Issue #114 becomes one Draft PR on `agent/platform-v1-codex-e2e-v1`.
+6. The coordinator itself executes Issue #115 with the installed Codex, creates the exact one-file canary change, runs its approved checks, normally pushes and creates one Draft PR #115.
+7. A second `resume` invocation reuses the existing execution, branch and PR.
+8. Exact-head workflows are observed and classified. A deterministic known State Gate blocker may yield `BLOCKED_EXTERNAL` without semantically rejecting the product.
+9. No credential, token, authentication file or full environment dump is persisted or published.
+10. No merge, mark-ready, auto-merge, main push, force push, release, deployment, PR #106 mutation or B4 continuation occurs.
+
+Terminal:
+
+```text
+PLATFORM_V1_CODEX_E2E_DRAFT_PR_LOOP_COMPLETE
+```
+
+## Execution policy
+
+- The Decision authorizes two bounded Codex implementation/rework attempts and one additional infrastructure retry.
+- Ordinary product-test failures may be repaired with normal fix-forward commits on the same branch.
+- `python -m pytest -q` is optional diagnostic evidence. Exit `124` or trusted-host timeout is classified as `INFRASTRUCTURE_TIMEOUT`, not automatic semantic rejection.
+- Model invocation is allowed only through the trusted host's existing authenticated Codex installation. Credential extraction, printing, copying, persistence and publication remain forbidden.
+- Network access is fail-closed except for the exact commands listed in `local_network_exceptions`.
+- This Decision supersedes the stale Issue #111 / PR #112 authority only on `agent/platform-v1-codex-e2e-v1`; it does not modify `main`, PR #106, Issue #113 history or any other branch.
