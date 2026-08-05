@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
-  "round_id": "round_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
-  "expired_at": "2026-08-04T10:58:44+00:00"
+  "decision_id": "decision_20260804_issue113_state_gate_copy_heuristic_independent_b4_v2",
+  "round_id": "round_20260804_issue113_state_gate_copy_heuristic_independent_b4_v2",
+  "expired_at": "2026-08-05T01:11:21+00:00"
 }
