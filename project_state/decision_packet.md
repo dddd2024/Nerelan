@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260805_issue117_frontend_v1_openhands_ui_v1",
-  "round_id": "round_20260805_issue117_frontend_v1_openhands_ui_v1",
+  "decision_id": "decision_20260805_issue117_frontend_v1_openhands_ui_v2",
+  "round_id": "round_20260805_issue117_frontend_v1_openhands_ui_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,17 +14,17 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
-  "follows_last_round_id": "round_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
-  "previous_audit_outcome": "PR112_BOOTSTRAP_V6_MERGED_TO_MAIN_FRONTEND_V1_AUTHORITY_REQUIRED",
-  "workstream_id": "issue117-frontend-v1-openhands-ui-v1",
+  "follows_last_decision_id": "decision_20260805_issue117_frontend_v1_openhands_ui_v1",
+  "follows_last_round_id": "round_20260805_issue117_frontend_v1_openhands_ui_v1",
+  "previous_audit_outcome": "V1_AUTHORITY_INCOMPLETE_LOCAL_WORKTREE_COMMIT_AND_FRONTEND_PREFIX_COMMANDS_REQUIRED",
+  "workstream_id": "issue117-frontend-v1-openhands-ui-v2",
   "source_issue": 117,
   "parent_issue": 90,
   "selected_foundation_issue": 116,
   "backend_reference_pr": 114,
   "active_pr": 119,
   "required_branch": "agent/frontend-v1-openhands-ui",
-  "starting_head": "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507",
+  "starting_head": "8d91d78239acbdb4e22b15d0ed9994d3824e063d",
   "activation_base_sha": "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507",
   "selected_upstream_repository": "OpenHands/OpenHands",
   "selected_upstream_tag": "1.8.0",
@@ -40,6 +40,8 @@
   "pr_comment_allowed": true,
   "issue_comment_allowed": true,
   "branch_creation_allowed": true,
+  "worktree_creation_allowed": true,
+  "local_commit_allowed": true,
   "normal_push_allowed": true,
   "exact_head_workflow_observation_allowed": true,
   "merge_allowed": false,
@@ -98,6 +100,62 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
+      "command_id": "repository.fetch_branch",
+      "command": "git fetch origin agent/frontend-v1-openhands-ui",
+      "phase": "preparation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "repository.worktree_list",
+      "command": "git worktree list --porcelain",
+      "phase": "preparation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "repository.local_branch_check",
+      "command": "git show-ref --verify refs/heads/agent/frontend-v1-openhands-ui",
+      "phase": "preparation",
+      "required": false,
+      "expected_exit_codes": [0, 1],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "diagnostic_only": true
+    },
+    {
+      "command_id": "repository.worktree_add_from_remote",
+      "command": "git worktree add F:/reverse-agent-worktrees/frontend-v1-openhands-ui -b agent/frontend-v1-openhands-ui origin/agent/frontend-v1-openhands-ui",
+      "phase": "preparation",
+      "required": false,
+      "expected_exit_codes": [0, 128],
+      "execution_surface": "local",
+      "operations": ["branch_creation", "workspace_creation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "repository.worktree_add_existing_branch",
+      "command": "git worktree add F:/reverse-agent-worktrees/frontend-v1-openhands-ui agent/frontend-v1-openhands-ui",
+      "phase": "preparation",
+      "required": false,
+      "expected_exit_codes": [0, 128],
+      "execution_surface": "local",
+      "operations": ["workspace_creation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
       "command_id": "observation.node_version",
       "command": "node --version",
       "phase": "status",
@@ -123,12 +181,34 @@
       "command_id": "upstream.clone_openhands",
       "command": "git clone --filter=blob:none --depth 1 --branch 1.8.0 https://github.com/OpenHands/OpenHands.git F:/reverse-agent-upstreams/OpenHands-1.8.0",
       "phase": "preparation",
-      "required": true,
+      "required": false,
+      "expected_exit_codes": [0, 128],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "upstream.fetch_openhands_tag",
+      "command": "git -C F:/reverse-agent-upstreams/OpenHands-1.8.0 fetch --depth 1 origin tag 1.8.0",
+      "phase": "preparation",
+      "required": false,
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["repository_observation", "network_access"],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "upstream.checkout_exact_commit",
+      "command": "git -C F:/reverse-agent-upstreams/OpenHands-1.8.0 checkout --detach c7a765d900df294cbbf0f405ae26c9cbbd0fcc29",
+      "phase": "preparation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
     },
     {
       "command_id": "upstream.verify_openhands",
@@ -143,7 +223,7 @@
     },
     {
       "command_id": "dependency.npm_install",
-      "command": "npm install --ignore-scripts",
+      "command": "npm --prefix frontend install --ignore-scripts",
       "phase": "preparation",
       "required": true,
       "expected_exit_codes": [0],
@@ -154,7 +234,7 @@
     },
     {
       "command_id": "test.frontend",
-      "command": "npm test",
+      "command": "npm --prefix frontend test",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -165,7 +245,7 @@
     },
     {
       "command_id": "test.typecheck",
-      "command": "npm run typecheck",
+      "command": "npm --prefix frontend run typecheck",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -176,7 +256,7 @@
     },
     {
       "command_id": "test.lint",
-      "command": "npm run lint",
+      "command": "npm --prefix frontend run lint",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -187,7 +267,7 @@
     },
     {
       "command_id": "build.frontend",
-      "command": "npm run build",
+      "command": "npm --prefix frontend run build",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -198,7 +278,7 @@
     },
     {
       "command_id": "build.frontend_mock",
-      "command": "npm run build:mock",
+      "command": "npm --prefix frontend run build:mock",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -209,7 +289,7 @@
     },
     {
       "command_id": "runtime.frontend_mock",
-      "command": "npm run dev:mock -- --host 127.0.0.1 --port 4173",
+      "command": "npm --prefix frontend run dev:mock -- --host 127.0.0.1 --port 4173",
       "phase": "visual_validation",
       "required": false,
       "expected_exit_codes": [0, 130],
@@ -218,6 +298,61 @@
       "network_access": false,
       "required_evidence_source": "local_command_evidence",
       "diagnostic_only": true
+    },
+    {
+      "command_id": "governance.stage_generated_gates",
+      "command": "git add project_state/gates/command_plan.json project_state/gates/startup_snapshot.json project_state/gates/bootstrap_state.json project_state/gates/transition_command_plan_preview.json project_state/gates/transition_preflight_result.json",
+      "phase": "commit",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["stage_changes"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "governance.commit_generated_gates",
+      "command": "git commit -m \"governance: generate Issue 117 frontend command plan\"",
+      "phase": "commit",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["commit"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "implementation.stage_frontend",
+      "command": "git add frontend",
+      "phase": "commit",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["stage_changes"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "implementation.commit_frontend",
+      "command": "git commit -m \"feat(frontend): adapt OpenHands UI and permission policies\"",
+      "phase": "commit",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["commit"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "implementation.commit_fix_forward",
+      "command": "git commit -m \"fix(frontend): address bounded validation findings\"",
+      "phase": "commit",
+      "required": false,
+      "expected_exit_codes": [0, 1],
+      "execution_surface": "local",
+      "operations": ["commit"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
     },
     {
       "command_id": "validation.diff_check",
@@ -245,7 +380,7 @@
       "command_id": "publication.push_branch",
       "command": "git push origin agent/frontend-v1-openhands-ui",
       "phase": "publication",
-      "required": false,
+      "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["push", "network_access"],
@@ -402,8 +537,10 @@
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
+      "git fetch origin agent/frontend-v1-openhands-ui",
       "git clone --filter=blob:none --depth 1 --branch 1.8.0 https://github.com/OpenHands/OpenHands.git F:/reverse-agent-upstreams/OpenHands-1.8.0",
-      "npm install --ignore-scripts",
+      "git -C F:/reverse-agent-upstreams/OpenHands-1.8.0 fetch --depth 1 origin tag 1.8.0",
+      "npm --prefix frontend install --ignore-scripts",
       "git push origin agent/frontend-v1-openhands-ui",
       "gh pr view 119 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
       "gh pr checks 119 --repo dddd2024/reverse-agent --watch",
@@ -434,16 +571,16 @@ Build a fixture-driven reverse-agent Frontend V1 by adapting the non-enterprise 
 
 ## Acceptance
 
-1. Generated Command Plan and transition preflight bind this Decision and report `PRE_EXECUTION_AUTHORIZED` with no blockers.
+1. Generated Command Plan and transition preflight bind v2 and report `PRE_EXECUTION_AUTHORIZED` with no blockers.
 2. Only `frontend/**` and the standard generated gate artifacts change.
 3. OpenHands 1.8.0 exact commit is verified; only non-enterprise source is reused; MIT notices and a source-to-target reuse map are recorded.
 4. Task inbox and task-detail screens work with deterministic fixtures and cover loading, empty, error, activity, changes, evidence, and responsive states.
 5. `ASK_FOR_APPROVAL`, `CONTROLLER_REVIEW`, `OWNER_CONTROL`, and `CUSTOM` profiles work.
 6. `CUSTOM` independently configures merge, push-main, tag/release, package/container publication, preview/staging/production deployment, rollback, scopes, checks, budgets, expiry, retries, and stop conditions.
 7. The frontend validates and serializes policy objects and displays a plain-language authorization summary but performs no privileged side effect.
-8. `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, `npm run build:mock`, and the exact diff check pass.
+8. `npm --prefix frontend test`, typecheck, lint, build, mock build, and the exact diff check pass.
 9. Deterministic desktop and narrow screenshots are captured without credentials or absolute local paths.
-10. The exact branch is normally pushed and PR #119 remains Draft against `main` for independent Owner audit.
+10. Generated gates and frontend implementation are committed normally, the exact branch is pushed, and PR #119 remains Draft against `main` for independent Owner audit.
 11. No main push, merge, mark-ready, history rewrite, tag, release, publication, deployment, credential access, model invocation, OpenHands backend/runtime, workflow change, PR #106 mutation, or Issue #118 implementation occurs.
 
 ```text
@@ -452,6 +589,7 @@ FRONTEND_V1_OPENHANDS_PERMISSION_POLICY_PROTOTYPE_READY_FOR_OWNER_REVIEW
 
 ## Execution policy
 
+- This v2 Decision supersedes the unactivated v1 Decision on the same branch.
 - Run the standard Path-B gate sequence before modifying `frontend/**`.
 - Use only the fixed OpenHands repository, tag, and commit; fail closed on mismatch.
 - Clone upstream only into `F:/reverse-agent-upstreams/OpenHands-1.8.0` and never execute its backend, agent runtime, Docker, provider, or credential flows.
