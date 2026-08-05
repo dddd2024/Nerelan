@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260805_issue114_platform_v1_codex_e2e_v3",
-  "round_id": "round_20260805_issue114_platform_v1_codex_e2e_v3",
+  "decision_id": "decision_20260805_issue114_provider_free_v1_closure_v4",
+  "round_id": "round_20260805_issue114_provider_free_v1_closure_v4",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -26,9 +26,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.codex_version",
-      "command": "codex --version",
-      "phase": "observation",
+      "command_id": "test.provider_free_acceptance",
+      "command": "python -m pytest tests/platform_v1/test_provider_free_acceptance.py tests/platform_v1/test_coordinator_runtime.py tests/platform_v1/test_publication_runtime.py -q",
+      "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -36,54 +36,9 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "toolchain_observation"
+        "run_checks"
       ],
       "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "observation.codex_exec_help",
-      "command": "codex exec --help",
-      "phase": "observation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "toolchain_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "observation.gh_auth",
-      "command": "gh auth status",
-      "phase": "observation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "auth_status_observation",
-        "network_access"
-      ],
-      "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
@@ -203,6 +158,29 @@
       "allowed_mutated_paths": []
     },
     {
+      "command_id": "acceptance.provider_free_vertical_slice",
+      "command": "python -m reverse_agent.platform_v1.provider_free_acceptance --repo-dir F:/reverse-agent --workspace-root F:/reverse-agent-workspaces/provider-free-v1",
+      "phase": "acceptance",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks",
+        "repository_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
       "command_id": "diagnostic.full_suite",
       "command": "python -m pytest -q",
       "phase": "diagnostic",
@@ -249,7 +227,7 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.push_implementation",
+      "command_id": "publication.push_branch",
       "command": "git push origin agent/platform-v1-codex-e2e-v1",
       "phase": "publication",
       "required": false,
@@ -272,9 +250,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.create_pr114",
-      "command": "gh api --method POST repos/dddd2024/reverse-agent/pulls -F issue=114 -f head=agent/platform-v1-codex-e2e-v1 -f base=main -F draft=true",
-      "phase": "publication",
+      "command_id": "observation.pr114",
+      "command": "gh pr view 114 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
+      "phase": "observation",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
@@ -282,7 +260,7 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "pr_create",
+        "repository_observation",
         "network_access"
       ],
       "network_access": true,
@@ -295,86 +273,112 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "execution.canary_run",
-      "command": "python -m reverse_agent.platform_v1.cli run-e2e --repo-dir F:/reverse-agent --repository dddd2024/reverse-agent --issue-number 115 --workspace-root F:/reverse-agent-workspaces",
-      "phase": "execution",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0,
-        40,
-        50,
-        60
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "runner_dispatch",
-        "model_api_invocation",
-        "worktree_create",
-        "branch_create",
-        "run_checks",
-        "commit",
-        "push",
-        "pr_create",
-        "pr_body_update",
-        "issue_comment",
-        "repository_observation",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "examples/platform_v1_target/e2e_canary_115.txt"
-      ]
-    },
-    {
-      "command_id": "execution.canary_resume",
-      "command": "python -m reverse_agent.platform_v1.cli resume --repo-dir F:/reverse-agent --repository dddd2024/reverse-agent --issue-number 115 --workspace-root F:/reverse-agent-workspaces",
-      "phase": "execution",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0,
-        40,
-        50,
-        60
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "worktree_reconcile",
-        "repository_observation",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "examples/platform_v1_target/e2e_canary_115.txt"
-      ]
-    },
-    {
-      "command_id": "execution.canary_status",
-      "command": "python -m reverse_agent.platform_v1.cli status --repo-dir F:/reverse-agent --repository dddd2024/reverse-agent --issue-number 115 --workspace-root F:/reverse-agent-workspaces",
-      "phase": "observation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "command_id": "publication.pr114_edit",
+      "command": "gh pr edit 114 --repo dddd2024/reverse-agent --body-file -",
+      "phase": "publication",
+      "required": false,
+      "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_observation"
+        "pr_body_update",
+        "network_access"
       ],
-      "network_access": false,
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "publication.pr114_comment",
+      "command": "gh pr comment 114 --repo dddd2024/reverse-agent --body-file -",
+      "phase": "publication",
+      "required": false,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "pr_comment",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "publication.issue90_comment",
+      "command": "gh issue comment 90 --repo dddd2024/reverse-agent --body-file -",
+      "phase": "publication",
+      "required": false,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "issue_comment",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "publication.issue115_comment",
+      "command": "gh issue comment 115 --repo dddd2024/reverse-agent --body-file -",
+      "phase": "publication",
+      "required": false,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "issue_comment",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "observation.pr114_checks",
+      "command": "gh pr checks 114 --repo dddd2024/reverse-agent --watch",
+      "phase": "observation",
+      "required": false,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation",
+        "network_access"
+      ],
+      "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
