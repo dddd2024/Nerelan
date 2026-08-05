@@ -929,6 +929,7 @@ class TestActiveMergeIntentV6:
         self._archive_pr112_v3_path = intents_dir / "archive" / "pr112_v3.json"
         self._archive_pr112_v4_path = intents_dir / "archive" / "pr112_v4.json"
         self._archive_pr112_v5_path = intents_dir / "archive" / "pr112_v5.json"
+        self._archive_pr112_v6_path = intents_dir / "archive" / "pr112_v6.json"
         self._decision_path = repo_root / "project_state" / "decision_packet.md"
         self._command_plan_path = repo_root / "project_state" / "gates" / "command_plan.json"
         self._active = json.loads(self._active_path.read_text(encoding="utf-8"))
@@ -957,13 +958,16 @@ class TestActiveMergeIntentV6:
         self._archive_pr112_v5 = json.loads(
             self._archive_pr112_v5_path.read_text(encoding="utf-8")
         )
+        self._archive_pr112_v6 = json.loads(
+            self._archive_pr112_v6_path.read_text(encoding="utf-8")
+        )
 
-    def test_active_binds_source_pr_112(self) -> None:
-        assert self._active["source_pr"] == 112
+    def test_active_binds_source_pr_114(self) -> None:
+        assert self._active["source_pr"] == 114
 
-    def test_active_binds_bootstrap_decision_id(self) -> None:
+    def test_active_binds_platform_decision_id(self) -> None:
         assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
+            "decision_20260805_issue114_platform_v1_codex_e2e_v3"
         )
 
     def test_active_binds_bootstrap_decision_content_sha256(self) -> None:
@@ -981,9 +985,7 @@ class TestActiveMergeIntentV6:
         assert sha != self._archive_v3["command_plan_sha256"]
 
     def test_active_binds_locked_base_sha(self) -> None:
-        assert self._active["locked_base_sha"] == (
-            "93984db182b7ee11b3ccb8795bb5fc3741205b92"
-        )
+        assert self._active["locked_base_sha"] == "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507"
 
     def test_active_binds_merge_method(self) -> None:
         assert self._active["allowed_merge_method"] == "merge"
@@ -1140,6 +1142,13 @@ class TestActiveMergeIntentV6:
         header = f"blob {len(payload)}\0".encode("ascii")
         assert hashlib.sha1(header + payload).hexdigest() == (
             "64e555a98a1b748b2e320abb4559922bdc0d3649"
+        )
+
+    def test_archive_pr112_v6_is_exact_b3_active_blob(self) -> None:
+        payload = self._archive_pr112_v6_path.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "ed960c0e117051e8915b457028e4c0e5f0c3e07c"
         )
 
 

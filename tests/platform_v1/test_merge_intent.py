@@ -28,14 +28,14 @@ ARCHIVE_PR112_V2_PATH = INTENTS_DIR / "archive" / "pr112_v2.json"
 ARCHIVE_PR112_V3_PATH = INTENTS_DIR / "archive" / "pr112_v3.json"
 ARCHIVE_PR112_V4_PATH = INTENTS_DIR / "archive" / "pr112_v4.json"
 ARCHIVE_PR112_V5_PATH = INTENTS_DIR / "archive" / "pr112_v5.json"
+ARCHIVE_PR112_V6_PATH = INTENTS_DIR / "archive" / "pr112_v6.json"
 DECISION_PATH = REPO_ROOT / "project_state" / "decision_packet.md"
 COMMAND_PLAN_PATH = REPO_ROOT / "project_state" / "gates" / "command_plan.json"
 
 EXPECTED_PR97_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
 EXPECTED_BOOTSTRAP_BASE_SHA = "93984db182b7ee11b3ccb8795bb5fc3741205b92"
-EXPECTED_BOOTSTRAP_DECISION_ID = (
-    "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
-)
+EXPECTED_PLATFORM_BASE_SHA = "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507"
+EXPECTED_PLATFORM_DECISION_ID = "decision_20260805_issue114_platform_v1_codex_e2e_v3"
 EXPECTED_V4_DECISION_ID = (
     "decision_20260802_issue100_platform_v1_authority_collector_v4"
 )
@@ -68,9 +68,9 @@ class TestActiveMergeIntent:
     def test_active_file_exists(self) -> None:
         assert ACTIVE_PATH.exists(), f"active.json not found at {ACTIVE_PATH}"
 
-    def test_active_binds_source_pr_112(self) -> None:
+    def test_active_binds_source_pr_114(self) -> None:
         data = _load_json(ACTIVE_PATH)
-        assert data["source_pr"] == 112, "active intent must bind source_pr=112"
+        assert data["source_pr"] == 114, "active intent must bind source_pr=114"
 
     def test_active_does_not_have_source_pr_zero(self) -> None:
         data = _load_json(ACTIVE_PATH)
@@ -78,15 +78,15 @@ class TestActiveMergeIntent:
 
     def test_active_binds_locked_base_sha(self) -> None:
         data = _load_json(ACTIVE_PATH)
-        assert data["locked_base_sha"] == EXPECTED_BOOTSTRAP_BASE_SHA
+        assert data["locked_base_sha"] == EXPECTED_PLATFORM_BASE_SHA
 
     def test_active_binds_merge_method(self) -> None:
         data = _load_json(ACTIVE_PATH)
         assert data["allowed_merge_method"] == "merge"
 
-    def test_active_binds_bootstrap_decision_id(self) -> None:
+    def test_active_binds_platform_decision_id(self) -> None:
         data = _load_json(ACTIVE_PATH)
-        assert data["decision_identity"]["decision_id"] == EXPECTED_BOOTSTRAP_DECISION_ID
+        assert data["decision_identity"]["decision_id"] == EXPECTED_PLATFORM_DECISION_ID
 
     def test_active_decision_content_sha256_is_64_hex(self) -> None:
         data = _load_json(ACTIVE_PATH)
@@ -383,6 +383,25 @@ class TestArchivedPR112V5Intent:
             "decision_20260804_issue111_pr112_long_validation_budget_v5"
         )
         assert data["locked_base_sha"] == EXPECTED_BOOTSTRAP_BASE_SHA
+
+
+class TestArchivedPR112V6Intent:
+    def test_archive_pr112_v6_file_exists(self) -> None:
+        assert ARCHIVE_PR112_V6_PATH.exists()
+
+    def test_archive_pr112_v6_is_exact_b3_active_blob(self) -> None:
+        payload = ARCHIVE_PR112_V6_PATH.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "ed960c0e117051e8915b457028e4c0e5f0c3e07c"
+        )
+
+    def test_archive_pr112_v6_preserves_pr112_identity(self) -> None:
+        data = _load_json(ARCHIVE_PR112_V6_PATH)
+        assert data["source_pr"] == 112
+        assert data["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
+        )
 
 
 # ---------------------------------------------------------------------------
