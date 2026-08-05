@@ -1,9 +1,8 @@
-"""Platform V1 thin adapter: OpenHands Agent Canvas + Codex ACP vertical slice.
+"""Platform V1 policy, evidence, and trusted-host coordination adapters.
 
-This package provides only the thin policy/evidence/acceptance adapter between
-the reverse-agent governance layer and the pinned OpenHands Agent Canvas +
-Codex ACP platform surface. It does not implement a second executor, agent
-loop, sandbox, database, or frontend.
+The package remains a thin integration layer around installed Codex, Git, and
+GitHub tooling. It owns bounded SQLite coordination but does not implement an
+agent loop, sandbox, CI service, merge automation, or frontend.
 """
 
 from __future__ import annotations

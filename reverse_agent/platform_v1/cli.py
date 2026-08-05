@@ -34,7 +34,9 @@ F27: Live evidence is created only by the trusted factory in
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
+from pathlib import Path
 from typing import Any, Sequence
 
 from . import acceptance, authority_adapter, evidence_adapter, openhands_adapter, policy_adapter
@@ -46,6 +48,17 @@ from .contracts import (
 )
 from .evidence_adapter import EvidenceCollectionError
 from .github_adapter import GitHubAdapterError, composite_name
+from .coordinator import PlatformV1Coordinator
+from .execution_adapters import (
+    CodexExecutorAdapter,
+    GitHubPublicationAdapter,
+    GitWorktreeManager,
+    LocalValidationRunner,
+    WorkflowObserver,
+    redact_secrets,
+)
+from .issue_task import IssueTaskError, IssueTaskLoader
+from .run_store import RunState, SQLiteRunStore
 
 
 def _print_json(data: dict[str, Any]) -> None:
@@ -375,6 +388,107 @@ def cmd_evaluate_live_acceptance(args: Sequence[str]) -> int:
         return 10
 
 
+def _runtime_args(args: Sequence[str]) -> dict[str, Any]:
+    values: dict[str, str] = {}
+    index = 0
+    while index < len(args):
+        key = args[index]
+        if key not in {"--repo-dir", "--repository", "--issue-number", "--workspace-root"} or index + 1 >= len(args):
+            raise ValueError(f"invalid_runtime_argument:{key}")
+        values[key[2:].replace("-", "_")] = args[index + 1]
+        index += 2
+    missing = {"repo_dir", "repository", "issue_number", "workspace_root"} - set(values)
+    if missing:
+        raise ValueError(f"missing_runtime_arguments:{','.join(sorted(missing))}")
+    return {
+        "repo_dir": Path(values["repo_dir"]).resolve(),
+        "repository": values["repository"],
+        "issue_number": int(values["issue_number"]),
+        "workspace_root": Path(values["workspace_root"]).resolve(),
+    }
+
+
+def _runtime_store(repo_dir: Path) -> SQLiteRunStore:
+    return SQLiteRunStore(repo_dir / ".platform_v1_runtime" / "runs.sqlite3")
+
+
+def _run_exit(state: RunState) -> int:
+    if state in {RunState.READY_FOR_HUMAN, RunState.BLOCKED_EXTERNAL, RunState.WORKFLOWS_OBSERVED, RunState.DRAFT_PR_OPEN}:
+        return 0
+    if state == RunState.REWORK_REQUIRED:
+        return 40
+    if state in {RunState.FAILED_TERMINAL, RunState.CANCELLED}:
+        return 50
+    return 60
+
+
+def cmd_run_e2e(args: Sequence[str]) -> int:
+    try:
+        config = _runtime_args(args)
+        base_result = subprocess.run(
+            ["git", "rev-parse", "origin/main"], cwd=config["repo_dir"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if base_result.returncode != 0:
+            raise RuntimeError("origin_main_unavailable")
+        task = IssueTaskLoader().load(
+            config["repository"], config["issue_number"], base_result.stdout.strip(),
+        )
+        store = _runtime_store(config["repo_dir"])
+        coordinator = PlatformV1Coordinator(
+            store=store,
+            workspace_manager=GitWorktreeManager(config["repo_dir"], config["workspace_root"]),
+            executor=CodexExecutorAdapter(),
+            validator=LocalValidationRunner(),
+            publisher=GitHubPublicationAdapter(config["repository"]),
+            workflow_observer=WorkflowObserver(),
+        )
+        record = coordinator.run(task)
+        _print_json(record.to_mapping())
+        return _run_exit(record.state)
+    except IssueTaskError as exc:
+        _print_json({"status": "AUTHORITY_ERROR", "code": exc.code, "detail": exc.detail})
+        return 50
+    except (ValueError, RuntimeError, OSError, subprocess.SubprocessError) as exc:
+        _print_json({"status": "RUNTIME_ERROR", "error": redact_secrets(str(exc))})
+        return 60
+
+
+def cmd_resume(args: Sequence[str]) -> int:
+    return cmd_run_e2e(args)
+
+
+def cmd_status(args: Sequence[str]) -> int:
+    try:
+        config = _runtime_args(args)
+        store = _runtime_store(config["repo_dir"])
+        record = store.find_by_issue(config["repository"], config["issue_number"])
+        if record is None:
+            _print_json({"status": "NOT_FOUND", "repository": config["repository"], "issue_number": config["issue_number"]})
+            return 50
+        _print_json(record.to_mapping())
+        return 0
+    except (ValueError, OSError) as exc:
+        _print_json({"status": "SCHEMA_ERROR", "error": str(exc)})
+        return 10
+
+
+def cmd_cancel(args: Sequence[str]) -> int:
+    try:
+        config = _runtime_args(args)
+        store = _runtime_store(config["repo_dir"])
+        record = store.find_by_issue(config["repository"], config["issue_number"])
+        if record is None:
+            _print_json({"status": "NOT_FOUND", "repository": config["repository"], "issue_number": config["issue_number"]})
+            return 50
+        record = store.cancel(record.execution_id)
+        _print_json(record.to_mapping())
+        return 0
+    except (ValueError, OSError) as exc:
+        _print_json({"status": "SCHEMA_ERROR", "error": str(exc)})
+        return 10
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -386,6 +500,10 @@ _COMMANDS = {
     "ingest-events": cmd_ingest_events,
     "evaluate-acceptance": cmd_evaluate_acceptance,
     "evaluate-live-acceptance": cmd_evaluate_live_acceptance,
+    "run-e2e": cmd_run_e2e,
+    "resume": cmd_resume,
+    "status": cmd_status,
+    "cancel": cmd_cancel,
 }
 
 

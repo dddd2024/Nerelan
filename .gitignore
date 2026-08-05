@@ -42,3 +42,6 @@ project_state/triage_*/
 codex_login*
 *.token
 *.api_key
+
+# Platform V1 trusted-host runtime state (SQLite/WAL files are local evidence)
+.platform_v1_runtime/
