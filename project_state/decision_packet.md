@@ -22,6 +22,7 @@
   "parent_issue": 90,
   "selected_foundation_issue": 116,
   "backend_reference_pr": 114,
+  "active_pr": 119,
   "required_branch": "agent/frontend-v1-openhands-ui",
   "starting_head": "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507",
   "activation_base_sha": "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507",
@@ -250,6 +251,61 @@
       "operations": ["push", "network_access"],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "observation.pr119",
+      "command": "gh pr view 119 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
+      "phase": "observation",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "observation.pr119_checks",
+      "command": "gh pr checks 119 --repo dddd2024/reverse-agent --watch",
+      "phase": "observation",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "publication.pr119_edit",
+      "command": "gh pr edit 119 --repo dddd2024/reverse-agent --body-file -",
+      "phase": "publication",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["pr_body_update", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "publication.pr119_comment",
+      "command": "gh pr comment 119 --repo dddd2024/reverse-agent --body-file -",
+      "phase": "publication",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["pr_comment", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "publication.issue117_comment",
+      "command": "gh issue comment 117 --repo dddd2024/reverse-agent --body-file -",
+      "phase": "publication",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["issue_comment", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation"
     }
   ],
   "allowed_mutated_paths": [
@@ -348,7 +404,12 @@
     "local_network_exceptions": [
       "git clone --filter=blob:none --depth 1 --branch 1.8.0 https://github.com/OpenHands/OpenHands.git F:/reverse-agent-upstreams/OpenHands-1.8.0",
       "npm install --ignore-scripts",
-      "git push origin agent/frontend-v1-openhands-ui"
+      "git push origin agent/frontend-v1-openhands-ui",
+      "gh pr view 119 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
+      "gh pr checks 119 --repo dddd2024/reverse-agent --watch",
+      "gh pr edit 119 --repo dddd2024/reverse-agent --body-file -",
+      "gh pr comment 119 --repo dddd2024/reverse-agent --body-file -",
+      "gh issue comment 117 --repo dddd2024/reverse-agent --body-file -"
     ],
     "ci_network_exceptions": []
   },
@@ -382,7 +443,7 @@ Build a fixture-driven reverse-agent Frontend V1 by adapting the non-enterprise 
 7. The frontend validates and serializes policy objects and displays a plain-language authorization summary but performs no privileged side effect.
 8. `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, `npm run build:mock`, and the exact diff check pass.
 9. Deterministic desktop and narrow screenshots are captured without credentials or absolute local paths.
-10. The exact branch is normally pushed and the implementation remains a Draft PR against `main` for independent Owner audit.
+10. The exact branch is normally pushed and PR #119 remains Draft against `main` for independent Owner audit.
 11. No main push, merge, mark-ready, history rewrite, tag, release, publication, deployment, credential access, model invocation, OpenHands backend/runtime, workflow change, PR #106 mutation, or Issue #118 implementation occurs.
 
 ```text
@@ -398,4 +459,4 @@ FRONTEND_V1_OPENHANDS_PERMISSION_POLICY_PROTOTYPE_READY_FOR_OWNER_REVIEW
 - Use deterministic fixture data only.
 - Two product-repair attempts and one infrastructure retry are allowed; do not stop for one ordinary test failure.
 - Stop for authority mismatch, unexpected path, secret exposure risk, base/branch conflict, upstream commit mismatch, or exhausted bounded attempts.
-- Publication is limited to the exact branch, one Draft PR against `main`, PR updates/comments, Issue #117 evidence comments, and exact-head workflow observation.
+- Publication is limited to the exact branch, PR #119 Draft updates/comments, Issue #117 evidence comments, and exact-head workflow observation.
