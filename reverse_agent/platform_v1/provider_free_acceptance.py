@@ -327,6 +327,7 @@ def _create_fixture_repo(fixture_dir: Path) -> tuple[Path, Path, str]:
 
     source.mkdir()
     _git(source, "init")
+    _git(source, "symbolic-ref", "HEAD", "refs/heads/main")
     _git(source, "config", "user.email", "fixture@example.invalid")
     _git(source, "config", "user.name", "Fixture")
     (source / "README.md").write_text("fixture\n", encoding="utf-8")
