@@ -95,7 +95,7 @@ class CodexExecutorAdapter:
         try:
             result = self._runner(
                 ["codex", "exec", "--full-auto", "--ephemeral", "--color", "never", "-C", str(worktree), "-"],
-                input=prompt, capture_output=True, text=True, timeout=timeout_seconds,
+                input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout_seconds,
             )
             output = (result.stdout or "") + "\n" + (result.stderr or "")
             sanitized = redact_secrets(output)
@@ -144,7 +144,10 @@ class LocalValidationRunner:
         for index, command in enumerate(commands):
             started = time.monotonic()
             try:
-                result = self._runner(command, cwd=worktree, shell=True, capture_output=True, text=True, timeout=timeout_seconds)
+                result = self._runner(
+                    command, cwd=worktree, shell=True, capture_output=True, text=True,
+                    encoding="utf-8", errors="replace", timeout=timeout_seconds,
+                )
                 stdout = redact_secrets(result.stdout or "")
                 stderr = redact_secrets(result.stderr or "")
                 classification = "SUCCESS" if result.returncode == 0 else "PRODUCT_TEST_FAILURE"
@@ -163,7 +166,10 @@ class LocalValidationRunner:
 
 
 def _git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True)
+    result = subprocess.run(
+        ["git", *args], cwd=repo, capture_output=True, text=True,
+        encoding="utf-8", errors="replace",
+    )
     if check and result.returncode != 0:
         raise RuntimeError(f"git_failed:{' '.join(args)}:{_summary(result.stderr)}")
     return result
@@ -267,7 +273,8 @@ class GitHubPublicationAdapter:
 
     def _run_gh(self, argv: list[str], *, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
         result = self._runner(
-            argv, input=input_text, capture_output=True, text=True, timeout=120,
+            argv, input=input_text, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=120,
         )
         if result.returncode != 0:
             raise RuntimeError(f"gh_failed:{' '.join(argv[:4])}:exit={result.returncode}:{_summary(result.stderr or '')}")
@@ -434,7 +441,7 @@ class WorkflowObserver:
     def _load_failed_log(repository: str, run_id: str) -> str:
         result = subprocess.run(
             ["gh", "run", "view", run_id, "--repo", repository, "--log-failed"],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
         )
         return redact_secrets((result.stdout or "") + "\n" + (result.stderr or ""))[:20000]
 

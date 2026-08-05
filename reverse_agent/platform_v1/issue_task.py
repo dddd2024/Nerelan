@@ -189,19 +189,19 @@ class IssueTaskLoader:
         issue_result = self._runner(
             ["gh", "issue", "view", str(issue_number), "--repo", repository,
              "--json", "number,state,body,labels"],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
         )
         if issue_result.returncode != 0:
             raise IssueTaskError("gh_issue_view_failed", f"exit={issue_result.returncode}")
         events_result = self._runner(
             ["gh", "api", f"repos/{repository}/issues/{issue_number}/events?per_page=100"],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
         )
         if events_result.returncode != 0:
             raise IssueTaskError("gh_issue_events_failed", f"exit={events_result.returncode}")
         try:
-            issue = json.loads(issue_result.stdout)
-            events = json.loads(events_result.stdout)
+            issue = json.loads(issue_result.stdout or "")
+            events = json.loads(events_result.stdout or "")
         except json.JSONDecodeError as exc:
             raise IssueTaskError("gh_issue_json_invalid", str(exc)) from exc
         return self.parse(

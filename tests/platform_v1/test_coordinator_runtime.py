@@ -83,6 +83,23 @@ def _task():
 
 
 class TestIssueTaskLoader:
+    def test_live_loader_forces_utf8_for_github_json(self) -> None:
+        calls: list[dict[str, object]] = []
+
+        def runner(argv, **kwargs):
+            calls.append(kwargs)
+            if argv[:3] == ["gh", "issue", "view"]:
+                payload = _issue(body=_issue_body(goal="Create one file \u2192 verify it."))
+            else:
+                payload = _events()
+            return subprocess.CompletedProcess(argv, 0, json.dumps(payload, ensure_ascii=False), "")
+
+        loaded = IssueTaskLoader(runner=runner).load("dddd2024/reverse-agent", 115, BASE)
+        assert loaded.work_item.source_issue_number == 115
+        assert calls
+        assert all(call["encoding"] == "utf-8" for call in calls)
+        assert all(call["errors"] == "replace" for call in calls)
+
     def test_extracts_one_task_and_owner_approval(self) -> None:
         loaded = _task()
         assert loaded.work_item.source_issue_number == 115
@@ -211,6 +228,8 @@ class TestExecutionAdapters:
         def runner(argv, **kwargs):
             captured["argv"] = argv
             captured["input"] = kwargs["input"]
+            captured["encoding"] = kwargs.get("encoding")
+            captured["errors"] = kwargs.get("errors")
             return subprocess.CompletedProcess(argv, 0, "completed", "")
 
         result = CodexExecutorAdapter(runner=runner).execute(_task(), tmp_path, 30)
@@ -219,6 +238,8 @@ class TestExecutionAdapters:
         assert "The machine-readable task block is the only authority" in str(captured["input"])
         assert "Do not commit or publish" in str(captured["input"])
         assert "--full-auto" in captured["argv"]
+        assert captured["encoding"] == "utf-8"
+        assert captured["errors"] == "replace"
     def test_fake_codex_success_failure_timeout_and_malformed(self, tmp_path: Path) -> None:
         worktree = tmp_path / "worktree"
         worktree.mkdir()

@@ -427,7 +427,7 @@ def cmd_run_e2e(args: Sequence[str]) -> int:
         config = _runtime_args(args)
         base_result = subprocess.run(
             ["git", "rev-parse", "origin/main"], cwd=config["repo_dir"],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
         )
         if base_result.returncode != 0:
             raise RuntimeError("origin_main_unavailable")
@@ -445,7 +445,7 @@ def cmd_run_e2e(args: Sequence[str]) -> int:
                 evidence_targets=(90, 114, config["issue_number"]),
                 implementation_head=subprocess.run(
                     ["git", "rev-parse", "HEAD"], cwd=config["repo_dir"],
-                    capture_output=True, text=True, timeout=30, check=True,
+                    capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30, check=True,
                 ).stdout.strip(),
             ),
             workflow_observer=WorkflowObserver(),
