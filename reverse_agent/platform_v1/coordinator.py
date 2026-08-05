@@ -152,6 +152,19 @@ class PlatformV1Coordinator:
                 if hasattr(self.publisher, "publish_evidence"):
                     self.publisher.publish_evidence(record, task)
                 return record
+            # Verify all required workflow keys are present before accepting.
+            required_keys = getattr(self.workflow_observer, "required_keys", frozenset())
+            observed_keys = {
+                (str(item.get("workflow_name", "")), str(item.get("event", "")))
+                for item in record.workflow_observations
+            }
+            missing_keys = required_keys - observed_keys if required_keys else set()
+            if "STALE_HEAD" in classifications:
+                record = self.store.update(record.execution_id, failure_classification="STALE_HEAD")
+                return self.store.transition(record.execution_id, RunState.REWORK_REQUIRED)
+            if missing_keys:
+                record = self.store.update(record.execution_id, failure_classification="MISSING_REQUIRED_WORKFLOWS")
+                return self.store.transition(record.execution_id, RunState.REWORK_REQUIRED)
             if classifications and classifications <= {"SUCCESS"}:
                 record = self.store.update(record.execution_id, failure_classification="SUCCESS")
                 record = self.store.transition(record.execution_id, RunState.READY_FOR_HUMAN)

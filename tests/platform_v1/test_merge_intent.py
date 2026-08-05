@@ -35,7 +35,7 @@ COMMAND_PLAN_PATH = REPO_ROOT / "project_state" / "gates" / "command_plan.json"
 EXPECTED_PR97_BASE_SHA = "705a0bfd6638d51c688752f154433020225c4e99"
 EXPECTED_BOOTSTRAP_BASE_SHA = "93984db182b7ee11b3ccb8795bb5fc3741205b92"
 EXPECTED_PLATFORM_BASE_SHA = "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507"
-EXPECTED_PLATFORM_DECISION_ID = "decision_20260805_issue114_platform_v1_codex_e2e_v3"
+EXPECTED_PLATFORM_DECISION_ID = "decision_20260805_issue114_provider_free_v1_closure_v4"
 EXPECTED_V4_DECISION_ID = (
     "decision_20260802_issue100_platform_v1_authority_collector_v4"
 )

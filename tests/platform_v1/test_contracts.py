@@ -967,7 +967,7 @@ class TestActiveMergeIntentV6:
 
     def test_active_binds_platform_decision_id(self) -> None:
         assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260805_issue114_platform_v1_codex_e2e_v3"
+            "decision_20260805_issue114_provider_free_v1_closure_v4"
         )
 
     def test_active_binds_bootstrap_decision_content_sha256(self) -> None:
