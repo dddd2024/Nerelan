@@ -232,12 +232,18 @@ class TestExecutionAdapters:
             captured["errors"] = kwargs.get("errors")
             return subprocess.CompletedProcess(argv, 0, "completed", "")
 
-        result = CodexExecutorAdapter(runner=runner).execute(_task(), tmp_path, 30)
+        result = CodexExecutorAdapter(
+            runner=runner,
+            executable_resolver=lambda: ("C:/Windows/System32/cmd.exe", "/d", "/s", "/c", "C:/npm/codex.cmd"),
+        ).execute(_task(), tmp_path, 30)
         assert result.exit_code == 0
         assert "# Canary" in str(captured["input"])
         assert "The machine-readable task block is the only authority" in str(captured["input"])
         assert "Do not commit or publish" in str(captured["input"])
         assert "--full-auto" in captured["argv"]
+        assert captured["argv"][:5] == [
+            "C:/Windows/System32/cmd.exe", "/d", "/s", "/c", "C:/npm/codex.cmd",
+        ]
         assert captured["encoding"] == "utf-8"
         assert captured["errors"] == "replace"
     def test_fake_codex_success_failure_timeout_and_malformed(self, tmp_path: Path) -> None:

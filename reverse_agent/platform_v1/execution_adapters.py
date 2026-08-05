@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import shutil
 import subprocess
 import time
 from dataclasses import dataclass
@@ -77,9 +79,27 @@ class FakeCodexExecutorAdapter:
         return self.result
 
 
+def resolve_codex_command() -> tuple[str, ...]:
+    if os.name == "nt":
+        codex_cmd = shutil.which("codex.cmd")
+        command_shell = shutil.which("cmd.exe")
+        if not codex_cmd or not command_shell:
+            raise RuntimeError("codex_windows_launcher_unavailable")
+        return (command_shell, "/d", "/s", "/c", codex_cmd)
+    codex = shutil.which("codex")
+    if not codex:
+        raise RuntimeError("codex_launcher_unavailable")
+    return (codex,)
+
+
 class CodexExecutorAdapter:
-    def __init__(self, runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run) -> None:
+    def __init__(
+        self,
+        runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+        executable_resolver: Callable[[], Sequence[str]] = resolve_codex_command,
+    ) -> None:
         self._runner = runner
+        self._executable_resolver = executable_resolver
 
     def execute(self, task: LoadedIssueTask, worktree: Path, timeout_seconds: int = 1800) -> ExecutorResult:
         prompt = generate_task_prompt(task.work_item) + (
@@ -94,7 +114,7 @@ class CodexExecutorAdapter:
         started = time.monotonic()
         try:
             result = self._runner(
-                ["codex", "exec", "--full-auto", "--ephemeral", "--color", "never", "-C", str(worktree), "-"],
+                [*self._executable_resolver(), "exec", "--full-auto", "--ephemeral", "--color", "never", "-C", str(worktree), "-"],
                 input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout_seconds,
             )
             output = (result.stdout or "") + "\n" + (result.stderr or "")
