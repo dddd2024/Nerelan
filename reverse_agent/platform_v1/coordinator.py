@@ -31,6 +31,8 @@ class PlatformV1Coordinator:
         path = Path(self.workspace_manager.path) if hasattr(self.workspace_manager, "path") else Path(getattr(self.workspace_manager, "workspace_root", ".")) / task.execution_id
         record = self.store.get_or_create(task, str(path))
         if record.state in TERMINAL_STATES:
+            if hasattr(self.publisher, "publish_evidence"):
+                self.publisher.publish_evidence(record, task)
             return record
         if record.state == RunState.REWORK_REQUIRED:
             if record.attempt > task.max_rework_attempts:
@@ -94,15 +96,24 @@ class PlatformV1Coordinator:
             classifications = {str(item.get("classification", "")) for item in record.workflow_observations}
             if "KNOWN_EXTERNAL_GATE_BLOCKER" in classifications:
                 record = self.store.update(record.execution_id, failure_classification="KNOWN_EXTERNAL_GATE_BLOCKER")
-                return self.store.transition(record.execution_id, RunState.BLOCKED_EXTERNAL)
+                record = self.store.transition(record.execution_id, RunState.BLOCKED_EXTERNAL)
+                if hasattr(self.publisher, "publish_evidence"):
+                    self.publisher.publish_evidence(record, task)
+                return record
             if classifications and classifications <= {"SUCCESS"}:
                 record = self.store.update(record.execution_id, failure_classification="SUCCESS")
-                return self.store.transition(record.execution_id, RunState.READY_FOR_HUMAN)
+                record = self.store.transition(record.execution_id, RunState.READY_FOR_HUMAN)
+                if hasattr(self.publisher, "publish_evidence"):
+                    self.publisher.publish_evidence(record, task)
+                return record
             if "PRODUCT_TEST_FAILURE" in classifications:
                 record = self.store.update(record.execution_id, failure_classification="PRODUCT_TEST_FAILURE")
                 return self.store.transition(record.execution_id, RunState.REWORK_REQUIRED)
             if "POLICY_GATE_FAILURE" in classifications or "TERMINAL_POLICY_VIOLATION" in classifications:
                 record = self.store.update(record.execution_id, failure_classification="POLICY_GATE_FAILURE")
-                return self.store.transition(record.execution_id, RunState.FAILED_TERMINAL)
+                record = self.store.transition(record.execution_id, RunState.FAILED_TERMINAL)
+                if hasattr(self.publisher, "publish_evidence"):
+                    self.publisher.publish_evidence(record, task)
+                return record
             return record
         return record

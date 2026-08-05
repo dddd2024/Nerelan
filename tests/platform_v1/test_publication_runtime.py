@@ -142,6 +142,44 @@ class TestGitPublication:
         assert not any(argv[:3] == ["gh", "api", "--method"] for argv in calls)
         assert sum(argv[:3] == ["gh", "pr", "edit"] for argv in calls) == 1
 
+    def test_bounded_evidence_comments_are_idempotent(self, tmp_path: Path) -> None:
+        bodies: dict[int, list[str]] = {90: [], 114: [], 115: []}
+
+        def runner(argv, **kwargs):
+            if argv[:2] == ["gh", "api"]:
+                target = int(argv[2].split("/issues/")[1].split("/")[0])
+                payload = [{"body": body} for body in bodies[target]]
+                return subprocess.CompletedProcess(argv, 0, json.dumps(payload), "")
+            if argv[:3] == ["gh", "issue", "comment"]:
+                target = int(argv[3])
+                bodies[target].append(kwargs["input"])
+                return subprocess.CompletedProcess(argv, 0, "", "")
+            raise AssertionError(argv)
+
+        adapter = GitHubPublicationAdapter(
+            "dddd2024/reverse-agent",
+            runner=runner,
+            task_refresher=lambda task: task,
+            evidence_targets=(90, 114, 115),
+            implementation_head="2" * 40,
+        )
+        store = SQLiteRunStore(tmp_path / "runs.sqlite3")
+        record = store.get_or_create(_task(), str(tmp_path / "workspace"))
+        record = store.update(
+            record.execution_id,
+            commit_sha="1" * 40,
+            head_sha="1" * 40,
+            pr_number=115,
+            workflow_observations=[{"run_id": "9", "classification": "SUCCESS"}],
+            failure_classification="SUCCESS",
+        )
+        adapter.publish_evidence(record, _task())
+        adapter.publish_evidence(record, _task())
+        assert {target: len(comments) for target, comments in bodies.items()} == {90: 1, 114: 1, 115: 1}
+        assert "implementation_head: " + "2" * 40 in bodies[90][0]
+        assert "worktree_id: workspace" in bodies[90][0]
+        assert str(tmp_path) not in bodies[90][0]
+
 
 class TestWorkflowObserver:
     def test_classifies_exact_head_success_and_pending(self) -> None:
@@ -179,6 +217,33 @@ class TestWorkflowObserver:
             failed_log_loader=lambda *_args: "different policy failure",
         )
         assert observer.observe("dddd2024/reverse-agent", head)[0]["classification"] == "POLICY_GATE_FAILURE"
+
+    def test_waits_until_all_required_workflow_keys_are_observed(self) -> None:
+        head = "1" * 40
+
+        class SequencedAdapter:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def get_workflow_runs(self, *_args):
+                self.calls += 1
+                runs = [
+                    WorkflowRun(workflow_name="CI", event="pull_request", run_id="1", head_sha=head, status="completed", conclusion="success"),
+                ]
+                if self.calls > 1:
+                    runs.extend([
+                        WorkflowRun(workflow_name="Decision Preflight", event="pull_request", run_id="2", head_sha=head, status="completed", conclusion="success"),
+                        WorkflowRun(workflow_name="State Gate", event="pull_request", run_id="3", head_sha=head, status="completed", conclusion="success"),
+                        WorkflowRun(workflow_name="State Gate", event="push", run_id="4", head_sha=head, status="completed", conclusion="success"),
+                    ])
+                return tuple(runs)
+
+        adapter = SequencedAdapter()
+        observed = WorkflowObserver(adapter=adapter, max_wait_seconds=1, poll_seconds=0).observe(
+            "dddd2024/reverse-agent", head
+        )
+        assert adapter.calls == 2
+        assert len(observed) == 4
 
 
 def _run_cli(args: list[str]) -> tuple[int, dict]:

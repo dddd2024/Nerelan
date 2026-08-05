@@ -440,7 +440,14 @@ def cmd_run_e2e(args: Sequence[str]) -> int:
             workspace_manager=GitWorktreeManager(config["repo_dir"], config["workspace_root"]),
             executor=CodexExecutorAdapter(),
             validator=LocalValidationRunner(),
-            publisher=GitHubPublicationAdapter(config["repository"]),
+            publisher=GitHubPublicationAdapter(
+                config["repository"],
+                evidence_targets=(90, 114, config["issue_number"]),
+                implementation_head=subprocess.run(
+                    ["git", "rev-parse", "HEAD"], cwd=config["repo_dir"],
+                    capture_output=True, text=True, timeout=30, check=True,
+                ).stdout.strip(),
+            ),
             workflow_observer=WorkflowObserver(),
         )
         record = coordinator.run(task)

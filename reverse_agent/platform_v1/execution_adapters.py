@@ -256,10 +256,14 @@ class GitHubPublicationAdapter:
         *,
         runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
         task_refresher: Callable[[LoadedIssueTask], LoadedIssueTask] | None = None,
+        evidence_targets: Sequence[int] = (),
+        implementation_head: str = "",
     ) -> None:
         self.repository = repository
         self._runner = runner
         self._task_refresher = task_refresher
+        self.evidence_targets = tuple(dict.fromkeys(int(value) for value in evidence_targets))
+        self.implementation_head = implementation_head
 
     def _run_gh(self, argv: list[str], *, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
         result = self._runner(
@@ -351,6 +355,55 @@ class GitHubPublicationAdapter:
         ], input_text=body)
         return pr_number
 
+    def publish_evidence(self, record: Any, task: LoadedIssueTask) -> None:
+        targets = self.evidence_targets or (task.work_item.source_issue_number,)
+        marker = f"<!-- platform-v1-e2e:{record.execution_id}:{record.head_sha} -->"
+        observations = [
+            {
+                "run_id": str(item.get("run_id", "")),
+                "workflow_name": str(item.get("workflow_name", "")),
+                "event": str(item.get("event", "")),
+                "classification": str(item.get("classification", "")),
+            }
+            for item in record.workflow_observations
+        ]
+        body = (
+            marker + "\n"
+            "## Platform V1 bounded execution evidence\n\n"
+            "```text\n"
+            f"execution_id: {record.execution_id}\n"
+            f"state: {record.state.value}\n"
+            f"repository: {record.repository}\n"
+            f"issue_number: {record.issue_number}\n"
+            f"task_digest: {record.task_digest}\n"
+            f"implementation_head: {self.implementation_head}\n"
+            f"canary_commit_sha: {record.commit_sha}\n"
+            f"canary_head_sha: {record.head_sha}\n"
+            f"draft_pr: {record.pr_number}\n"
+            f"worktree_id: {Path(record.worktree_path).name}\n"
+            f"executor_reference: {record.executor_reference}\n"
+            f"classification: {record.failure_classification}\n"
+            "publication_boundary: draft-pr-only\n"
+            "merge_or_mark_ready: not_performed\n"
+            "```\n\n"
+            "Workflow observations:\n\n```json\n"
+            + json.dumps(observations, sort_keys=True, indent=2)
+            + "\n```\n"
+        )
+        for target in targets:
+            comments = self._run_gh([
+                "gh", "api", f"repos/{self.repository}/issues/{target}/comments?per_page=100",
+            ])
+            try:
+                existing = json.loads(comments.stdout or "[]")
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(f"comments_json_invalid:{target}:{exc}") from exc
+            if any(marker in str(comment.get("body", "")) for comment in existing if isinstance(comment, dict)):
+                continue
+            self._run_gh([
+                "gh", "issue", "comment", str(target), "--repo", self.repository, "--body-file", "-",
+            ], input_text=body)
+
 
 class WorkflowObserver:
     _KNOWN_BLOCKER = re.compile(
@@ -364,11 +417,18 @@ class WorkflowObserver:
         max_wait_seconds: int = 600,
         poll_seconds: int = 15,
         failed_log_loader: Callable[[str, str], str] | None = None,
+        required_keys: Sequence[tuple[str, str]] = (
+            ("CI", "pull_request"),
+            ("Decision Preflight", "pull_request"),
+            ("State Gate", "pull_request"),
+            ("State Gate", "push"),
+        ),
     ) -> None:
         self.adapter = adapter or LiveGitHubAdapter()
         self.max_wait_seconds = max_wait_seconds
         self.poll_seconds = poll_seconds
         self.failed_log_loader = failed_log_loader or self._load_failed_log
+        self.required_keys = frozenset(required_keys)
 
     @staticmethod
     def _load_failed_log(repository: str, run_id: str) -> str:
@@ -409,7 +469,10 @@ class WorkflowObserver:
                 if current is None or (run.attempt, run.run_id) > (current.attempt, current.run_id):
                     latest[run.key] = run
             runs = tuple(latest[key] for key in sorted(latest))
-            if runs and all(run.status == "COMPLETED" for run in runs):
+            observed_keys = {run.key for run in runs}
+            if self.required_keys <= observed_keys and all(
+                latest[key].status == "COMPLETED" for key in self.required_keys
+            ):
                 break
             if time.monotonic() >= deadline:
                 break
