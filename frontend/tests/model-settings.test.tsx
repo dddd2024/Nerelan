@@ -44,7 +44,9 @@ describe("model settings workspace", () => {
     );
     await user.click(screen.getByRole("button", { name: "保存配置" }));
 
-    expect(await screen.findByText("商汤代码模型")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "商汤代码模型" }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("API Key（仅本次提交）")).toHaveValue("");
     expect(localStorageSpy).not.toHaveBeenCalled();
     localStorageSpy.mockRestore();
