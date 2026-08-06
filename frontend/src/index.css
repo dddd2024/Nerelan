@@ -1,8 +1,7 @@
-@import "tailwindcss";
-
-/* Google Fonts — must be before any other rules except @import */
+/* Google Fonts must precede Tailwind's expanded rules. */
 @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
 
 /* ===========================================================================
    reverse-agent Frontend V1 — OpenHands-adapted design tokens
