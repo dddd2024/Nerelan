@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Plus, Send, X } from "lucide-react";
 import { PermissionSelector } from "@/components/permission-selector";
 import { AuthorizationSummary } from "@/components/authorization-summary";
@@ -38,20 +38,44 @@ interface NewTaskComposerProps {
  * permission profile instead of agent runtime. No file upload,
  * no model selection, no slash commands.
  * License: MIT (inherited from OpenHands)
- */
+ * /
 export function NewTaskComposer({ open, onClose }: NewTaskComposerProps) {
   const [title, setTitle] = useState("");
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(
     "ASK_FOR_APPROVAL",
   );
+  const [customPolicy, setCustomPolicy] = useState<PolicyContract | null>(null);
   const [showCustomEditor, setShowCustomEditor] = useState(false);
 
   if (!open) return null;
 
-  const policy: PolicyContract =
-    permissionMode === "CUSTOM"
-      ? profileToPolicy("CUSTOM")
-      : profileToPolicy(permissionMode);
+  const policy: PolicyContract = customPolicy
+    ? customPolicy
+    : profileToPolicy(permissionMode);
+
+  const handlePermissionChange = useCallback(
+    (mode: PermissionMode) => {
+      if (mode === "CUSTOM") {
+        setPermissionMode("CUSTOM");
+        setShowCustomEditor(true);
+      } else {
+        setPermissionMode(mode);
+        setCustomPolicy(null);
+      }
+    },
+    [],
+  );
+
+  const handleCustomPolicyChange = useCallback(
+    (updated: PolicyContract) => {
+      setCustomPolicy(updated);
+    },
+    [],
+  );
+
+  const handleCustomEditorClose = useCallback(() => {
+    setShowCustomEditor(false);
+  }, []);
 
   return (
     <div
@@ -119,13 +143,7 @@ export function NewTaskComposer({ open, onClose }: NewTaskComposerProps) {
           <div className="flex flex-col gap-2 w-full mt-3">
             <PermissionSelector
               value={permissionMode}
-              onChange={(mode) => {
-                if (mode === "CUSTOM") {
-                  setShowCustomEditor(true);
-                } else {
-                  setPermissionMode(mode);
-                }
-              }}
+              onChange={handlePermissionChange}
               label="权限配置"
               id="permission-mode-composer"
             />
@@ -163,9 +181,9 @@ export function NewTaskComposer({ open, onClose }: NewTaskComposerProps) {
       {showCustomEditor && (
         <CustomPolicyEditor
           open={showCustomEditor}
-          policy={profileToPolicy("CUSTOM")}
-          onChange={() => {}}
-          onClose={() => setShowCustomEditor(false)}
+          policy={customPolicy || profileToPolicy("CUSTOM")}
+          onChange={handleCustomPolicyChange}
+          onClose={handleCustomEditorClose}
         />
       )}
     </div>

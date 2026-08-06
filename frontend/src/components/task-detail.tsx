@@ -22,6 +22,7 @@ import {
   BarChart2,
   GitBranch,
 } from "lucide-react";
+import type { PolicyContract } from "@/types";
 
 type RightPanelTab = "changes" | "evidence" | "authority";
 
@@ -66,8 +67,9 @@ const RIGHT_TABS: { id: RightPanelTab; label: string; icon: React.ComponentType<
 export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps) {
   const [rightTab, setRightTab] = useState<RightPanelTab>("changes");
   const [customEditorOpen, setCustomEditorOpen] = useState(false);
+  const [editorPolicy, setEditorPolicy] = useState<PolicyContract | null>(null);
 
-   const containerRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
   const leftResizeHandleRef = useRef<HTMLButtonElement>(null);
   const [leftWidth, setLeftWidth] = useState(55);
   const [isDragging, setIsDragging] = useState(false);
@@ -173,11 +175,13 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
           <Badge className="border-ra-border bg-ra-tertiary text-ra-text-secondary">
             {permissionModeLabel(displayTask.permissionProfile)}
           </Badge>
-          {displayTask.permissionProfile === "CUSTOM" ? null : (
             <button
               type="button"
               aria-label="编辑权限"
-              onClick={() => setCustomEditorOpen(true)}
+              onClick={() => {
+                setEditorPolicy(profileToPolicy(displayTask.permissionProfile));
+                setCustomEditorOpen(true);
+              }}
               className={cn(
                 "rounded-md px-2 py-1 text-xs text-ra-text-tertiary",
                 "hover:text-ra-text hover:bg-ra-tertiary",
@@ -187,7 +191,6 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
             >
               <FileText className="h-3.5 w-3.5" />
             </button>
-          )}
         </div>
       </div>
 
@@ -314,11 +317,11 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
         </div>
       </div>
 
-      {displayTask.permissionProfile === "CUSTOM" && customEditorOpen ? (
+      {customEditorOpen ? (
         <CustomPolicyEditor
           open={customEditorOpen}
-          policy={profileToPolicy("CUSTOM")}
-          onChange={() => {}}
+          policy={editorPolicy || profileToPolicy(displayTask.permissionProfile)}
+          onChange={(updated) => setEditorPolicy(updated)}
           onClose={() => setCustomEditorOpen(false)}
         />
       ) : null}
