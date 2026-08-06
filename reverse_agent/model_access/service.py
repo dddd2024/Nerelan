@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from ipaddress import ip_address
 import json
 import os
 from time import perf_counter
@@ -293,14 +294,37 @@ def store_from_environment() -> ModelProfileStore:
     return store
 
 
+def validate_bind_host(host: str) -> str:
+    """Fail closed unless the control service binds to a loopback interface."""
+
+    normalized = host.strip()
+    if normalized == "localhost":
+        return normalized
+    try:
+        address = ip_address(normalized)
+    except ValueError as error:
+        raise ValueError(
+            "model control service host must be a loopback address or localhost"
+        ) from error
+    if not address.is_loopback:
+        raise ValueError(
+            "model control service host must be a loopback address or localhost"
+        )
+    return normalized
+
+
 def run_model_control_service(
     *,
     host: str | None = None,
     port: int | None = None,
     store: ModelProfileStore | None = None,
 ) -> None:
-    bind_host = host or os.environ.get(
-        "REVERSE_AGENT_MODEL_CONTROL_HOST", "127.0.0.1"
+    bind_host = validate_bind_host(
+        host
+        or os.environ.get(
+            "REVERSE_AGENT_MODEL_CONTROL_HOST",
+            "127.0.0.1",
+        )
     )
     bind_port = port or int(os.environ.get("REVERSE_AGENT_MODEL_CONTROL_PORT", "8765"))
     allowed_origin = os.environ.get(
