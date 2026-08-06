@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260805_issue117_frontend_v1_openhands_ui_v2",
-  "round_id": "round_20260805_issue117_frontend_v1_openhands_ui_v2",
+  "decision_id": "decision_20260806_issue117_frontend_v1_openhands_ui_v3",
+  "round_id": "round_20260806_issue117_frontend_v1_openhands_ui_v3",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,17 +14,17 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260805_issue117_frontend_v1_openhands_ui_v1",
-  "follows_last_round_id": "round_20260805_issue117_frontend_v1_openhands_ui_v1",
-  "previous_audit_outcome": "V1_AUTHORITY_INCOMPLETE_LOCAL_WORKTREE_COMMIT_AND_FRONTEND_PREFIX_COMMANDS_REQUIRED",
-  "workstream_id": "issue117-frontend-v1-openhands-ui-v2",
+   "follows_last_decision_id": "decision_20260805_issue117_frontend_v1_openhands_ui_v2",
+  "follows_last_round_id": "round_20260805_issue117_frontend_v1_openhands_ui_v2",
+  "previous_audit_outcome": "REWORK_REQUIRED_AUDIT_REQUIRES_OPENHANDS_ADAPTATION_REWORK",
+  "workstream_id": "issue117-frontend-v1-openhands-ui-v3",
   "source_issue": 117,
   "parent_issue": 90,
   "selected_foundation_issue": 116,
   "backend_reference_pr": 114,
   "active_pr": 119,
   "required_branch": "agent/frontend-v1-openhands-ui",
-  "starting_head": "8d91d78239acbdb4e22b15d0ed9994d3824e063d",
+   "starting_head": "157499e583661ed96a664fb7003b0fc6671990b7",
   "activation_base_sha": "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507",
   "selected_upstream_repository": "OpenHands/OpenHands",
   "selected_upstream_tag": "1.8.0",
@@ -567,21 +567,22 @@
 
 ## Goal
 
-Build a fixture-driven reverse-agent Frontend V1 by adapting the non-enterprise OpenHands 1.8.0 UI foundation at exact commit `c7a765d900df294cbbf0f405ae26c9cbbd0fcc29`. Provide a task inbox, task detail, activity/evidence stream, file/diff views, Platform V1 authority summaries, four controller permission profiles, and a bounded custom overnight-policy editor. The result remains frontend-only.
+Build a fixture-driven reverse-agent Frontend V1 by adapting the non-enterprise OpenHands 1.8.0 UI foundation at exact commit `c7a765d900df294cbbf0f405ae26c9cbbd0fcc29`. The UI must be recognizably adapted from OpenHands, not a generic admin dashboard. Provide an OpenHands-style task workspace with left task navigation and New Task entry, a chronological agent/activity main workspace, a secondary Changes/Evidence/Authority pane, and a composer-integrated permission-profile selector. The four profiles (ASK_FOR_APPROVAL, CONTROLLER_REVIEW, OWNER_CONTROL, CUSTOM) and the CUSTOM policy editor must be retained through adapters. The result remains frontend-only.
 
 ## Acceptance
 
-1. Generated Command Plan and transition preflight bind v2 and report `PRE_EXECUTION_AUTHORIZED` with no blockers.
+1. Generated Command Plan and transition preflight bind v3 and report `PRE_EXECUTION_AUTHORIZED` with no blockers.
 2. Only `frontend/**` and the standard generated gate artifacts change.
-3. OpenHands 1.8.0 exact commit is verified; only non-enterprise source is reused; MIT notices and a source-to-target reuse map are recorded.
-4. Task inbox and task-detail screens work with deterministic fixtures and cover loading, empty, error, activity, changes, evidence, and responsive states.
-5. `ASK_FOR_APPROVAL`, `CONTROLLER_REVIEW`, `OWNER_CONTROL`, and `CUSTOM` profiles work.
-6. `CUSTOM` independently configures merge, push-main, tag/release, package/container publication, preview/staging/production deployment, rollback, scopes, checks, budgets, expiry, retries, and stop conditions.
-7. The frontend validates and serializes policy objects and displays a plain-language authorization summary but performs no privileged side effect.
-8. `npm --prefix frontend test`, typecheck, lint, build, mock build, and the exact diff check pass.
-9. Deterministic desktop and narrow screenshots are captured without credentials or absolute local paths.
-10. Generated gates and frontend implementation are committed normally, the exact branch is pushed, and PR #119 remains Draft against `main` for independent Owner audit.
-11. No main push, merge, mark-ready, history rewrite, tag, release, publication, deployment, credential access, model invocation, OpenHands backend/runtime, workflow change, PR #106 mutation, or Issue #118 implementation occurs.
+3. OpenHands 1.8.0 exact commit is verified; only non-enterprise source is reused; MIT notices and a source-to-target reuse map with exact upstream paths are recorded.
+4. The UI is recognizably an OpenHands-style agent task workspace (icon sidebar, task/conversation list, composer with permission selector, activity workspace, file/diff secondary workspace), not a generic admin dashboard.
+5. Task inbox and task-detail screens work with deterministic fixtures and cover loading, empty, error, activity, changes, evidence, and responsive states.
+6. `ASK_FOR_APPROVAL`, `CONTROLLER_REVIEW`, `OWNER_CONTROL`, and `CUSTOM` profiles work.
+7. `CUSTOM` independently configures merge, push-main, tag/release, package/container publication, preview/staging/production deployment, rollback, scopes, checks, budgets, expiry, retries, and stop conditions.
+8. The frontend validates and serializes policy objects and displays a plain-language authorization summary but performs no privileged side effect.
+9. `npm --prefix frontend test`, typecheck, lint, build, mock build, and the exact diff check pass.
+10. Deterministic desktop and mobile screenshots are captured without credentials or absolute local paths.
+11. Generated gates and frontend implementation are committed normally, the exact branch is pushed, and PR #119 remains Draft against `main` for independent Owner audit.
+12. No main push, merge, mark-ready, history rewrite, tag, release, publication, deployment, credential access, model invocation, OpenHands backend/runtime, workflow change, PR #106 mutation, or Issue #118 implementation occurs.
 
 ```text
 FRONTEND_V1_OPENHANDS_PERMISSION_POLICY_PROTOTYPE_READY_FOR_OWNER_REVIEW
