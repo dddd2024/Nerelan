@@ -54,6 +54,8 @@ REVERSE_AGENT_MODEL_CONTROL_LIVE
 REVERSE_AGENT_MODEL_PROFILES_JSON
 ```
 
+`REVERSE_AGENT_MODEL_CONTROL_HOST` accepts only `localhost` or a loopback IP such as `127.0.0.1`/`::1`. The service intentionally refuses wildcard, LAN and public bindings because this first version has no remote authentication layer.
+
 Set `REVERSE_AGENT_MODEL_CONTROL_LIVE=1` only on a trusted host when real `/models` probes are intended.
 
 ## Start the frontend
@@ -96,6 +98,7 @@ The profile `model_id` should be a LiteLLM logical alias such as `coding-default
 
 ## Security boundaries
 
+- The model-control service is loopback-only.
 - The browser does not call provider endpoints directly.
 - API keys are not written to localStorage, sessionStorage, fixtures, task objects, logs or API responses.
 - In-process secrets disappear when the model-control service restarts.
