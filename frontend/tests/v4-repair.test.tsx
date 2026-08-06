@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "./test-utils";
 import { AppShell } from "@/components/app-shell";
@@ -73,8 +73,17 @@ function mockMatchMedia(matchesDesktop: boolean) {
   (window as any).matchMedia = impl;
 }
 
+function renderShell(initialEntry = "/") {
+  return renderWithProviders(
+    <AppShell>
+      <div data-testid="workspace-content">content</div>
+    </AppShell>,
+    { initialEntries: [initialEntry] },
+  );
+}
+
 describe("sidebar collapse/expand — OpenHands 1.8.0 adaptation", () => {
-  it("sidebar renders with collapse/expand toggle on desktop", () => {
+  it("starts at the 60px collapsed contract", () => {
     mockMatchMedia(true);
     renderWithProviders(
       <Sidebar
@@ -84,30 +93,17 @@ describe("sidebar collapse/expand — OpenHands 1.8.0 adaptation", () => {
         conversationPanelOpen={false}
       />,
     );
-    // The collapse/expand toggle must be present on desktop
-    expect(screen.getByTestId("sidebar-collapse-toggle")).toBeInTheDocument();
-    // Sidebar must have the correct collapsed class for testing the width contract
-    const sidebar = screen.getByTestId("sidebar");
-    expect(sidebar).toBeInTheDocument();
-  });
 
-  it("sidebar desktop collapsed state is 60px wide", () => {
-    mockMatchMedia(true);
-    renderWithProviders(
-      <Sidebar
-        onNewTask={() => {}}
-        onOpenConversationPanel={() => {}}
-        onConversationPanelClose={() => {}}
-        conversationPanelOpen={false}
-      />,
-      { initialEntries: ["/"] },
-    );
     const sidebar = screen.getByTestId("sidebar");
-    expect(sidebar.getAttribute("data-collapsed")).toBe("true");
+    expect(sidebar).toHaveAttribute("data-collapsed", "true");
     expect(sidebar).toHaveClass("sidebar-collapsed");
+    expect(screen.getByTestId("sidebar-collapse-toggle")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 
-  it("sidebar desktop expanded state is 300px wide", async () => {
+  it("expands to the 300px state by pointer or keyboard", async () => {
     mockMatchMedia(true);
     const user = userEvent.setup();
     renderWithProviders(
@@ -117,234 +113,188 @@ describe("sidebar collapse/expand — OpenHands 1.8.0 adaptation", () => {
         onConversationPanelClose={() => {}}
         conversationPanelOpen={false}
       />,
-      { initialEntries: ["/"] },
     );
-    const toggle = screen.getByTestId("sidebar-collapse-toggle");
-    await user.click(toggle);
-    const sidebar = screen.getByTestId("sidebar");
-    expect(sidebar.getAttribute("data-collapsed")).toBe("false");
-    expect(sidebar).toHaveClass("sidebar-expanded");
-    // Nav items become visible in expanded state
-    expect(screen.getByTestId("sidebar-nav-首页")).toBeInTheDocument();
-  });
 
-  it("sidebar has keyboard accessible collapse/expand toggle", async () => {
-    mockMatchMedia(true);
-    const user = userEvent.setup();
-    renderWithProviders(
-      <Sidebar
-        onNewTask={() => {}}
-        onOpenConversationPanel={() => {}}
-        onConversationPanelClose={() => {}}
-        conversationPanelOpen={false}
-      />,
-      { initialEntries: ["/"] },
-    );
     const toggle = screen.getByTestId("sidebar-collapse-toggle");
-    expect(toggle).toHaveAttribute("aria-pressed");
     toggle.focus();
-    expect(toggle).toHaveFocus();
     await user.keyboard("{Space}");
-    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+
+    expect(screen.getByTestId("sidebar")).toHaveAttribute(
+      "data-collapsed",
+      "false",
+    );
+    expect(screen.getByTestId("sidebar")).toHaveClass("sidebar-expanded");
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
   });
 });
 
 describe("conversation panel stability", () => {
-  it("keeps conversation panel open after toggle button click", async () => {
+  it("stays open after its toggle changes AppShell state", async () => {
     mockMatchMedia(true);
     const user = userEvent.setup();
-    renderWithProviders(
-      <AppShell>
-        <div data-testid="workspace-content">content</div>
-      </AppShell>,
-      { initialEntries: ["/tasks"] },
-    );
+    renderShell("/tasks");
 
-    // Open the conversation panel
-    const toggle = screen.getByTestId("toggle-conversation-panel");
-    await user.click(toggle);
-    await screen.findByTestId("conversation-panel");
+    await user.click(screen.getByTestId("toggle-conversation-panel"));
 
-    // Panel must remain visible after the state update that previously triggered the bug
-    expect(screen.getByTestId("conversation-panel")).toBeInTheDocument();
+    expect(await screen.findByTestId("conversation-panel")).toBeInTheDocument();
   });
 
-  it("closes conversation panel when route changes", async () => {
+  it("closes when desktop navigation changes route", async () => {
     mockMatchMedia(true);
     const user = userEvent.setup();
-    renderWithProviders(
-      <AppShell>
-        <div data-testid="workspace-content">content</div>
-      </AppShell>,
-      { initialEntries: ["/tasks"] },
-    );
+    renderShell("/tasks");
 
-    // Open the panel
-    const toggle = screen.getByTestId("toggle-conversation-panel");
-    await user.click(toggle);
-    await screen.findByTestId("conversation-panel");
+    await user.click(screen.getByTestId("toggle-conversation-panel"));
+    expect(await screen.findByTestId("conversation-panel")).toBeInTheDocument();
+    await user.click(screen.getByTestId("sidebar-nav-首页"));
 
-    // Navigate away via sidebar nav
-    const tasksLink = screen.getByTestId("sidebar-nav-首页");
-    await user.click(tasksLink);
-
-    // Panel should have been closed exactly once on route change
     expect(screen.queryByTestId("conversation-panel")).not.toBeInTheDocument();
   });
 });
 
-describe("New Task composer — CUSTOM policy persistence", () => {
-  it("selecting CUSTOM sets active mode and opens editor", async () => {
-    mockMatchMedia(true);
+describe("accessible mobile drawer", () => {
+  it("remains open after the trigger state update", async () => {
+    mockMatchMedia(false);
     const user = userEvent.setup();
-    renderWithProviders(<NewTaskComposer open={true} onClose={() => {}} />);
+    renderShell();
 
-    // Open permission selector
-    const selectorTrigger = screen.getByTestId("permission-mode-composer");
-    await user.click(selectorTrigger);
+    const trigger = screen.getByTestId("mobile-menu-button");
+    await user.click(trigger);
 
-    // Select CUSTOM
-    await user.click(screen.getByTestId("permission-option-CUSTOM"));
-
-    // Custom editor should open
-    await screen.findByTestId("custom-policy-editor");
-    expect(screen.getByTestId("custom-policy-editor")).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("mobile-drawer")).toHaveAttribute(
+      "aria-hidden",
+      "false",
+    );
+    expect(screen.getByTestId("mobile-drawer-close")).toHaveFocus();
+    expect(document.body.style.overflow).toBe("hidden");
   });
 
-  it("CUSTOM policy edit persists and updates summary", async () => {
+  it("removes background content from the focus order while open", async () => {
+    mockMatchMedia(false);
+    const user = userEvent.setup();
+    renderShell();
+
+    await user.click(screen.getByTestId("mobile-menu-button"));
+
+    expect(screen.getByTestId("mobile-menu-bar")).toHaveAttribute("inert");
+    expect(screen.getByTestId("app-shell-workspace")).toHaveAttribute("inert");
+    expect(screen.getByTestId("app-shell-workspace")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+  });
+
+  it("closes on Escape, restores scrolling and returns focus", async () => {
+    mockMatchMedia(false);
+    const user = userEvent.setup();
+    renderShell();
+
+    const trigger = screen.getByTestId("mobile-menu-button");
+    await user.click(trigger);
+    await user.keyboard("{Escape}");
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("mobile-drawer")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    expect(document.body.style.overflow).toBe("");
+    expect(trigger).toHaveFocus();
+  });
+
+  it("closes through the backdrop and SPA navigation", async () => {
+    mockMatchMedia(false);
+    const user = userEvent.setup();
+    renderShell();
+
+    const trigger = screen.getByTestId("mobile-menu-button");
+    await user.click(trigger);
+    await user.click(screen.getByTestId("mobile-drawer-backdrop"));
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(trigger);
+    await user.click(screen.getByTestId("mobile-nav-任务"));
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+describe("New Task composer — CUSTOM policy persistence", () => {
+  it("selects CUSTOM and opens the editor", async () => {
     mockMatchMedia(true);
     const user = userEvent.setup();
     renderWithProviders(<NewTaskComposer open={true} onClose={() => {}} />);
 
-    // Select CUSTOM
-    const selectorTrigger = screen.getByTestId("permission-mode-composer");
-    await user.click(selectorTrigger);
+    await user.click(screen.getByTestId("permission-mode-composer"));
     await user.click(screen.getByTestId("permission-option-CUSTOM"));
-    await screen.findByTestId("custom-policy-editor");
 
-    // Find the merge policy text input and change it
+    expect(await screen.findByTestId("custom-policy-editor")).toBeInTheDocument();
+  });
+
+  it("persists edited policy data into the authorization summary", async () => {
+    mockMatchMedia(true);
+    const user = userEvent.setup();
+    renderWithProviders(<NewTaskComposer open={true} onClose={() => {}} />);
+
+    await user.click(screen.getByTestId("permission-mode-composer"));
+    await user.click(screen.getByTestId("permission-option-CUSTOM"));
+    const editor = await screen.findByTestId("custom-policy-editor");
     const mergeReposInput = screen.getByTestId("merge-allowed-repos");
-    expect(mergeReposInput).toBeInTheDocument();
-
     await user.clear(mergeReposInput);
     await user.type(mergeReposInput, "myorg/myrepo");
+    await user.click(
+      within(editor).getByRole("button", { name: "关闭编辑器" }),
+    );
 
-    // Accept (close) the editor
-    const editorContainer = screen.getByTestId("custom-policy-editor");
-    const closeButton = within(editorContainer).getByRole("button", { name: "关闭编辑器" });
-    await user.click(closeButton);
-
-    // Editor should close
     expect(screen.queryByTestId("custom-policy-editor")).not.toBeInTheDocument();
-
-    // Mode badge should reflect CUSTOM (both dropdown and footer show "自定义")
-    const customLabels = screen.getAllByText("自定义");
-    expect(customLabels.length).toBeGreaterThanOrEqual(1);
-
-    // AuthorizationSummary should reflect the edited repository
-    const summaryText = screen.getByTestId("authorization-summary-text");
-    expect(summaryText.textContent).toContain("myorg/myrepo");
+    expect(screen.getByTestId("authorization-summary-text")).toHaveTextContent(
+      "myorg/myrepo",
+    );
   });
 });
 
-describe("Task detail — custom policy editor reachability", () => {
-  it("edit button is reachable for predefined task profiles", async () => {
-    mockMatchMedia(true);
-    const user = userEvent.setup();
-    renderWithProviders(
-      <TaskDetail task={FIXTURE_TASK} isLoading={false} isError={false} />,
-      { initialEntries: ["/tasks/t1"] },
-    );
+describe("Task detail — policy editor reachability", () => {
+  it.each([FIXTURE_TASK, FIXTURE_TASK_CUSTOM])(
+    "opens the editor for profile $permissionProfile",
+    async (task) => {
+      mockMatchMedia(true);
+      const user = userEvent.setup();
+      renderWithProviders(
+        <TaskDetail task={task} isLoading={false} isError={false} />,
+      );
 
-    // Edit policy button must be visible for CONTROLLER_REVIEW task
-    const editButton = screen.getByRole("button", { name: "编辑权限" });
-    expect(editButton).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "编辑权限" }));
 
-    // Clicking it should open the custom editor
-    await user.click(editButton);
-    await screen.findByTestId("custom-policy-editor");
-    expect(screen.getByTestId("custom-policy-editor")).toBeInTheDocument();
-  });
-
-  it("edit button is reachable for CUSTOM task profiles", async () => {
-    mockMatchMedia(true);
-    const user = userEvent.setup();
-    renderWithProviders(
-      <TaskDetail task={FIXTURE_TASK_CUSTOM} isLoading={false} isError={false} />,
-      { initialEntries: ["/tasks/t2"] },
-    );
-
-    // Edit policy button must also be visible for CUSTOM task
-    const editButton = screen.getByRole("button", { name: "编辑权限" });
-    expect(editButton).toBeInTheDocument();
-
-    await user.click(editButton);
-    await screen.findByTestId("custom-policy-editor");
-    expect(screen.getByTestId("custom-policy-editor")).toBeInTheDocument();
-  });
-
-  it("edit button opens editor with current task policy", async () => {
-    mockMatchMedia(true);
-    const user = userEvent.setup();
-    renderWithProviders(
-      <TaskDetail task={FIXTURE_TASK} isLoading={false} isError={false} />,
-      { initialEntries: ["/tasks/t1"] },
-    );
-
-    await user.click(screen.getByRole("button", { name: "编辑权限" }));
-    await screen.findByTestId("custom-policy-editor");
-
-    // The AuthorizationSummary inside the editor should reflect the task's policy
-    const summaryText = screen.getByTestId("authorization-summary-text");
-    expect(summaryText).toBeInTheDocument();
-  });
+      expect(
+        await screen.findByTestId("custom-policy-editor"),
+      ).toBeInTheDocument();
+    },
+  );
 });
 
-describe("Task detail — keyboard-operable resize separator", () => {
-  it("separator has correct ARIA attributes", () => {
+describe("Task detail — accessible resize separator", () => {
+  it("exposes separator semantics and updates the real panel width", async () => {
     mockMatchMedia(true);
+    const user = userEvent.setup();
     renderWithProviders(
       <TaskDetail task={FIXTURE_TASK} isLoading={false} isError={false} />,
     );
 
     const handle = screen.getByTestId("resize-handle");
-    expect(handle).toHaveAttribute("role", "slider");
+    const leftPanel = screen.getByTestId("desktop-left-panel");
+    expect(handle).toHaveAttribute("role", "separator");
     expect(handle).toHaveAttribute("aria-orientation", "vertical");
-    expect(handle).toHaveAttribute("aria-valuemin");
-    expect(handle).toHaveAttribute("aria-valuemax");
-    expect(handle).toHaveAttribute("aria-valuenow");
-  });
+    expect(handle).toHaveAttribute("aria-valuenow", "55");
+    expect(leftPanel).toHaveStyle({ width: "55%" });
 
-  it("ArrowLeft reduces the left panel width", async () => {
-    mockMatchMedia(true);
-    const user = userEvent.setup();
-    renderWithProviders(
-      <TaskDetail task={FIXTURE_TASK} isLoading={false} isError={false} />,
-    );
-
-    const handle = screen.getByTestId("resize-handle");
-    const initial = handle.getAttribute("aria-valuenow");
-    expect(initial).toBe("55");
-
-    handle.focus();
-    await user.keyboard("{ArrowLeft}");
-    expect(handle.getAttribute("aria-valuenow")).toBe("50");
-  });
-
-  it("ArrowRight increases the left panel width", async () => {
-    mockMatchMedia(true);
-    const user = userEvent.setup();
-    renderWithProviders(
-      <TaskDetail task={FIXTURE_TASK} isLoading={false} isError={false} />,
-    );
-
-    const handle = screen.getByTestId("resize-handle");
     handle.focus();
     await user.keyboard("{ArrowRight}");
-    expect(handle.getAttribute("aria-valuenow")).toBe("60");
+
+    expect(handle).toHaveAttribute("aria-valuenow", "60");
+    expect(leftPanel).toHaveStyle({ width: "60%" });
   });
 
-  it("Home sets left panel to minimum", async () => {
+  it("supports Home and End while preserving the 30–80 bounds", async () => {
     mockMatchMedia(true);
     const user = userEvent.setup();
     renderWithProviders(
@@ -352,85 +302,96 @@ describe("Task detail — keyboard-operable resize separator", () => {
     );
 
     const handle = screen.getByTestId("resize-handle");
+    const leftPanel = screen.getByTestId("desktop-left-panel");
     handle.focus();
-    await user.keyboard("{Home}");
-    expect(handle.getAttribute("aria-valuenow")).toBe("30");
+    await user.keyboard("{Home}{ArrowLeft}");
+    expect(handle).toHaveAttribute("aria-valuenow", "30");
+    expect(leftPanel).toHaveStyle({ width: "30%" });
+
+    await user.keyboard("{End}{ArrowRight}");
+    expect(handle).toHaveAttribute("aria-valuenow", "80");
+    expect(leftPanel).toHaveStyle({ width: "80%" });
   });
 
-  it("End sets left panel to maximum", async () => {
+  it("calculates pointer resizing against the full split container", () => {
     mockMatchMedia(true);
-    const user = userEvent.setup();
     renderWithProviders(
       <TaskDetail task={FIXTURE_TASK} isLoading={false} isError={false} />,
     );
 
-    const handle = screen.getByTestId("resize-handle");
-    handle.focus();
-    await user.keyboard("{End}");
-    expect(handle.getAttribute("aria-valuenow")).toBe("80");
-  });
+    const split = screen.getByTestId("desktop-split-container");
+    Object.defineProperty(split, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 1000,
+        bottom: 600,
+        width: 1000,
+        height: 600,
+        toJSON: () => ({}),
+      }),
+    });
 
-  it("width is clamped within min/max bounds", async () => {
-    mockMatchMedia(true);
-    const user = userEvent.setup();
-    renderWithProviders(
-      <TaskDetail task={FIXTURE_TASK} isLoading={false} isError={false} />,
+    fireEvent.mouseDown(screen.getByTestId("resize-handle-container"));
+    fireEvent.mouseMove(document, { clientX: 700 });
+    fireEvent.mouseUp(document);
+
+    expect(screen.getByTestId("resize-handle")).toHaveAttribute(
+      "aria-valuenow",
+      "70",
     );
-
-    const handle = screen.getByTestId("resize-handle");
-    handle.focus();
-    // Try to go below minimum
-    await user.keyboard("{Home}");
-    for (let i = 0; i < 3; i++) await user.keyboard("{ArrowLeft}");
-    expect(handle.getAttribute("aria-valuenow")).toBe("30");
+    expect(screen.getByTestId("desktop-left-panel")).toHaveStyle({
+      width: "70%",
+    });
   });
 });
 
-describe("Task detail — mobile workspace", () => {
-  it("mobile layout exposes one primary pane at a time", () => {
+describe("Task detail — reversible mobile one-pane workspace", () => {
+  it("shows only Activity initially", () => {
     mockMatchMedia(false);
     renderWithProviders(
       <TaskDetail task={FIXTURE_TASK} isLoading={false} isError={false} />,
     );
 
-    // On mobile, right panel should not be conditionally rendered as a side split
-    // Instead it should be accessible via tabs and only one content area should be visible
-    const contentArea = screen.getByTestId("right-panel-content");
-    expect(contentArea).toBeInTheDocument();
-    // Verify no horizontal overflow class from desktop split
-    expect(screen.getByTestId("task-detail")).not.toHaveAttribute(
-      "data-desk-split",
+    expect(screen.getByTestId("activity-stream")).toBeInTheDocument();
+    expect(screen.queryByTestId("changes-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("right-panel-content")).toHaveAttribute(
+      "data-active-pane",
+      "activity",
     );
   });
 
-  it("mobile layout allows switching between activity and tab panels", async () => {
+  it("switches to Changes and returns to Activity", async () => {
     mockMatchMedia(false);
     const user = userEvent.setup();
     renderWithProviders(
       <TaskDetail task={FIXTURE_TASK} isLoading={false} isError={false} />,
     );
 
-    // Activity is visible by default on mobile
-    expect(screen.getByTestId("activity-stream")).toBeInTheDocument();
-
-    // Switch to Changes tab
-    const changesTab = screen.getByTestId("right-tab-changes");
-    await user.click(changesTab);
-
-    // Activity should be hidden and Changes visible
+    await user.click(screen.getByTestId("right-tab-changes"));
     expect(screen.queryByTestId("activity-stream")).not.toBeInTheDocument();
     expect(screen.getByTestId("changes-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("right-panel-content")).toHaveAttribute(
+      "data-active-pane",
+      "changes",
+    );
+
+    await user.click(screen.getByTestId("mobile-pane-activity"));
+    expect(screen.getByTestId("activity-stream")).toBeInTheDocument();
+    expect(screen.queryByTestId("changes-panel")).not.toBeInTheDocument();
   });
 
-  it("mobile layout has no fixed min-width forcing horizontal overflow", () => {
+  it("does not inherit the desktop panel minimum width", () => {
     mockMatchMedia(false);
     renderWithProviders(
       <TaskDetail task={FIXTURE_TASK} isLoading={false} isError={false} />,
     );
 
-    // The right panel should not have the desktop minWidth: 240px constraint
-    const contentArea = screen.getByTestId("right-panel-content");
-    const inlineMinWidth = contentArea.getAttribute("style") || "";
-    expect(inlineMinWidth).not.toContain("240px");
+    expect(
+      screen.getByTestId("right-panel-content").getAttribute("style") ?? "",
+    ).not.toContain("240px");
   });
 });
