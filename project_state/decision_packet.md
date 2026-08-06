@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260806_issue117_frontend_v1_openhands_ui_v3",
-  "round_id": "round_20260806_issue117_frontend_v1_openhands_ui_v3",
+  "decision_id": "decision_20260806_issue117_frontend_v1_openhands_ui_v4",
+  "round_id": "round_20260806_issue117_frontend_v1_openhands_ui_v4",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,17 +14,17 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-   "follows_last_decision_id": "decision_20260805_issue117_frontend_v1_openhands_ui_v2",
-  "follows_last_round_id": "round_20260805_issue117_frontend_v1_openhands_ui_v2",
-  "previous_audit_outcome": "REWORK_REQUIRED_AUDIT_REQUIRES_OPENHANDS_ADAPTATION_REWORK",
-  "workstream_id": "issue117-frontend-v1-openhands-ui-v3",
+   "follows_last_decision_id": "decision_20260806_issue117_frontend_v1_openhands_ui_v3",
+   "follows_last_round_id": "round_20260806_issue117_frontend_v1_openhands_ui_v3",
+   "previous_audit_outcome": "REWORK_REQUIRED_OPENHANDS_SIDEBAR_MAPPING_PANEL_STABILITY_CUSTOM_POLICY_EDITOR_REACHABILITY_KEYBOARD_RESIZE_MOBILE_WORKSPACE_VISUAL_EVIDENCE",
+   "workstream_id": "issue117-frontend-v1-openhands-ui-v4",
   "source_issue": 117,
   "parent_issue": 90,
   "selected_foundation_issue": 116,
   "backend_reference_pr": 114,
   "active_pr": 119,
   "required_branch": "agent/frontend-v1-openhands-ui",
-   "starting_head": "157499e583661ed96a664fb7003b0fc6671990b7",
+   "starting_head": "195d62d66bb45707062fed8332b3a56fa2e521c4",
   "activation_base_sha": "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507",
   "selected_upstream_repository": "OpenHands/OpenHands",
   "selected_upstream_tag": "1.8.0",
@@ -571,26 +571,26 @@ Build a fixture-driven reverse-agent Frontend V1 by adapting the non-enterprise 
 
 ## Acceptance
 
-1. Generated Command Plan and transition preflight bind v3 and report `PRE_EXECUTION_AUTHORIZED` with no blockers.
+1. Generated Command Plan and transition preflight bind v4 and report `PRE_EXECUTION_AUTHORIZED` with no blockers.
 2. Only `frontend/**` and the standard generated gate artifacts change.
 3. OpenHands 1.8.0 exact commit is verified; only non-enterprise source is reused; MIT notices and a source-to-target reuse map with exact upstream paths are recorded.
-4. The UI is recognizably an OpenHands-style agent task workspace (icon sidebar, task/conversation list, composer with permission selector, activity workspace, file/diff secondary workspace), not a generic admin dashboard.
+4. The UI is recognizably an OpenHands-style agent task workspace with the actual 60px collapsed / 300px expanded desktop sidebar, mobile drawer, New Task composer, compact conversation/task sidebar, chronological activity workspace, file/diff secondary workspace, and composer-integrated permission selector — not a generic admin dashboard.
 5. Task inbox and task-detail screens work with deterministic fixtures and cover loading, empty, error, activity, changes, evidence, and responsive states.
-6. `ASK_FOR_APPROVAL`, `CONTROLLER_REVIEW`, `OWNER_CONTROL`, and `CUSTOM` profiles work.
+6. `ASK_FOR_APPROVAL`, `CONTROLLER_REVIEW`, `OWNER_CONTROL`, and `CUSTOM` profiles work; CUSTOM selection is persisted, CUSTOM editor onChange updates the PolicyContract, and task-detail policy interaction is reachable.
 7. `CUSTOM` independently configures merge, push-main, tag/release, package/container publication, preview/staging/production deployment, rollback, scopes, checks, budgets, expiry, retries, and stop conditions.
 8. The frontend validates and serializes policy objects and displays a plain-language authorization summary but performs no privileged side effect.
 9. `npm --prefix frontend test`, typecheck, lint, build, mock build, and the exact diff check pass.
-10. Deterministic desktop and mobile screenshots are captured without credentials or absolute local paths.
+10. Deterministic desktop and mobile screenshots are captured without credentials or absolute local paths and committed with the reuse map.
 11. Generated gates and frontend implementation are committed normally, the exact branch is pushed, and PR #119 remains Draft against `main` for independent Owner audit.
 12. No main push, merge, mark-ready, history rewrite, tag, release, publication, deployment, credential access, model invocation, OpenHands backend/runtime, workflow change, PR #106 mutation, or Issue #118 implementation occurs.
 
 ```text
-FRONTEND_V1_OPENHANDS_PERMISSION_POLICY_PROTOTYPE_READY_FOR_OWNER_REVIEW
+FRONTEND_V1_OPENHANDS_ADAPTATION_REWORK_IN_PROGRESS
 ```
 
 ## Execution policy
 
-- This v2 Decision supersedes the unactivated v1 Decision on the same branch.
+- This v4 Decision supersedes the v3 Decision on the same branch.
 - Run the standard Path-B gate sequence before modifying `frontend/**`.
 - Use only the fixed OpenHands repository, tag, and commit; fail closed on mismatch.
 - Clone upstream only into `F:/reverse-agent-upstreams/OpenHands-1.8.0` and never execute its backend, agent runtime, Docker, provider, or credential flows.
