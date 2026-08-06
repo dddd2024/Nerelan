@@ -19,7 +19,24 @@ interface PermissionSelectorProps {
 }
 
 /**
- * Compact dropdown for the 4 permission modes. Keyboard accessible.
+ * OpenHands-style permission profile selector.
+ *
+ * Upstream reference:
+ *   frontend/src/components/features/chat/components/chat-input-row.tsx
+ *   — dropdown-style controls in the chat input area
+ *   frontend/src/components/shared/buttons/conversation-panel-button.tsx
+ *   — icon buttons with tooltip (concept for compact selectable)
+ *   frontend/src/components/features/conversation/conversation-name.tsx
+ *   — dropdown with context menu pattern
+ *
+ * Structurally ported: dropdown select with trigger button
+ * (`rounded-md border bg-ra-input`), listbox with hover/select states
+ * using OpenHands dark palette colors (bg-[#454545] on hover,
+ * text-[#A3A3A3] for muted items, text-white for selected).
+ *
+ * Modifications: permission profiles replace LLM model selection;
+ * no provider/model icons; OpenHands brand text removed.
+ * License: MIT (inherited from OpenHands)
  */
 export function PermissionSelector({
   value,
@@ -58,9 +75,9 @@ export function PermissionSelector({
   }, [open]);
 
   return (
-    <div className="relative inline-block" data-testid="permission-selector">
+    <div className="relative inline-block w-full" data-testid="permission-selector">
       {label ? (
-        <label htmlFor={id} className="mb-1 block text-xs text-slate-500">
+        <label htmlFor={id} className="mb-1 block text-xs text-ra-text-tertiary">
           {label}
         </label>
       ) : null}
@@ -79,19 +96,20 @@ export function PermissionSelector({
           }
         }}
         className={cn(
-          "inline-flex w-full items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700",
-          "hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400",
+          "inline-flex w-full items-center justify-between gap-2 rounded-md",
+          "border border-ra-border bg-ra-input px-3 py-1.5 text-sm text-ra-text",
+          "hover:bg-ra-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
         )}
       >
         <span>{permissionModeLabel(value)}</span>
-        <ChevronDown aria-hidden="true" className="h-4 w-4 text-slate-400" />
+        <ChevronDown aria-hidden="true" className="h-4 w-4 text-ra-text-tertiary" />
       </button>
       {open ? (
         <ul
           ref={listRef}
           role="listbox"
           aria-label={label}
-          className="absolute z-20 mt-1 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 shadow-sm"
+          className="absolute z-20 mt-1 w-full overflow-auto rounded-md border border-ra-border bg-ra-light py-1 shadow-lg"
         >
           {MODES.map((m, i) => {
             const selected = m === value;
@@ -109,14 +127,15 @@ export function PermissionSelector({
                   }}
                   className={cn(
                     "flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm",
-                    "hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-inset",
-                    selected && "bg-slate-50",
+                    "text-ra-text-secondary hover:text-ra-text hover:bg-ra-tertiary",
+                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent focus-visible:ring-inset",
+                    selected && "bg-ra-tertiary text-ra-text",
                   )}
                   data-testid={`permission-option-${m}`}
                 >
                   <span>{permissionModeLabel(m)}</span>
                   {selected ? (
-                    <Check aria-hidden="true" className="h-3.5 w-3.5 text-slate-500" />
+                    <Check aria-hidden="true" className="h-3.5 w-3.5 text-ra-accent" />
                   ) : null}
                 </button>
               </li>

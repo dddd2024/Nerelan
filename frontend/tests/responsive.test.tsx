@@ -43,8 +43,7 @@ describe("responsive layout", () => {
     );
   });
 
-  it("app shell renders sidebar with a mobile menu button", () => {
-    mockMatchMedia(false);
+  it("app shell renders sidebar with nav toggle", () => {
     renderWithProviders(
       <AppShell>
         <div data-testid="content">content</div>
@@ -52,8 +51,11 @@ describe("responsive layout", () => {
     );
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
     expect(screen.getByTestId("content")).toBeInTheDocument();
-    // The mobile menu toggle is visible on mobile.
-    expect(screen.getByLabelText("打开导航")).toBeInTheDocument();
+    // The conversation panel toggle is visible.
+    expect(screen.getByLabelText("打开任务列表")).toBeInTheDocument();
+    // Nav items exist via testid.
+    expect(screen.getByTestId("sidebar-nav-首页")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-nav-任务")).toBeInTheDocument();
   });
 
   it("task inbox renders on desktop", () => {

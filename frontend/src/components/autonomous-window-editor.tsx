@@ -20,6 +20,65 @@ interface AutonomousWindowEditorProps {
   onChange: (next: AutonomousWindow) => void;
 }
 
+function TextField({
+  label,
+  value,
+  onChange,
+  testId,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  testId?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs text-ra-text-tertiary">{label}</span>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        data-testid={testId}
+        className={cn(
+          "mt-1 w-full rounded-md border border-ra-border bg-ra-input px-3 py-1.5 text-sm text-ra-text",
+          "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+        )}
+      />
+    </label>
+  );
+}
+
+function NumberField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs text-ra-text-tertiary">{label}</span>
+      <input
+        type="number"
+        min={1}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={cn(
+          "mt-1 w-full rounded-md border border-ra-border bg-ra-input px-2 py-1.5 text-sm text-ra-text",
+          "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+        )}
+      />
+    </label>
+  );
+}
+
+/**
+ * OpenHands-style autonomous window editor.
+ * Source: OpenHands settings/toggles pattern (tag 1.8.0).
+ * License: MIT (inherited from OpenHands)
+ */
 export function AutonomousWindowEditor({ value, onChange }: AutonomousWindowEditorProps) {
   const update = (patch: Partial<AutonomousWindow>) => onChange({ ...value, ...patch });
 
@@ -33,16 +92,16 @@ export function AutonomousWindowEditor({ value, onChange }: AutonomousWindowEdit
 
   return (
     <div data-testid="autonomous-window-editor" className="space-y-3">
-      <label className="flex items-center gap-2">
+      <label className="flex items-center gap-2 text-sm text-ra-text-secondary">
         <input
           type="checkbox"
           checked={value.enabled}
           onChange={(e) => update({ enabled: e.target.checked })}
           aria-label="启用无人值守窗口"
           data-testid="aw-enabled"
-          className="h-4 w-4 rounded border-slate-300 text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+          className="h-4 w-4 rounded border-ra-border text-ra-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
         />
-        <span className="text-sm text-slate-700">启用无人值守窗口</span>
+        <span>启用无人值守窗口</span>
       </label>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <TextField
@@ -64,8 +123,8 @@ export function AutonomousWindowEditor({ value, onChange }: AutonomousWindowEdit
         <NumberField label="最大发布数" value={value.maxReleasesCreated} onChange={(n) => update({ maxReleasesCreated: n })} />
         <NumberField label="最大部署数" value={value.maxDeploysToEnvironment} onChange={(n) => update({ maxDeploysToEnvironment: n })} />
       </div>
-      <fieldset className="space-y-2 rounded-md border border-slate-100 p-3">
-        <legend className="px-1 text-xs font-medium text-slate-500">
+      <fieldset className="space-y-2 rounded-md border border-ra-border p-3">
+        <legend className="px-1 text-xs font-medium text-ra-text-tertiary">
           停止条件
         </legend>
         <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
@@ -73,13 +132,13 @@ export function AutonomousWindowEditor({ value, onChange }: AutonomousWindowEdit
             const checked = value.stopConditions.some((s) => s.type === sc);
             return (
               <li key={sc}>
-                <label className="flex items-center gap-2 text-sm text-slate-700">
+                <label className="flex items-center gap-2 text-sm text-ra-text-secondary">
                   <input
                     type="checkbox"
                     checked={checked}
                     onChange={() => toggleStop(sc)}
                     aria-label={sc}
-                    className="h-4 w-4 rounded border-slate-300 text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                    className="h-4 w-4 rounded border-ra-border text-ra-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
                   />
                   <span className="font-mono text-xs">{sc}</span>
                 </label>
@@ -89,56 +148,5 @@ export function AutonomousWindowEditor({ value, onChange }: AutonomousWindowEdit
         </ul>
       </fieldset>
     </div>
-  );
-}
-
-function TextField({
-  label,
-  value,
-  onChange,
-  testId,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  testId?: string;
-}) {
-  return (
-    <label className="block">
-      <span className="text-xs text-slate-500">{label}</span>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        data-testid={testId}
-        className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-      />
-    </label>
-  );
-}
-
-function NumberField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (n: number) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="text-xs text-slate-500">{label}</span>
-      <input
-        type="number"
-        min={1}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className={cn(
-          "mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm",
-          "focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400",
-        )}
-      />
-    </label>
   );
 }

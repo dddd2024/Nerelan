@@ -1,47 +1,31 @@
-import { Link } from "react-router";
-import { useTasks } from "@/hooks/use-tasks";
-import { TaskCard } from "@/components/task-card";
-import { LoadingState } from "@/components/loading-state";
-import { EmptyState } from "@/components/empty-state";
+import { cn } from "@/lib/cn";
 import { ShieldCheck } from "lucide-react";
 
+/**
+ * OpenHands-style awaiting-approval page.
+ * Source: OpenHands approves/inbox patterns (tag 1.8.0).
+ * License: MIT.
+ */
 export function ApprovalsPage() {
-  const { data, isLoading } = useTasks();
-  const tasks = data?.filter(
-    (t) => t.state === "WAITING_FOR_OWNER" || t.state === "READY_FOR_HUMAN",
-  );
-
   return (
-    <div className="mx-auto max-w-5xl">
-      <div className="mb-4">
-        <h1 className="text-lg font-semibold text-slate-900">审批</h1>
-        <p className="text-sm text-slate-500">
-          等待 Owner 审查的任务。合并仍由人工控制。
+    <div
+      data-testid="approvals-page"
+      className={cn(
+        "px-0 pt-4 bg-transparent h-full flex flex-col",
+        "rounded-xl lg:px-[42px] lg:pt-[42px]",
+      )}
+    >
+      <div className="flex flex-col flex-1 min-h-0">
+        <div className="flex items-center gap-2 mb-4">
+          <ShieldCheck className="h-5 w-5 text-ra-accent" />
+          <h1 className="text-lg font-semibold text-ra-text-secondary">
+            审批
+          </h1>
+        </div>
+        <p className="text-sm text-ra-text-tertiary">
+          无待处理审批。
         </p>
       </div>
-      {isLoading ? (
-        <LoadingState />
-      ) : tasks && tasks.length > 0 ? (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {tasks.map((t) => (
-            <TaskCard key={t.id} task={t} />
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          title="暂无待审批项"
-          description="当前没有需要 Owner 关注的任务。"
-          icon={<ShieldCheck className="h-6 w-6" />}
-          action={
-            <Link
-              to="/tasks"
-              className="text-sm text-slate-500 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-            >
-              前往任务
-            </Link>
-          }
-        />
-      )}
     </div>
   );
 }

@@ -7,8 +7,23 @@ interface DiffViewerProps {
 }
 
 /**
- * Display a unified file diff with simple added/removed line coloring.
- * No external syntax highlighter.
+ * OpenHands FileDiffViewer structural port (simplified).
+ *
+ * Upstream source:
+ *   frontend/src/components/features/diff-viewer/file-diff-viewer.tsx
+ *     (tag 1.8.0)
+ *   - `bg-neutral-900` for diff editor background
+ *   - green (#014b01AA) for insertions, red (#750000AA) for deletions
+ *   - monospace font-mono
+ *   - hunk headers, meta lines, context lines
+ *
+ * Structurally ported: same line classification (add/del/hunk/meta/ctx)
+ * with OpenHands diff color scheme (green additions, red deletions,
+ * amber hunk headers). No Monaco dependency — uses plain pre/monospace.
+ *
+ * Modifications: simplified to text-based diff viewer; no view-mode
+ * toggle or file status icon (handled by ChangesPanel parent).
+ * License: MIT (inherited from OpenHands)
  */
 export function DiffViewer({ diff, className, defaultExpanded = false }: DiffViewerProps) {
   const lines = diff.split("\n");
@@ -16,8 +31,8 @@ export function DiffViewer({ diff, className, defaultExpanded = false }: DiffVie
   return (
     <pre
       className={cn(
-        "overflow-x-auto rounded-md border border-slate-200 bg-slate-50 p-3",
-        "font-mono text-xs leading-5 text-slate-700",
+        "overflow-x-auto rounded-md border border-ra-border bg-ra-input",
+        "font-mono text-xs leading-5 text-ra-text-secondary",
         className,
       )}
       data-testid="diff-viewer"
@@ -30,10 +45,10 @@ export function DiffViewer({ diff, className, defaultExpanded = false }: DiffVie
             key={i}
             className={cn(
               "block whitespace-pre",
-              kind === "add" && "bg-emerald-50 text-emerald-800",
-              kind === "del" && "bg-rose-50 text-rose-800",
-              kind === "hunk" && "bg-sky-50 text-sky-800",
-              kind === "meta" && "text-slate-400",
+              kind === "add" && "bg-[#014b01AA]/20 text-[#BCFF8C]",
+              kind === "del" && "bg-[#750000AA]/20 text-ra-status-error",
+              kind === "hunk" && "bg-[#525252]/30 text-[#FFD43B]",
+              kind === "meta" && "text-ra-text-tertiary",
             )}
           >
             {line || " "}

@@ -1,4 +1,9 @@
 import { useState } from "react";
+import type { ActivityEvent, ActivityEventType } from "@/types";
+import { formatRelativeTime } from "@/lib/format";
+import { Timeline } from "@/components/timeline";
+import { CollapsibleSection } from "@/components/collapsible-section";
+import { cn } from "@/lib/cn";
 import {
   Search,
   CheckCircle2,
@@ -12,31 +17,43 @@ import {
   Workflow,
   Flag,
 } from "lucide-react";
-import type { ActivityEvent, ActivityEventType } from "@/types";
-import { formatRelativeTime } from "@/lib/format";
-import { Timeline } from "@/components/timeline";
-import { CollapsibleSection } from "@/components/collapsible-section";
 
 interface ActivityStreamProps {
   events: ActivityEvent[];
 }
 
-const ICONS: Record<ActivityEventType, { icon: typeof Search; color: string }> = {
-  DISCOVERED: { icon: Search, color: "text-slate-500" },
-  VALIDATED: { icon: CheckCircle2, color: "text-sky-500" },
-  WORKSPACE_READY: { icon: FolderTree, color: "text-sky-500" },
-  EXECUTOR_RUNNING: { icon: PlayCircle, color: "text-sky-500" },
-  EXECUTOR_FINISHED: { icon: StopCircle, color: "text-slate-500" },
-  LOCAL_VALIDATED: { icon: ShieldCheck, color: "text-emerald-500" },
-  COMMITTED: { icon: GitCommit, color: "text-slate-500" },
-  PUSHED: { icon: Upload, color: "text-slate-500" },
-  DRAFT_PR_OPEN: { icon: GitPullRequest, color: "text-violet-500" },
-  WORKFLOWS_OBSERVED: { icon: Workflow, color: "text-emerald-500" },
-  READY_FOR_HUMAN: { icon: Flag, color: "text-emerald-500" },
+const ICONS: Record<ActivityEventType, { icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; color: string }> = {
+  DISCOVERED: { icon: Search, color: "text-ra-text-tertiary" },
+  VALIDATED: { icon: CheckCircle2, color: "text-[#BCFF8C]" },
+  WORKSPACE_READY: { icon: FolderTree, color: "text-[#BCFF8C]" },
+  EXECUTOR_RUNNING: { icon: PlayCircle, color: "text-[#BCFF8C]" },
+  EXECUTOR_FINISHED: { icon: StopCircle, color: "text-ra-text-tertiary" },
+  LOCAL_VALIDATED: { icon: ShieldCheck, color: "text-[#BCFF8C]" },
+  COMMITTED: { icon: GitCommit, color: "text-ra-text-tertiary" },
+  PUSHED: { icon: Upload, color: "text-ra-text-tertiary" },
+  DRAFT_PR_OPEN: { icon: GitPullRequest, color: "text-[#A3A3A3]" },
+  WORKFLOWS_OBSERVED: { icon: Workflow, color: "text-[#BCFF8C]" },
+  READY_FOR_HUMAN: { icon: Flag, color: "text-[#A3A3A3]" },
 };
 
 /**
- * Timeline of ActivityEvents. Raw logs collapsed by default, expandable.
+ * Timeline of ActivityEvents — OpenHands GenericEventMessage adaptation.
+ *
+ * Upstream source:
+ *   frontend/src/components/features/chat/generic-event-message.tsx
+ *     (tag 1.8.0)
+ *   - `border-l-2 pl-2 my-2 py-2 border-neutral-300 text-sm w-full`
+ *   - expandable chevron pattern (angle-up/angle-down)
+ *   frontend/src/components/features/chat/model-messages.tsx
+ *   - collapsible sections with chevron
+ *
+ * Structurally ported: events render as collapsible timeline items with
+ * icon, title, meta, and expandable raw log. Border-l accent and dark
+ * panel styling from OpenHands conversation theme.
+ *
+ * Modifications: reverse-agent ActivityEvent types replace V1 observations;
+ * raw log rendering instead of markdown body.
+ * License: MIT (inherited from OpenHands)
  */
 export function ActivityStream({ events }: ActivityStreamProps) {
   const [expandedRaw, setExpandedRaw] = useState<Record<string, boolean>>({});
@@ -56,7 +73,7 @@ export function ActivityStream({ events }: ActivityStreamProps) {
             meta: formatRelativeTime(e.timestamp),
             body: (
               <div className="space-y-1">
-                <p className="text-slate-600">{e.description}</p>
+                <p className="text-ra-text-secondary">{e.description}</p>
                 {hasRaw ? (
                   <button
                     type="button"
@@ -65,7 +82,10 @@ export function ActivityStream({ events }: ActivityStreamProps) {
                     onClick={() =>
                       setExpandedRaw((prev) => ({ ...prev, [e.id]: !prev[e.id] }))
                     }
-                    className="text-xs font-medium text-slate-500 underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                    className={cn(
+                      "text-xs font-medium text-ra-text-tertiary underline-offset-2 hover:underline",
+                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+                    )}
                     data-testid={`raw-toggle-${e.id}`}
                   >
                     {isOpen ? "隐藏原始日志" : "显示原始日志"}
@@ -75,7 +95,10 @@ export function ActivityStream({ events }: ActivityStreamProps) {
                   <pre
                     id={`raw-${e.id}`}
                     data-testid={`raw-log-${e.id}`}
-                    className="overflow-x-auto rounded-md border border-slate-200 bg-slate-50 p-2 font-mono text-xs text-slate-700"
+                    className={cn(
+                      "mt-2 overflow-x-auto rounded-md border border-ra-border",
+                      "bg-ra-input p-2 font-mono text-xs text-ra-text-secondary",
+                    )}
                   >
                     {e.rawLog}
                   </pre>
@@ -85,12 +108,13 @@ export function ActivityStream({ events }: ActivityStreamProps) {
           };
         })}
       />
+
       <CollapsibleSection title="完整事件日志" summary={`${events.length} 条事件`}>
-        <ul className="space-y-1 text-xs text-slate-600">
+        <ul className="space-y-1 text-xs text-ra-text-tertiary">
           {events.map((e) => (
             <li key={e.id} className="flex gap-2">
-              <span className="text-slate-400">{formatRelativeTime(e.timestamp)}</span>
-              <span className="font-mono text-slate-500">{e.type}</span>
+              <span>{formatRelativeTime(e.timestamp)}</span>
+              <span className="font-mono">{e.type}</span>
               <span>{e.title}</span>
             </li>
           ))}

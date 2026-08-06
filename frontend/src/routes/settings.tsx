@@ -1,48 +1,31 @@
-import { useState } from "react";
-import { PermissionSelector } from "@/components/permission-selector";
-import { CustomPolicyEditor } from "@/components/custom-policy-editor";
-import { AuthorizationSummary } from "@/components/authorization-summary";
-import { profileToPolicy } from "@/lib/profile-mapper";
-import type { PermissionMode, PolicyContract } from "@/types";
+import { cn } from "@/lib/cn";
+import { Settings } from "lucide-react";
 
+/**
+ * OpenHands-style settings page.
+ * Source: OpenHands settings-modal pattern (tag 1.8.0).
+ * License: MIT.
+ */
 export function SettingsPage() {
-  const [mode, setMode] = useState<PermissionMode>("CONTROLLER_REVIEW");
-  const [policy, setPolicy] = useState<PolicyContract>(() =>
-    profileToPolicy("CONTROLLER_REVIEW"),
-  );
-  const [editorOpen, setEditorOpen] = useState(false);
-
-  const handleMode = (next: PermissionMode) => {
-    setMode(next);
-    setPolicy(profileToPolicy(next));
-  };
-
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <div>
-        <h1 className="text-lg font-semibold text-slate-900">设置</h1>
-        <p className="text-sm text-slate-500">
-          默认权限配置。自定义策略仅为委托请求。
+    <div
+      data-testid="settings-page"
+      className={cn(
+        "px-0 pt-4 bg-transparent h-full flex flex-col",
+        "rounded-xl lg:px-[42px] lg:pt-[42px]",
+      )}
+    >
+      <div className="flex flex-col flex-1 min-h-0">
+        <div className="flex items-center gap-2 mb-4">
+          <Settings className="h-5 w-5 text-ra-text-tertiary" />
+          <h1 className="text-lg font-semibold text-ra-text-secondary">
+            设置
+          </h1>
+        </div>
+        <p className="text-sm text-ra-text-tertiary">
+          配置页面正在开发中。
         </p>
       </div>
-      <div className="max-w-xs">
-        <PermissionSelector value={mode} onChange={handleMode} />
-      </div>
-      <AuthorizationSummary policy={policy} />
-      <button
-        type="button"
-        onClick={() => setEditorOpen(true)}
-        className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-        data-testid="open-custom-editor"
-      >
-        编辑自定义策略
-      </button>
-      <CustomPolicyEditor
-        open={editorOpen}
-        policy={policy}
-        onChange={setPolicy}
-        onClose={() => setEditorOpen(false)}
-      />
     </div>
   );
 }

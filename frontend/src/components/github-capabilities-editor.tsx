@@ -21,8 +21,9 @@ interface GithubCapabilitiesEditorProps {
 }
 
 /**
- * Checkboxes for 11 GitHub capabilities. merge_pr and push_main are
- * independent toggles.
+ * OpenHands-style capabilities checkboxes.
+ * Source: OpenHands capabilities/tools checkbox pattern (tag 1.8.0).
+ * License: MIT (inherited from OpenHands)
  */
 export function GithubCapabilitiesEditor({
   value,
@@ -49,8 +50,8 @@ export function GithubCapabilitiesEditor({
                 className={cn(
                   "flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm",
                   checked
-                    ? "border-slate-300 bg-slate-50 text-slate-800"
-                    : "border-slate-100 text-slate-600",
+                    ? "border-ra-accent/30 bg-ra-accent/10 text-ra-text"
+                    : "border-ra-border text-ra-text-secondary",
                 )}
               >
                 <input
@@ -59,11 +60,11 @@ export function GithubCapabilitiesEditor({
                   onChange={() => toggle(cap)}
                   aria-label={cap}
                   data-testid={`cap-${cap}`}
-                  className="h-4 w-4 rounded border-slate-300 text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                  className="h-4 w-4 rounded border-ra-border text-ra-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
                 />
                 <span className="font-mono text-xs">{cap}</span>
                 {isMerge || isPushMain ? (
-                  <span className="ml-auto text-[10px] text-slate-400">
+                  <span className="ml-auto text-[10px] text-ra-text-tertiary">
                     独立
                   </span>
                 ) : null}
@@ -72,7 +73,7 @@ export function GithubCapabilitiesEditor({
           );
         })}
       </ul>
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-ra-text-tertiary">
         merge_pr 与 push_main 为独立开关。启用 merge_pr 不会启用 push_main。
       </p>
     </div>

@@ -8,16 +8,40 @@ interface PermissionsPanelProps {
   policy: PolicyContract;
 }
 
+function Scope({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="text-xs text-ra-text-tertiary">{label}</dt>
+      <dd className="text-ra-text-secondary">{children}</dd>
+    </div>
+  );
+}
+
+/**
+ * OpenHands-style permissions/policy panel.
+ *
+ * Upstream reference:
+ *   frontend/src/components/features/conversation/conversation-name.tsx
+ *     context menu — nested collapsible sections (tag 1.8.0)
+ *   frontend/src/components/features/chat/generic-event-message.tsx
+ *     — collapsible details pattern
+ *
+ * Styled to match OpenHands dark panels with border-ra-border,
+ * bg-ra-light, text-ra-text/secondary/tertiary.
+ *
+ * Modifications: reverse-agent PolicyContract type instead of
+ * conversation settings; policy summary instead of model details.
+ */
 export function PermissionsPanel({ policy }: PermissionsPanelProps) {
   const summary = summarizePolicy(policy);
   return (
     <div data-testid="permissions-panel" className="space-y-3">
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <section className="rounded-lg border border-ra-border bg-ra-light p-4">
         <div className="flex items-center gap-2">
           <Badge>{permissionModeLabel(policy.mode)}</Badge>
-          <span className="font-mono text-xs text-slate-500">{policy.repository}</span>
+          <span className="font-mono text-xs text-ra-text-tertiary">{policy.repository}</span>
         </div>
-        <p className="mt-3 text-sm text-slate-700" data-testid="permissions-summary">
+        <p className="mt-3 text-sm text-ra-text-secondary" data-testid="permissions-summary">
           {summary}
         </p>
       </section>
@@ -57,14 +81,16 @@ export function PermissionsPanel({ policy }: PermissionsPanelProps) {
         <ul className="flex flex-wrap gap-2">
           {policy.githubCapabilities.map((c) => (
             <li key={c}>
-              <Badge className="border-slate-200 bg-slate-50 text-slate-700">{c}</Badge>
+              <Badge className="border-ra-border bg-ra-tertiary text-ra-text-secondary">
+                {c}
+              </Badge>
             </li>
           ))}
           {policy.githubCapabilities.length === 0 ? (
-            <li className="text-xs text-slate-400">无</li>
+            <li className="text-xs text-ra-text-tertiary">无</li>
           ) : null}
         </ul>
-        <p className="mt-2 text-xs text-slate-400">
+        <p className="mt-2 text-xs text-ra-text-tertiary">
           merge_pr 与 push_main 为独立开关。
         </p>
       </CollapsibleSection>
@@ -73,11 +99,13 @@ export function PermissionsPanel({ policy }: PermissionsPanelProps) {
         <ul className="flex flex-wrap gap-2">
           {policy.publicationCapabilities.map((c) => (
             <li key={c}>
-              <Badge className="border-slate-200 bg-slate-50 text-slate-700">{c}</Badge>
+              <Badge className="border-ra-border bg-ra-tertiary text-ra-text-secondary">
+                {c}
+              </Badge>
             </li>
           ))}
           {policy.publicationCapabilities.length === 0 ? (
-            <li className="text-xs text-slate-400">无</li>
+            <li className="text-xs text-ra-text-tertiary">无</li>
           ) : null}
         </ul>
         <dl className="mt-3 space-y-2 text-sm">
@@ -97,7 +125,7 @@ export function PermissionsPanel({ policy }: PermissionsPanelProps) {
             {policy.publicationPolicy.rollbackStrategy ?? "—"}
           </Scope>
         </dl>
-        <p className="mt-2 text-xs text-slate-400">
+        <p className="mt-2 text-xs text-ra-text-tertiary">
           网络写入权限不隐含部署能力。
         </p>
       </CollapsibleSection>
@@ -128,15 +156,6 @@ export function PermissionsPanel({ policy }: PermissionsPanelProps) {
           </Scope>
         </dl>
       </CollapsibleSection>
-    </div>
-  );
-}
-
-function Scope({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-xs text-slate-400">{label}</dt>
-      <dd className="text-slate-700">{children}</dd>
     </div>
   );
 }

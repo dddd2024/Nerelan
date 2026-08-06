@@ -1,7 +1,5 @@
 import { Link } from "react-router";
-import { AlertCircle, ArrowRight } from "lucide-react";
 import type { Task } from "@/types";
-import { Badge } from "@/components/badge";
 import { cn } from "@/lib/cn";
 import {
   formatRelativeTime,
@@ -12,63 +10,106 @@ import {
 
 interface TaskCardProps {
   task: Task;
+  compact?: boolean;
 }
 
+/**
+ * OpenHands ConversationCard structural port.
+ *
+ * Upstream sources:
+ *   frontend/src/components/features/conversation-panel/conversation-card/
+ *     conversation-card.tsx (tag 1.8.0)
+ *   - `relative h-auto w-full p-3.5 border-b border-neutral-600 cursor-pointer
+ *     hover:bg-[#454545]`
+ *   - ConversationCardHeader: status dot + title
+ *   - ConversationCardFooter: repo/branch + timestamp
+ *
+ * Structurally ported: same card structure — status indicator dot,
+ * compact title row, repository/branch info, and relative timestamp
+ * in a border-b separator layout. Hover state uses OpenHands hover
+ * color (#454545). Status dot colors adapted from reverse-agent RunState.
+ *
+ * Modifications: tasks replace conversations; permission profile badge
+ * replaces LLM model; reverse-agent repo/branch fields instead of
+ * git_provider/selected_repository.
+ * License: MIT (inherited from OpenHands)
+ */
 export function TaskCard({ task }: TaskCardProps) {
   const state = runStateStyle(task.state);
   const risk = riskTierStyle(task.riskTier);
   const note = task.blocker ?? task.nextAction;
+
+  const statusDotColor = {
+    "bg-emerald-500": "bg-ra-accent",
+    "bg-sky-500": "bg-[#FFD43B]",
+    "bg-amber-500": "bg-[#FFD43B]",
+    "bg-orange-500": "bg-[#FFD43B]",
+    "bg-rose-500": "bg-ra-status-error",
+    "bg-violet-500": "bg-[#A3A3A3]",
+    "bg-slate-400": "bg-[#A3A3A3]",
+  }[state.dot] ?? "bg-[#A3A3A3]";
 
   return (
     <Link
       to={`/tasks/${task.id}`}
       data-testid={`task-card-${task.id}`}
       className={cn(
-        "block rounded-lg border border-slate-200 bg-white p-4 transition-colors",
-        "hover:border-slate-300 hover:bg-slate-50/60",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400",
+        "relative w-full p-3.5 border-b border-ra-border-strong cursor-pointer",
+        "text-left transition-colors",
+        "hover:bg-[#454545]",
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <span>#{task.issueNumber}</span>
-            <span aria-hidden="true">·</span>
-            <span className="font-mono">{task.branch}</span>
-          </div>
-          <h3 className="mt-1 truncate text-sm font-medium text-slate-800">
-            {task.title}
-          </h3>
+      <div className="flex items-center justify-between w-full">
+        <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
+          <span
+            className={cn("w-1.5 h-1.5 rounded-full shrink-0", statusDotColor)}
+            aria-label={state.label}
+            title={state.label}
+          />
+          <span
+            className="text-xs leading-6 font-semibold bg-transparent truncate overflow-hidden"
+            title={task.title}
+          >
+            #{task.issueNumber} — {task.title}
+          </span>
         </div>
-        <ArrowRight aria-hidden="true" className="mt-1 h-4 w-4 shrink-0 text-slate-300" />
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Badge className={state.badge} dot={state.dot}>
-          {state.label}
-        </Badge>
-        <Badge className={risk.badge} dot={risk.dot}>
-          {risk.label}
-        </Badge>
-        <Badge>{permissionModeLabel(task.permissionProfile)}</Badge>
-        <span className="ml-auto text-xs text-slate-400">
+        <span className="text-xs text-ra-text-tertiary ml-2">
           {formatRelativeTime(task.updatedAt)}
         </span>
       </div>
-      {note ? (
-        <div className="mt-3 flex items-start gap-2 border-t border-slate-100 pt-2 text-xs text-slate-600">
-          <AlertCircle
-            aria-hidden="true"
-            className={cn(
-              "mt-0.5 h-3.5 w-3.5 shrink-0",
-              task.blocker ? "text-amber-500" : "text-slate-400",
-            )}
-          />
-          <span>
-            <span className="font-medium text-slate-700">
-              {task.blocker ? "阻塞项：" : "下一步："}
+
+      <div className="mt-1 flex flex-col gap-1">
+        <div className="flex items-center gap-3 text-xs text-ra-text-secondary">
+          <span className="font-mono">{task.branch}</span>
+          {task.draftPr ? (
+            <span className="inline-flex items-center gap-1">
+              <span className="font-mono">#{task.draftPr.number}</span>
             </span>
-            {note}
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium",
+              risk.dot === "bg-rose-400"
+                ? "bg-ra-status-error/10 text-ra-status-error"
+                : "bg-ra-accent/10 text-ra-text",
+            )}
+          >
+            <span
+              className={cn("w-1.5 h-1.5 rounded-full", risk.dot.replace("bg-", "bg-"))}
+            />
+            {risk.label}
           </span>
+          <span className="text-xs text-ra-text-tertiary">
+            {permissionModeLabel(task.permissionProfile)}
+          </span>
+        </div>
+      </div>
+
+      {note ? (
+        <div className="mt-1 flex items-start gap-2 text-xs text-ra-text-secondary">
+          <span className="truncate">{note}</span>
         </div>
       ) : null}
     </Link>

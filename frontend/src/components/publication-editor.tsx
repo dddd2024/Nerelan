@@ -19,8 +19,39 @@ interface PublicationEditorProps {
   onPolicyChange: (next: PublicationPolicy) => void;
 }
 
+function splitList(v: string): string[] {
+  return v.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs text-ra-text-tertiary">{label}</span>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn(
+          "mt-1 w-full rounded-md border border-ra-border bg-ra-input px-3 py-1.5 text-sm text-ra-text",
+          "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+        )}
+      />
+    </label>
+  );
+}
+
 /**
- * Checkboxes for 8 publication/deployment capabilities with policy fields.
+ * OpenHands-style publication capabilities editor.
+ * Source: OpenHands capabilities/tools checkbox pattern (tag 1.8.0).
+ * License: MIT (inherited from OpenHands)
  */
 export function PublicationEditor({
   capabilities,
@@ -50,8 +81,8 @@ export function PublicationEditor({
                 className={cn(
                   "flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm",
                   checked
-                    ? "border-slate-300 bg-slate-50 text-slate-800"
-                    : "border-slate-100 text-slate-600",
+                    ? "border-ra-accent/30 bg-ra-accent/10 text-ra-text"
+                    : "border-ra-border text-ra-text-secondary",
                 )}
               >
                 <input
@@ -60,7 +91,7 @@ export function PublicationEditor({
                   onChange={() => toggle(cap)}
                   aria-label={cap}
                   data-testid={`pub-${cap}`}
-                  className="h-4 w-4 rounded border-slate-300 text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                  className="h-4 w-4 rounded border-ra-border text-ra-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
                 />
                 <span className="font-mono text-xs">{cap}</span>
               </label>
@@ -68,11 +99,11 @@ export function PublicationEditor({
           );
         })}
       </ul>
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-ra-text-tertiary">
         发布与部署能力相互独立。网络写入权限不隐含部署能力。
       </p>
-      <fieldset className="space-y-2 rounded-md border border-slate-100 p-3">
-        <legend className="px-1 text-xs font-medium text-slate-500">
+      <fieldset className="space-y-2 rounded-md border border-ra-border p-3">
+        <legend className="px-1 text-xs font-medium text-ra-text-tertiary">
           发布策略
         </legend>
         <TextField
@@ -98,35 +129,11 @@ export function PublicationEditor({
         <TextField
           label="回滚策略"
           value={policy.rollbackStrategy ?? ""}
-          onChange={(v) => update({ rollbackStrategy: v || undefined })}
+          onChange={(v) =>
+            update({ rollbackStrategy: v || undefined })
+          }
         />
       </fieldset>
     </div>
-  );
-}
-
-function splitList(v: string): string[] {
-  return v.split(",").map((s) => s.trim()).filter(Boolean);
-}
-
-function TextField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="text-xs text-slate-500">{label}</span>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-      />
-    </label>
   );
 }

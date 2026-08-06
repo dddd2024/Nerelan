@@ -6,8 +6,72 @@ interface ResourceAccessEditorProps {
   onChange: (next: ResourceAccess) => void;
 }
 
+function splitList(v: string): string[] {
+  return v
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function Group({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <fieldset className="rounded-md border border-ra-border p-3">
+      <legend className="px-1 text-xs font-medium text-ra-text-tertiary">{label}</legend>
+      <div className="space-y-2">{children}</div>
+    </fieldset>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs text-ra-text-tertiary">{label}</span>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn(
+          "mt-1 w-full rounded-md border border-ra-border bg-ra-input px-3 py-1.5 text-sm text-ra-text",
+          "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+        )}
+      />
+    </label>
+  );
+}
+
+function Toggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (b: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-sm text-ra-text-secondary">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-4 w-4 rounded border-ra-border text-ra-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+      />
+      <span>{label}</span>
+    </label>
+  );
+}
+
 /**
- * Fields for filesystem, network, shell, secrets, worker_approval.
+ * OpenHands-style resource access editor.
+ * Styled with OpenHands dark inputs and borders. License: MIT.
  */
 export function ResourceAccessEditor({ value, onChange }: ResourceAccessEditorProps) {
   const update = (patch: Partial<ResourceAccess>) => onChange({ ...value, ...patch });
@@ -68,7 +132,7 @@ export function ResourceAccessEditor({ value, onChange }: ResourceAccessEditorPr
       </Group>
 
       <Group label="密钥">
-        <label htmlFor="secrets-access" className="block text-xs text-slate-500">
+        <label htmlFor="secrets-access" className="block text-xs text-ra-text-tertiary">
           密钥访问
         </label>
         <select
@@ -83,7 +147,10 @@ export function ResourceAccessEditor({ value, onChange }: ResourceAccessEditorPr
               },
             })
           }
-          className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+          className={cn(
+            "mt-1 w-full rounded-md border border-ra-border bg-ra-input px-3 py-1.5 text-sm text-ra-text",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+          )}
         >
           <option value="none">无</option>
           <option value="masked">掩码</option>
@@ -117,68 +184,5 @@ export function ResourceAccessEditor({ value, onChange }: ResourceAccessEditorPr
         />
       </Group>
     </div>
-  );
-}
-
-function splitList(v: string): string[] {
-  return v
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-function Group({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <fieldset className="rounded-md border border-slate-100 p-3">
-      <legend className="px-1 text-xs font-medium text-slate-500">{label}</legend>
-      <div className="space-y-2">{children}</div>
-    </fieldset>
-  );
-}
-
-function TextField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="text-xs text-slate-500">{label}</span>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={cn(
-          "mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm",
-          "focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400",
-        )}
-      />
-    </label>
-  );
-}
-
-function Toggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (b: boolean) => void;
-}) {
-  return (
-    <label className="flex items-center gap-2">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 rounded border-slate-300 text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-      />
-      <span className="text-sm text-slate-700">{label}</span>
-    </label>
   );
 }

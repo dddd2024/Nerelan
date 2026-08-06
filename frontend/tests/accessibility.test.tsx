@@ -26,12 +26,17 @@ describe("accessibility", () => {
   it("sidebar nav items are keyboard reachable and labelled", () => {
     renderWithProviders(
       <div>
-        <Sidebar open={true} onClose={() => {}} />
+        <Sidebar
+          onNewTask={() => {}}
+          onOpenConversationPanel={() => {}}
+          onConversationPanelClose={() => {}}
+          conversationPanelOpen={false}
+        />
       </div>,
     );
-    const tasksLink = screen.getByTestId("nav-任务");
+    const tasksLink = screen.getByTestId("sidebar-nav-任务");
     expect(tasksLink).toHaveAttribute("href", "/tasks");
-    const homeLink = screen.getByTestId("nav-首页");
+    const homeLink = screen.getByTestId("sidebar-nav-首页");
     expect(homeLink).toHaveAttribute("href", "/");
   });
 

@@ -1,17 +1,32 @@
 import { useTasks } from "@/hooks/use-tasks";
 import { TaskInbox } from "@/components/task-inbox";
+import { cn } from "@/lib/cn";
 
+/**
+ * OpenHands HomeScreen adaptation.
+ * Source: frontend/src/routes/home.tsx (tag 1.8.0)
+ * — `px-0 pt-4 bg-transparent h-full flex flex-col
+ *    rounded-xl lg:px-[42px] lg:pt-[42px]`
+ * License: MIT (inherited from OpenHands)
+ */
 export function TasksPage() {
   const { data, isLoading, isError, error } = useTasks();
   return (
-    <div className="mx-auto max-w-5xl">
-      <div className="mb-4">
-        <h1 className="text-lg font-semibold text-slate-900">任务</h1>
-        <p className="text-sm text-slate-500">
-          基于夹具的任务收件箱。无实时操作。
-        </p>
+    <div
+      data-testid="tasks-page"
+      className={cn(
+        "px-0 pt-4 bg-transparent h-full flex flex-col",
+        "rounded-xl lg:px-[42px] lg:pt-[42px] custom-scrollbar-always",
+      )}
+    >
+      <div className="flex flex-col flex-1 min-h-0">
+        <TaskInbox
+          tasks={data}
+          isLoading={isLoading}
+          isError={isError}
+          error={error}
+        />
       </div>
-      <TaskInbox tasks={data} isLoading={isLoading} isError={isError} error={error} />
     </div>
   );
 }

@@ -19,9 +19,21 @@ interface CustomPolicyEditorProps {
 }
 
 /**
- * Modal/drawer with sections for resource access, GitHub capabilities,
- * publication/deployment capabilities, autonomous window, merge policy.
- * All fields independently configurable. Focus is trapped while open.
+ * OpenHands-style settings modal adaptation.
+ *
+ * Upstream reference:
+ *   frontend/src/components/shared/modals/settings/settings-modal.tsx
+ *     (tag 1.8.0) — modal overlay pattern
+ *   frontend/src/components/features/conversation/conversation-name.tsx
+ *     context menu — collapsible nested sections
+ *
+ * Structurally ported: fixed-position overlay with dark panel content
+ * (bg-ra-light, border-ra-border, rounded-xl), sticky header with close
+ * button, sections with CollapsibleSection pattern.
+ *
+ * Modifications: policy fields instead of settings tabs; focus trap
+ * for accessibility.
+ * License: MIT (inherited from OpenHands)
  */
 export function CustomPolicyEditor({
   open,
@@ -38,7 +50,6 @@ export function CustomPolicyEditor({
     if (!open) return;
     previouslyFocused.current = document.activeElement as HTMLElement | null;
     const node = dialogRef.current;
-    // Focus first focusable element.
     const focusable = node?.querySelector<HTMLElement>(
       "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])",
     );
@@ -84,21 +95,26 @@ export function CustomPolicyEditor({
         aria-label="关闭编辑器"
         tabIndex={-1}
         onClick={onClose}
-        className="absolute inset-0 bg-slate-900/30"
+        className="absolute inset-0 bg-black/80"
       />
       <div
         ref={dialogRef}
         className={cn(
-          "relative ml-auto h-full w-full max-w-2xl overflow-auto bg-white shadow-xl",
+          "relative ml-auto h-full w-full max-w-2xl overflow-auto bg-ra-light shadow-xl",
         )}
       >
-        <div className="sticky top-0 flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3">
-          <h2 className="text-sm font-semibold text-slate-800">自定义策略</h2>
+        <div className="sticky top-0 flex items-center justify-between border-b border-ra-border bg-ra-light px-4 py-3">
+          <h2 className="text-sm font-semibold text-ra-text-secondary">
+            自定义策略
+          </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="关闭"
-            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+            className={cn(
+              "rounded-md p-1 text-ra-text-tertiary hover:text-ra-text hover:bg-ra-tertiary",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+            )}
           >
             <X aria-hidden="true" className="h-4 w-4" />
           </button>
@@ -144,19 +160,21 @@ export function CustomPolicyEditor({
                   })
                 }
               />
-              <fieldset>
-                <legend className="text-xs text-slate-500">允许的合并方式</legend>
+              <fieldset className="border border-ra-border rounded-md p-3">
+                <legend className="px-1 text-xs font-medium text-ra-text-tertiary">
+                  允许的合并方式
+                </legend>
                 <div className="mt-1 flex flex-wrap gap-3">
                   {MERGE_METHODS.map((m) => {
                     const checked = policy.mergePolicy.allowedMergeMethods.includes(m);
                     return (
-                      <label key={m} className="flex items-center gap-1 text-sm text-slate-700">
+                      <label key={m} className="flex items-center gap-1 text-sm text-ra-text-secondary">
                         <input
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleMergeMethod(policy, update, m)}
                           aria-label={m}
-                          className="h-4 w-4 rounded border-slate-300 text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                          className="h-4 w-4 rounded border-ra-border text-ra-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
                         />
                         <span className="font-mono text-xs">{m}</span>
                       </label>
@@ -164,7 +182,7 @@ export function CustomPolicyEditor({
                   })}
                 </div>
               </fieldset>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
+              <label className="flex items-center gap-2 text-sm text-ra-text-secondary">
                 <input
                   type="checkbox"
                   checked={policy.mergePolicy.requireExactHead}
@@ -176,7 +194,7 @@ export function CustomPolicyEditor({
                       },
                     })
                   }
-                  className="h-4 w-4 rounded border-slate-300 text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                  className="h-4 w-4 rounded border-ra-border text-ra-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
                 />
                 要求精确 Head
               </label>
@@ -245,12 +263,15 @@ function TextField({
 }) {
   return (
     <label className="block">
-      <span className="text-xs text-slate-500">{label}</span>
+      <span className="text-xs text-ra-text-tertiary">{label}</span>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+        className={cn(
+          "mt-1 w-full rounded-md border border-ra-border bg-ra-input px-3 py-1.5 text-sm text-ra-text",
+          "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+        )}
       />
     </label>
   );

@@ -19,15 +19,15 @@ describe("diff viewer", () => {
   it("renders added and removed lines with colors", () => {
     const { container } = renderWithProviders(<DiffViewer diff={diff} />);
     expect(screen.getByTestId("diff-viewer")).toBeInTheDocument();
-    const added = container.querySelectorAll(".bg-emerald-50");
-    const removed = container.querySelectorAll(".bg-rose-50");
+    const added = container.querySelectorAll(".bg-\\[\\#014b01AA\\]\\/20");
+    const removed = container.querySelectorAll(".bg-\\[\\#750000AA\\]\\/20");
     expect(added.length).toBeGreaterThan(0);
     expect(removed.length).toBeGreaterThan(0);
   });
 
   it("renders hunk header", () => {
     const { container } = renderWithProviders(<DiffViewer diff={diff} />);
-    const hunk = container.querySelectorAll(".bg-sky-50");
+    const hunk = container.querySelectorAll(".bg-\\[\\#525252\\]\\/30");
     expect(hunk.length).toBeGreaterThan(0);
   });
 });
