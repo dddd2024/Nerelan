@@ -26,7 +26,10 @@ export function SettingsPage() {
   const defaultMutation = useSetDefaultModelProfile();
   const testMutation = useTestModelProfile();
 
-  const profiles = profilesQuery.data ?? [];
+  const profiles = useMemo(
+    () => profilesQuery.data ?? [],
+    [profilesQuery.data],
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -213,7 +216,7 @@ export function SettingsPage() {
                       密钥：{secretStatusLabel(profile.secretStatus)}
                     </span>
                   </button>
-                ))
+                ))}
               )}
             </aside>
 
