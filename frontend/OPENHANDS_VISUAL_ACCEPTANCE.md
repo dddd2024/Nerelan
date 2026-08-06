@@ -15,7 +15,7 @@ Target screenshots were captured from `npm run dev` loopback
 
 | OpenHands 1.8.0 | reverse-agent Frontend V1 | Notes |
 |---|---|---|
-| Fixed 75px dark icon sidebar on left | `src/components/app-shell.tsx` — same 75px `md:w-[75px]` icon bar | Sidebar is `flex-row` on mobile (bottom bar), `flex-col` on desktop |
+| 60px collapsed / 300px expanded desktop sidebar (`hidden md:flex`); mobile: hamburger trigger + fixed left drawer `w-[min(300px,85vw)]` + backdrop + overlay (`md:hidden`) | `src/components/app-shell.tsx` + `src/components/sidebar.tsx` — same 60/300 collapsed/expanded desktop sidebar; same hamburger + fixed-drawer + backdrop mobile pattern | Sidebar is `hidden md:flex` on desktop, `md:hidden` on mobile; drawer `role="dialog"` with `aria-modal` and focus trap |
 | Logo · New Conversation · Conversation Panel toggle · Nav links · User avatar | Logo (RA text) · New Task button · Task List toggle · Nav links (home/tasks/settings) | No user avatar (no auth in fixture mode) |
 | Main workspace area | `src/components/app-shell.tsx` workspace outlet + `NewTaskComposer` dock | Same padding and gap structure (`p-3 md:p-0`, `gap-3`) |
 
@@ -34,8 +34,8 @@ Target screenshots were captured from `npm run dev` loopback
 |---|---|---|
 | ConversationNameWithStatus header | `src/components/task-detail.tsx` — header with status dot, `←` back link, `#issueNumber`, branch, badges | Same dark rounded header (`rounded-lg border border-ra-border`) |
 | ConversationTabs (Messages · Artifacts · Tool Calls · ...) | `src/components/task-detail.tsx` — RightPanelTab nav (Changed Files · Evidence · Authority) | Same horizontal tab nav with icons |
-| Resizable horizontal split (chat left, tab panel right) | `src/components/task-detail.tsx` — same resizable split with `leftWidth` state + resize handle | OpenHands `useResizablePanels` → manual mouse-drag implementation |
-| ResizeHandle (draggable between panels) | `src/components/task-detail.tsx` — `<button>` with `cursor-ew-resize` | Same 1px transparent draggable strip |
+| Resizable horizontal split (chat left, tab panel right) | `src/components/task-detail.tsx` — same resizable split with `leftWidth` state + accessible separator resize handle | OpenHands `useResizablePanels` → manual mouse-drag implementation with `role="separator"` keyboard resize |
+| ResizeHandle (draggable between panels) | `src/components/task-detail.tsx` — `<div role="separator">` with ArrowLeft/Right/Home/End | Same 1px transparent draggable strip, now keyboard-operable |
 
 ### 4. Activity Stream (OpenHands `generic-event-message.tsx`)
 
@@ -66,7 +66,7 @@ Target screenshots were captured from `npm run dev` loopback
 ```
 OpenHands 1.8.0 (conceptual)
 ├── root-layout.tsx
-│   ├── sidebar/sidebar.tsx (75px icon bar)
+│   ├── sidebar/sidebar.tsx (60/300 collapsed/expanded desktop sidebar)
 │   ├── workspace outlet
 │   └── chat-input-container.tsx (dock)
 ├── home.tsx
@@ -86,7 +86,7 @@ OpenHands 1.8.0 (conceptual)
 
 reverse-agent Frontend V1
 ├── app-shell.tsx
-│   ├── sidebar.tsx (75px icon bar)
+│   ├── sidebar.tsx (60/300 collapsed/expanded desktop sidebar + mobile drawer)
 │   ├── workspace outlet
 │   └── new-task-composer.tsx (dock)
 ├── routes
@@ -140,7 +140,7 @@ reverse-agent Frontend V1
 
 ## Acceptance criteria
 
-1. ✅ Layout structure matches OpenHands 1.8.0 (icon sidebar + workspace + dock)
+1. ✅ Layout structure matches OpenHands 1.8.0 (60/300 collapsed/expanded desktop sidebar + mobile drawer + workspace)
 2. ✅ Dark color palette matches (workspace, sidebar, borders)
 3. ✅ Conversation cards match (status dot + title + secondary info)
 4. ✅ Header bar matches (status dot + back link + branch + badges)
@@ -148,5 +148,5 @@ reverse-agent Frontend V1
 6. ✅ Diff viewer matches (hunk headers + add/del highlighting)
 7. ✅ Permission selector matches (dropdown + plain-language summary)
 8. ✅ Skeleton/empty/error states match OpenHands patterns
-9. ✅ Responsive behavior matches (flex-row mobile, flex-col desktop)
+9. ✅ Responsive behavior matches (mobile drawer at 768px, desktop sidebar at 768px+)
 10. ✅ Typography matches (Outfit headings, IBM Plex Mono code)
