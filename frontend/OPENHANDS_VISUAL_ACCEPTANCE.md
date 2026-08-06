@@ -1,13 +1,51 @@
 # Visual Acceptance Evidence — Frontend V1 OpenHands Adaptation
 
-This document records side-by-side visual comparison evidence between
-OpenHands 1.8.0 UI concepts and the reverse-agent Frontend V1 adaptation.
+This document records structural comparison between OpenHands 1.8.0 UI
+components and the reverse-agent Frontend V1 adaptation, plus committed
+target screenshots at the final exact HEAD.
+
+## Final verification HEAD
+
+```text
+HEAD: 267d78f865d56fba1a54e3cd604e4066344c2d83
+OpenHands upstream commit: c7a765d900df294cbbf0f405ae26c9cbbd0fcc29 (tag 1.8.0)
+```
 
 ## Methodology
 
-Source screenshots were captured from OpenHands 1.8.0 deployed UI.
+### Source (OpenHands 1.8.0)
+
+The OpenHands upstream was cloned at tag `1.8.0`, commit
+`c7a765d900df294cbbf0f405ae26c9cbbd0fcc29`, into
+`F:/reverse-agent-upstreams/OpenHands-1.8.0`. The repository at that exact
+commit was inspected for source paths and UI structure.
+
+**Reference screenshots:** The OpenHands 1.8.0 repository contains no UI
+screenshots (only favicons and an Electron icon). Capturing reference
+screenshots requires running the OpenHands backend and/or frontend
+development server, which is outside the authorized scope of this Work Item
+(no live OpenHands runtime, Docker, or provider is permitted). No reference
+screenshot files were captured.
+
+### Target (reverse-agent)
+
 Target screenshots were captured from `npm run dev` loopback
-(`http://localhost:5173`) with fixture data.
+(`http://localhost:5173`) with deterministic fixtures at a HEAD
+immediately preceding the fix-forward commits. The two fix-forward commits
+changed only test assertions and ARIA role strings (`separator` →
+`slider`), not visual rendering. No visual-regression change occurred
+between the captured-screenshot HEAD and the final verification HEAD.
+
+Screenshot viewport:
+- Desktop: 1440×900
+- Mobile: 390×844
+
+### Side-by-side comparisons
+
+The following comparisons are structural analysis, **not captured side-by-side
+screenshots**. They map each OpenHands 1.8.0 source component to its
+reverse-agent target adaptation and describe the corresponding visual
+evidence files.
 
 ## Side-by-side comparisons
 
@@ -138,15 +176,42 @@ reverse-agent Frontend V1
 | Font family | `Outfit` / `IBM Plex Mono` | Same imports | Identical |
 | Font sizes | `text-xs` (12px) | Same | Identical |
 
-## Acceptance criteria
+## Target screenshot evidence (committed at HEAD 267d78f8)
 
-1. ✅ Layout structure matches OpenHands 1.8.0 (60/300 collapsed/expanded desktop sidebar + mobile drawer + workspace)
-2. ✅ Dark color palette matches (workspace, sidebar, borders)
-3. ✅ Conversation cards match (status dot + title + secondary info)
-4. ✅ Header bar matches (status dot + back link + branch + badges)
-5. ✅ Tab navigation matches (horizontal icon tabs)
-6. ✅ Diff viewer matches (hunk headers + add/del highlighting)
-7. ✅ Permission selector matches (dropdown + plain-language summary)
-8. ✅ Skeleton/empty/error states match OpenHands patterns
-9. ✅ Responsive behavior matches (mobile drawer at 768px, desktop sidebar at 768px+)
-10. ✅ Typography matches (Outfit headings, IBM Plex Mono code)
+Actual reverse-agent screenshots at the verification HEAD:
+
+| Path | Viewport | Content |
+|---|---|---|
+| `frontend/artifacts/screenshots/task-inbox-desktop.png` | 1440×900 | Task inbox with Needs Owner Attention / Running / Recent sections |
+| `frontend/artifacts/screenshots/task-inbox-mobile.png` | 390×844 | Mobile task inbox with hamburger drawer |
+| `frontend/artifacts/screenshots/task-detail-desktop.png` | 1440×900 | Task detail with Activity + Changes/Evidence/Authority split |
+| `frontend/artifacts/screenshots/task-detail-mobile.png` | 390×844 | Mobile single-pane task detail with Activity + tab nav |
+| `frontend/artifacts/screenshots/custom-permission-editor.png` | 1440×900 | CUSTOM permission editor with all policy controls |
+| `frontend/artifacts/screenshots/overnight-authorization-summary.png` | 1440×900 | Authorization summary from CUSTOM policy |
+
+All screenshots use deterministic fixtures. No credentials, absolute paths,
+private data, or production logs appear in any screenshot.
+
+## OpenHands reference screenshot evidence
+
+No OpenHands reference screenshots exist in the committed artifacts.
+See the Methodology section above for the reason.
+
+## Limitations
+
+1. Side-by-side comparison tables are structural analysis, not pixel-comparison
+   screenshots. They map each OpenHands 1.8.0 source path to its
+   reverse-agent target path and note the adaptation.
+2. OpenHands reference screenshots cannot be captured without running the
+   OpenHands backend/runtime, which is outside this Work Item's scope.
+3. Target screenshots were captured at a HEAD one commit before the
+   fix-forward commits; the fix-forward changes did not affect visual rendering.
+4. Screenshot capture was not re-executed at the exact final HEAD because the
+   CLI verification environment does not include a headless browser and cannot
+   install one without modifying `package.json`.
+
+## Governance boundary
+
+No real privileged operation, model invocation, OpenHands runtime,
+credential access, merge, release, or deployment was performed.
+PR #119 remains Draft.
