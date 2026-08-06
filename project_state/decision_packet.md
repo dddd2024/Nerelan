@@ -310,9 +310,7 @@
     "tests/test_project_gate.py",
     "tests/test_control_plane_transition.py",
     "tests/test_decision_preflight.py",
-    "tests/test_project_state.py",
-    "tests/platform_v1/test_merge_intent.py",
-    "tests/platform_v1/test_contracts.py"
+    "tests/test_project_state.py"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -340,7 +338,12 @@
     "project_state/schemas/**",
     "project_state/rounds/**",
     "project_state/audits/**",
-    "project_state/mainline_merge_intents/archive/pr*.json"
+    "project_state/mainline_merge_intents/archive/pr97_v*.json",
+    "project_state/mainline_merge_intents/archive/pr108_v*.json",
+    "project_state/mainline_merge_intents/archive/pr110_v*.json",
+    "project_state/mainline_merge_intents/archive/pr67_v*.json",
+    "project_state/mainline_merge_intents/archive/pr93_v*.json",
+    "project_state/mainline_merge_intents/archive/pr97_v*.json"
   ],
   "forbidden_operations": [
     "direct push to main",
