@@ -284,7 +284,7 @@ describe("Task detail — accessible resize separator", () => {
 
     const handle = screen.getByTestId("resize-handle");
     const leftPanel = screen.getByTestId("desktop-left-panel");
-    expect(handle).toHaveAttribute("role", "separator");
+    expect(handle).toHaveAttribute("role", "slider");
     expect(handle).toHaveAttribute("aria-orientation", "vertical");
     expect(handle).toHaveAttribute("aria-valuenow", "55");
     expect(leftPanel).toHaveStyle({ width: "55%" });

@@ -484,10 +484,13 @@ function ResizeHandle({
         setIsDragging(true);
         onDraggingChange(true);
       }}
+      role="button"
+      tabIndex={0}
+      aria-label="开始拖动调整面板大小"
       data-testid="resize-handle-container"
     >
       <div
-        role="separator"
+        role="slider"
         aria-orientation="vertical"
         aria-label="调整面板大小"
         aria-controls="desktop-left-panel desktop-right-panel"
