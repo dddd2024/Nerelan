@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { Sidebar } from "@/components/sidebar";
 import { ConversationPanel } from "@/components/conversation-panel";
 import { NewTaskComposer } from "@/components/new-task-composer";
@@ -13,15 +13,16 @@ interface AppShellProps {
  *
  * Upstream source:
  *   frontend/src/routes/root-layout.tsx (tag 1.8.0)
- *   - fixed 75px icon sidebar (`md:w-[75px] md:min-w-[75px]`)
- *   - main workspace `flex flex-col w-full min-w-0 h-full gap-3`
- *   - dark bg-base (#0D0F11), overflow-hidden
+ *   — collapsible 60px icon sidebar with 300px expanded state
+ *   — main workspace `flex flex-col w-full min-w-0 h-full gap-3`
+ *   — dark bg-base (#0D0F11), overflow-hidden
  *
- * Structurally ported: the sidebar is a fixed-width vertical icon bar.
- * The conversation panel (task list) is rendered as an overlay via
- * ConversationPanelWrapper, identical to OpenHands' portal pattern.
- * A NewTaskComposer is rendered at the bottom of the workspace, mirroring
- * the OpenHands `InteractiveChatBox` / `CustomChatInput` dock.
+ * Structurally ported: sidebar uses the same collapsed/expanded width model
+ * (60px → 300px) and the same overflow-hidden shell layout. The
+ * conversation panel (task list) is rendered as an overlay via
+ * ConversationPanel. A NewTaskComposer is rendered at the bottom of the
+ * workspace, mirroring the OpenHands `InteractiveChatBox` / `CustomChatInput`
+ * dock.
  *
  * Modifications: OpenHands branding, agent runtime, sandbox, and
  * conversation APIs replaced with fixture-driven reverse-agent domain
@@ -32,6 +33,15 @@ export function AppShell({ children }: AppShellProps) {
     useState(false);
   const [newTaskComposerOpen, setNewTaskComposerOpen] = useState(false);
 
+  const handleConversationPanelOpen = useCallback(
+    () => setConversationPanelOpen(true),
+    [],
+  );
+  const handleConversationPanelClose = useCallback(
+    () => setConversationPanelOpen(false),
+    [],
+  );
+
   return (
     <div
       data-testid="app-shell"
@@ -41,8 +51,8 @@ export function AppShell({ children }: AppShellProps) {
     >
       <Sidebar
         onNewTask={() => setNewTaskComposerOpen(true)}
-        onOpenConversationPanel={() => setConversationPanelOpen(true)}
-        onConversationPanelClose={() => setConversationPanelOpen(false)}
+        onOpenConversationPanel={handleConversationPanelOpen}
+        onConversationPanelClose={handleConversationPanelClose}
         conversationPanelOpen={conversationPanelOpen}
       />
 
@@ -64,7 +74,7 @@ export function AppShell({ children }: AppShellProps) {
 
       <ConversationPanel
         open={conversationPanelOpen}
-        onClose={() => setConversationPanelOpen(false)}
+        onClose={handleConversationPanelClose}
       />
     </div>
   );
