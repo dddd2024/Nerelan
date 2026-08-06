@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260806_pr119_formal_landing_v1",
-  "round_id": "round_20260806_pr119_formal_landing_v1",
-  "expired_at": "2026-08-06T10:22:19+00:00"
+  "decision_id": "decision_20260806_pr119_active_intent_lifecycle_v2",
+  "round_id": "round_20260806_pr119_active_intent_lifecycle_v2",
+  "expired_at": "2026-08-06T11:24:04+00:00"
 }

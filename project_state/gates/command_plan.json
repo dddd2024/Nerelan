@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260806_pr119_formal_landing_v1",
-  "round_id": "round_20260806_pr119_formal_landing_v1",
+  "decision_id": "decision_20260806_pr119_active_intent_lifecycle_v2",
+  "round_id": "round_20260806_pr119_active_intent_lifecycle_v2",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -129,8 +129,56 @@
       ]
     },
     {
-      "command_id": "test.pytest_mainline_landing",
-      "command": "python -m pytest tests/test_mainline_landing.py -q",
+      "command_id": "archive.active_intent",
+      "command": "byte-for-byte copy active.json to archive/pr112_v6.json",
+      "phase": "implementation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "file_copy"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/mainline_merge_intents/archive/pr112_v6.json"
+      ]
+    },
+    {
+      "command_id": "write.new_active_intent",
+      "command": "write new active.json for PR119",
+      "phase": "implementation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "write_file"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/mainline_merge_intents/active.json"
+      ]
+    },
+    {
+      "command_id": "test.pytest_merge_intent",
+      "command": "python -m pytest tests/platform_v1/test_merge_intent.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -151,8 +199,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.pytest_integration_baseline",
-      "command": "python -m pytest tests/test_integration_baseline.py -q",
+      "command_id": "test.pytest_contracts",
+      "command": "python -m pytest tests/platform_v1/test_contracts.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -173,8 +221,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.pytest_project_audits",
-      "command": "python -m pytest tests/test_project_audits.py -q",
+      "command_id": "test.pytest_platform_v1",
+      "command": "python -m pytest tests/platform_v1 -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -195,10 +243,32 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.pytest_gate_and_transition",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_decision_preflight.py tests/test_project_state.py -q",
+      "command_id": "test.pytest_mainline",
+      "command": "python -m pytest tests/test_mainline_landing.py tests/test_integration_baseline.py tests/test_project_audits.py -q",
       "phase": "test",
-      "required": false,
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "test.pytest_gate_transition",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_decision_preflight.py tests/test_project_state.py -q",
+      "phase": "test",
+      "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
         0
@@ -242,7 +312,7 @@
       "command_id": "publication.push_branch",
       "command": "git push origin owner/pr119-formal-landing-v1",
       "phase": "publication",
-      "required": false,
+      "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
