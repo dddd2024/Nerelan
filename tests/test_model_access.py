@@ -7,7 +7,10 @@ import pytest
 
 from reverse_agent.model_access.contracts import ModelProfile, ProbeResult
 from reverse_agent.model_access.store import ModelProfileStore
-from reverse_agent.model_access.service import probe_openai_compatible
+from reverse_agent.model_access.service import (
+    probe_openai_compatible,
+    validate_bind_host,
+)
 
 
 def profile_payload(**overrides: Any) -> dict[str, Any]:
@@ -141,3 +144,14 @@ def test_probe_uses_injected_transport_and_never_returns_secret() -> None:
             10.0,
         )
     ]
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "::1", "localhost"])
+def test_control_service_accepts_only_loopback_hosts(host: str) -> None:
+    assert validate_bind_host(host) == host
+
+
+@pytest.mark.parametrize("host", ["0.0.0.0", "::", "192.168.1.20", "model-host.local"])
+def test_control_service_rejects_non_loopback_hosts(host: str) -> None:
+    with pytest.raises(ValueError, match="loopback"):
+        validate_bind_host(host)
