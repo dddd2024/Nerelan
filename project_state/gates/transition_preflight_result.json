@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
-  "round_id": "round_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
+  "decision_id": "decision_20260806_pr119_formal_landing_v1",
+  "round_id": "round_20260806_pr119_formal_landing_v1",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6 expected=decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
+      "detail": "observed=decision_20260806_pr119_formal_landing_v1 expected=decision_20260806_pr119_formal_landing_v1"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260804_issue111_pr112_bootstrap_path_tree_seal_v6 expected=round_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
+      "detail": "observed=round_20260806_pr119_formal_landing_v1 expected=round_20260806_pr119_formal_landing_v1"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=owner/state-gate-bootstrap-v13-retry-v3 expected=owner/state-gate-bootstrap-v13-retry-v3"
+      "detail": "observed=owner/pr119-formal-landing-v1 expected=owner/pr119-formal-landing-v1"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=93984db182b7ee11b3ccb8795bb5fc3741205b92 merge_base=93984db182b7ee11b3ccb8795bb5fc3741205b92"
+      "detail": "base=1142dd324fdd4c4bf2a1353d9d5e93bc04b33507 merge_base=1142dd324fdd4c4bf2a1353d9d5e93bc04b33507"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=27f97365b1c3d6b2a872f9dce83e60c5d697d548"
+      "detail": "decision_commit=0ed2d993069d295b6fb30a1e15c949755b722765"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6/round_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
+      "detail": "plan=decision_20260806_pr119_formal_landing_v1/round_20260806_pr119_formal_landing_v1"
     },
     {
       "name": "command_plan_contract",
