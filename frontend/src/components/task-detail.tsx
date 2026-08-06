@@ -1,41 +1,67 @@
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
-import type { Task } from "@/types";
-import { Badge } from "@/components/badge";
-import { ActivityStream } from "@/components/activity-stream";
-import { ChangesPanel } from "@/components/changes-panel";
-import { EvidencePanel } from "@/components/evidence-panel";
-import { PermissionsPanel } from "@/components/permissions-panel";
-import { CustomPolicyEditor } from "@/components/custom-policy-editor";
-import { LoadingState } from "@/components/loading-state";
-import { ErrorState } from "@/components/error-state";
-import { profileToPolicy } from "@/lib/profile-mapper";
 import {
+  BarChart2,
+  FileText,
+  GitBranch,
+  ShieldCheck,
+} from "lucide-react";
+import { ActivityStream } from "@/components/activity-stream";
+import { Badge } from "@/components/badge";
+import { ChangesPanel } from "@/components/changes-panel";
+import { CustomPolicyEditor } from "@/components/custom-policy-editor";
+import { ErrorState } from "@/components/error-state";
+import { EvidencePanel } from "@/components/evidence-panel";
+import { LoadingState } from "@/components/loading-state";
+import { PermissionsPanel } from "@/components/permissions-panel";
+import { useBreakpoint } from "@/hooks/use-breakpoint";
+import { cn } from "@/lib/cn";
+import {
+  permissionModeLabel,
   riskTierStyle,
   runStateStyle,
-  permissionModeLabel,
 } from "@/lib/format";
-import { cn } from "@/lib/cn";
-import { useBreakpoint } from "@/hooks/use-breakpoint";
-import {
-  ShieldCheck,
-  FileText,
-  BarChart2,
-  GitBranch,
-} from "lucide-react";
-import type { PolicyContract } from "@/types";
+import { profileToPolicy } from "@/lib/profile-mapper";
+import type { PolicyContract, Task } from "@/types";
 
-type RightPanelTab = "activity" | "changes" | "evidence" | "authority";
-type MobilePane = "activity" | "changes" | "evidence" | "authority";
+type WorkspacePane = "changes" | "evidence" | "authority";
+type MobilePane = "activity" | WorkspacePane;
+
+const RIGHT_TABS: {
+  id: WorkspacePane;
+  label: string;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+}[] = [
+  { id: "changes", label: "Changed Files", icon: GitBranch },
+  { id: "evidence", label: "Evidence", icon: BarChart2 },
+  { id: "authority", label: "Authority", icon: ShieldCheck },
+];
 
 interface RightPanelTabsProps {
-  rightTab: RightPanelTab;
-  setRightTab: (t: RightPanelTab) => void;
+  rightTab: WorkspacePane;
+  setRightTab: (tab: WorkspacePane) => void;
   displayTask: Task;
   policy: ReturnType<typeof profileToPolicy>;
 }
 
-/** Right-panel tab navigation and content panel (desktop two-pane). */
+function renderWorkspacePane(
+  pane: MobilePane,
+  task: Task,
+  policy: ReturnType<typeof profileToPolicy>,
+) {
+  switch (pane) {
+    case "activity":
+      return <ActivityStream events={task.activity} />;
+    case "changes":
+      return <ChangesPanel changes={task.changes} />;
+    case "evidence":
+      return <EvidencePanel evidence={task.evidence} />;
+    case "authority":
+      return <PermissionsPanel policy={policy} />;
+  }
+}
+
+/** Right-side navigation and content for the desktop two-pane workspace. */
 function RightPanelTabs({
   rightTab,
   setRightTab,
@@ -49,18 +75,19 @@ function RightPanelTabs({
         aria-label="工作区分区"
         className="flex items-center gap-1 p-1 border-b border-ra-border"
       >
-        {RIGHT_TABS.map((t) => {
-          const TabIcon = t.icon;
-          const selected = rightTab === t.id;
+        {RIGHT_TABS.map((tab) => {
+          const TabIcon = tab.icon;
+          const selected = rightTab === tab.id;
           return (
             <button
-              key={t.id}
+              key={tab.id}
+              type="button"
               role="tab"
-              id={`tab-${t.id}`}
+              id={`tab-${tab.id}`}
               aria-selected={selected}
-              aria-controls={`tabpanel-${t.id}`}
+              aria-controls={`tabpanel-${tab.id}`}
               tabIndex={selected ? 0 : -1}
-              onClick={() => setRightTab(t.id)}
+              onClick={() => setRightTab(tab.id)}
               className={cn(
                 "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium",
                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
@@ -68,91 +95,51 @@ function RightPanelTabs({
                   ? "bg-ra-tertiary text-ra-text"
                   : "text-ra-text-tertiary hover:text-ra-text hover:bg-ra-tertiary/50",
               )}
-              data-testid={`right-tab-${t.id}`}
+              data-testid={`right-tab-${tab.id}`}
             >
-              <TabIcon className="h-4 w-4" />
-              <span>{t.label}</span>
+              <TabIcon className="h-4 w-4" aria-hidden="true" />
+              <span>{tab.label}</span>
             </button>
           );
         })}
       </div>
 
       <div
+        role="tabpanel"
+        id={`tabpanel-${rightTab}`}
+        aria-labelledby={`tab-${rightTab}`}
         className="h-[calc(100%-48px)] overflow-y-auto custom-scrollbar"
         data-testid="right-panel-content"
+        data-active-pane={rightTab}
       >
         <div className="p-4">
-          {rightTab === "changes" && <ChangesPanel changes={displayTask.changes} />}
-          {rightTab === "evidence" && <EvidencePanel evidence={displayTask.evidence} />}
-          {rightTab === "authority" && <PermissionsPanel policy={policy} />}
+          {renderWorkspacePane(rightTab, displayTask, policy)}
         </div>
       </div>
     </>
   );
 }
 
-const RIGHT_TABS: { id: RightPanelTab; label: string; icon: React.ComponentType<React.SVGProps<SVGSVGElement>> }[] = [
-  { id: "changes", label: "Changed Files", icon: GitBranch },
-  { id: "evidence", label: "Evidence", icon: BarChart2 },
-  { id: "authority", label: "Authority", icon: ShieldCheck },
-];
-
 /**
  * OpenHands ConversationMain + root-layout adaptation for task detail.
  *
- * Desktop (tag 1.8.0): 1024px breakpoint, two-pane resizable horizontal split
- *   (left Activity / right tabs), resize separator between them.
- * Mobile (<1024px): one-pane selector — Activity, Changed Files, Evidence,
- *   Authority — exactly one visible at a time, reversible.
- *
- * Upstream sources:
- *   frontend/src/routes/conversation.tsx (tag 1.8.0)
- *   — `p-3 md:p-0 flex flex-col h-full gap-3`
- *   frontend/src/components/features/conversation/conversation-main/
- *     conversation-main.tsx (tag 1.8.0)
- *   — horizontal resizable split: chat panel (left) + tab panel (right)
- *   — `useResizablePanels` with resize handle between
- *   frontend/src/components/features/conversation/conversation-tabs/
- *     conversation-tabs.tsx (tag 1.8.0)
- *   — dark tab nav with icons
- *
- * Modifications: mobile single-pane selector added; desktop resize uses
- *   accessible separator semantics; permission selector as compact badge.
- *   No agent runtime, sandbox, or websocket.
- * License: MIT (inherited from OpenHands)
+ * Desktop (1024px+): resizable Activity / secondary-workspace split.
+ * Mobile and tablet (<1024px): one reversible selector controlling exactly
+ * one of Activity, Changed Files, Evidence and Authority.
  */
 export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps) {
-  const [rightTab, setRightTab] = useState<RightPanelTab>("changes");
+  const [rightTab, setRightTab] = useState<WorkspacePane>("changes");
+  const [mobilePane, setMobilePane] = useState<MobilePane>("activity");
   const [customEditorOpen, setCustomEditorOpen] = useState(false);
   const [editorPolicy, setEditorPolicy] = useState<PolicyContract | null>(null);
-
-  const bp = useBreakpoint();
-  const isDesktop = bp === "desktop";
-  const [mobilePane, setMobilePane] = useState<MobilePane>("activity");
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const leftResizeHandleRef = useRef<HTMLDivElement>(null);
   const [leftWidth, setLeftWidth] = useState(55);
   const [isDragging, setIsDragging] = useState(false);
 
-  const displayTask = task ?? null;
+  const breakpoint = useBreakpoint();
+  const isDesktop = breakpoint === "desktop";
+  const splitContainerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!isDragging) return;
-    const onMouseMove = (e: MouseEvent) => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const newLeftPercent = ((e.clientX - rect.left) / rect.width) * 100;
-      setLeftWidth(Math.max(30, Math.min(80, newLeftPercent)));
-    };
-    const onMouseUp = () => setIsDragging(false);
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-    return () => {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-    };
-  }, [isDragging]);
+  const displayTask = task ?? null;
 
   if (isLoading) {
     return (
@@ -161,6 +148,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
       </div>
     );
   }
+
   if (isError || !displayTask) {
     return (
       <div data-testid="task-detail">
@@ -181,36 +169,22 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
   const risk = riskTierStyle(displayTask.riskTier);
   const policy = profileToPolicy(displayTask.permissionProfile);
 
-  const stateDotColor = {
-    "bg-emerald-500": "bg-[#BCFF8C]",
-    "bg-sky-500": "bg-[#FFD43B]",
-    "bg-amber-500": "bg-[#FFD43B]",
-    "bg-orange-500": "bg-[#FFD43B]",
-    "bg-rose-500": "bg-ra-status-error",
-    "bg-violet-500": "bg-[#A3A3A3]",
-    "bg-slate-400": "bg-[#A3A3A3]",
-  }[state.dot] ?? "bg-[#A3A3A3]";
-
-  function renderPaneContent(pane: MobilePane) {
-    if (!displayTask) return null;
-    switch (pane) {
-      case "activity":
-        return <ActivityStream events={displayTask.activity} />;
-      case "changes":
-        return <ChangesPanel changes={displayTask.changes} />;
-      case "evidence":
-        return <EvidencePanel evidence={displayTask.evidence} />;
-      case "authority":
-        return <PermissionsPanel policy={policy} />;
-    }
-  }
+  const stateDotColor =
+    {
+      "bg-emerald-500": "bg-[#BCFF8C]",
+      "bg-sky-500": "bg-[#FFD43B]",
+      "bg-amber-500": "bg-[#FFD43B]",
+      "bg-orange-500": "bg-[#FFD43B]",
+      "bg-rose-500": "bg-ra-status-error",
+      "bg-violet-500": "bg-[#A3A3A3]",
+      "bg-slate-400": "bg-[#A3A3A3]",
+    }[state.dot] ?? "bg-[#A3A3A3]";
 
   return (
     <div
       data-testid="task-detail"
       className="flex flex-col h-full gap-3 p-3 md:p-0"
     >
-      {/* Header — ConversationNameWithStatus adaptation */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4.5 pt-2 lg:pt-0">
         <div className="flex items-center gap-3 min-w-0">
           <div className="group relative flex-shrink-0">
@@ -223,6 +197,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
           <div className="flex items-center gap-2 min-w-0">
             <Link
               to="/tasks"
+              aria-label="返回任务列表"
               className="text-ra-text-tertiary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
             >
               ←
@@ -233,7 +208,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
             <span aria-hidden="true" className="text-ra-text-tertiary">
               ·
             </span>
-            <span className="font-mono text-xs text-ra-text-tertiary">
+            <span className="font-mono text-xs text-ra-text-tertiary truncate">
               {displayTask.branch}
             </span>
           </div>
@@ -263,17 +238,15 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
             )}
             title="编辑权限策略"
           >
-            <FileText className="h-3.5 w-3.5" />
+            <FileText className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>
       </div>
 
-      {/* Title */}
       <h1 className="text-lg font-semibold text-ra-text">
         {displayTask.title}
       </h1>
 
-      {/* Meta info — ConversationName adaptation */}
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs">
         <Meta label="下一步" value={displayTask.nextAction ?? "—"} />
         <Meta label="阻塞项" value={displayTask.blocker ?? "无"} />
@@ -283,13 +256,12 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
 
       {isDesktop ? (
         <div
-          ref={containerRef}
+          ref={splitContainerRef}
+          data-testid="desktop-split-container"
           className="flex flex-row flex-1 overflow-hidden"
-          style={{
-            transitionProperty: isDragging ? "none" : "all",
-          }}
         >
           <div
+            id="desktop-left-panel"
             data-testid="desktop-left-panel"
             className="flex flex-col bg-ra-workspace overflow-hidden flex-1 md:flex-none transition-all duration-300 ease-in-out"
             style={{
@@ -305,15 +277,18 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
           <ResizeHandle
             leftWidth={leftWidth}
             onWidthChange={setLeftWidth}
-            handleRef={leftResizeHandleRef}
+            splitContainerRef={splitContainerRef}
+            onDraggingChange={setIsDragging}
           />
 
           <div
+            id="desktop-right-panel"
             data-testid="desktop-right-panel"
             className="flex flex-col overflow-hidden bg-ra-sidebar flex-1 md:flex-none transition-all duration-300 ease-in-out"
             style={{
               width: `calc(${100 - leftWidth}% - 4px)`,
               minWidth: "240px",
+              transitionProperty: isDragging ? "none" : "all",
             }}
           >
             <RightPanelTabs
@@ -327,117 +302,39 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
       ) : (
         <div className="flex flex-col flex-1 overflow-hidden">
           <div
-            className="flex flex-col gap-1 p-1 border-b border-ra-border overflow-x-auto"
+            role="tablist"
+            aria-label="移动工作区"
+            className="flex items-center gap-1 p-1 border-b border-ra-border overflow-x-auto"
           >
-            <button
-              role="tab"
-              id="mobile-tab-activity"
-              aria-selected={mobilePane === "activity"}
-              aria-controls="mobile-pane-activity"
-              tabIndex={mobilePane === "activity" ? 0 : -1}
-               onClick={() => setRightTab("activity")}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium w-full text-left",
-                "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-                mobilePane === "activity"
-                  ? "bg-ra-tertiary text-ra-text"
-                  : "text-ra-text-tertiary hover:text-ra-text hover:bg-ra-tertiary/50",
-              )}
-              data-testid="mobile-pane-activity"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                className="h-4 w-4">
-                <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-              </svg>
-              <span>Activity</span>
-            </button>
-            {RIGHT_TABS.map((t) => {
-              const TabIcon = t.icon;
-              const selected = mobilePane === t.id;
-              return (
-                <button
-                  key={t.id}
-                  role="tab"
-                  id={`mobile-tab-${t.id}`}
-                  aria-selected={selected}
-                  aria-controls={`mobile-pane-${t.id}`}
-                  tabIndex={selected ? 0 : -1}
-                   onClick={() => {
-                     setRightTab(t.id);
-                   }}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium w-full text-left",
-                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-                    selected
-                      ? "bg-ra-tertiary text-ra-text"
-                      : "text-ra-text-tertiary hover:text-ra-text hover:bg-ra-tertiary/50",
-                  )}
-                  data-testid={`mobile-pane-${t.id}`}
-                >
-                  <TabIcon className="h-4 w-4" />
-                  <span>{t.label}</span>
-                </button>
-              );
-            })}
+            <MobileTab
+              id="activity"
+              label="Activity"
+              selected={mobilePane === "activity"}
+              onSelect={() => setMobilePane("activity")}
+              testId="mobile-pane-activity"
+            />
+            {RIGHT_TABS.map((tab) => (
+              <MobileTab
+                key={tab.id}
+                id={tab.id}
+                label={tab.label}
+                icon={tab.icon}
+                selected={mobilePane === tab.id}
+                onSelect={() => setMobilePane(tab.id)}
+                testId={`right-tab-${tab.id}`}
+              />
+            ))}
           </div>
 
           <div
+            role="tabpanel"
+            id={`mobile-panel-${mobilePane}`}
+            aria-labelledby={`mobile-tab-${mobilePane}`}
             className="flex-1 overflow-y-auto custom-scrollbar p-4 bg-ra-workspace"
-            data-testid="mobile-pane-content"
-          >
-            {renderPaneContent(mobilePane)}
-          </div>
-
-          <div
-            className="flex items-center gap-1 p-1 border-b border-ra-border"
-          >
-            {RIGHT_TABS.map((t) => {
-              const TabIcon = t.icon;
-              const selected = rightTab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  role="tab"
-                  id={`tab-${t.id}`}
-                  aria-selected={selected}
-                  aria-controls={`tabpanel-${t.id}`}
-                  tabIndex={selected ? 0 : -1}
-                  onClick={() => {
-                    setRightTab(t.id);
-                    setMobilePane(t.id);
-                  }}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium",
-                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-                    selected
-                      ? "bg-ra-tertiary text-ra-text"
-                      : "text-ra-text-tertiary hover:text-ra-text hover:bg-ra-tertiary/50",
-                  )}
-                  data-testid={`right-tab-${t.id}`}
-                >
-                  <TabIcon className="h-4 w-4" />
-                  <span>{t.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div
-            className="h-0 overflow-hidden"
             data-testid="right-panel-content"
+            data-active-pane={mobilePane}
           >
-            <div className="p-4">
-              {rightTab !== mobilePane && rightTab === "changes" && (
-                <ChangesPanel changes={displayTask.changes} />
-              )}
-              {rightTab !== mobilePane && rightTab === "evidence" && (
-                <EvidencePanel evidence={displayTask.evidence} />
-              )}
-              {rightTab !== mobilePane && rightTab === "authority" && (
-                <PermissionsPanel policy={policy} />
-              )}
-            </div>
+            {renderWorkspacePane(mobilePane, displayTask, policy)}
           </div>
         </div>
       )}
@@ -445,8 +342,8 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
       {customEditorOpen ? (
         <CustomPolicyEditor
           open={customEditorOpen}
-          policy={editorPolicy || profileToPolicy(displayTask.permissionProfile)}
-          onChange={(updated) => setEditorPolicy(updated)}
+          policy={editorPolicy ?? profileToPolicy(displayTask.permissionProfile)}
+          onChange={setEditorPolicy}
           onClose={() => setCustomEditorOpen(false)}
         />
       ) : null}
@@ -454,78 +351,155 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
   );
 }
 
-interface ResizeHandleProps {
-  leftWidth: number;
-  onWidthChange: (w: number) => void;
-  handleRef: React.RefObject<HTMLDivElement | null>;
+interface MobileTabProps {
+  id: MobilePane;
+  label: string;
+  selected: boolean;
+  onSelect: () => void;
+  testId: string;
+  icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>;
 }
 
-/**
- * Accessible separator-style resize handle between the left (Activity) and
- * right (tabs) panels.  Draggable by mouse and keyboard-operable via
- * ArrowLeft / ArrowRight / Home / End.
- */
-function ResizeHandle({ leftWidth, onWidthChange, handleRef }: ResizeHandleProps) {
+function MobileTab({
+  id,
+  label,
+  selected,
+  onSelect,
+  testId,
+  icon: Icon,
+}: MobileTabProps) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      id={`mobile-tab-${id}`}
+      aria-selected={selected}
+      aria-controls={`mobile-panel-${id}`}
+      tabIndex={selected ? 0 : -1}
+      onClick={onSelect}
+      className={cn(
+        "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+        selected
+          ? "bg-ra-tertiary text-ra-text"
+          : "text-ra-text-tertiary hover:text-ra-text hover:bg-ra-tertiary/50",
+      )}
+      data-testid={testId}
+    >
+      {Icon ? (
+        <Icon className="h-4 w-4" aria-hidden="true" />
+      ) : (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-4 w-4"
+          aria-hidden="true"
+        >
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+        </svg>
+      )}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+interface ResizeHandleProps {
+  leftWidth: number;
+  onWidthChange: (width: number) => void;
+  splitContainerRef: React.RefObject<HTMLDivElement | null>;
+  onDraggingChange: (dragging: boolean) => void;
+}
+
+function clampWidth(width: number) {
+  return Math.max(30, Math.min(80, width));
+}
+
+/** Mouse- and keyboard-operable separator for the desktop workspace split. */
+function ResizeHandle({
+  leftWidth,
+  onWidthChange,
+  splitContainerRef,
+  onDraggingChange,
+}: ResizeHandleProps) {
   const [isDragging, setIsDragging] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isDragging) return;
-    const onMouseMove = (e: MouseEvent) => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const newLeftPercent = ((e.clientX - rect.left) / rect.width) * 100;
-      onWidthChange(Math.max(30, Math.min(80, newLeftPercent)));
-    };
-    const onMouseUp = () => setIsDragging(false);
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-    return () => {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-    };
-  }, [isDragging, onWidthChange]);
 
-  function handleKey(e: React.KeyboardEvent) {
-    if (e.key === "ArrowLeft") {
-      onWidthChange(Math.max(30, leftWidth - 5));
-      e.preventDefault();
-    } else if (e.key === "ArrowRight") {
-      onWidthChange(Math.min(80, leftWidth + 5));
-      e.preventDefault();
-    } else if (e.key === "Home") {
-      onWidthChange(30);
-      e.preventDefault();
-    } else if (e.key === "End") {
-      onWidthChange(80);
-      e.preventDefault();
+    const handleMouseMove = (event: MouseEvent) => {
+      const splitContainer = splitContainerRef.current;
+      if (!splitContainer) return;
+
+      const rect = splitContainer.getBoundingClientRect();
+      if (rect.width <= 0) return;
+
+      const nextWidth = ((event.clientX - rect.left) / rect.width) * 100;
+      onWidthChange(clampWidth(nextWidth));
+    };
+
+    const stopDragging = () => {
+      setIsDragging(false);
+      onDraggingChange(false);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", stopDragging);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", stopDragging);
+      onDraggingChange(false);
+    };
+  }, [isDragging, onDraggingChange, onWidthChange, splitContainerRef]);
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    switch (event.key) {
+      case "ArrowLeft":
+        onWidthChange(clampWidth(leftWidth - 5));
+        event.preventDefault();
+        break;
+      case "ArrowRight":
+        onWidthChange(clampWidth(leftWidth + 5));
+        event.preventDefault();
+        break;
+      case "Home":
+        onWidthChange(30);
+        event.preventDefault();
+        break;
+      case "End":
+        onWidthChange(80);
+        event.preventDefault();
+        break;
     }
-  }
+  };
 
   return (
     <div
-      ref={containerRef}
       className="relative w-1 bg-transparent cursor-ew-resize shrink-0 group"
-      onMouseDown={(e) => {
-        e.preventDefault();
+      onMouseDown={(event) => {
+        event.preventDefault();
         setIsDragging(true);
+        onDraggingChange(true);
       }}
       data-testid="resize-handle-container"
     >
       <div
-        ref={handleRef}
         role="separator"
         aria-orientation="vertical"
         aria-label="调整面板大小"
+        aria-controls="desktop-left-panel desktop-right-panel"
         aria-valuemin={30}
         aria-valuemax={80}
-        aria-valuenow={leftWidth}
+        aria-valuenow={Math.round(leftWidth)}
         tabIndex={0}
-        onKeyDown={handleKey}
-        className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-ra-border group-hover:bg-ra-border-foreground"
+        onKeyDown={handleKeyDown}
+        className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-ra-border group-hover:bg-ra-border-foreground focus:outline-none focus-visible:w-1 focus-visible:bg-ra-accent"
         data-testid="resize-handle"
       />
-      <div className="absolute inset-y-0 -left-1 -right-1" />
+      <div className="absolute inset-y-0 -left-1 -right-1" aria-hidden="true" />
     </div>
   );
 }
