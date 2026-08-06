@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
-  "round_id": "round_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
+  "decision_id": "decision_20260806_pr119_formal_landing_v1",
+  "round_id": "round_20260806_pr119_formal_landing_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,27 +16,24 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260804_issue111_pr112_long_validation_budget_v5",
-  "follows_last_round_id": "round_20260804_issue111_pr112_long_validation_budget_v5",
-  "previous_audit_outcome": "PR112_V5_REJECTED_BOOTSTRAP_PATH_SET_AND_MERGE_TREE_UNSEALED",
-  "workstream_id": "issue111-pr112-bootstrap-path-tree-seal-v6",
-  "source_issue": 111,
-  "parent_issue": 90,
-  "dependent_issue": 105,
-  "dependent_pr": 106,
-  "prior_bootstrap_issue": 109,
-  "prior_bootstrap_pr": 110,
-  "active_pr": 112,
-  "required_branch": "owner/state-gate-bootstrap-v13-retry-v3",
-  "starting_head": "bc12fc3d5c92fda3066f3ce6f5043effec918a0e",
-  "activation_base_sha": "93984db182b7ee11b3ccb8795bb5fc3741205b92",
+  "follows_last_decision_id": "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
+  "follows_last_round_id": "round_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
+  "previous_audit_outcome": "PR119_FORMAL_LANDING_DECISION_GENERATION",
+  "workstream_id": "pr119-formal-landing-v1",
+  "source_issue": 122,
+  "active_pr": 119,
+  "required_branch": "owner/pr119-formal-landing-v1",
+  "starting_head": "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507",
+  "activation_base_sha": "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507",
+  "accepted_target_head": "68445abdcd6e66c3ad5c4534a9dd5c1c2414e47d",
+  "allowed_merge_method": "merge",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
   "pr_creation_allowed": false,
-  "pr_body_update_allowed": true,
-  "pr_comment_allowed": true,
+  "pr_body_update_allowed": false,
+  "pr_comment_allowed": false,
   "issue_comment_allowed": false,
   "merge_allowed": false,
   "mark_ready_allowed": false,
@@ -48,21 +45,19 @@
   "real_provider_credential_allowed": false,
   "live_work_item_publication_allowed": false,
   "trusted_host_live_probe_allowed": false,
-  "repair_attempt_limit": 0,
+  "repair_attempt_limit": 1,
   "audit_generation_allowed": false,
   "prior_audits_immutable": true,
-  "bootstrap_state_initial": "BOOTSTRAP_OPEN",
+  "bootstrap_state_initial": "BOOTSTRAP_EXPIRED",
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-    "git status --short",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
     "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre"
@@ -83,8 +78,83 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "test.pytest_control_plane_and_gate",
-      "command": "python -m pytest tests/test_control_plane_transition.py tests/test_planning_and_github_adapters.py tests/test_project_gate.py -q",
+      "command_id": "gate.startup_snapshot",
+      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/startup_snapshot.json"
+      ],
+      "produced_artifacts": [
+        "project_state/gates/startup_snapshot.json"
+      ]
+    },
+    {
+      "command_id": "gate.transition_command_plan",
+      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json"
+      ],
+      "produced_artifacts": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json"
+      ]
+    },
+    {
+      "command_id": "gate.transition_lint",
+      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "gate.transition_preflight",
+      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
+      "phase": "gate",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/transition_preflight_result.json",
+        "project_state/gates/bootstrap_state.json"
+      ],
+      "produced_artifacts": [
+        "project_state/gates/transition_preflight_result.json"
+      ]
+    },
+    {
+      "command_id": "test.pytest_mainline_landing",
+      "command": "python -m pytest tests/test_mainline_landing.py -q",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -97,8 +167,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "test.pytest_platform_v1_contracts_and_intent",
-      "command": "python -m pytest tests/platform_v1/test_contracts.py tests/platform_v1/test_merge_intent.py -q",
+      "command_id": "test.pytest_integration_baseline",
+      "command": "python -m pytest tests/test_integration_baseline.py -q",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -111,8 +181,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "test.pytest_platform_v1_all",
-      "command": "python -m pytest tests/platform_v1 -q",
+      "command_id": "test.pytest_project_audits",
+      "command": "python -m pytest tests/test_project_audits.py -q",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -125,24 +195,10 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "test.pytest_repository_hygiene_and_supervisor",
-      "command": "python -m pytest tests/test_repository_hygiene.py tests/test_supervisor_validate.py -q",
+      "command_id": "test.pytest_gate_and_transition",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_decision_preflight.py tests/test_project_state.py -q",
       "phase": "test",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "test.pytest_minimal_integration_baseline_docs",
-      "command": "python -m pytest tests/test_minimal_integration_baseline_docs.py -q",
-      "phase": "test",
-      "required": true,
+      "required": false,
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["run_checks"],
@@ -154,7 +210,7 @@
     },
     {
       "command_id": "validation.diff_check",
-      "command": "git diff --check 93984db182b7ee11b3ccb8795bb5fc3741205b92..HEAD",
+      "command": "git diff --check",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -168,7 +224,7 @@
     },
     {
       "command_id": "publication.push_branch",
-      "command": "git push origin owner/state-gate-bootstrap-v13-retry-v3",
+      "command": "git push origin owner/pr119-formal-landing-v1",
       "phase": "publication",
       "required": false,
       "expected_exit_codes": [0],
@@ -179,112 +235,41 @@
       "authority_origin": "normal_plan",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
-    },
-    {
-      "command_id": "observation.pr_metadata",
-      "command": "gh pr view 112 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
-      "phase": "observation",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "observation.pr_checks",
-      "command": "gh pr checks 112 --repo dddd2024/reverse-agent --watch",
-      "phase": "observation",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "publication.pr_edit",
-      "command": "gh pr edit 112 --repo dddd2024/reverse-agent --body-file -",
-      "phase": "publication",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["pr_body_update", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "publication.pr_comment",
-      "command": "gh pr comment 112 --repo dddd2024/reverse-agent --body-file -",
-      "phase": "publication",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["pr_comment", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
     }
   ],
   "allowed_mutated_paths": [
-    ".github/workflows/state-gate.yml",
     "project_state/decision_packet.md",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr110_v1.json",
-    "project_state/mainline_merge_intents/archive/pr112_v1.json",
-    "project_state/mainline_merge_intents/archive/pr112_v2.json",
-    "project_state/mainline_merge_intents/archive/pr112_v3.json",
-    "project_state/mainline_merge_intents/archive/pr112_v4.json",
-    "project_state/mainline_merge_intents/archive/pr112_v5.json",
-    "tests/platform_v1/test_contracts.py",
-    "tests/platform_v1/test_merge_intent.py"
+    "project_state/gates/bootstrap_state.json",
+    ".github/workflows/state-gate.yml"
   ],
   "reference_paths": [
     "AGENTS.md",
+    "README.md",
     ".github/workflows/ci.yml",
     ".github/workflows/decision-preflight.yml",
+    ".github/workflows/state-gate.yml",
     "reverse_agent/project_gate.py",
-    "reverse_agent/github_remote_verifier.py",
     "reverse_agent/mainline_landing.py",
-    "reverse_agent/platform_v1/contracts.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_planning_and_github_adapters.py",
+    "reverse_agent/platform_v1/authority_adapter.py",
+    "tests/test_mainline_landing.py",
+    "tests/test_integration_baseline.py",
+    "tests/test_project_audits.py",
     "tests/test_project_gate.py",
-    "tests/test_repository_hygiene.py",
-    "tests/test_supervisor_validate.py",
-    "tests/test_minimal_integration_baseline_docs.py",
-    "project_state/mainline_merge_intents/archive/pr97_v1.json",
-    "project_state/mainline_merge_intents/archive/pr97_v2.json",
-    "project_state/mainline_merge_intents/archive/pr97_v3.json",
-    "project_state/mainline_merge_intents/archive/pr97_v4.json",
-    "project_state/mainline_merge_intents/archive/pr108_v1.json"
+    "tests/test_decision_preflight.py",
+    "tests/test_project_state.py"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/gates/bootstrap_state.json"
   ],
   "forbidden_mutated_paths": [
-    ".github/workflows/ci.yml",
-    ".github/workflows/decision-preflight.yml",
     "reverse_agent/**",
     "docs/**",
     "deploy/**",
@@ -302,32 +287,27 @@
     "project_state/schemas/**",
     "project_state/rounds/**",
     "project_state/audits/**",
-    "project_state/mainline_merge_intents/archive/pr97_v1.json",
-    "project_state/mainline_merge_intents/archive/pr97_v2.json",
-    "project_state/mainline_merge_intents/archive/pr97_v3.json",
-    "project_state/mainline_merge_intents/archive/pr108_v1.json"
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/**"
   ],
   "forbidden_operations": [
-    "create a branch or pull request",
     "direct push to main",
-    "mark ready",
-    "merge",
-    "auto merge",
     "force push",
     "rebase",
     "squash",
+    "merge",
+    "mark ready",
+    "auto merge",
     "tag or release",
     "deployment",
     "credential access or publication",
-    "Issue 102 execution",
-    "Docker OpenHands Agent Canvas or Codex ACP execution",
-    "shadow-audit generation or execution",
-    "invoke a second model or nested agent",
-    "runner dispatch",
-    "unknown binary execution",
-    "external reverse-tool invocation",
-    "modify PR 106",
-    "modify paths outside the exact eleven-path Bootstrap scope",
+    "real provider access",
+    "PR #121 mutation",
+    "accepted frontend branch mutation",
+    "modify project_state/mainline_merge_intents/active.json",
+    "modify project_state/mainline_merge_intents/archive/**",
+    "modify reverse_agent/**",
+    "modify tests/**",
     "delete historical or negative assertions",
     "weaken digest or workflow validation",
     "fall back to an older successful workflow run"
@@ -347,28 +327,15 @@
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
-      "git push origin owner/state-gate-bootstrap-v13-retry-v3",
-      "gh pr view 112 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
-      "gh pr checks 112 --repo dddd2024/reverse-agent --watch",
-      "gh pr edit 112 --repo dddd2024/reverse-agent --body-file -",
-      "gh pr comment 112 --repo dddd2024/reverse-agent --body-file -"
+      "git push origin owner/pr119-formal-landing-v1"
     ],
     "ci_network_exceptions": []
   },
   "authorized_risk_tier": "R2",
   "authorized_risk_paths": [
-    ".github/workflows/state-gate.yml",
     "project_state/decision_packet.md",
     "project_state/gates/**",
-    "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr110_v1.json",
-    "project_state/mainline_merge_intents/archive/pr112_v1.json",
-    "project_state/mainline_merge_intents/archive/pr112_v2.json",
-    "project_state/mainline_merge_intents/archive/pr112_v3.json",
-    "project_state/mainline_merge_intents/archive/pr112_v4.json",
-    "project_state/mainline_merge_intents/archive/pr112_v5.json",
-    "tests/platform_v1/test_contracts.py",
-    "tests/platform_v1/test_merge_intent.py"
+    ".github/workflows/state-gate.yml"
   ],
   "path_risk_floor": [
     {
@@ -382,14 +349,6 @@
     {
       "pattern": "project_state/gates/**",
       "minimum_risk": "R2"
-    },
-    {
-      "pattern": "project_state/mainline_merge_intents/**",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "tests/platform_v1/**",
-      "minimum_risk": "R2"
     }
   ]
 }
@@ -397,14 +356,12 @@
 
 ## Goal
 
-Repair the exact-head Owner finding on existing Draft PR #112 by replacing the test-name-only candidate guard with a closed normalized-AST semantic-body allowlist. The v2 round starts from rejected v1 head `d19439387756c2b2516f9ca7af5a3d585a0b45a7` on branch `owner/state-gate-bootstrap-v13-retry-v3` and retains activation base B2 `93984db182b7ee11b3ccb8795bb5fc3741205b92`.
-
-The cumulative implementation is limited to the exact sixteen paths in `allowed_mutated_paths`; rejected v1 through v5 active Intents are archived byte-for-byte as `pr112_v1.json` through `pr112_v5.json`, while existing `pr110_v1.json` and every earlier archive remain immutable. V6 seals the same exact path set for both `B2..PR112_HEAD` and `B2..B3`, and requires the ordered-parent B3 merge tree to equal the accepted PR112 head tree. The semantic transformation allowlist, strict UTF-8 handling, deterministic marker-movement constructor, normalized AST comparison and every PR106/candidate/receipt trusted boundary remain unchanged.
+Generate the Round A Path-B Decision and gate artifacts that formally authorize the PR #119 formal landing on branch `owner/pr119-formal-landing-v1`. This Decision establishes the transition authority for generating command plan, lint, preflight, and integration artifacts. The accepted target head `68445abdcd6e66c3ad5c4534a9dd5c1c2414e47d` on branch `agent/frontend-v1-openhands-ui` is the fixed observed target; this Decision does not execute any merge, mark-ready, or publication action.
 
 ## Acceptance boundary
 
-The v6 Decision is committed before regenerated authority or binding updates. The standard transition Gate sequence must produce `transition-lint == PASSED`, `PRE_EXECUTION_AUTHORIZED`, `blocking_reasons == []`, and 18/18 checks `PASS` for the exact branch and B2 base. Rejected v5 active Intent is archived byte-for-byte as `archive/pr112_v5.json`; the new active Intent binds PR #112, B2, the committed v6 Decision and generated Command Plan, merge method `merge`, the current four-workflow policy, and a bounded expiry. The trusted bridge must fail closed on either Bootstrap path-seal mismatch or B3/accepted-head tree mismatch. Every required pytest process must retain an outer execution-harness timeout of at least 900 seconds, and the focused semantic-body regression must pass all 17 unchanged cases once before the complete validation sequence.
+The Decision is committed before any gate artifact generation. The transition Gate sequence must produce `transition-lint == PASSED`, `transition-preflight gate_status == PRE_EXECUTION_AUTHORIZED`, `blocking_reasons == []`, and deterministic gate artifacts bound to this Decision's identity (`decision_20260806_pr119_formal_landing_v1`).
 
-The trusted bridge derives B3 and the candidate head from the bound PR #106 event, proves B3 is the PR #112 ordered merge descendant of B2, and proves the exact four-commit H0-to-v14 topology and eleven-path net change. Candidate tests are parsed only as data. Qualified identities, class bases, decorators, arguments and normalized bodies are compared to H0 with only fixed transformations for runtime B3, v14 identity, historical-base separation and the exact v11r2 archive assertions; duplicate identities, collection controls, unknown calls, import changes, body weakening, assertion removal, fixture/helper changes and marker changes fail closed.
+The repository has no deterministic active-merge-intent generator (`project_gate.py` contains only validation functions `_validate_intent`, `validate_future_merge`, `emit_mainline_integration_receipt`; no CLI command or function writes `project_state/mainline_merge_intents/active.json`). Per repository rules, `active.json` is not modified in this round. The `active.json` currently binding PR #112 is preserved as-is.
 
-All specified tests, semantic-body adversarial checks, YAML and workflow/receipt structural checks, and `git diff --check 93984db182b7ee11b3ccb8795bb5fc3741205b92..HEAD` must pass without repair or retry. The cumulative diff remains exactly twelve paths. Publication is limited to the existing branch and Draft PR #112 plus read-only check observation. PR #106 remains untouched; merge, mark-ready and auto-merge remain false. The terminal status is `PR112_BOOTSTRAP_V3_SEMANTIC_BODY_GUARD_READY_FOR_OWNER_AUDIT`.
+All specified commands must be executed in order. `git diff --check` must pass. Publication is limited to a non-force push to `owner/pr119-formal-landing-v1`. PR #119 merge, mark-ready, PR #121 mutation, and direct main push remain forbidden.
