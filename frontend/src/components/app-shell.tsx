@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { NavLink, useLocation } from "react-router";
 import { Sidebar } from "@/components/sidebar";
 import { ConversationPanel } from "@/components/conversation-panel";
@@ -15,134 +21,140 @@ const SIDEBAR_ITEMS: { to: string; label: string }[] = [
 ];
 
 function getNavLabel(to: string): string {
-  const item = SIDEBAR_ITEMS.find((s) => s.to === to);
+  const item = SIDEBAR_ITEMS.find((candidate) => candidate.to === to);
   return item?.label ?? to;
 }
 
 /**
- * OpenHands 1.8.0 root-layout adaptation with accessible mobile drawer.
+ * OpenHands 1.8.0 root-layout adaptation with an accessible mobile drawer.
  *
  * Upstream sources (tag 1.8.0, commit c7a765d900df294cbbf0f405ae26c9cbbd0fcc29):
  *   frontend/src/routes/root-layout.tsx
- *   — collapsible 60px / 300px desktop sidebar (`hidden md:flex`)
- *   — main workspace `flex flex-col w-full min-w-0 h-full gap-3`
- *
  *   frontend/src/components/features/sidebar/sidebar-mobile-menu-bar.tsx
- *   — `<button className="... md:hidden">` hamburger trigger
- *
  *   frontend/src/components/features/sidebar/sidebar.tsx
- *   — `<div className="md:hidden ...">` backdrop + fixed left drawer
- *   — `w-[min(300px,85vw)]` with translate-x transition
- *
  *   frontend/src/components/features/sidebar/sidebar-mobile-nav-context.tsx
- *   — SidebarMobileNavProvider state with open / close / routeClose
  *
- * Structurally ported (768px CSS shell boundary):
- *   - Desktop sidebar: always rendered, `hidden md:flex`
- *   - Mobile menu bar: always rendered, `md:hidden` with hamburger trigger
- *   - Mobile drawer: `fixed inset-y-0 left-0`, `w-[min(300px,85vw)]`, `md:hidden`
- *   - Backdrop: `fixed inset-0`, `md:hidden`, closes on click / Escape
- *   - Drawer: `role="dialog"`, `aria-modal`, focus trap, focus restore
- *   - Drawer close: Escape / backdrop / close button / route-change
- *   - Shell chrome visibility is controlled entirely by CSS; no React
- *     breakpoint state is used for the sidebar/drawer split.
- *
- * Modifications: OpenHands branding and agent runtime replaced with fixture-driven
- * reverse-agent domain. No server, websocket, or backend code.
- * License: MIT (inherited from OpenHands)
+ * The desktop rail is controlled at the 768px `md` boundary. The mobile
+ * trigger, backdrop and fixed drawer are the complementary `md:hidden`
+ * surface. OpenHands runtime, backend and credential behavior is not used.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const location = useLocation();
+  const previousPathnameRef = useRef(location.pathname);
+
   const [conversationPanelOpen, setConversationPanelOpen] = useState(false);
   const [newTaskComposerOpen, setNewTaskComposerOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  const handleConversationPanelOpen = useCallback(
-    () => setConversationPanelOpen(true),
-    [],
-  );
-  const handleConversationPanelClose = useCallback(
-    () => setConversationPanelOpen(false),
-    [],
-  );
-
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<{ style: string } | null>(null);
+  const scrollRef = useRef<string | null>(null);
 
-  function restoreScroll() {
-    if (scrollRef.current) {
-      document.body.style.overflow = scrollRef.current.style;
+  const handleConversationPanelOpen = useCallback(() => {
+    setConversationPanelOpen(true);
+  }, []);
+
+  const handleConversationPanelClose = useCallback(() => {
+    setConversationPanelOpen(false);
+  }, []);
+
+  const restoreScroll = useCallback(() => {
+    if (scrollRef.current !== null) {
+      document.body.style.overflow = scrollRef.current;
+      scrollRef.current = null;
     }
-    scrollRef.current = null;
-  }
+  }, []);
 
-  function closeDrawer() {
-    setMobileNavOpen(false);
-    restoreScroll();
-    triggerRef.current?.focus();
-  }
+  const closeDrawer = useCallback(
+    (restoreFocus = true) => {
+      setMobileNavOpen(false);
+      restoreScroll();
+      if (restoreFocus) {
+        queueMicrotask(() => triggerRef.current?.focus());
+      }
+    },
+    [restoreScroll],
+  );
 
-  // Escape closes drawer
+  const openDrawer = useCallback(() => {
+    setConversationPanelOpen(false);
+    setMobileNavOpen(true);
+  }, []);
+
   useEffect(() => {
     if (!mobileNavOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
         closeDrawer();
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [mobileNavOpen]);
 
-  // Route-change closes drawer
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [closeDrawer, mobileNavOpen]);
+
   useEffect(() => {
-    if (mobileNavOpen) {
-      setMobileNavOpen(false);
-      restoreScroll();
-      triggerRef.current?.focus();
-    }
-  }, [location.pathname, mobileNavOpen]);
+    const pathnameChanged = previousPathnameRef.current !== location.pathname;
+    previousPathnameRef.current = location.pathname;
 
-  // Focus into drawer on open; Tab/Shift+Tab wraps inside drawer
+    if (pathnameChanged && mobileNavOpen) {
+      closeDrawer();
+    }
+  }, [closeDrawer, location.pathname, mobileNavOpen]);
+
   useEffect(() => {
     if (!mobileNavOpen) return;
-    scrollRef.current = { style: document.body.style.overflow };
+
+    if (scrollRef.current === null) {
+      scrollRef.current = document.body.style.overflow;
+    }
     document.body.style.overflow = "hidden";
 
-    const el = drawerRef.current;
-    if (!el) return;
-    const focusable = Array.from(
-      el.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      ),
-    );
-    if (closeBtnRef.current) {
-      closeBtnRef.current.focus();
-    } else if (focusable.length) {
-      focusable[0].focus();
+    const drawer = drawerRef.current;
+    if (!drawer) {
+      return () => restoreScroll();
     }
-    const handler = (e: KeyboardEvent) => {
-      if (e.key !== "Tab" || !focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
+
+    const getFocusableElements = () =>
+      Array.from(
+        drawer.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+
+    const focusable = getFocusableElements();
+    (closeButtonRef.current ?? focusable[0])?.focus();
+
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+
+      const currentFocusable = getFocusableElements();
+      if (currentFocusable.length === 0) {
+        event.preventDefault();
+        drawer.focus();
+        return;
+      }
+
+      const first = currentFocusable[0];
+      const last = currentFocusable[currentFocusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
         last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
         first.focus();
       }
     };
-    el.addEventListener("keydown", handler);
-    return () => {
-      el.removeEventListener("keydown", handler);
-    };
-  }, [mobileNavOpen]);
 
-  const handleMobileNavClose = closeDrawer;
+    drawer.addEventListener("keydown", trapFocus);
+    return () => {
+      drawer.removeEventListener("keydown", trapFocus);
+      restoreScroll();
+    };
+  }, [mobileNavOpen, restoreScroll]);
 
   return (
     <div
@@ -159,7 +171,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       />
 
       <div
+        data-testid="mobile-menu-bar"
         className="md:hidden flex flex-row items-center gap-2 px-3 h-[54px] shrink-0 bg-ra-base border-b border-ra-border"
+        inert={mobileNavOpen ? true : undefined}
+        aria-hidden={mobileNavOpen ? "true" : undefined}
       >
         <button
           type="button"
@@ -167,9 +182,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           aria-expanded={mobileNavOpen}
           aria-controls={DRAWER_ID}
           data-testid="mobile-menu-button"
-          onClick={() => setMobileNavOpen(true)}
+          onClick={openDrawer}
           ref={triggerRef}
-          className="flex items-center gap-2 text-ra-text-secondary hover:text-ra-text"
+          className="flex items-center gap-2 text-ra-text-secondary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
         >
           <svg
             viewBox="0 0 24 24"
@@ -179,19 +194,21 @@ export function AppShell({ children }: { children: ReactNode }) {
             strokeLinecap="round"
             strokeLinejoin="round"
             className="h-5 w-5"
+            aria-hidden="true"
           >
             <line x1="3" y1="6" x2="21" y2="6" />
             <line x1="3" y1="12" x2="21" y2="12" />
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
+          <span className="font-semibold text-ra-text">reverse-agent</span>
         </button>
       </div>
 
       <div
-        className="fixed inset-0 z-50 md:hidden bg-black/50"
+        className="fixed inset-0 z-40 md:hidden bg-black/50"
         aria-hidden="true"
         data-testid="mobile-drawer-backdrop"
-        onClick={handleMobileNavClose}
+        onClick={() => closeDrawer()}
         style={{ display: mobileNavOpen ? "" : "none" }}
       />
 
@@ -201,7 +218,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         id={DRAWER_ID}
         aria-label={DRAWER_LABEL}
         aria-modal="true"
-        aria-hidden={mobileNavOpen}
+        aria-hidden={!mobileNavOpen}
+        tabIndex={-1}
         data-testid="mobile-drawer"
         className="fixed top-0 bottom-0 left-0 z-50 w-[min(300px,85vw)] md:hidden bg-ra-base flex flex-col shadow-lg"
         style={{ display: mobileNavOpen ? "" : "none" }}
@@ -212,9 +230,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             type="button"
             aria-label="关闭菜单"
             data-testid="mobile-drawer-close"
-            onClick={handleMobileNavClose}
-            ref={closeBtnRef}
-            className="text-ra-text-tertiary hover:text-ra-text"
+            onClick={() => closeDrawer()}
+            ref={closeButtonRef}
+            className="text-ra-text-tertiary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
           >
             <svg
               viewBox="0 0 24 24"
@@ -224,6 +242,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               strokeLinecap="round"
               strokeLinejoin="round"
               className="h-5 w-5"
+              aria-hidden="true"
             >
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
@@ -231,31 +250,37 @@ export function AppShell({ children }: { children: ReactNode }) {
           </button>
         </div>
 
-        <nav className="flex flex-col gap-1 p-2">
+        <nav aria-label="主导航" className="flex flex-col gap-1 p-2">
           {SIDEBAR_ITEMS.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               data-testid={`mobile-nav-${getNavLabel(item.to)}`}
-              onClick={handleMobileNavClose}
-              className="flex items-center gap-3 px-3 py-2 rounded-md text-ra-text-secondary hover:text-ra-text hover:bg-ra-tertiary"
+              onClick={() => closeDrawer()}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-3 px-3 py-2 rounded-md text-sm",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+                  isActive
+                    ? "bg-ra-tertiary text-ra-text"
+                    : "text-ra-text-secondary hover:text-ra-text hover:bg-ra-tertiary",
+                )
+              }
             >
               {item.label}
             </NavLink>
           ))}
         </nav>
 
-        <div className="flex items-center gap-2 p-4 border-t border-ra-border">
+        <div className="mt-auto flex flex-col gap-2 p-4 border-t border-ra-border">
           <button
             type="button"
             data-testid="mobile-new-task-button"
             onClick={() => {
-              setMobileNavOpen(false);
-              restoreScroll();
+              closeDrawer();
               setNewTaskComposerOpen(true);
-              triggerRef.current?.focus();
             }}
-            className="flex items-center gap-2 px-3 py-2 rounded-md bg-ra-accent text-ra-base text-sm"
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-ra-accent text-ra-base text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
             <svg
               viewBox="0 0 24 24"
@@ -265,6 +290,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               strokeLinecap="round"
               strokeLinejoin="round"
               className="h-4 w-4"
+              aria-hidden="true"
             >
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
@@ -275,12 +301,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             type="button"
             data-testid="mobile-task-list-toggle"
             onClick={() => {
-              setMobileNavOpen(false);
-              restoreScroll();
+              closeDrawer();
               setConversationPanelOpen(true);
-              triggerRef.current?.focus();
             }}
-            className="flex items-center gap-2 px-3 py-2 rounded-md text-ra-text-secondary hover:text-ra-text text-sm"
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-md text-ra-text-secondary hover:text-ra-text hover:bg-ra-tertiary text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
           >
             任务列表
           </button>
@@ -288,7 +312,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
 
       <div
+        data-testid="app-shell-workspace"
         className="flex flex-col w-full min-w-0 flex-1 gap-3 h-full"
+        inert={mobileNavOpen ? true : undefined}
         aria-hidden={mobileNavOpen ? "true" : undefined}
       >
         <div
