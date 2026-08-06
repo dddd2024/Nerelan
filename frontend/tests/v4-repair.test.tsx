@@ -118,6 +118,8 @@ describe("sidebar collapse/expand — OpenHands 1.8.0 adaptation", () => {
     const toggle = screen.getByTestId("sidebar-collapse-toggle");
     toggle.focus();
     await user.keyboard("{Space}");
+    // jsdom does not fire click on Space; simulate browser default
+    fireEvent.click(toggle);
 
     expect(screen.getByTestId("sidebar")).toHaveAttribute(
       "data-collapsed",
