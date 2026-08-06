@@ -28,6 +28,7 @@ ARCHIVE_PR112_V2_PATH = INTENTS_DIR / "archive" / "pr112_v2.json"
 ARCHIVE_PR112_V3_PATH = INTENTS_DIR / "archive" / "pr112_v3.json"
 ARCHIVE_PR112_V4_PATH = INTENTS_DIR / "archive" / "pr112_v4.json"
 ARCHIVE_PR112_V5_PATH = INTENTS_DIR / "archive" / "pr112_v5.json"
+ARCHIVE_PR112_V6_PATH = INTENTS_DIR / "archive" / "pr112_v6.json"
 DECISION_PATH = REPO_ROOT / "project_state" / "decision_packet.md"
 COMMAND_PLAN_PATH = REPO_ROOT / "project_state" / "gates" / "command_plan.json"
 
@@ -54,6 +55,7 @@ EXPECTED_PR112_V2_GIT_BLOB = "770f19faba9e0f040656341beec0089ca87d3545"
 EXPECTED_PR112_V3_GIT_BLOB = "3c246c1377df2504bb95fbd4d9865860b017b049"
 EXPECTED_PR112_V4_GIT_BLOB = "78104b6ae6746b0b5bf3b409f7dd2054ca23fcd9"
 EXPECTED_PR112_V5_GIT_BLOB = "64e555a98a1b748b2e320abb4559922bdc0d3649"
+EXPECTED_PR112_V6_GIT_BLOB = "ed960c0e117051e8915b457028e4c0e5f0c3e07c"
 
 
 def _load_json(path: Path) -> dict:
@@ -65,28 +67,55 @@ def _load_json(path: Path) -> dict:
 # ---------------------------------------------------------------------------
 
 class TestActiveMergeIntent:
+    """The active intent must dynamically match the current committed Decision.
+
+    Assertions are not hardcoded to a specific PR or Decision; they verify
+    that active.json binds to the current Decision's identity.
+    """
+
     def test_active_file_exists(self) -> None:
         assert ACTIVE_PATH.exists(), f"active.json not found at {ACTIVE_PATH}"
 
-    def test_active_binds_source_pr_112(self) -> None:
+    def test_active_binds_current_decision_source_pr(self) -> None:
+        """active.source_pr must equal current Decision's active_pr."""
         data = _load_json(ACTIVE_PATH)
-        assert data["source_pr"] == 112, "active intent must bind source_pr=112"
+        import re
+        decision_text = DECISION_PATH.read_text(encoding="utf-8")
+        m = re.search(r'"active_pr":\s*(\d+)', decision_text)
+        assert m, "could not find active_pr in current Decision"
+        expected_pr = int(m.group(1))
+        assert data["source_pr"] == expected_pr, (
+            f"active source_pr={data['source_pr']} != "
+            f"Decision active_pr={expected_pr}"
+        )
 
     def test_active_does_not_have_source_pr_zero(self) -> None:
         data = _load_json(ACTIVE_PATH)
         assert data["source_pr"] != 0, "active intent must not retain source_pr=0"
 
-    def test_active_binds_locked_base_sha(self) -> None:
+    def test_active_binds_current_decision_locked_base_sha(self) -> None:
+        """active.locked_base_sha must equal current Decision's activation_base_sha."""
         data = _load_json(ACTIVE_PATH)
-        assert data["locked_base_sha"] == EXPECTED_BOOTSTRAP_BASE_SHA
+        import re
+        decision_text = DECISION_PATH.read_text(encoding="utf-8")
+        m = re.search(r'"activation_base_sha":\s*"([0-9a-f]{40})"', decision_text)
+        assert m, "could not find activation_base_sha in current Decision"
+        expected_base = m.group(1)
+        assert data["locked_base_sha"] == expected_base
 
     def test_active_binds_merge_method(self) -> None:
         data = _load_json(ACTIVE_PATH)
         assert data["allowed_merge_method"] == "merge"
 
-    def test_active_binds_bootstrap_decision_id(self) -> None:
+    def test_active_binds_current_decision_id(self) -> None:
+        """active.decision_identity.decision_id must equal current committed Decision ID."""
         data = _load_json(ACTIVE_PATH)
-        assert data["decision_identity"]["decision_id"] == EXPECTED_BOOTSTRAP_DECISION_ID
+        import re
+        decision_text = DECISION_PATH.read_text(encoding="utf-8")
+        m = re.search(r'"decision_id":\s*"([a-z0-9_]+)"', decision_text)
+        assert m, "could not find decision_id in current Decision"
+        expected_id = m.group(1)
+        assert data["decision_identity"]["decision_id"] == expected_id
 
     def test_active_decision_content_sha256_is_64_hex(self) -> None:
         data = _load_json(ACTIVE_PATH)
@@ -381,6 +410,32 @@ class TestArchivedPR112V5Intent:
         assert data["source_pr"] == 112
         assert data["decision_identity"]["decision_id"] == (
             "decision_20260804_issue111_pr112_long_validation_budget_v5"
+        )
+        assert data["locked_base_sha"] == EXPECTED_BOOTSTRAP_BASE_SHA
+
+
+# ---------------------------------------------------------------------------
+# Archived rejected PR112 v6 intent (exact v6 active bytes - current active before migration)
+# ---------------------------------------------------------------------------
+
+class TestArchivedPR112V6Intent:
+    def test_archive_pr112_v6_file_exists(self) -> None:
+        assert ARCHIVE_PR112_V6_PATH.exists(), (
+            f"pr112_v6.json not found at {ARCHIVE_PR112_V6_PATH}"
+        )
+
+    def test_archive_pr112_v6_is_exact_active_blob_before_migration(self) -> None:
+        """pr112_v6.json must be the exact byte-for-byte copy of the PR112 v6
+        active intent (the last active state before migration to PR119)."""
+        payload = ARCHIVE_PR112_V6_PATH.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == EXPECTED_PR112_V6_GIT_BLOB
+
+    def test_archive_pr112_v6_preserves_identity_and_base(self) -> None:
+        data = _load_json(ARCHIVE_PR112_V6_PATH)
+        assert data["source_pr"] == 112
+        assert data["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
         )
         assert data["locked_base_sha"] == EXPECTED_BOOTSTRAP_BASE_SHA
 

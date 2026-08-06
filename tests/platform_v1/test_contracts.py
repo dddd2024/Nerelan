@@ -905,15 +905,16 @@ class TestRequiredChecksAsWorkflows:
 # ---------------------------------------------------------------------------
 
 class TestActiveMergeIntentV6:
-    """The active intent binds PR #112 while preserving prior intents.
+    """The active intent must dynamically match the current committed Decision.
 
-    The v1, v2, and v3 assertions remain intact, and the v4 archive must be
-    the exact B0 active Intent blob.
+    The v1, v2, v3, v4, PR108, PR110, and PR112 v1-v6 archives remain
+    unchanged. Active assertions are bound to the current Decision identity.
     """
 
     @pytest.fixture(autouse=True)
     def _load_intents(self) -> None:
         import json
+        import re
         from pathlib import Path
         repo_root = Path(__file__).resolve().parents[2]
         intents_dir = repo_root / "project_state" / "mainline_merge_intents"
@@ -929,6 +930,7 @@ class TestActiveMergeIntentV6:
         self._archive_pr112_v3_path = intents_dir / "archive" / "pr112_v3.json"
         self._archive_pr112_v4_path = intents_dir / "archive" / "pr112_v4.json"
         self._archive_pr112_v5_path = intents_dir / "archive" / "pr112_v5.json"
+        self._archive_pr112_v6_path = intents_dir / "archive" / "pr112_v6.json"
         self._decision_path = repo_root / "project_state" / "decision_packet.md"
         self._command_plan_path = repo_root / "project_state" / "gates" / "command_plan.json"
         self._active = json.loads(self._active_path.read_text(encoding="utf-8"))
@@ -957,33 +959,44 @@ class TestActiveMergeIntentV6:
         self._archive_pr112_v5 = json.loads(
             self._archive_pr112_v5_path.read_text(encoding="utf-8")
         )
-
-    def test_active_binds_source_pr_112(self) -> None:
-        assert self._active["source_pr"] == 112
-
-    def test_active_binds_bootstrap_decision_id(self) -> None:
-        assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
+        self._archive_pr112_v6 = json.loads(
+            self._archive_pr112_v6_path.read_text(encoding="utf-8")
         )
+        # Parse current Decision identity
+        decision_text = self._decision_path.read_text(encoding="utf-8")
+        self._decision_active_pr = int(
+            re.search(r'"active_pr":\s*(\d+)', decision_text).group(1)
+        )
+        self._decision_base_sha = (
+            re.search(r'"activation_base_sha":\s*"([0-9a-f]{40})"', decision_text)
+            .group(1)
+        )
+        self._decision_id = re.search(
+            r'"decision_id":\s*"([a-z0-9_]+)"', decision_text
+        ).group(1)
 
-    def test_active_binds_bootstrap_decision_content_sha256(self) -> None:
+    def test_active_binds_current_decision_source_pr(self) -> None:
+        assert self._active["source_pr"] == self._decision_active_pr
+
+    def test_active_binds_current_decision_id(self) -> None:
+        assert self._active["decision_identity"]["decision_id"] == self._decision_id
+
+    def test_active_binds_current_decision_content_sha256(self) -> None:
         sha = self._active["decision_identity"]["decision_content_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
         assert sha == hashlib.sha256(self._decision_path.read_bytes()).hexdigest()
         assert sha != self._archive_v3["decision_identity"]["decision_content_sha256"]
 
-    def test_active_binds_bootstrap_command_plan_sha256(self) -> None:
+    def test_active_binds_current_command_plan_sha256(self) -> None:
         sha = self._active["command_plan_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
         assert sha == hashlib.sha256(self._command_plan_path.read_bytes()).hexdigest()
         assert sha != self._archive_v3["command_plan_sha256"]
 
-    def test_active_binds_locked_base_sha(self) -> None:
-        assert self._active["locked_base_sha"] == (
-            "93984db182b7ee11b3ccb8795bb5fc3741205b92"
-        )
+    def test_active_binds_current_decision_locked_base_sha(self) -> None:
+        assert self._active["locked_base_sha"] == self._decision_base_sha
 
     def test_active_binds_merge_method(self) -> None:
         assert self._active["allowed_merge_method"] == "merge"
@@ -1140,6 +1153,27 @@ class TestActiveMergeIntentV6:
         header = f"blob {len(payload)}\0".encode("ascii")
         assert hashlib.sha1(header + payload).hexdigest() == (
             "64e555a98a1b748b2e320abb4559922bdc0d3649"
+        )
+
+    def test_archive_pr112_v6_exists(self) -> None:
+        assert self._archive_pr112_v6_path.exists(), (
+            f"pr112_v6.json not found at {self._archive_pr112_v6_path}"
+        )
+
+    def test_archive_pr112_v6_preserves_identity_and_base(self) -> None:
+        assert self._archive_pr112_v6["source_pr"] == 112
+        assert self._archive_pr112_v6["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
+        )
+        assert self._archive_pr112_v6["locked_base_sha"] == (
+            "93984db182b7ee11b3ccb8795bb5fc3741205b92"
+        )
+
+    def test_archive_pr112_v6_is_exact_git_blob(self) -> None:
+        payload = self._archive_pr112_v6_path.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "ed960c0e117051e8915b457028e4c0e5f0c3e07c"
         )
 
 
