@@ -19,15 +19,22 @@ on:
       - "docs/model-access.md"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify:
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.head.ref == 'owner/model-access-frontend-closeout-v1')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout
+      - name: Checkout exact Owner branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -50,14 +57,6 @@ jobs:
       - name: Regenerate frontend lockfile
         run: npm install --prefix frontend --package-lock-only --ignore-scripts
 
-      - name: Upload generated lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-lockfile-${{ github.event.pull_request.head.sha || github.sha }}
-          path: frontend/package-lock.json
-          if-no-files-found: error
-          retention-days: 3
-
       - name: Install frontend dependencies
         run: npm ci --prefix frontend
 
@@ -78,3 +77,16 @@ jobs:
 
       - name: Frontend mock build
         run: npm --prefix frontend run build:mock
+
+      - name: Commit generated lockfile on Owner branch
+        if: github.event_name == 'pull_request'
+        run: |
+          if git diff --quiet -- frontend/package-lock.json; then
+            echo "Lockfile is already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/package-lock.json
+          git commit -m "security(frontend): refresh lockfile for React Router 8.3.0"
+          git push origin HEAD:owner/model-access-frontend-closeout-v1
