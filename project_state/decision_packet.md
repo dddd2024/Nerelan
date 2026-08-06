@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260806_pr119_formal_landing_v1",
-  "round_id": "round_20260806_pr119_formal_landing_v1",
+  "decision_id": "decision_20260806_pr119_active_intent_lifecycle_v2",
+  "round_id": "round_20260806_pr119_active_intent_lifecycle_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,14 +16,14 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
-  "follows_last_round_id": "round_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
-  "previous_audit_outcome": "PR119_FORMAL_LANDING_DECISION_GENERATION",
-  "workstream_id": "pr119-formal-landing-v1",
+  "follows_last_decision_id": "decision_20260806_pr119_formal_landing_v1",
+  "follows_last_round_id": "round_20260806_pr119_formal_landing_v1",
+  "previous_audit_outcome": "PR112_V6_ACTIVE_INTENT_ARCHIVAL_AND_PR119_BINDING",
+  "workstream_id": "pr119-active-intent-lifecycle-v2",
   "source_issue": 122,
   "active_pr": 119,
   "required_branch": "owner/pr119-formal-landing-v1",
-  "starting_head": "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507",
+  "starting_head": "148c2bf8bb32389e106951c09277d46478014407",
   "activation_base_sha": "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507",
   "accepted_target_head": "68445abdcd6e66c3ad5c4534a9dd5c1c2414e47d",
   "allowed_merge_method": "merge",
@@ -48,7 +48,7 @@
   "repair_attempt_limit": 1,
   "audit_generation_allowed": false,
   "prior_audits_immutable": true,
-  "bootstrap_state_initial": "BOOTSTRAP_EXPIRED",
+  "bootstrap_state_initial": "ACTIVE",
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
@@ -153,8 +153,40 @@
       ]
     },
     {
-      "command_id": "test.pytest_mainline_landing",
-      "command": "python -m pytest tests/test_mainline_landing.py -q",
+      "command_id": "archive.active_intent",
+      "command": "byte-for-byte copy active.json to archive/pr112_v6.json",
+      "phase": "implementation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["file_copy"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [
+        "project_state/mainline_merge_intents/archive/pr112_v6.json"
+      ],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "write.new_active_intent",
+      "command": "write new active.json for PR119",
+      "phase": "implementation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["write_file"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [
+        "project_state/mainline_merge_intents/active.json"
+      ],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "test.pytest_merge_intent",
+      "command": "python -m pytest tests/platform_v1/test_merge_intent.py -q",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -167,8 +199,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "test.pytest_integration_baseline",
-      "command": "python -m pytest tests/test_integration_baseline.py -q",
+      "command_id": "test.pytest_contracts",
+      "command": "python -m pytest tests/platform_v1/test_contracts.py -q",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -181,8 +213,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "test.pytest_project_audits",
-      "command": "python -m pytest tests/test_project_audits.py -q",
+      "command_id": "test.pytest_platform_v1",
+      "command": "python -m pytest tests/platform_v1 -q",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -195,10 +227,24 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "test.pytest_gate_and_transition",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_decision_preflight.py tests/test_project_state.py -q",
+      "command_id": "test.pytest_mainline",
+      "command": "python -m pytest tests/test_mainline_landing.py tests/test_integration_baseline.py tests/test_project_audits.py -q",
       "phase": "test",
-      "required": false,
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "test.pytest_gate_transition",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_decision_preflight.py tests/test_project_state.py -q",
+      "phase": "test",
+      "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["run_checks"],
@@ -226,7 +272,7 @@
       "command_id": "publication.push_branch",
       "command": "git push origin owner/pr119-formal-landing-v1",
       "phase": "publication",
-      "required": false,
+      "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["push", "network_access"],
@@ -244,7 +290,10 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
     "project_state/gates/bootstrap_state.json",
-    ".github/workflows/state-gate.yml"
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr112_v6.json",
+    "tests/platform_v1/test_merge_intent.py",
+    "tests/platform_v1/test_contracts.py"
   ],
   "reference_paths": [
     "AGENTS.md",
@@ -259,8 +308,11 @@
     "tests/test_integration_baseline.py",
     "tests/test_project_audits.py",
     "tests/test_project_gate.py",
+    "tests/test_control_plane_transition.py",
     "tests/test_decision_preflight.py",
-    "tests/test_project_state.py"
+    "tests/test_project_state.py",
+    "tests/platform_v1/test_merge_intent.py",
+    "tests/platform_v1/test_contracts.py"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -287,7 +339,6 @@
     "project_state/schemas/**",
     "project_state/rounds/**",
     "project_state/audits/**",
-    "project_state/mainline_merge_intents/active.json",
     "project_state/mainline_merge_intents/archive/**"
   ],
   "forbidden_operations": [
@@ -304,10 +355,8 @@
     "real provider access",
     "PR #121 mutation",
     "accepted frontend branch mutation",
-    "modify project_state/mainline_merge_intents/active.json",
-    "modify project_state/mainline_merge_intents/archive/**",
+    "modify PR #119 frontend code",
     "modify reverse_agent/**",
-    "modify tests/**",
     "delete historical or negative assertions",
     "weaken digest or workflow validation",
     "fall back to an older successful workflow run"
@@ -335,7 +384,8 @@
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
     "project_state/gates/**",
-    ".github/workflows/state-gate.yml"
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr112_v6.json"
   ],
   "path_risk_floor": [
     {
@@ -349,6 +399,10 @@
     {
       "pattern": "project_state/gates/**",
       "minimum_risk": "R2"
+    },
+    {
+      "pattern": "project_state/mainline_merge_intents/**",
+      "minimum_risk": "R2"
     }
   ]
 }
@@ -356,12 +410,8 @@
 
 ## Goal
 
-Generate the Round A Path-B Decision and gate artifacts that formally authorize the PR #119 formal landing on branch `owner/pr119-formal-landing-v1`. This Decision establishes the transition authority for generating command plan, lint, preflight, and integration artifacts. The accepted target head `68445abdcd6e66c3ad5c4534a9dd5c1c2414e47d` on branch `agent/frontend-v1-openhands-ui` is the fixed observed target; this Decision does not execute any merge, mark-ready, or publication action.
+Migrate the active intent lifecycle from PR #112 v6 to PR #119. Archive the current PR #112 v6 active intent as `pr112_v6.json` byte-for-byte, bind a new active intent to PR #119 with the v2 Decision authority, update active intent assertions in tests to be dynamic (bound to the current committed Decision), add archive presence and identity checks for `pr112_v6.json`, and verify all gates and tests pass. Publication is limited to a non-force push to `owner/pr119-formal-landing-v1`.
 
 ## Acceptance boundary
 
-The Decision is committed before any gate artifact generation. The transition Gate sequence must produce `transition-lint == PASSED`, `transition-preflight gate_status == PRE_EXECUTION_AUTHORIZED`, `blocking_reasons == []`, and deterministic gate artifacts bound to this Decision's identity (`decision_20260806_pr119_formal_landing_v1`).
-
-The repository has no deterministic active-merge-intent generator (`project_gate.py` contains only validation functions `_validate_intent`, `validate_future_merge`, `emit_mainline_integration_receipt`; no CLI command or function writes `project_state/mainline_merge_intents/active.json`). Per repository rules, `active.json` is not modified in this round. The `active.json` currently binding PR #112 is preserved as-is.
-
-All specified commands must be executed in order. `git diff --check` must pass. Publication is limited to a non-force push to `owner/pr119-formal-landing-v1`. PR #119 merge, mark-ready, PR #121 mutation, and direct main push remain forbidden.
+The v2 Decision is committed before any active intent or test changes. The transition Gate sequence must produce `transition-lint == PASSED`, `transition-preflight gate_status == PRE_EXECUTION_AUTHORIZED`, `blocking_reasons == []`. Active intent tests must be updated from hardcoded PR #112 assertions to dynamic assertions bound to the current committed Decision. All historical archive tests must remain unchanged; only new `pr112_v6.json` checks are added. After pushing, no further action is taken in this round. PR #119 merge, mark-ready, PR #121 mutation, and direct main push remain forbidden.
