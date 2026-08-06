@@ -216,8 +216,7 @@ export function SettingsPage() {
                       密钥：{secretStatusLabel(profile.secretStatus)}
                     </span>
                   </button>
-                ))}
-              )}
+                ))) }
             </aside>
 
             <ModelProfileEditor
