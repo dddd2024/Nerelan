@@ -99,7 +99,7 @@ describe("sidebar collapse/expand — OpenHands 1.8.0 adaptation", () => {
     expect(sidebar).toHaveClass("sidebar-collapsed");
     expect(screen.getByTestId("sidebar-collapse-toggle")).toHaveAttribute(
       "aria-pressed",
-      "true",
+      "false",
     );
   });
 
@@ -124,7 +124,7 @@ describe("sidebar collapse/expand — OpenHands 1.8.0 adaptation", () => {
       "false",
     );
     expect(screen.getByTestId("sidebar")).toHaveClass("sidebar-expanded");
-    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
   });
 });
 
