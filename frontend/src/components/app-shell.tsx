@@ -9,6 +9,7 @@ import { NavLink, useLocation } from "react-router";
 import { Sidebar } from "@/components/sidebar";
 import { ConversationPanel } from "@/components/conversation-panel";
 import { NewTaskComposer } from "@/components/new-task-composer";
+import { useCreateTask } from "@/hooks/use-tasks";
 import { cn } from "@/lib/cn";
 
 const DRAWER_ID = "mobile-nav-drawer";
@@ -40,6 +41,7 @@ function getNavLabel(to: string): string {
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const location = useLocation();
+  const createTaskMutation = useCreateTask();
   const previousPathnameRef = useRef(location.pathname);
 
   const [conversationPanelOpen, setConversationPanelOpen] = useState(false);
@@ -328,6 +330,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <NewTaskComposer
             open={newTaskComposerOpen}
             onClose={() => setNewTaskComposerOpen(false)}
+            onSubmit={(input) => createTaskMutation.mutate(input)}
           />
         )}
       </div>
