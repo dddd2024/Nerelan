@@ -16,6 +16,7 @@ import {
   permissionModeLabel,
 } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { useBreakpoint } from "@/hooks/use-breakpoint";
 import {
   ShieldCheck,
   FileText,
@@ -69,8 +70,12 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
   const [customEditorOpen, setCustomEditorOpen] = useState(false);
   const [editorPolicy, setEditorPolicy] = useState<PolicyContract | null>(null);
 
+  const bp = useBreakpoint();
+  const isDesktop = bp === "desktop";
+  const [mobileView, setMobileView] = useState<"activity" | RightPanelTab>("activity");
+
     const containerRef = useRef<HTMLDivElement>(null);
-  const leftResizeHandleRef = useRef<HTMLButtonElement>(null);
+  const leftResizeHandleRef = useRef<HTMLDivElement>(null);
   const [leftWidth, setLeftWidth] = useState(55);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -215,54 +220,90 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
         ref={containerRef}
         className={cn(
           "flex flex-1 overflow-hidden",
+          isDesktop ? "flex-row" : "flex-col",
           "transition-all duration-300 ease-in-out",
         )}
         style={{
-          transitionProperty: isDragging ? "none" : "all",
+          transitionProperty: isDesktop && isDragging ? "none" : "all",
         }}
       >
-        {/* Left panel — ActivityStream (replaces ChatInterface) */}
-        <div
-          className={cn(
-            "flex flex-col bg-ra-workspace overflow-hidden",
-            "transition-all duration-300 ease-in-out",
-          )}
-          style={{
-            width: `${leftWidth}%`,
-            transitionProperty: isDragging ? "none" : "all",
-          }}
-        >
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
-            <ActivityStream events={displayTask.activity} />
+        {(!isDesktop && mobileView === "activity") || isDesktop ? (
+          <div
+            className={cn(
+              "flex flex-col bg-ra-workspace overflow-hidden",
+              isDesktop
+                ? "flex-1 md:flex-none transition-all duration-300 ease-in-out"
+                : "w-full flex-1",
+            )}
+            style={
+              isDesktop
+                ? {
+                    width: `${leftWidth}%`,
+                    transitionProperty: isDragging ? "none" : "all",
+                  }
+                : {}
+            }
+          >
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+              <ActivityStream events={displayTask.activity} />
+            </div>
           </div>
-        </div>
+        ) : null}
 
-         {/* Resize handle — OpenHands ResizeHandle adaptation */}
-        <button
-          ref={leftResizeHandleRef}
-          type="button"
-          aria-label="调整面板大小"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            setIsDragging(true);
-          }}
-          className="relative w-1 bg-transparent cursor-ew-resize shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent p-0 border-0"
-          data-testid="resize-handle"
-        >
-          <div className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-ra-border" />
-          <div className="absolute inset-y-0 -left-1 -right-1" />
-        </button>
+        {isDesktop && (
+          // @ts-expect-error — aria-* props on slider role div exceed strict DOM lib
+          <div
+            key="resize-handle"
+            ref={leftResizeHandleRef}
+            role="slider"
+            aria-label="调整面板大小"
+            aria-orientation="vertical"
+            aria-valuemin="30"
+            aria-valuemax="80"
+            aria-valuenow={String(leftWidth)}
+            tabIndex={0}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowLeft") {
+                setLeftWidth((w) => Math.max(30, w - 5));
+                e.preventDefault();
+              } else if (e.key === "ArrowRight") {
+                setLeftWidth((w) => Math.min(80, w + 5));
+                e.preventDefault();
+              } else if (e.key === "Home") {
+                setLeftWidth(30);
+                e.preventDefault();
+              } else if (e.key === "End") {
+                setLeftWidth(80);
+                e.preventDefault();
+              }
+            }}
+            className="relative w-1 bg-transparent cursor-ew-resize shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent p-0 border-0"
+            data-testid="resize-handle"
+          >
+            <div className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-ra-border" />
+            <div className="absolute inset-y-0 -left-1 -right-1" />
+          </div>
+        )}
 
-        {/* Right panel — RightPanelTabs adaptation */}
+        {/* Right panel — always visible on mobile (with tabs), side split on desktop */}
         <div
           className={cn(
             "transition-all duration-300 ease-in-out overflow-hidden",
             "bg-ra-sidebar",
+            isDesktop ? "flex-1 md:flex-none" : "w-full flex-1",
           )}
-          style={{
-            width: `calc(${100 - leftWidth}% - 4px)`,
-            minWidth: "240px",
-          }}
+          style={
+            isDesktop
+              ? {
+                  width: `calc(${100 - leftWidth}% - 4px)`,
+                  minWidth: "240px",
+                }
+              : { width: "100%" }
+          }
         >
           {/* Tab nav — ConversationTabs adaptation */}
           <div
@@ -281,7 +322,10 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
                   aria-selected={selected}
                   aria-controls={`tabpanel-${t.id}`}
                   tabIndex={selected ? 0 : -1}
-                  onClick={() => setRightTab(t.id)}
+                  onClick={() => {
+                    setRightTab(t.id);
+                    if (!isDesktop) setMobileView(t.id);
+                  }}
                   className={cn(
                     "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium",
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",

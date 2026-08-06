@@ -125,6 +125,7 @@ export function CustomPolicyEditor({
           <CollapsibleSection title="合并策略" defaultOpen>
             <div className="space-y-2">
               <TextField
+                data-testid="merge-allowed-repos"
                 label="允许的仓库（逗号分隔）"
                 value={policy.mergePolicy.allowedRepositories.join(", ")}
                 onChange={(v) =>
@@ -256,10 +257,12 @@ function TextField({
   label,
   value,
   onChange,
+  "data-testid": testId,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  "data-testid"?: string;
 }) {
   return (
     <label className="block">
@@ -268,6 +271,7 @@ function TextField({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        data-testid={testId}
         className={cn(
           "mt-1 w-full rounded-md border border-ra-border bg-ra-input px-3 py-1.5 text-sm text-ra-text",
           "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",

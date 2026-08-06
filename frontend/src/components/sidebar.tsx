@@ -1,7 +1,7 @@
 import { NavLink, useLocation } from "react-router";
-import { Home, ListChecks, Settings } from "lucide-react";
+import { Home, ListChecks, Settings, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export interface SidebarItem {
   to: string;
@@ -48,20 +48,29 @@ export function Sidebar({
   onConversationPanelClose,
   conversationPanelOpen,
 }: SidebarProps) {
+  const [collapsed, setCollapsed] = useState(true);
   const location = useLocation();
 
   useEffect(() => {
-    onConversationPanelClose();
+    if (onConversationPanelClose) onConversationPanelClose();
   }, [location.pathname, onConversationPanelClose]);
+
+  const isDesktop = typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches;
 
   return (
     <aside
       aria-label="导航"
       className={cn(
         "h-[54px] p-3 md:p-0 md:h-auto flex flex-row md:flex-col gap-1",
-        "bg-ra-base md:w-[75px] md:min-w-[75px] sm:pt-0 sm:px-2 md:pt-[14px] md:px-0",
+        "bg-ra-base transition-all duration-200 ease-in-out",
+        isDesktop
+          ? collapsed
+            ? "md:w-[60px] md:min-w-[60px] sidebar-collapsed"
+            : "md:w-[300px] md:min-w-[300px] sidebar-expanded"
+          : "md:w-[75px] md:min-w-[75px] sm:pt-0 sm:px-2 md:pt-[14px] md:px-0",
       )}
       data-testid="sidebar"
+      data-collapsed={String(collapsed)}
     >
       <nav className="flex flex-row md:flex-col items-center justify-between w-full h-auto md:w-auto md:h-full">
         <div className="flex flex-row md:flex-col items-center gap-[26px]">
@@ -78,6 +87,26 @@ export function Sidebar({
               RA
             </button>
           </div>
+
+          {isDesktop && (
+            <div className="flex items-center justify-center">
+              <button
+                type="button"
+                aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
+                aria-pressed={!collapsed}
+                data-testid="sidebar-collapse-toggle"
+                onClick={() => setCollapsed((c) => !c)}
+                className="w-6 h-6 flex items-center justify-center text-ra-text-secondary hover:text-ra-text transition-colors"
+                title={collapsed ? "展开" : "收起"}
+              >
+                {collapsed ? (
+                  <ChevronRight className="h-4 w-4" />
+                ) : (
+                  <ChevronLeft className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+          )}
 
           <div className="flex items-center justify-center">
             <button
@@ -122,7 +151,8 @@ export function Sidebar({
                   end={item.to === "/"}
                   data-testid={`sidebar-nav-${item.label}`}
                   className={cn(
-                    "flex items-center justify-center w-6 h-6 rounded-md",
+                    "flex items-center justify-center rounded-md",
+                    collapsed ? "w-6 h-6" : "w-full md:w-[276px] md:h-10 md:justify-start md:px-3 md:gap-2",
                     "text-ra-text-secondary hover:text-ra-text transition-colors",
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
                     location.pathname === item.to &&
@@ -130,7 +160,8 @@ export function Sidebar({
                   )}
                   title={item.label}
                 >
-                  <Icon className="h-5 w-5" />
+                  <Icon className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span className="text-sm whitespace-nowrap">{item.label}</span>}
                 </NavLink>
               );
             })}

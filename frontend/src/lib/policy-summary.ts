@@ -15,6 +15,10 @@ export function summarizePolicy(policy: PolicyContract): string {
   const until = window.enabled ? `截至 ${formatClock(window.expiresAt)}` : "未启用无人值守窗口时";
   const repo = `仅在 ${policy.repository} 中工作`;
 
+  const mergeRepos = policy.mergePolicy.allowedRepositories.length
+    ? `，merge 仓库：${policy.mergePolicy.allowedRepositories.join("，")}`
+    : "";
+
   const grants: string[] = [];
 
   if (policy.githubCapabilities.includes("open_draft_pr")) {
@@ -69,6 +73,7 @@ export function summarizePolicy(policy: PolicyContract): string {
 
   // Compose final sentence, ensuring the example shape.
   const intro = `${until}，主控${repo}`;
+  const mergeClause = mergeRepos ? `${mergeRepos}` : "";
   const tail = grants.length ? `，${grants.join("，")}` : "";
   const closing = `。${deployment}。`;
   const extras =
@@ -77,7 +82,7 @@ export function summarizePolicy(policy: PolicyContract): string {
       : "";
 
   void parts;
-  return `${intro}${tail}${closing}${extras}`.replace(/\s+。/g, "。").replace(/， 。/g, "。");
+  return `${intro}${mergeClause}${tail}${closing}${extras}`.replace(/\s+。/g, "。").replace(/， 。/g, "。");
 }
 
 // ---------------------------------------------------------------------------

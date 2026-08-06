@@ -185,7 +185,7 @@ describe("Task detail (OpenHands ConversationMain adaptation)", () => {
     renderWithProviders(<TaskDetail task={FIXTURE_TASK} isLoading={false} isError={false} />);
     const handle = screen.getByTestId("resize-handle");
     expect(handle).toBeInTheDocument();
-    expect(handle.tagName).toBe("BUTTON");
+    expect(handle.tagName).toBe("DIV");
   });
 });
 

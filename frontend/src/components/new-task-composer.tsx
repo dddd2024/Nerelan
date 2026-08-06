@@ -38,7 +38,7 @@ interface NewTaskComposerProps {
  * permission profile instead of agent runtime. No file upload,
  * no model selection, no slash commands.
  * License: MIT (inherited from OpenHands)
- * /
+ */
 export function NewTaskComposer({ open, onClose }: NewTaskComposerProps) {
   const [title, setTitle] = useState("");
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(
@@ -46,12 +46,6 @@ export function NewTaskComposer({ open, onClose }: NewTaskComposerProps) {
   );
   const [customPolicy, setCustomPolicy] = useState<PolicyContract | null>(null);
   const [showCustomEditor, setShowCustomEditor] = useState(false);
-
-  if (!open) return null;
-
-  const policy: PolicyContract = customPolicy
-    ? customPolicy
-    : profileToPolicy(permissionMode);
 
   const handlePermissionChange = useCallback(
     (mode: PermissionMode) => {
@@ -76,6 +70,12 @@ export function NewTaskComposer({ open, onClose }: NewTaskComposerProps) {
   const handleCustomEditorClose = useCallback(() => {
     setShowCustomEditor(false);
   }, []);
+
+  if (!open) return null;
+
+  const policy: PolicyContract = customPolicy
+    ? customPolicy
+    : profileToPolicy(permissionMode);
 
   return (
     <div

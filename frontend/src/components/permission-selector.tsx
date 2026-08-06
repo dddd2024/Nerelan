@@ -84,6 +84,7 @@ export function PermissionSelector({
       <button
         ref={triggerRef}
         id={id}
+        data-testid={id}
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
