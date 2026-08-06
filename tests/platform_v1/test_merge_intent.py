@@ -28,6 +28,7 @@ ARCHIVE_PR112_V2_PATH = INTENTS_DIR / "archive" / "pr112_v2.json"
 ARCHIVE_PR112_V3_PATH = INTENTS_DIR / "archive" / "pr112_v3.json"
 ARCHIVE_PR112_V4_PATH = INTENTS_DIR / "archive" / "pr112_v4.json"
 ARCHIVE_PR112_V5_PATH = INTENTS_DIR / "archive" / "pr112_v5.json"
+ARCHIVE_PR112_V6_PATH = INTENTS_DIR / "archive" / "pr112_v6.json"
 DECISION_PATH = REPO_ROOT / "project_state" / "decision_packet.md"
 COMMAND_PLAN_PATH = REPO_ROOT / "project_state" / "gates" / "command_plan.json"
 
@@ -54,39 +55,70 @@ EXPECTED_PR112_V2_GIT_BLOB = "770f19faba9e0f040656341beec0089ca87d3545"
 EXPECTED_PR112_V3_GIT_BLOB = "3c246c1377df2504bb95fbd4d9865860b017b049"
 EXPECTED_PR112_V4_GIT_BLOB = "78104b6ae6746b0b5bf3b409f7dd2054ca23fcd9"
 EXPECTED_PR112_V5_GIT_BLOB = "64e555a98a1b748b2e320abb4559922bdc0d3649"
+EXPECTED_PR112_V6_GIT_BLOB = "ed960c0e117051e8915b457028e4c0e5f0c3e07c"
 
 
 def _load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _parse_decision_meta() -> dict:
+    from reverse_agent.project_state import extract_markdown_json_block
+    text = DECISION_PATH.read_text(encoding="utf-8")
+    result = extract_markdown_json_block(text, "decision_meta")
+    if not result.get("found"):
+        raise AssertionError("decision_meta JSON block not found in decision_packet.md")
+    if result.get("parse_error"):
+        raise AssertionError(f"decision_meta block parse error: {result['parse_error']}")
+    return result
+
+
+def _parse_decision_contract() -> dict:
+    from reverse_agent.project_state import extract_markdown_json_block
+    text = DECISION_PATH.read_text(encoding="utf-8")
+    result = extract_markdown_json_block(text, "decision_contract")
+    if not result.get("found"):
+        raise AssertionError("decision_contract JSON block not found in decision_packet.md")
+    if result.get("parse_error"):
+        raise AssertionError(f"decision_contract block parse error: {result['parse_error']}")
+    return result
+
+
 # ---------------------------------------------------------------------------
-# Active PR112 Bootstrap intent
+# Active intent (dynamically bound to current Decision via parser)
 # ---------------------------------------------------------------------------
 
 class TestActiveMergeIntent:
     def test_active_file_exists(self) -> None:
         assert ACTIVE_PATH.exists(), f"active.json not found at {ACTIVE_PATH}"
 
-    def test_active_binds_source_pr_112(self) -> None:
+    def test_active_binds_current_decision_source_pr(self) -> None:
         data = _load_json(ACTIVE_PATH)
-        assert data["source_pr"] == 112, "active intent must bind source_pr=112"
+        contract = _parse_decision_contract()
+        expected_pr = contract["active_pr"]
+        assert data["source_pr"] == expected_pr, (
+            f"active source_pr={data['source_pr']} != Decision active_pr={expected_pr}"
+        )
 
     def test_active_does_not_have_source_pr_zero(self) -> None:
         data = _load_json(ACTIVE_PATH)
         assert data["source_pr"] != 0, "active intent must not retain source_pr=0"
 
-    def test_active_binds_locked_base_sha(self) -> None:
+    def test_active_binds_current_decision_locked_base_sha(self) -> None:
         data = _load_json(ACTIVE_PATH)
-        assert data["locked_base_sha"] == EXPECTED_BOOTSTRAP_BASE_SHA
+        contract = _parse_decision_contract()
+        expected_base = contract["activation_base_sha"]
+        assert data["locked_base_sha"] == expected_base
 
     def test_active_binds_merge_method(self) -> None:
         data = _load_json(ACTIVE_PATH)
         assert data["allowed_merge_method"] == "merge"
 
-    def test_active_binds_bootstrap_decision_id(self) -> None:
+    def test_active_binds_current_decision_id(self) -> None:
         data = _load_json(ACTIVE_PATH)
-        assert data["decision_identity"]["decision_id"] == EXPECTED_BOOTSTRAP_DECISION_ID
+        meta = _parse_decision_meta()
+        expected_id = meta["decision_id"]
+        assert data["decision_identity"]["decision_id"] == expected_id
 
     def test_active_decision_content_sha256_is_64_hex(self) -> None:
         data = _load_json(ACTIVE_PATH)
@@ -115,6 +147,40 @@ class TestActiveMergeIntent:
         expires = data.get("expires_at", "")
         assert expires, "active intent must have a bounded expiry"
         assert expires.endswith("Z")
+
+    def test_decision_meta_unique_and_valid(self) -> None:
+        meta = _parse_decision_meta()
+        assert meta["schema_version"] == 1
+        assert isinstance(meta["decision_id"], str)
+        assert isinstance(meta["round_id"], str)
+        assert meta["status"] == "APPROVED"
+        assert isinstance(meta.get("skill_profiles"), list)
+
+    def test_decision_contract_unique_and_valid(self) -> None:
+        contract = _parse_decision_contract()
+        assert isinstance(contract["active_pr"], int)
+        assert isinstance(contract["activation_base_sha"], str)
+        assert isinstance(contract["required_branch"], str)
+        assert isinstance(contract["starting_head"], str)
+        assert contract["allowed_merge_method"] == "merge"
+        assert contract["risk_tier"] == "R2"
+        assert contract["decision_commit_must_precede_implementation"] is True
+
+    def test_decision_id_format_matches_production(self) -> None:
+        meta = _parse_decision_meta()
+        assert meta["decision_id"].startswith("decision_")
+        assert "_" in meta["decision_id"][9:]
+
+    def test_round_id_matches_decision_id(self) -> None:
+        meta = _parse_decision_meta()
+        assert meta["round_id"].startswith("round_")
+        assert meta["decision_id"][9:] == meta["round_id"][6:]
+
+    def test_command_plan_id_matches_decision(self) -> None:
+        plan = _load_json(COMMAND_PLAN_PATH)
+        meta = _parse_decision_meta()
+        assert plan["decision_id"] == meta["decision_id"]
+        assert plan["round_id"] == meta["round_id"]
 
 
 # ---------------------------------------------------------------------------
@@ -381,6 +447,30 @@ class TestArchivedPR112V5Intent:
         assert data["source_pr"] == 112
         assert data["decision_identity"]["decision_id"] == (
             "decision_20260804_issue111_pr112_long_validation_budget_v5"
+        )
+        assert data["locked_base_sha"] == EXPECTED_BOOTSTRAP_BASE_SHA
+
+
+# ---------------------------------------------------------------------------
+# Archived PR112 v6 intent (exact last-active-before-migration bytes)
+# ---------------------------------------------------------------------------
+
+class TestArchivedPR112V6Intent:
+    def test_archive_pr112_v6_file_exists(self) -> None:
+        assert ARCHIVE_PR112_V6_PATH.exists(), (
+            f"pr112_v6.json not found at {ARCHIVE_PR112_V6_PATH}"
+        )
+
+    def test_archive_pr112_v6_is_exact_active_blob_before_migration(self) -> None:
+        payload = ARCHIVE_PR112_V6_PATH.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == EXPECTED_PR112_V6_GIT_BLOB
+
+    def test_archive_pr112_v6_preserves_identity_and_base(self) -> None:
+        data = _load_json(ARCHIVE_PR112_V6_PATH)
+        assert data["source_pr"] == 112
+        assert data["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
         )
         assert data["locked_base_sha"] == EXPECTED_BOOTSTRAP_BASE_SHA
 
