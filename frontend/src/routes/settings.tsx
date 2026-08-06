@@ -181,42 +181,41 @@ export function SettingsPage() {
                 <p className="px-1 py-3 text-sm text-ra-text-tertiary">
                   还没有模型配置。
                 </p>
-              ) : (
-                profiles.map((profile) => (
-                  <button
-                    key={profile.id}
-                    type="button"
-                    onClick={() => {
-                      clearMessages();
-                      setCreating(false);
-                      setSelectedId(profile.id);
-                    }}
-                    className={cn(
-                      "flex w-full flex-col gap-1 rounded-lg border px-3 py-2 text-left",
-                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-                      !creating && selectedId === profile.id
-                        ? "border-ra-accent bg-ra-tertiary"
-                        : "border-transparent hover:border-ra-border hover:bg-ra-tertiary",
-                    )}
-                  >
-                    <span className="flex w-full items-center gap-2">
-                      <span className="truncate text-sm font-medium text-ra-text">
-                        {profile.name}
+              ) : profiles.map((profile) => (
+                <button
+                  key={profile.id}
+                  type="button"
+                  onClick={() => {
+                    clearMessages();
+                    setCreating(false);
+                    setSelectedId(profile.id);
+                  }}
+                  className={cn(
+                    "flex w-full flex-col gap-1 rounded-lg border px-3 py-2 text-left",
+                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+                    !creating && selectedId === profile.id
+                      ? "border-ra-accent bg-ra-tertiary"
+                      : "border-transparent hover:border-ra-border hover:bg-ra-tertiary",
+                  )}
+                >
+                  <span className="flex w-full items-center gap-2">
+                    <span className="truncate text-sm font-medium text-ra-text">
+                      {profile.name}
+                    </span>
+                    {profile.isDefault && (
+                      <span className="ml-auto rounded-full bg-ra-accent/15 px-2 py-0.5 text-[10px] text-ra-accent">
+                        默认
                       </span>
-                      {profile.isDefault && (
-                        <span className="ml-auto rounded-full bg-ra-accent/15 px-2 py-0.5 text-[10px] text-ra-accent">
-                          默认
-                        </span>
-                      )}
-                    </span>
-                    <span className="truncate text-xs text-ra-text-tertiary">
-                      {profile.modelId} · {profile.executor}
-                    </span>
-                    <span className="text-[10px] text-ra-text-tertiary">
-                      密钥：{secretStatusLabel(profile.secretStatus)}
-                    </span>
-                  </button>
-                ))) }
+                    )}
+                  </span>
+                  <span className="truncate text-xs text-ra-text-tertiary">
+                    {profile.modelId} · {profile.executor}
+                  </span>
+                  <span className="text-[10px] text-ra-text-tertiary">
+                    密钥：{secretStatusLabel(profile.secretStatus)}
+                  </span>
+                </button>
+              ))}
             </aside>
 
             <ModelProfileEditor
