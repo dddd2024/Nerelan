@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -502,3 +503,116 @@ class TestV4DiffersFromV3:
         active = _load_json(ACTIVE_PATH)
         v3 = _load_json(ARCHIVE_V3_PATH)
         assert active["intent_id"] != v3["intent_id"]
+
+
+# ---------------------------------------------------------------------------
+# Immutability regression: Decision bytes match the unique Decision commit
+# ---------------------------------------------------------------------------
+
+class TestDecisionImmutability:
+    def test_single_decision_commit_in_range(self) -> None:
+        """Only one commit modifying decision_packet.md in starting_head..HEAD."""
+        contract = _parse_decision_contract()
+        starting_head = contract["starting_head"]
+        log_out = subprocess.check_output(
+            ["git", "rev-list", f"{starting_head}..HEAD"],
+            cwd=REPO_ROOT,
+            encoding="utf-8",
+        ).strip()
+        commits = [c for c in log_out.splitlines() if c]
+        mod_commits = []
+        for sha in commits:
+            names = subprocess.check_output(
+                ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", sha],
+                cwd=REPO_ROOT,
+                encoding="utf-8",
+                errors="strict",
+            ).strip()
+            if "project_state/decision_packet.md" in names.splitlines():
+                mod_commits.append(sha)
+        assert mod_commits, "no Decision commit found in starting_head..HEAD"
+        assert len(mod_commits) == 1, (
+            f"expected exactly 1 Decision-modifying commit, got {len(mod_commits)}"
+        )
+
+    def test_decision_bytes_unchanged_since_commit(self) -> None:
+        """Current Decision file bytes equal bytes at the Decision commit."""
+        contract = _parse_decision_contract()
+        starting_head = contract["starting_head"]
+        log_out = subprocess.check_output(
+            ["git", "rev-list", f"{starting_head}..HEAD"],
+            cwd=REPO_ROOT,
+            encoding="utf-8",
+        ).strip()
+        commits = [c for c in log_out.splitlines() if c]
+        for sha in commits:
+            names = subprocess.check_output(
+                ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", sha],
+                cwd=REPO_ROOT,
+                encoding="utf-8",
+                errors="strict",
+            ).strip()
+            if "project_state/decision_packet.md" not in names.splitlines():
+                continue
+            blob_at_commit = subprocess.check_output(
+                ["git", "rev-parse", f"{sha}:project_state/decision_packet.md"],
+                cwd=REPO_ROOT,
+                encoding="utf-8",
+                errors="strict",
+            ).strip()
+            blob_at_head = subprocess.check_output(
+                ["git", "rev-parse", "HEAD:project_state/decision_packet.md"],
+                cwd=REPO_ROOT,
+                encoding="utf-8",
+                errors="strict",
+            ).strip()
+            assert blob_at_commit == blob_at_head, (
+                "Decision file bytes changed after its commit"
+            )
+
+    def test_decision_commit_precedes_implementation(self) -> None:
+        """The Decision commit appears before any non-Decision commit in history."""
+        contract = _parse_decision_contract()
+        starting_head = contract["starting_head"]
+        log_out = subprocess.check_output(
+            ["git", "rev-list", f"{starting_head}..HEAD"],
+            cwd=REPO_ROOT,
+            encoding="utf-8",
+        ).strip()
+        commits = [c for c in log_out.splitlines() if c]
+        decision_sha = None
+        for sha in commits:
+            names = subprocess.check_output(
+                ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", sha],
+                cwd=REPO_ROOT,
+                encoding="utf-8",
+                errors="strict",
+            ).strip()
+            if "project_state/decision_packet.md" in names.splitlines():
+                decision_sha = sha
+        assert decision_sha is not None
+        idx = commits.index(decision_sha)
+        assert idx == len(commits) - 1, (
+            f"Decision commit is not the oldest commit after starting_head "
+            f"(got index {idx}, expected {len(commits) - 1})"
+        )
+
+    def test_no_duplicate_decision_json_blocks(self) -> None:
+        """Decision file must contain exactly one decision_meta and one decision_contract block."""
+        text = DECISION_PATH.read_text(encoding="utf-8")
+        import re
+        meta_blocks = re.findall(r"```json\s+decision_meta\n", text)
+        contract_blocks = re.findall(r"```json\s+decision_contract\n", text)
+        assert len(meta_blocks) == 1, f"expected 1 decision_meta block, found {len(meta_blocks)}"
+        assert len(contract_blocks) == 1, f"expected 1 decision_contract block, found {len(contract_blocks)}"
+
+    def test_decision_json_blocks_parse(self) -> None:
+        """Decision JSON blocks must parse and be internally consistent."""
+        from reverse_agent.project_state import extract_markdown_json_block
+        meta = _parse_decision_meta()
+        contract = _parse_decision_contract()
+        assert meta["decision_id"].startswith("decision_")
+        assert contract["active_pr"] == 119
+        assert contract["activation_base_sha"] == (
+            "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507"
+        )
