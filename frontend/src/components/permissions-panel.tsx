@@ -22,38 +22,38 @@ export function PermissionsPanel({ policy }: PermissionsPanelProps) {
         </p>
       </section>
 
-      <CollapsibleSection title="Resource access" defaultOpen>
+      <CollapsibleSection title="文件系统" defaultOpen>
         <dl className="space-y-3 text-sm">
-          <Scope label="Filesystem (allowed)">
+          <Scope label="文件系统（已批准路径）">
             {policy.resourceAccess.filesystem.allowedPaths.join(", ") || "—"}
           </Scope>
-          <Scope label="Filesystem (writable)">
+          <Scope label="文件系统（可写路径）">
             {policy.resourceAccess.filesystem.writablePaths.join(", ") || "—"}
           </Scope>
-          <Scope label="Network (domains)">
+          <Scope label="网络（域名）">
             {policy.resourceAccess.network.allowedDomains.join(", ") || "—"}
           </Scope>
-          <Scope label="Network (write)">
-            {policy.resourceAccess.network.allowWrite ? "allowed" : "denied"}
+          <Scope label="网络（写入）">
+            {policy.resourceAccess.network.allowWrite ? "允许" : "拒绝"}
           </Scope>
-          <Scope label="Shell (allowed)">
+          <Scope label="Shell（允许）">
             {policy.resourceAccess.shell.allowedCommands.join(", ") || "—"}
           </Scope>
-          <Scope label="Shell (denied)">
+          <Scope label="Shell（拒绝）">
             {policy.resourceAccess.shell.deniedCommands.join(", ") || "—"}
           </Scope>
-          <Scope label="Secrets">
+          <Scope label="密钥">
             {policy.resourceAccess.secrets.access}
           </Scope>
-          <Scope label="Worker approval">
+          <Scope label="Worker 审批">
             {policy.resourceAccess.workerApproval.required
               ? policy.resourceAccess.workerApproval.approvers.join(", ")
-              : "not required"}
+              : "不需要"}
           </Scope>
         </dl>
       </CollapsibleSection>
 
-      <CollapsibleSection title="GitHub capabilities" defaultOpen>
+      <CollapsibleSection title="GitHub 能力" defaultOpen>
         <ul className="flex flex-wrap gap-2">
           {policy.githubCapabilities.map((c) => (
             <li key={c}>
@@ -61,15 +61,15 @@ export function PermissionsPanel({ policy }: PermissionsPanelProps) {
             </li>
           ))}
           {policy.githubCapabilities.length === 0 ? (
-            <li className="text-xs text-slate-400">None</li>
+            <li className="text-xs text-slate-400">无</li>
           ) : null}
         </ul>
         <p className="mt-2 text-xs text-slate-400">
-          merge_pr and push_main are independent toggles.
+          merge_pr 与 push_main 为独立开关。
         </p>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Publication & deployment capabilities" defaultOpen>
+      <CollapsibleSection title="发布与部署能力" defaultOpen>
         <ul className="flex flex-wrap gap-2">
           {policy.publicationCapabilities.map((c) => (
             <li key={c}>
@@ -77,51 +77,51 @@ export function PermissionsPanel({ policy }: PermissionsPanelProps) {
             </li>
           ))}
           {policy.publicationCapabilities.length === 0 ? (
-            <li className="text-xs text-slate-400">None</li>
+            <li className="text-xs text-slate-400">无</li>
           ) : null}
         </ul>
         <dl className="mt-3 space-y-2 text-sm">
-          <Scope label="Artifacts/packages">
+          <Scope label="制品/包">
             {policy.publicationPolicy.allowedArtifactOrPackage.join(", ") || "—"}
           </Scope>
-          <Scope label="Registry">
-            {policy.publicationPolicy.allowedRegistry.join(", ") || "—"}
-          </Scope>
-          <Scope label="Repository">
+          <Scope label="仓库">
             {policy.publicationPolicy.allowedRepository.join(", ") || "—"}
           </Scope>
-          <Scope label="Environments">
+          <Scope label="注册表">
+            {policy.publicationPolicy.allowedRegistry.join(", ") || "—"}
+          </Scope>
+          <Scope label="环境">
             {policy.publicationPolicy.allowedEnvironment.join(", ") || "—"}
           </Scope>
-          <Scope label="Rollback strategy">
+          <Scope label="回滚策略">
             {policy.publicationPolicy.rollbackStrategy ?? "—"}
           </Scope>
         </dl>
         <p className="mt-2 text-xs text-slate-400">
-          Deployment is not implied by network write access.
+          网络写入权限不隐含部署能力。
         </p>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Autonomous window" defaultOpen>
+      <CollapsibleSection title="无人值守窗口" defaultOpen>
         <dl className="space-y-2 text-sm">
-          <Scope label="Enabled">
-            {policy.autonomousWindow.enabled ? "yes" : "no"}
+          <Scope label="已启用">
+            {policy.autonomousWindow.enabled ? "是" : "否"}
           </Scope>
-          <Scope label="Starts at">{policy.autonomousWindow.startsAt}</Scope>
-          <Scope label="Expires at">{policy.autonomousWindow.expiresAt}</Scope>
-          <Scope label="Max PRs opened">
+          <Scope label="开始时间">{policy.autonomousWindow.startsAt}</Scope>
+          <Scope label="过期时间">{policy.autonomousWindow.expiresAt}</Scope>
+          <Scope label="最大 PR 数">
             {String(policy.autonomousWindow.maxPrsOpened)}
           </Scope>
-          <Scope label="Max merges to main">
+          <Scope label="最大合并数">
             {String(policy.autonomousWindow.maxMergesToMain)}
           </Scope>
-          <Scope label="Max releases">
+          <Scope label="最大发布数">
             {String(policy.autonomousWindow.maxReleasesCreated)}
           </Scope>
-          <Scope label="Max deploys">
+          <Scope label="最大部署数">
             {String(policy.autonomousWindow.maxDeploysToEnvironment)}
           </Scope>
-          <Scope label="Stop conditions">
+          <Scope label="停止条件">
             {policy.autonomousWindow.stopConditions
               .map((s) => s.type)
               .join(", ") || "—"}

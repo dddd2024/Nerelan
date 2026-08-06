@@ -1,4 +1,4 @@
-export function LoadingState({ label = "Loading…" }: { label?: string }) {
+export function LoadingState({ label = "加载中…" }: { label?: string }) {
   return (
     <div
       role="status"

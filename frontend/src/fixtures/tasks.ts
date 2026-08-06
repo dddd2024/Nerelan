@@ -39,16 +39,16 @@ const authDiff = `--- a/reverse_agent/trust/authorization.py
 // ---------------------------------------------------------------------------
 const taskProviderFree: Task = {
   id: "task-pr114-provider-free",
-  title: "PR #114 — provider-free closure path",
+  title: "PR #114 — 无 Provider 闭环路径",
   issueNumber: 114,
   state: "READY_FOR_HUMAN",
   riskTier: "R1",
   updatedAt: "2026-08-04T22:14:00Z",
-  nextAction: "Owner to merge after exact-head audit accepts",
+  nextAction: "Owner 在精确 Head 审计通过后合并",
   permissionProfile: "OWNER_CONTROL",
   draftPr: {
     number: 114,
-    title: "provider-free closure path",
+    title: "无 Provider 闭环路径",
     url: "https://github.com/dddd2024/reverse-agent/pull/114",
     headSha: "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
     baseSha: "0123456789abcdef0123456789abcdef01234567",
@@ -57,17 +57,17 @@ const taskProviderFree: Task = {
   },
   branch: "fix/pr114-provider-free-closure",
   activity: [
-    ev("a1", "DISCOVERED", "2026-08-04T09:00:00Z", "Discovered", "Issue triaged from R1 template."),
-    ev("a2", "VALIDATED", "2026-08-04T09:20:00Z", "Validated", "Snapshot digest computed and recorded."),
-    ev("a3", "WORKSPACE_READY", "2026-08-04T09:30:00Z", "Workspace ready", "Fresh branch from approved base."),
-    ev("a4", "EXECUTOR_RUNNING", "2026-08-04T10:00:00Z", "Executor running", "Codex ACP executor started."),
-    ev("a5", "EXECUTOR_FINISHED", "2026-08-04T14:00:00Z", "Executor finished", "Implementation complete."),
-    ev("a6", "LOCAL_VALIDATED", "2026-08-04T14:30:00Z", "Local validated", "pytest + git diff --check clean."),
-    ev("a7", "COMMITTED", "2026-08-04T14:35:00Z", "Committed", "Commit pushed to task branch."),
-    ev("a8", "PUSHED", "2026-08-04T14:36:00Z", "Pushed", "Branch pushed to origin.", "git push origin fix/pr114-provider-free-closure"),
-    ev("a9", "DRAFT_PR_OPEN", "2026-08-04T14:40:00Z", "Draft PR opened", "PR #114 created against main."),
-    ev("a10", "WORKFLOWS_OBSERVED", "2026-08-04T15:30:00Z", "Workflows observed", "All required checks SUCCESS on head.", "ci: success"),
-    ev("a11", "READY_FOR_HUMAN", "2026-08-04T22:00:00Z", "Ready for human", "Independent exact-head audit accepted."),
+    ev("a1", "DISCOVERED", "2026-08-04T09:00:00Z", "已发现", "Issue 从 R1 模板创建并分类。"),
+    ev("a2", "VALIDATED", "2026-08-04T09:20:00Z", "已验证", "快照摘要已计算并记录。"),
+    ev("a3", "WORKSPACE_READY", "2026-08-04T09:30:00Z", "工作区就绪", "从已批准基线创建新分支。"),
+    ev("a4", "EXECUTOR_RUNNING", "2026-08-04T10:00:00Z", "执行器运行中", "Codex ACP 执行器已启动。"),
+    ev("a5", "EXECUTOR_FINISHED", "2026-08-04T14:00:00Z", "执行器完成", "实现完成。"),
+    ev("a6", "LOCAL_VALIDATED", "2026-08-04T14:30:00Z", "本地验证通过", "pytest + git diff --check 通过。"),
+    ev("a7", "COMMITTED", "2026-08-04T14:35:00Z", "已提交", "提交已推送到任务分支。"),
+    ev("a8", "PUSHED", "2026-08-04T14:36:00Z", "已推送", "分支已推送到 origin。", "git push origin fix/pr114-provider-free-closure"),
+    ev("a9", "DRAFT_PR_OPEN", "2026-08-04T14:40:00Z", "Draft PR 已开启", "PR #114 已创建，目标为 main。"),
+    ev("a10", "WORKFLOWS_OBSERVED", "2026-08-04T15:30:00Z", "工作流已观察", "所有必需检查在 Head 上 SUCCESS。", "ci: success"),
+    ev("a11", "READY_FOR_HUMAN", "2026-08-04T22:00:00Z", "等待人工处理", "独立精确 Head 审计已通过。"),
   ],
   changes: [
     {
@@ -89,15 +89,15 @@ const taskProviderFree: Task = {
     {
       id: "e1",
       category: "Authority",
-      label: "Approval snapshot",
+      label: "批准快照",
       value: "APPROVED",
       status: "pass",
-      detail: "body_digest_sha256 recorded in PR body",
+      detail: "body_digest_sha256 已记录在 PR 正文中",
       rawJson: JSON.stringify({ body_digest_sha256: "9f8e7d6c5b4a3928170615243342516708192030405061728394051627384950" }, null, 2),
     },
-    { id: "e2", category: "Tests", label: "pytest", value: "12 passed", status: "pass" },
-    { id: "e3", category: "Workflows", label: "ci", value: "SUCCESS", status: "pass" },
-    { id: "e4", category: "Audit", label: "Exact-head audit", value: "ACCEPTED a1b2c3d", status: "pass" },
+    { id: "e2", category: "本地检查", label: "pytest", value: "12 通过", status: "pass" },
+    { id: "e3", category: "工作流检查", label: "ci", value: "SUCCESS", status: "pass" },
+    { id: "e4", category: "审计", label: "精确 Head 审计", value: "ACCEPTED a1b2c3d", status: "pass" },
   ],
   authorityStatus: "APPROVED",
   testStatus: "PASS",
@@ -109,29 +109,29 @@ const taskProviderFree: Task = {
 // ---------------------------------------------------------------------------
 const taskCodexBlocked: Task = {
   id: "task-codex-quota-blocked",
-  title: "R2 transition — Codex ACP execution",
+  title: "R2 过渡 — Codex ACP 执行",
   issueNumber: 121,
   state: "BLOCKED_EXTERNAL",
   riskTier: "R2",
   updatedAt: "2026-08-04T18:02:00Z",
-  blocker: "Codex ACP quota exhausted (rate_limit_exceeded)",
-  nextAction: "Wait for quota reset, then resume executor",
+  blocker: "Codex ACP 配额耗尽 (rate_limit_exceeded)",
+  nextAction: "等待配额重置后恢复执行器",
   permissionProfile: "CONTROLLER_REVIEW",
   branch: "transition/r2-codex-acp",
   activity: [
-    ev("b1", "DISCOVERED", "2026-08-04T08:00:00Z", "Discovered", "Transition Decision approved."),
-    ev("b2", "VALIDATED", "2026-08-04T08:10:00Z", "Validated", "Command plan generated."),
-    ev("b3", "EXECUTOR_RUNNING", "2026-08-04T09:00:00Z", "Executor running", "Codex ACP started."),
-    ev("b4", "EXECUTOR_FINISHED", "2026-08-04T18:00:00Z", "Executor halted", "Protocol error from upstream.", "ERROR: rate_limit_exceeded"),
+    ev("b1", "DISCOVERED", "2026-08-04T08:00:00Z", "已发现", "过渡 Decision 已批准。"),
+    ev("b2", "VALIDATED", "2026-08-04T08:10:00Z", "已验证", "命令计划已生成。"),
+    ev("b3", "EXECUTOR_RUNNING", "2026-08-04T09:00:00Z", "执行器运行中", "Codex ACP 已启动。"),
+    ev("b4", "EXECUTOR_FINISHED", "2026-08-04T18:00:00Z", "执行器中止", "上游协议错误。", "ERROR: rate_limit_exceeded"),
   ],
   changes: [],
   evidence: [
     { id: "e1", category: "Decision", label: "Decision Preflight", value: "PRE_EXECUTION_AUTHORIZED", status: "pass" },
-    { id: "e2", category: "Executor", label: "Codex ACP", value: "rate_limit_exceeded", status: "fail", detail: "Upstream quota exhausted" },
+    { id: "e2", category: "执行器", label: "Codex ACP", value: "rate_limit_exceeded", status: "fail", detail: "上游配额耗尽" },
   ],
   authorityStatus: "APPROVED",
   testStatus: "PENDING",
-  workflowStatus: "UNKNOWN",
+  workflowStatus: "PENDING",
 };
 
 // ---------------------------------------------------------------------------
@@ -139,18 +139,18 @@ const taskCodexBlocked: Task = {
 // ---------------------------------------------------------------------------
 const taskFrontend: Task = {
   id: "task-frontend-v1",
-  title: "Frontend V1 — OpenHands-adapted UI",
+  title: "前端 V1 — OpenHands 适配 UI",
   issueNumber: 125,
   state: "RUNNING",
   riskTier: "R1",
   updatedAt: "2026-08-05T07:48:00Z",
-  nextAction: "Continue component implementation",
+  nextAction: "继续组件实现",
   permissionProfile: "CONTROLLER_REVIEW",
   branch: "feat/frontend-v1-openhands-ui",
   activity: [
-    ev("c1", "DISCOVERED", "2026-08-05T01:00:00Z", "Discovered", "Frontend V1 work item approved."),
-    ev("c2", "WORKSPACE_READY", "2026-08-05T02:00:00Z", "Workspace ready", "Vite + React 19 scaffold ready."),
-    ev("c3", "EXECUTOR_RUNNING", "2026-08-05T03:00:00Z", "Executor running", "Implementing types, schemas, components."),
+    ev("c1", "DISCOVERED", "2026-08-05T01:00:00Z", "已发现", "前端 V1 工作项已批准。"),
+    ev("c2", "WORKSPACE_READY", "2026-08-05T02:00:00Z", "工作区就绪", "Vite + React 19 脚手架就绪。"),
+    ev("c3", "EXECUTOR_RUNNING", "2026-08-05T03:00:00Z", "执行器运行中", "正在实现类型、Schema 和组件。"),
   ],
   changes: [
     {
@@ -169,11 +169,11 @@ const taskFrontend: Task = {
     },
   ],
   evidence: [
-    { id: "e1", category: "Authority", label: "Approval snapshot", value: "APPROVED", status: "pass" },
-    { id: "e2", category: "Tests", label: "vitest", value: "RUNNING", status: "pending" },
+    { id: "e1", category: "Authority", label: "批准快照", value: "APPROVED", status: "pass" },
+    { id: "e2", category: "本地检查", label: "vitest", value: "运行中", status: "pending" },
   ],
   authorityStatus: "APPROVED",
-  testStatus: "RUNNING",
+  testStatus: "PENDING",
   workflowStatus: "PENDING",
 };
 
@@ -182,16 +182,16 @@ const taskFrontend: Task = {
 // ---------------------------------------------------------------------------
 const taskGreenAuth: Task = {
   id: "task-green-authority-preflight",
-  title: "Green Authority + Preflight reconciliation",
+  title: "绿色 Authority + Preflight 对账",
   issueNumber: 118,
   state: "READY_FOR_HUMAN",
   riskTier: "R1",
   updatedAt: "2026-08-04T20:30:00Z",
-  nextAction: "Owner review of evidence summary",
+  nextAction: "Owner 审查证据摘要",
   permissionProfile: "OWNER_CONTROL",
   draftPr: {
     number: 118,
-    title: "green authority + preflight",
+    title: "绿色 Authority + Preflight",
     url: "https://github.com/dddd2024/reverse-agent/pull/118",
     headSha: "abcdef0123456789abcdef0123456789abcdef01",
     baseSha: "0123456789abcdef0123456789abcdef01234567",
@@ -200,11 +200,11 @@ const taskGreenAuth: Task = {
   },
   branch: "fix/green-authority-preflight",
   activity: [
-    ev("d1", "DISCOVERED", "2026-08-04T07:00:00Z", "Discovered", "Reconciliation work item."),
-    ev("d2", "EXECUTOR_FINISHED", "2026-08-04T12:00:00Z", "Executor finished", "Reconciled."),
-    ev("d3", "LOCAL_VALIDATED", "2026-08-04T12:30:00Z", "Local validated", "All checks green."),
-    ev("d4", "WORKFLOWS_OBSERVED", "2026-08-04T13:00:00Z", "Workflows observed", "ci + state-gate SUCCESS."),
-    ev("d5", "READY_FOR_HUMAN", "2026-08-04T20:00:00Z", "Ready for human", "Awaiting owner review."),
+    ev("d1", "DISCOVERED", "2026-08-04T07:00:00Z", "已发现", "对账工作项。"),
+    ev("d2", "EXECUTOR_FINISHED", "2026-08-04T12:00:00Z", "执行器完成", "已对账。"),
+    ev("d3", "LOCAL_VALIDATED", "2026-08-04T12:30:00Z", "本地验证通过", "所有检查绿色通过。"),
+    ev("d4", "WORKFLOWS_OBSERVED", "2026-08-04T13:00:00Z", "工作流已观察", "ci + state-gate SUCCESS。"),
+    ev("d5", "READY_FOR_HUMAN", "2026-08-04T20:00:00Z", "等待人工处理", "等待 Owner 审查。"),
   ],
   changes: [
     {
@@ -218,7 +218,7 @@ const taskGreenAuth: Task = {
   evidence: [
     { id: "e1", category: "Authority", label: "Decision Preflight", value: "PRE_EXECUTION_AUTHORIZED", status: "pass" },
     { id: "e2", category: "State Gate", label: "State Gate", value: "PASS", status: "pass" },
-    { id: "e3", category: "Workflows", label: "ci", value: "SUCCESS", status: "pass" },
+    { id: "e3", category: "工作流检查", label: "ci", value: "SUCCESS", status: "pass" },
   ],
   authorityStatus: "APPROVED",
   testStatus: "PASS",
@@ -230,26 +230,26 @@ const taskGreenAuth: Task = {
 // ---------------------------------------------------------------------------
 const taskOwnerReview: Task = {
   id: "task-owner-review-pending",
-  title: "R1 acceptance — owner review pending",
+  title: "R1 验收 — 等待 Owner 审查",
   issueNumber: 130,
   state: "WAITING_FOR_OWNER",
   riskTier: "R1",
   updatedAt: "2026-08-05T06:10:00Z",
-  blocker: "Awaiting owner/maintainer approval label",
-  nextAction: "Owner applies r1-approved label",
+  blocker: "等待 Owner/维护者批准标签",
+  nextAction: "Owner 应用 r1-approved 标签",
   permissionProfile: "ASK_FOR_APPROVAL",
   branch: "feat/owner-review-pending",
   activity: [
-    ev("f1", "DISCOVERED", "2026-08-05T05:00:00Z", "Discovered", "CANDIDATE work item created from template."),
-    ev("f2", "VALIDATED", "2026-08-05T05:30:00Z", "Validated", "Awaiting approval label."),
+    ev("f1", "DISCOVERED", "2026-08-05T05:00:00Z", "已发现", "CANDIDATE 工作项已从模板创建。"),
+    ev("f2", "VALIDATED", "2026-08-05T05:30:00Z", "已验证", "等待批准标签。"),
   ],
   changes: [],
   evidence: [
-    { id: "e1", category: "Authority", label: "Approval label", value: "CANDIDATE", status: "pending", detail: "r1-approved not yet applied" },
+    { id: "e1", category: "Authority", label: "批准标签", value: "CANDIDATE", status: "pending", detail: "r1-approved 尚未应用" },
   ],
   authorityStatus: "CANDIDATE",
   testStatus: "PENDING",
-  workflowStatus: "UNKNOWN",
+  workflowStatus: "PENDING",
 };
 
 // ---------------------------------------------------------------------------
@@ -257,28 +257,28 @@ const taskOwnerReview: Task = {
 // ---------------------------------------------------------------------------
 const taskExpiredWindow: Task = {
   id: "task-expired-unattended-window",
-  title: "R2 unattended window — expired",
+  title: "R2 无人值守窗口 — 已过期",
   issueNumber: 122,
   state: "FAILED_TERMINAL",
   riskTier: "R2",
   updatedAt: "2026-08-04T03:00:00Z",
-  blocker: "autonomousWindow.expiresAt passed (window_expired)",
-  nextAction: "Request a new bounded Decision to continue",
+  blocker: "autonomousWindow.expiresAt 已过 (window_expired)",
+  nextAction: "请求新的有界 Decision 以继续",
   permissionProfile: "OWNER_CONTROL",
   branch: "transition/r2-window-expired",
   activity: [
-    ev("g1", "DISCOVERED", "2026-08-03T20:00:00Z", "Discovered", "Window opened until 03:00."),
-    ev("g2", "EXECUTOR_RUNNING", "2026-08-03T20:30:00Z", "Executor running", "Working within window."),
-    ev("g3", "EXECUTOR_FINISHED", "2026-08-04T03:00:00Z", "Window expired", "Stop condition window_expired triggered.", "STOP: window_expired"),
+    ev("g1", "DISCOVERED", "2026-08-03T20:00:00Z", "已发现", "窗口开启至 03:00。"),
+    ev("g2", "EXECUTOR_RUNNING", "2026-08-03T20:30:00Z", "执行器运行中", "在窗口内工作。"),
+    ev("g3", "EXECUTOR_FINISHED", "2026-08-04T03:00:00Z", "窗口过期", "停止条件 window_expired 触发。", "STOP: window_expired"),
   ],
   changes: [],
   evidence: [
-    { id: "e1", category: "Stop", label: "window_expired", value: "TRIGGERED", status: "fail" },
-    { id: "e2", category: "Authority", label: "Window", value: "EXPIRED", status: "fail" },
+    { id: "e1", category: "停止", label: "window_expired", value: "TRIGGERED", status: "fail" },
+    { id: "e2", category: "Authority", label: "窗口", value: "EXPIRED", status: "fail" },
   ],
   authorityStatus: "EXPIRED",
   testStatus: "PENDING",
-  workflowStatus: "UNKNOWN",
+  workflowStatus: "PENDING",
 };
 
 // ---------------------------------------------------------------------------
@@ -286,17 +286,17 @@ const taskExpiredWindow: Task = {
 // ---------------------------------------------------------------------------
 const taskRework: Task = {
   id: "task-rework-required",
-  title: "R1 — independent audit found issue",
+  title: "R1 — 独立审计发现问题",
   issueNumber: 133,
   state: "REWORK_REQUIRED",
   riskTier: "R1",
   updatedAt: "2026-08-05T05:00:00Z",
-  blocker: "Audit rejected head: missing evidence provenance",
-  nextAction: "Re-record evidence provenance and re-run local checks",
+  blocker: "审计拒绝了 Head: 缺少证据来源",
+  nextAction: "重新记录证据来源并重跑本地检查",
   permissionProfile: "CONTROLLER_REVIEW",
   draftPr: {
     number: 133,
-    title: "rework needed",
+    title: "需要返工",
     url: "https://github.com/dddd2024/reverse-agent/pull/133",
     headSha: "f00dface0123456789abcdef0123456789abcdef",
     baseSha: "0123456789abcdef0123456789abcdef01234567",
@@ -305,15 +305,15 @@ const taskRework: Task = {
   },
   branch: "feat/rework-required",
   activity: [
-    ev("h1", "DISCOVERED", "2026-08-04T22:00:00Z", "Discovered", "Implementation drafted."),
-    ev("h2", "EXECUTOR_FINISHED", "2026-08-04T23:00:00Z", "Executor finished", "Submitted for audit."),
-    ev("h3", "READY_FOR_HUMAN", "2026-08-05T04:00:00Z", "Audit rejected", "Evidence provenance missing.", "AUDIT: REJECT"),
+    ev("h1", "DISCOVERED", "2026-08-04T22:00:00Z", "已发现", "实现已起草。"),
+    ev("h2", "EXECUTOR_FINISHED", "2026-08-04T23:00:00Z", "执行器完成", "已提交审计。"),
+    ev("h3", "READY_FOR_HUMAN", "2026-08-05T04:00:00Z", "审计拒绝", "证据来源缺失。", "AUDIT: REJECT"),
   ],
   changes: [
     { path: "reverse_agent/evidence.py", status: "modified", additions: 4, deletions: 2, diff: authDiff },
   ],
   evidence: [
-    { id: "e1", category: "Audit", label: "Exact-head audit", value: "REJECTED", status: "fail", detail: "missing provenance" },
+    { id: "e1", category: "审计", label: "精确 Head 审计", value: "REJECTED", status: "fail", detail: "缺少来源" },
   ],
   authorityStatus: "APPROVED",
   testStatus: "FAIL",
@@ -325,28 +325,28 @@ const taskRework: Task = {
 // ---------------------------------------------------------------------------
 const taskBudgetExhausted: Task = {
   id: "task-budget-exhausted",
-  title: "R2 — operation budget exhausted",
+  title: "R2 — 操作预算耗尽",
   issueNumber: 140,
   state: "FAILED_TERMINAL",
   riskTier: "R2",
   updatedAt: "2026-08-04T16:00:00Z",
-  blocker: "max_merges_to_main budget exhausted",
-  nextAction: "Request revised Decision with higher budget or stop",
+  blocker: "max_merges_to_main 预算耗尽",
+  nextAction: "请求修订 Decision 提高预算或停止",
   permissionProfile: "OWNER_CONTROL",
   branch: "transition/r2-budget-exhausted",
   activity: [
-    ev("i1", "DISCOVERED", "2026-08-04T08:00:00Z", "Discovered", "Budget of 2 merges set."),
-    ev("i2", "EXECUTOR_RUNNING", "2026-08-04T09:00:00Z", "Executor running", "Merging within budget."),
-    ev("i3", "EXECUTOR_FINISHED", "2026-08-04T16:00:00Z", "Budget exhausted", "Stop condition budget_exhausted triggered.", "STOP: budget_exhausted"),
+    ev("i1", "DISCOVERED", "2026-08-04T08:00:00Z", "已发现", "设置 2 次合并预算。"),
+    ev("i2", "EXECUTOR_RUNNING", "2026-08-04T09:00:00Z", "执行器运行中", "在预算内合并。"),
+    ev("i3", "EXECUTOR_FINISHED", "2026-08-04T16:00:00Z", "预算耗尽", "停止条件 budget_exhausted 触发。", "STOP: budget_exhausted"),
   ],
   changes: [],
   evidence: [
-    { id: "e1", category: "Budget", label: "max_merges_to_main", value: "2/2", status: "fail" },
-    { id: "e2", category: "Stop", label: "budget_exhausted", value: "TRIGGERED", status: "fail" },
+    { id: "e1", category: "预算", label: "max_merges_to_main", value: "2/2", status: "fail" },
+    { id: "e2", category: "停止", label: "budget_exhausted", value: "TRIGGERED", status: "fail" },
   ],
   authorityStatus: "APPROVED",
   testStatus: "PENDING",
-  workflowStatus: "UNKNOWN",
+  workflowStatus: "PENDING",
 };
 
 export const FIXTURE_TASKS: Task[] = [

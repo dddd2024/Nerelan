@@ -12,10 +12,10 @@ const STATUS_META: Record<
   ChangedFile["status"],
   { label: string; icon: typeof FilePlus; color: string }
 > = {
-  added: { label: "Added", icon: FilePlus, color: "text-emerald-600" },
-  modified: { label: "Modified", icon: FileEdit, color: "text-sky-600" },
-  deleted: { label: "Deleted", icon: FileMinus, color: "text-rose-600" },
-  renamed: { label: "Renamed", icon: FileOutput, color: "text-violet-600" },
+  added: { label: "新增", icon: FilePlus, color: "text-emerald-600" },
+  modified: { label: "修改", icon: FileEdit, color: "text-sky-600" },
+  deleted: { label: "删除", icon: FileMinus, color: "text-rose-600" },
+  renamed: { label: "重命名", icon: FileOutput, color: "text-violet-600" },
 };
 
 export function ChangesPanel({ changes }: ChangesPanelProps) {
@@ -24,7 +24,7 @@ export function ChangesPanel({ changes }: ChangesPanelProps) {
   if (changes.length === 0) {
     return (
       <p className="text-sm text-slate-500" data-testid="changes-empty">
-        No file changes yet.
+        暂无文件变更。
       </p>
     );
   }
@@ -35,7 +35,7 @@ export function ChangesPanel({ changes }: ChangesPanelProps) {
   return (
     <div data-testid="changes-panel" className="space-y-2">
       <div className="flex items-center gap-3 text-xs text-slate-500">
-        <span>{changes.length} files</span>
+        <span>{changes.length} 个文件</span>
         <span className="text-emerald-600">+{totalAdd}</span>
         <span className="text-rose-600">-{totalDel}</span>
       </div>

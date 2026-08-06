@@ -5,21 +5,21 @@ import { formatClock } from "@/lib/format";
  * Generate a plain-language authorization summary from a PolicyContract.
  *
  * Example target output:
- *   "Until 08:00, the controller may work only in dddd2024/reverse-agent,
- *    create up to 3 PRs, merge up to 2 PRs into main after CI, Decision
- *    Preflight and State Gate pass on the exact head, and create one GitHub
- *    Release. Production deployment is not allowed."
+ *   "截至 08:00，主控仅在 dddd2024/reverse-agent 中工作，创建最多 3 个
+ *    PR，merge 最多 2 个 PR 到 main 在 pytest, ci 通过后、Decision
+ *    Preflight 和 State Gate 在精确 Head 上通过，创建 一 个 GitHub
+ *    Release。不允许生产部署。"
  */
 export function summarizePolicy(policy: PolicyContract): string {
   const window = policy.autonomousWindow;
-  const until = window.enabled ? `Until ${formatClock(window.expiresAt)}` : "Without an unattended window";
-  const repo = `work only in ${policy.repository}`;
+  const until = window.enabled ? `截至 ${formatClock(window.expiresAt)}` : "未启用无人值守窗口时";
+  const repo = `仅在 ${policy.repository} 中工作`;
 
   const grants: string[] = [];
 
   if (policy.githubCapabilities.includes("open_draft_pr")) {
     grants.push(
-      `create up to ${policy.budgets.maxPrsOpened} PR${plural(policy.budgets.maxPrsOpened)}`,
+      `创建最多 ${policy.budgets.maxPrsOpened} 个 PR${plural(policy.budgets.maxPrsOpened)}`,
     );
   }
 
@@ -27,13 +27,13 @@ export function summarizePolicy(policy: PolicyContract): string {
     const methods = policy.mergePolicy.allowedMergeMethods.length;
     const methodWord = methods > 1 ? "merge" : (policy.mergePolicy.allowedMergeMethods[0] ?? "merge");
     const after = policy.mergePolicy.requiredChecks.length
-      ? ` after ${policy.mergePolicy.requiredChecks.join(", ")}`
+      ? ` 在 ${policy.mergePolicy.requiredChecks.join("，")} 通过后`
       : "";
     const exact = policy.mergePolicy.requireExactHead
-      ? ", Decision Preflight and State Gate pass on the exact head"
+      ? "、Decision Preflight 和 State Gate 在精确 Head 上通过"
       : "";
     grants.push(
-      `${methodWord} up to ${policy.budgets.maxMergesToMain} PR${plural(policy.budgets.maxMergesToMain)} into main${after}${exact}`,
+      `${methodWord} 最多 ${policy.budgets.maxMergesToMain} 个 PR${plural(policy.budgets.maxMergesToMain)} 到 main${after}${exact}`,
     );
   }
 
@@ -42,7 +42,7 @@ export function summarizePolicy(policy: PolicyContract): string {
   );
   if (releaseCapable) {
     const n = policy.budgets.maxReleasesCreated;
-    grants.push(`create ${countWord(n)} GitHub Release${plural(n)}`);
+    grants.push(`创建 ${countWord(n)} 个 GitHub Release${plural(n)}`);
   }
 
   const deployProd = policy.publicationCapabilities.includes(
@@ -56,35 +56,28 @@ export function summarizePolicy(policy: PolicyContract): string {
   );
 
   const deployment = deployProd
-    ? "Production deployment is allowed"
-    : "Production deployment is not allowed";
+    ? "允许生产部署"
+    : "不允许生产部署";
 
-  const grantClause = grants.length ? grants.join(", ") + ", and " : "";
+  const grantClause = grants.length ? grants.join("，") + "，并" : "";
   const releaseClause = releaseCapable ? "" : "";
   void releaseClause;
 
-  const parts = [until, "the controller may", repo];
-  if (grantClause) parts.push(grantClause.replace(/, and $/, ""));
-  parts.push(`. ${deployment}.`);
-
-  if (deployStaging || deployPreview) {
-    const envs: string[] = [];
-    if (deployPreview) envs.push("preview");
-    if (deployStaging) envs.push("staging");
-    parts.push(` Non-production deploy targets: ${envs.join(", ")}.`);
-  }
+  const parts = [until, "主控可", repo];
+  if (grantClause) parts.push(grantClause.replace(/，并$/, ""));
+  parts.push(`。${deployment}。`);
 
   // Compose final sentence, ensuring the example shape.
-  const intro = `${until}, the controller may ${repo}`;
-  const tail = grants.length ? `, ${grants.join(", ")}` : "";
-  const closing = `. ${deployment}.`;
+  const intro = `${until}，主控${repo}`;
+  const tail = grants.length ? `，${grants.join("，")}` : "";
+  const closing = `。${deployment}。`;
   const extras =
     deployStaging || deployPreview
-      ? ` Non-production deploy targets: ${[deployPreview ? "preview" : null, deployStaging ? "staging" : null].filter(Boolean).join(", ")}.`
+      ? ` 非生产部署目标：${[deployPreview ? "预览" : null, deployStaging ? "预发" : null].filter(Boolean).join("，")}。`
       : "";
 
   void parts;
-  return `${intro}${tail}${closing}${extras}`.replace(/\s+\./g, ".").replace(/, \./g, ".");
+  return `${intro}${tail}${closing}${extras}`.replace(/\s+。/g, "。").replace(/， 。/g, "。");
 }
 
 // ---------------------------------------------------------------------------
@@ -96,8 +89,8 @@ function plural(n: number): string {
 }
 
 function countWord(n: number): string {
-  if (n === 1) return "one";
-  if (n === 2) return "two";
-  if (n === 3) return "three";
+  if (n === 1) return "一";
+  if (n === 2) return "二";
+  if (n === 3) return "三";
   return String(n);
 }

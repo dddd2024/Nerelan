@@ -68,7 +68,7 @@ export function ActivityStream({ events }: ActivityStreamProps) {
                     className="text-xs font-medium text-slate-500 underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                     data-testid={`raw-toggle-${e.id}`}
                   >
-                    {isOpen ? "Hide raw log" : "Show raw log"}
+                    {isOpen ? "隐藏原始日志" : "显示原始日志"}
                   </button>
                 ) : null}
                 {hasRaw && isOpen ? (
@@ -85,7 +85,7 @@ export function ActivityStream({ events }: ActivityStreamProps) {
           };
         })}
       />
-      <CollapsibleSection title="Full event log" summary={`${events.length} events`}>
+      <CollapsibleSection title="完整事件日志" summary={`${events.length} 条事件`}>
         <ul className="space-y-1 text-xs text-slate-600">
           {events.map((e) => (
             <li key={e.id} className="flex gap-2">

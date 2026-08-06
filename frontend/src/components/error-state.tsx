@@ -4,7 +4,7 @@ interface ErrorStateProps {
   onRetry?: () => void;
 }
 
-export function ErrorState({ title = "Something went wrong", error, onRetry }: ErrorStateProps) {
+export function ErrorState({ title = "出现错误", error, onRetry }: ErrorStateProps) {
   const message =
     error instanceof Error
       ? error.message
@@ -21,7 +21,7 @@ export function ErrorState({ title = "Something went wrong", error, onRetry }: E
           onClick={onRetry}
           className="self-start rounded-md border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
         >
-          Retry
+          重试
         </button>
       ) : null}
     </div>

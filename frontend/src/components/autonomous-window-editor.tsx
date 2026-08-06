@@ -38,35 +38,35 @@ export function AutonomousWindowEditor({ value, onChange }: AutonomousWindowEdit
           type="checkbox"
           checked={value.enabled}
           onChange={(e) => update({ enabled: e.target.checked })}
-          aria-label="Enable autonomous window"
+          aria-label="启用无人值守窗口"
           data-testid="aw-enabled"
           className="h-4 w-4 rounded border-slate-300 text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
         />
-        <span className="text-sm text-slate-700">Enable unattended window</span>
+        <span className="text-sm text-slate-700">启用无人值守窗口</span>
       </label>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <TextField
-          label="Starts at (ISO)"
+          label="开始时间（ISO）"
           value={value.startsAt}
           onChange={(v) => update({ startsAt: v })}
           testId="aw-startsAt"
         />
         <TextField
-          label="Expires at (ISO)"
+          label="过期时间（ISO）"
           value={value.expiresAt}
           onChange={(v) => update({ expiresAt: v })}
           testId="aw-expiresAt"
         />
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <NumberField label="Max PRs" value={value.maxPrsOpened} onChange={(n) => update({ maxPrsOpened: n })} />
-        <NumberField label="Max merges" value={value.maxMergesToMain} onChange={(n) => update({ maxMergesToMain: n })} />
-        <NumberField label="Max releases" value={value.maxReleasesCreated} onChange={(n) => update({ maxReleasesCreated: n })} />
-        <NumberField label="Max deploys" value={value.maxDeploysToEnvironment} onChange={(n) => update({ maxDeploysToEnvironment: n })} />
+        <NumberField label="最大 PR 数" value={value.maxPrsOpened} onChange={(n) => update({ maxPrsOpened: n })} />
+        <NumberField label="最大合并数" value={value.maxMergesToMain} onChange={(n) => update({ maxMergesToMain: n })} />
+        <NumberField label="最大发布数" value={value.maxReleasesCreated} onChange={(n) => update({ maxReleasesCreated: n })} />
+        <NumberField label="最大部署数" value={value.maxDeploysToEnvironment} onChange={(n) => update({ maxDeploysToEnvironment: n })} />
       </div>
       <fieldset className="space-y-2 rounded-md border border-slate-100 p-3">
         <legend className="px-1 text-xs font-medium text-slate-500">
-          Stop conditions
+          停止条件
         </legend>
         <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
           {ALL_STOP.map((sc) => {

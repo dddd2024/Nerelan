@@ -23,7 +23,7 @@ export function OverviewPanel({ task, policy }: OverviewPanelProps) {
     <div data-testid="overview-panel" className="space-y-3">
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-          Conclusion
+          当前结论
         </h2>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <Badge className={state.badge} dot={state.dot}>
@@ -34,11 +34,11 @@ export function OverviewPanel({ task, policy }: OverviewPanelProps) {
           </Badge>
         </div>
         <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Next action" value={task.nextAction ?? "—"} />
-          <Field label="Blocker" value={task.blocker ?? "None"} />
+          <Field label="下一步" value={task.nextAction ?? "—"} />
+          <Field label="阻塞项" value={task.blocker ?? "无"} />
           <Field label="Authority" value={task.authorityStatus} />
-          <Field label="Tests" value={task.testStatus} />
-          <Field label="Workflows" value={task.workflowStatus} />
+          <Field label="测试" value={task.testStatus} />
+          <Field label="工作流" value={task.workflowStatus} />
           <Field
             label="Draft PR"
             value={
@@ -50,22 +50,22 @@ export function OverviewPanel({ task, policy }: OverviewPanelProps) {
         </dl>
       </section>
 
-      <CollapsibleSection title="Active permission summary" defaultOpen>
+      <CollapsibleSection title="活跃权限摘要" defaultOpen>
         <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Permission profile" value={permissionModeLabel(task.permissionProfile)} />
-          <Field label="Repository" value={policy?.repository ?? "—"} />
+          <Field label="权限配置" value={permissionModeLabel(task.permissionProfile)} />
+          <Field label="仓库" value={policy?.repository ?? "—"} />
           <Field
-            label="Unattended window"
+            label="无人值守窗口"
             value={
               window?.enabled
-                ? `Enabled until ${formatClock(window.expiresAt)}`
-                : "Not enabled"
+                ? `启用至 ${formatClock(window.expiresAt)}`
+                : "未启用"
             }
           />
           <Field
-            label="Merge into main"
+            label="合并至 main"
             value={
-              policy?.githubCapabilities.includes("merge_pr") ? "Permitted" : "Not permitted"
+              policy?.githubCapabilities.includes("merge_pr") ? "允许" : "不允许"
             }
           />
         </dl>

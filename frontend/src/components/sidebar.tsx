@@ -10,10 +10,10 @@ export interface SidebarItem {
 }
 
 const ITEMS: SidebarItem[] = [
-  { to: "/", label: "Home", icon: Home },
-  { to: "/tasks", label: "Tasks", icon: ListChecks },
-  { to: "/approvals", label: "Approvals", icon: ShieldCheck },
-  { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/", label: "首页", icon: Home },
+  { to: "/tasks", label: "任务", icon: ListChecks },
+  { to: "/approvals", label: "审批", icon: ShieldCheck },
+  { to: "/settings", label: "设置", icon: Settings },
 ];
 
 interface SidebarProps {
@@ -35,7 +35,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       {open ? (
         <button
           type="button"
-          aria-label="Close navigation"
+          aria-label="关闭导航"
           tabIndex={-1}
           onClick={onClose}
           className="fixed inset-0 z-30 bg-slate-900/30 md:hidden"
@@ -43,7 +43,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       ) : null}
       <aside
         ref={listRef}
-        aria-label="Primary navigation"
+        aria-label="主导航"
         className={cn(
           "fixed inset-y-0 left-0 z-40 w-64 transform border-r border-slate-200 bg-white transition-transform duration-200 md:static md:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
@@ -56,7 +56,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           </span>
           <button
             type="button"
-            aria-label="Close navigation"
+            aria-label="关闭导航"
             onClick={onClose}
             className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 md:hidden"
           >

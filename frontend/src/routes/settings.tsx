@@ -20,10 +20,9 @@ export function SettingsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
-        <h1 className="text-lg font-semibold text-slate-900">Settings</h1>
+        <h1 className="text-lg font-semibold text-slate-900">设置</h1>
         <p className="text-sm text-slate-500">
-          Default permission profiles. Custom policies are delegation requests
-          only.
+          默认权限配置。自定义策略仅为委托请求。
         </p>
       </div>
       <div className="max-w-xs">
@@ -36,7 +35,7 @@ export function SettingsPage() {
         className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
         data-testid="open-custom-editor"
       >
-        Edit custom policy
+        编辑自定义策略
       </button>
       <CustomPolicyEditor
         open={editorOpen}

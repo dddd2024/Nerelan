@@ -53,7 +53,7 @@ describe("responsive layout", () => {
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
     expect(screen.getByTestId("content")).toBeInTheDocument();
     // The mobile menu toggle is visible on mobile.
-    expect(screen.getByLabelText("Open navigation")).toBeInTheDocument();
+    expect(screen.getByLabelText("打开导航")).toBeInTheDocument();
   });
 
   it("task inbox renders on desktop", () => {

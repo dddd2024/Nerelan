@@ -25,7 +25,7 @@ export function PermissionSelector({
   value,
   onChange,
   id = "permission-mode",
-  label = "Permission profile",
+  label = "权限配置",
 }: PermissionSelectorProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);

@@ -13,13 +13,13 @@ describe("accessibility", () => {
     renderWithProviders(
       <PermissionSelector value="CONTROLLER_REVIEW" onChange={() => {}} />,
     );
-    const trigger = screen.getByLabelText("Permission profile");
+    const trigger = screen.getByLabelText("权限配置");
     expect(trigger).toHaveAttribute("aria-haspopup", "listbox");
     trigger.focus();
     await user.keyboard("{Enter}");
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     expect(
-      screen.getByRole("listbox", { name: "Permission profile" }),
+      screen.getByRole("listbox", { name: "权限配置" }),
     ).toBeInTheDocument();
   });
 
@@ -29,9 +29,9 @@ describe("accessibility", () => {
         <Sidebar open={true} onClose={() => {}} />
       </div>,
     );
-    const tasksLink = screen.getByTestId("nav-tasks");
+    const tasksLink = screen.getByTestId("nav-任务");
     expect(tasksLink).toHaveAttribute("href", "/tasks");
-    const homeLink = screen.getByTestId("nav-home");
+    const homeLink = screen.getByTestId("nav-首页");
     expect(homeLink).toHaveAttribute("href", "/");
   });
 
@@ -65,11 +65,11 @@ describe("accessibility", () => {
     const user = userEvent.setup();
     const { CollapsibleSection } = await import("@/components/collapsible-section");
     renderWithProviders(
-      <CollapsibleSection title="Section">
-        <p data-testid="body">body</p>
+      <CollapsibleSection title="区块">
+        <p data-testid="body">内容</p>
       </CollapsibleSection>,
     );
-    const btn = screen.getByRole("button", { name: "Section" });
+    const btn = screen.getByRole("button", { name: "区块" });
     expect(btn).toHaveAttribute("aria-expanded", "false");
     await user.click(btn);
     expect(btn).toHaveAttribute("aria-expanded", "true");

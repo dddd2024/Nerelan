@@ -40,7 +40,7 @@ describe("policy validation", () => {
     const result = validatePolicy(policy);
     expect(result.success).toBe(false);
     expect(
-      result.errors.some((e) => e.includes("future")),
+      result.errors.some((e) => e.includes("未来")),
     ).toBe(true);
   });
 

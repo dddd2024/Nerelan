@@ -13,13 +13,13 @@ describe("authorization summary", () => {
   it("states production deployment is not allowed for OWNER_CONTROL", () => {
     const policy = profileToPolicy("OWNER_CONTROL");
     const summary = summarizePolicy(policy);
-    expect(summary).toContain("Production deployment is not allowed");
+    expect(summary).toContain("不允许生产部署");
   });
 
   it("states production deployment is allowed for CUSTOM", () => {
     const policy = profileToPolicy("CUSTOM");
     const summary = summarizePolicy(policy);
-    expect(summary).toContain("Production deployment is allowed");
+    expect(summary).toContain("允许生产部署");
   });
 
   it("includes the window expiry time when enabled", () => {
@@ -27,6 +27,6 @@ describe("authorization summary", () => {
     policy.autonomousWindow.enabled = true;
     policy.autonomousWindow.expiresAt = "2026-08-05T08:00:00Z";
     const summary = summarizePolicy(policy);
-    expect(summary).toMatch(/Until/);
+    expect(summary).toMatch(/截至/);
   });
 });

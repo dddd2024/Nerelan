@@ -10,8 +10,8 @@ const events: ActivityEvent[] = [
     id: "e1",
     type: "EXECUTOR_RUNNING",
     timestamp: "2026-08-05T03:00:00Z",
-    title: "Executor running",
-    description: "Started.",
+    title: "执行器运行中",
+    description: "已启动。",
     rawLog: "executor: started\nexecutor: step 1",
     expanded: false,
   },
@@ -19,8 +19,8 @@ const events: ActivityEvent[] = [
     id: "e2",
     type: "READY_FOR_HUMAN",
     timestamp: "2026-08-05T04:00:00Z",
-    title: "Ready for human",
-    description: "Awaiting review.",
+    title: "等待人工处理",
+    description: "等待审查。",
     expanded: false,
   },
 ];
@@ -28,8 +28,8 @@ const events: ActivityEvent[] = [
 describe("activity stream", () => {
   it("renders all events", () => {
     renderWithProviders(<ActivityStream events={events} />);
-    expect(screen.getByText("Executor running")).toBeInTheDocument();
-    expect(screen.getByText("Ready for human")).toBeInTheDocument();
+    expect(screen.getByText("执行器运行中")).toBeInTheDocument();
+    expect(screen.getByText("等待人工处理")).toBeInTheDocument();
   });
 
   it("raw logs are collapsed by default and expandable", async () => {

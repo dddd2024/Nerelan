@@ -69,35 +69,34 @@ export function PublicationEditor({
         })}
       </ul>
       <p className="text-xs text-slate-400">
-        Release and deployment capabilities are independent. Deployment is not
-        implied by network write access.
+        发布与部署能力相互独立。网络写入权限不隐含部署能力。
       </p>
       <fieldset className="space-y-2 rounded-md border border-slate-100 p-3">
         <legend className="px-1 text-xs font-medium text-slate-500">
-          Publication policy
+          发布策略
         </legend>
         <TextField
-          label="Artifacts/packages (comma-separated)"
+          label="制品/包（逗号分隔）"
           value={policy.allowedArtifactOrPackage.join(", ")}
           onChange={(v) => update({ allowedArtifactOrPackage: splitList(v) })}
         />
         <TextField
-          label="Registry (comma-separated)"
+          label="注册表（逗号分隔）"
           value={policy.allowedRegistry.join(", ")}
           onChange={(v) => update({ allowedRegistry: splitList(v) })}
         />
         <TextField
-          label="Repository (comma-separated)"
+          label="仓库（逗号分隔）"
           value={policy.allowedRepository.join(", ")}
           onChange={(v) => update({ allowedRepository: splitList(v) })}
         />
         <TextField
-          label="Environments (comma-separated)"
+          label="环境（逗号分隔）"
           value={policy.allowedEnvironment.join(", ")}
           onChange={(v) => update({ allowedEnvironment: splitList(v) })}
         />
         <TextField
-          label="Rollback strategy"
+          label="回滚策略"
           value={policy.rollbackStrategy ?? ""}
           onChange={(v) => update({ rollbackStrategy: v || undefined })}
         />

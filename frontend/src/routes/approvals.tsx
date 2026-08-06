@@ -14,9 +14,9 @@ export function ApprovalsPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <div className="mb-4">
-        <h1 className="text-lg font-semibold text-slate-900">Approvals</h1>
+        <h1 className="text-lg font-semibold text-slate-900">审批</h1>
         <p className="text-sm text-slate-500">
-          Tasks awaiting owner review. Merging remains human-controlled.
+          等待 Owner 审查的任务。合并仍由人工控制。
         </p>
       </div>
       {isLoading ? (
@@ -29,15 +29,15 @@ export function ApprovalsPage() {
         </div>
       ) : (
         <EmptyState
-          title="Nothing to approve"
-          description="No tasks currently require owner attention."
+          title="暂无待审批项"
+          description="当前没有需要 Owner 关注的任务。"
           icon={<ShieldCheck className="h-6 w-6" />}
           action={
             <Link
               to="/tasks"
               className="text-sm text-slate-500 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
             >
-              Go to tasks
+              前往任务
             </Link>
           }
         />

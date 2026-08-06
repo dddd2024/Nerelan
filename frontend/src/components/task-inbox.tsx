@@ -16,14 +16,14 @@ export function TaskInbox({ tasks, isLoading, isError, error }: TaskInboxProps) 
   if (isLoading) {
     return (
       <div data-testid="task-inbox">
-        <LoadingState label="Loading tasks…" />
+        <LoadingState label="加载任务中…" />
       </div>
     );
   }
   if (isError) {
     return (
       <div data-testid="task-inbox">
-        <ErrorState title="Failed to load tasks" error={error} />
+        <ErrorState title="任务加载失败" error={error} />
       </div>
     );
   }
@@ -31,8 +31,8 @@ export function TaskInbox({ tasks, isLoading, isError, error }: TaskInboxProps) 
     return (
       <div data-testid="task-inbox">
         <EmptyState
-          title="No tasks"
-          description="Tasks created from approved work items will appear here."
+          title="未找到任务"
+          description="从已批准工作项创建的任务将显示在此处。"
           icon={<Inbox className="h-6 w-6" />}
         />
       </div>
@@ -53,28 +53,28 @@ export function TaskInbox({ tasks, isLoading, isError, error }: TaskInboxProps) 
   return (
     <div data-testid="task-inbox" className="space-y-6">
       <Section
-        title="New Task"
+        title="新建任务"
         testId="section-new-task"
-        description="Create a task from an approved work item."
+        description="从已批准工作项创建任务。"
       >
         <button
           type="button"
           className="rounded-md border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500 hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
         >
-          + New task
+          + 新建任务
         </button>
       </Section>
       <Section
-        title="Needs Owner Attention"
+        title="需要 Owner 关注"
         testId="section-needs-attention"
         count={needsAttention.length}
       >
         <Cards tasks={needsAttention} />
       </Section>
-      <Section title="Running" testId="section-running" count={running.length}>
+      <Section title="运行中" testId="section-running" count={running.length}>
         <Cards tasks={running} />
       </Section>
-      <Section title="Recent Tasks" testId="section-recent" count={recent.length}>
+      <Section title="最近任务" testId="section-recent" count={recent.length}>
         <Cards tasks={recent} />
       </Section>
     </div>
@@ -110,7 +110,7 @@ function Section({
 
 function Cards({ tasks }: { tasks: Task[] }) {
   if (tasks.length === 0) {
-    return <p className="text-xs text-slate-400">None.</p>;
+    return <p className="text-xs text-slate-400">无。</p>;
   }
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

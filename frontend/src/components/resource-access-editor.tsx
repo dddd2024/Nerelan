@@ -14,9 +14,9 @@ export function ResourceAccessEditor({ value, onChange }: ResourceAccessEditorPr
 
   return (
     <div data-testid="resource-access-editor" className="space-y-4">
-      <Group label="Filesystem">
+      <Group label="文件系统">
         <TextField
-          label="Allowed paths (comma-separated)"
+          label="已批准路径（逗号分隔）"
           value={value.filesystem.allowedPaths.join(", ")}
           onChange={(v) =>
             update({
@@ -25,7 +25,7 @@ export function ResourceAccessEditor({ value, onChange }: ResourceAccessEditorPr
           }
         />
         <TextField
-          label="Writable paths (comma-separated)"
+          label="可写路径（逗号分隔）"
           value={value.filesystem.writablePaths.join(", ")}
           onChange={(v) =>
             update({
@@ -35,16 +35,16 @@ export function ResourceAccessEditor({ value, onChange }: ResourceAccessEditorPr
         />
       </Group>
 
-      <Group label="Network">
+      <Group label="网络">
         <TextField
-          label="Allowed domains (comma-separated)"
+          label="允许的域名（逗号分隔）"
           value={value.network.allowedDomains.join(", ")}
           onChange={(v) =>
             update({ network: { ...value.network, allowedDomains: splitList(v) } })
           }
         />
         <Toggle
-          label="Allow network write"
+          label="允许网络写入"
           checked={value.network.allowWrite}
           onChange={(b) => update({ network: { ...value.network, allowWrite: b } })}
         />
@@ -52,14 +52,14 @@ export function ResourceAccessEditor({ value, onChange }: ResourceAccessEditorPr
 
       <Group label="Shell">
         <TextField
-          label="Allowed commands (comma-separated)"
+          label="允许的命令（逗号分隔）"
           value={value.shell.allowedCommands.join(", ")}
           onChange={(v) =>
             update({ shell: { ...value.shell, allowedCommands: splitList(v) } })
           }
         />
         <TextField
-          label="Denied commands (comma-separated)"
+          label="拒绝的命令（逗号分隔）"
           value={value.shell.deniedCommands.join(", ")}
           onChange={(v) =>
             update({ shell: { ...value.shell, deniedCommands: splitList(v) } })
@@ -67,13 +67,13 @@ export function ResourceAccessEditor({ value, onChange }: ResourceAccessEditorPr
         />
       </Group>
 
-      <Group label="Secrets">
+      <Group label="密钥">
         <label htmlFor="secrets-access" className="block text-xs text-slate-500">
-          Secrets access
+          密钥访问
         </label>
         <select
           id="secrets-access"
-          aria-label="Secrets access"
+          aria-label="密钥访问"
           value={value.secrets.access}
           onChange={(e) =>
             update({
@@ -85,12 +85,12 @@ export function ResourceAccessEditor({ value, onChange }: ResourceAccessEditorPr
           }
           className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
         >
-          <option value="none">none</option>
-          <option value="masked">masked</option>
-          <option value="raw_values">raw_values (rejected)</option>
+          <option value="none">无</option>
+          <option value="masked">掩码</option>
+          <option value="raw_values">raw_values（已拒绝）</option>
         </select>
         <TextField
-          label="Allowed keys (comma-separated)"
+          label="允许的键（逗号分隔）"
           value={value.secrets.allowedKeys.join(", ")}
           onChange={(v) =>
             update({ secrets: { ...value.secrets, allowedKeys: splitList(v) } })
@@ -98,16 +98,16 @@ export function ResourceAccessEditor({ value, onChange }: ResourceAccessEditorPr
         />
       </Group>
 
-      <Group label="Worker approval">
+      <Group label="Worker 审批">
         <Toggle
-          label="Approval required"
+          label="需要审批"
           checked={value.workerApproval.required}
           onChange={(b) =>
             update({ workerApproval: { ...value.workerApproval, required: b } })
           }
         />
         <TextField
-          label="Approvers (comma-separated)"
+          label="审批人（逗号分隔）"
           value={value.workerApproval.approvers.join(", ")}
           onChange={(v) =>
             update({

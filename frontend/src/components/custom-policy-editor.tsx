@@ -76,12 +76,12 @@ export function CustomPolicyEditor({
       className="fixed inset-0 z-50 flex"
       role="dialog"
       aria-modal="true"
-      aria-label="Custom policy editor"
+      aria-label="自定义策略编辑器"
       data-testid="custom-policy-editor"
     >
       <button
         type="button"
-        aria-label="Close editor"
+        aria-label="关闭编辑器"
         tabIndex={-1}
         onClick={onClose}
         className="absolute inset-0 bg-slate-900/30"
@@ -93,11 +93,11 @@ export function CustomPolicyEditor({
         )}
       >
         <div className="sticky top-0 flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3">
-          <h2 className="text-sm font-semibold text-slate-800">Custom policy</h2>
+          <h2 className="text-sm font-semibold text-slate-800">自定义策略</h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label="关闭"
             className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
           >
             <X aria-hidden="true" className="h-4 w-4" />
@@ -106,10 +106,10 @@ export function CustomPolicyEditor({
         <div className="space-y-3 p-4">
           <AuthorizationSummary policy={policy} />
 
-          <CollapsibleSection title="Merge policy" defaultOpen>
+          <CollapsibleSection title="合并策略" defaultOpen>
             <div className="space-y-2">
               <TextField
-                label="Allowed repositories (comma-separated)"
+                label="允许的仓库（逗号分隔）"
                 value={policy.mergePolicy.allowedRepositories.join(", ")}
                 onChange={(v) =>
                   update({
@@ -121,7 +121,7 @@ export function CustomPolicyEditor({
                 }
               />
               <TextField
-                label="Allowed base branches (comma-separated)"
+                label="允许的目标分支（逗号分隔）"
                 value={policy.mergePolicy.allowedBaseBranches.join(", ")}
                 onChange={(v) =>
                   update({
@@ -133,7 +133,7 @@ export function CustomPolicyEditor({
                 }
               />
               <TextField
-                label="Required checks (comma-separated)"
+                label="必需检查（逗号分隔）"
                 value={policy.mergePolicy.requiredChecks.join(", ")}
                 onChange={(v) =>
                   update({
@@ -145,7 +145,7 @@ export function CustomPolicyEditor({
                 }
               />
               <fieldset>
-                <legend className="text-xs text-slate-500">Allowed merge methods</legend>
+                <legend className="text-xs text-slate-500">允许的合并方式</legend>
                 <div className="mt-1 flex flex-wrap gap-3">
                   {MERGE_METHODS.map((m) => {
                     const checked = policy.mergePolicy.allowedMergeMethods.includes(m);
@@ -178,26 +178,26 @@ export function CustomPolicyEditor({
                   }
                   className="h-4 w-4 rounded border-slate-300 text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                 />
-                Require exact head
+                要求精确 Head
               </label>
             </div>
           </CollapsibleSection>
 
-          <CollapsibleSection title="Resource access" defaultOpen>
+          <CollapsibleSection title="文件系统" defaultOpen>
             <ResourceAccessEditor
               value={policy.resourceAccess}
               onChange={(next) => update({ resourceAccess: next })}
             />
           </CollapsibleSection>
 
-          <CollapsibleSection title="GitHub capabilities" defaultOpen>
+          <CollapsibleSection title="GitHub 能力" defaultOpen>
             <GithubCapabilitiesEditor
               value={policy.githubCapabilities}
               onChange={(next) => update({ githubCapabilities: next })}
             />
           </CollapsibleSection>
 
-          <CollapsibleSection title="Publication & deployment" defaultOpen>
+          <CollapsibleSection title="发布与部署" defaultOpen>
             <PublicationEditor
               capabilities={policy.publicationCapabilities}
               onCapabilitiesChange={(next) => update({ publicationCapabilities: next })}
@@ -206,7 +206,7 @@ export function CustomPolicyEditor({
             />
           </CollapsibleSection>
 
-          <CollapsibleSection title="Autonomous window" defaultOpen>
+          <CollapsibleSection title="无人值守窗口" defaultOpen>
             <AutonomousWindowEditor
               value={policy.autonomousWindow}
               onChange={(next) => update({ autonomousWindow: next })}

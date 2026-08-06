@@ -20,7 +20,7 @@ describe("state components", () => {
       <TaskInbox tasks={[]} isLoading={false} isError={false} />,
     );
     expect(screen.getByTestId("empty-state")).toBeInTheDocument();
-    expect(screen.getByText("No tasks")).toBeInTheDocument();
+    expect(screen.getByText("未找到任务")).toBeInTheDocument();
   });
 
   it("shows an error state", () => {
@@ -64,9 +64,9 @@ describe("state components", () => {
   it("LoadingState, EmptyState, ErrorState render standalone", () => {
     renderWithProviders(<LoadingState label="x" />);
     expect(screen.getByTestId("loading-state")).toBeInTheDocument();
-    renderWithProviders(<EmptyState title="Nothing" />);
+    renderWithProviders(<EmptyState title="无内容" />);
     expect(screen.getByTestId("empty-state")).toBeInTheDocument();
-    renderWithProviders(<ErrorState error="oops" />);
+    renderWithProviders(<ErrorState error="出错了" />);
     expect(screen.getByTestId("error-state")).toBeInTheDocument();
   });
 });

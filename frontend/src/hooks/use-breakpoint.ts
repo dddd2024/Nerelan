@@ -37,7 +37,7 @@ export function useBreakpoint(): Breakpoint {
 }
 
 export const BREAKPOINT_LABELS: Record<Breakpoint, string> = {
-  mobile: "Mobile",
-  tablet: "Tablet",
-  desktop: "Desktop",
+  mobile: "移动端",
+  tablet: "平板",
+  desktop: "桌面端",
 };

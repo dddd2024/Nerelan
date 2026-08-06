@@ -65,7 +65,7 @@ export function TaskCard({ task }: TaskCardProps) {
           />
           <span>
             <span className="font-medium text-slate-700">
-              {task.blocker ? "Blocker: " : "Next: "}
+              {task.blocker ? "阻塞项：" : "下一步："}
             </span>
             {note}
           </span>

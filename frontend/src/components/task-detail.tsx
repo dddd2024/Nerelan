@@ -23,11 +23,11 @@ import { profileToPolicy } from "@/lib/profile-mapper";
 type Tab = "overview" | "activity" | "changes" | "evidence" | "permissions";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "overview", label: "Overview" },
-  { id: "activity", label: "Activity" },
-  { id: "changes", label: "Changes" },
-  { id: "evidence", label: "Evidence" },
-  { id: "permissions", label: "Permissions" },
+  { id: "overview", label: "概览" },
+  { id: "activity", label: "活动" },
+  { id: "changes", label: "变更" },
+  { id: "evidence", label: "证据" },
+  { id: "permissions", label: "权限" },
 ];
 
 interface TaskDetailProps {
@@ -43,20 +43,20 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
   if (isLoading) {
     return (
       <div data-testid="task-detail">
-        <LoadingState label="Loading task…" />
+        <LoadingState label="加载任务中…" />
       </div>
     );
   }
   if (isError || !task) {
     return (
       <div data-testid="task-detail">
-        <ErrorState title="Task not found" error={error} />
+        <ErrorState title="未找到任务" error={error} />
         <div className="px-4">
           <Link
             to="/tasks"
             className="text-sm text-slate-500 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
           >
-            ← Back to tasks
+            ← 返回任务列表
           </Link>
         </div>
       </div>
@@ -76,7 +76,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
           className="inline-flex items-center gap-1 text-sm text-slate-500 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
         >
           <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-          Tasks
+          任务
         </Link>
       </div>
 
@@ -107,8 +107,8 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
         </div>
 
         <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Meta label="Unattended window">
-            {window.enabled ? `Until ${formatClock(window.expiresAt)}` : "Not enabled"}
+          <Meta label="无人值守窗口">
+            {window.enabled ? `截至 ${formatClock(window.expiresAt)}` : "未启用"}
           </Meta>
           <Meta label="Draft PR">
             {task.draftPr ? (
@@ -130,14 +130,14 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
               "—"
             )}
           </Meta>
-          <Meta label="Blocker">{task.blocker ?? "None"}</Meta>
-          <Meta label="Next action">{task.nextAction ?? "—"}</Meta>
+          <Meta label="阻塞项">{task.blocker ?? "无"}</Meta>
+          <Meta label="下一步">{task.nextAction ?? "—"}</Meta>
         </dl>
       </header>
 
       <div
         role="tablist"
-        aria-label="Task sections"
+        aria-label="任务分区"
         className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1"
       >
         {TABS.map((t) => {

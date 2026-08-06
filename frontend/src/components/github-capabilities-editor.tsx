@@ -64,7 +64,7 @@ export function GithubCapabilitiesEditor({
                 <span className="font-mono text-xs">{cap}</span>
                 {isMerge || isPushMain ? (
                   <span className="ml-auto text-[10px] text-slate-400">
-                    independent
+                    独立
                   </span>
                 ) : null}
               </label>
@@ -73,8 +73,7 @@ export function GithubCapabilitiesEditor({
         })}
       </ul>
       <p className="text-xs text-slate-400">
-        merge_pr and push_main are independent toggles. Enabling merge_pr does
-        not enable push_main.
+        merge_pr 与 push_main 为独立开关。启用 merge_pr 不会启用 push_main。
       </p>
     </div>
   );

@@ -9,10 +9,10 @@ interface EvidencePanelProps {
 }
 
 const STATUS_STYLE: Record<EvidenceStatus, { badge: string; label: string }> = {
-  pass: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", label: "Pass" },
-  fail: { badge: "bg-rose-50 text-rose-700 border-rose-200", label: "Fail" },
-  pending: { badge: "bg-amber-50 text-amber-700 border-amber-200", label: "Pending" },
-  info: { badge: "bg-slate-50 text-slate-700 border-slate-200", label: "Info" },
+  pass: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", label: "通过" },
+  fail: { badge: "bg-rose-50 text-rose-700 border-rose-200", label: "失败" },
+  pending: { badge: "bg-amber-50 text-amber-700 border-amber-200", label: "待处理" },
+  info: { badge: "bg-slate-50 text-slate-700 border-slate-200", label: "信息" },
 };
 
 /**
@@ -25,7 +25,7 @@ export function EvidencePanel({ evidence }: EvidencePanelProps) {
   if (evidence.length === 0) {
     return (
       <p className="text-sm text-slate-500" data-testid="evidence-empty">
-        No evidence recorded.
+        暂无证据记录。
       </p>
     );
   }
@@ -41,7 +41,7 @@ export function EvidencePanel({ evidence }: EvidencePanelProps) {
             key={cat}
             title={cat}
             defaultOpen={false}
-            summary={`${items.length} item${items.length === 1 ? "" : "s"}`}
+            summary={`${items.length} 项`}
           >
             <ul className="space-y-2">
               {items.map((item) => (
@@ -63,13 +63,13 @@ function EvidenceSummary({ evidence }: { evidence: EvidenceItem[] }) {
   const pending = evidence.filter((e) => e.status === "pending").length;
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-xs">
-      <span className="font-medium text-slate-700">Evidence summary</span>
+      <span className="font-medium text-slate-700">证据摘要</span>
       <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">
-        {pass} pass
+        {pass} 通过
       </Badge>
-      <Badge className="border-rose-200 bg-rose-50 text-rose-700">{fail} fail</Badge>
+      <Badge className="border-rose-200 bg-rose-50 text-rose-700">{fail} 失败</Badge>
       <Badge className="border-amber-200 bg-amber-50 text-amber-700">
-        {pending} pending
+        {pending} 待处理
       </Badge>
     </div>
   );
@@ -109,7 +109,7 @@ function EvidenceRow({ item }: { item: EvidenceItem }) {
             className="text-xs text-slate-500 underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
             data-testid={`evidence-raw-toggle-${item.id}`}
           >
-            {showRaw ? "Hide raw JSON" : "Show raw JSON"}
+            {showRaw ? "隐藏原始 JSON" : "显示原始 JSON"}
           </button>
           {showRaw ? (
             <pre

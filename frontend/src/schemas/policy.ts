@@ -59,8 +59,8 @@ const stopConditionScopeSchema = z.enum(["task", "window"]);
 
 const positiveInt = z
   .number()
-  .int("must be an integer")
-  .positive("must be a positive integer");
+  .int("必须为整数")
+  .positive("必须为正整数");
 
 // ---------------------------------------------------------------------------
 // Nested objects
@@ -147,7 +147,7 @@ const budgetsSchema = z.object({
 export const policySchema = z
   .object({
     mode: permissionModeSchema,
-    repository: z.string().min(1, "repository is required"),
+    repository: z.string().min(1, "repository 为必填项"),
     resourceAccess: resourceAccessSchema,
     githubCapabilities: z.array(githubCapabilitySchema),
     publicationCapabilities: z.array(publicationCapabilitySchema),
@@ -169,25 +169,25 @@ export const policySchema = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["mergePolicy", "allowedRepositories"],
-          message: "merge_pr requires non-empty allowedRepositories",
+          message: "merge_pr 要求 allowedRepositories 非空",
         });
-        errors.push("merge_pr requires non-empty allowedRepositories");
+        errors.push("merge_pr 要求 allowedRepositories 非空");
       }
       if (policy.mergePolicy.allowedBaseBranches.length === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["mergePolicy", "allowedBaseBranches"],
-          message: "merge_pr requires non-empty allowedBaseBranches",
+          message: "merge_pr 要求 allowedBaseBranches 非空",
         });
-        errors.push("merge_pr requires non-empty allowedBaseBranches");
+        errors.push("merge_pr 要求 allowedBaseBranches 非空");
       }
       if (policy.mergePolicy.requiredChecks.length === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["mergePolicy", "requiredChecks"],
-          message: "merge_pr requires non-empty requiredChecks",
+          message: "merge_pr 要求 requiredChecks 非空",
         });
-        errors.push("merge_pr requires non-empty requiredChecks");
+        errors.push("merge_pr 要求 requiredChecks 非空");
       }
     }
 
@@ -197,17 +197,17 @@ export const policySchema = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["publicationPolicy", "allowedEnvironment"],
-          message: "deploy_production requires allowedEnvironment",
+          message: "deploy_production 要求 allowedEnvironment",
         });
-        errors.push("deploy_production requires allowedEnvironment");
+        errors.push("deploy_production 要求 allowedEnvironment");
       }
       if (!policy.publicationPolicy.rollbackStrategy) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["publicationPolicy", "rollbackStrategy"],
-          message: "deploy_production requires rollbackStrategy",
+          message: "deploy_production 要求 rollbackStrategy",
         });
-        errors.push("deploy_production requires rollbackStrategy");
+        errors.push("deploy_production 要求 rollbackStrategy");
       }
     }
 
@@ -222,9 +222,9 @@ export const policySchema = z
           code: z.ZodIssueCode.custom,
           path: ["publicationPolicy", "allowedArtifactOrPackage"],
           message:
-            "publication capabilities require allowedArtifactOrPackage",
+            "发布能力要求 allowedArtifactOrPackage",
         });
-        errors.push("publication capabilities require allowedArtifactOrPackage");
+        errors.push("发布能力要求 allowedArtifactOrPackage");
       }
       const hasRegistry = policy.publicationPolicy.allowedRegistry.length > 0;
       const hasRepo = policy.publicationPolicy.allowedRepository.length > 0;
@@ -233,10 +233,10 @@ export const policySchema = z
           code: z.ZodIssueCode.custom,
           path: ["publicationPolicy", "allowedRegistry"],
           message:
-            "publication capabilities require allowedRegistry or allowedRepository",
+            "发布能力要求 allowedRegistry 或 allowedRepository",
         });
         errors.push(
-          "publication capabilities require allowedRegistry or allowedRepository",
+          "发布能力要求 allowedRegistry 或 allowedRepository",
         );
       }
     }
@@ -248,16 +248,16 @@ export const policySchema = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["autonomousWindow", "expiresAt"],
-          message: "autonomousWindow.expiresAt must be a valid ISO date",
+          message: "autonomousWindow.expiresAt 必须为有效的 ISO 日期",
         });
-        errors.push("autonomousWindow.expiresAt must be a valid ISO date");
+        errors.push("autonomousWindow.expiresAt 必须为有效的 ISO 日期");
       } else if (expires <= Date.now()) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["autonomousWindow", "expiresAt"],
-          message: "autonomousWindow.expiresAt must be in the future",
+          message: "autonomousWindow.expiresAt 必须为未来时间",
         });
-        errors.push("autonomousWindow.expiresAt must be a valid future ISO date");
+        errors.push("autonomousWindow.expiresAt 必须为有效的未来 ISO 日期");
       }
     }
 
@@ -266,9 +266,9 @@ export const policySchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["resourceAccess", "secrets", "access"],
-        message: "raw secret values are not allowed",
+        message: "不允许使用 raw 密钥值",
       });
-      errors.push("secrets must not be raw_values");
+      errors.push("secrets 不能为 raw_values");
     }
 
     // push_main must NOT be implicitly enabled by merge_pr (they are independent).
@@ -299,7 +299,7 @@ export const policySchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["__collected__"],
-        message: errors.join("; "),
+        message: errors.join("；"),
       });
     }
   });
@@ -322,7 +322,7 @@ export function validatePolicy(
     const where = path ? `${path}: ` : "";
     if (issue.path.includes("__collected__")) {
       // Split the joined collected errors back out for readability.
-      for (const piece of issue.message.split("; ")) {
+      for (const piece of issue.message.split("；")) {
         if (piece) errors.push(piece);
       }
     } else {
