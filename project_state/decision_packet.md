@@ -3,47 +3,37 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260806_issue117_frontend_v1_openhands_ui_v4",
-  "round_id": "round_20260806_issue117_frontend_v1_openhands_ui_v4",
+  "decision_id": "decision_20260806_pr119_active_intent_lifecycle_v3",
+  "round_id": "round_20260806_pr119_active_intent_lifecycle_v3",
   "status": "APPROVED",
   "mainline": "engineering_branch",
-  "skill_profiles": ["reverse-agent-iteration@v2"]
+  "skill_profiles": [
+    "reverse-agent-iteration@v2"
+  ]
 }
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-   "follows_last_decision_id": "decision_20260806_issue117_frontend_v1_openhands_ui_v3",
-   "follows_last_round_id": "round_20260806_issue117_frontend_v1_openhands_ui_v3",
-   "previous_audit_outcome": "REWORK_REQUIRED_OPENHANDS_SIDEBAR_MAPPING_PANEL_STABILITY_CUSTOM_POLICY_EDITOR_REACHABILITY_KEYBOARD_RESIZE_MOBILE_WORKSPACE_VISUAL_EVIDENCE",
-   "workstream_id": "issue117-frontend-v1-openhands-ui-v4",
-  "source_issue": 117,
-  "parent_issue": 90,
-  "selected_foundation_issue": 116,
-  "backend_reference_pr": 114,
+  "follows_last_decision_id": "decision_20260806_pr119_active_intent_lifecycle_v2",
+  "follows_last_round_id": "round_20260806_pr119_active_intent_lifecycle_v2",
+  "previous_audit_outcome": "PR119_ACTIVE_INTENT_LIFECYCLE_V2_COMPLETE",
+  "workstream_id": "pr119-active-intent-lifecycle-v3",
+  "source_issue": 122,
   "active_pr": 119,
   "required_branch": "agent/frontend-v1-openhands-ui",
-   "starting_head": "195d62d66bb45707062fed8332b3a56fa2e521c4",
+  "starting_head": "68445abdcd6e66c3ad5c4534a9dd5c1c2414e47d",
   "activation_base_sha": "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507",
-  "selected_upstream_repository": "OpenHands/OpenHands",
-  "selected_upstream_tag": "1.8.0",
-  "selected_upstream_commit": "c7a765d900df294cbbf0f405ae26c9cbbd0fcc29",
-  "selected_upstream_license": "MIT",
+  "allowed_merge_method": "merge",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
-  "pr_creation_allowed": true,
-  "draft_pr_creation_allowed": true,
-  "pr_body_update_allowed": true,
-  "pr_comment_allowed": true,
-  "issue_comment_allowed": true,
-  "branch_creation_allowed": true,
-  "worktree_creation_allowed": true,
-  "local_commit_allowed": true,
-  "normal_push_allowed": true,
-  "exact_head_workflow_observation_allowed": true,
+  "pr_creation_allowed": false,
+  "pr_body_update_allowed": false,
+  "pr_comment_allowed": false,
+  "issue_comment_allowed": false,
   "merge_allowed": false,
   "mark_ready_allowed": false,
   "auto_merge_allowed": false,
@@ -52,26 +42,21 @@
   "release_allowed": false,
   "deployment_allowed": false,
   "real_provider_credential_allowed": false,
-  "model_execution_required": false,
-  "bounded_external_source_access_allowed": true,
-  "frontend_dependency_installation_allowed": true,
-  "loopback_frontend_runtime_allowed": true,
-  "repair_attempt_limit": 2,
-  "infrastructure_retry_limit": 1,
+  "live_work_item_publication_allowed": false,
+  "trusted_host_live_probe_allowed": false,
+  "repair_attempt_limit": 1,
   "audit_generation_allowed": false,
   "prior_audits_immutable": true,
-  "bootstrap_state_initial": "BOOTSTRAP_OPEN",
+  "bootstrap_state_initial": "ACTIVE",
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-    "git status --short",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
     "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre"
@@ -86,295 +71,201 @@
       "execution_surface": "local",
       "operations": ["repository_observation"],
       "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "observation.git_head",
-      "command": "git rev-parse HEAD",
-      "phase": "status",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "repository.fetch_branch",
-      "command": "git fetch origin agent/frontend-v1-openhands-ui",
-      "phase": "preparation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "repository.worktree_list",
-      "command": "git worktree list --porcelain",
-      "phase": "preparation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "repository.local_branch_check",
-      "command": "git show-ref --verify refs/heads/agent/frontend-v1-openhands-ui",
-      "phase": "preparation",
-      "required": false,
-      "expected_exit_codes": [0, 1],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
       "required_evidence_source": "local_command_evidence",
-      "diagnostic_only": true
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
     },
     {
-      "command_id": "repository.worktree_add_from_remote",
-      "command": "git worktree add F:/reverse-agent-worktrees/frontend-v1-openhands-ui -b agent/frontend-v1-openhands-ui origin/agent/frontend-v1-openhands-ui",
-      "phase": "preparation",
-      "required": false,
-      "expected_exit_codes": [0, 128],
-      "execution_surface": "local",
-      "operations": ["branch_creation", "workspace_creation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "repository.worktree_add_existing_branch",
-      "command": "git worktree add F:/reverse-agent-worktrees/frontend-v1-openhands-ui agent/frontend-v1-openhands-ui",
-      "phase": "preparation",
-      "required": false,
-      "expected_exit_codes": [0, 128],
-      "execution_surface": "local",
-      "operations": ["workspace_creation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "observation.node_version",
-      "command": "node --version",
-      "phase": "status",
+      "command_id": "gate.startup_snapshot",
+      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+      "phase": "gate",
       "required": true,
       "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "observation.npm_version",
-      "command": "npm --version",
-      "phase": "status",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "upstream.clone_openhands",
-      "command": "git clone --filter=blob:none --depth 1 --branch 1.8.0 https://github.com/OpenHands/OpenHands.git F:/reverse-agent-upstreams/OpenHands-1.8.0",
-      "phase": "preparation",
-      "required": false,
-      "expected_exit_codes": [0, 128],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "upstream.fetch_openhands_tag",
-      "command": "git -C F:/reverse-agent-upstreams/OpenHands-1.8.0 fetch --depth 1 origin tag 1.8.0",
-      "phase": "preparation",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "upstream.checkout_exact_commit",
-      "command": "git -C F:/reverse-agent-upstreams/OpenHands-1.8.0 checkout --detach c7a765d900df294cbbf0f405ae26c9cbbd0fcc29",
-      "phase": "preparation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "upstream.verify_openhands",
-      "command": "git -C F:/reverse-agent-upstreams/OpenHands-1.8.0 rev-parse HEAD",
-      "phase": "preparation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "dependency.npm_install",
-      "command": "npm --prefix frontend install --ignore-scripts",
-      "phase": "preparation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "test.frontend",
-      "command": "npm --prefix frontend test",
-      "phase": "test",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "test.typecheck",
-      "command": "npm --prefix frontend run typecheck",
-      "phase": "test",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "test.lint",
-      "command": "npm --prefix frontend run lint",
-      "phase": "test",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "build.frontend",
-      "command": "npm --prefix frontend run build",
-      "phase": "test",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "build.frontend_mock",
-      "command": "npm --prefix frontend run build:mock",
-      "phase": "test",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "runtime.frontend_mock",
-      "command": "npm --prefix frontend run dev:mock -- --host 127.0.0.1 --port 4173",
-      "phase": "visual_validation",
-      "required": false,
-      "expected_exit_codes": [0, 130],
       "execution_surface": "local",
       "operations": ["run_checks"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence",
-      "diagnostic_only": true
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/startup_snapshot.json"
+      ],
+      "produced_artifacts": [
+        "project_state/gates/startup_snapshot.json"
+      ]
     },
     {
-      "command_id": "governance.stage_generated_gates",
-      "command": "git add project_state/gates/command_plan.json project_state/gates/startup_snapshot.json project_state/gates/bootstrap_state.json project_state/gates/transition_command_plan_preview.json project_state/gates/transition_preflight_result.json",
-      "phase": "commit",
+      "command_id": "gate.transition_command_plan",
+      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+      "phase": "gate",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["stage_changes"],
+      "operations": ["run_checks"],
       "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json"
+      ],
+      "produced_artifacts": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json"
+      ]
     },
     {
-      "command_id": "governance.commit_generated_gates",
-      "command": "git commit -m \"governance: generate Issue 117 frontend command plan\"",
-      "phase": "commit",
+      "command_id": "gate.transition_lint",
+      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
+      "phase": "gate",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["commit"],
+      "operations": ["run_checks"],
       "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
     },
     {
-      "command_id": "implementation.stage_frontend",
-      "command": "git add frontend",
-      "phase": "commit",
+      "command_id": "gate.transition_preflight",
+      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
+      "phase": "gate",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["stage_changes"],
+      "operations": ["run_checks"],
       "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/transition_preflight_result.json",
+        "project_state/gates/bootstrap_state.json"
+      ],
+      "produced_artifacts": [
+        "project_state/gates/transition_preflight_result.json"
+      ]
     },
     {
-      "command_id": "implementation.commit_frontend",
-      "command": "git commit -m \"feat(frontend): adapt OpenHands UI and permission policies\"",
-      "phase": "commit",
+      "command_id": "archive.pr112_v6",
+      "command": "byte-for-byte copy active.json to archive/pr112_v6.json",
+      "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["commit"],
+      "operations": ["file_copy"],
       "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [
+        "project_state/mainline_merge_intents/archive/pr112_v6.json"
+      ],
+      "produced_artifacts": []
     },
     {
-      "command_id": "implementation.commit_fix_forward",
-      "command": "git commit -m \"fix(frontend): address bounded validation findings\"",
-      "phase": "commit",
-      "required": false,
-      "expected_exit_codes": [0, 1],
+      "command_id": "write.new_active_intent",
+      "command": "write new active.json for PR119",
+      "phase": "implementation",
+      "required": true,
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["commit"],
+      "operations": ["write_file"],
       "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [
+        "project_state/mainline_merge_intents/active.json"
+      ],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "test.pytest_merge_intent",
+      "command": "python -m pytest tests/platform_v1/test_merge_intent.py -q",
+      "phase": "test",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "test.pytest_contracts",
+      "command": "python -m pytest tests/platform_v1/test_contracts.py -q",
+      "phase": "test",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "test.pytest_platform_v1",
+      "command": "python -m pytest tests/platform_v1 -q",
+      "phase": "test",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "test.pytest_mainline",
+      "command": "python -m pytest tests/test_mainline_landing.py tests/test_integration_baseline.py tests/test_project_audits.py -q",
+      "phase": "test",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "test.pytest_gate_transition",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_decision_preflight.py tests/test_project_state.py -q",
+      "phase": "test",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
     },
     {
       "command_id": "validation.diff_check",
-      "command": "git diff --check 1142dd324fdd4c4bf2a1353d9d5e93bc04b33507..HEAD",
+      "command": "git diff --check",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["diff_validation"],
       "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "validation.path_list",
-      "command": "git diff --name-only 1142dd324fdd4c4bf2a1353d9d5e93bc04b33507..HEAD",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
     },
     {
       "command_id": "publication.push_branch",
@@ -385,143 +276,91 @@
       "execution_surface": "local",
       "operations": ["push", "network_access"],
       "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "observation.pr119",
-      "command": "gh pr view 119 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
-      "phase": "observation",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "observation.pr119_checks",
-      "command": "gh pr checks 119 --repo dddd2024/reverse-agent --watch",
-      "phase": "observation",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "publication.pr119_edit",
-      "command": "gh pr edit 119 --repo dddd2024/reverse-agent --body-file -",
-      "phase": "publication",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["pr_body_update", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "publication.pr119_comment",
-      "command": "gh pr comment 119 --repo dddd2024/reverse-agent --body-file -",
-      "phase": "publication",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["pr_comment", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "publication.issue117_comment",
-      "command": "gh issue comment 117 --repo dddd2024/reverse-agent --body-file -",
-      "phase": "publication",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["issue_comment", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
+      "required_evidence_source": "repository_state_attestation",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
     }
   ],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "frontend/**"
+    "project_state/gates/bootstrap_state.json",
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr112_v6.json",
+    "tests/platform_v1/test_merge_intent.py",
+    "tests/platform_v1/test_contracts.py"
   ],
   "reference_paths": [
     "AGENTS.md",
     "README.md",
-    "pyproject.toml",
-    ".github/workflows/**",
+    ".github/workflows/ci.yml",
+    ".github/workflows/decision-preflight.yml",
+    ".github/workflows/state-gate.yml",
     "reverse_agent/project_gate.py",
-    "reverse_agent/control_plane/**",
-    "reverse_agent/platform_v1/**",
+    "reverse_agent/project_state.py",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/platform_v1/authority_adapter.py",
+    "tests/test_mainline_landing.py",
+    "tests/test_integration_baseline.py",
+    "tests/test_project_audits.py",
     "tests/test_project_gate.py",
     "tests/test_control_plane_transition.py",
-    "tests/test_planning_and_github_adapters.py",
-    "project_state/schemas/**"
+    "tests/test_decision_preflight.py",
+    "tests/test_project_state.py",
+    "tests/platform_v1/test_merge_intent.py",
+    "tests/platform_v1/test_contracts.py"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/gates/bootstrap_state.json"
   ],
   "forbidden_mutated_paths": [
-    "AGENTS.md",
-    "README.md",
+    "frontend/**",
+    "reverse_agent/**",
+    "docs/**",
+    "deploy/**",
+    "examples/**",
     "pyproject.toml",
     "requirements*.txt",
     "poetry.lock",
     "uv.lock",
-    ".github/workflows/**",
-    "reverse_agent/**",
-    "tests/**",
-    "docs/**",
-    "deploy/**",
-    "examples/**",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
     "project_state/current_state.json",
     "project_state/state_manifest.json",
     "project_state/artifact_index.json",
     "project_state/schemas/**",
     "project_state/rounds/**",
     "project_state/audits/**",
-    "project_state/mainline_merge_intents/**"
+    "project_state/mainline_merge_intents/archive/pr*.json"
   ],
   "forbidden_operations": [
-    "direct_push_main",
-    "merge",
-    "mark_ready",
-    "auto_merge",
-    "force_push",
+    "direct push to main",
+    "force push",
     "rebase",
-    "amend",
     "squash",
-    "tag_or_release",
-    "release",
-    "package_publication",
-    "container_publication",
+    "merge",
+    "mark ready",
+    "auto merge",
+    "tag or release",
     "deployment",
-    "credential_access",
-    "credential_publication",
-    "production_api_mutation",
-    "model_api_invocation",
-    "runner_dispatch",
-    "live_openhands_backend",
-    "live_openhands_agent_runtime",
-    "external_reverse_tool_invocation",
-    "unknown_binary_execution",
-    "destructive",
-    "modify_pr_106",
-    "continue_issue118_backend_implementation",
-    "publish_sites",
-    "unbounded_network_access",
-    "copy_enterprise_code"
+    "credential access or publication",
+    "real provider access",
+    "PR #121 mutation",
+    "accepted frontend branch mutation",
+    "modify frontend/**",
+    "modify reverse_agent/**",
+    "delete historical or negative assertions",
+    "weaken digest or workflow validation",
+    "fall back to an older successful workflow run"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -529,6 +368,7 @@
     "external_reverse_tool_invocation_allowed": false,
     "unknown_binary_execution_allowed": false,
     "destructive_operations_allowed": false,
+    "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
     "merge_allowed": false,
@@ -537,16 +377,7 @@
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
-      "git fetch origin agent/frontend-v1-openhands-ui",
-      "git clone --filter=blob:none --depth 1 --branch 1.8.0 https://github.com/OpenHands/OpenHands.git F:/reverse-agent-upstreams/OpenHands-1.8.0",
-      "git -C F:/reverse-agent-upstreams/OpenHands-1.8.0 fetch --depth 1 origin tag 1.8.0",
-      "npm --prefix frontend install --ignore-scripts",
-      "git push origin agent/frontend-v1-openhands-ui",
-      "gh pr view 119 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
-      "gh pr checks 119 --repo dddd2024/reverse-agent --watch",
-      "gh pr edit 119 --repo dddd2024/reverse-agent --body-file -",
-      "gh pr comment 119 --repo dddd2024/reverse-agent --body-file -",
-      "gh issue comment 117 --repo dddd2024/reverse-agent --body-file -"
+      "git push origin agent/frontend-v1-openhands-ui"
     ],
     "ci_network_exceptions": []
   },
@@ -554,48 +385,34 @@
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
     "project_state/gates/**",
-    "frontend/**"
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr112_v6.json"
   ],
   "path_risk_floor": [
-    {"pattern": "project_state/decision_packet.md", "minimum_risk": "R2"},
-    {"pattern": "project_state/gates/**", "minimum_risk": "R2"},
-    {"pattern": "frontend/package.json", "minimum_risk": "R2"},
-    {"pattern": "frontend/package-lock.json", "minimum_risk": "R2"}
+    {
+      "pattern": ".github/workflows/**",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "project_state/decision_packet.md",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "project_state/gates/**",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "project_state/mainline_merge_intents/**",
+      "minimum_risk": "R2"
+    }
   ]
 }
 ```
 
 ## Goal
 
-Build a fixture-driven reverse-agent Frontend V1 by adapting the non-enterprise OpenHands 1.8.0 UI foundation at exact commit `c7a765d900df294cbbf0f405ae26c9cbbd0fcc29`. The UI must be recognizably adapted from OpenHands, not a generic admin dashboard. Provide an OpenHands-style task workspace with left task navigation and New Task entry, a chronological agent/activity main workspace, a secondary Changes/Evidence/Authority pane, and a composer-integrated permission-profile selector. The four profiles (ASK_FOR_APPROVAL, CONTROLLER_REVIEW, OWNER_CONTROL, CUSTOM) and the CUSTOM policy editor must be retained through adapters. The result remains frontend-only.
+Embed the v3 Decision governance directly on the PR #119 branch `agent/frontend-v1-openhands-ui`. Archive the current PR #112 v6 active intent as `pr112_v6.json` byte-for-byte, bind a new active intent to PR #119 with the v3 Decision authority, update active intent assertions in tests to use the canonical Markdown JSON-block parser (not regex), add archive presence and identity checks for `pr112_v6.json`, and verify all gates and tests pass. Publication is limited to a non-force push to `agent/frontend-v1-openhands-ui`. The `frontend/**` tree must remain byte-for-byte identical relative to starting HEAD `68445abd`.
 
-## Acceptance
+## Acceptance boundary
 
-1. Generated Command Plan and transition preflight bind v4 and report `PRE_EXECUTION_AUTHORIZED` with no blockers.
-2. Only `frontend/**` and the standard generated gate artifacts change.
-3. OpenHands 1.8.0 exact commit is verified; only non-enterprise source is reused; MIT notices and a source-to-target reuse map with exact upstream paths are recorded.
-4. The UI is recognizably an OpenHands-style agent task workspace with the actual 60px collapsed / 300px expanded desktop sidebar, mobile drawer, New Task composer, compact conversation/task sidebar, chronological activity workspace, file/diff secondary workspace, and composer-integrated permission selector — not a generic admin dashboard.
-5. Task inbox and task-detail screens work with deterministic fixtures and cover loading, empty, error, activity, changes, evidence, and responsive states.
-6. `ASK_FOR_APPROVAL`, `CONTROLLER_REVIEW`, `OWNER_CONTROL`, and `CUSTOM` profiles work; CUSTOM selection is persisted, CUSTOM editor onChange updates the PolicyContract, and task-detail policy interaction is reachable.
-7. `CUSTOM` independently configures merge, push-main, tag/release, package/container publication, preview/staging/production deployment, rollback, scopes, checks, budgets, expiry, retries, and stop conditions.
-8. The frontend validates and serializes policy objects and displays a plain-language authorization summary but performs no privileged side effect.
-9. `npm --prefix frontend test`, typecheck, lint, build, mock build, and the exact diff check pass.
-10. Deterministic desktop and mobile screenshots are captured without credentials or absolute local paths and committed with the reuse map.
-11. Generated gates and frontend implementation are committed normally, the exact branch is pushed, and PR #119 remains Draft against `main` for independent Owner audit.
-12. No main push, merge, mark-ready, history rewrite, tag, release, publication, deployment, credential access, model invocation, OpenHands backend/runtime, workflow change, PR #106 mutation, or Issue #118 implementation occurs.
-
-```text
-FRONTEND_V1_OPENHANDS_ADAPTATION_REWORK_IN_PROGRESS
-```
-
-## Execution policy
-
-- This v4 Decision supersedes the v3 Decision on the same branch.
-- Run the standard Path-B gate sequence before modifying `frontend/**`.
-- Use only the fixed OpenHands repository, tag, and commit; fail closed on mismatch.
-- Clone upstream only into `F:/reverse-agent-upstreams/OpenHands-1.8.0` and never execute its backend, agent runtime, Docker, provider, or credential flows.
-- Install dependencies with lifecycle scripts disabled and keep all frontend dependencies under `frontend/**`.
-- Use deterministic fixture data only.
-- Two product-repair attempts and one infrastructure retry are allowed; do not stop for one ordinary test failure.
-- Stop for authority mismatch, unexpected path, secret exposure risk, base/branch conflict, upstream commit mismatch, or exhausted bounded attempts.
-- Publication is limited to the exact branch, PR #119 Draft updates/comments, Issue #117 evidence comments, and exact-head workflow observation.
+The v3 Decision is committed before any active intent or test changes. The transition Gate sequence must produce `transition-lint == PASSED`, `transition-preflight gate_status == PRE_EXECUTION_AUTHORIZED`, `blocking_reasons == []`. Active intent tests must use `reverse_agent.project_state.extract_markdown_json_block` to parse `decision_meta` and `decision_contract`, not regex. The parser must reject duplicate or malformed JSON blocks. All historical archive tests must remain unchanged; only new `pr112_v6.json` checks are added. After pushing, no further action is taken in this round. PR #119 merge, mark-ready, PR #121 mutation, and direct main push remain forbidden.
