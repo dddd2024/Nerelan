@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260806_issue117_frontend_v1_openhands_ui_v4",
-  "round_id": "round_20260806_issue117_frontend_v1_openhands_ui_v4",
+  "decision_id": "decision_20260807_pr121_model_access_land_v1",
+  "round_id": "round_20260807_pr121_model_access_land_v1",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260806_issue117_frontend_v1_openhands_ui_v4 expected=decision_20260806_issue117_frontend_v1_openhands_ui_v4"
+      "detail": "observed=decision_20260807_pr121_model_access_land_v1 expected=decision_20260807_pr121_model_access_land_v1"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260806_issue117_frontend_v1_openhands_ui_v4 expected=round_20260806_issue117_frontend_v1_openhands_ui_v4"
+      "detail": "observed=round_20260807_pr121_model_access_land_v1 expected=round_20260807_pr121_model_access_land_v1"
     },
     {
       "name": "decision_approved",
@@ -28,27 +28,27 @@
     {
       "name": "legal_mainline",
       "status": "PASS",
-      "detail": "mainline=engineering_branch"
+      "detail": "mainline=model_access"
     },
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=agent/frontend-v1-openhands-ui expected=agent/frontend-v1-openhands-ui"
+      "detail": "observed=owner/model-access-frontend-closeout-v1 expected=owner/model-access-frontend-closeout-v1"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=1142dd324fdd4c4bf2a1353d9d5e93bc04b33507 merge_base=1142dd324fdd4c4bf2a1353d9d5e93bc04b33507"
+      "detail": "base=68445abdcd6e66c3ad5c4534a9dd5c1c2414e47d merge_base=68445abdcd6e66c3ad5c4534a9dd5c1c2414e47d"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=16acf87b8be6164225736fc0564237bf309d9c57"
+      "detail": "decision_commit=79c5b8ac42e51f95c1227b9089ea2d389f62a1e0"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260806_issue117_frontend_v1_openhands_ui_v4/round_20260806_issue117_frontend_v1_openhands_ui_v4"
+      "detail": "plan=decision_20260807_pr121_model_access_land_v1/round_20260807_pr121_model_access_land_v1"
     },
     {
       "name": "command_plan_contract",

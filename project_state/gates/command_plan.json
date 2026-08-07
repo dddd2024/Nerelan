@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260806_issue117_frontend_v1_openhands_ui_v4",
-  "round_id": "round_20260806_issue117_frontend_v1_openhands_ui_v4",
+  "decision_id": "decision_20260807_pr121_model_access_land_v1",
+  "round_id": "round_20260807_pr121_model_access_land_v1",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -48,32 +48,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "repository.fetch_branch",
-      "command": "git fetch origin agent/frontend-v1-openhands-ui",
-      "phase": "preparation",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "repository.worktree_list",
-      "command": "git worktree list --porcelain",
-      "phase": "preparation",
+      "command_id": "test.model_access_pytest",
+      "command": "python -m pytest tests/test_model_access.py -q",
+      "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -81,237 +58,9 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_observation"
+        "run_checks"
       ],
       "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "repository.local_branch_check",
-      "command": "git show-ref --verify refs/heads/agent/frontend-v1-openhands-ui",
-      "phase": "preparation",
-      "required": false,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": true,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "repository.worktree_add_from_remote",
-      "command": "git worktree add F:/reverse-agent-worktrees/frontend-v1-openhands-ui -b agent/frontend-v1-openhands-ui origin/agent/frontend-v1-openhands-ui",
-      "phase": "preparation",
-      "required": false,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0,
-        128
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "branch_creation",
-        "workspace_creation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "repository.worktree_add_existing_branch",
-      "command": "git worktree add F:/reverse-agent-worktrees/frontend-v1-openhands-ui agent/frontend-v1-openhands-ui",
-      "phase": "preparation",
-      "required": false,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0,
-        128
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "workspace_creation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "observation.node_version",
-      "command": "node --version",
-      "phase": "status",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "observation.npm_version",
-      "command": "npm --version",
-      "phase": "status",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "upstream.clone_openhands",
-      "command": "git clone --filter=blob:none --depth 1 --branch 1.8.0 https://github.com/OpenHands/OpenHands.git F:/reverse-agent-upstreams/OpenHands-1.8.0",
-      "phase": "preparation",
-      "required": false,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0,
-        128
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "upstream.fetch_openhands_tag",
-      "command": "git -C F:/reverse-agent-upstreams/OpenHands-1.8.0 fetch --depth 1 origin tag 1.8.0",
-      "phase": "preparation",
-      "required": false,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "upstream.checkout_exact_commit",
-      "command": "git -C F:/reverse-agent-upstreams/OpenHands-1.8.0 checkout --detach c7a765d900df294cbbf0f405ae26c9cbbd0fcc29",
-      "phase": "preparation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "upstream.verify_openhands",
-      "command": "git -C F:/reverse-agent-upstreams/OpenHands-1.8.0 rev-parse HEAD",
-      "phase": "preparation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "dependency.npm_install",
-      "command": "npm --prefix frontend install --ignore-scripts",
-      "phase": "preparation",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "run_checks",
-        "network_access"
-      ],
-      "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
@@ -431,8 +180,53 @@
       "allowed_mutated_paths": []
     },
     {
+      "command_id": "test.npm_audit",
+      "command": "npm --prefix frontend audit --omit=dev --audit-level=high",
+      "phase": "test",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
       "command_id": "runtime.frontend_mock",
       "command": "npm --prefix frontend run dev:mock -- --host 127.0.0.1 --port 4173",
+      "phase": "visual_validation",
+      "required": false,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0,
+        130
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "diagnostic_only": true,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "runtime.model_control_service",
+      "command": "python -m reverse_agent.model_access.service",
       "phase": "visual_validation",
       "required": false,
       "required_evidence_source": "local_command_evidence",
@@ -477,7 +271,7 @@
     },
     {
       "command_id": "governance.commit_generated_gates",
-      "command": "git commit -m \"governance: generate Issue 117 frontend command plan\"",
+      "command": "git commit -m \"governance: generate PR 121 model access command plan\"",
       "phase": "commit",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -498,8 +292,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "implementation.stage_frontend",
-      "command": "git add frontend",
+      "command_id": "implementation.stage_model_access",
+      "command": "git add reverse_agent/model_access tests/test_model_access.py project_state/mainline_merge_intents",
       "phase": "commit",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -520,8 +314,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "implementation.commit_frontend",
-      "command": "git commit -m \"feat(frontend): adapt OpenHands UI and permission policies\"",
+      "command_id": "implementation.commit_model_access",
+      "command": "git commit -m \"fix(model-access): enforce server-side Origin gate MA-ORIGIN-001\"",
       "phase": "commit",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -542,31 +336,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "implementation.commit_fix_forward",
-      "command": "git commit -m \"fix(frontend): address bounded validation findings\"",
-      "phase": "commit",
-      "required": false,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
       "command_id": "validation.diff_check",
-      "command": "git diff --check 1142dd324fdd4c4bf2a1353d9d5e93bc04b33507..HEAD",
+      "command": "git diff --check",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -588,7 +359,7 @@
     },
     {
       "command_id": "validation.path_list",
-      "command": "git diff --name-only 1142dd324fdd4c4bf2a1353d9d5e93bc04b33507..HEAD",
+      "command": "git diff --name-only origin/main...HEAD",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -609,8 +380,30 @@
       "allowed_mutated_paths": []
     },
     {
+      "command_id": "validation.gate_test",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
       "command_id": "publication.push_branch",
-      "command": "git push origin agent/frontend-v1-openhands-ui",
+      "command": "git push origin owner/model-access-frontend-closeout-v1",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -632,8 +425,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.pr119",
-      "command": "gh pr view 119 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
+      "command_id": "observation.pr121",
+      "command": "gh pr view 121 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
       "phase": "observation",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -655,8 +448,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.pr119_checks",
-      "command": "gh pr checks 119 --repo dddd2024/reverse-agent --watch",
+      "command_id": "observation.pr121_checks",
+      "command": "gh pr checks 121 --repo dddd2024/reverse-agent --watch",
       "phase": "observation",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -666,75 +459,6 @@
       "execution_surface": "local",
       "operations": [
         "repository_observation",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "publication.pr119_edit",
-      "command": "gh pr edit 119 --repo dddd2024/reverse-agent --body-file -",
-      "phase": "publication",
-      "required": false,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "pr_body_update",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "publication.pr119_comment",
-      "command": "gh pr comment 119 --repo dddd2024/reverse-agent --body-file -",
-      "phase": "publication",
-      "required": false,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "pr_comment",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "publication.issue117_comment",
-      "command": "gh issue comment 117 --repo dddd2024/reverse-agent --body-file -",
-      "phase": "publication",
-      "required": false,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "issue_comment",
         "network_access"
       ],
       "network_access": true,
