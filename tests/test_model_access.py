@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import json
+import socket
+import threading
+from http.client import HTTPConnection
 from typing import Any
+from urllib.parse import urljoin
 
 import pytest
 
 from reverse_agent.model_access.contracts import ModelProfile, ProbeResult
 from reverse_agent.model_access.store import ModelProfileStore
 from reverse_agent.model_access.service import (
+    _handler_factory,
     probe_openai_compatible,
     validate_bind_host,
 )
@@ -155,3 +160,175 @@ def test_control_service_accepts_only_loopback_hosts(host: str) -> None:
 def test_control_service_rejects_non_loopback_hosts(host: str) -> None:
     with pytest.raises(ValueError, match="loopback"):
         validate_bind_host(host)
+
+
+# ---------------------------------------------------------------------------
+# MA-ORIGIN-001: HTTP boundary Origin-gate tests
+# ---------------------------------------------------------------------------
+
+_ALLOWED_ORIGIN = "http://localhost:5173"
+_FOREIGN_ORIGIN = "https://evil.example.com"
+
+
+@pytest.fixture()
+def model_service_port(monkeypatch: pytest.MonkeyPatch) -> int:
+    """Bind to a free loopback port and return it."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    monkeypatch.setenv("REVERSE_AGENT_MODEL_CONTROL_HOST", "127.0.0.1")
+    monkeypatch.setenv("REVERSE_AGENT_MODEL_CONTROL_PORT", str(port))
+    monkeypatch.setenv("REVERSE_AGENT_MODEL_CONTROL_ORIGIN", _ALLOWED_ORIGIN)
+    monkeypatch.delenv("REVERSE_AGENT_MODEL_CONTROL_LIVE", raising=False)
+    return port
+
+
+@pytest.fixture()
+def model_service_server(model_service_port: int) -> None:
+    """Start the model-control service in a background daemon thread."""
+    from http.server import ThreadingHTTPServer  # noqa: PLC0415
+    from reverse_agent.model_access.service import store_from_environment  # noqa: PLC0415
+
+    store = ModelProfileStore()
+    store.upsert(profile_payload())
+    handler_cls = _handler_factory(
+        store,
+        live_enabled=False,
+        allowed_origin=_ALLOWED_ORIGIN,
+    )
+    server = ThreadingHTTPServer(("127.0.0.1", model_service_port), handler_cls)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield
+    server.shutdown()
+
+
+def _request(
+    model_service_port: int,
+    method: str,
+    path: str,
+    origin: str | None = None,
+    body: bytes | None = None,
+) -> HTTPConnection:
+    conn = HTTPConnection("127.0.0.1", model_service_port, timeout=3)
+    headers: dict[str, str] = {}
+    if origin is not None:
+        headers["Origin"] = origin
+    if body is not None:
+        headers["Content-Length"] = str(len(body))
+    conn.request(method, path, body=body, headers=headers)
+    return conn
+
+
+def _get_response(
+    model_service_port: int,
+    method: str = "GET",
+    path: str = "/api/model-profiles",
+    origin: str | None = None,
+    body: bytes | None = None,
+) -> tuple[int, bytes, dict[str, str]]:
+    conn = _request(model_service_port, method, path, origin=origin, body=body)
+    resp = conn.getresponse()
+    data = resp.read()
+    headers = {k.lower(): v for k, v in resp.getheaders()}
+    conn.close()
+    return resp.status, data, headers
+
+
+class TestOriginGateHttpBoundary:
+    """Verify the server-side Origin gate at the HTTP boundary."""
+
+    def test_allowed_origin_returns_acao(self, model_service_port: int, model_service_server: None) -> None:  # noqa: ANN401
+        status, data, headers = _get_response(
+            model_service_port,
+            method="GET",
+            origin=_ALLOWED_ORIGIN,
+        )
+        assert status == 200
+        assert "access-control-allow-origin" in headers
+        assert headers["access-control-allow-origin"] == _ALLOWED_ORIGIN
+        profiles = json.loads(data)
+        assert len(profiles) == 1
+
+    def test_no_origin_allowed_as_trusted_cli(
+        self, model_service_port: int, model_service_server: None  # noqa: ANN401
+    ) -> None:
+        status, data, headers = _get_response(
+            model_service_port,
+            method="GET",
+            origin=None,
+        )
+        assert status == 200
+        assert "access-control-allow-origin" not in headers
+        profiles = json.loads(data)
+        assert len(profiles) == 1
+
+    def test_foreign_origin_get_rejected_403(
+        self, model_service_port: int, model_service_server: None  # noqa: ANN401
+    ) -> None:
+        status, data, headers = _get_response(
+            model_service_port,
+            method="GET",
+            origin=_FOREIGN_ORIGIN,
+        )
+        assert status == 403
+        body = data.decode("utf-8")
+        assert json.loads(body) == {"error": "forbidden"}
+        assert "secret" not in body
+
+    def test_foreign_origin_state_change_rejected_and_store_unchanged(
+        self, model_service_port: int, model_service_server: None  # noqa: ANN401
+    ) -> None:
+        payload = json.dumps(
+            profile_payload(
+                id="injected",
+                name="Injected",
+                model_id="injected-model",
+                api_key="secret-403-try",
+            )
+        ).encode("utf-8")
+        status, data, headers = _get_response(
+            model_service_port,
+            method="PUT",
+            path="/api/model-profiles/injected",
+            origin=_FOREIGN_ORIGIN,
+            body=payload,
+        )
+        assert status == 403
+
+    def test_foreign_origin_options_rejected_403(
+        self, model_service_port: int, model_service_server: None  # noqa: ANN401
+    ) -> None:
+        status, data, headers = _get_response(
+            model_service_port,
+            method="OPTIONS",
+            path="/api/model-profiles",
+            origin=_FOREIGN_ORIGIN,
+        )
+        assert status == 403
+        assert "access-control-allow-origin" not in headers
+        assert "access-control-allow-methods" not in headers
+
+    def test_foreign_origin_error_body_no_secret(
+        self, model_service_port: int, model_service_server: None  # noqa: ANN401
+    ) -> None:
+        """403 response must not echo back any submitted secret or request body."""
+        test_secret = "REVERSE-AGENT-TEST-KEY-12345"
+        payload = json.dumps(
+            profile_payload(
+                id="leak-test",
+                model_id="leak-model",
+                api_key=test_secret,
+            )
+        ).encode("utf-8")
+        status, data, headers = _get_response(
+            model_service_port,
+            method="POST",
+            path="/api/model-profiles/leak-test/default",
+            origin=_FOREIGN_ORIGIN,
+            body=payload,
+        )
+        assert status == 403
+        response_text = data.decode("utf-8")
+        assert test_secret not in response_text

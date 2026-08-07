@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "intent_id": "state_gate_bootstrap_pr112_path_tree_seal_v6",
+  "intent_id": "pr121_model_access_land_v1",
   "repository": "dddd2024/reverse-agent",
-  "source_pr": 112,
-  "locked_base_sha": "93984db182b7ee11b3ccb8795bb5fc3741205b92",
+  "source_pr": 121,
+  "locked_base_sha": "68445abdcd6e66c3ad5c4534a9dd5c1c2414e47d",
   "allowed_merge_method": "merge",
   "decision_identity": {
-    "decision_id": "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6",
-    "decision_content_sha256": "8cae276f1ab7b318c5fe68aaf435f1fe4eebaaef97868f8314cd34e2561c6ca4"
+    "decision_id": "decision_20260807_pr121_model_access_land_v1",
+    "decision_content_sha256": "5d8e68f0e280bfd5e5843ab9550c00c9d20cad32a7f57d51e762cb7490f218f8"
   },
-  "command_plan_sha256": "786878bc864e1d78f166d48955d5689ca9144b49bad9a40ecb9f74a64fef9140",
+  "command_plan_sha256": "266010bee2dc12a96629673a625f637fe3ae3ac4f5ae313c036580d51ee8a992",
   "merge_tree_policy": "equal_to_accepted_head_tree",
   "required_workflows": [
     "CI",
@@ -17,5 +17,5 @@
     "State Gate (pull_request)",
     "State Gate (push)"
   ],
-  "expires_at": "2026-08-10T05:59:59Z"
+  "expires_at": "2026-08-14T08:59:59Z"
 }

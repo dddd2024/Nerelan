@@ -125,6 +125,8 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
         return
 
     def do_OPTIONS(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        if not self._check_origin():
+            return
         self.send_response(HTTPStatus.NO_CONTENT)
         self._send_cors_headers()
         self.send_header("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE")
@@ -132,6 +134,8 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        if not self._check_origin():
+            return
         try:
             segments = self._segments()
             if segments == ["api", "model-profiles"]:
@@ -142,6 +146,8 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
             self._send_exception(error)
 
     def do_PUT(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        if not self._check_origin():
+            return
         try:
             segments = self._segments()
             if len(segments) == 3 and segments[:2] == ["api", "model-profiles"]:
@@ -154,6 +160,8 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
             self._send_exception(error)
 
     def do_DELETE(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        if not self._check_origin():
+            return
         try:
             segments = self._segments()
             if len(segments) == 3 and segments[:2] == ["api", "model-profiles"]:
@@ -165,6 +173,8 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
             self._send_exception(error)
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        if not self._check_origin():
+            return
         try:
             segments = self._segments()
             if (
@@ -247,6 +257,31 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def _send_forbidden(self) -> None:
+        """Send opaque 403 response — no secrets, no body echo, no stack trace."""
+        body = b'{"error":"forbidden"}'
+        self.send_response(HTTPStatus.FORBIDDEN)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _check_origin(self) -> bool:
+        """Server-side Origin gate.
+
+        Origin absent      -> allow (trusted loopback CLI / non-browser)
+        Origin == allowed -> allow (normal CORS)
+        Origin != allowed -> 403 (fail closed before any handler logic)
+        """
+        origin = self.headers.get("Origin")
+        if origin is None:
+            return True
+        if origin == self.allowed_origin:
+            return True
+        self._send_forbidden()
+        return False
 
     def _send_cors_headers(self) -> None:
         origin = self.headers.get("Origin")
