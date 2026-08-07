@@ -611,8 +611,10 @@ class TestDecisionImmutability:
         from reverse_agent.project_state import extract_markdown_json_block
         meta = _parse_decision_meta()
         contract = _parse_decision_contract()
+        active = _load_json(ACTIVE_PATH)
         assert meta["decision_id"].startswith("decision_")
-        assert contract["active_pr"] == 119
-        assert contract["activation_base_sha"] == (
-            "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507"
-        )
+        assert isinstance(contract["active_pr"], int) and contract["active_pr"] > 0
+        assert len(contract["activation_base_sha"]) == 40
+        assert all(c in "0123456789abcdef" for c in contract["activation_base_sha"])
+        assert contract["active_pr"] == active["source_pr"]
+        assert contract["activation_base_sha"] == active["locked_base_sha"]

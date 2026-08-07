@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "intent_id": "pr121_model_access_final_land_v3",
+  "intent_id": "pr121_model_access_land_v2",
   "repository": "dddd2024/reverse-agent",
   "source_pr": 121,
   "locked_base_sha": "5de53389a3cf0a6557f2a0bb837eee4a5d5687fe",
   "allowed_merge_method": "merge",
   "decision_identity": {
-    "decision_id": "decision_20260807_pr121_model_access_final_land_v3",
-    "decision_content_sha256": "97ad3c14acb08cda3107eb0f283f0ab8020203722a5f85653d0b4017913c9d29"
+    "decision_id": "decision_20260807_pr121_model_access_land_v2",
+    "decision_content_sha256": "1323f0453d7c4eb28600eca50d6ff454bc32f561ca2a54539cef4a62535ac5c8"
   },
-  "command_plan_sha256": "c42f9cecdeac9de2d461b0ef5ca19f5457572f1e12b79769779ac4f96153812a",
+  "command_plan_sha256": "0b931387764a9537db43100faca0680fc13aa49f86b2d28b4952cfb0228271e4",
   "merge_tree_policy": "equal_to_accepted_head_tree",
   "required_workflows": [
     "CI",

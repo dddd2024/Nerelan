@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260807_pr121_model_access_land_v2",
-  "round_id": "round_20260807_pr121_model_access_land_v2",
+  "decision_id": "decision_20260807_pr121_model_access_final_land_v3",
+  "round_id": "round_20260807_pr121_model_access_final_land_v3",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260807_pr121_model_access_land_v2 expected=decision_20260807_pr121_model_access_land_v2"
+      "detail": "observed=decision_20260807_pr121_model_access_final_land_v3 expected=decision_20260807_pr121_model_access_final_land_v3"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260807_pr121_model_access_land_v2 expected=round_20260807_pr121_model_access_land_v2"
+      "detail": "observed=round_20260807_pr121_model_access_final_land_v3 expected=round_20260807_pr121_model_access_final_land_v3"
     },
     {
       "name": "decision_approved",
@@ -28,7 +28,7 @@
     {
       "name": "legal_mainline",
       "status": "PASS",
-      "detail": "mainline=model_access"
+      "detail": "mainline=engineering_branch"
     },
     {
       "name": "branch_identity",
@@ -43,12 +43,12 @@
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=72cefb55a9c6fb1920a2e66a5f09b9da85df5ff5"
+      "detail": "decision_commit=6a41536c73ede980a909febe1389e4fd85031750"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260807_pr121_model_access_land_v2/round_20260807_pr121_model_access_land_v2"
+      "detail": "plan=decision_20260807_pr121_model_access_final_land_v3/round_20260807_pr121_model_access_final_land_v3"
     },
     {
       "name": "command_plan_contract",

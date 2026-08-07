@@ -1,57 +1,8 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260807_pr121_model_access_land_v2",
-  "round_id": "round_20260807_pr121_model_access_land_v2",
+  "decision_id": "decision_20260807_pr121_model_access_final_land_v3",
+  "round_id": "round_20260807_pr121_model_access_final_land_v3",
   "commands": [
-    {
-      "command_id": "reconciliation.merge_origin_main",
-      "command": "git merge --no-ff origin/main",
-      "phase": "reconciliation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "merge",
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/decision_packet.md",
-        "project_state/gates/**",
-        "project_state/mainline_merge_intents/**"
-      ]
-    },
-    {
-      "command_id": "reconciliation.resolve_decision_conflicts",
-      "command": "git diff --check",
-      "phase": "reconciliation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "diff_validation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
     {
       "command_id": "observation.git_status",
       "command": "git status --short",
@@ -273,9 +224,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "governance.stage_generated_gates",
-      "command": "git add project_state/gates/command_plan.json project_state/gates/startup_snapshot.json project_state/gates/bootstrap_state.json project_state/gates/transition_command_plan_preview.json project_state/gates/transition_preflight_result.json",
-      "phase": "commit",
+      "command_id": "validation.diff_check",
+      "command": "git diff --check",
+      "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -283,73 +234,7 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "stage_changes"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "governance.commit_generated_gates",
-      "command": "git commit -m \"governance: generate PR 121 model access v2 command plan\"",
-      "phase": "commit",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "implementation.stage_model_access",
-      "command": "git add reverse_agent/model_access tests/test_model_access.py project_state/mainline_merge_intents",
-      "phase": "commit",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "stage_changes"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "implementation.commit_model_access",
-      "command": "git commit -m \"fix(model-access): enforce server-side Origin gate MA-ORIGIN-001 v2\"",
-      "phase": "commit",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "commit"
+        "diff_validation"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -405,6 +290,50 @@
       "allowed_mutated_paths": []
     },
     {
+      "command_id": "validation.ci_failed_suites",
+      "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "validation.platform_v1",
+      "command": "python -m pytest tests/platform_v1 -q",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
       "command_id": "publication.push_branch",
       "command": "git push origin owner/model-access-frontend-closeout-v1",
       "phase": "publication",
@@ -416,52 +345,6 @@
       "execution_surface": "local",
       "operations": [
         "push",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "observation.pr121",
-      "command": "gh pr view 121 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
-      "phase": "observation",
-      "required": false,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "observation.pr121_checks",
-      "command": "gh pr checks 121 --repo dddd2024/reverse-agent --watch",
-      "phase": "observation",
-      "required": false,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation",
         "network_access"
       ],
       "network_access": true,
