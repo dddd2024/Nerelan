@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260807_issue128_provider_free_task_plane_v2",
-  "round_id": "round_20260807_issue128_provider_free_task_plane_v2",
+  "decision_id": "decision_20260807_issue128_provider_free_task_plane_v3",
+  "round_id": "round_20260807_issue128_provider_free_task_plane_v3",
   "commands": [
     {
       "command_id": "observation.git_status",

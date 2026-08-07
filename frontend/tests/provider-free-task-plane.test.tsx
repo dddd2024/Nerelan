@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen } from "@testing-library/react";
 import { renderWithProviders } from "./test-utils";
 import { TaskCard } from "@/components/task-card";
@@ -125,9 +125,7 @@ const BLOCKED_TASK: Task = {
 
 describe("provider-free task plane integration", () => {
   it("task-card shows fixture/provider-free executor badge", () => {
-    renderWithProviders(
-      <TaskCard task={FIXTURE_TASK} />,
-    );
+    renderWithProviders(<TaskCard task={FIXTURE_TASK} />);
     expect(screen.getByTestId("task-executor-badge")).toBeInTheDocument();
     expect(
       screen.getByText((content) =>
@@ -142,9 +140,7 @@ describe("provider-free task plane integration", () => {
       <TaskInbox tasks={[FIXTURE_TASK, BLOCKED_TASK]} isLoading={false} isError={false} />,
     );
     expect(screen.getByTestId("section-needs-attention")).toBeInTheDocument();
-    expect(
-      screen.getByTestId(`task-card-${FIXTURE_TASK.id}`),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId(`task-card-${FIXTURE_TASK.id}`)).toBeInTheDocument();
   });
 
   it("activity-stream renders provider-free lifecycle events", () => {
@@ -199,9 +195,154 @@ describe("provider-free task plane integration", () => {
         }}
       />,
     );
-    expect(
-      screen.getByTestId("task-card-task-adapter"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("task-card-task-adapter")).toBeInTheDocument();
     expect(screen.getByTestId("task-executor-badge")).toBeInTheDocument();
+  });
+});
+
+describe("provider-free HTTP task flow", () => {
+  let mockFetch: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockFetch = vi.fn();
+    vi.stubGlobal("fetch", mockFetch);
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
+  });
+
+  afterEach(() => {
+    mockFetch.mockClear();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("create -> execute -> readback sequence uses server state as truth", async () => {
+    const mockTaskId = "task-flow-001";
+
+    const createResponse = {
+      id: mockTaskId,
+      title: "flow task",
+      repository: "dddd2024/reverse-agent",
+      status: "QUEUED",
+      executor_kind: "deterministic_fixture",
+      execution_id: "exec-task-flow-001",
+      frontend_task: {
+        id: mockTaskId,
+        title: "flow task",
+        state: "WAITING_FOR_OWNER",
+        executor: "fixture/provider-free",
+      },
+    };
+
+    const executeResponse = {
+      id: mockTaskId,
+      title: "flow task",
+      repository: "dddd2024/reverse-agent",
+      status: "READY_FOR_REVIEW_FIXTURE",
+      executor_kind: "deterministic_fixture",
+      execution_id: "exec-task-flow-001",
+      validation_command_id: "git_diff_check",
+      validation_exit_code: 0,
+      changed_files: [
+        { path: "fixture.txt", status: "modified", additions: 1, deletions: 0 },
+      ],
+      evidence: [
+        { id: "ev-1", category: "Validation", label: "git_diff_check", value: "0", status: "pass" },
+        { id: "ev-2", category: "Executor", label: "executor_kind", value: "deterministic_fixture", status: "pass" },
+      ],
+      frontend_task: {
+        id: mockTaskId,
+        title: "flow task",
+        state: "READY_FOR_HUMAN",
+        executor: "fixture/provider-free",
+        activity: [
+          { id: "e-1", type: "DISCOVERED", title: "Task queued", expanded: false },
+          { id: "e-4", type: "VALIDATED", title: "Validation passed", expanded: false },
+        ],
+        changes: [{ path: "fixture.txt", status: "modified", additions: 1, deletions: 0, diff: "" }],
+        evidence: [
+          { id: "ev-1", category: "Validation", label: "git_diff_check", value: "0", status: "pass" },
+          { id: "ev-2", category: "Executor", label: "executor_kind", value: "deterministic_fixture", status: "pass" },
+        ],
+      },
+    };
+
+    mockFetch
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        status: 201,
+        text: async () => JSON.stringify(createResponse),
+      }))
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify(executeResponse),
+      }));
+
+    const { createTask, executeTask } = await import("@/lib/task-client");
+
+    const created = await createTask({ title: "flow task", idempotency_key: "flow-key-001" });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toContain("/api/tasks");
+    expect(mockFetch.mock.calls[0][1]?.method).toBe("POST");
+    expect(created.state).toBe("WAITING_FOR_OWNER");
+    expect(created.executor).toBe("fixture/provider-free");
+
+    const executed = await executeTask(mockTaskId);
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch.mock.calls[1][0]).toContain(`/api/tasks/${mockTaskId}/execute`);
+    expect(mockFetch.mock.calls[1][1]?.method).toBe("POST");
+    expect(executed.state).toBe("READY_FOR_HUMAN");
+    expect(executed.executor).toBe("fixture/provider-free");
+    expect(executed.changes).toHaveLength(1);
+    expect(executed.evidence).toHaveLength(2);
+  });
+
+  it("executeTask POSTs to /api/tasks/{id}/execute", async () => {
+    mockFetch.mockImplementationOnce(async () => ({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          id: "task-exec-001",
+          title: "exec task",
+          status: "READY_FOR_REVIEW_FIXTURE",
+          executor_kind: "deterministic_fixture",
+          frontend_task: { state: "READY_FOR_HUMAN", executor: "fixture/provider-free" },
+        }),
+    }));
+
+    const { executeTask: execTaskClient } = await import("@/lib/task-client");
+
+    const result = await execTaskClient("task-exec-001");
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toContain("/api/tasks/task-exec-001/execute");
+    expect(mockFetch.mock.calls[0][1]?.method).toBe("POST");
+    expect(result.state).toBe("READY_FOR_HUMAN");
+  });
+
+  it("fetchTask GETs /api/tasks/{id}", async () => {
+    mockFetch.mockImplementationOnce(async () => ({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          id: "task-fetch-001",
+          title: "detail task",
+          status: "READY_FOR_REVIEW_FIXTURE",
+          executor_kind: "deterministic_fixture",
+          frontend_task: { state: "READY_FOR_HUMAN", executor: "fixture/provider-free" },
+        }),
+    }));
+
+    const { fetchTask: fetchTaskClient } = await import("@/lib/task-client");
+
+    const result = await fetchTaskClient("task-fetch-001");
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toContain("/api/tasks/task-fetch-001");
+    expect(result.state).toBe("READY_FOR_HUMAN");
   });
 });

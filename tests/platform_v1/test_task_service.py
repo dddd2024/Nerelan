@@ -102,6 +102,15 @@ def test_idempotency_key_across_http_creates_once(task_server) -> None:
     assert sum(1 for t in listed["tasks"] if t["id"] == first["id"]) == 1
 
 
+def test_idempotency_conflict_across_http(task_server) -> None:
+    base, _ = task_server
+    payload = {"title": "idem", "executor_kind": "deterministic_fixture", "idempotency_key": "http-k-conflict"}
+    _req(base, "POST", "/api/tasks", payload)
+    status, body = _req(base, "POST", "/api/tasks", {"title": "DIFFERENT", "executor_kind": "deterministic_fixture", "idempotency_key": "http-k-conflict"})
+    assert status == 409
+    assert "idempotency" in body["error"].lower()
+
+
 def test_origin_fail_closed(task_server) -> None:
     base, _ = task_server
     status, body = _req(base, "GET", "/api/tasks", origin="https://evil.example")
@@ -144,3 +153,39 @@ def test_task_service_wrapper_starts_and_serves(task_server) -> None:
     status, body = _req(base, "GET", "/api/tasks")
     assert status == 200
     assert "tasks" in body
+
+
+def test_router_injection_http_execute(task_server) -> None:
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+
+    base, _ = task_server
+
+    dispatched_kinds: list[str] = []
+
+    class _TracingRouter(ExecutorRouter):
+        def dispatch_execute(self, **kwargs):
+            dispatched_kinds.append(kwargs.get("executor_kind", ""))
+            return super().dispatch_execute(**kwargs)
+
+    store = TaskStore(":memory:")
+    tracing_router = _TracingRouter()
+    from http.server import ThreadingHTTPServer
+
+    handler_cls = _handler_factory(store, tracing_router, allowed_origin="http://localhost:5173")
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        trace_base = "http://127.0.0.1:%d" % port
+        _, created = _req(trace_base, "POST", "/api/tasks", {"title": "inj", "executor_kind": "deterministic_fixture"})
+        tid = created["id"]
+        before = len(dispatched_kinds)
+        status, executed = _req(trace_base, "POST", f"/api/tasks/{tid}/execute")
+        assert status == 200
+        assert executed["status"] == "READY_FOR_REVIEW_FIXTURE"
+        assert len(dispatched_kinds) > before
+        assert dispatched_kinds[-1] == "deterministic_fixture"
+    finally:
+        server.shutdown()
+        server.server_close()

@@ -35,6 +35,26 @@ from .task_runtime import ExecutorRuntimeError, ExecutorRouter
 
 _MAX_BODY_BYTES = 256 * 1024
 _TASKS_LIMIT = 100
+_DEFAULT_TASK_DB_PATH = ".platform_v1_runtime/tasks.sqlite3"
+
+BACKEND_STATUS_TO_FRONTEND_STATE: dict[str, str] = {
+    "QUEUED": "WAITING_FOR_OWNER",
+    "PREPARING_WORKSPACE": "RUNNING",
+    "RUNNING_FIXTURE": "RUNNING",
+    "VALIDATING": "RUNNING",
+    "READY_FOR_REVIEW_FIXTURE": "READY_FOR_HUMAN",
+    "BLOCKED": "BLOCKED_EXTERNAL",
+    "FAILED": "FAILED_TERMINAL",
+    "CANCELLED": "FAILED_TERMINAL",
+}
+
+FAILURE_CLASSIFICATION_TO_TEST_STATUS: dict[str, str] = {
+    "": "PENDING",
+    "validation_failed": "FAIL",
+    "execution_failed": "FAIL",
+    "blocked": "PENDING",
+    "failed": "FAIL",
+}
 
 
 class _EventView:
@@ -61,6 +81,120 @@ def _mapping(obj: Any, name: str) -> Mapping[str, Any]:
     return {}
 
 
+def _map_task_status_to_frontend_state(status: str) -> str:
+    return BACKEND_STATUS_TO_FRONTEND_STATE.get(status, "WAITING_FOR_OWNER")
+
+
+def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
+    state = _map_task_status_to_frontend_state(str(_map_task_field(task, "status", "")))
+    failure_class = str(_map_task_field(task, "failure_classification", "") or "")
+    blocker = ""
+    next_action = ""
+    if state == "READY_FOR_HUMAN":
+        next_action = "Owner review of fixture-validated result"
+    elif failure_class:
+        blocker = _map_task_field(task, "failure_detail", failure_class) or failure_class
+        next_action = "Investigate failure classification"
+    elif state == "WAITING_FOR_OWNER":
+        next_action = "Waiting for executor dispatch"
+    elif state == "RUNNING":
+        next_action = "Executor running"
+    return {
+        "id": _map_task_field(task, "id", ""),
+        "title": _map_task_field(task, "title", ""),
+        "issueNumber": 0,
+        "state": state,
+        "riskTier": "R1",
+        "updatedAt": _map_task_field(task, "updated_at", ""),
+        "blocker": blocker,
+        "nextAction": next_action,
+        "permissionProfile": _map_task_field(task, "permission_profile", "ASK_FOR_APPROVAL") or "ASK_FOR_APPROVAL",
+        "modelProfileId": _map_task_field(task, "model_profile_ref", ""),
+        "branch": _map_task_field(task, "branch", "") or _map_task_field(task, "id", ""),
+        "activity": _map_frontend_events(_map_task_seq(task, "events")),
+        "changes": _map_frontend_changed_files(_map_task_seq(task, "changed_files")),
+        "evidence": _map_frontend_evidence(
+            _map_task_seq(task, "evidence_refs") or _map_task_seq(task, "evidence")
+        ),
+        "authorityStatus": "APPROVED",
+        "testStatus": FAILURE_CLASSIFICATION_TO_TEST_STATUS.get(failure_class, "PENDING"),
+        "workflowStatus": "PENDING",
+        "executor": "fixture/provider-free"
+        if _map_task_field(task, "executor_kind", "") == "deterministic_fixture"
+        else _map_task_field(task, "executor_kind", ""),
+    }
+
+
+def _map_task_field(task: Mapping[str, Any], key: str, default: Any) -> Any:
+    if isinstance(task, Mapping):
+        return task.get(key, default)
+    return getattr(task, key, default)
+
+
+def _map_task_seq(task: Mapping[str, Any], key: str) -> list[Mapping[str, Any]]:
+    value = _map_task_field(task, key, [])
+    return list(value) if value is not None else []
+
+
+def _map_frontend_events(events: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": e.get("id", ""),
+            "type": e.get("type", "EXECUTOR_FINISHED"),
+            "timestamp": e.get("timestamp", ""),
+            "title": e.get("title", ""),
+            "description": e.get("description", ""),
+            "rawLog": e.get("raw_log", ""),
+            "expanded": False,
+        }
+        for e in events
+    ]
+
+
+def _map_frontend_changed_files(files: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    status_map = {
+        "added": "added",
+        "modified": "modified",
+        "deleted": "deleted",
+        "renamed": "renamed",
+        "new": "added",
+    }
+    return [
+        {
+            "path": f.get("path", ""),
+            "status": status_map.get(f.get("status", "modified"), "modified"),
+            "additions": int(f.get("additions", 0)),
+            "deletions": int(f.get("deletions", 0)),
+            "diff": "",
+        }
+        for f in files
+    ]
+
+
+def _map_frontend_evidence(items: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": it.get("id", ""),
+            "category": it.get("category", "Info"),
+            "label": it.get("label", ""),
+            "value": it.get("value", ""),
+            "status": _map_frontend_evidence_status(it.get("status", "info")),
+            "detail": it.get("detail", ""),
+            "rawJson": it.get("raw_json_digest", ""),
+        }
+        for it in items
+    ]
+
+
+def _map_frontend_evidence_status(status: str) -> str:
+    return {
+        "pass": "pass",
+        "fail": "fail",
+        "pending": "pending",
+        "info": "info",
+    }.get(str(status), "info")
+
+
 class _TaskHandler(BaseHTTPRequestHandler):
     store: TaskStore
     router: ExecutorRouter
@@ -85,7 +219,6 @@ class _TaskHandler(BaseHTTPRequestHandler):
         if not self._check_origin():
             return
         try:
-            from .task_service_mapping import map_task_to_frontend
             segments = self._segments()
             if len(segments) == 2 and segments == ["api", "tasks"]:
                 self._send_json(HTTPStatus.OK, self._list_tasks_response())
@@ -255,18 +388,10 @@ class _TaskHandler(BaseHTTPRequestHandler):
         workspace_root: str,
         validation_command_id: str | None,
     ) -> dict[str, Any]:
-        router = ExecutorRouter()
-        if validation_command_id:
-            from .task_runtime import DeterministicFixtureExecutor
-
-            executor = DeterministicFixtureExecutor(
-                validation_command_id=validation_command_id,
-            )
-        else:
-            executor = router._registry["deterministic_fixture"]()
-        result = executor.execute(
-            task.id,
-            self.store,
+        result = self.router.dispatch_execute(
+            task_id=task.id,
+            store=self.store,
+            executor_kind=task.executor_kind,
             workspace_root=workspace_root,
             event_callback=self._store_event_callback,
         )
@@ -343,10 +468,6 @@ class _TaskHandler(BaseHTTPRequestHandler):
         }
 
     def _task_response(self, task: Any) -> dict[str, Any]:
-        from .task_service_mapping import (
-            map_task_status_to_frontend_state,
-            map_task_to_frontend,
-        )
         events = task.events
         if events and isinstance(events[0], Mapping):
             events = [
@@ -363,7 +484,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
             "title": task.title,
             "repository": task.repository,
             "status": task.status,
-            "state": map_task_status_to_frontend_state(task.status),
+            "state": _map_task_status_to_frontend_state(task.status),
             "executor_kind": task.executor_kind,
             "execution_id": task.execution_id,
             "model_profile_ref": task.model_profile_ref,
@@ -382,7 +503,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
             "changed_files": list(changed),
             "evidence": list(evidence),
             "events": self._events_response(events),
-            "frontend_task": map_task_to_frontend(task),
+            "frontend_task": _map_task_to_frontend(task),
         }
 
     def _events_response(self, events: Sequence[Any]) -> list[dict[str, Any]]:
@@ -500,6 +621,20 @@ def validate_bind_host(host: str) -> str:
     return normalized
 
 
+def _default_task_db_path() -> str:
+    override = os.environ.get("REVERSE_AGENT_TASK_DB_PATH", "")
+    if override:
+        return override
+    return _DEFAULT_TASK_DB_PATH
+
+
+def _ensure_db_path(db_path: str) -> str:
+    parent = os.path.dirname(os.path.abspath(db_path))
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    return db_path
+
+
 class TaskService:
     """Convenience wrapper that starts the trusted loopback Task API."""
 
@@ -510,7 +645,11 @@ class TaskService:
         router: ExecutorRouter | None = None,
         allowed_origin: str = "http://localhost:4173",
     ) -> None:
-        self.store = store or TaskStore()
+        if store is not None:
+            self.store = store
+        else:
+            db_path = _ensure_db_path(_default_task_db_path())
+            self.store = TaskStore(db_path=db_path)
         self.router = router or ExecutorRouter()
         self.allowed_origin = allowed_origin
 
@@ -551,10 +690,15 @@ def run_task_service(
     origin = allowed_origin or os.environ.get(
         "REVERSE_AGENT_TASK_SERVICE_ORIGIN", "http://localhost:4173"
     )
+    if store is not None:
+        svc_store = store
+    else:
+        db_path = _ensure_db_path(_default_task_db_path())
+        svc_store = TaskStore(db_path=db_path)
     server = ThreadingHTTPServer(
         (bind_host, bind_port),
         _handler_factory(
-            store or TaskStore(),
+            svc_store,
             ExecutorRouter(),
             allowed_origin=origin,
         ),

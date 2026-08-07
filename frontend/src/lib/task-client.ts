@@ -44,7 +44,12 @@ const API_BASE =
   import.meta.env.VITE_TASK_API_BASE ?? "http://127.0.0.1:8766";
 
 function _isMock() {
-  return import.meta.env.MODE === "mock" || import.meta.env.MODE === "test";
+  const mode = import.meta.env.MODE;
+  if (mode === "mock") return true;
+  if (mode === "test") {
+    return !import.meta.env.VITE_TASK_CLIENT_USE_HTTP;
+  }
+  return false;
 }
 
 async function _json<T>(response: Response): Promise<T> {
@@ -215,6 +220,62 @@ export async function fetchTaskEvents(
   return _array(payload.events);
 }
 
+export async function executeTask(taskId: string): Promise<Record<string, unknown>> {
+  if (!taskId) throw new Error("taskId is required");
+  if (_isMock()) {
+    return {
+      id: taskId,
+      title: "mock task",
+      issueNumber: 0,
+      state: "READY_FOR_HUMAN",
+      riskTier: "R1",
+      updatedAt: new Date().toISOString(),
+      nextAction: "mock fixture execution",
+      permissionProfile: "ASK_FOR_APPROVAL",
+      branch: taskId,
+      activity: [
+        { id: "e-1", type: "DISCOVERED", timestamp: "", title: "Task queued", description: "", expanded: false },
+        { id: "e-2", type: "WORKSPACE_READY", timestamp: "", title: "Workspace ready", description: "", expanded: false },
+        { id: "e-3", type: "EXECUTOR_RUNNING", timestamp: "", title: "Executor running", description: "", expanded: false },
+        { id: "e-4", type: "VALIDATED", timestamp: "", title: "Validation passed", description: "", expanded: false },
+      ],
+      changes: [
+        { path: "fixture.txt", status: "modified", additions: 1, deletions: 0, diff: "" },
+      ],
+      evidence: [
+        { id: "ev-1", category: "Validation", label: "git_diff_check", value: "0", status: "pass", detail: "", rawJson: "" },
+        { id: "ev-2", category: "Executor", label: "executor_kind", value: "deterministic_fixture", status: "pass", detail: "", rawJson: "" },
+      ],
+      authorityStatus: "APPROVED",
+      testStatus: "PASS",
+      workflowStatus: "PENDING",
+      executor: "fixture/provider-free",
+    };
+  }
+  const response = await fetch(`${API_BASE}/api/tasks/${taskId}/execute`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({}),
+  });
+  if (!response.ok) {
+    const payload = await _json<Record<string, unknown>>(response).catch(
+      () => ({}),
+    );
+    throw new Error(
+      `execute task failed: ${response.status} ${(payload as {
+        error?: string;
+      }).error ?? ""}`,
+    );
+  }
+  const payload = (await _json<BackendTaskCreateResponse>(response)) as Record<
+    string,
+    unknown
+  >;
+  return _normalizeTask(payload);
+}
 export async function createTask(
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {

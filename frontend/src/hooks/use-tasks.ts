@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createTask,
+  executeTask,
   fetchTaskEvents,
   fetchTasks,
 } from "@/lib/task-client";
@@ -263,6 +264,7 @@ export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation<Task, Error, CreateTaskInput>({
     mutationFn: async (input) => {
+      const idempotencyKey = crypto.randomUUID();
       const payload: Record<string, unknown> = {
         title: input.title,
         repository: input.repository ?? "dddd2024/reverse-agent",
@@ -270,10 +272,18 @@ export function useCreateTask() {
         permission_profile: input.permissionProfile ?? "ASK_FOR_APPROVAL",
         branch: input.branch ?? "",
         workspace: input.workspace ?? "",
-        idempotency_key: `issue128-${input.title}-${Date.now()}`,
+        idempotency_key: idempotencyKey,
       };
-      const raw = await createTask(payload);
-      return _toTask(raw);
+      const createdRaw = await createTask(payload);
+      const created = _toTask(createdRaw);
+      const taskId = String(created.id ?? createdRaw.id ?? "");
+      if (taskId) {
+        const executedRaw = await executeTask(taskId);
+        const executed = _toTask(executedRaw);
+        await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+        return executed;
+      }
+      return created;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
