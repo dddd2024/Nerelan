@@ -349,7 +349,6 @@
     "poetry.lock",
     "uv.lock",
     ".github/workflows/**",
-    ".github/workflows/model-access.yml",
     "reverse_agent/project_gate.py",
     "reverse_agent/control_plane/**",
     "reverse_agent/platform_v1/**",
