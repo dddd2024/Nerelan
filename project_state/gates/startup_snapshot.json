@@ -3,10 +3,10 @@
   "artifact_name": "startup_snapshot.json",
   "gate_name": "startup-snapshot",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260807_pr121_model_access_land_v1",
-  "round_id": "round_20260807_pr121_model_access_land_v1",
+  "decision_id": "decision_20260807_pr121_model_access_land_v2",
+  "round_id": "round_20260807_pr121_model_access_land_v2",
   "mainline": "model_access",
-  "generated_at": "2026-08-07T00:40:35.651767Z",
+  "generated_at": "2026-08-07T01:42:25.993840Z",
   "artifact_path": "project_state/gates/startup_snapshot.json",
   "startup_sequence": [
     {
@@ -33,6 +33,10 @@
       "command": "git status --short",
       "exit_code": 0,
       "stdout_lines": [
+        " M project_state/gates/bootstrap_state.json",
+        " M project_state/gates/command_plan.json",
+        " M project_state/gates/transition_command_plan_preview.json",
+        " M project_state/gates/transition_preflight_result.json",
         "?? .frontend_stage/.gitignore",
         "?? .frontend_stage/OPENHANDS_REUSE_MAP.md",
         "?? .frontend_stage/THIRD_PARTY_NOTICES.md",
@@ -109,8 +113,12 @@
   "repository_root": "F:/reverse-agent",
   "expected_repository_root": "F:\\reverse-agent",
   "repository_root_matches": true,
-  "head_commit": "8945559a8582",
+  "head_commit": "71bcda35a95c",
   "raw_git_status_short": [
+    " M project_state/gates/bootstrap_state.json",
+    " M project_state/gates/command_plan.json",
+    " M project_state/gates/transition_command_plan_preview.json",
+    " M project_state/gates/transition_preflight_result.json",
     "?? .frontend_stage/.gitignore",
     "?? .frontend_stage/OPENHANDS_REUSE_MAP.md",
     "?? .frontend_stage/THIRD_PARTY_NOTICES.md",
@@ -252,11 +260,20 @@
     ".frontend_stage/tsconfig.json",
     ".frontend_stage/tsconfig.node.json",
     ".frontend_stage/vite.config.ts",
-    ".platform_v1_runtime/runs.sqlite3"
+    ".platform_v1_runtime/runs.sqlite3",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
   ],
   "source_test_dirty_files": [],
   "authorized_source_test_dirty_files": [],
-  "generated_state_dirty_files": [],
+  "generated_state_dirty_files": [
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
   "source_test_clean_start": true,
   "blocking_reasons": [],
   "warnings": []

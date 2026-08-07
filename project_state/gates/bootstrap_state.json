@@ -1,6 +1,6 @@
 {
-  "status": "BOOTSTRAP_COMPLETE",
+  "status": "BOOTSTRAP_EXPIRED",
   "decision_id": "decision_20260807_pr121_model_access_land_v2",
   "round_id": "round_20260807_pr121_model_access_land_v2",
-  "expired_at": ""
+  "expired_at": "2026-08-07T01:42:21+00:00"
 }

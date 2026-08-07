@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260807_pr121_model_access_land_v1",
-  "round_id": "round_20260807_pr121_model_access_land_v1",
+  "decision_id": "decision_20260807_pr121_model_access_land_v2",
+  "round_id": "round_20260807_pr121_model_access_land_v2",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260807_pr121_model_access_land_v1 expected=decision_20260807_pr121_model_access_land_v1"
+      "detail": "observed=decision_20260807_pr121_model_access_land_v2 expected=decision_20260807_pr121_model_access_land_v2"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260807_pr121_model_access_land_v1 expected=round_20260807_pr121_model_access_land_v1"
+      "detail": "observed=round_20260807_pr121_model_access_land_v2 expected=round_20260807_pr121_model_access_land_v2"
     },
     {
       "name": "decision_approved",
@@ -38,17 +38,17 @@
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=68445abdcd6e66c3ad5c4534a9dd5c1c2414e47d merge_base=68445abdcd6e66c3ad5c4534a9dd5c1c2414e47d"
+      "detail": "base=5de53389a3cf0a6557f2a0bb837eee4a5d5687fe merge_base=5de53389a3cf0a6557f2a0bb837eee4a5d5687fe"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=79c5b8ac42e51f95c1227b9089ea2d389f62a1e0"
+      "detail": "decision_commit=72cefb55a9c6fb1920a2e66a5f09b9da85df5ff5"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260807_pr121_model_access_land_v1/round_20260807_pr121_model_access_land_v1"
+      "detail": "plan=decision_20260807_pr121_model_access_land_v2/round_20260807_pr121_model_access_land_v2"
     },
     {
       "name": "command_plan_contract",
