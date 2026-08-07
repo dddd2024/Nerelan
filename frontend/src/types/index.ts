@@ -127,6 +127,12 @@ export interface Task {
   authorityStatus: AuthorityStatus;
   testStatus: TestStatus;
   workflowStatus: WorkflowStatus;
+  executor?: string;
+  repository?: string;
+  executionId?: string;
+  failureClassification?: string;
+  validationCommandId?: string;
+  validationExitCode?: number;
 }
 
 // ---------------------------------------------------------------------------

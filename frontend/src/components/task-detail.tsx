@@ -247,7 +247,41 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
         {displayTask.title}
       </h1>
 
+      <div
+        className="flex items-center gap-2 mt-2"
+        data-testid="task-executor-panel"
+      >
+        {displayTask.executor ? (
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium",
+              displayTask.executor === "fixture/provider-free"
+                ? "bg-[#BCFF8C]/10 text-[#BCFF8C]"
+                : "bg-ra-accent/10 text-ra-accent",
+            )}
+            title={`executor=${displayTask.executor}`}
+          >
+            <span className="w-1 h-1 rounded-full bg-current shrink-0" />
+            executor: {displayTask.executor}
+          </span>
+        ) : null}
+        {displayTask.validationCommandId ? (
+          <span className="text-xs text-ra-text-tertiary">
+            validation: {displayTask.validationCommandId}{" "}
+            {displayTask.validationExitCode !== undefined
+              ? `(exit ${displayTask.validationExitCode})`
+              : ""}
+          </span>
+        ) : null}
+        {displayTask.executionId ? (
+          <span className="text-xs font-mono text-ra-text-tertiary">
+            {displayTask.executionId}
+          </span>
+        ) : null}
+      </div>
+
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+        <Meta label="Executor" value={displayTask.executor ?? "—"} />
         <Meta label="下一步" value={displayTask.nextAction ?? "—"} />
         <Meta label="阻塞项" value={displayTask.blocker ?? "无"} />
         <Meta label="Authority" value={displayTask.authorityStatus} />

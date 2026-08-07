@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260807_pr121_final_owner_authority_v4",
-  "round_id": "round_20260807_pr121_final_owner_authority_v4",
+  "decision_id": "decision_20260807_pr129_provider_free_task_plane_landing_v5",
+  "round_id": "round_20260807_pr129_provider_free_task_plane_landing_v5",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,18 +14,16 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260807_pr121_model_access_final_land_v3",
-  "follows_last_round_id": "round_20260807_pr121_model_access_final_land_v3",
-  "previous_audit_outcome": "PR121_AUTH_001_V3_AUTHORITY_CONTRADICTION",
-  "workstream_id": "pr121-final-owner-authority-v4",
-  "source_issue": 122,
+  "follows_last_decision_id": "decision_20260807_issue128_provider_free_task_plane_v4",
+  "follows_last_round_id": "round_20260807_issue128_provider_free_task_plane_v4",
+  "previous_audit_outcome": "PR129_CI_STALE_PR121_MAINLINE_INTENT",
+  "workstream_id": "pr129-provider-free-task-plane-landing-v5",
+  "source_issue": 128,
   "parent_issue": 90,
-  "selected_foundation_issue": 120,
-  "backend_reference_pr": 120,
-  "active_pr": 121,
-  "required_branch": "owner/model-access-frontend-closeout-v1",
-  "starting_head": "887c58614a5dee7ba3e2b5f9c170ea87f7915943",
-  "activation_base_sha": "5de53389a3cf0a6557f2a0bb837eee4a5d5687fe",
+  "active_pr": 129,
+  "required_branch": "owner/issue128-provider-free-task-plane-v1",
+  "starting_head": "80761ed427e142f8cbd94a233c178618960a637c",
+  "activation_base_sha": "9f9b4336c58777b30eb45a85c9c2d4253ba993c1",
   "allowed_merge_method": "merge",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -33,7 +31,7 @@
   "decision_content_immutable_after_activation": true,
   "pr_creation_allowed": false,
   "draft_pr_creation_allowed": false,
-  "pr_body_update_allowed": true,
+  "pr_body_update_allowed": false,
   "pr_comment_allowed": true,
   "issue_comment_allowed": false,
   "branch_creation_allowed": false,
@@ -46,15 +44,15 @@
   "auto_merge_allowed": false,
   "force_push_allowed": false,
   "rebase_allowed": false,
+  "direct_push_to_main_allowed": false,
   "release_allowed": false,
   "deployment_allowed": false,
   "real_provider_credential_allowed": false,
+  "live_provider_probe_allowed": false,
   "model_execution_required": false,
   "bounded_external_source_access_allowed": false,
-  "frontend_dependency_installation_allowed": true,
-  "loopback_frontend_runtime_allowed": true,
-  "repair_attempt_limit": 2,
-  "infrastructure_retry_limit": 1,
+  "repair_attempt_limit": 1,
+  "infrastructure_retry_limit": 0,
   "audit_generation_allowed": false,
   "prior_audits_immutable": true,
   "bootstrap_state_initial": "BOOTSTRAP_COMPLETE",
@@ -97,8 +95,19 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
+      "command_id": "sync.fetch_issue128_branch",
+      "command": "git fetch origin owner/issue128-provider-free-task-plane-v1",
+      "phase": "bootstrap",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
       "command_id": "observation.merge_base",
-      "command": "git merge-base origin/main owner/model-access-frontend-closeout-v1",
+      "command": "git merge-base origin/main owner/issue128-provider-free-task-plane-v1",
       "phase": "status",
       "required": true,
       "expected_exit_codes": [0],
@@ -108,40 +117,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "test.model_access_pytest",
-      "command": "python -m pytest tests/test_model_access.py -q",
-      "phase": "test",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "validation.diff_check",
-      "command": "git diff --check",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["diff_validation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "validation.path_list",
-      "command": "git diff --name-only origin/main...HEAD",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "validation.integration_suite",
+      "command_id": "test.mainline_landing",
       "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
       "phase": "validation",
       "required": true,
@@ -152,7 +128,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "validation.platform_v1",
+      "command_id": "test.platform_v1",
       "command": "python -m pytest tests/platform_v1 -q",
       "phase": "validation",
       "required": true,
@@ -163,7 +139,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "validation.gate_test",
+      "command_id": "test.gate_regression",
       "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q",
       "phase": "validation",
       "required": true,
@@ -174,51 +150,38 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
+      "command_id": "validation.diff_check",
+      "command": "git diff --check 9f9b4336c58777b30eb45a85c9c2d4253ba993c1..HEAD",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["diff_validation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "validation.path_list",
+      "command": "git diff --name-only 80761ed427e142f8cbd94a233c178618960a637c..HEAD",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
       "command_id": "publication.push_branch",
-      "command": "git push origin owner/model-access-frontend-closeout-v1",
+      "command": "git push origin owner/issue128-provider-free-task-plane-v1",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["push", "network_access"],
       "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "owner.attestation",
-      "command": "gh pr comment 121 --repo dddd2024/reverse-agent --body-file -",
-      "phase": "publication",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["pr_comment", "network_access"],
-      "network_access": true,
       "required_evidence_source": "repository_state_attestation",
-      "authority_origin": "owner_only"
-    },
-    {
-      "command_id": "owner.mark_ready",
-      "command": "gh pr ready 121 --repo dddd2024/reverse-agent",
-      "phase": "publication",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["mark_ready", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "authority_origin": "owner_only"
-    },
-    {
-      "command_id": "owner.expected_head_merge",
-      "command": "gh pr merge 121 --repo dddd2024/reverse-agent --merge --match-head-commit <EXPECTED_HEAD>",
-      "phase": "publication",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["merge", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "authority_origin": "owner_only"
+      "allowed_only_after_validation": true
     }
   ],
   "allowed_mutated_paths": [
@@ -229,19 +192,20 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/**",
-    "tests/platform_v1/**"
+    "project_state/mainline_merge_intents/archive/pr121_v4.json"
   ],
   "reference_paths": [
     "AGENTS.md",
     "README.md",
     "pyproject.toml",
     "reverse_agent/project_gate.py",
-    "reverse_agent/control_plane/**",
+    "reverse_agent/mainline_landing.py",
     "tests/test_project_gate.py",
     "tests/test_control_plane_transition.py",
     "tests/test_mainline_landing.py",
-    "tests/platform_v1/test_merge_intent.py",
+    "tests/test_integration_baseline.py",
+    "tests/test_project_audits.py",
+    "tests/platform_v1/**",
     "project_state/schemas/**"
   ],
   "generated_artifact_paths": [
@@ -258,28 +222,17 @@
     "requirements*.txt",
     "poetry.lock",
     "uv.lock",
-    ".github/workflows/**",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/control_plane/**",
-    "reverse_agent/platform_v1/**",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/model_access/**",
+    ".github/**",
+    "frontend/**",
+    "docs/**",
+    "reverse_agent/**",
+    "tests/**",
     "project_state/current_state.json",
     "project_state/state_manifest.json",
     "project_state/artifact_index.json",
     "project_state/schemas/**",
     "project_state/rounds/**",
-    "project_state/audits/**",
-    "tests/test_project_gate.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_architecture_contracts.py",
-    "tests/test_planning_and_github_adapters.py",
-    "tests/test_risk_classifier.py",
-    "tests/test_minimal_integration_baseline_docs.py",
-    "tests/test_mainline_landing.py",
-    "tests/test_model_access.py",
-    "frontend/**",
-    "docs/**"
+    "project_state/audits/**"
   ],
   "forbidden_operations": [
     "direct_push_main",
@@ -294,20 +247,19 @@
     "credential_access",
     "credential_publication",
     "model_api_invocation",
+    "codex_invocation",
+    "openhands_invocation",
     "runner_dispatch",
     "external_reverse_tool_invocation",
     "unknown_binary_execution",
     "destructive",
     "unbounded_network_access",
-    "pr_114_changes",
-    "platform_v1_fresh_port",
-    "openhands_integration",
-    "provider_expansion",
-    "real_provider_probe",
-    "live_provider_test",
+    "create_pr",
+    "pr_creation",
+    "draft_pr_creation",
+    "pr_body_update",
     "reset_hard",
-    "git_clean",
-    "issue_126_experiment_before_pr121_landing"
+    "git_clean"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -319,14 +271,16 @@
     "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
     "merge_allowed": true,
+    "mark_ready_allowed": true,
     "force_push_allowed": false,
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
-      "git push origin owner/model-access-frontend-closeout-v1",
-      "gh pr view 121 --repo dddd2024/reverse-agent",
-      "gh pr checks 121 --repo dddd2024/reverse-agent"
+      "git fetch origin owner/issue128-provider-free-task-plane-v1",
+      "git push origin owner/issue128-provider-free-task-plane-v1",
+      "gh pr view 129 --repo dddd2024/reverse-agent",
+      "gh pr checks 129 --repo dddd2024/reverse-agent"
     ],
     "ci_network_exceptions": []
   },
@@ -346,59 +300,48 @@
 
 ## Goal
 
-PR #121 v4 final Owner authority fix-forward. The v3 Decision (`decision_20260807_pr121_model_access_final_land_v3`) correctly set `mainline=engineering_branch` and `merge_allowed=true`, `mark_ready_allowed=true`. However, it contained an authority contradiction identified as **PR121-AUTH-001**:
+PR #129 v5 Owner landing governance-only round. The v4 product implementation head `80761ed427e142f8cbd94a233c178618960a637c` has passed local provider-free acceptance and all GitHub exact-head checks (Model Access, Decision Preflight, State Gate). The only remaining CI failure is in `tests/test_mainline_landing.py`:
 
-1. `pr_comment_allowed=false` — blocks the Owner attestation PR comment on PR #121
-2. `mark_ready` appears in `forbidden_operations` despite `mark_ready_allowed=true`
+- `test_committed_active_intent_binds_exact_current_authority`
+- `test_production_pre_merge_simulation`
 
-With these two issues, the Owner landing sequence has no unambiguous authority:
+Root cause: `project_state/mainline_merge_intents/active.json` still binds PR121's `pr121_final_owner_authority_v4` intent (`source_pr=121`, decision `decision_20260807_pr121_final_owner_authority_v4`, base `5de53389a3cf0a6557f2a0bb837eee4a5d5687fe`). The current accepted product Decision is `decision_20260807_issue128_provider_free_task_plane_v4`. This is a stale-intent governance mismatch, not a product defect.
 
-```
-Owner attestation → Ready → merge
-```
+This v5 Decision authorizes ONLY governance landing artifacts:
+1. New v5 Decision committed first.
+2. Gate sequence generated against v5 Decision.
+3. Current PR121 v4 active intent archived byte-for-byte.
+4. New PR129 v5 active intent bound to the committed v5 Decision and v5 command plan, with `source_pr=129` and `locked_base_sha=9f9b4336c58777b30eb45a85c9c2d4253ba993c1`.
 
-This v4 Decision fixes the authority to be internally consistent:
-
-1. Set `pr_comment_allowed=true` to authorize a single Owner attestation PR comment
-2. Remove `mark_ready` from `forbidden_operations` to match `mark_ready_allowed=true`
-3. Explicitly document Owner attestation, mark Ready, and expected-head merge as optional Owner-only commands
-4. Bind v4 to the current branch HEAD (`887c58614a5dee7ba3e2b5f9c170ea87f7915943`)
-
-No new product functionality is introduced in this round.
+No product code, test, workflow, or documentation changes.
 
 ## Acceptance
 
-1. v4 Decision commit is authored before any gate generation or intent modification.
-2. Current v3 active intent archived byte-for-byte as `archive/pr121_v3.json` before modification.
-3. Historical archives `archive/pr112_v6.json` and `archive/pr121_v2.json` remain unchanged.
-4. Active intent updated to bind v4 Decision, v4 command plan, `source_pr=121`, `locked_base_sha=5de53389a3cf0a6557f2a0bb837eee4a5d5687fe`, `allowed_merge_method=merge`.
-5. `pr_comment_allowed=true`, `mark_ready_allowed=true`, `merge_allowed=true`, `auto_merge_allowed=false`.
-6. `forbidden_operations` does not contain `mark_ready` or `merge`.
-7. Gate sequence reports `transition-lint: PASS`, `transition-preflight: PRE_EXECUTION_AUTHORIZED`.
-8. `python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q` passes.
-9. `python -m pytest tests/platform_v1 -q` passes.
-10. `python -m pytest tests/test_model_access.py -q` passes.
-11. `python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q` passes.
-12. `git diff --check` passes.
-13. `reverse_agent/mainline_landing.py` is NOT modified.
-14. No product code, workflow, or test fixture modifications.
-15. Owner commands documented in Decision but NOT executed by the local Agent.
-16. No main push, merge PR, history rewrite, tag, release, real provider probe, deployment, credential access, or unrelated PR work occurs.
+1. v5 Decision committed before any gate generation or intent modification.
+2. v4 Decision commit `bfd8edaa0afddb266b793366a1c5ec93efd82860` remains immutable.
+3. Current PR121 v4 active intent archived byte-for-byte to `project_state/mainline_merge_intents/archive/pr121_v4.json` before modification.
+4. Gate sequence reports `transition-lint: PASS`, `transition-preflight: PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]`.
+5. New active intent binds: `decision_id=decision_20260807_pr129_provider_free_task_plane_landing_v5`, `source_pr=129`, `locked_base_sha=9f9b4336c58777b30eb45a85c9c2d4253ba993c1`, `allowed_merge_method=merge`, `required_workflows=[CI, Decision Preflight, State Gate (pull_request), State Gate (push)]`.
+6. `pr_comment_allowed=true`, `mark_ready_allowed=true`, `merge_allowed=true`, `auto_merge_allowed=false`. These authorize Owner-only post-acceptance actions; the local Agent must NOT execute PR comment, mark ready, or merge.
+7. `python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q` passes with 0 failures.
+8. `python -m pytest tests/platform_v1 -q` passes.
+9. `python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q` passes.
+10. `git diff --check 9f9b4336c58777b30eb45a85c9c2d4253ba993c1..HEAD` passes.
+11. `git diff --name-only 80761ed427e142f8cbd94a233c178618960a637c..HEAD` contains only the 8 allowed v5 paths.
+12. No product code, runtime code, tests, workflows, docs, or package files modified.
+13. No Codex, OpenHands, or model/provider calls during runtime. `Codex runtime calls = 0`, `OpenHands runtime calls = 0`, `model/provider runtime calls = 0`.
+14. Branch pushed to origin via normal push only. No force push, rebase, merge, release, or deploy.
 
 ```text
-PR121_V4_FINAL_OWNER_AUTHORITY_READY_FOR_REMOTE_AUDIT
+PR129_V5_LANDING_GOVERNANCE_READY_FOR_OWNER_EXACT_HEAD_REVIEW
 ```
 
 ## Execution policy
 
-- This v4 Decision follows and supersedes the v3 Decision for PR #121 final Owner landing authority only.
-- The v3 Decision (`decision_20260807_pr121_model_access_final_land_v3`) is immutable and preserved as the historical baseline for the v3 governance closeout window.
+- This v5 Decision follows and supersedes the v4 Decision for PR #129 final Owner landing authority only.
+- The v4 Decision (`decision_20260807_issue128_provider_free_task_plane_v4`) is immutable and preserved as the historical baseline for the v4 product acceptance window.
 - Run the standard Path-B gate sequence: transition-lint, transition-command-plan, transition-preflight (pre), before any intent modification.
 - `mainline` must be `engineering_branch` to satisfy the canonical mainline landing contract.
-- `pr_comment_allowed=true` authorizes a single Owner attestation PR comment on PR #121, bound to the exact accepted head, locked base, Decision ID/digest, command-plan digest, and required workflow run IDs/results.
-- `mark_ready_allowed=true` with `mark_ready` removed from `forbidden_operations` authorizes the Owner to mark PR #121 ready, optional and only after all required exact-head workflows PASS, Owner attestation exists, head unchanged, mergeable, and no unresolved review threads.
-- `merge_allowed=true` authorizes the Owner to merge PR #121 using method=merge with `--match-head-commit <EXPECTED_HEAD>`. Squash, rebase, and auto-merge are prohibited.
-- `auto_merge_allowed=false` — no auto-merge.
-- Owner commands are authorized for the repository Owner only. The local Agent must NOT execute `gh pr comment`, `gh pr ready`, or `gh pr merge`.
+- Owner-only publication authority (`pr_comment_allowed`, `mark_ready_allowed`, `merge_allowed`) is internal to this Decision; the local Agent must NOT execute any Owner publication action.
 - Publication is limited to the exact branch and normal push.
 - No real provider credentials, live provider probes, or model execution.
