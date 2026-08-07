@@ -13,6 +13,7 @@ from __future__ import annotations
 import ast
 import copy
 import hashlib
+import json
 from pathlib import Path
 import subprocess
 import textwrap
@@ -958,32 +959,42 @@ class TestActiveMergeIntentV6:
             self._archive_pr112_v5_path.read_text(encoding="utf-8")
         )
 
-    def test_active_binds_source_pr_112(self) -> None:
-        assert self._active["source_pr"] == 112
-
-    def test_active_binds_bootstrap_decision_id(self) -> None:
-        assert self._active["decision_identity"]["decision_id"] == (
-            "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
+    def test_active_binds_current_decision_source_pr(self) -> None:
+        from reverse_agent.project_state import extract_markdown_json_block
+        decision_text = self._decision_path.read_text(encoding="utf-8")
+        contract = extract_markdown_json_block(decision_text, "decision_contract")
+        expected_pr = contract["active_pr"]
+        assert self._active["source_pr"] == expected_pr, (
+            f"active source_pr={self._active['source_pr']} != "
+            f"Decision active_pr={expected_pr}"
         )
 
-    def test_active_binds_bootstrap_decision_content_sha256(self) -> None:
+    def test_active_binds_current_decision_id(self) -> None:
+        from reverse_agent.project_state import extract_markdown_json_block
+        decision_text = self._decision_path.read_text(encoding="utf-8")
+        meta = extract_markdown_json_block(decision_text, "decision_meta")
+        assert self._active["decision_identity"]["decision_id"] == meta["decision_id"]
+
+    def test_active_binds_decision_content_sha256(self) -> None:
         sha = self._active["decision_identity"]["decision_content_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
         assert sha == hashlib.sha256(self._decision_path.read_bytes()).hexdigest()
         assert sha != self._archive_v3["decision_identity"]["decision_content_sha256"]
 
-    def test_active_binds_bootstrap_command_plan_sha256(self) -> None:
+    def test_active_binds_command_plan_sha256(self) -> None:
         sha = self._active["command_plan_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
         assert sha == hashlib.sha256(self._command_plan_path.read_bytes()).hexdigest()
         assert sha != self._archive_v3["command_plan_sha256"]
 
-    def test_active_binds_locked_base_sha(self) -> None:
-        assert self._active["locked_base_sha"] == (
-            "93984db182b7ee11b3ccb8795bb5fc3741205b92"
-        )
+    def test_active_binds_current_decision_locked_base_sha(self) -> None:
+        from reverse_agent.project_state import extract_markdown_json_block
+        decision_text = self._decision_path.read_text(encoding="utf-8")
+        contract = extract_markdown_json_block(decision_text, "decision_contract")
+        expected_base = contract["activation_base_sha"]
+        assert self._active["locked_base_sha"] == expected_base
 
     def test_active_binds_merge_method(self) -> None:
         assert self._active["allowed_merge_method"] == "merge"
@@ -1140,6 +1151,49 @@ class TestActiveMergeIntentV6:
         header = f"blob {len(payload)}\0".encode("ascii")
         assert hashlib.sha1(header + payload).hexdigest() == (
             "64e555a98a1b748b2e320abb4559922bdc0d3649"
+        )
+
+    def test_archive_pr112_v6_file_exists(self) -> None:
+        self._archive_pr112_v6_path = (
+            Path(__file__).resolve().parents[2]
+            / "project_state"
+            / "mainline_merge_intents"
+            / "archive"
+            / "pr112_v6.json"
+        )
+        assert self._archive_pr112_v6_path.exists(), (
+            f"pr112_v6.json not found"
+        )
+
+    def test_archive_pr112_v6_is_exact_active_blob_before_migration(self) -> None:
+        self._archive_pr112_v6_path = (
+            Path(__file__).resolve().parents[2]
+            / "project_state"
+            / "mainline_merge_intents"
+            / "archive"
+            / "pr112_v6.json"
+        )
+        payload = self._archive_pr112_v6_path.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == EXPECTED_PR112_V6_GIT_BLOB
+
+    def test_archive_pr112_v6_preserves_identity_and_base(self) -> None:
+        self._archive_pr112_v6_path = (
+            Path(__file__).resolve().parents[2]
+            / "project_state"
+            / "mainline_merge_intents"
+            / "archive"
+            / "pr112_v6.json"
+        )
+        self._archive_pr112_v6 = json.loads(
+            self._archive_pr112_v6_path.read_text(encoding="utf-8")
+        )
+        assert self._archive_pr112_v6["source_pr"] == 112
+        assert self._archive_pr112_v6["decision_identity"]["decision_id"] == (
+            "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
+        )
+        assert self._archive_pr112_v6["locked_base_sha"] == (
+            "93984db182b7ee11b3ccb8795bb5fc3741205b92"
         )
 
 
@@ -1534,6 +1588,7 @@ class TestStateGateSemanticBodyGuardV2:
 
 
 BOOTSTRAP_SEAL_BASE = "bc12fc3d5c92fda3066f3ce6f5043effec918a0e"
+EXPECTED_PR112_V6_GIT_BLOB = "ed960c0e117051e8915b457028e4c0e5f0c3e07c"
 EXPECTED_BOOTSTRAP_SEAL_PATHS = {
     ".github/workflows/state-gate.yml",
     "project_state/decision_packet.md",

@@ -1,0 +1,190 @@
+@import "tailwindcss";
+
+/* Google Fonts — must be before any other rules except @import */
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap");
+
+/* ===========================================================================
+   reverse-agent Frontend V1 — OpenHands-adapted design tokens
+   Structured-port adaptation of the OpenHands 1.8.0 dark visual language.
+
+   Source: OpenHands/OpenHands 1.8.0
+     - frontend/tailwind.config.js (colors: --bg-dark, --bg-light, --bg-input,
+       --bg-workspace, --border, --text-editor-base, --text-editor-active,
+       --bg-editor-sidebar, --bg-editor-active, --border-editor-sidebar,
+       --bg-neutral-muted)
+     - frontend/src/index.css (body, scrollbars, markdown-body, code)
+     - frontend/src/app.css (skeleton, custom-scrollbar, etc.)
+
+   Modifications: OpenHands brand text/colors replaced with reverse-agent
+   identity; business semantics (tasks, authority, policy) substituted for
+   conversations and agent runtime. No OpenHands runtime/sandbox/api code
+   imported.
+   License: MIT (inherited from OpenHands)
+   =========================================================================== */
+
+/* ---- Tailwind 4 theme: OpenHands 1.8.0 dark-palette, structurally ported ---- */
+@theme {
+  --color-ra-base: #0d0f10;
+  --color-ra-light: #171717;
+  --color-ra-workspace: #1f2228;
+  --color-ra-sidebar: #25272d;
+  --color-ra-tertiary: #2a2a32;
+  --color-ra-input: #393939;
+  --color-ra-border: #3c3c4a;
+  --color-ra-border-strong: #525252;
+  --color-ra-text: #ffffff;
+  --color-ra-text-secondary: #a3a3a3;
+  --color-ra-text-tertiary: #9299aa;
+  --color-ra-accent: #60a5fa;
+  --color-ra-status-running: #bcff8c;
+  --color-ra-status-starting: #ffd43b;
+  --color-ra-status-error: #ff684e;
+}
+
+:root {
+  --ra-base: #0d0f10;
+  --ra-light: #171717;
+  --ra-workspace: #1f2228;
+  --ra-sidebar: #25272d;
+  --ra-tertiary: #2a2a32;
+  --ra-input: #393939;
+  --ra-border: #3c3c4a;
+  --ra-border-strong: #525252;
+  --ra-text: #ffffff;
+  --ra-text-secondary: #a3a3a3;
+  --ra-text-tertiary: #9299aa;
+  --ra-text-code: #9099ac;
+  --ra-accent: #60a5fa;
+  --ra-accent-hover: #38bdf8;
+  --ra-status-running: #bcff8c;
+  --ra-status-starting: #ffd43b;
+  --ra-status-stopped: #ffffff;
+  --ra-status-error: #ff684e;
+  --ra-panel-bg: #171717;
+  --ra-panel-input: #27272a;
+}
+
+/* Dark mode by default (OpenHands uses darkMode: "class") */
+html {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--ra-base);
+  color: var(--ra-text);
+  font-family: "Outfit", -apple-system, "SF Pro", BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+    "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: "IBM Plex Mono", source-code-pro, Menlo, Monaco, Consolas,
+    "Courier New", monospace;
+}
+
+/* ---- Box-model reset ---- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ---- Smooth focus rings ---- */
+:focus-visible {
+  outline: none;
+}
+
+/* ---- Custom scrollbar (OpenHands custom-scrollbar classes) ---- */
+.custom-scrollbar,
+.custom-scrollbar-always {
+  scrollbar-width: thin;
+  scrollbar-color: #525252 transparent;
+}
+.custom-scrollbar::-webkit-scrollbar,
+.custom-scrollbar-always::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb,
+.custom-scrollbar-always::-webkit-scrollbar-thumb {
+  background-color: #525252;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track,
+.custom-scrollbar-always::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---- Skeleton animation (OpenHands style) ---- */
+.skeleton {
+  background-color: #3a3a42;
+  background-image: linear-gradient(
+    90deg,
+    rgba(58, 58, 66, 0.4) 0%,
+    rgba(82, 82, 90, 0.4) 50%,
+    rgba(58, 58, 66, 0.4) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+.skeleton-round {
+  border-radius: 9999px;
+}
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ---- Markdown rendering (from OpenHands index.css) ---- */
+.markdown-body code {
+  padding: 0.2em 0.4em;
+  margin: 0;
+  font-size: 85%;
+  white-space: break-spaces;
+  background-color: #2a3038;
+  border-radius: 4px;
+  color: #e6edf3;
+  border: 1px solid #30363d;
+  letter-spacing: -0.2px;
+}
+.markdown-body pre code {
+  padding: 0;
+  background-color: inherit;
+}
+.markdown-body {
+  white-space: pre-wrap;
+}
+.markdown-body th {
+  text-align: left;
+}
+.markdown-body th,
+.markdown-body td {
+  padding: 0.1rem 1rem;
+}
+
+/* ---- Reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
