@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260807_issue128_provider_free_task_plane_v4",
-  "round_id": "round_20260807_issue128_provider_free_task_plane_v4",
+  "decision_id": "decision_20260807_pr129_provider_free_task_plane_landing_v5",
+  "round_id": "round_20260807_pr129_provider_free_task_plane_landing_v5",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,58 +14,48 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260807_issue128_provider_free_task_plane_v3",
-  "follows_last_round_id": "round_20260807_issue128_provider_free_task_plane_v3",
-  "previous_audit_outcome": "ISSUE128_V3_OWNER_AUDIT_REPAIR_REQUIRED_F5A_F6A",
-  "workstream_id": "issue128-provider-free-task-plane-v4",
+  "follows_last_decision_id": "decision_20260807_issue128_provider_free_task_plane_v4",
+  "follows_last_round_id": "round_20260807_issue128_provider_free_task_plane_v4",
+  "previous_audit_outcome": "PR129_CI_STALE_PR121_MAINLINE_INTENT",
+  "workstream_id": "pr129-provider-free-task-plane-landing-v5",
   "source_issue": 128,
   "parent_issue": 90,
-  "blocked_codex_research_issue": 126,
-  "future_codex_vertical_issue": 127,
-  "historical_provider_free_reference_pr": 114,
+  "active_pr": 129,
   "required_branch": "owner/issue128-provider-free-task-plane-v1",
-  "starting_head": "43a8a1351ca9ed5d6fc7fad824efb08126727212",
+  "starting_head": "80761ed427e142f8cbd94a233c178618960a637c",
   "activation_base_sha": "9f9b4336c58777b30eb45a85c9c2d4253ba993c1",
+  "allowed_merge_method": "merge",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
-  "branch_creation_allowed": false,
-  "worktree_creation_allowed": true,
-  "local_commit_allowed": true,
-  "normal_push_allowed": true,
   "pr_creation_allowed": false,
   "draft_pr_creation_allowed": false,
   "pr_body_update_allowed": false,
-  "pr_comment_allowed": false,
+  "pr_comment_allowed": true,
   "issue_comment_allowed": false,
-  "exact_head_workflow_observation_allowed": false,
-  "merge_allowed": false,
-  "mark_ready_allowed": false,
+  "branch_creation_allowed": false,
+  "worktree_creation_allowed": false,
+  "local_commit_allowed": true,
+  "normal_push_allowed": true,
+  "exact_head_workflow_observation_allowed": true,
+  "merge_allowed": true,
+  "mark_ready_allowed": true,
   "auto_merge_allowed": false,
   "force_push_allowed": false,
   "rebase_allowed": false,
+  "direct_push_to_main_allowed": false,
   "release_allowed": false,
   "deployment_allowed": false,
   "real_provider_credential_allowed": false,
   "live_provider_probe_allowed": false,
   "model_execution_required": false,
   "bounded_external_source_access_allowed": false,
-  "frontend_dependency_installation_allowed": true,
-  "loopback_frontend_runtime_allowed": true,
-  "loopback_task_runtime_allowed": true,
-  "repair_attempt_limit": 2,
-  "infrastructure_retry_limit": 1,
+  "repair_attempt_limit": 1,
+  "infrastructure_retry_limit": 0,
   "audit_generation_allowed": false,
   "prior_audits_immutable": true,
-  "bootstrap_state_initial": "BOOTSTRAP_OPEN",
-  "fail_forward_repair_findings": [
-    "I128-V3-F5A",
-    "I128-V3-F6A"
-  ],
-  "final_diff_must_not_contain": [
-    "reverse_agent/platform_v1/task_service_mapping.py"
-  ],
+  "bootstrap_state_initial": "BOOTSTRAP_COMPLETE",
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
@@ -127,64 +117,9 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "reference.fetch_pr114_branch",
-      "command": "git fetch origin agent/platform-v1-codex-e2e-v1",
-      "phase": "observation",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "reference.pr114_run_store",
-      "command": "git show a24d28728d3d1ad8383c24c0693aeaf5ec603767:reverse_agent/platform_v1/run_store.py",
-      "phase": "observation",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "reference.pr114_execution_adapters",
-      "command": "git show a24d28728d3d1ad8383c24c0693aeaf5ec603767:reverse_agent/platform_v1/execution_adapters.py",
-      "phase": "observation",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "reference.pr114_coordinator",
-      "command": "git show a24d28728d3d1ad8383c24c0693aeaf5ec603767:reverse_agent/platform_v1/coordinator.py",
-      "phase": "observation",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "dependency.frontend_install",
-      "command": "npm ci --prefix frontend",
-      "phase": "dependency",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["dependency_install", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "test.provider_free_backend",
-      "command": "python -m pytest tests/platform_v1/test_task_contracts.py tests/platform_v1/test_task_service.py tests/platform_v1/test_task_runtime.py tests/platform_v1/test_provider_free_task_plane.py -q",
-      "phase": "test",
+      "command_id": "test.mainline_landing",
+      "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
+      "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
@@ -193,9 +128,9 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "test.model_access_regression",
-      "command": "python -m pytest tests/test_model_access.py -q",
-      "phase": "test",
+      "command_id": "test.platform_v1",
+      "command": "python -m pytest tests/platform_v1 -q",
+      "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
@@ -204,79 +139,13 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "test.governance_regression",
+      "command_id": "test.gate_regression",
       "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q",
-      "phase": "test",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "test.frontend",
-      "command": "npm --prefix frontend test",
-      "phase": "test",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "validation.frontend_typecheck",
-      "command": "npm --prefix frontend run typecheck",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "validation.frontend_lint",
-      "command": "npm --prefix frontend run lint",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "validation.frontend_build",
-      "command": "npm --prefix frontend run build",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "validation.frontend_mock_build",
-      "command": "npm --prefix frontend run build:mock",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "acceptance.provider_free_task_plane",
-      "command": "python -m reverse_agent.platform_v1.provider_free_task_plane_acceptance --repo-dir F:/reverse-agent --workspace-root F:/reverse-agent-workspaces/issue128-provider-free-task-plane",
-      "phase": "acceptance",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks", "repository_observation"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -293,7 +162,7 @@
     },
     {
       "command_id": "validation.path_list",
-      "command": "git diff --name-only 9f9b4336c58777b30eb45a85c9c2d4253ba993c1..HEAD",
+      "command": "git diff --name-only 80761ed427e142f8cbd94a233c178618960a637c..HEAD",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -322,26 +191,22 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "frontend/src/lib/task-client.ts",
-    "frontend/src/hooks/use-tasks.ts",
-    "frontend/src/components/new-task-composer.tsx",
-    "frontend/tests/provider-free-task-plane.test.tsx"
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr121_v4.json"
   ],
   "reference_paths": [
     "AGENTS.md",
     "README.md",
     "pyproject.toml",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "frontend/src/fixtures/tasks.ts",
-    "frontend/src/routes/task-detail.tsx",
-    "reverse_agent/model_access/**",
-    "reverse_agent/control_plane/**",
     "reverse_agent/project_gate.py",
-    "project_state/schemas/**",
-    "tests/test_model_access.py",
+    "reverse_agent/mainline_landing.py",
     "tests/test_project_gate.py",
-    "tests/test_control_plane_transition.py"
+    "tests/test_control_plane_transition.py",
+    "tests/test_mainline_landing.py",
+    "tests/test_integration_baseline.py",
+    "tests/test_project_audits.py",
+    "tests/platform_v1/**",
+    "project_state/schemas/**"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -357,58 +222,44 @@
     "requirements*.txt",
     "poetry.lock",
     "uv.lock",
-    ".github/workflows/**",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "frontend/src/fixtures/tasks.ts",
-    "frontend/src/routes/**",
-    "frontend/src/components/model-profile-editor.tsx",
-    "frontend/src/hooks/use-model-profiles.ts",
-    "frontend/src/lib/model-control-client.ts",
-    "frontend/src/schemas/model-profile.ts",
-    "reverse_agent/model_access/**",
-    "reverse_agent/control_plane/**",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/github_remote_verifier.py",
-    "reverse_agent/unattended/**",
-    "reverse_agent/executor_neutral/**",
+    ".github/**",
+    "frontend/**",
+    "docs/**",
+    "reverse_agent/**",
+    "tests/**",
     "project_state/current_state.json",
     "project_state/state_manifest.json",
     "project_state/artifact_index.json",
     "project_state/schemas/**",
     "project_state/rounds/**",
-    "project_state/audits/**",
-    "project_state/mainline_merge_intents/**",
-    "docs/model-access.md"
+    "project_state/audits/**"
   ],
   "forbidden_operations": [
+    "direct_push_main",
+    "auto_merge",
+    "force_push",
+    "rebase",
+    "amend",
+    "squash",
+    "tag_or_release",
+    "release",
+    "deployment",
+    "credential_access",
+    "credential_publication",
     "model_api_invocation",
     "codex_invocation",
     "openhands_invocation",
     "runner_dispatch",
-    "native_multiagent",
-    "third_party_provider_test",
-    "credential_access",
-    "credential_publication",
-    "direct_push_main",
-    "create_pr",
-    "merge",
-    "mark_ready",
-    "auto_merge",
-    "force_push",
-    "rebase",
-    "squash",
-    "reset_hard",
-    "git_clean",
-    "tag_or_release",
-    "release",
-    "deployment",
     "external_reverse_tool_invocation",
     "unknown_binary_execution",
     "destructive",
-    "wholesale_pr114_port",
-    "unbounded_network_access"
+    "unbounded_network_access",
+    "create_pr",
+    "pr_creation",
+    "draft_pr_creation",
+    "pr_body_update",
+    "reset_hard",
+    "git_clean"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -419,16 +270,17 @@
     "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
-    "merge_allowed": false,
+    "merge_allowed": true,
+    "mark_ready_allowed": true,
     "force_push_allowed": false,
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
       "git fetch origin owner/issue128-provider-free-task-plane-v1",
-      "git fetch origin agent/platform-v1-codex-e2e-v1",
-      "npm ci --prefix frontend",
-      "git push origin owner/issue128-provider-free-task-plane-v1"
+      "git push origin owner/issue128-provider-free-task-plane-v1",
+      "gh pr view 129 --repo dddd2024/reverse-agent",
+      "gh pr checks 129 --repo dddd2024/reverse-agent"
     ],
     "ci_network_exceptions": []
   },
@@ -436,55 +288,60 @@
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
     "project_state/gates/**",
-    "frontend/src/lib/task-client.ts",
-    "frontend/src/hooks/use-tasks.ts",
-    "frontend/src/components/new-task-composer.tsx",
-    "frontend/tests/provider-free-task-plane.test.tsx"
+    "project_state/mainline_merge_intents/**"
   ],
   "path_risk_floor": [
     {"pattern": "project_state/decision_packet.md", "minimum_risk": "R2"},
     {"pattern": "project_state/gates/**", "minimum_risk": "R2"},
-    {"pattern": "frontend/src/hooks/use-tasks.ts", "minimum_risk": "R2"},
-    {"pattern": "frontend/src/lib/task-client.ts", "minimum_risk": "R2"}
+    {"pattern": "project_state/mainline_merge_intents/**", "minimum_risk": "R2"}
   ]
 }
 ```
 
 ## Goal
 
-Fail-forward repair of Issue #128 v3 owner audit findings I128-V3-F5A and I128-V3-F6A.
+PR #129 v5 Owner landing governance-only round. The v4 product implementation head `80761ed427e142f8cbd94a233c178618960a637c` has passed local provider-free acceptance and all GitHub exact-head checks (Model Access, Decision Preflight, State Gate). The only remaining CI failure is in `tests/test_mainline_landing.py`:
 
-The v3 implementation passed five of six original findings but failed Owner audit on two residual frontend issues:
+- `test_committed_active_intent_binds_exact_current_authority`
+- `test_production_pre_merge_simulation`
 
-- I128-V3-F5A: `useCreateTask().mutationFn` generates `crypto.randomUUID()` inside the mutation. The idempotency key must be produced once at the submit boundary (NewTaskComposer -> CreateTaskInput -> useCreateTask -> createTask -> HTTP), so that a retry of the same logical submit reuses the same key.
-- I128-V3-F6A: The frontend create flow currently does POST create -> POST execute -> returns execute response directly. It must instead do POST /api/tasks -> POST /api/tasks/{id}/execute -> GET /api/tasks/{id} and return the GET readback truth, not the execute response.
+Root cause: `project_state/mainline_merge_intents/active.json` still binds PR121's `pr121_final_owner_authority_v4` intent (`source_pr=121`, decision `decision_20260807_pr121_final_owner_authority_v4`, base `5de53389a3cf0a6557f2a0bb837eee4a5d5687fe`). The current accepted product Decision is `decision_20260807_issue128_provider_free_task_plane_v4`. This is a stale-intent governance mismatch, not a product defect.
 
-Only frontend product files and the v4 governance/gate artifacts are in scope. Backend files are frozen. No new features, no new executor kinds, no new dependencies.
+This v5 Decision authorizes ONLY governance landing artifacts:
+1. New v5 Decision committed first.
+2. Gate sequence generated against v5 Decision.
+3. Current PR121 v4 active intent archived byte-for-byte.
+4. New PR129 v5 active intent bound to the committed v5 Decision and v5 command plan, with `source_pr=129` and `locked_base_sha=9f9b4336c58777b30eb45a85c9c2d4253ba993c1`.
+
+No product code, test, workflow, or documentation changes.
 
 ## Acceptance
 
-1. v4 Decision is committed before any product mutation; v3 and v2 historical commits remain immutable.
-2. Generated transition artifacts bind this v4 Decision and exact base `9f9b4336c58777b30eb45a85c9c2d4253ba993c1`.
-3. `transition-lint` passes and preflight reports `PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]` before product mutation.
-4. I128-V3-F5A: NewTaskComposer generates `crypto.randomUUID()` once at the submit click boundary and places it into `CreateTaskInput.idempotencyKey`. `useCreateTask` and `createTask` do not generate a UUID; they only forward `input.idempotencyKey` as `idempotency_key`. A retry of the same mutation variables produces the same POST body `idempotency_key`.
-5. I128-V3-F6A: `useCreateTask` sequence is exactly POST /api/tasks -> POST /api/tasks/{id}/execute -> GET /api/tasks/{id}. The returned Task comes from the GET readback. A frontend test proves the HTTP call order and proves the returned `updatedAt` matches the GET readback, not the execute response.
-6. Frontend HTTP-flow test asserts exactly three fetch calls in order: POST /api/tasks, POST /api/tasks/{id}/execute, GET /api/tasks/{id}; and that execute response and GET readback carry distinct `updatedAt` values, with the mutation returning the GET readback value.
-7. Idempotency regression test asserts that `CreateTaskInput.idempotencyKey` flows through to POST body `idempotency_key`, and that no UUID is generated inside `mutationFn`.
-8. Final diff contains only the allowed v4 paths; no backend `reverse_agent/platform_v1/**` files touched; no `task_service_mapping.py`.
-9. No Codex, OpenHands, or model/provider calls during runtime. `Codex runtime calls = 0`, `OpenHands runtime calls = 0`, `model/provider runtime calls = 0`.
-10. Backend regression tests pass unmodified.
-11. Branch pushed to origin; no PR, merge, release, deploy, or credential access.
+1. v5 Decision committed before any gate generation or intent modification.
+2. v4 Decision commit `bfd8edaa0afddb266b793366a1c5ec93efd82860` remains immutable.
+3. Current PR121 v4 active intent archived byte-for-byte to `project_state/mainline_merge_intents/archive/pr121_v4.json` before modification.
+4. Gate sequence reports `transition-lint: PASS`, `transition-preflight: PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]`.
+5. New active intent binds: `decision_id=decision_20260807_pr129_provider_free_task_plane_landing_v5`, `source_pr=129`, `locked_base_sha=9f9b4336c58777b30eb45a85c9c2d4253ba993c1`, `allowed_merge_method=merge`, `required_workflows=[CI, Decision Preflight, State Gate (pull_request), State Gate (push)]`.
+6. `pr_comment_allowed=true`, `mark_ready_allowed=true`, `merge_allowed=true`, `auto_merge_allowed=false`. These authorize Owner-only post-acceptance actions; the local Agent must NOT execute PR comment, mark ready, or merge.
+7. `python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q` passes with 0 failures.
+8. `python -m pytest tests/platform_v1 -q` passes.
+9. `python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q` passes.
+10. `git diff --check 9f9b4336c58777b30eb45a85c9c2d4253ba993c1..HEAD` passes.
+11. `git diff --name-only 80761ed427e142f8cbd94a233c178618960a637c..HEAD` contains only the 8 allowed v5 paths.
+12. No product code, runtime code, tests, workflows, docs, or package files modified.
+13. No Codex, OpenHands, or model/provider calls during runtime. `Codex runtime calls = 0`, `OpenHands runtime calls = 0`, `model/provider runtime calls = 0`.
+14. Branch pushed to origin via normal push only. No force push, rebase, merge, release, or deploy.
+
+```text
+PR129_V5_LANDING_GOVERNANCE_READY_FOR_OWNER_EXACT_HEAD_REVIEW
+```
 
 ## Execution policy
 
-- v4 is a fail-forward repair of v3 findings F5A and F6A. Do not modify v3 or v2 historical commits.
-- Do not re-design #128; do not widen scope. If a test requires a file outside the v4 scope, STOP and report.
-- Do not touch backend files (`reverse_agent/platform_v1/**`).
-- No new dependencies, no executor kinds, no model API, no scheduler.
-- Do not create or update a PR. Stop after exact tested branch push for independent Owner audit.
-
-Terminal:
-
-```text
-ISSUE128_V4_REPAIR_READY_FOR_OWNER_AUDIT
-```
+- This v5 Decision follows and supersedes the v4 Decision for PR #129 final Owner landing authority only.
+- The v4 Decision (`decision_20260807_issue128_provider_free_task_plane_v4`) is immutable and preserved as the historical baseline for the v4 product acceptance window.
+- Run the standard Path-B gate sequence: transition-lint, transition-command-plan, transition-preflight (pre), before any intent modification.
+- `mainline` must be `engineering_branch` to satisfy the canonical mainline landing contract.
+- Owner-only publication authority (`pr_comment_allowed`, `mark_ready_allowed`, `merge_allowed`) is internal to this Decision; the local Agent must NOT execute any Owner publication action.
+- Publication is limited to the exact branch and normal push.
+- No real provider credentials, live provider probes, or model execution.
