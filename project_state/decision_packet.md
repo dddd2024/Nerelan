@@ -25,7 +25,7 @@
   "active_pr": 121,
   "required_branch": "owner/model-access-frontend-closeout-v1",
   "starting_head": "5c8681ebd5fa0dc9c6fccc79e4b2380255fbebdf",
-  "activation_base_sha": "5de53389a3cf0a6557f2a0bb837eee4a5d5687fe",
+  "activation_base_sha": "68445abdcd6e66c3ad5c4534a9dd5c1c2414e47d",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
