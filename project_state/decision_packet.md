@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260807_issue128_provider_free_task_plane_v1",
-  "round_id": "round_20260807_issue128_provider_free_task_plane_v1",
+  "decision_id": "decision_20260807_issue128_provider_free_task_plane_v2",
+  "round_id": "round_20260807_issue128_provider_free_task_plane_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,17 +14,17 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260807_pr121_final_owner_authority_v4",
-  "follows_last_round_id": "round_20260807_pr121_final_owner_authority_v4",
-  "previous_audit_outcome": "PR121_MERGED_CODEX_QUOTA_UNAVAILABLE_PROVIDER_FREE_TASK_PLANE_SELECTED",
-  "workstream_id": "issue128-provider-free-task-plane-v1",
+  "follows_last_decision_id": "decision_20260807_issue128_provider_free_task_plane_v1",
+  "follows_last_round_id": "round_20260807_issue128_provider_free_task_plane_v1",
+  "previous_audit_outcome": "V1_LOCAL_SYNC_COMMAND_MISSING_FAIL_FORWARD_V2_REQUIRED",
+  "workstream_id": "issue128-provider-free-task-plane-v2",
   "source_issue": 128,
   "parent_issue": 90,
   "blocked_codex_research_issue": 126,
   "future_codex_vertical_issue": 127,
   "historical_provider_free_reference_pr": 114,
   "required_branch": "owner/issue128-provider-free-task-plane-v1",
-  "starting_head": "9f9b4336c58777b30eb45a85c9c2d4253ba993c1",
+  "starting_head": "aa42e571c5c32a18f9b2f02b824bce805a7ac87a",
   "activation_base_sha": "9f9b4336c58777b30eb45a85c9c2d4253ba993c1",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -32,6 +32,7 @@
   "decision_content_immutable_after_activation": true,
   "branch_creation_allowed": false,
   "worktree_creation_allowed": true,
+  "local_commit_allowed": true,
   "normal_push_allowed": true,
   "pr_creation_allowed": false,
   "draft_pr_creation_allowed": false,
@@ -97,6 +98,17 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
+      "command_id": "sync.fetch_issue128_branch",
+      "command": "git fetch origin owner/issue128-provider-free-task-plane-v1",
+      "phase": "bootstrap",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
       "command_id": "observation.merge_base",
       "command": "git merge-base origin/main owner/issue128-provider-free-task-plane-v1",
       "phase": "status",
@@ -158,7 +170,7 @@
       "required": false,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["dependency_installation", "network_access"],
+      "operations": ["dependency_install", "network_access"],
       "network_access": true,
       "required_evidence_source": "local_command_evidence"
     },
@@ -292,7 +304,8 @@
       "execution_surface": "local",
       "operations": ["push", "network_access"],
       "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_only_after_validation": true
     }
   ],
   "allowed_mutated_paths": [
@@ -426,6 +439,7 @@
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
+      "git fetch origin owner/issue128-provider-free-task-plane-v1",
       "git fetch origin agent/platform-v1-codex-e2e-v1",
       "npm ci --prefix frontend",
       "git push origin owner/issue128-provider-free-task-plane-v1"
@@ -487,18 +501,19 @@ The historical PR #114 is reference evidence, not a merge source. Port only the 
 
 ## Acceptance
 
-1. Decision commit exists on `owner/issue128-provider-free-task-plane-v1` before generated gates or product mutation.
-2. Generated transition artifacts bind this Decision and the exact base `9f9b4336c58777b30eb45a85c9c2d4253ba993c1`.
-3. `transition-lint` passes and preflight reports `PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]` before product mutation.
-4. `POST /api/tasks`, `GET /api/tasks`, `GET /api/tasks/{id}`, and `GET /api/tasks/{id}/events` are loopback-only and enforce the same Origin fail-closed boundary pattern as model-control without sharing provider secrets/state.
-5. Task state is server-owned and durable outside React Query cache; client idempotency keys do not create duplicate tasks.
-6. The only executor implementation in this round is `DeterministicFixtureExecutor`; no Codex/OpenHands/model process or API is started.
-7. A deterministic mutation occurs only in an approved disposable fixture/worktree, validation is captured, and normalized events/changed paths/evidence are persisted.
-8. Frontend task list/detail/create flows read backend truth and visibly label the execution as fixture/provider-free; they never claim Codex completion.
-9. Historical PR #114 components are selectively ported/adapted only where needed; no wholesale port or GitHub publication runtime is introduced.
-10. Required backend/frontend/regression tests, typecheck, lint, production build, mock build, provider-free acceptance, and exact-base `git diff --check` pass.
-11. Final diff contains only `allowed_mutated_paths`.
-12. The tested branch is normally pushed to `origin/owner/issue128-provider-free-task-plane-v1` and execution stops. No PR creation, mark-ready, merge, main push, release, deployment, credential access, provider test, or live model call occurs.
+1. v1 Decision commit `aa42e571c5c32a18f9b2f02b824bce805a7ac87a` remains immutable historical authority evidence and no product mutation occurred under it.
+2. This v2 Decision is committed before generated gates or product mutation and explicitly authorizes the exact target-branch fetch needed to synchronize Owner-authored authority to the trusted host.
+3. Generated transition artifacts bind this v2 Decision and exact base `9f9b4336c58777b30eb45a85c9c2d4253ba993c1`.
+4. `transition-lint` passes and preflight reports `PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]` before product mutation.
+5. `POST /api/tasks`, `GET /api/tasks`, `GET /api/tasks/{id}`, and `GET /api/tasks/{id}/events` are loopback-only and enforce the same Origin fail-closed boundary pattern as model-control without sharing provider secrets/state.
+6. Task state is server-owned and durable outside React Query cache; client idempotency keys do not create duplicate tasks.
+7. The only executor implementation in this round is `DeterministicFixtureExecutor`; no Codex/OpenHands/model process or API is started.
+8. A deterministic mutation occurs only in an approved disposable fixture/worktree, validation is captured, and normalized events/changed paths/evidence are persisted.
+9. Frontend task list/detail/create flows read backend truth and visibly label execution as fixture/provider-free; they never claim Codex completion.
+10. Historical PR #114 components are selectively ported/adapted only where needed; no wholesale port or GitHub publication runtime is introduced.
+11. Required backend/frontend/regression tests, typecheck, lint, production build, mock build, provider-free acceptance, and exact-base `git diff --check` pass.
+12. Final diff contains only `allowed_mutated_paths`.
+13. The tested branch is normally pushed to `origin/owner/issue128-provider-free-task-plane-v1` and execution stops. No PR creation, mark-ready, merge, main push, release, deployment, credential access, provider test, or live model call occurs.
 
 Terminal:
 
@@ -508,8 +523,9 @@ PROVIDER_FREE_TASK_PLANE_READY_FOR_OWNER_AUDIT
 
 ## Execution policy
 
-- Treat Issue #128 and its comments as planning context only; this Decision plus generated Command Plan are the Path-B execution authority.
+- Treat Issue #128 and its comments as planning context only; this v2 Decision plus generated Command Plan are the Path-B execution authority.
 - Do not wait for Codex quota. This round is specifically designed to complete without Codex/model execution.
+- Preserve any pre-existing local-only work from the interrupted Codex-upgrade round. Do not reset, clean, overwrite, or silently mix it into #128.
 - Keep the task service separate from model-profile secret storage. Only sanitized model profile identifiers/references may cross the browser/task API boundary.
 - Prefer bounded polling for events in V1 unless the existing stack makes SSE materially simpler without new dependencies.
 - Do not modify frontend dependencies or Python dependencies in this round.
