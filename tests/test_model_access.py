@@ -5,7 +5,6 @@ import socket
 import threading
 from http.client import HTTPConnection
 from typing import Any
-from urllib.parse import urljoin
 
 import pytest
 
@@ -296,6 +295,24 @@ class TestOriginGateHttpBoundary:
             body=payload,
         )
         assert status == 403
+
+        # Post-state verification: use no-Origin GET (trusted CLI) to query the store.
+        # The injected profile must not exist, and the original profile must be intact.
+        verify_status, verify_data, verify_headers = _get_response(
+            model_service_port,
+            method="GET",
+            path="/api/model-profiles",
+            origin=None,
+        )
+        assert verify_status == 200
+        profiles = json.loads(verify_data)
+        ids = {p["id"] for p in profiles}
+        assert "injected" not in ids, (
+            "store must not contain the foreign-origin injected profile"
+        )
+        assert "coding-default" in ids, (
+            "original profile must be unchanged after foreign-origin rejection"
+        )
 
     def test_foreign_origin_options_rejected_403(
         self, model_service_port: int, model_service_server: None  # noqa: ANN401
