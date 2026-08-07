@@ -3,10 +3,10 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260807_pr121_model_access_land_v2",
-  "round_id": "round_20260807_pr121_model_access_land_v2",
+  "decision_id": "decision_20260807_pr121_model_access_final_land_v3",
+  "round_id": "round_20260807_pr121_model_access_final_land_v3",
   "status": "APPROVED",
-  "mainline": "model_access",
+  "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
@@ -14,18 +14,19 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260807_pr121_model_access_land_v1",
-  "follows_last_round_id": "round_20260807_pr121_model_access_land_v1",
-  "previous_audit_outcome": "PR121_V1_PENDING_BASE_RECONCILIATION",
-  "workstream_id": "pr121-model-access-landing-v2",
+  "follows_last_decision_id": "decision_20260807_pr121_model_access_land_v2",
+  "follows_last_round_id": "round_20260807_pr121_model_access_land_v2",
+  "previous_audit_outcome": "PR121_V2_INCOMPATIBLE_MAINLINE_CONTRACT",
+  "workstream_id": "pr121-model-access-landing-v3",
   "source_issue": 122,
   "parent_issue": 90,
   "selected_foundation_issue": 120,
   "backend_reference_pr": 120,
   "active_pr": 121,
   "required_branch": "owner/model-access-frontend-closeout-v1",
-  "starting_head": "5de53389a3cf0a6557f2a0bb837eee4a5d5687fe",
+  "starting_head": "9bcef389cd587d6b8a128fecc7a6dfd315d6c523",
   "activation_base_sha": "5de53389a3cf0a6557f2a0bb837eee4a5d5687fe",
+  "allowed_merge_method": "merge",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
@@ -41,7 +42,7 @@
   "normal_push_allowed": true,
   "exact_head_workflow_observation_allowed": true,
   "merge_allowed": true,
-  "mark_ready_allowed": false,
+  "mark_ready_allowed": true,
   "auto_merge_allowed": false,
   "force_push_allowed": false,
   "rebase_allowed": false,
@@ -73,33 +74,6 @@
     "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre"
   ],
   "allowed_commands": [
-    {
-      "command_id": "reconciliation.merge_origin_main",
-      "command": "git merge --no-ff origin/main",
-      "phase": "reconciliation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["merge", "repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "allowed_mutated_paths": [
-        "project_state/decision_packet.md",
-        "project_state/gates/**",
-        "project_state/mainline_merge_intents/**"
-      ]
-    },
-    {
-      "command_id": "reconciliation.resolve_decision_conflicts",
-      "command": "git diff --check",
-      "phase": "reconciliation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["diff_validation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
     {
       "command_id": "observation.git_status",
       "command": "git status --short",
@@ -211,50 +185,6 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "governance.stage_generated_gates",
-      "command": "git add project_state/gates/command_plan.json project_state/gates/startup_snapshot.json project_state/gates/bootstrap_state.json project_state/gates/transition_command_plan_preview.json project_state/gates/transition_preflight_result.json",
-      "phase": "commit",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["stage_changes"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "governance.commit_generated_gates",
-      "command": "git commit -m \"governance: generate PR 121 model access v2 command plan\"",
-      "phase": "commit",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["commit"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "implementation.stage_model_access",
-      "command": "git add reverse_agent/model_access tests/test_model_access.py project_state/mainline_merge_intents",
-      "phase": "commit",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["stage_changes"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "implementation.commit_model_access",
-      "command": "git commit -m \"fix(model-access): enforce server-side Origin gate MA-ORIGIN-001 v2\"",
-      "phase": "commit",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["commit"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
       "command_id": "validation.diff_check",
       "command": "git diff --check",
       "phase": "validation",
@@ -288,6 +218,28 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
+      "command_id": "validation.ci_failed_suites",
+      "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "validation.platform_v1",
+      "command": "python -m pytest tests/platform_v1 -q",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
       "command_id": "publication.push_branch",
       "command": "git push origin owner/model-access-frontend-closeout-v1",
       "phase": "publication",
@@ -295,28 +247,6 @@
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["push", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "observation.pr121",
-      "command": "gh pr view 121 --repo dddd2024/reverse-agent --json number,state,isDraft,headRefName,headRefOid,baseRefName,baseRefOid,autoMergeRequest,mergeable,mergeStateStatus,url",
-      "phase": "observation",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "observation.pr121_checks",
-      "command": "gh pr checks 121 --repo dddd2024/reverse-agent --watch",
-      "phase": "observation",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "network_access"],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation"
     }
@@ -452,48 +382,50 @@
 
 ## Goal
 
-PR #121 v2 current-main reconciliation. The v1 Decision (`decision_20260807_pr121_model_access_land_v1`) was authorized against an activation_base_sha of `68445abdcd6e66c3ad5c4534a9dd5c1c2414e47d`, but `origin/main` has advanced to `5de53389a3cf0a6557f2a0bb837eee4a5d5687fe`. The PR branch is 7 commits behind current main and 44 commits ahead.
+PR #121 v3 governance closeout. The v2 Decision (`decision_20260807_pr121_model_access_land_v2`) was authorized with `mainline=model_access`, but the canonical mainline landing contract (`reverse_agent/mainline_landing.py`) requires `mainline=engineering_branch`. This v2 Decision was therefore incompatible with the CI-governance contract, producing `FAIL_GOVERNANCE_CONTRACT` on exact-head CI.
 
-This v2 Decision authorizes:
+This v3 Decision fixes the mainline value to `engineering_branch` and authorizes governance closeout:
 
-1. A normal non-rebase merge of `origin/main@5de53389` into `owner/model-access-frontend-closeout-v1`
-2. Refresh of the active merge-intent to bind `locked_base_sha=5de53389`
-3. Fix of MA-TEST-001 to add post-state HTTP boundary verification that the store is unchanged after a foreign-origin 403
-4. Full local verification (pytest, frontend tests/typecheck/lint/build, npm audit, gate tests)
-5. Normal push of the existing PR #121 branch
+1. Immutable v3 Decision with `mainline=engineering_branch`
+2. Restore historical `archive/pr112_v6.json` to exact `origin/main` bytes
+3. Archive current v2 active intent as `archive/pr121_v2.json`
+4. Update active merge intent to bind v3 Decision and command plan
+5. Generate v3 gate sequence (startup-snapshot, command-plan, lint, preflight)
+6. Run all CI-failing suites and Platform V1 tests to confirm green
+7. Normal push of the existing PR #121 branch
 
 No new product functionality is introduced in this round.
 
 ## Acceptance
 
-1. v2 Decision commit is authored before any reconciliation or implementation work.
-2. Normal merge of origin/main into the PR branch succeeds without rebase, force-push, or history rewrite.
-3. The v2 Decision and v1 historical archive are preserved; no historical governance artifacts are deleted.
-4. Active merge intent (`project_state/mainline_merge_intents/active.json`) is updated with `locked_base_sha: 5de53389a3cf0a6557f2a0bb837eee4a5d5687fe` and `allowed_merge_method: merge`.
-5. MA-TEST-001 adds a real HTTP-boundary post-state check: after a foreign-origin PUT receives 403, a follow-up allowed-Origin GET confirms the injected profile does not exist in the store.
-6. `python -m pytest tests/test_model_access.py -q` passes with the enhanced test.
-7. Frontend test, typecheck, lint, build, mock build, and npm audit pass.
-8. `python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q` passes.
-9. `git diff --check` passes.
-10. Local UAT: Settings page loads, profile CRUD works, default profile works, New Task blocks without valid profile, no API key in browser storage/response/UI, desktop and mobile layout intact.
-11. All local work committed normally, exact branch pushed, PR #121 remains Draft against `main` for Owner audit.
-12. No main push, merge PR, mark-ready, history rewrite, tag, release, real provider probe, deployment, credential access, or unrelated PR work occurs.
+1. v3 Decision commit is authored before any gate generation or intent modification.
+2. Historical archive `project_state/mainline_merge_intents/archive/pr112_v6.json` matches `origin/main` blob exactly (SHA-1 `ed960c0e117051e8915b457028e4c0e5f0c3e07c`).
+3. Current v2 active intent archived as `archive/pr121_v2.json` before modification.
+4. Active intent updated to bind v3 Decision, v3 command plan, `source_pr=121`, `locked_base_sha=5de53389a3cf0a6557f2a0bb837eee4a5d5687fe`, `allowed_merge_method=merge`.
+5. `python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q` passes.
+6. `python -m pytest tests/platform_v1 -q` passes.
+7. `python -m pytest tests/test_model_access.py -q` passes.
+8. Frontend test, typecheck, lint, build, mock build, and npm audit pass.
+9. `python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q` passes.
+10. v3 gate sequence reports `transition-lint: PASS`, `transition-preflight: PRE_EXECUTION_AUTHORIZED`.
+11. `git diff --check` passes.
+12. Local UAT: Settings page loads, profile CRUD works, default profile works, New Task blocks without valid profile, no API key in browser storage/response/UI, desktop and mobile layout intact.
+13. All local work committed normally, exact branch pushed, PR #121 remains Draft against `main` for Owner audit.
+14. `reverse_agent/mainline_landing.py` is NOT modified.
+15. No main push, merge PR, mark-ready, history rewrite, tag, release, real provider probe, deployment, credential access, or unrelated PR work occurs.
 
 ```text
-PR121_AUTHORIZED_CURRENT_MAIN_HEAD_READY_FOR_OWNER_GITHUB_AUDIT
+PR121_V3_AUTHORIZED_EXACT_HEAD_READY_FOR_OWNER_LANDING_AUDIT
 ```
 
 ## Execution policy
 
-- This v2 Decision follows and supersedes the v1 Decision for current-main landing authority only.
-- The v1 Decision (`decision_20260807_pr121_model_access_land_v1`) is immutable and is preserved as the historical baseline for the initial authorization window.
-- Run the standard Path-B gate sequence: transition-lint, transition-command-plan, transition-preflight (pre), before modifying any product code.
-- Reconciliation must be a normal non-rebase merge (`git merge --no-ff origin/main`) — no rebase, no force push, no reset-hard, no history rewrite.
-- After merge, transition-preflight must report `PRE_EXECUTION_AUTHORIZED` with the new `activation_base_sha` matching the post-merge `merge-base`.
-- The Origin gate check must execute before any route handler logic for GET, PUT, POST, DELETE, and OPTIONS.
-- 403 responses must be opaque: no secret reflection, no request body echo, no exception stack trace.
-- Loopback binding and live-probe default-disabled invariants must be preserved.
-- Two product-repair attempts and one infrastructure retry are allowed; do not stop for one ordinary test failure.
-- Stop for authority mismatch, unexpected path, secret exposure risk, base/branch conflict, or exhausted bounded attempts.
-- Publication is limited to the exact branch and exact-head workflow observation.
+- This v3 Decision follows and supersedes the v2 Decision for PR #121 final landing authority only.
+- The v2 Decision (`decision_20260807_pr121_model_access_land_v2`) is immutable and preserved as the historical baseline for the v2 reconciliation window.
+- Run the standard Path-B gate sequence: transition-lint, transition-command-plan, transition-preflight (pre), before any intent modification.
+- `mainline` must be `engineering_branch` to satisfy the canonical mainline landing contract.
+- Do NOT modify `reverse_agent/mainline_landing.py` to accept `model_access`.
+- Do NOT modify the v2 Decision.
+- v3 is authorized for Owner attestation, mark Ready, and merge method=merge; local Agent must NOT execute `gh pr ready`, `gh pr merge`, or push to main.
+- Publication is limited to the exact branch and normal push.
 - No real provider credentials, live provider probes, or model execution.
