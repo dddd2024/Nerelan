@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "report_date": "2026-08-07",
+  "repository": "dddd2024/reverse-agent",
+  "issue": 126,
+  "decision_id": "decision_20260807_issue126_codex_heterogeneous_compat_v1",
+  "round_id": "round_20260807_issue126_codex_heterogeneous_compat_v1",
+  "branch": "owner/issue126-codex-compat-v1",
+  "activation_base_sha": "9f9b4336c58777b30eb45a85c9c2d4253ba993c1",
+  "cli_version": "codex-cli 0.121.0",
+  "architecture_recommendation": "EXTERNAL_ORCHESTRATION",
+  "providers": [
+    {
+      "name": "OpenAI/ChatGPT",
+      "auth_method": "ChatGPT device auth",
+      "model_configured": "gpt-5.6-sol",
+      "status": "AUTHENTICATED",
+      "models_tested": ["gpt-5.6-sol", "gpt-4o", "gpt-5", "o4-mini", "gpt-4.1-nano"],
+      "models_working": []
+    }
+  ],
+  "tests": [
+    {
+      "capability": "ordinary codex exec",
+      "provider": "OpenAI",
+      "status": "FAIL",
+      "failure_class": "PROVIDER_SELECTION",
+      "evidence_ref": "chatgpt_auth_rejects_all_models_with_400",
+      "detail": "Every model override returns 'not supported when using Codex with a ChatGPT account'; gpt-5.6-sol returns 'requires newer Codex version'"
+    },
+    {
+      "capability": "ordinary codex exec",
+      "provider": "Provider A",
+      "status": "NOT_TESTED",
+      "failure_class": null,
+      "evidence_ref": null,
+      "detail": "No third-party provider configured"
+    },
+    {
+      "capability": "shell/tool call",
+      "provider": "OpenAI",
+      "status": "FAIL",
+      "failure_class": "PROVIDER_SELECTION",
+      "evidence_ref": "model_execution_blocked",
+      "detail": "Model execution never reached due to auth/model incompatibility"
+    },
+    {
+      "capability": "concurrent independent process",
+      "provider": "OpenAI",
+      "status": "PASS",
+      "failure_class": null,
+      "evidence_ref": "process_spawning_verified",
+      "detail": "Multiple Codex CLI processes can be spawned; model execution blocked"
+    },
+    {
+      "capability": "spawn 1 child",
+      "provider": "OpenAI",
+      "status": "UNSUPPORTED",
+      "failure_class": "MODEL_SELECTION",
+      "evidence_ref": "multi_agent_stable_child_agents_md_under_dev",
+      "detail": "multi_agent=stable/true but child_agents_md=under_dev/false; model exec blocked"
+    },
+    {
+      "capability": "spawn 3 children",
+      "provider": "OpenAI",
+      "status": "UNSUPPORTED",
+      "failure_class": "MODEL_SELECTION",
+      "evidence_ref": "multi_agent_stable_child_agents_md_under_dev",
+      "detail": "Same as spawn 1 child"
+    },
+    {
+      "capability": "actual parallel execution",
+      "provider": "OpenAI",
+      "status": "UNSUPPORTED",
+      "failure_class": "MODEL_SELECTION",
+      "evidence_ref": null,
+      "detail": "Cannot verify without model execution"
+    },
+    {
+      "capability": "parent -> child assignment",
+      "provider": "OpenAI",
+      "status": "UNSUPPORTED",
+      "failure_class": "MODEL_SELECTION",
+      "evidence_ref": null,
+      "detail": "Cannot verify without model execution"
+    },
+    {
+      "capability": "child -> parent result",
+      "provider": "OpenAI",
+      "status": "UNSUPPORTED",
+      "failure_class": "MODEL_SELECTION",
+      "evidence_ref": null,
+      "detail": "Cannot verify without model execution"
+    },
+    {
+      "capability": "wait/list lifecycle",
+      "provider": "OpenAI",
+      "status": "UNSUPPORTED",
+      "failure_class": "MODEL_SELECTION",
+      "evidence_ref": null,
+      "detail": "Cannot verify without model execution"
+    },
+    {
+      "capability": "role/profile assignment",
+      "provider": "OpenAI",
+      "status": "UNSUPPORTED",
+      "failure_class": "MODEL_SELECTION",
+      "evidence_ref": null,
+      "detail": "Cannot verify without model execution"
+    },
+    {
+      "capability": "child tool use",
+      "provider": "OpenAI",
+      "status": "UNSUPPORTED",
+      "failure_class": "MODEL_SELECTION",
+      "evidence_ref": null,
+      "detail": "Cannot verify without model execution"
+    },
+    {
+      "capability": "cross-provider child",
+      "provider": "OpenAI",
+      "status": "NOT_TESTED",
+      "failure_class": null,
+      "evidence_ref": null,
+      "detail": "No third-party provider configured"
+    }
+  ],
+  "feature_flags": {
+    "multi_agent": "stable/true",
+    "multi_agent_v2": "under_development/false",
+    "child_agents_md": "under_development/false",
+    "shell_tool": "stable/true",
+    "shell_snapshot": "stable/true",
+    "code_mode": "under_development/false",
+    "fast_mode": "stable/true",
+    "tool_call_mcp_elicitation": "stable/true",
+    "workspace_dependencies": "stable/true"
+  },
+  "credential_boundary": {
+    "status": "RESPECTED",
+    "auth_json_read": false,
+    "api_key_read": false,
+    "env_vars_read": false,
+    "credentials_logged": false
+  },
+  "final_status": "ISSUE126_CODEX_COMPAT_EVIDENCE_READY_FOR_OWNER_AUDIT"
+}

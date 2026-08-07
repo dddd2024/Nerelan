@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260807_pr121_final_owner_authority_v4",
-  "round_id": "round_20260807_pr121_final_owner_authority_v4",
+  "decision_id": "decision_20260807_issue126_codex_heterogeneous_compat_v1",
+  "round_id": "round_20260807_issue126_codex_heterogeneous_compat_v1",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260807_pr121_final_owner_authority_v4 expected=decision_20260807_pr121_final_owner_authority_v4"
+      "detail": "observed=decision_20260807_issue126_codex_heterogeneous_compat_v1 expected=decision_20260807_issue126_codex_heterogeneous_compat_v1"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260807_pr121_final_owner_authority_v4 expected=round_20260807_pr121_final_owner_authority_v4"
+      "detail": "observed=round_20260807_issue126_codex_heterogeneous_compat_v1 expected=round_20260807_issue126_codex_heterogeneous_compat_v1"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=owner/model-access-frontend-closeout-v1 expected=owner/model-access-frontend-closeout-v1"
+      "detail": "observed=owner/issue126-codex-compat-v1 expected=owner/issue126-codex-compat-v1"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=5de53389a3cf0a6557f2a0bb837eee4a5d5687fe merge_base=5de53389a3cf0a6557f2a0bb837eee4a5d5687fe"
+      "detail": "base=9f9b4336c58777b30eb45a85c9c2d4253ba993c1 merge_base=9f9b4336c58777b30eb45a85c9c2d4253ba993c1"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=7e8f01f53629e39b2b9bac95a3b6568d83c9d3bf"
+      "detail": "decision_commit=076f375e83dee11eaaa1bea03e28ce1dbd76aba4"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260807_pr121_final_owner_authority_v4/round_20260807_pr121_final_owner_authority_v4"
+      "detail": "plan=decision_20260807_issue126_codex_heterogeneous_compat_v1/round_20260807_issue126_codex_heterogeneous_compat_v1"
     },
     {
       "name": "command_plan_contract",
