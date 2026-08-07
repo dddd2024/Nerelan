@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260807_issue128_provider_free_task_plane_v2",
-  "round_id": "round_20260807_issue128_provider_free_task_plane_v2",
+  "decision_id": "decision_20260807_issue128_provider_free_task_plane_v3",
+  "round_id": "round_20260807_issue128_provider_free_task_plane_v3",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,17 +14,17 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260807_issue128_provider_free_task_plane_v1",
-  "follows_last_round_id": "round_20260807_issue128_provider_free_task_plane_v1",
-  "previous_audit_outcome": "V1_LOCAL_SYNC_COMMAND_MISSING_FAIL_FORWARD_V2_REQUIRED",
-  "workstream_id": "issue128-provider-free-task-plane-v2",
+  "follows_last_decision_id": "decision_20260807_issue128_provider_free_task_plane_v2",
+  "follows_last_round_id": "round_20260807_issue128_provider_free_task_plane_v2",
+  "previous_audit_outcome": "ISSUE128_V2_OWNER_AUDIT_REPAIR_REQUIRED_F1_F6",
+  "workstream_id": "issue128-provider-free-task-plane-v3",
   "source_issue": 128,
   "parent_issue": 90,
   "blocked_codex_research_issue": 126,
   "future_codex_vertical_issue": 127,
   "historical_provider_free_reference_pr": 114,
   "required_branch": "owner/issue128-provider-free-task-plane-v1",
-  "starting_head": "aa42e571c5c32a18f9b2f02b824bce805a7ac87a",
+  "starting_head": "8f2d5429aea00c57980e9881831887e32b5def3b",
   "activation_base_sha": "9f9b4336c58777b30eb45a85c9c2d4253ba993c1",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
@@ -59,6 +59,17 @@
   "audit_generation_allowed": false,
   "prior_audits_immutable": true,
   "bootstrap_state_initial": "BOOTSTRAP_OPEN",
+  "fail_forward_repair_findings": [
+    "I128-F1",
+    "I128-F2",
+    "I128-F3",
+    "I128-F4",
+    "I128-F5",
+    "I128-F6"
+  ],
+  "final_diff_must_not_contain": [
+    "reverse_agent/platform_v1/task_service_mapping.py"
+  ],
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
@@ -315,6 +326,7 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
+    "reverse_agent/platform_v1/task_service_mapping.py",
     "reverse_agent/platform_v1/__init__.py",
     "reverse_agent/platform_v1/run_store.py",
     "reverse_agent/platform_v1/execution_adapters.py",
@@ -481,53 +493,47 @@
 
 ## Goal
 
-Implement Issue #128 as a provider-free task plane while Codex quota is unavailable. The round must connect the existing Frontend V1 task workspace to server-owned loopback task state and prove one deterministic non-model executor path in a disposable workspace.
+Fail-forward repair of Issue #128 v2 owner audit findings I128-F1 through I128-F6.
 
-Selected architecture:
+The v2 implementation achieved a working provider-free task plane but failed Owner audit on six findings:
 
-```text
-Frontend task hooks
-  -> Task API client
-  -> loopback-only trusted TaskService
-  -> SQLite task/event store
-  -> ExecutorRouter
-  -> DeterministicFixtureExecutor
-  -> disposable Git worktree/fixture
-  -> LocalValidationRunner
-  -> normalized task/activity/changed-file/evidence readback
-```
+- I128-F1: task_service_mapping.py is an out-of-scope extra file; inline its mapping functions into task_service.py and delete it.
+- I128-F2: Frontend create flow must truly trigger server execute (POST /api/tasks/{id}/execute) and read back backend state; it must not mock or fabricate RUNNING/PASS states.
+- I128-F3: TaskService._run_executor() must use the injected self.router via dispatch_execute() rather than new-ing its own ExecutorRouter or directly instantiating DeterministicFixtureExecutor.
+- I128-F4: Default TaskService runtime must use file-backed SQLite (env-var REVERSE_AGENT_TASK_DB_PATH, defaulting to .platform_v1_runtime/tasks.sqlite3), not :memory:.
+- I128-F5: Idempotency token must be a stable opaque ID (crypto.randomUUID()) generated once at the submit boundary and reused across retry; not `issue128-${title}-${Date.now()}`.
+- I128-F6: Acceptance must test the real HTTP execution chain end-to-end: POST /api/tasks -> POST /api/tasks/{id}/execute -> GET readback -> events, plus restart/readback persistence proof and injected-router regression proof.
 
-The historical PR #114 is reference evidence, not a merge source. Port only the smallest compatible SQLite/worktree/validation concepts. Do not activate or execute CodexExecutorAdapter, do not port the PR #114 GitHub publication tail, and do not build a generic scheduler.
+No new product features. No new executor kinds. Only deterministic_fixture is registered. The final git diff must not contain task_service_mapping.py.
 
 ## Acceptance
 
-1. v1 Decision commit `aa42e571c5c32a18f9b2f02b824bce805a7ac87a` remains immutable historical authority evidence and no product mutation occurred under it.
-2. This v2 Decision is committed before generated gates or product mutation and explicitly authorizes the exact target-branch fetch needed to synchronize Owner-authored authority to the trusted host.
-3. Generated transition artifacts bind this v2 Decision and exact base `9f9b4336c58777b30eb45a85c9c2d4253ba993c1`.
-4. `transition-lint` passes and preflight reports `PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]` before product mutation.
-5. `POST /api/tasks`, `GET /api/tasks`, `GET /api/tasks/{id}`, and `GET /api/tasks/{id}/events` are loopback-only and enforce the same Origin fail-closed boundary pattern as model-control without sharing provider secrets/state.
-6. Task state is server-owned and durable outside React Query cache; client idempotency keys do not create duplicate tasks.
-7. The only executor implementation in this round is `DeterministicFixtureExecutor`; no Codex/OpenHands/model process or API is started.
-8. A deterministic mutation occurs only in an approved disposable fixture/worktree, validation is captured, and normalized events/changed paths/evidence are persisted.
-9. Frontend task list/detail/create flows read backend truth and visibly label execution as fixture/provider-free; they never claim Codex completion.
-10. Historical PR #114 components are selectively ported/adapted only where needed; no wholesale port or GitHub publication runtime is introduced.
-11. Required backend/frontend/regression tests, typecheck, lint, production build, mock build, provider-free acceptance, and exact-base `git diff --check` pass.
-12. Final diff contains only `allowed_mutated_paths`.
-13. The tested branch is normally pushed to `origin/owner/issue128-provider-free-task-plane-v1` and execution stops. No PR creation, mark-ready, merge, main push, release, deployment, credential access, provider test, or live model call occurs.
+1. v3 Decision is committed before any product mutation; v2 Decision and v2 implementation commit remain immutable historical authority evidence.
+2. Generated transition artifacts bind this v3 Decision and exact base `9f9b4336c58777b30eb45a85c9c2d4253ba993c1`.
+3. `transition-lint` passes and preflight reports `PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]` before product mutation.
+4. I128-F1: `task_service_mapping.py` deleted; mapping logic inlined into `task_service.py`; final diff does not contain that file.
+5. I128-F2: Frontend create flow calls POST /api/tasks then POST /api/tasks/{id}/execute, reads back server state; client never fabricates RUNNING/PASS.
+6. I128-F3: TaskService uses self.router.dispatch_execute() for execution; Service does not new ExecutorRouter or instantiate DeterministicFixtureExecutor directly.
+7. I128-F4: Default TaskService and run_task_service use file-backed SQLite from REVERSE_AGENT_TASK_DB_PATH (default .platform_v1_runtime/tasks.sqlite3); unit tests may use :memory:.
+8. I128-F5: Idempotency key is a stable crypto.randomUUID() generated once at submit boundary; same key + same request -> same task ID; same key + different request -> conflict.
+9. I128-F6: Acceptance exercises real HTTP POST /api/tasks -> POST /api/tasks/{id}/execute -> GET /api/tasks/{id} readback -> GET /api/tasks/{id}/events; verifies status=READY_FOR_REVIEW_FIXTURE, validation exit=0, changed_files non-empty, evidence contains Validation+Executor, events contain DISCOVERED/WORKSPACE_READY/EXECUTOR_FINISHED/LOCAL_VALIDATED/VALIDATED.
+10. Restart/readback persistence: after shutdown + re-open same SQLite path, task ID, events, changed files, evidence, validation result, execution ID all survive.
+11. Router injection: TaskService(router=fake_router) proves HTTP execute goes through injected router, not a new instance.
+12. Frontend provider-free test proves create -> execute -> readback sequence via mocked fetch but ordered HTTP calls.
+13. Final diff contains only allowed_mutated_paths and no task_service_mapping.py.
+14. No Codex, OpenHands, or model/provider calls during runtime.
+15. Branch pushed to origin; no PR, merge, release, deploy, or credential access.
+
+## Execution policy
+
+- v3 is a fail-forward repair of v2 findings F1-F6. Do not modify v2 Decision or v2 implementation commit.
+- task_service_mapping.py may be deleted as part of F1. The final diff must not contain it.
+- No new executor kinds, no Codex/OpenHands, no model API, no scheduler, no generic coordinator.
+- Do not modify frontend dependencies or Python dependencies.
+- Do not create or update a PR. Stop after exact tested branch push for independent Owner audit.
 
 Terminal:
 
 ```text
-PROVIDER_FREE_TASK_PLANE_READY_FOR_OWNER_AUDIT
+ISSUE128_V3_REPAIR_READY_FOR_OWNER_AUDIT
 ```
-
-## Execution policy
-
-- Treat Issue #128 and its comments as planning context only; this v2 Decision plus generated Command Plan are the Path-B execution authority.
-- Do not wait for Codex quota. This round is specifically designed to complete without Codex/model execution.
-- Preserve any pre-existing local-only work from the interrupted Codex-upgrade round. Do not reset, clean, overwrite, or silently mix it into #128.
-- Keep the task service separate from model-profile secret storage. Only sanitized model profile identifiers/references may cross the browser/task API boundary.
-- Prefer bounded polling for events in V1 unless the existing stack makes SSE materially simpler without new dependencies.
-- Do not modify frontend dependencies or Python dependencies in this round.
-- Do not create a one-click launcher yet; defer `scripts/dev-up.ps1` until this task-plane acceptance is green so startup work cannot hide task-plane defects.
-- Do not create or update a PR. Stop after exact tested branch push for independent Owner audit and the next landing authority decision.
