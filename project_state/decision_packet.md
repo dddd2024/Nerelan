@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260807_pr121_model_access_land_v1",
-  "round_id": "round_20260807_pr121_model_access_land_v1",
+  "decision_id": "decision_20260807_pr121_model_access_land_v2",
+  "round_id": "round_20260807_pr121_model_access_land_v2",
   "status": "APPROVED",
   "mainline": "model_access",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,18 +14,18 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260806_issue117_frontend_v1_openhands_ui_v4",
-  "follows_last_round_id": "round_20260806_issue117_frontend_v1_openhands_ui_v4",
-  "previous_audit_outcome": "PR119_MERGED",
-  "workstream_id": "pr121-model-access-landing-v1",
+  "follows_last_decision_id": "decision_20260807_pr121_model_access_land_v1",
+  "follows_last_round_id": "round_20260807_pr121_model_access_land_v1",
+  "previous_audit_outcome": "PR121_V1_PENDING_BASE_RECONCILIATION",
+  "workstream_id": "pr121-model-access-landing-v2",
   "source_issue": 122,
   "parent_issue": 90,
   "selected_foundation_issue": 120,
   "backend_reference_pr": 120,
   "active_pr": 121,
   "required_branch": "owner/model-access-frontend-closeout-v1",
-  "starting_head": "5c8681ebd5fa0dc9c6fccc79e4b2380255fbebdf",
-  "activation_base_sha": "68445abdcd6e66c3ad5c4534a9dd5c1c2414e47d",
+  "starting_head": "5de53389a3cf0a6557f2a0bb837eee4a5d5687fe",
+  "activation_base_sha": "5de53389a3cf0a6557f2a0bb837eee4a5d5687fe",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
@@ -40,7 +40,7 @@
   "local_commit_allowed": true,
   "normal_push_allowed": true,
   "exact_head_workflow_observation_allowed": true,
-  "merge_allowed": false,
+  "merge_allowed": true,
   "mark_ready_allowed": false,
   "auto_merge_allowed": false,
   "force_push_allowed": false,
@@ -56,7 +56,7 @@
   "infrastructure_retry_limit": 1,
   "audit_generation_allowed": false,
   "prior_audits_immutable": true,
-  "bootstrap_state_initial": "BOOTSTRAP_OPEN",
+  "bootstrap_state_initial": "BOOTSTRAP_COMPLETE",
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
@@ -74,6 +74,33 @@
   ],
   "allowed_commands": [
     {
+      "command_id": "reconciliation.merge_origin_main",
+      "command": "git merge --no-ff origin/main",
+      "phase": "reconciliation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["merge", "repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": [
+        "project_state/decision_packet.md",
+        "project_state/gates/**",
+        "project_state/mainline_merge_intents/**"
+      ]
+    },
+    {
+      "command_id": "reconciliation.resolve_decision_conflicts",
+      "command": "git diff --check",
+      "phase": "reconciliation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["diff_validation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
       "command_id": "observation.git_status",
       "command": "git status --short",
       "phase": "status",
@@ -87,6 +114,17 @@
     {
       "command_id": "observation.git_head",
       "command": "git rev-parse HEAD",
+      "phase": "status",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "observation.merge_base",
+      "command": "git merge-base origin/main owner/model-access-frontend-closeout-v1",
       "phase": "status",
       "required": true,
       "expected_exit_codes": [0],
@@ -173,30 +211,6 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "runtime.frontend_mock",
-      "command": "npm --prefix frontend run dev:mock -- --host 127.0.0.1 --port 4173",
-      "phase": "visual_validation",
-      "required": false,
-      "expected_exit_codes": [0, 130],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "diagnostic_only": true
-    },
-    {
-      "command_id": "runtime.model_control_service",
-      "command": "python -m reverse_agent.model_access.service",
-      "phase": "visual_validation",
-      "required": false,
-      "expected_exit_codes": [0, 130],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "diagnostic_only": true
-    },
-    {
       "command_id": "governance.stage_generated_gates",
       "command": "git add project_state/gates/command_plan.json project_state/gates/startup_snapshot.json project_state/gates/bootstrap_state.json project_state/gates/transition_command_plan_preview.json project_state/gates/transition_preflight_result.json",
       "phase": "commit",
@@ -209,7 +223,7 @@
     },
     {
       "command_id": "governance.commit_generated_gates",
-      "command": "git commit -m \"governance: generate PR 121 model access command plan\"",
+      "command": "git commit -m \"governance: generate PR 121 model access v2 command plan\"",
       "phase": "commit",
       "required": true,
       "expected_exit_codes": [0],
@@ -231,7 +245,7 @@
     },
     {
       "command_id": "implementation.commit_model_access",
-      "command": "git commit -m \"fix(model-access): enforce server-side Origin gate MA-ORIGIN-001\"",
+      "command": "git commit -m \"fix(model-access): enforce server-side Origin gate MA-ORIGIN-001 v2\"",
       "phase": "commit",
       "required": true,
       "expected_exit_codes": [0],
@@ -316,13 +330,13 @@
     "project_state/gates/transition_preflight_result.json",
     "project_state/mainline_merge_intents/active.json",
     "project_state/mainline_merge_intents/archive/**",
-    ".github/workflows/model-access.yml",
     "docs/model-access.md",
     "docs/superpowers/plans/2026-08-06-model-access-and-frontend-closeout.md",
     "docs/superpowers/specs/2026-08-06-model-access-and-frontend-closeout-design.md",
     "frontend/**",
     "reverse_agent/model_access/**",
-    "tests/test_model_access.py"
+    "tests/test_model_access.py",
+    "tests/platform_v1/**"
   ],
   "reference_paths": [
     "AGENTS.md",
@@ -367,7 +381,6 @@
   ],
   "forbidden_operations": [
     "direct_push_main",
-    "merge",
     "mark_ready",
     "auto_merge",
     "force_push",
@@ -400,9 +413,10 @@
     "external_reverse_tool_invocation_allowed": false,
     "unknown_binary_execution_allowed": false,
     "destructive_operations_allowed": false,
+    "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
-    "merge_allowed": false,
+    "merge_allowed": true,
     "force_push_allowed": false,
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
@@ -438,37 +452,44 @@
 
 ## Goal
 
-Implement MA-ORIGIN-001: a server-side Origin gate in the model-control HTTP service. Currently the service only conditionally emits `Access-Control-Allow-Origin` for matching Origins, but does not reject foreign Origins before handler side effects. The gate must ensure:
+PR #121 v2 current-main reconciliation. The v1 Decision (`decision_20260807_pr121_model_access_land_v1`) was authorized against an activation_base_sha of `68445abdcd6e66c3ad5c4534a9dd5c1c2414e47d`, but `origin/main` has advanced to `5de53389a3cf0a6557f2a0bb837eee4a5d5687fe`. The PR branch is 7 commits behind current main and 44 commits ahead.
 
-1. Requests with no Origin header are allowed (trusted loopback CLI / non-browser clients).
-2. Requests with Origin equal to the configured `allowed_origin` are allowed with normal CORS response.
-3. Requests with an Origin header present and not equal to `allowed_origin` are rejected with HTTP 403 before any store mutation or handler logic runs.
-4. OPTIONS preflight for foreign Origins fails closed (no permissive-looking preflight response).
-5. The 403 response body must not contain secrets, reflected API keys, request body content, or exception stack traces.
+This v2 Decision authorizes:
 
-The existing loopback-only binding, live-probe default-disabled, and secret-not-in-log/response/browser-storage invariants must be preserved.
+1. A normal non-rebase merge of `origin/main@5de53389` into `owner/model-access-frontend-closeout-v1`
+2. Refresh of the active merge-intent to bind `locked_base_sha=5de53389`
+3. Fix of MA-TEST-001 to add post-state HTTP boundary verification that the store is unchanged after a foreign-origin 403
+4. Full local verification (pytest, frontend tests/typecheck/lint/build, npm audit, gate tests)
+5. Normal push of the existing PR #121 branch
+
+No new product functionality is introduced in this round.
 
 ## Acceptance
 
-1. Generated Command Plan and transition preflight bind PR #121 v1 Decision and report `PRE_EXECUTION_AUTHORIZED` with no blockers.
-2. Only the authorized PR #121 delta paths and standard generated gate artifacts change.
-3. `python -m pytest tests/test_model_access.py -q` passes with new HTTP boundary tests covering all six Origin-gate scenarios.
-4. Frontend test, typecheck, lint, build, mock build, and npm audit pass.
-5. Server-side Origin gate is exercised at the HTTP boundary, not only at the helper-function level.
-6. Foreign Origin PUT/POST/DELETE requests do not mutate the model profile store.
-7. 403 error body does not contain any submitted secret value.
-8. Local UI/UAT passes: Settings page loads, profile CRUD works, default profile works, New Task blocks without valid profile, no API key in browser storage, no API key in service response, no secret leak in UI, desktop and mobile layout are intact.
-9. All local work committed normally, exact branch pushed, PR #121 remains Draft against `main` for Owner audit.
-10. No main push, merge, mark-ready, history rewrite, tag, release, real provider probe, deployment, credential access, or unrelated PR work occurs.
+1. v2 Decision commit is authored before any reconciliation or implementation work.
+2. Normal merge of origin/main into the PR branch succeeds without rebase, force-push, or history rewrite.
+3. The v2 Decision and v1 historical archive are preserved; no historical governance artifacts are deleted.
+4. Active merge intent (`project_state/mainline_merge_intents/active.json`) is updated with `locked_base_sha: 5de53389a3cf0a6557f2a0bb837eee4a5d5687fe` and `allowed_merge_method: merge`.
+5. MA-TEST-001 adds a real HTTP-boundary post-state check: after a foreign-origin PUT receives 403, a follow-up allowed-Origin GET confirms the injected profile does not exist in the store.
+6. `python -m pytest tests/test_model_access.py -q` passes with the enhanced test.
+7. Frontend test, typecheck, lint, build, mock build, and npm audit pass.
+8. `python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q` passes.
+9. `git diff --check` passes.
+10. Local UAT: Settings page loads, profile CRUD works, default profile works, New Task blocks without valid profile, no API key in browser storage/response/UI, desktop and mobile layout intact.
+11. All local work committed normally, exact branch pushed, PR #121 remains Draft against `main` for Owner audit.
+12. No main push, merge PR, mark-ready, history rewrite, tag, release, real provider probe, deployment, credential access, or unrelated PR work occurs.
 
 ```text
-PR121_MODEL_ACCESS_LANDING_V1_PENDING_AUTHORIZATION
+PR121_AUTHORIZED_CURRENT_MAIN_HEAD_READY_FOR_OWNER_GITHUB_AUDIT
 ```
 
 ## Execution policy
 
-- This Decision is independent of the PR #119 (Issue #117) and PR #112 (Issue #111) Decisions.
-- Run the standard Path-B gate sequence before modifying any product code.
+- This v2 Decision follows and supersedes the v1 Decision for current-main landing authority only.
+- The v1 Decision (`decision_20260807_pr121_model_access_land_v1`) is immutable and is preserved as the historical baseline for the initial authorization window.
+- Run the standard Path-B gate sequence: transition-lint, transition-command-plan, transition-preflight (pre), before modifying any product code.
+- Reconciliation must be a normal non-rebase merge (`git merge --no-ff origin/main`) — no rebase, no force push, no reset-hard, no history rewrite.
+- After merge, transition-preflight must report `PRE_EXECUTION_AUTHORIZED` with the new `activation_base_sha` matching the post-merge `merge-base`.
 - The Origin gate check must execute before any route handler logic for GET, PUT, POST, DELETE, and OPTIONS.
 - 403 responses must be opaque: no secret reflection, no request body echo, no exception stack trace.
 - Loopback binding and live-probe default-disabled invariants must be preserved.
