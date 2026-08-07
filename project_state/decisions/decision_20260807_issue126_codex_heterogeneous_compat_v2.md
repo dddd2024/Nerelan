@@ -123,7 +123,9 @@
       "operations": ["gate_execution"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence",
-      "allowed_mutated_paths": ["project_state/gates/startup_snapshot.json"]
+      "allowed_mutated_paths": [
+        "project_state/gates/startup_snapshot.json"
+      ]
     },
     {
       "command_id": "gate.transition_command_plan",
@@ -376,7 +378,6 @@
     "reverse_agent/control_plane/**",
     "project_state/schemas/**",
     "project_state/decisions/decision_20260807_issue126_codex_heterogeneous_compat_v1.md",
-    "project_state/decisions/decision_20260807_issue126_codex_heterogeneous_compat_v2.md",
     "docs/research/codex-cli-heterogeneous-multiagent-2026-08-07.md",
     "docs/research/codex-cli-heterogeneous-multiagent-2026-08-07.json"
   ],
@@ -469,9 +470,9 @@
 
 Issue #126 Round C v2 rework.
 
-v1 findings accepted (C126-F1 through C126-F7). v1 Decision `decision_20260807_issue126_codex_heterogeneous_compat_v1` is stored immutable at `project_state/decisions/` and is NOT modified in this round.
+v1 findings accepted (C126-F1 through C126-F7). v1 Decision `decision_20260807_issue126_codex_heterogeneous_compat_v1` is immutable and NOT modified.
 
-This round is NOT a product implementation task. Sole objective:
+This v2 round is NOT a product implementation task. Sole objective:
 
 ```
 Correct Round C v1 environment blockage and premature conclusions
@@ -479,11 +480,6 @@ Correct Round C v1 environment blockage and premature conclusions
 -> with third-party provider, complete heterogeneous matrix
 -> output final architecture conclusion only when evidence sufficient
 ```
-
-## Decision history
-
-- v1 Decision: `project_state/decisions/decision_20260807_issue126_codex_heterogeneous_compat_v1.md` (immutable, committed at 076f375e)
-- v2 Decision: `project_state/decisions/decision_20260807_issue126_codex_heterogeneous_compat_v2.md` (this active Decision)
 
 ## Codex install method and bounded upgrade
 
