@@ -104,6 +104,23 @@ export function TaskCard({ task }: TaskCardProps) {
           <span className="text-xs text-ra-text-tertiary">
             {permissionModeLabel(task.permissionProfile)}
           </span>
+          {task.executor ? (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium",
+                task.executor === "fixture/provider-free"
+                  ? "bg-[#BCFF8C]/10 text-[#BCFF8C]"
+                  : "bg-ra-accent/10 text-ra-accent",
+              )}
+              data-testid="task-executor-badge"
+              title={`executor=${task.executor}`}
+            >
+              <span className="w-1 h-1 rounded-full bg-current shrink-0" />
+              {task.executor === "fixture/provider-free"
+                ? "fixture / provider-free"
+                : task.executor}
+            </span>
+          ) : null}
         </div>
       </div>
 

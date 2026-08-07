@@ -1,0 +1,146 @@
+"""HTTP Task API tests: loopback-only, Origin fail-closed, bounded body, no secrets."""
+
+import http.client
+import json
+import os
+import tempfile
+import threading
+
+import pytest
+
+from reverse_agent.platform_v1.run_store import TaskStore
+from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+from reverse_agent.platform_v1.task_service import (
+    TaskService,
+    _handler_factory,
+    validate_bind_host,
+)
+
+
+@pytest.fixture()
+def task_server(tmp_path):
+    db_path = str(tmp_path / "tasks.sqlite3")
+    store = TaskStore(db_path=db_path)
+    router = ExecutorRouter()
+    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173")
+    from http.server import ThreadingHTTPServer
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield "http://127.0.0.1:%d" % port, server
+    server.shutdown()
+    server.server_close()
+
+
+def _req(base_url: str, method: str, path: str, body=None, origin=None):
+    host, port = base_url.replace("http://", "").split(":", 1)
+    conn = http.client.HTTPConnection(host, int(port), timeout=10)
+    headers = {
+        "Accept": "application/json",
+        "Origin": origin or "http://localhost:5173",
+    }
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+        body = json.dumps(body).encode()
+    conn.request(method, path, body=body, headers=headers)
+    resp = conn.getresponse()
+    data = resp.read()
+    return resp.status, json.loads(data.decode()) if data else None
+
+
+def test_create_and_read_task(task_server) -> None:
+    base, _ = task_server
+    status, body = _req(base, "POST", "/api/tasks", {"title": "t1", "executor_kind": "deterministic_fixture"})
+    assert status == 201
+    assert body["status"] == "QUEUED"
+    assert body["executor_kind"] == "deterministic_fixture"
+    assert body["frontend_task"]["executor"] == "fixture/provider-free"
+    tid = body["id"]
+
+    status, got = _req(base, "GET", f"/api/tasks/{tid}")
+    assert status == 200
+    assert got["id"] == tid
+    assert got["events"][0]["type"] == "DISCOVERED"
+
+
+def test_list_tasks_and_events(task_server) -> None:
+    base, _ = task_server
+    _, created = _req(base, "POST", "/api/tasks", {"title": "t", "executor_kind": "deterministic_fixture"})
+    tid = created["id"]
+    status, listed = _req(base, "GET", "/api/tasks")
+    assert status == 200
+    assert any(t["id"] == tid for t in listed["tasks"])
+
+    status, events = _req(base, "GET", f"/api/tasks/{tid}/events")
+    assert status == 200
+    assert events["task_id"] == tid
+    assert events["events"][0]["type"] == "DISCOVERED"
+
+
+def test_execute_endpoint_runs_fixture_and_persists(task_server) -> None:
+    base, _ = task_server
+    _, created = _req(base, "POST", "/api/tasks", {"title": "exec", "executor_kind": "deterministic_fixture"})
+    tid = created["id"]
+    status, executed = _req(base, "POST", f"/api/tasks/{tid}/execute")
+    assert status == 200
+    assert executed["status"] == "READY_FOR_REVIEW_FIXTURE"
+    assert executed["validation_exit_code"] == 0
+    assert executed["validation_command_id"] == "git_diff_check"
+    assert executed["changed_files"]
+    assert any(e["category"] == "Validation" for e in executed["evidence"])
+
+
+def test_idempotency_key_across_http_creates_once(task_server) -> None:
+    base, _ = task_server
+    payload = {"title": "id", "executor_kind": "deterministic_fixture", "idempotency_key": "http-k-1"}
+    _, first = _req(base, "POST", "/api/tasks", payload)
+    _, second = _req(base, "POST", "/api/tasks", payload)
+    assert first["id"] == second["id"]
+    _, listed = _req(base, "GET", "/api/tasks")
+    assert sum(1 for t in listed["tasks"] if t["id"] == first["id"]) == 1
+
+
+def test_origin_fail_closed(task_server) -> None:
+    base, _ = task_server
+    status, body = _req(base, "GET", "/api/tasks", origin="https://evil.example")
+    assert status == 403
+    assert body == {"error": "forbidden"}
+
+
+def test_missing_title_rejected(task_server) -> None:
+    base, _ = task_server
+    status, body = _req(base, "POST", "/api/tasks", {"executor_kind": "deterministic_fixture"})
+    assert status == 409
+    assert "title_required" in body["error"]
+
+
+def test_unsupported_executor_kind_rejected(task_server) -> None:
+    base, _ = task_server
+    status, body = _req(base, "POST", "/api/tasks", {"title": "t", "executor_kind": "codex"})
+    assert status == 409
+    assert "unsupported_executor_kind" in body["error"]
+
+
+def test_unknown_task_returns_404(task_server) -> None:
+    base, _ = task_server
+    status, _ = _req(base, "GET", "/api/tasks/task-nonexistent")
+    assert status == 404
+
+
+def test_validate_bind_host_loopback_only() -> None:
+    assert validate_bind_host("127.0.0.1") == "127.0.0.1"
+    assert validate_bind_host("localhost") == "localhost"
+    assert validate_bind_host("::1") == "::1"
+    with pytest.raises(ValueError):
+        validate_bind_host("0.0.0.0")
+    with pytest.raises(ValueError):
+        validate_bind_host("192.168.1.1")
+
+
+def test_task_service_wrapper_starts_and_serves(task_server) -> None:
+    base, _ = task_server
+    status, body = _req(base, "GET", "/api/tasks")
+    assert status == 200
+    assert "tasks" in body

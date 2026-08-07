@@ -14,10 +14,16 @@ from .contracts import (
     PlatformAcceptanceResult,
     PlatformWorkItem,
 )
+from .run_store import TaskStore, TaskStoreError
+from .task_runtime import DeterministicFixtureExecutor, ExecutorRouter
 
 __all__ = [
+    "DeterministicFixtureExecutor",
+    "ExecutionBinding",
     "ExecutionBinding",
     "ExecutionEvidence",
     "PlatformAcceptanceResult",
     "PlatformWorkItem",
+    "TaskStore",
+    "TaskStoreError",
 ]
