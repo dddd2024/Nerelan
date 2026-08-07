@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createTask,
   executeTask,
+  fetchTask,
   fetchTaskEvents,
   fetchTasks,
 } from "@/lib/task-client";
@@ -15,6 +16,7 @@ export interface CreateTaskInput {
   repository?: string;
   branch?: string;
   workspace?: string;
+  idempotencyKey: string;
 }
 
 const EMPTY_TASK: Task = {
@@ -264,7 +266,6 @@ export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation<Task, Error, CreateTaskInput>({
     mutationFn: async (input) => {
-      const idempotencyKey = crypto.randomUUID();
       const payload: Record<string, unknown> = {
         title: input.title,
         repository: input.repository ?? "dddd2024/reverse-agent",
@@ -272,18 +273,16 @@ export function useCreateTask() {
         permission_profile: input.permissionProfile ?? "ASK_FOR_APPROVAL",
         branch: input.branch ?? "",
         workspace: input.workspace ?? "",
-        idempotency_key: idempotencyKey,
+        idempotency_key: input.idempotencyKey,
       };
       const createdRaw = await createTask(payload);
       const created = _toTask(createdRaw);
       const taskId = String(created.id ?? createdRaw.id ?? "");
-      if (taskId) {
-        const executedRaw = await executeTask(taskId);
-        const executed = _toTask(executedRaw);
-        await queryClient.invalidateQueries({ queryKey: ["tasks"] });
-        return executed;
-      }
-      return created;
+      if (!taskId) return created;
+      await executeTask(taskId);
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      const readbackRaw = await fetchTask(taskId);
+      return _toTask(readbackRaw);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });

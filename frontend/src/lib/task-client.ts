@@ -187,6 +187,7 @@ export async function fetchTask(taskId: string) {
     return found as unknown as Record<string, unknown>;
   }
   const response = await fetch(`${API_BASE}/api/tasks/${taskId}`, {
+    method: "GET",
     headers: { Accept: "application/json" },
   });
   if (!response.ok) {

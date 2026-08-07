@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderWithProviders } from "./test-utils";
 import { TaskCard } from "@/components/task-card";
 import { TaskInbox } from "@/components/task-inbox";
 import { ActivityStream } from "@/components/activity-stream";
 import { ChangesPanel } from "@/components/changes-panel";
 import { EvidencePanel } from "@/components/evidence-panel";
+import { NewTaskComposer } from "@/components/new-task-composer";
+import { resetDefaultModelControlClientForTests } from "@/lib/model-control-client";
 import type { Task } from "@/types";
 
 const FIXTURE_TASK: Task = {
@@ -345,4 +348,297 @@ describe("provider-free HTTP task flow", () => {
     expect(mockFetch.mock.calls[0][0]).toContain("/api/tasks/task-fetch-001");
     expect(result.state).toBe("READY_FOR_HUMAN");
   });
+
+  it("useCreateTask mutation returns GET readback truth after POST create -> POST execute -> GET readback", async () => {
+    const mockTaskId = "task-flow-readback";
+    const executeUpdatedAt = "2026-08-07T00:00:01Z";
+    const readbackUpdatedAt = "2026-08-07T00:00:02Z";
+
+    const createResponse = {
+      id: mockTaskId,
+      title: "flow task",
+      repository: "dddd2024/reverse-agent",
+      status: "QUEUED",
+      executor_kind: "deterministic_fixture",
+      execution_id: "exec-task-flow-readback",
+      frontend_task: {
+        id: mockTaskId,
+        title: "flow task",
+        state: "WAITING_FOR_OWNER",
+        executor: "fixture/provider-free",
+        updatedAt: "2026-08-07T00:00:00Z",
+      },
+    };
+
+    const executeResponse = {
+      id: mockTaskId,
+      title: "flow task",
+      repository: "dddd2024/reverse-agent",
+      status: "READY_FOR_REVIEW_FIXTURE",
+      executor_kind: "deterministic_fixture",
+      execution_id: "exec-task-flow-readback",
+      frontend_task: {
+        id: mockTaskId,
+        title: "flow task",
+        state: "READY_FOR_HUMAN",
+        executor: "fixture/provider-free",
+        updatedAt: executeUpdatedAt,
+      },
+    };
+
+    const readbackResponse = {
+      id: mockTaskId,
+      title: "flow task",
+      repository: "dddd2024/reverse-agent",
+      status: "READY_FOR_REVIEW_FIXTURE",
+      executor_kind: "deterministic_fixture",
+      execution_id: "exec-task-flow-readback",
+      frontend_task: {
+        id: mockTaskId,
+        title: "flow task",
+        state: "READY_FOR_HUMAN",
+        executor: "fixture/provider-free",
+        updatedAt: readbackUpdatedAt,
+        activity: [
+          { id: "e-1", type: "DISCOVERED", title: "Task queued", expanded: false },
+          { id: "e-2", type: "EXECUTOR_FINISHED", title: "Executor finished", expanded: false },
+        ],
+      },
+    };
+
+    mockFetch
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        status: 201,
+        text: async () => JSON.stringify(createResponse),
+      }))
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify(executeResponse),
+      }))
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify(readbackResponse),
+      }));
+
+    const { useCreateTask } = await import("@/hooks/use-tasks");
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: 0, staleTime: Infinity },
+      },
+    });
+
+    let resultTask: Task | undefined;
+    function RenderMutation() {
+      const mutation = useCreateTask();
+      return (
+        <button
+          data-testid="trigger"
+          onClick={() => {
+            void mutation.mutateAsync({
+              title: "flow task",
+              idempotencyKey: "flow-readback-key",
+            }).then((r) => {
+              resultTask = r;
+            });
+          }}
+        >
+          trigger
+        </button>
+      );
+    }
+
+    renderWithProviders(
+      <QueryClientProvider client={queryClient}>
+        <RenderMutation />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId("trigger"));
+    await waitFor(() => expect(resultTask).toBeDefined(), { timeout: 5000 });
+
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+
+    expect(mockFetch.mock.calls[0][1]?.method).toBe("POST");
+    expect(mockFetch.mock.calls[0][0]).toContain("/api/tasks");
+
+    expect(mockFetch.mock.calls[1][1]?.method).toBe("POST");
+    expect(mockFetch.mock.calls[1][0]).toContain(`/api/tasks/${mockTaskId}/execute`);
+
+    expect(mockFetch.mock.calls[2][1]?.method).toBe("GET");
+    expect(mockFetch.mock.calls[2][0]).toContain(`/api/tasks/${mockTaskId}`);
+
+    expect(resultTask?.updatedAt).toBe(readbackUpdatedAt);
+    expect(resultTask?.updatedAt).not.toBe(executeUpdatedAt);
+    expect(resultTask?.state).toBe("READY_FOR_HUMAN");
+    expect(resultTask?.executor).toBe("fixture/provider-free");
+  });
 });
+
+describe("provider-free idempotency transport", () => {
+  let mockFetch: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockFetch = vi.fn();
+    vi.stubGlobal("fetch", mockFetch);
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
+  });
+
+  afterEach(() => {
+    mockFetch.mockClear();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("NewTaskComposer generates idempotencyKey once at submit boundary and passes it through", async () => {
+    resetDefaultModelControlClientForTests();
+    const mockSubmit = vi.fn();
+
+    renderWithProviders(
+      <NewTaskComposerWrapper submit={mockSubmit} />,
+    );
+
+    await screen.findByLabelText("模型配置");
+
+    fireEvent.change(screen.getByTestId("task-title-input"), {
+      target: { value: "idempotency test" },
+    });
+    fireEvent.click(screen.getByTestId("submit-new-task"));
+
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1), {
+      timeout: 1000,
+    });
+
+    const input = mockSubmit.mock.calls[0][0];
+    expect(input.title).toBe("idempotency test");
+    expect(typeof input.idempotencyKey).toBe("string");
+    expect(input.idempotencyKey.length).toBeGreaterThan(0);
+
+    fireEvent.change(screen.getByTestId("task-title-input"), {
+      target: { value: "idempotency test 2" },
+    });
+    fireEvent.click(screen.getByTestId("submit-new-task"));
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(2), {
+      timeout: 1000,
+    });
+
+    const secondInput = mockSubmit.mock.calls[1][0];
+    expect(secondInput.idempotencyKey).not.toBe(input.idempotencyKey);
+  });
+
+  it("createTask forwards CreateTaskInput.idempotencyKey verbatim as POST body idempotency_key", async () => {
+    const fixedKey = "stable-submit-key-001";
+
+    let firstBody: Record<string, unknown> | undefined;
+
+    mockFetch
+      .mockImplementationOnce(async (_url, opts) => {
+        firstBody = JSON.parse(String((opts as { body?: string }).body ?? "{}"));
+        return {
+          ok: true,
+          status: 201,
+          text: async () =>
+            JSON.stringify({
+              id: "task-idem-001",
+              title: "idem task",
+              repository: "dddd2024/reverse-agent",
+              status: "QUEUED",
+              executor_kind: "deterministic_fixture",
+              execution_id: "exec-idem-001",
+              frontend_task: {
+                id: "task-idem-001",
+                title: "idem task",
+                state: "WAITING_FOR_OWNER",
+                executor: "fixture/provider-free",
+              },
+            }),
+        };
+      })
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            id: "task-idem-001",
+            title: "idem task",
+            repository: "dddd2024/reverse-agent",
+            status: "READY_FOR_REVIEW_FIXTURE",
+            executor_kind: "deterministic_fixture",
+            execution_id: "exec-idem-001",
+            frontend_task: {
+              id: "task-idem-001",
+              title: "idem task",
+              state: "READY_FOR_HUMAN",
+              executor: "fixture/provider-free",
+              updatedAt: "2026-08-07T00:00:01Z",
+            },
+          }),
+      }))
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            id: "task-idem-001",
+            title: "idem task",
+            repository: "dddd2024/reverse-agent",
+            status: "READY_FOR_REVIEW_FIXTURE",
+            executor_kind: "deterministic_fixture",
+            execution_id: "exec-idem-001",
+            frontend_task: {
+              id: "task-idem-001",
+              title: "idem task",
+              state: "READY_FOR_HUMAN",
+              executor: "fixture/provider-free",
+              updatedAt: "2026-08-07T00:00:02Z",
+            },
+          }),
+      }));
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: 0, staleTime: Infinity },
+      },
+    });
+
+    const { useCreateTask } = await import("@/hooks/use-tasks");
+
+    const variables = { title: "idem task", idempotencyKey: fixedKey };
+    function RenderMutation() {
+      const mutation = useCreateTask();
+      return (
+        <button
+          data-testid="trigger"
+          onClick={() => {
+            void mutation.mutateAsync(variables);
+          }}
+        >
+          trigger
+        </button>
+      );
+    }
+
+    renderWithProviders(
+      <QueryClientProvider client={queryClient}>
+        <RenderMutation />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId("trigger"));
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3), {
+      timeout: 5000,
+    });
+
+    expect(firstBody?.idempotency_key).toBe(fixedKey);
+  });
+});
+
+function NewTaskComposerWrapper({ submit }: { submit: (input: unknown) => void }) {
+  return (
+    <NewTaskComposer open={true} onClose={() => undefined} onSubmit={submit} />
+  );
+}

@@ -204,11 +204,13 @@ export function NewTaskComposer({
               data-testid="submit-new-task"
               onClick={() => {
                 if (!canSubmit) return;
+                const idempotencyKey = crypto.randomUUID();
                 void onSubmit?.({
                   title: title.trim(),
                   modelProfileId,
                   permissionProfile: permissionMode,
                   policy,
+                  idempotencyKey,
                 });
                 onClose();
               }}
