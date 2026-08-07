@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260806_pr119_final_merge_authority_v4",
-  "round_id": "round_20260806_pr119_final_merge_authority_v4",
+  "decision_id": "decision_20260807_pr121_final_owner_authority_v4",
+  "round_id": "round_20260807_pr121_final_owner_authority_v4",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260806_pr119_final_merge_authority_v4 expected=decision_20260806_pr119_final_merge_authority_v4"
+      "detail": "observed=decision_20260807_pr121_final_owner_authority_v4 expected=decision_20260807_pr121_final_owner_authority_v4"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260806_pr119_final_merge_authority_v4 expected=round_20260806_pr119_final_merge_authority_v4"
+      "detail": "observed=round_20260807_pr121_final_owner_authority_v4 expected=round_20260807_pr121_final_owner_authority_v4"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=agent/frontend-v1-openhands-ui expected=agent/frontend-v1-openhands-ui"
+      "detail": "observed=owner/model-access-frontend-closeout-v1 expected=owner/model-access-frontend-closeout-v1"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=1142dd324fdd4c4bf2a1353d9d5e93bc04b33507 merge_base=1142dd324fdd4c4bf2a1353d9d5e93bc04b33507"
+      "detail": "base=5de53389a3cf0a6557f2a0bb837eee4a5d5687fe merge_base=5de53389a3cf0a6557f2a0bb837eee4a5d5687fe"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=769517f163157757d0a33d1ed641e1d6c1e21f38"
+      "detail": "decision_commit=7e8f01f53629e39b2b9bac95a3b6568d83c9d3bf"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260806_pr119_final_merge_authority_v4/round_20260806_pr119_final_merge_authority_v4"
+      "detail": "plan=decision_20260807_pr121_final_owner_authority_v4/round_20260807_pr121_final_owner_authority_v4"
     },
     {
       "name": "command_plan_contract",

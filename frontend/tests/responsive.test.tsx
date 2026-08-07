@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
 import { renderWithProviders } from "./test-utils";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
 import { AppShell } from "@/components/app-shell";
@@ -33,11 +33,11 @@ describe("responsive layout", () => {
     }
     const { rerender } = renderWithProviders(<Probe />);
     expect(screen.getByTestId("bp").textContent).toBe("desktop");
-    mockMatchMedia(false);
-    // simulate resize
-    window.dispatchEvent(new Event("resize"));
-    rerender(<Probe />);
-    // still renders a breakpoint value
+    act(() => {
+      mockMatchMedia(false);
+      window.dispatchEvent(new Event("resize"));
+      rerender(<Probe />);
+    });
     expect(["mobile", "desktop", "tablet"]).toContain(
       screen.getByTestId("bp").textContent,
     );
@@ -51,9 +51,7 @@ describe("responsive layout", () => {
     );
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
     expect(screen.getByTestId("content")).toBeInTheDocument();
-    // The conversation panel toggle is visible.
     expect(screen.getByLabelText("打开任务列表")).toBeInTheDocument();
-    // Nav items exist via testid.
     expect(screen.getByTestId("sidebar-nav-首页")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-任务")).toBeInTheDocument();
   });

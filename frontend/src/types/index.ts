@@ -118,6 +118,7 @@ export interface Task {
   blocker?: string;
   nextAction?: string;
   permissionProfile: PermissionMode;
+  modelProfileId?: string;
   draftPr?: DraftPr;
   branch: string;
   activity: ActivityEvent[];

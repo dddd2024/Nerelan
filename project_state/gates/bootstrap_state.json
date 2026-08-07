@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260806_pr119_final_merge_authority_v4",
-  "round_id": "round_20260806_pr119_final_merge_authority_v4",
-  "expired_at": "2026-08-06T14:16:11+00:00"
+  "decision_id": "decision_20260807_pr121_final_owner_authority_v4",
+  "round_id": "round_20260807_pr121_final_owner_authority_v4",
+  "expired_at": "2026-08-07T03:50:24+00:00"
 }

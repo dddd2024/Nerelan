@@ -3,8 +3,8 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
-$expectedBranch = "agent/frontend-v1-openhands-ui"
-$expectedBase = "1142dd324fdd4c4bf2a1353d9d5e93bc04b33507"
+$expectedBranch = "owner/model-access-frontend-closeout-v1"
+$expectedBase = "68445abdcd6e66c3ad5c4534a9dd5c1c2414e47d"
 $remoteRef = "refs/remotes/origin/$expectedBranch"
 
 $branch = (git branch --show-current).Trim()
@@ -29,21 +29,22 @@ if ($LASTEXITCODE -ne 0) {
 $head = (git rev-parse HEAD).Trim()
 $remoteHead = (git rev-parse $remoteRef).Trim()
 if ($head -ne $remoteHead) {
-    throw "Local HEAD '$head' does not match remote PR Head '$remoteHead'. Synchronize without discarding local work, then rerun."
+    throw "Local HEAD '$head' does not match remote Head '$remoteHead'. Synchronize and rerun."
 }
 
-$commands = @(
-    @{ Name = "frontend tests"; Args = @("--prefix", "frontend", "test") },
-    @{ Name = "frontend typecheck"; Args = @("--prefix", "frontend", "run", "typecheck") },
-    @{ Name = "frontend lint"; Args = @("--prefix", "frontend", "run", "lint") },
-    @{ Name = "frontend production build"; Args = @("--prefix", "frontend", "run", "build") },
-    @{ Name = "frontend mock build"; Args = @("--prefix", "frontend", "run", "build:mock") }
+$checks = @(
+    @{ Name = "model access Python tests"; Command = "python"; Args = @("-m", "pytest", "tests/test_model_access.py", "-q") },
+    @{ Name = "frontend tests"; Command = "npm"; Args = @("--prefix", "frontend", "test") },
+    @{ Name = "frontend typecheck"; Command = "npm"; Args = @("--prefix", "frontend", "run", "typecheck") },
+    @{ Name = "frontend lint"; Command = "npm"; Args = @("--prefix", "frontend", "run", "lint") },
+    @{ Name = "frontend production build"; Command = "npm"; Args = @("--prefix", "frontend", "run", "build") },
+    @{ Name = "frontend mock build"; Command = "npm"; Args = @("--prefix", "frontend", "run", "build:mock") }
 )
 
 $results = @()
-foreach ($entry in $commands) {
+foreach ($entry in $checks) {
     Write-Host "`n==> $($entry.Name)" -ForegroundColor Cyan
-    & npm @($entry.Args)
+    & $entry.Command @($entry.Args)
     $exitCode = $LASTEXITCODE
     $results += [pscustomobject]@{
         Check = $entry.Name
@@ -70,7 +71,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Final git status failed."
 }
 if ($finalStatus) {
-    throw "Verification changed tracked or untracked repository state.`n$finalStatus"
+    throw "Verification changed repository state.`n$finalStatus"
 }
 
 Write-Host "`nVerification summary" -ForegroundColor Green
@@ -79,4 +80,4 @@ Write-Host "Local Head:  $head"
 Write-Host "Remote Head: $remoteHead"
 $results | Format-Table -AutoSize
 
-Write-Host "FRONTEND_V1_EXACT_HEAD_VERIFICATION_PASSED" -ForegroundColor Green
+Write-Host "MODEL_ACCESS_EXACT_HEAD_VERIFICATION_PASSED" -ForegroundColor Green
