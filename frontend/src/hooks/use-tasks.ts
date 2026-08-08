@@ -11,6 +11,7 @@ import type { ActivityEvent, ActivityEventType, ChangedFile, EvidenceItem, Polic
 export interface CreateTaskInput {
   title: string;
   modelProfileId?: string;
+  executorKind?: "deterministic_fixture" | "opencode";
   permissionProfile?: string;
   policy?: PolicyContract;
   repository?: string;
@@ -266,10 +267,12 @@ export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation<Task, Error, CreateTaskInput>({
     mutationFn: async (input) => {
+      const isOpencode = input.executorKind === "opencode";
       const payload: Record<string, unknown> = {
         title: input.title,
         repository: input.repository ?? "dddd2024/reverse-agent",
-        model_profile_ref: input.modelProfileId ?? "",
+        executor_kind: input.executorKind ?? "deterministic_fixture",
+        model_profile_ref: isOpencode ? "" : (input.modelProfileId ?? ""),
         permission_profile: input.permissionProfile ?? "ASK_FOR_APPROVAL",
         branch: input.branch ?? "",
         workspace: input.workspace ?? "",

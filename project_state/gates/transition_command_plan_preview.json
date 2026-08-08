@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260808_pr132_opencode_backend_landing_v7",
-  "round_id": "round_20260808_pr132_opencode_backend_landing_v7",
+  "decision_id": "decision_20260808_issue133_frontend_opencode_devup_v2",
+  "round_id": "round_20260808_issue133_frontend_opencode_devup_v2",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -26,8 +26,31 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "sync.fetch_pr132_branch",
-      "command": "git fetch origin owner/issue127-opencode-vertical-slice-v1",
+      "command_id": "sync.fetch_main",
+      "command": "git fetch origin main",
+      "phase": "bootstrap",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "sync.fetch_issue133",
+      "command": "git fetch origin owner/issue133-frontend-opencode-devup-v1",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -50,7 +73,7 @@
     },
     {
       "command_id": "sync.inspect_remote_decision",
-      "command": "git show origin/owner/issue127-opencode-vertical-slice-v1:project_state/decision_packet.md",
+      "command": "git show origin/owner/issue133-frontend-opencode-devup-v1:project_state/decision_packet.md",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -71,10 +94,55 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "sync.fast_forward_pr132_branch",
-      "command": "git merge --ff-only origin/owner/issue127-opencode-vertical-slice-v1",
+      "command_id": "sync.switch_existing_branch",
+      "command": "git switch owner/issue133-frontend-opencode-devup-v1",
       "phase": "bootstrap",
       "required": false,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_sync"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "sync.create_local_tracking_branch",
+      "command": "git switch --track origin/owner/issue133-frontend-opencode-devup-v1",
+      "phase": "bootstrap",
+      "required": false,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "branch_creation",
+        "repository_sync"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "sync.fast_forward_issue133",
+      "command": "git merge --ff-only origin/owner/issue133-frontend-opencode-devup-v1",
+      "phase": "bootstrap",
+      "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
         0
@@ -115,8 +183,30 @@
       "allowed_mutated_paths": []
     },
     {
+      "command_id": "observation.git_main",
+      "command": "git rev-parse origin/main",
+      "phase": "status",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
       "command_id": "observation.merge_base",
-      "command": "git merge-base origin/main owner/issue127-opencode-vertical-slice-v1",
+      "command": "git merge-base HEAD origin/main",
       "phase": "status",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -137,9 +227,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.active_intent_hash_before",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/active.json').Hash.ToLower()\"",
-      "phase": "status",
+      "command_id": "gate.startup_snapshot",
+      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+      "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -147,29 +237,7 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "mutation.archive_pr129_intent",
-      "command": "powershell -NoProfile -Command \"Copy-Item 'project_state/mainline_merge_intents/active.json' 'project_state/mainline_merge_intents/archive/pr129_v5.json'\"",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "governance_artifact_mutation"
+        "gate_execution"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -179,12 +247,84 @@
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/archive/pr129_v5.json"
+        "project_state/gates/startup_snapshot.json"
       ]
     },
     {
-      "command_id": "observation.archive_hash_after",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/archive/pr129_v5.json').Hash.ToLower()\"",
+      "command_id": "gate.transition_command_plan",
+      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "gate_execution"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json"
+      ]
+    },
+    {
+      "command_id": "gate.transition_lint",
+      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "gate_execution"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "gate.transition_preflight",
+      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "gate_execution"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/transition_preflight_result.json",
+        "project_state/gates/bootstrap_state.json"
+      ]
+    },
+    {
+      "command_id": "test.frontend",
+      "command": "npm --prefix frontend test",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -193,7 +333,7 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_observation"
+        "run_checks"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -205,9 +345,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.decision_sha256",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/decision_packet.md').Hash.ToLower()\"",
-      "phase": "status",
+      "command_id": "test.frontend_typecheck",
+      "command": "npm --prefix frontend run typecheck",
+      "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -215,7 +355,7 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_observation"
+        "run_checks"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -227,9 +367,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.command_plan_sha256",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/gates/command_plan.json').Hash.ToLower()\"",
-      "phase": "status",
+      "command_id": "test.frontend_lint",
+      "command": "npm --prefix frontend run lint",
+      "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -237,7 +377,7 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_observation"
+        "run_checks"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -249,8 +389,30 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.mainline_landing",
-      "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
+      "command_id": "test.frontend_build",
+      "command": "npm --prefix frontend run build",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "test.issue133_backend_focused",
+      "command": "python -m pytest tests/test_model_access.py tests/platform_v1/test_task_service.py tests/platform_v1/test_opencode_executor.py tests/test_dev_up_contract.py -q",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -315,8 +477,149 @@
       "allowed_mutated_paths": []
     },
     {
+      "command_id": "validation.create_clean_source",
+      "command": "git worktree add --detach F:/reverse-agent-workspaces/issue133-gui-source HEAD",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "worktree_creation",
+        "external_workspace_mutation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "validation.clean_source_before",
+      "command": "git -C F:/reverse-agent-workspaces/issue133-gui-source status --short",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation",
+        "exact_head_validation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "acceptance.dev_up",
+      "command": "powershell -ExecutionPolicy Bypass -File .\\dev-up.ps1 -RepoDir F:/reverse-agent-workspaces/issue133-gui-source -OpenCodeModel sensetime/sensenova-6.7-flash-lite -NoBrowser",
+      "phase": "acceptance",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "process_start",
+        "loopback_service_start",
+        "tool_execution"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "acceptance.frontend_http",
+      "command": "powershell -NoProfile -Command \"$r=Invoke-WebRequest -UseBasicParsing http://127.0.0.1:4173/; if ($r.StatusCode -ne 200) { exit 1 }\"",
+      "phase": "acceptance",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "loopback_http_probe"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "acceptance.real_opencode_task",
+      "command": "powershell -NoProfile -Command \"$body=@{title='Create issue133_gui_acceptance.txt containing exactly gui-opencode-ok and do not modify any other file';repository='dddd2024/reverse-agent';executor_kind='opencode';model_profile_ref='';permission_profile='ASK_FOR_APPROVAL';policy_ref='';workspace='';branch=''}|ConvertTo-Json -Compress; $created=Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8766/api/tasks -ContentType 'application/json' -Body $body; $done=Invoke-RestMethod -Method Post -Uri ('http://127.0.0.1:8766/api/tasks/'+$created.id+'/execute') -ContentType 'application/json' -Body '{}'; $read=Invoke-RestMethod -Method Get -Uri ('http://127.0.0.1:8766/api/tasks/'+$created.id); if ($read.status -ne 'READY_FOR_REVIEW') { throw ('unexpected status '+$read.status) }; if ($read.executor_kind -ne 'opencode') { throw 'executor mismatch' }; if (-not ($read.changed_files | Where-Object { $_.path -eq 'issue133_gui_acceptance.txt' })) { throw 'acceptance file missing' }; if (-not ($read.evidence | Where-Object { $_.category -eq 'ExecutorAction' -or $_.label -eq 'git_diff_check' })) { throw 'executor or validation evidence missing' }; Write-Output $created.id\"",
+      "phase": "acceptance",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "model_execution",
+        "network_access",
+        "tool_execution",
+        "external_workspace_mutation",
+        "deterministic_validation"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "acceptance.dev_down",
+      "command": "powershell -ExecutionPolicy Bypass -File .\\dev-down.ps1",
+      "phase": "acceptance",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "process_stop",
+        "loopback_service_stop"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
       "command_id": "validation.diff_check",
-      "command": "git diff --check e4e23028c6c78c4ab9a8e032677e71370ace7627..HEAD",
+      "command": "git diff --check a1d09d4ae8887405721efe9871881db788c5820a..HEAD",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -338,7 +641,7 @@
     },
     {
       "command_id": "validation.path_list",
-      "command": "git diff --name-only e103fc53bd985375f0513c0369eb9dcc18510004..HEAD",
+      "command": "git diff --name-only a1d09d4ae8887405721efe9871881db788c5820a..HEAD",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -360,7 +663,7 @@
     },
     {
       "command_id": "publication.push_branch",
-      "command": "git push origin owner/issue127-opencode-vertical-slice-v1",
+      "command": "git push origin owner/issue133-frontend-opencode-devup-v1",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -377,86 +680,6 @@
       "allowed_only_after_validation": true,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.python -m reverse_agent.project_gate startup-snapshot --state-di",
-      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.python -m reverse_agent.project_gate transition-command-plan --s",
-      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.python -m reverse_agent.project_gate transition-lint --state-dir",
-      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.python -m reverse_agent.project_gate transition-preflight --stat",
-      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": []

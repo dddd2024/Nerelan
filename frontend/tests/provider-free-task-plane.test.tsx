@@ -302,6 +302,98 @@ describe("provider-free HTTP task flow", () => {
     expect(executed.evidence).toHaveLength(2);
   });
 
+  it("createTask preserves the caller executor_kind and only falls back to fixture when omitted", async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    mockFetch
+      .mockImplementationOnce(async (_url, opts) => {
+        capturedBody = JSON.parse(String((opts as { body?: string }).body ?? "{}"));
+        return {
+          ok: true,
+          status: 201,
+          text: async () =>
+            JSON.stringify({
+              id: "task-passthrough-opencode",
+              title: "opencode task",
+              repository: "dddd2024/reverse-agent",
+              status: "QUEUED",
+              executor_kind: "opencode",
+              execution_id: "exec-opencode",
+              frontend_task: {
+                id: "task-passthrough-opencode",
+                title: "opencode task",
+                state: "WAITING_FOR_OWNER",
+                executor: "opencode",
+              },
+            }),
+        };
+      })
+      .mockImplementationOnce(async (_url, opts) => {
+        capturedBody = JSON.parse(String((opts as { body?: string }).body ?? "{}"));
+        return {
+          ok: true,
+          status: 201,
+          text: async () =>
+            JSON.stringify({
+              id: "task-passthrough-fixture",
+              title: "fixture task",
+              repository: "dddd2024/reverse-agent",
+              status: "QUEUED",
+              executor_kind: "deterministic_fixture",
+              execution_id: "exec-fixture",
+              frontend_task: {
+                id: "task-passthrough-fixture",
+                title: "fixture task",
+                state: "WAITING_FOR_OWNER",
+                executor: "fixture/provider-free",
+              },
+            }),
+        };
+      })
+      .mockImplementationOnce(async (_url, opts) => {
+        capturedBody = JSON.parse(String((opts as { body?: string }).body ?? "{}"));
+        return {
+          ok: true,
+          status: 201,
+          text: async () =>
+            JSON.stringify({
+              id: "task-passthrough-default",
+              title: "default task",
+              repository: "dddd2024/reverse-agent",
+              status: "QUEUED",
+              executor_kind: "deterministic_fixture",
+              execution_id: "exec-default",
+              frontend_task: {
+                id: "task-passthrough-default",
+                title: "default task",
+                state: "WAITING_FOR_OWNER",
+                executor: "fixture/provider-free",
+              },
+            }),
+        };
+      });
+
+    const { createTask } = await import("@/lib/task-client");
+
+    await createTask({
+      title: "opencode task",
+      executor_kind: "opencode",
+      model_profile_ref: "",
+    });
+    expect(capturedBody?.executor_kind).toBe("opencode");
+    expect(capturedBody?.model_profile_ref).toBe("");
+
+    await createTask({
+      title: "fixture task",
+      executor_kind: "deterministic_fixture",
+      model_profile_ref: "some-profile",
+    });
+    expect(capturedBody?.executor_kind).toBe("deterministic_fixture");
+    expect(capturedBody?.model_profile_ref).toBe("some-profile");
+
+    await createTask({ title: "default task" });
+    expect(capturedBody?.executor_kind).toBe("deterministic_fixture");
+  });
+
   it("executeTask POSTs to /api/tasks/{id}/execute", async () => {
     mockFetch.mockImplementationOnce(async () => ({
       ok: true,
@@ -502,8 +594,6 @@ describe("provider-free idempotency transport", () => {
       <NewTaskComposerWrapper submit={mockSubmit} />,
     );
 
-    await screen.findByLabelText("模型配置");
-
     fireEvent.change(screen.getByTestId("task-title-input"), {
       target: { value: "idempotency test" },
     });
@@ -513,10 +603,11 @@ describe("provider-free idempotency transport", () => {
       timeout: 1000,
     });
 
-    const input = mockSubmit.mock.calls[0][0];
+    const input = mockSubmit.mock.calls[0][0] as { title?: string; idempotencyKey?: string; executorKind?: string };
     expect(input.title).toBe("idempotency test");
+    expect(input.executorKind).toBe("opencode");
     expect(typeof input.idempotencyKey).toBe("string");
-    expect(input.idempotencyKey.length).toBeGreaterThan(0);
+    expect(input.idempotencyKey!.length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByTestId("task-title-input"), {
       target: { value: "idempotency test 2" },
@@ -526,8 +617,89 @@ describe("provider-free idempotency transport", () => {
       timeout: 1000,
     });
 
-    const secondInput = mockSubmit.mock.calls[1][0];
+    const secondInput = mockSubmit.mock.calls[1][0] as { idempotencyKey?: string };
     expect(secondInput.idempotencyKey).not.toBe(input.idempotencyKey);
+  });
+
+  it("fixture executor submission passes the model profile id through", async () => {
+    resetDefaultModelControlClientForTests();
+    const mockSubmit = vi.fn();
+
+    renderWithProviders(
+      <NewTaskComposerWrapper submit={mockSubmit} />,
+    );
+
+    fireEvent.change(screen.getByTestId("task-title-input"), {
+      target: { value: "fixture mode" },
+    });
+    fireEvent.click(screen.getByTestId("executor-option-deterministic_fixture"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("submit-new-task")).not.toBeDisabled();
+    }, { timeout: 3000 });
+
+    fireEvent.click(screen.getByTestId("submit-new-task"));
+
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1), {
+      timeout: 1000,
+    });
+
+    const input = mockSubmit.mock.calls[0][0] as {
+      executorKind?: string;
+      modelProfileId?: string;
+      title?: string;
+    };
+    expect(input.executorKind).toBe("deterministic_fixture");
+    expect(input.modelProfileId).toBe("coding-default");
+    expect(input.title).toBe("fixture mode");
+  });
+
+  it("fixture submission is disabled when no model profile is selected", async () => {
+    resetDefaultModelControlClientForTests();
+    const mockSubmit = vi.fn();
+
+    renderWithProviders(
+      <NewTaskComposerWrapper submit={mockSubmit} />,
+    );
+
+    fireEvent.change(screen.getByTestId("task-title-input"), {
+      target: { value: "no profile" },
+    });
+    fireEvent.click(screen.getByTestId("executor-option-deterministic_fixture"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("模型配置")).toBeInTheDocument();
+    }, { timeout: 3000 });
+
+    const select = screen.getByLabelText("模型配置") as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: "" } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("submit-new-task")).toBeDisabled();
+    }, { timeout: 1000 });
+
+    fireEvent.click(screen.getByTestId("submit-new-task"));
+    expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
+  it("OpenCode execution failure is not silently retried as deterministic_fixture", async () => {
+    mockFetch.mockImplementationOnce(async () => ({
+      ok: false,
+      status: 500,
+      text: async () => JSON.stringify({ error: "opencode unavailable" }),
+    }));
+
+    const { createTask } = await import("@/lib/task-client");
+
+    await expect(
+      createTask({
+        title: "opencode will fail",
+        executor_kind: "opencode",
+        model_profile_ref: "",
+      }),
+    ).rejects.toThrow(/500/);
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
   it("createTask forwards CreateTaskInput.idempotencyKey verbatim as POST body idempotency_key", async () => {
