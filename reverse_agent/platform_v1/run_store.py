@@ -23,14 +23,22 @@ from typing import Any, Mapping, Sequence
 TASK_STATUS_ORDER = (
     "QUEUED",
     "PREPARING_WORKSPACE",
+    "RUNNING",
     "RUNNING_FIXTURE",
     "VALIDATING",
+    "READY_FOR_REVIEW",
     "READY_FOR_REVIEW_FIXTURE",
     "BLOCKED",
     "FAILED",
     "CANCELLED",
 )
-TERMINAL_STATUSES = frozenset({"READY_FOR_REVIEW_FIXTURE", "BLOCKED", "FAILED", "CANCELLED"})
+TERMINAL_STATUSES = frozenset({
+    "READY_FOR_REVIEW",
+    "READY_FOR_REVIEW_FIXTURE",
+    "BLOCKED",
+    "FAILED",
+    "CANCELLED",
+})
 
 VALID_EVENT_TYPES = frozenset({
     "DISCOVERED",
@@ -49,7 +57,14 @@ TRANSITION_RULES: dict[str, tuple[str, ...]] = {
         "CANCELLED",
     ),
     "PREPARING_WORKSPACE": (
+        "RUNNING",
         "RUNNING_FIXTURE",
+        "BLOCKED",
+        "FAILED",
+        "CANCELLED",
+    ),
+    "RUNNING": (
+        "VALIDATING",
         "BLOCKED",
         "FAILED",
         "CANCELLED",
@@ -61,6 +76,7 @@ TRANSITION_RULES: dict[str, tuple[str, ...]] = {
         "CANCELLED",
     ),
     "VALIDATING": (
+        "READY_FOR_REVIEW",
         "READY_FOR_REVIEW_FIXTURE",
         "BLOCKED",
         "FAILED",
