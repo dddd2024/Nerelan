@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "intent_id": "pr132_opencode_backend_landing_v7",
+  "repository": "dddd2024/reverse-agent",
+  "source_pr": 132,
+  "locked_base_sha": "e4e23028c6c78c4ab9a8e032677e71370ace7627",
+  "allowed_merge_method": "merge",
+  "decision_identity": {
+    "decision_id": "decision_20260808_pr132_opencode_backend_landing_v7",
+    "decision_content_sha256": "5fb6e370fe930227a6df5d65c4a6f8f666f72e3661b4fa22966c37761bbf32c7"
+  },
+  "command_plan_sha256": "70d5e0d3eacec73e5c4cd2391586bd40d63f99e9e70c3ff9cb81f13188739f54",
+  "merge_tree_policy": "equal_to_accepted_head_tree",
+  "required_workflows": [
+    "CI",
+    "Decision Preflight",
+    "State Gate (pull_request)",
+    "State Gate (push)"
+  ],
+  "expires_at": "2026-08-15T23:59:59Z"
+}

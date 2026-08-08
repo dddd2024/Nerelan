@@ -1,7 +1,9 @@
+export type ExecutorKind = "deterministic_fixture" | "opencode";
+
 export interface BackendTaskCreatePayload {
   title: string;
   repository?: string;
-  executor_kind?: "deterministic_fixture";
+  executor_kind?: ExecutorKind;
   model_profile_ref?: string;
   permission_profile?: string;
   policy_ref?: string;
@@ -302,10 +304,20 @@ export async function createTask(
       executor: "fixture/provider-free",
     };
   }
+  const inputExecutor = (input as { executor_kind?: ExecutorKind }).executor_kind;
+  const allowedExecutors: Record<string, true> = {
+    deterministic_fixture: true,
+    opencode: true,
+  };
+  const executorKind: ExecutorKind =
+    inputExecutor && allowedExecutors[inputExecutor]
+      ? inputExecutor
+      : "deterministic_fixture";
+
   const body: Record<string, unknown> = {
     title: (input as { title?: string }).title ?? "untitled",
     repository: (input as { repository?: string }).repository ?? "dddd2024/reverse-agent",
-    executor_kind: "deterministic_fixture",
+    executor_kind: executorKind,
     model_profile_ref: (input as { model_profile_ref?: string }).model_profile_ref ?? "",
     permission_profile: (input as { permission_profile?: string }).permission_profile ?? "ASK_FOR_APPROVAL",
     policy_ref: (input as { policy_ref?: string }).policy_ref ?? "",

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260808_pr132_opencode_backend_landing_v7",
-  "round_id": "round_20260808_pr132_opencode_backend_landing_v7",
+  "decision_id": "decision_20260808_pr134_frontend_opencode_devup_landing_v1",
+  "round_id": "round_20260808_pr134_frontend_opencode_devup_landing_v1",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -26,8 +26,31 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "sync.fetch_pr132_branch",
-      "command": "git fetch origin owner/issue127-opencode-vertical-slice-v1",
+      "command_id": "sync.fetch_main",
+      "command": "git fetch origin main",
+      "phase": "bootstrap",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "sync.fetch_pr134_branch",
+      "command": "git fetch origin owner/issue133-frontend-opencode-devup-v1",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -50,7 +73,7 @@
     },
     {
       "command_id": "sync.inspect_remote_decision",
-      "command": "git show origin/owner/issue127-opencode-vertical-slice-v1:project_state/decision_packet.md",
+      "command": "git show origin/owner/issue133-frontend-opencode-devup-v1:project_state/decision_packet.md",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -71,10 +94,32 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "sync.fast_forward_pr132_branch",
-      "command": "git merge --ff-only origin/owner/issue127-opencode-vertical-slice-v1",
+      "command_id": "sync.switch_branch",
+      "command": "git switch owner/issue133-frontend-opencode-devup-v1",
       "phase": "bootstrap",
-      "required": false,
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_sync"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "sync.fast_forward_pr134_branch",
+      "command": "git merge --ff-only origin/owner/issue133-frontend-opencode-devup-v1",
+      "phase": "bootstrap",
+      "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
         0
@@ -115,8 +160,30 @@
       "allowed_mutated_paths": []
     },
     {
+      "command_id": "observation.git_main",
+      "command": "git rev-parse origin/main",
+      "phase": "status",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
       "command_id": "observation.merge_base",
-      "command": "git merge-base origin/main owner/issue127-opencode-vertical-slice-v1",
+      "command": "git merge-base HEAD origin/main",
       "phase": "status",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -159,8 +226,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "mutation.archive_pr129_intent",
-      "command": "powershell -NoProfile -Command \"Copy-Item 'project_state/mainline_merge_intents/active.json' 'project_state/mainline_merge_intents/archive/pr129_v5.json'\"",
+      "command_id": "mutation.archive_pr132_intent",
+      "command": "powershell -NoProfile -Command \"Copy-Item 'project_state/mainline_merge_intents/active.json' 'project_state/mainline_merge_intents/archive/pr132_v7.json'\"",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -179,12 +246,12 @@
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/archive/pr129_v5.json"
+        "project_state/mainline_merge_intents/archive/pr132_v7.json"
       ]
     },
     {
       "command_id": "observation.archive_hash_after",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/archive/pr129_v5.json').Hash.ToLower()\"",
+      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/archive/pr132_v7.json').Hash.ToLower()\"",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -316,7 +383,7 @@
     },
     {
       "command_id": "validation.diff_check",
-      "command": "git diff --check e4e23028c6c78c4ab9a8e032677e71370ace7627..HEAD",
+      "command": "git diff --check a1d09d4ae8887405721efe9871881db788c5820a..HEAD",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -338,7 +405,7 @@
     },
     {
       "command_id": "validation.path_list",
-      "command": "git diff --name-only e103fc53bd985375f0513c0369eb9dcc18510004..HEAD",
+      "command": "git diff --name-only f6c9bad0cfad9f380a917f1a8f8c14eb58a52466..HEAD",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -360,7 +427,7 @@
     },
     {
       "command_id": "publication.push_branch",
-      "command": "git push origin owner/issue127-opencode-vertical-slice-v1",
+      "command": "git push origin owner/issue133-frontend-opencode-devup-v1",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
