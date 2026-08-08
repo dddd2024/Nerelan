@@ -159,7 +159,15 @@ def _run(
 
     # ---- Step 1: POST /api/tasks ----
     create_body = {
-        "title": "Write file issue127_acceptance_output.txt containing exactly alpha-ok then run git diff --check",
+        "title": (
+            "Read pyproject.toml from the current worktree. "
+            "Confirm you are operating in the supplied worktree. "
+            "Run: pwd. "
+            "Create issue127_acceptance_output.txt containing exactly alpha-ok. "
+            "Read the file back and confirm content. "
+            "Do NOT commit, push, or modify any other repository file. "
+            "Run: git diff --check"
+        ),
         "repository": "dddd2024/reverse-agent",
         "executor_kind": "opencode",
         "model_profile_ref": model,
@@ -235,14 +243,25 @@ def _run(
     evidence = get_payload.get("evidence", [])
     has_executor_evidence = any(e.get("category") == "Executor" for e in evidence)
     has_validation_evidence = any(e.get("category") == "Validation" for e in evidence)
+    has_executor_action_evidence = any(
+        e.get("category") == "ExecutorAction" for e in evidence
+    )
     assert has_executor_evidence, "Executor evidence missing"
     assert has_validation_evidence, "Validation evidence missing"
+    assert has_executor_action_evidence, "ExecutorAction evidence missing"
     assert get_payload.get("validation_exit_code") == 0, (
         "Validation exit code should be 0, got %s" % get_payload.get("validation_exit_code")
     )
     assert len(get_payload.get("changed_files", [])) >= 1, (
         "changed_files must be non-empty"
     )
+    results["evidence_summary"] = {
+        "total": len(evidence),
+        "categories": sorted(set(e.get("category", "") for e in evidence)),
+        "executor_action_count": sum(
+            1 for e in evidence if e.get("category") == "ExecutorAction"
+        ),
+    }
 
     # Verify events
     event_types = [e.get("type", "") for e in get_payload.get("events", [])]
@@ -299,28 +318,146 @@ def _run(
     results["phase"].append("source_checkout_untouched_verified")
 
     # ---- Verify isolated worktree exists outside source ----
-    worktree_subdirs = []
+    worktree_files = []
+    worktree_dirs = []
     for root, dirs, files in os.walk(task_workspaces_root):
+        if ".git" in dirs or ".git" in files:
+            worktree_dirs.append(root)
         for f in files:
             if f == "issue127_acceptance_output.txt":
-                worktree_subdirs.append(os.path.join(root, f))
+                worktree_files.append(os.path.join(root, f))
+    worktree_dirs = sorted(set(worktree_dirs))
     results["acceptance_output_file"] = {
-        "found": len(worktree_subdirs) > 0,
-        "paths": worktree_subdirs[:5],
+        "found": len(worktree_files) > 0,
+        "paths": worktree_files[:5],
+        "worktree_dirs": worktree_dirs[:5],
     }
     assert results["acceptance_output_file"]["found"], (
         "Acceptance output file not found in worktree"
     )
     results["phase"].append("acceptance_output_file_verified")
 
-    # ---- Verify worktree is outside source ----
-    for wp in worktree_subdirs:
+    output_path = None
+    output_exact_match = False
+    for wp in worktree_files:
         abs_wp = os.path.abspath(wp)
         repo_sep = repo_dir + os.sep
         assert not abs_wp.startswith(repo_sep), (
             "Worktree file is inside source repo: %s" % abs_wp
         )
+        try:
+            content = Path(wp).read_text(encoding="utf-8")
+            if content.strip() == "alpha-ok" and output_path is None:
+                output_path = wp
+                output_exact_match = True
+        except OSError:
+            pass
+    assert output_path, "Could not read acceptance output file"
+    assert output_exact_match, (
+        "Output file content did not exactly match alpha-ok"
+    )
+    results["acceptance_output_file"]["output_path"] = output_path
+    results["acceptance_output_file"]["exact_match"] = output_exact_match
     results["phase"].append("worktree_outside_source_verified")
+
+    # ---- Verify worktree registration in source repo ----
+    source_worktree_list = subprocess.run(
+        ["git", "worktree", "list", "--porcelain"],
+        cwd=repo_dir,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    results["worktree_registration"] = {}
+    assert worktree_dirs, "No worktree directory found in task_workspaces"
+    wt_dir = worktree_dirs[0]
+    wt_dir_forward = wt_dir.replace("\\", "/")
+    wt_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=wt_dir,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    wt_is_inside = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        cwd=wt_dir,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    wt_git_file = os.path.join(wt_dir, ".git")
+    wt_git_file_content = ""
+    if os.path.isfile(wt_git_file):
+        try:
+            wt_git_file_content = Path(wt_git_file).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            pass
+    is_linked = wt_git_file_content.startswith("gitdir:") and os.path.isfile(wt_git_file)
+    wt_git_file = os.path.join(wt_dir, ".git")
+    wt_git_file_content = ""
+    if os.path.isfile(wt_git_file):
+        try:
+            wt_git_file_content = Path(wt_git_file).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            pass
+    is_linked = wt_git_file_content.startswith("gitdir:") and os.path.isfile(wt_git_file)
+    results["worktree_registration"] = {
+        "worktree_dir": wt_dir,
+        "listed_by_source_repo": (
+            wt_dir_forward in source_worktree_list.stdout
+            or wt_dir in source_worktree_list.stdout
+        ),
+        "worktree_head": wt_head.stdout.strip(),
+        "source_head": source_hash_before.stdout.strip(),
+        "head_matches_base": wt_head.stdout.strip() == source_hash_before.stdout.strip(),
+        "is_linked_worktree": is_linked,
+        "is_not_standalone_init": is_linked,
+        "is_inside_worktree": "true" in wt_is_inside.stdout,
+    }
+    assert results["worktree_registration"]["listed_by_source_repo"], (
+        "Worktree not listed by source repository"
+    )
+    assert results["worktree_registration"]["head_matches_base"], (
+        "Worktree HEAD does not match base SHA"
+    )
+    assert results["worktree_registration"]["is_not_standalone_init"], (
+        "Worktree appears to be a standalone git init, not linked"
+    )
+    results["phase"].append("worktree_registration_verified")
+
+    # ---- Verify existing repo file readable from worktree ----
+    pyproject_path = os.path.join(wt_dir, "pyproject.toml")
+    pyproject_exists = os.path.exists(pyproject_path)
+    pyproject_size = os.path.getsize(pyproject_path) if pyproject_exists else 0
+    results["existing_repo_file_read"] = {
+        "path": pyproject_path,
+        "exists": pyproject_exists,
+        "size": pyproject_size,
+    }
+    assert pyproject_exists and pyproject_size > 0, (
+        "Existing reverse-agent file not readable from worktree"
+    )
+    results["phase"].append("existing_repo_file_read_verified")
+
+    # ---- Changed-file stats verification ----
+    changed_files = get_payload.get("changed_files", [])
+    results["changed_file_stats"] = {
+        "count": len(changed_files),
+        "files": changed_files,
+    }
+    alpha_entry = None
+    for f in changed_files:
+        if f.get("path") == "issue127_acceptance_output.txt":
+            alpha_entry = f
+            break
+    results["changed_file_stats"]["acceptance_file_entry"] = alpha_entry
+    assert alpha_entry is not None, "Acceptance output file not in changed_files"
+    assert alpha_entry.get("additions") == 1, (
+        "Acceptance file additions should be 1, got %s"
+        % alpha_entry.get("additions")
+    )
+    results["phase"].append("changed_file_stats_verified")
 
     # ---- Restart/readback persistence ----
     restarted = TaskStore(db_path=db_path)
@@ -363,9 +500,9 @@ def _main(argv: list[str]) -> int:
         error_result = {
             "status": "FAILED",
             "error": "%s:%s" % (exc.__class__.__name__, exc),
-            "model_calls": 0,
-            "codex_calls": 0,
-            "openhands_calls": 0,
+            "opencode_child_process_attempted": False,
+            "codex_runtime_calls": 0,
+            "openhands_runtime_calls": 0,
             "phase": [],
         }
         print(json.dumps(error_result, indent=2, sort_keys=True))

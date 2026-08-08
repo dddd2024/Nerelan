@@ -42,6 +42,7 @@ class ExecutorResult:
     execution_id: str = ""
     process_exit_code: int | None = None
     failure_classification: str = ""
+    executor_evidence: list[dict[str, Any]] = field(default_factory=list)
 
 
 FixtureExecutorResult = ExecutorResult

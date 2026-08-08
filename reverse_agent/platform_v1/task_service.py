@@ -341,14 +341,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 review_status = "READY_FOR_REVIEW" if executor_kind != "deterministic_fixture" else "READY_FOR_REVIEW_FIXTURE"
                 task = self.store.transition_to(task.id, "PREPARING_WORKSPACE")
                 task = self.store.transition_to(task.id, running_status)
-                task = self.store.transition_to(task.id, "VALIDATING")
-                self.store.add_event(
-                    task.id,
-                    event_type="EXECUTOR_RUNNING",
-                    title="Executor running",
-                    description="Executor %s started" % executor_kind,
-                    metadata={"executor_kind": executor_kind},
-                )
+                task = self.store.get_task(task.id)
                 executor_kwargs: dict[str, Any] = _build_executor_kwargs(task)
                 try:
                     result = self._run_executor(
@@ -366,8 +359,9 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     task = self.store.get_task(task.id)
                     self._send_json(HTTPStatus.BAD_REQUEST, self._task_response(task))
                     return
+                task = self.store.get_task(task.id)
                 if result["success"]:
-                    task = self.store.transition_to(task.id, review_status)
+                    self.store.transition_to(task.id, "VALIDATING")
                     self.store.add_event(
                         task.id,
                         event_type="VALIDATED",
@@ -375,6 +369,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
                         description=f"{result['validation_command_id']} passed",
                         metadata={"validation_exit_code": result["validation_exit_code"]},
                     )
+                    task = self.store.transition_to(task.id, review_status)
                 else:
                     classification = (
                         "blocked"
@@ -387,15 +382,6 @@ class _TaskHandler(BaseHTTPRequestHandler):
                         task.id,
                         classification=classification,
                         detail=result.get("error", "execution failed"),
-                    )
-                    self.store.add_event(
-                        task.id,
-                        event_type="EXECUTOR_FINISHED",
-                        title="Executor finished",
-                        description=result.get("error", "execution failed"),
-                        metadata={
-                            "validation_exit_code": result["validation_exit_code"],
-                        },
                     )
                 task = self.store.get_task(task.id)
                 self._send_json(HTTPStatus.OK, self._task_response(task))
@@ -457,6 +443,16 @@ class _TaskHandler(BaseHTTPRequestHandler):
             status="pass",
             detail=executor_detail,
         )
+        for item in result.executor_evidence:
+            self.store.add_evidence(
+                task.id,
+                category=str(item.get("category", "ExecutorAction")),
+                label=str(item.get("label", ""))[:512],
+                value=str(item.get("value", ""))[:512],
+                status=str(item.get("status", "info")),
+                detail=str(item.get("detail", ""))[:512],
+                raw_json_digest="",
+            )
         return {
             "success": result.success,
             "validation_command_id": result.validation_command_id,
