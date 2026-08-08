@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260808_issue127_opencode_vertical_slice_v1",
-  "round_id": "round_20260808_issue127_opencode_vertical_slice_v1",
+  "decision_id": "decision_20260808_issue127_opencode_vertical_slice_v3",
+  "round_id": "round_20260808_issue127_opencode_vertical_slice_v3",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -188,8 +188,8 @@
       ]
     },
     {
-      "command_id": "test.opencode_executor_unit",
-      "command": "python -m pytest tests/platform_v1 -q",
+      "command_id": "test.opencode_executor_focused",
+      "command": "python -m pytest tests/platform_v1/test_opencode_executor.py -q",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -210,8 +210,32 @@
       "allowed_mutated_paths": []
     },
     {
+      "command_id": "test.platform_v1_full_diagnostic",
+      "command": "python -m pytest tests/platform_v1 -q",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks",
+        "landing_governance_failure_classification"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
       "command_id": "acceptance.opencode_task_plane",
-      "command": "python -m reverse_agent.platform_v1.opencode_task_plane_acceptance --repo-dir F:/reverse-agent --workspace-root F:/reverse-agent-workspaces/issue127-opencode-v1 --model sensetime/sensenova-6.7-flash-lite",
+      "command": "python -m reverse_agent.platform_v1.opencode_task_plane_acceptance --repo-dir F:/reverse-agent --workspace-root F:/reverse-agent-workspaces/issue127-opencode-v3 --model sensetime/sensenova-6.7-flash-lite",
       "phase": "acceptance",
       "required": true,
       "required_evidence_source": "local_command_evidence",
