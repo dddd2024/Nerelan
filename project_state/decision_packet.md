@@ -3,25 +3,27 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260808_issue136_agent_canvas_direct_reuse_spike_pathb_v3",
-  "round_id": "round_20260808_issue136_agent_canvas_direct_reuse_spike_pathb_v3",
+  "decision_id": "decision_20260808_issue136_agent_canvas_pathb_cleanup_v4",
+  "round_id": "round_20260808_issue136_agent_canvas_pathb_cleanup_v4",
   "status": "APPROVED",
   "mainline": "engineering_branch",
-  "skill_profiles": ["reverse-agent-iteration@v2"]
+  "skill_profiles": [
+    "reverse-agent-iteration@v2"
+  ]
 }
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260808_issue136_agent_canvas_direct_reuse_spike_v2",
-  "follows_last_round_id": "round_20260808_issue136_agent_canvas_direct_reuse_spike_v2",
-  "previous_audit_outcome": "ISSUE136_STAGE_A_V2_BLOCKED_ON_NPM_PREFIX_ROOT_PACKAGE_JSON",
-  "workstream_id": "issue136-agent-canvas-direct-reuse-spike-pathb-v3",
+  "follows_last_decision_id": "decision_20260808_issue136_agent_canvas_direct_reuse_spike_pathb_v3",
+  "follows_last_round_id": "round_20260808_issue136_agent_canvas_direct_reuse_spike_pathb_v3",
+  "previous_audit_outcome": "ISSUE136_STAGE_A_PATHB_V3_BLOCKED_POWERSHELL_OUTER_EXPANSION_CLEANUP",
+  "workstream_id": "issue136-agent-canvas-pathb-cleanup-v4",
   "source_issue": 136,
   "parent_issue": 127,
   "required_branch": "owner/issue136-agent-canvas-reuse-spike-v2",
-  "starting_head": "9356f30b7bfe76aea5da560388a997aad4198258",
+  "starting_head": "be272f65ebdcc0ce8c8d833c003df467b0f9a4ce",
   "activation_base_sha": "dd4cb074ab5b9baacf300706878b29bd745f12c3",
   "risk_tier": "R3",
   "governance_artifact_risk_tier": "R3",
@@ -55,23 +57,18 @@
   "package_installation_allowed": false,
   "provider_configuration_mutation_allowed": false,
   "credential_value_access_allowed": false,
-  "bounded_external_source_access_allowed": true,
+  "bounded_external_source_access_allowed": false,
   "repair_attempt_limit": 0,
   "infrastructure_retry_limit": 0,
   "audit_generation_allowed": false,
   "prior_audits_immutable": true,
   "bootstrap_state_initial": "BOOTSTRAP_OPEN",
-  "known_preexisting_external_evidence": {
-    "upstream_clone": "F:/reverse-agent-upstreams/agent-canvas-v1.6.1",
-    "upstream_tag": "v1.6.1",
-    "upstream_head": "43f091baf135142ed6c146f888f44a957141193f",
-    "official_upstream_url": "https://github.com/OpenHands/agent-canvas.git",
-    "primary_harness": "F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe",
-    "package": "@openhands/agent-canvas@1.6.1",
-    "primary_install_result": "PASS_WITH_CURRENT_REVERSE_AGENT_PEERS",
-    "unexpected_cleanup_target": "package.json"
+  "cleanup_only_paths": [
+    "package.json"
+  ],
+  "shell_safety_policy": {
+    "cleanup_command_rule": "Child PowerShell is invoked with an outer single-quoted -Command argument. $status is expanded only by the child PowerShell, never the parent shell."
   },
-  "cleanup_only_paths": ["package.json"],
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
@@ -205,7 +202,7 @@
     },
     {
       "command_id": "cleanup.remove_known_root_package",
-      "command": "powershell -NoProfile -Command \"$s=(git status --short -- package.json); if ($s -ne '?? package.json') { throw ('unexpected package.json state: '+$s) }; Remove-Item -LiteralPath 'package.json' -Force\"",
+      "command": "powershell -NoProfile -Command '$status = (& git status --short -- package.json); if ($status -ne \"?? package.json\") { throw (\"unexpected package.json state: \" + $status) }; Remove-Item -LiteralPath \"package.json\" -Force'",
       "phase": "cleanup",
       "required": true,
       "expected_exit_codes": [0],
@@ -217,7 +214,7 @@
     },
     {
       "command_id": "cleanup.verify_root_package_absent",
-      "command": "powershell -NoProfile -Command \"if (Test-Path -LiteralPath 'package.json') { throw 'root package.json still exists' }\"",
+      "command": "powershell -NoProfile -Command 'if (Test-Path -LiteralPath \"package.json\") { throw \"root package.json still exists\" }'",
       "phase": "cleanup",
       "required": true,
       "expected_exit_codes": [0],
@@ -227,318 +224,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "upstream.remote_identity",
-      "command": "git -C F:/reverse-agent-upstreams/agent-canvas-v1.6.1 remote -v",
-      "phase": "research",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["external_source_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "upstream.clean_status",
-      "command": "git -C F:/reverse-agent-upstreams/agent-canvas-v1.6.1 status --short",
-      "phase": "research",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["external_source_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "upstream.exact_tag",
-      "command": "git -C F:/reverse-agent-upstreams/agent-canvas-v1.6.1 describe --tags --exact-match",
-      "phase": "research",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["external_source_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "upstream.exact_head",
-      "command": "git -C F:/reverse-agent-upstreams/agent-canvas-v1.6.1 rev-parse HEAD",
-      "phase": "research",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["external_source_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "probe.verify_primary_package",
-      "command": "powershell -NoProfile -Command \"$p='F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe/node_modules/@openhands/agent-canvas/package.json'; if (!(Test-Path -LiteralPath $p)) { throw 'Agent Canvas package missing from primary harness' }; $j=Get-Content -Raw -LiteralPath $p | ConvertFrom-Json; if ($j.version -ne '1.6.1') { throw ('unexpected Agent Canvas version: '+$j.version) }; Write-Output $j.version\"",
-      "phase": "research",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["external_source_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "probe.verify_primary_peers",
-      "command": "npm --prefix F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe ls react react-dom react-router @openhands/agent-canvas --depth=0",
-      "phase": "research",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["dependency_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "reference.cli_help",
-      "command": "node F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe/node_modules/@openhands/agent-canvas/bin/agent-canvas.mjs --help",
-      "phase": "research",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["external_source_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "reference.port_precheck",
-      "command": "powershell -NoProfile -Command \"if (Test-NetConnection 127.0.0.1 -Port 18080 -InformationLevel Quiet -WarningAction SilentlyContinue) { throw 'port 18080 already occupied' }\"",
-      "phase": "research",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["local_network_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "reference.start_frontend_only",
-      "command": "powershell -NoProfile -Command \"$meta='F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe/reference-process.json'; if (Test-Path -LiteralPath $meta) { throw 'reference process metadata already exists' }; $node=(Get-Command node.exe -ErrorAction Stop).Source; $p=Start-Process -FilePath $node -ArgumentList @('F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe/node_modules/@openhands/agent-canvas/bin/agent-canvas.mjs','--frontend-only','--port','18080') -WorkingDirectory 'F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe' -PassThru; [ordered]@{pid=$p.Id;path=$node;start_time=$p.StartTime.ToUniversalTime().ToString('o')} | ConvertTo-Json | Set-Content -Encoding UTF8 -LiteralPath $meta; Write-Output $p.Id\"",
-      "phase": "research",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["external_scratch_mutation", "local_process_start"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "reference.health",
-      "command": "powershell -NoProfile -Command \"$ok=$false; for($i=0;$i -lt 30;$i++){ try { $r=Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:18080/' -TimeoutSec 2; if($r.StatusCode -eq 200){$ok=$true; break} } catch {}; Start-Sleep -Seconds 1 }; if(-not $ok){ throw 'Agent Canvas reference did not become healthy' }\"",
-      "phase": "research",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["local_network_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "artifact.prepare_directory",
-      "command": "powershell -NoProfile -Command \"New-Item -ItemType Directory -Force -Path 'frontend/artifacts/agent-canvas-v1.6.1' | Out-Null\"",
-      "phase": "evidence",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["evidence_artifact_mutation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "allowed_mutated_paths": ["frontend/artifacts/agent-canvas-v1.6.1/**"]
-    },
-    {
-      "command_id": "reference.screenshot",
-      "command": "powershell -NoProfile -Command \"$c=@(); if(${env:ProgramFiles(x86)}){$c+=(Join-Path ${env:ProgramFiles(x86)} 'Microsoft/Edge/Application/msedge.exe')}; if($env:ProgramFiles){$c+=(Join-Path $env:ProgramFiles 'Microsoft/Edge/Application/msedge.exe')}; $edge=$c | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1; if(-not $edge){$cmd=Get-Command msedge.exe -ErrorAction SilentlyContinue; if($cmd){$edge=$cmd.Source}}; if(-not $edge){throw 'Microsoft Edge not found'}; & $edge --headless=new --disable-gpu --window-size=1440,900 --screenshot='F:/reverse-agent/frontend/artifacts/agent-canvas-v1.6.1/reference-home-1440x900.png' 'http://127.0.0.1:18080/'; if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}\"",
-      "phase": "evidence",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["evidence_artifact_mutation", "local_browser_capture"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "allowed_mutated_paths": ["frontend/artifacts/agent-canvas-v1.6.1/reference-home-1440x900.png"]
-    },
-    {
-      "command_id": "reference.stop",
-      "command": "powershell -NoProfile -Command \"$meta='F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe/reference-process.json'; $m=Get-Content -Raw -LiteralPath $meta | ConvertFrom-Json; $p=Get-Process -Id ([int]$m.pid) -ErrorAction SilentlyContinue; if(-not $p){Write-Output 'already_exited'; exit 0}; if($p.Path -ne $m.path){throw 'reference process path identity mismatch'}; $recorded=[datetime]::Parse($m.start_time).ToUniversalTime(); $delta=[math]::Abs(($p.StartTime.ToUniversalTime()-$recorded).TotalMilliseconds); if($delta -gt 100){throw 'reference process start_time identity mismatch'}; taskkill /PID $p.Id /T /F; if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}\"",
-      "phase": "cleanup",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["bounded_process_stop"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "reference.port_closed",
-      "command": "powershell -NoProfile -Command \"if (Test-NetConnection 127.0.0.1 -Port 18080 -InformationLevel Quiet -WarningAction SilentlyContinue) { throw 'port 18080 still open' }\"",
-      "phase": "cleanup",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["local_network_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "baseline.port_precheck",
-      "command": "powershell -NoProfile -Command \"if (Test-NetConnection 127.0.0.1 -Port 18081 -InformationLevel Quiet -WarningAction SilentlyContinue) { throw 'port 18081 already occupied' }\"",
-      "phase": "research",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["local_network_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "baseline.start_mock",
-      "command": "powershell -NoProfile -Command \"$meta='F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe/reverse-agent-process.json'; if (Test-Path -LiteralPath $meta) { throw 'reverse-agent process metadata already exists' }; $cmd=(Get-Command cmd.exe -ErrorAction Stop).Source; $p=Start-Process -FilePath $cmd -ArgumentList @('/d','/s','/c','npm --prefix frontend run dev:mock -- --host 127.0.0.1 --port 18081 --strictPort') -WorkingDirectory 'F:/reverse-agent' -PassThru; [ordered]@{pid=$p.Id;path=$cmd;start_time=$p.StartTime.ToUniversalTime().ToString('o')} | ConvertTo-Json | Set-Content -Encoding UTF8 -LiteralPath $meta; Write-Output $p.Id\"",
-      "phase": "research",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["external_scratch_mutation", "local_process_start"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "baseline.health",
-      "command": "powershell -NoProfile -Command \"$ok=$false; for($i=0;$i -lt 30;$i++){ try { $r=Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:18081/' -TimeoutSec 2; if($r.StatusCode -eq 200){$ok=$true; break} } catch {}; Start-Sleep -Seconds 1 }; if(-not $ok){ throw 'reverse-agent mock frontend did not become healthy' }\"",
-      "phase": "research",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["local_network_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "baseline.screenshot",
-      "command": "powershell -NoProfile -Command \"$c=@(); if(${env:ProgramFiles(x86)}){$c+=(Join-Path ${env:ProgramFiles(x86)} 'Microsoft/Edge/Application/msedge.exe')}; if($env:ProgramFiles){$c+=(Join-Path $env:ProgramFiles 'Microsoft/Edge/Application/msedge.exe')}; $edge=$c | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1; if(-not $edge){$cmd=Get-Command msedge.exe -ErrorAction SilentlyContinue; if($cmd){$edge=$cmd.Source}}; if(-not $edge){throw 'Microsoft Edge not found'}; & $edge --headless=new --disable-gpu --window-size=1440,900 --screenshot='F:/reverse-agent/frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-current-1440x900.png' 'http://127.0.0.1:18081/'; if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}\"",
-      "phase": "evidence",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["evidence_artifact_mutation", "local_browser_capture"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "allowed_mutated_paths": ["frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-current-1440x900.png"]
-    },
-    {
-      "command_id": "baseline.stop",
-      "command": "powershell -NoProfile -Command \"$meta='F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe/reverse-agent-process.json'; $m=Get-Content -Raw -LiteralPath $meta | ConvertFrom-Json; $p=Get-Process -Id ([int]$m.pid) -ErrorAction SilentlyContinue; if(-not $p){Write-Output 'already_exited'; exit 0}; if($p.Path -ne $m.path){throw 'reverse-agent process path identity mismatch'}; $recorded=[datetime]::Parse($m.start_time).ToUniversalTime(); $delta=[math]::Abs(($p.StartTime.ToUniversalTime()-$recorded).TotalMilliseconds); if($delta -gt 100){throw 'reverse-agent process start_time identity mismatch'}; taskkill /PID $p.Id /T /F; if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}\"",
-      "phase": "cleanup",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["bounded_process_stop"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "baseline.port_closed",
-      "command": "powershell -NoProfile -Command \"if (Test-NetConnection 127.0.0.1 -Port 18081 -InformationLevel Quiet -WarningAction SilentlyContinue) { throw 'port 18081 still open' }\"",
-      "phase": "cleanup",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["local_network_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "analysis.sidebar_dependencies",
-      "command": "powershell -NoProfile -Command \"Select-String -Path 'F:/reverse-agent-upstreams/agent-canvas-v1.6.1/src/components/features/sidebar/sidebar.tsx' -Pattern 'useSettings|useConfig|useNavigation|useActiveBackendContext|useBackendsHealth|useSidebarStore|SettingsModal|AddBackendModal|ManageBackendsModal'\"",
-      "phase": "research",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["external_source_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "analysis.conversation_dependencies",
-      "command": "powershell -NoProfile -Command \"Select-String -Path 'F:/reverse-agent-upstreams/agent-canvas-v1.6.1/src/components/features/conversation/conversation-main/conversation-main.tsx' -Pattern 'ChatInterfaceWrapper|ConversationTabContent|ConversationNameWithStatus|ConversationTabs|useResizablePanels|useConversationStore|SidebarMobileMenuToggle'\"",
-      "phase": "research",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["external_source_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "analysis.public_exports",
-      "command": "powershell -NoProfile -Command \"Get-Content 'F:/reverse-agent-upstreams/agent-canvas-v1.6.1/src/components/sidebar/index.ts','F:/reverse-agent-upstreams/agent-canvas-v1.6.1/src/components/conversation/index.ts','F:/reverse-agent-upstreams/agent-canvas-v1.6.1/src/components/files/index.ts','F:/reverse-agent-upstreams/agent-canvas-v1.6.1/src/components/settings/index.ts','F:/reverse-agent-upstreams/agent-canvas-v1.6.1/src/components/terminal/index.ts'\"",
-      "phase": "research",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["external_source_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "test.frontend",
-      "command": "npm --prefix frontend test",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "test.frontend_typecheck",
-      "command": "npm --prefix frontend run typecheck",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "test.frontend_lint",
-      "command": "npm --prefix frontend run lint",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "test.frontend_build",
-      "command": "npm --prefix frontend run build",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "validation.diff_check",
-      "command": "git diff --check dd4cb074ab5b9baacf300706878b29bd745f12c3..HEAD",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["diff_validation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "validation.status",
+      "command_id": "validation.git_status",
       "command": "git status --short",
       "phase": "validation",
       "required": true,
@@ -549,24 +235,24 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
+      "command_id": "validation.working_diff_check",
+      "command": "git diff --check",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["diff_validation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
       "command_id": "stage.gates",
       "command": "git add project_state/gates/bootstrap_state.json project_state/gates/command_plan.json project_state/gates/startup_snapshot.json project_state/gates/transition_command_plan_preview.json project_state/gates/transition_preflight_result.json",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["repository_staging"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "stage.report",
-      "command": "git add frontend/AGENT_CANVAS_DIRECT_REUSE_SPIKE.md frontend/artifacts/agent-canvas-v1.6.1/reference-home-1440x900.png frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-current-1440x900.png",
-      "phase": "publication",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_staging"],
+      "operations": ["repository_stage"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -582,8 +268,19 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "publication.commit_evidence",
-      "command": "git commit -m \"frontend: evaluate direct Agent Canvas reuse\"",
+      "command_id": "validation.cached_paths",
+      "command": "git diff --cached --name-only",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "publication.commit",
+      "command": "git commit -m \"governance: record issue136 v4 cleanup\"",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -593,8 +290,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "validation.changed_paths",
-      "command": "git diff --name-only dd4cb074ab5b9baacf300706878b29bd745f12c3..HEAD",
+      "command_id": "validation.path_list",
+      "command": "git diff --name-only be272f65ebdcc0ce8c8d833c003df467b0f9a4ce..HEAD",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -615,7 +312,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "publication.push_branch",
+      "command_id": "publication.push",
       "command": "git push origin owner/issue136-agent-canvas-reuse-spike-v2",
       "phase": "publication",
       "required": true,
@@ -623,13 +320,12 @@
       "execution_surface": "local",
       "operations": ["push", "network_access"],
       "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_only_after_validation": true
+      "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "observation.final_head",
+      "command_id": "publication.local_head",
       "command": "git rev-parse HEAD",
-      "phase": "status",
+      "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
@@ -638,9 +334,9 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "observation.final_remote_head",
+      "command_id": "publication.remote_head",
       "command": "git rev-parse origin/owner/issue136-agent-canvas-reuse-spike-v2",
-      "phase": "status",
+      "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
@@ -650,26 +346,18 @@
     }
   ],
   "allowed_mutated_paths": [
-    "package.json",
     "project_state/decision_packet.md",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "frontend/AGENT_CANVAS_DIRECT_REUSE_SPIKE.md",
-    "frontend/artifacts/agent-canvas-v1.6.1/**"
+    "package.json"
   ],
   "reference_paths": [
     "AGENTS.md",
-    "frontend/package.json",
-    "frontend/src/**",
-    "frontend/tests/**",
-    "frontend/OPENHANDS_REUSE_MAP.md",
-    "frontend/OPENHANDS_VISUAL_ACCEPTANCE.md",
     "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py",
-    "tests/test_control_plane_transition.py"
+    "project_state/schemas/**"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -679,24 +367,15 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "forbidden_mutated_paths": [
-    "AGENTS.md",
-    "README.md",
-    "pyproject.toml",
-    "requirements*.txt",
-    ".github/**",
-    "dev-up.ps1",
-    "dev-down.ps1",
+    "frontend/**",
     "reverse_agent/**",
     "tests/**",
+    ".github/**",
     "docs/**",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "frontend/src/**",
-    "frontend/tests/**",
+    "dev-up.ps1",
+    "dev-down.ps1",
     "project_state/mainline_merge_intents/**",
     "project_state/current_state.json",
-    "project_state/state_manifest.json",
-    "project_state/artifact_index.json",
     "project_state/schemas/**",
     "project_state/rounds/**",
     "project_state/audits/**"
@@ -704,6 +383,7 @@
   "forbidden_operations": [
     "direct_push_main",
     "auto_merge",
+    "merge",
     "force_push",
     "rebase",
     "amend",
@@ -715,11 +395,11 @@
     "model_api_invocation",
     "opencode_invocation",
     "codex_invocation",
-    "openhands_agent_invocation",
-    "provider_configuration_mutation",
+    "openhands_invocation",
     "package_installation",
-    "production_frontend_mutation",
-    "publication_controller_implementation"
+    "provider_configuration_mutation",
+    "external_source_mutation",
+    "production_frontend_mutation"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -729,7 +409,7 @@
     "destructive_operations_allowed": false,
     "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
-    "local_network_exceptions": ["127.0.0.1:18080", "127.0.0.1:18081"],
+    "local_network_exceptions": [],
     "ci_network_exceptions": [],
     "remote_observation_read_only_allowed": true,
     "direct_push_to_main_allowed": false,
@@ -738,22 +418,23 @@
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false
   },
-  "stage_a_selection_rule": {
-    "accepted_dispositions": [
-      "AGENT_CANVAS_PACKAGE_EMBED_ACCEPTED",
-      "AGENT_CANVAS_PINNED_SOURCE_FORK_SELECTED"
-    ],
-    "package_embed_requires": "mature workbench shell usable with thin reverse-agent presentation/data adapters only",
-    "package_embed_reject_if_requires": [
-      "OpenHands Agent Server API emulation",
-      "OpenHands conversation API emulation",
-      "large settings/config compatibility backend",
-      "backend registry emulation",
-      "second execution state model",
-      "large OpenHands provider/context compatibility graph"
-    ],
-    "third_structural_rewrite_option_allowed": false
-  },
-  "terminal_target": "ISSUE136_STAGE_A_DIRECT_REUSE_DISPOSITION_READY_FOR_OWNER_REVIEW"
+  "path_risk_floor": [
+    {
+      "pattern": "project_state/decision_packet.md",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "project_state/gates/**",
+      "minimum_risk": "R2"
+    }
+  ],
+  "acceptance": {
+    "root_package_before": "?? package.json",
+    "root_package_after": "ABSENT",
+    "tracked_product_changes": 0,
+    "model_calls": 0,
+    "package_installs": 0,
+    "terminal": "ISSUE136_PATHB_V4_CLEANUP_READY_FOR_OWNER_CONTINUATION"
+  }
 }
 ```
