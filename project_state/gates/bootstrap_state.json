@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260808_issue127_opencode_vertical_slice_v4",
-  "round_id": "round_20260808_issue127_opencode_vertical_slice_v4",
-  "expired_at": "2026-08-08T04:33:11+00:00"
+  "decision_id": "decision_20260808_pr132_opencode_backend_landing_v7",
+  "round_id": "round_20260808_pr132_opencode_backend_landing_v7",
+  "expired_at": "2026-08-08T04:54:40+00:00"
 }
