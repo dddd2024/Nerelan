@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260807_pr129_provider_free_task_plane_landing_v5",
-  "round_id": "round_20260807_pr129_provider_free_task_plane_landing_v5",
-  "expired_at": "2026-08-07T15:14:43+00:00"
+  "decision_id": "decision_20260807_issue130_real_executor_spike_v1",
+  "round_id": "round_20260807_issue130_real_executor_spike_v1",
+  "expired_at": "2026-08-08T01:17:25+00:00"
 }
