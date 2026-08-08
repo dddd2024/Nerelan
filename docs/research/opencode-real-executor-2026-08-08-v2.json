@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "report": "issue131_opencode_real_executor_v2",
+  "date": "2026-08-08",
+  "note": "v2 report; v1 reports (opencode-real-executor-2026-08-08.md/.json) left immutable",
+
+  "repository_authority": {
+    "repository": "dddd2024/reverse-agent",
+    "local_path": "F:/reverse-agent",
+    "branch": "owner/issue131-opencode-real-executor-v1",
+    "main_base_sha": "e4e23028c6c78c4ab9a8e032677e71370ace7627",
+    "starting_head_v1_final": "29d44637ed7c33db390d5cf1bf64ae2f77609c0b",
+    "merge_base_main_branch": "e4e23028c6c78c4ab9a8e032677e71370ace7627"
+  },
+
+  "v2_decision": {
+    "decision_id": "decision_20260808_issue131_opencode_real_executor_v2",
+    "round_id": "round_20260808_issue131_opencode_real_executor_v2",
+    "follows_last_decision_id": "decision_20260808_issue131_opencode_real_executor_v1",
+    "previous_audit_outcome": "ISSUE131_V1_BLOCKED_CLI_NOT_FOUND_WITH_PACKAGE_NAME_FALSE_NEGATIVE",
+    "risk_tier": "R3",
+    "activation_base_sha": "e4e23028c6c78c4ab9a8e032677e71370ace7627",
+    "required_branch": "owner/issue131-opencode-real-executor-v1",
+    "starting_head": "29d44637ed7c33db390d5cf1bf64ae2f77609c0b",
+    "decision_commit": "88503d6817e71025164292d31b171b68a5dc7913",
+    "package_installation_allowed": true,
+    "allowed_package": "npm:opencode-ai@latest",
+    "opencode_invocation_allowed": true,
+    "codex_invocation_allowed": false,
+    "openhands_invocation_allowed": false,
+    "provider_configuration_mutation_allowed": false,
+    "credential_value_access_allowed": false,
+    "pr_creation_allowed": false,
+    "merge_allowed": false,
+    "mark_ready_allowed": false,
+    "release_allowed": false
+  },
+
+  "gates": {
+    "startup_snapshot": "PASSED",
+    "transition_command_plan": "PASSED",
+    "transition_command_plan_commands": 20,
+    "transition_lint": "PASSED",
+    "transition_preflight": "PRE_EXECUTION_AUTHORIZED",
+    "preflight_branch": "owner/issue131-opencode-real-executor-v1",
+    "preflight_base": "e4e23028c6c78c4ab9a8e032677e71370ace7627",
+    "preflight_merge_base": "e4e23028c6c78c4ab9a8e032677e71370ace7627",
+    "preflight_decision_commit": "88503d6817e71025164292d31b171b68a5dc7913",
+    "blocking_reasons": [],
+    "gate_commit": "aca47436d243503a95078167db8e16e47698b566"
+  },
+
+  "npm_package": {
+    "query": "npm view opencode-ai name version dist-tags.latest",
+    "exit_code": 0,
+    "name": "opencode-ai",
+    "version": "1.18.15",
+    "dist_tags_latest": "1.18.15"
+  },
+
+  "cli": {
+    "install_command": "npm install -g opencode-ai@latest",
+    "install_result": "success",
+    "executable_path": "C:\\Users\\wjc27\\AppData\\Roaming\\npm\\opencode",
+    "version": "1.18.15",
+    "observed_run_flags": [
+      "--model", "--dir", "--format", "--agent", "--auto",
+      "--print-logs", "--log-level", "--command", "--continue", "--session",
+      "--fork", "--share", "--file", "--title", "--attach", "--password",
+      "--username", "--port", "--variant", "--thinking", "--interactive"
+    ],
+    "flags_used_for_fixture": ["--model", "--dir", "--format", "--auto", "--print-logs"]
+  },
+
+  "provider_model": {
+    "models_observed": [
+      "opencode/big-pickle",
+      "opencode/deepseek-v4-flash-free",
+      "opencode/laguna-s-2.1-free",
+      "opencode/ling-3.0-tiny-free",
+      "opencode/longcat-2.0-free",
+      "opencode/mimo-v2.5-free",
+      "opencode/nemotron-3-ultra-free",
+      "opencode/north-mini-code-free",
+      "sensetime/deepseek-v4-flash",
+      "sensetime/sensenova-6.7-flash-lite",
+      "sensetime/sensenova-u1-fast"
+    ],
+    "selected_provider_id": "sensetime",
+    "selected_model_id": "sensenova-6.7-flash-lite",
+    "non_openai": true,
+    "note": "Same SenseNova family currently driving the outer development environment"
+  },
+
+  "fixture": {
+    "directory": "F:/reverse-agent-labs/issue131-opencode-executor",
+    "outside_repository": true,
+    "input_txt_content": "alpha"
+  },
+
+  "executor_run": {
+    "surface": "opencode run (separate CLI child process)",
+    "not_outer_dev_agent": true,
+    "command_flags": "--model sensetime/sensenova-6.7-flash-lite --dir F:\\reverse-agent-labs\\issue131-opencode-executor --format json --auto --print-logs",
+    "session_id": "ses_020e7866bffeHHm6hBiVP6DAJo",
+    "llm_runtime": "ai-sdk",
+    "exit_status": 0,
+    "input_read": true,
+    "input_read_evidence": "tool_use tool=read filePath=.../input.txt output='1: alpha'",
+    "tool_used": "bash",
+    "shell": "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.EXE",
+    "cwd_command": "Get-Location | Select-Object -ExpandProperty Path",
+    "cwd_command_workdir": "F:\\reverse-agent-labs\\issue131-opencode-executor",
+    "cwd_command_output": "F:\\reverse-agent-labs\\issue131-opencode-executor",
+    "cwd_command_exit": 0,
+    "cwd_command_executed": true,
+    "output_created": true,
+    "output_write_evidence": "tool_use tool=write filePath=.../output.txt input.content='alpha-ok' output='Wrote file successfully.'",
+    "verification_executed": true,
+    "verification_evidence": "tool_use tool=read filePath=.../output.txt output='1: alpha-ok'"
+  },
+
+  "independent_verification": {
+    "method": "PowerShell [System.IO.File]::ReadAllText",
+    "output_exists": true,
+    "utf8_bytes": [97, 108, 112, 104, 97, 45, 111, 107],
+    "decoded_literal": "alpha-ok",
+    "output_exact_match": true
+  },
+
+  "safety": {
+    "credential_exposure": false,
+    "repository_source_mutation": false,
+    "provider_config_mutated": false,
+    "auth_files_accessed": false,
+    "codex_invoked": false,
+    "openhands_invoked": false
+  },
+
+  "runtime_outcome": {
+    "fixture_executed": true,
+    "REAL_SINGLE_AGENT_EXECUTOR_PATH_ESTABLISHED": true,
+    "SELECTED_EXECUTOR_PATH": "OPENCODE_RUN",
+    "INTEGRATION_SURFACE_RECOMMENDATION": "OPENCODE_RUN_CHILD_PROCESS"
+  },
+
+  "recommended_127_next_action": "Use the separately spawned `opencode run` CLI child process (with --model, --dir, --format json) as the real quota-independent executor surface, bound to an already-configured non-OpenAI provider/model, behind the existing reverse-agent governance/gate layer. Owner to decide whether to keep this as the baseline executor or to add formal integration scaffolding in a later Decision.",
+
+  "repository_path_audit": {
+    "v2_delta_from_v1_final_head": [
+      "project_state/decision_packet.md",
+      "project_state/gates/bootstrap_state.json",
+      "project_state/gates/command_plan.json",
+      "project_state/gates/startup_snapshot.json",
+      "project_state/gates/transition_command_plan_preview.json",
+      "project_state/gates/transition_preflight_result.json"
+    ],
+    "full_delta_from_activation_base": [
+      "docs/research/opencode-real-executor-2026-08-08.json",
+      "docs/research/opencode-real-executor-2026-08-08.md",
+      "project_state/decision_packet.md",
+      "project_state/gates/bootstrap_state.json",
+      "project_state/gates/command_plan.json",
+      "project_state/gates/startup_snapshot.json",
+      "project_state/gates/transition_command_plan_preview.json",
+      "project_state/gates/transition_preflight_result.json"
+    ],
+    "product_delta_zero": true,
+    "git_diff_check_exit": 0,
+    "note_full_delta": "The two opencode-real-executor-2026-08-08.* files are historical v1 governance/research paths already present in the branch and were NOT modified in v2."
+  },
+
+  "local_state": {
+    "local_head_before_report_commit": "aca47436d243503a95078167db8e16e47698b566",
+    "preexisting_untracked_artifacts_protected": [
+      ".frontend_stage/",
+      ".platform_v1_runtime/",
+      "task_workspaces/"
+    ],
+    "development_agent_model_used": "sensenova-6.7-flash-lite",
+    "note": "Outer development Agent session is NOT the executor under test; executor evidence comes from the separate `opencode run` child process."
+  },
+
+  "terminal_outcome": "ISSUE131_V2_OPENCODE_REAL_EXECUTOR_READY_FOR_OWNER_AUDIT"
+}
