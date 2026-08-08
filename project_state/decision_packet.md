@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260808_issue136_agent_canvas_pathb_cleanup_v4",
-  "round_id": "round_20260808_issue136_agent_canvas_pathb_cleanup_v4",
+  "decision_id": "decision_20260808_issue136_agent_canvas_pathb_cleanup_v5",
+  "round_id": "round_20260808_issue136_agent_canvas_pathb_cleanup_v5",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,14 +16,14 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260808_issue136_agent_canvas_direct_reuse_spike_pathb_v3",
-  "follows_last_round_id": "round_20260808_issue136_agent_canvas_direct_reuse_spike_pathb_v3",
-  "previous_audit_outcome": "ISSUE136_STAGE_A_PATHB_V3_BLOCKED_POWERSHELL_OUTER_EXPANSION_CLEANUP",
-  "workstream_id": "issue136-agent-canvas-pathb-cleanup-v4",
+  "follows_last_decision_id": "decision_20260808_issue136_agent_canvas_pathb_cleanup_v4",
+  "follows_last_round_id": "round_20260808_issue136_agent_canvas_pathb_cleanup_v4",
+  "previous_audit_outcome": "BLOCKED_PATH_RISK_FLOOR_ENFORCED",
+  "workstream_id": "issue136-agent-canvas-pathb-cleanup-v5",
   "source_issue": 136,
   "parent_issue": 127,
   "required_branch": "owner/issue136-agent-canvas-reuse-spike-v2",
-  "starting_head": "be272f65ebdcc0ce8c8d833c003df467b0f9a4ce",
+  "starting_head": "ddd481c76b077593d5a74ba2f9e00c3af4a6e110",
   "activation_base_sha": "dd4cb074ab5b9baacf300706878b29bd745f12c3",
   "risk_tier": "R3",
   "governance_artifact_risk_tier": "R3",
@@ -280,7 +280,7 @@
     },
     {
       "command_id": "publication.commit",
-      "command": "git commit -m \"governance: record issue136 v4 cleanup\"",
+      "command": "git commit -m \"governance: record issue136 v5 cleanup\"",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -291,7 +291,7 @@
     },
     {
       "command_id": "validation.path_list",
-      "command": "git diff --name-only be272f65ebdcc0ce8c8d833c003df467b0f9a4ce..HEAD",
+      "command": "git diff --name-only ddd481c76b077593d5a74ba2f9e00c3af4a6e110..HEAD",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -409,7 +409,11 @@
     "destructive_operations_allowed": false,
     "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
-    "local_network_exceptions": [],
+    "local_network_exceptions": [
+      "git fetch origin main",
+      "git fetch origin owner/issue136-agent-canvas-reuse-spike-v2",
+      "git push origin owner/issue136-agent-canvas-reuse-spike-v2"
+    ],
     "ci_network_exceptions": [],
     "remote_observation_read_only_allowed": true,
     "direct_push_to_main_allowed": false,
@@ -418,6 +422,11 @@
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false
   },
+  "authorized_risk_tier": "R3",
+  "authorized_risk_paths": [
+    "project_state/decision_packet.md",
+    "project_state/gates/**"
+  ],
   "path_risk_floor": [
     {
       "pattern": "project_state/decision_packet.md",
@@ -434,7 +443,7 @@
     "tracked_product_changes": 0,
     "model_calls": 0,
     "package_installs": 0,
-    "terminal": "ISSUE136_PATHB_V4_CLEANUP_READY_FOR_OWNER_CONTINUATION"
+    "terminal": "ISSUE136_PATHB_V5_CLEANUP_READY_FOR_OWNER_CONTINUATION"
   }
 }
 ```
