@@ -3,9 +3,20 @@
   "selected_executor_path": "NONE",
   "integration_surface_recommendation": "BLOCKED_CLI_NOT_FOUND",
   "primary_blocker": "CLI_NOT_FOUND",
-  "opencode": {
+  "architectural_note": "OPENCODE_DESKTOP_APP_PRESENT_NO_CLI_RUN_SUBCOMMAND",
+  "opencode_desktop_app": {
+    "present": true,
+    "executable": "C:\\Users\\wjc27\\AppData\\Local\\Programs\\@opencode-aidesktop\\OpenCode.exe",
+    "version": "1.18.14",
+    "package": "@opencode-aidesktop",
+    "app_type": "Electron GUI",
+    "current_session_inside_app": true
+  },
+  "opencode_cli": {
     "present": false,
     "version": null,
+    "run_subcommand_exists": false,
+    "npm_registry": "404_NOT_FOUND",
     "provider_id": null,
     "model_id": null,
     "non_openai": false,
@@ -21,12 +32,14 @@
   },
   "credential_exposure": false,
   "repository_source_mutation": false,
+  "git_diff_check": "PASSED",
   "decision_id": "decision_20260808_issue131_opencode_real_executor_v1",
   "round_id": "round_20260808_issue131_opencode_real_executor_v1",
   "branch": "owner/issue131-opencode-real-executor-v1",
   "base_main_sha": "e4e23028c6c78c4ab9a8e032677e71370ace7627",
   "decision_commit": "e2a8af7a9a6a0af0c93fd95d2df3a86ac935cec7",
   "gate_commit": "3a5dadf7a5492efb3db15b5f994e41ed0176181c",
+  "report_commit": "4a9362be",
   "preflight": "PRE_EXECUTION_AUTHORIZED",
   "preflight_blocking_reasons": [],
   "terminal_signal": "ISSUE131_OPENCODE_EXECUTOR_BLOCKED_CLI_NOT_FOUND"
