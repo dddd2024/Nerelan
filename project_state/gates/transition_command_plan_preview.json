@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260808_issue133_frontend_opencode_devup_v2",
-  "round_id": "round_20260808_issue133_frontend_opencode_devup_v2",
+  "decision_id": "decision_20260808_issue133_frontend_opencode_devup_v3",
+  "round_id": "round_20260808_issue133_frontend_opencode_devup_v3",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -94,39 +94,16 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "sync.switch_existing_branch",
+      "command_id": "sync.switch_branch",
       "command": "git switch owner/issue133-frontend-opencode-devup-v1",
       "phase": "bootstrap",
-      "required": false,
+      "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
         0
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_sync"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "sync.create_local_tracking_branch",
-      "command": "git switch --track origin/owner/issue133-frontend-opencode-devup-v1",
-      "phase": "bootstrap",
-      "required": false,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "branch_creation",
         "repository_sync"
       ],
       "network_access": false,
@@ -323,6 +300,28 @@
       ]
     },
     {
+      "command_id": "test.lifecycle_contract",
+      "command": "python -m pytest tests/test_dev_up_contract.py -q",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
       "command_id": "test.frontend",
       "command": "npm --prefix frontend test",
       "phase": "validation",
@@ -411,8 +410,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.issue133_backend_focused",
-      "command": "python -m pytest tests/test_model_access.py tests/platform_v1/test_task_service.py tests/platform_v1/test_opencode_executor.py tests/test_dev_up_contract.py -q",
+      "command_id": "test.backend_focused",
+      "command": "python -m pytest tests/test_model_access.py tests/platform_v1/test_task_service.py tests/platform_v1/test_opencode_executor.py -q",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -478,7 +477,7 @@
     },
     {
       "command_id": "validation.create_clean_source",
-      "command": "git worktree add --detach F:/reverse-agent-workspaces/issue133-gui-source HEAD",
+      "command": "git worktree add --detach F:/reverse-agent-workspaces/issue133-gui-v3-source HEAD",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -501,7 +500,7 @@
     },
     {
       "command_id": "validation.clean_source_before",
-      "command": "git -C F:/reverse-agent-workspaces/issue133-gui-source status --short",
+      "command": "git -C F:/reverse-agent-workspaces/issue133-gui-v3-source status --short",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -524,7 +523,7 @@
     },
     {
       "command_id": "acceptance.dev_up",
-      "command": "powershell -ExecutionPolicy Bypass -File .\\dev-up.ps1 -RepoDir F:/reverse-agent-workspaces/issue133-gui-source -OpenCodeModel sensetime/sensenova-6.7-flash-lite -NoBrowser",
+      "command": "powershell -ExecutionPolicy Bypass -File .\\dev-up.ps1 -RepoDir F:/reverse-agent -SourceDir F:/reverse-agent-workspaces/issue133-gui-v3-source -OpenCodeModel sensetime/sensenova-6.7-flash-lite -NoBrowser",
       "phase": "acceptance",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -570,7 +569,7 @@
     },
     {
       "command_id": "acceptance.real_opencode_task",
-      "command": "powershell -NoProfile -Command \"$body=@{title='Create issue133_gui_acceptance.txt containing exactly gui-opencode-ok and do not modify any other file';repository='dddd2024/reverse-agent';executor_kind='opencode';model_profile_ref='';permission_profile='ASK_FOR_APPROVAL';policy_ref='';workspace='';branch=''}|ConvertTo-Json -Compress; $created=Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8766/api/tasks -ContentType 'application/json' -Body $body; $done=Invoke-RestMethod -Method Post -Uri ('http://127.0.0.1:8766/api/tasks/'+$created.id+'/execute') -ContentType 'application/json' -Body '{}'; $read=Invoke-RestMethod -Method Get -Uri ('http://127.0.0.1:8766/api/tasks/'+$created.id); if ($read.status -ne 'READY_FOR_REVIEW') { throw ('unexpected status '+$read.status) }; if ($read.executor_kind -ne 'opencode') { throw 'executor mismatch' }; if (-not ($read.changed_files | Where-Object { $_.path -eq 'issue133_gui_acceptance.txt' })) { throw 'acceptance file missing' }; if (-not ($read.evidence | Where-Object { $_.category -eq 'ExecutorAction' -or $_.label -eq 'git_diff_check' })) { throw 'executor or validation evidence missing' }; Write-Output $created.id\"",
+      "command": "powershell -NoProfile -Command \"$body=@{title='Create issue133_gui_v3_acceptance.txt containing exactly gui-opencode-v3-ok and do not modify any other file';repository='dddd2024/reverse-agent';executor_kind='opencode';model_profile_ref='';permission_profile='ASK_FOR_APPROVAL';policy_ref='';workspace='';branch=''}|ConvertTo-Json -Compress; $created=Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8766/api/tasks -ContentType 'application/json' -Body $body; $done=Invoke-RestMethod -Method Post -Uri ('http://127.0.0.1:8766/api/tasks/'+$created.id+'/execute') -ContentType 'application/json' -Body '{}'; $read=Invoke-RestMethod -Method Get -Uri ('http://127.0.0.1:8766/api/tasks/'+$created.id); if ($read.status -ne 'READY_FOR_REVIEW') { throw ('unexpected status '+$read.status) }; if ($read.executor_kind -ne 'opencode') { throw 'executor mismatch' }; if (-not ($read.changed_files | Where-Object { $_.path -eq 'issue133_gui_v3_acceptance.txt' })) { throw 'acceptance file missing' }; if (-not ($read.evidence | Where-Object { $_.category -eq 'ExecutorAction' -or $_.label -eq 'git_diff_check' })) { throw 'executor or validation evidence missing' }; Write-Output $created.id\"",
       "phase": "acceptance",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -596,7 +595,7 @@
     },
     {
       "command_id": "acceptance.dev_down",
-      "command": "powershell -ExecutionPolicy Bypass -File .\\dev-down.ps1",
+      "command": "powershell -ExecutionPolicy Bypass -File .\\dev-down.ps1 -RepoDir F:/reverse-agent",
       "phase": "acceptance",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -607,6 +606,50 @@
       "operations": [
         "process_stop",
         "loopback_service_stop"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "acceptance.ports_closed",
+      "command": "powershell -NoProfile -Command \"$open=@(4173,8765,8766)|Where-Object { Test-NetConnection 127.0.0.1 -Port $_ -InformationLevel Quiet -WarningAction SilentlyContinue }; if ($open) { throw ('ports still open: '+($open -join ',')) }\"",
+      "phase": "acceptance",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "loopback_http_probe"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "acceptance.ports_closed_repeat",
+      "command": "powershell -NoProfile -Command \"$open=@(4173,8765,8766)|Where-Object { Test-NetConnection 127.0.0.1 -Port $_ -InformationLevel Quiet -WarningAction SilentlyContinue }; if ($open) { throw ('ports still open after repeat: '+($open -join ',')) }\"",
+      "phase": "acceptance",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "loopback_http_probe"
       ],
       "network_access": false,
       "diagnostic_only": false,

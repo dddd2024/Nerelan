@@ -247,14 +247,6 @@ export function NewTaskComposer({
                   </option>
                 ))}
               </select>
-              {isOpenCode && (
-                <p
-                  data-testid="opencode-model-note"
-                  className="text-xs text-ra-text-tertiary"
-                >
-                  模型由本机 OpenCode 配置提供
-                </p>
-              )}
             </div>
             {profilesQuery.isError && (
               <p role="alert" className="mt-1 text-xs text-red-300">

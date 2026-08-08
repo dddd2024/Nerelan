@@ -3,13 +3,24 @@
   Stop the dev-up children recorded by the most recent dev-up run.
 
 .DESCRIPTION
-  Reads .platform_v1_runtime/devup_pids.json and stops only those child
-  processes. It never performs blanket kills of python/node/opencode.
+  Reads .platform_v1_runtime/devup_pids.json and stops only the exact child
+  process trees created by the matching dev-up invocation. It verifies each
+  recorded PID against its expected executable identity before terminating.
+
+  Only the exact owned PID tree is stopped. No image-wide or name-wide kill
+  is ever performed. For cmd.exe-wrapped children (npm.cmd -> cmd.exe -> node)
+  taskkill /PID /T terminates the entire recorded tree.
+
+  Per-child outcome is recorded truthfully:
+    stopped                - process was stopped by this invocation
+    already_exited         - PID was not present when checked
+    refused_identity_mismatch - process identity did not match record
+    stop_failed            - stop was attempted but did not succeed
 
 .NOTES
   Missing or already-exited PIDs are ignored cleanly. Runtime metadata
   belongs only to this script; nothing else in .platform_v1_runtime/ is
-  removed.
+  removed. No credentials or secrets are read or written.
 #>
 [CmdletBinding()]
 param(
@@ -49,46 +60,109 @@ if (-not $state -or -not $state.children) {
   exit 0
 }
 
-foreach ($child in $state.children) {
+function Try-Stop-Child([object]$child) {
   $name = $child.name
   $expectedPid = $child.pid
-  if (-not $expectedPid) { continue }
+  $expectedExe = if ($child.expected_exe) { $child.expected_exe } else { $null }
+  $wrapped = if ($child.PSObject.Properties.Name -contains "wrapped") { $child.wrapped } else { $false }
+
+  $result = [ordered]@{
+    name = $name
+    pid = $expectedPid
+    expected_exe = $expectedExe
+    outcome = $null
+  }
+
+  if (-not $expectedPid) {
+    $result.outcome = "already_exited"
+    return $result
+  }
+
   $proc = Get-Process -Id $expectedPid -ErrorAction SilentlyContinue
   if (-not $proc) {
+    $result.outcome = "already_exited"
     Write-Output "dev-down: ${name} (pid ${expectedPid}) already exited"
-    continue
+    return $result
   }
-  $exeName = [System.IO.Path]::GetFileName($proc.MainModule.FileName)
-  if ($name -eq "model-control" -and $exeName -ne "python.exe") {
-    Write-Warning "dev-down: ${name} pid ${expectedPid} is not python.exe; refusing to kill"
-    continue
-  }
-  if ($name -eq "task-api" -and $exeName -ne "python.exe") {
-    Write-Warning "dev-down: ${name} pid ${expectedPid} is not python.exe; refusing to kill"
-    continue
-  }
-  if ($name -eq "frontend-vite" -and -not ($exeName -eq "node.exe" -or $exeName -eq "npm.exe" -or $exeName -eq "npm.cmd")) {
-    Write-Warning "dev-down: ${name} pid ${expectedPid} is ${exeName}; refusing to kill"
-    continue
-  }
+
+  $actualExe = $null
   try {
-    $proc.WaitForExit(3000)
-    if (-not $proc.HasExited) {
-      $proc.Kill()
-      $proc.WaitForExit(5000) | Out-Null
-    }
-    Write-Output "dev-down: stopped ${name} (pid ${expectedPid})"
+    $actualExe = [System.IO.Path]::GetFileName($proc.MainModule.FileName)
   } catch {
+    $result.outcome = "refused_identity_mismatch"
+    Write-Warning "dev-down: ${name} pid ${expectedPid}: cannot read process info; refusing"
+    return $result
+  }
+
+  $identityOk = $false
+  if ($wrapped -and $actualExe -eq "cmd.exe") {
+    $identityOk = $true
+  } elseif ($expectedExe -and $actualExe -eq $expectedExe) {
+    $identityOk = $true
+  } elseif (-not $expectedExe -and $name -eq "model-control" -and $actualExe -eq "python.exe") {
+    $identityOk = $true
+  } elseif (-not $expectedExe -and $name -eq "task-api" -and $actualExe -eq "python.exe") {
+    $identityOk = $true
+  } elseif (-not $expectedExe -and $name -eq "frontend-vite" -and ($actualExe -eq "node.exe" -or $actualExe -eq "npm.exe" -or $actualExe -eq "npm.cmd")) {
+    $identityOk = $true
+  }
+
+  if (-not $identityOk) {
+    $result.outcome = "refused_identity_mismatch"
+    Write-Warning "dev-down: ${name} pid ${expectedPid} is ${actualExe}; refusing to kill"
+    return $result
+  }
+
+  try {
+    if ($wrapped) {
+      $ki = Start-Process "taskkill" -ArgumentList "/PID ${expectedPid} /T /F" -Wait -NoNewWindow -PassThru -ErrorAction SilentlyContinue
+      Start-Sleep -Milliseconds 500
+      $stillHere = Get-Process -Id $expectedPid -ErrorAction SilentlyContinue
+      if (-not $stillHere) {
+        $result.outcome = "stopped"
+        Write-Output "dev-down: stopped ${name} (pid ${expectedPid}) and children"
+      } else {
+        $result.outcome = "stop_failed"
+        Write-Warning "dev-down: ${name} (pid ${expectedPid}) still running after taskkill"
+      }
+    } else {
+      $proc.WaitForExit(3000)
+      if (-not $proc.HasExited) {
+        $proc.Kill()
+        $proc.WaitForExit(5000) | Out-Null
+      }
+      $result.outcome = "stopped"
+      Write-Output "dev-down: stopped ${name} (pid ${expectedPid})"
+    }
+  } catch {
+    $result.outcome = "stop_failed"
     Write-Warning "dev-down: could not stop ${name} (pid ${expectedPid}): $($_.Exception.Message)"
+  }
+
+  return $result
+}
+
+$stopResults = [System.Collections.Generic.List[object]]::new()
+foreach ($child in $state.children) {
+  $result = Try-Stop-Child $child
+  $stopResults.Add($result)
+}
+
+$updatedChildren = foreach ($r in $stopResults) {
+  [ordered]@{
+    name = $r.name
+    pid = $r.pid
+    expected_exe = $r.expected_exe
+    outcome = $r.outcome
   }
 }
 
-$json = [ordered]@{
+$shutdownState = [ordered]@{
   stopped_at = (Get-Date -Format o)
-  children = $state.children | ForEach-Object {
-    [ordered]@{ name = $_.name; pid = $_.pid; stopped = $true }
-  }
-} | ConvertTo-Json -Depth 6
-$json | Set-Content -LiteralPath $pidFile -Encoding UTF8
+  repo_dir = $state.repo_dir
+  source_dir = $state.source_dir
+  children = $updatedChildren
+}
 
+$shutdownState | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $pidFile -Encoding UTF8
 Write-Output "dev-down: done"

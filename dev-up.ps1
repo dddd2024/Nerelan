@@ -11,8 +11,16 @@
   dev-up does NOT install packages, does NOT print secrets, and does NOT
   invoke any model. It only starts the existing local service entry points.
 
+  RepoDir  = trusted service host (frontend/node_modules, .platform_v1_runtime).
+  SourceDir = repository exposed to OpenCode via REVERSE_AGENT_REPO_DIR.
+  When SourceDir is omitted or blank it deterministically equals resolved RepoDir.
+
+  Process-tree ownership: each child is recorded with its exact PID, expected
+  executable, and start time. On failure dev-up cleans up only the exact PIDs
+  started by that invocation. No image-wide or name-wide kill is ever used.
+
 .EXAMPLE
-  .\dev-up.ps1 -RepoDir F:\repo -OpenCodeModel sensetime/sensenova-6.7-flash-lite -NoBrowser
+  .\dev-up.ps1 -RepoDir F:\repo -SourceDir F:\source -OpenCodeModel sensetime/sensenova-6.7-flash-lite -NoBrowser
 
 .NOTES
   Only writes runtime metadata under .platform_v1_runtime/.
@@ -39,13 +47,7 @@ $FrontendUrl = "http://127.0.0.1:${FrontendPort}"
 $TaskApiUrl = "http://127.0.0.1:${TaskApiPort}"
 $ModelControlUrl = "http://127.0.0.1:${ModelControlPort}"
 
-function Fail-Closed([string]$msg) {
-  $errLog = Join-Path (Join-Path (Get-Location).Path ".platform_v1_runtime") "devup.fail.log"
-  try { New-Item -ItemType Directory -Path (Split-Path $errLog) -Force | Out-Null } catch {}
-  Add-Content -LiteralPath $errLog -Value "[FAIL] ${msg}" -Encoding UTF8 -ErrorAction SilentlyContinue
-  Write-Error "dev-up: ${msg}"
-  exit 1
-}
+$script:startedChildren = New-Object System.Collections.Generic.List[object]
 
 function Resolve-InputPath([string]$candidate) {
   if ([string]::IsNullOrWhiteSpace($candidate)) {
@@ -56,17 +58,32 @@ function Resolve-InputPath([string]$candidate) {
   return $candidate
 }
 
-# RepoDir is the development host: frontend npm prefix, runtime metadata.
-# SourceDir is where the OpenCode executor sees the repository (acceptance source).
-# When SourceDir is omitted it equals RepoDir.
-$repoDir = Resolve-InputPath $RepoDir
-$sourceDir = Resolve-InputPath $SourceDir
-if ([string]::IsNullOrWhiteSpace($sourceDir)) {
-  $sourceDir = $repoDir
+function Stop-Owned-Children {
+  foreach ($child in $script:startedChildren) {
+    try {
+      $proc = Get-Process -Id $child.pid -ErrorAction SilentlyContinue
+      if ($proc -and -not $proc.HasExited) {
+        if ($child.wrapped) {
+          $ki = Start-Process "taskkill" -ArgumentList "/PID $($child.pid) /T /F" -Wait -NoNewWindow -PassThru -ErrorAction SilentlyContinue
+          if ($ki) { $ki.WaitForExit(5000) | Out-Null }
+        } else {
+          $proc.Kill()
+          $proc.WaitForExit(5000) | Out-Null
+        }
+      }
+    } catch {}
+  }
+  $script:startedChildren.Clear()
 }
 
-$script:logWriters = @{}
-$script:runningPids = [ordered]@{}
+function Fail-Closed([string]$msg) {
+  Stop-Owned-Children
+  $errLog = Join-Path (Join-Path (Get-Location).Path ".platform_v1_runtime") "devup.fail.log"
+  try { New-Item -ItemType Directory -Path (Split-Path $errLog) -Force | Out-Null } catch {}
+  Add-Content -LiteralPath $errLog -Value "[FAIL] ${msg}" -Encoding UTF8 -ErrorAction SilentlyContinue
+  Write-Error "dev-up: ${msg}"
+  exit 1
+}
 
 function Find-Executable([string]$name) {
   $exts = @($env:PATHEXT -split ";") | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
@@ -136,22 +153,6 @@ function Get-PortProcess([int]$port) {
   return $null
 }
 
-function New-ProcessArgs(
-  [string]$cmd,
-  [object[]]$serviceArgs,
-  [hashtable]$env,
-  [string]$cwd
-) {
-  $psi = New-Object System.Diagnostics.ProcessStartInfo
-  $psi.FileName = $cmd
-  $psi.Arguments = ($serviceArgs -join " ")
-  $psi.WorkingDirectory = $cwd
-  foreach ($kv in $env.GetEnumerator()) {
-    $psi.Environment[$kv.Key] = $kv.Value
-  }
-  return $psi
-}
-
 function Start-ServiceProcess(
   [string]$name,
   [string]$cmd,
@@ -170,14 +171,19 @@ function Start-ServiceProcess(
     $psi.Environment[$kv.Key] = $kv.Value
   }
 
+  $wrapped = $false
+  $expectedExe = [System.IO.Path]::GetFileName($cmd)
   if ($cmd -match '\.ps1$') {
     $pwsh = Get-Command "powershell.exe" -ErrorAction SilentlyContinue
     $pwshPath = if ($pwsh) { $pwsh.Source } else { "powershell.exe" }
     $psi.FileName = $pwshPath
     $psi.Arguments = "-NoProfile -NonInteractive -NoLogo -File `"$cmd`" $argString"
+    $expectedExe = [System.IO.Path]::GetFileName($pwshPath)
   } elseif ($cmd -match '\.cmd$|\.bat$') {
     $psi.FileName = "cmd.exe"
     $psi.Arguments = "/c `"$cmd`" $argString"
+    $wrapped = $true
+    $expectedExe = "cmd.exe"
   } else {
     $psi.FileName = $cmd
     $psi.Arguments = $argString
@@ -188,11 +194,23 @@ function Start-ServiceProcess(
   try {
     $null = $proc.Start()
   } catch {
+    Stop-Owned-Children
     Fail-Closed "service '${name}' (${cmd} ${argString}) failed to start: $($_.Exception.Message)"
   }
 
-  $script:runningPids[$name] = $proc.Id | Out-Null
   Set-Content -LiteralPath (Join-Path $logDir "${name}.pid") -Value $proc.Id -Encoding UTF8 | Out-Null
+
+  $script:startedChildren.Add([ordered]@{
+    name = $name
+    pid = $proc.Id
+    expected_exe = $expectedExe
+    start_time = $proc.StartTime.ToString("o")
+    cmd = $cmd
+    serviceArgs = $argString
+    wrapped = $wrapped
+    handle = $proc
+  })
+
   Write-Host "dev-up: ${name} started pid=$($proc.Id)"
   return $proc
 }
@@ -218,7 +236,16 @@ function Wait-ServiceReady(
   return $false
 }
 
+# RepoDir is the trusted service host: frontend/node_modules and runtime.
+# SourceDir is the repository exposed to OpenCode via REVERSE_AGENT_REPO_DIR.
+# Blank/absent SourceDir deterministically falls back to resolved RepoDir (V3-F2).
 $repoDir = Resolve-InputPath $RepoDir
+if ([string]::IsNullOrWhiteSpace($SourceDir)) {
+  $sourceDir = $repoDir
+} else {
+  $sourceDir = Resolve-InputPath $SourceDir
+}
+
 $runtimeDir = Join-Path $repoDir ".platform_v1_runtime"
 $pidFile = Join-Path $runtimeDir "devup_pids.json"
 
@@ -278,30 +305,28 @@ $modelProc = Start-ServiceProcess `
   -cmd $py -serviceArgs @("-m", "reverse_agent.model_access.service") `
   -env $modelControlEnv -cwd $repoDir -logDir $runtimeDir
 
- $taskProc = Start-ServiceProcess `
-   -name "task-api" `
-   -cmd $py -serviceArgs @("-m", "reverse_agent.platform_v1.task_service") `
-   -env $taskApiEnv -cwd $repoDir -logDir $runtimeDir
-
 Start-Sleep -Milliseconds 1500
 
 if (-not $modelProc.HasExited) {
   if (-not (Wait-ServiceReady -url "$ModelControlUrl/api/model-profiles")) {
-    $modelProc.Kill() | Out-Null
     Fail-Closed "Model Control did not become healthy at ${ModelControlUrl}"
   }
 } else {
   Fail-Closed "Model Control exited before health check"
 }
 
+$taskProc = Start-ServiceProcess `
+  -name "task-api" `
+  -cmd $py -serviceArgs @("-m", "reverse_agent.platform_v1.task_service") `
+  -env $taskApiEnv -cwd $repoDir -logDir $runtimeDir
+
+Start-Sleep -Milliseconds 1500
+
 if (-not $taskProc.HasExited) {
   if (-not (Wait-ServiceReady -url "${TaskApiUrl}/api/tasks")) {
-    $taskProc.Kill() | Out-Null
-    $modelProc.Kill() | Out-Null
     Fail-Closed "Task API did not become healthy at ${TaskApiUrl}"
   }
 } else {
-  $modelProc.Kill() | Out-Null
   Fail-Closed "Task API exited before health check"
 }
 
@@ -314,15 +339,29 @@ Start-Sleep -Milliseconds 1500
 
 if (-not $frontendProc.HasExited) {
   if (-not (Wait-ServiceReady -url "$FrontendUrl/")) {
-    $frontendProc.Kill() | Out-Null
-    $taskProc.Kill() | Out-Null
-    $modelProc.Kill() | Out-Null
     Fail-Closed "Frontend did not become healthy at ${FrontendUrl}"
   }
 } else {
-  $taskProc.Kill() | Out-Null
-  $modelProc.Kill() | Out-Null
   Fail-Closed "Frontend exited before health check"
+}
+
+$urlMap = [ordered]@{
+  "model-control" = $ModelControlUrl
+  "task-api" = $TaskApiUrl
+  "frontend-vite" = $FrontendUrl
+}
+
+$persistentChildren = foreach ($child in $script:startedChildren) {
+  [ordered]@{
+    name = $child.name
+    pid = $child.pid
+    expected_exe = $child.expected_exe
+    start_time = $child.start_time
+    cmd = $child.cmd
+    service_args = $child.serviceArgs
+    wrapped = $child.wrapped
+    url = $urlMap[$child.name]
+  }
 }
 
 $record = [ordered]@{
@@ -330,11 +369,7 @@ $record = [ordered]@{
   repo_dir = $repoDir
   source_dir = $sourceDir
   open_code_model = $OpenCodeModel
-  children = @(
-    [ordered]@{ name = "model-control"; pid = $modelProc.Id; cmd = "$py -m reverse_agent.model_access.service"; url = $ModelControlUrl },
-    [ordered]@{ name = "task-api"; pid = $taskProc.Id; cmd = "$py -m reverse_agent.platform_v1.task_service"; url = $TaskApiUrl },
-    [ordered]@{ name = "frontend-vite"; pid = $frontendProc.Id; cmd = "$npm --prefix frontend run dev"; url = $FrontendUrl }
-  )
+  children = $persistentChildren
   metadata = [ordered]@{
     frontend_url = $FrontendUrl
     task_api_url = $TaskApiUrl

@@ -197,6 +197,18 @@ describe("real-executor task plane", () => {
     expect(input.modelProfileId).toBe("");
   });
 
+  it("Test D: exactly one opencode-model-note exists in OpenCode mode", async () => {
+    const mockSubmit = vi.fn();
+    renderWithProviders(<ComposerMount submit={mockSubmit} />);
+
+    fireEvent.change(screen.getByTestId("task-title-input"), {
+      target: { value: "opencode mode" },
+    });
+
+    const notes = screen.getAllByTestId("opencode-model-note");
+    expect(notes.length).toBe(1);
+  });
+
   it("Test C: explicit fixture selection sends deterministic_fixture with the model profile", async () => {
     const mockSubmit = vi.fn();
     renderWithProviders(<ComposerMount submit={mockSubmit} />);
