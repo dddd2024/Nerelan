@@ -43,6 +43,33 @@ $repoDir = Resolve-RepoDir $RepoDir
 $runtimeDir = Join-Path $repoDir ".platform_v1_runtime"
 $pidFile = Join-Path $runtimeDir "devup_pids.json"
 
+function Compare-ProcessStartTime([string]$recordedStartTimeStr, [datetime]$actualStartTime) {
+  if ([string]::IsNullOrWhiteSpace($recordedStartTimeStr)) {
+    return $false
+  }
+  $recorded = $null
+  try {
+    $parsed = [datetime]::MinValue
+    if (-not [datetime]::TryParse($recordedStartTimeStr, [ref]$parsed)) {
+      return $false
+    }
+    $recorded = $parsed
+    if ($recorded.Kind -eq [System.DateTimeKind]::Unspecified) {
+      $recorded = [datetime]::SpecifyKind($recorded, [System.DateTimeKind]::Utc)
+    }
+    $recordedUtc = $recorded.ToUniversalTime()
+  } catch {
+    return $false
+  }
+  try {
+    $actualUtc = $actualStartTime.ToUniversalTime()
+  } catch {
+    return $false
+  }
+  $diffMs = [math]::Abs(($recordedUtc - $actualUtc).TotalMilliseconds)
+  return $diffMs -le 100
+}
+
 if (-not (Test-Path -LiteralPath $pidFile)) {
   Write-Output "dev-down: no dev-up PID record at ${pidFile}; nothing to stop"
   exit 0
@@ -65,6 +92,7 @@ function Try-Stop-Child([object]$child) {
   $expectedPid = $child.pid
   $expectedExe = if ($child.expected_exe) { $child.expected_exe } else { $null }
   $wrapped = if ($child.PSObject.Properties.Name -contains "wrapped") { $child.wrapped } else { $false }
+  $recordedStartTime = if ($child.PSObject.Properties.Name -contains "start_time") { $child.start_time } else { $null }
 
   $result = [ordered]@{
     name = $name
@@ -110,6 +138,12 @@ function Try-Stop-Child([object]$child) {
   if (-not $identityOk) {
     $result.outcome = "refused_identity_mismatch"
     Write-Warning "dev-down: ${name} pid ${expectedPid} is ${actualExe}; refusing to kill"
+    return $result
+  }
+
+  if (-not (Compare-ProcessStartTime $recordedStartTime $proc.StartTime)) {
+    $result.outcome = "refused_identity_mismatch"
+    Write-Warning "dev-down: ${name} pid ${expectedPid}: start_time identity mismatch or unreadable (recorded=${recordedStartTime} current=$($proc.StartTime.ToString("o"))); refusing to kill"
     return $result
   }
 

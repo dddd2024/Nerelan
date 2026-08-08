@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -272,3 +273,148 @@ def test_single_opencode_model_note_regression_test_exists() -> None:
     assert "opencode-model-note" in _FRONTEND_TEST
     assert "notes.length" in _FRONTEND_TEST or "getByTestId" in _FRONTEND_TEST
     assert "toBe(1)" in _FRONTEND_TEST
+
+
+# ── V4-F2 deterministic regression coverage ──────────────────────────
+
+def test_dev_down_has_process_start_time_comparison() -> None:
+    """V4-F2: dev-down must contain a start_time comparison helper."""
+    assert "Compare-ProcessStartTime" in _DEV_DOWN
+    assert "ToUniversalTime" in _DEV_DOWN
+    assert "TotalMilliseconds" in _DEV_DOWN
+    assert "100" in _DEV_DOWN
+
+
+def test_dev_down_checks_start_time_before_kill() -> None:
+    """V4-F2: start_time must be validated before any Kill()/taskkill call."""
+    try_stop = _DEV_DOWN[_DEV_DOWN.index("function Try-Stop-Child"):]
+    kill_idx = try_stop.index("taskkill")
+    compare_idx = try_stop.index("Compare-ProcessStartTime")
+    assert compare_idx < kill_idx, "start_time comparison must precede any taskkill call"
+    assert "refused_identity_mismatch" in try_stop[compare_idx:kill_idx], \
+        "refused_identity_mismatch must be set between comparison and kill"
+
+
+def test_dev_down_reads_start_time_from_record() -> None:
+    """V4-F2: dev-down must extract start_time from the recorded child entry."""
+    assert "start_time" in _DEV_DOWN
+    assert "recordedStartTime" in _DEV_DOWN
+
+
+def test_dev_down_refuses_missing_start_time() -> None:
+    """V4-F2: missing start_time must produce refused_identity_mismatch, not a kill."""
+    ps1 = r'''
+function Compare-ProcessStartTime([string]$s, [datetime]$a) {
+  if ([string]::IsNullOrWhiteSpace($s)) { return $false }
+  $parsed = [datetime]::MinValue
+  if (-not [datetime]::TryParse($s, [ref]$parsed)) { return $false }
+  $recorded = $parsed
+  if ($recorded.Kind -eq [System.DateTimeKind]::Unspecified) {
+    $recorded = [datetime]::SpecifyKind($recorded, [System.DateTimeKind]::Utc)
+  }
+  $recordedUtc = $recorded.ToUniversalTime()
+  try { $actualUtc = $a.ToUniversalTime() } catch { return $false }
+  $diffMs = [math]::Abs(($recordedUtc - $actualUtc).TotalMilliseconds)
+  return $diffMs -le 100
+}
+Compare-ProcessStartTime "" (Get-Date)
+'''
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-Command", ps1],
+        capture_output=True, text=True, timeout=15,
+    )
+    assert result.returncode == 0, f"powershell exit={result.returncode}: {result.stderr}"
+    assert "False" in result.stdout.strip(), f"expected False for missing start_time, got: {result.stdout}"
+
+
+def test_dev_down_refuses_unreadable_start_time() -> None:
+    """V4-F2: unparseable start_time must produce refused_identity_mismatch, not a kill."""
+    ps1 = r'''
+function Compare-ProcessStartTime([string]$s, [datetime]$a) {
+  if ([string]::IsNullOrWhiteSpace($s)) { return $false }
+  $parsed = [datetime]::MinValue
+  if (-not [datetime]::TryParse($s, [ref]$parsed)) { return $false }
+  $recorded = $parsed
+  if ($recorded.Kind -eq [System.DateTimeKind]::Unspecified) {
+    $recorded = [datetime]::SpecifyKind($recorded, [System.DateTimeKind]::Utc)
+  }
+  $recordedUtc = $recorded.ToUniversalTime()
+  try { $actualUtc = $a.ToUniversalTime() } catch { return $false }
+  $diffMs = [math]::Abs(($recordedUtc - $actualUtc).TotalMilliseconds)
+  return $diffMs -le 100
+}
+Compare-ProcessStartTime "not-a-real-timestamp" (Get-Date)
+'''
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-Command", ps1],
+        capture_output=True, text=True, timeout=15,
+    )
+    assert result.returncode == 0, f"powershell exit={result.returncode}: {result.stderr}"
+    assert "False" in result.stdout.strip(), \
+        f"expected False for unparseable start_time, got: {result.stdout}"
+
+
+def test_dev_down_accepts_matching_start_time() -> None:
+    """V4-F2: same process instance (matching start_time) must be accepted."""
+    ps1 = r'''
+function Compare-ProcessStartTime([string]$s, [datetime]$a) {
+  if ([string]::IsNullOrWhiteSpace($s)) { return $false }
+  $parsed = [datetime]::MinValue
+  if (-not [datetime]::TryParse($s, [ref]$parsed)) { return $false }
+  $recorded = $parsed
+  if ($recorded.Kind -eq [System.DateTimeKind]::Unspecified) {
+    $recorded = [datetime]::SpecifyKind($recorded, [System.DateTimeKind]::Utc)
+  }
+  $recordedUtc = $recorded.ToUniversalTime()
+  try { $actualUtc = $a.ToUniversalTime() } catch { return $false }
+  $diffMs = [math]::Abs(($recordedUtc - $actualUtc).TotalMilliseconds)
+  return $diffMs -le 100
+}
+$now = (Get-Date)
+Compare-ProcessStartTime ($now.ToString("o")) $now
+'''
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-Command", ps1],
+        capture_output=True, text=True, timeout=15,
+    )
+    assert result.returncode == 0, f"powershell exit={result.returncode}: {result.stderr}"
+    assert "True" in result.stdout.strip(), \
+        f"expected True for matching start_time, got: {result.stdout}"
+
+
+def test_dev_down_refuses_recycled_pid_with_different_start_time() -> None:
+    """V4-F2: recycled PID with same exe but different start_time must be refused."""
+    ps1 = r'''
+function Compare-ProcessStartTime([string]$s, [datetime]$a) {
+  if ([string]::IsNullOrWhiteSpace($s)) { return $false }
+  $parsed = [datetime]::MinValue
+  if (-not [datetime]::TryParse($s, [ref]$parsed)) { return $false }
+  $recorded = $parsed
+  if ($recorded.Kind -eq [System.DateTimeKind]::Unspecified) {
+    $recorded = [datetime]::SpecifyKind($recorded, [System.DateTimeKind]::Utc)
+  }
+  $recordedUtc = $recorded.ToUniversalTime()
+  try { $actualUtc = $a.ToUniversalTime() } catch { return $false }
+  $diffMs = [math]::Abs(($recordedUtc - $actualUtc).TotalMilliseconds)
+  return $diffMs -le 100
+}
+$old = (Get-Date).AddDays(-1)
+$new = (Get-Date)
+Compare-ProcessStartTime ($old.ToString("o")) $new
+'''
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-Command", ps1],
+        capture_output=True, text=True, timeout=15,
+    )
+    assert result.returncode == 0, f"powershell exit={result.returncode}: {result.stderr}"
+    assert "False" in result.stdout.strip(), \
+        f"expected False for recycled PID (different start_time), got: {result.stdout}"
+
+
+def test_dev_down_output_includes_start_time_validation_fields() -> None:
+    """V4-F2: the truthful outcome must signal start_time identity mismatch."""
+    assert "refused_identity_mismatch" in _DEV_DOWN
+    for word in ("refused", "start_time", "recorded", "identity"):
+        assert word in _DEV_DOWN, f"missing keyword in dev-down: {word}"
+    for forbidden in ("taskkill /IM", "Get-Process | Stop-Process", "Stop-Process -Force"):
+        assert forbidden not in _DEV_DOWN, f"name-wide kill still present: {forbidden}"

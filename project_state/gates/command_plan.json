@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260808_issue133_frontend_opencode_devup_v3",
-  "round_id": "round_20260808_issue133_frontend_opencode_devup_v3",
+  "decision_id": "decision_20260808_issue133_frontend_opencode_devup_v4",
+  "round_id": "round_20260808_issue133_frontend_opencode_devup_v4",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -477,7 +477,7 @@
     },
     {
       "command_id": "validation.create_clean_source",
-      "command": "git worktree add --detach F:/reverse-agent-workspaces/issue133-gui-v3-source HEAD",
+      "command": "git worktree add --detach F:/reverse-agent-workspaces/issue133-gui-v4-source HEAD",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -500,7 +500,7 @@
     },
     {
       "command_id": "validation.clean_source_before",
-      "command": "git -C F:/reverse-agent-workspaces/issue133-gui-v3-source status --short",
+      "command": "git -C F:/reverse-agent-workspaces/issue133-gui-v4-source status --short",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -523,7 +523,7 @@
     },
     {
       "command_id": "acceptance.dev_up",
-      "command": "powershell -ExecutionPolicy Bypass -File .\\dev-up.ps1 -RepoDir F:/reverse-agent -SourceDir F:/reverse-agent-workspaces/issue133-gui-v3-source -OpenCodeModel sensetime/sensenova-6.7-flash-lite -NoBrowser",
+      "command": "powershell -ExecutionPolicy Bypass -File .\\dev-up.ps1 -RepoDir F:/reverse-agent -SourceDir F:/reverse-agent-workspaces/issue133-gui-v4-source -OpenCodeModel sensetime/sensenova-6.7-flash-lite -NoBrowser",
       "phase": "acceptance",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -569,7 +569,7 @@
     },
     {
       "command_id": "acceptance.real_opencode_task",
-      "command": "powershell -NoProfile -Command \"$body=@{title='Create issue133_gui_v3_acceptance.txt containing exactly gui-opencode-v3-ok and do not modify any other file';repository='dddd2024/reverse-agent';executor_kind='opencode';model_profile_ref='';permission_profile='ASK_FOR_APPROVAL';policy_ref='';workspace='';branch=''}|ConvertTo-Json -Compress; $created=Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8766/api/tasks -ContentType 'application/json' -Body $body; $done=Invoke-RestMethod -Method Post -Uri ('http://127.0.0.1:8766/api/tasks/'+$created.id+'/execute') -ContentType 'application/json' -Body '{}'; $read=Invoke-RestMethod -Method Get -Uri ('http://127.0.0.1:8766/api/tasks/'+$created.id); if ($read.status -ne 'READY_FOR_REVIEW') { throw ('unexpected status '+$read.status) }; if ($read.executor_kind -ne 'opencode') { throw 'executor mismatch' }; if (-not ($read.changed_files | Where-Object { $_.path -eq 'issue133_gui_v3_acceptance.txt' })) { throw 'acceptance file missing' }; if (-not ($read.evidence | Where-Object { $_.category -eq 'ExecutorAction' -or $_.label -eq 'git_diff_check' })) { throw 'executor or validation evidence missing' }; Write-Output $created.id\"",
+      "command": "powershell -NoProfile -Command \"$body=@{title='Create issue133_gui_v4_acceptance.txt containing exactly gui-opencode-v4-ok and do not modify any other file';repository='dddd2024/reverse-agent';executor_kind='opencode';model_profile_ref='';permission_profile='ASK_FOR_APPROVAL';policy_ref='';workspace='';branch=''}|ConvertTo-Json -Compress; $created=Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8766/api/tasks -ContentType 'application/json' -Body $body; $done=Invoke-RestMethod -Method Post -Uri ('http://127.0.0.1:8766/api/tasks/'+$created.id+'/execute') -ContentType 'application/json' -Body '{}'; $read=Invoke-RestMethod -Method Get -Uri ('http://127.0.0.1:8766/api/tasks/'+$created.id); if ($read.status -ne 'READY_FOR_REVIEW') { throw ('unexpected status '+$read.status) }; if ($read.executor_kind -ne 'opencode') { throw 'executor mismatch' }; if (-not ($read.changed_files | Where-Object { $_.path -eq 'issue133_gui_v4_acceptance.txt' })) { throw 'acceptance file missing' }; if (-not ($read.evidence | Where-Object { $_.category -eq 'ExecutorAction' -or $_.label -eq 'git_diff_check' })) { throw 'executor or validation evidence missing' }; Write-Output $created.id\"",
       "phase": "acceptance",
       "required": true,
       "required_evidence_source": "local_command_evidence",

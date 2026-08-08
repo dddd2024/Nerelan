@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { Plus, Send, X } from "lucide-react";
 import { PermissionSelector } from "@/components/permission-selector";
 import { AuthorizationSummary } from "@/components/authorization-summary";
@@ -59,20 +59,33 @@ export function NewTaskComposer({
   const [customPolicy, setCustomPolicy] = useState<PolicyContract | null>(null);
   const [showCustomEditor, setShowCustomEditor] = useState(false);
   const profilesQuery = useModelProfiles();
-  const enabledProfiles = (profilesQuery.data ?? []).filter(
-    (profile) => profile.enabled,
+  const enabledProfiles = useMemo(
+    () => (profilesQuery.data ?? []).filter((profile) => profile.enabled),
+    [profilesQuery.data],
   );
+  const [dataReceived, setDataReceived] = useState(false);
+  const [userInteracted, setUserInteracted] = useState(false);
   const isOpenCode = executorChoice === "opencode";
 
   useEffect(() => {
-    const requestedDefault = enabledProfiles.find((profile) => profile.isDefault);
-    const fallback = requestedDefault ?? enabledProfiles[0];
-    if (fallback) {
-      setModelProfileId(fallback.id);
-    } else if (enabledProfiles.length === 0) {
+    if (dataReceived || userInteracted) {
+      return;
+    }
+    if (profilesQuery.data === undefined) {
+      return;
+    }
+    const enabled = (profilesQuery.data).filter((profile) => profile.enabled);
+    if (enabled.length > 0) {
+      const requestedDefault = enabled.find((profile) => profile.isDefault);
+      const fallback = requestedDefault ?? enabled[0];
+      if (fallback) {
+        setModelProfileId(fallback.id);
+      }
+    } else {
       setModelProfileId("");
     }
-  }, [enabledProfiles]);
+    setDataReceived(true);
+  }, [profilesQuery.data, dataReceived, userInteracted]);
 
   const handlePermissionChange = useCallback(
     (mode: PermissionMode) => {
@@ -225,7 +238,10 @@ export function NewTaskComposer({
                 id="task-model-profile"
                 aria-label="模型配置"
                 value={modelProfileId}
-                onChange={(event) => setModelProfileId(event.target.value)}
+                onChange={(event) => {
+                  setUserInteracted(true);
+                  setModelProfileId(event.target.value);
+                }}
                 disabled={
                   isOpenCode || profilesQuery.isLoading || enabledProfiles.length === 0
                 }
