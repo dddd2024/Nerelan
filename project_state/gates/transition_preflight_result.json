@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260808_issue133_frontend_opencode_devup_v4",
-  "round_id": "round_20260808_issue133_frontend_opencode_devup_v4",
+  "decision_id": "decision_20260808_pr134_frontend_opencode_devup_landing_v1",
+  "round_id": "round_20260808_pr134_frontend_opencode_devup_landing_v1",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260808_issue133_frontend_opencode_devup_v4 expected=decision_20260808_issue133_frontend_opencode_devup_v4"
+      "detail": "observed=decision_20260808_pr134_frontend_opencode_devup_landing_v1 expected=decision_20260808_pr134_frontend_opencode_devup_landing_v1"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260808_issue133_frontend_opencode_devup_v4 expected=round_20260808_issue133_frontend_opencode_devup_v4"
+      "detail": "observed=round_20260808_pr134_frontend_opencode_devup_landing_v1 expected=round_20260808_pr134_frontend_opencode_devup_landing_v1"
     },
     {
       "name": "decision_approved",
@@ -43,12 +43,12 @@
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=7aa60589045ad8b4d23237f04a917590b82bab53"
+      "detail": "decision_commit=75efbc16adf3faca1cc4c416526facbd4051c7ce"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260808_issue133_frontend_opencode_devup_v4/round_20260808_issue133_frontend_opencode_devup_v4"
+      "detail": "plan=decision_20260808_pr134_frontend_opencode_devup_landing_v1/round_20260808_pr134_frontend_opencode_devup_landing_v1"
     },
     {
       "name": "command_plan_contract",
