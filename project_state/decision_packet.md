@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260808_issue127_opencode_vertical_slice_v1",
-  "round_id": "round_20260808_issue127_opencode_vertical_slice_v1",
+  "decision_id": "decision_20260808_issue127_opencode_vertical_slice_v2",
+  "round_id": "round_20260808_issue127_opencode_vertical_slice_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,16 +14,16 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260807_pr129_provider_free_task_plane_landing_v5",
-  "follows_last_round_id": "round_20260807_pr129_provider_free_task_plane_landing_v5",
-  "previous_audit_outcome": "ISSUE131_V2_ACCEPTED_OPENCODE_RUN_REAL_EXECUTOR_ESTABLISHED",
-  "workstream_id": "issue127-opencode-vertical-slice-v1",
+  "follows_last_decision_id": "decision_20260808_issue127_opencode_vertical_slice_v1",
+  "follows_last_round_id": "round_20260808_issue127_opencode_vertical_slice_v1",
+  "previous_audit_outcome": "ISSUE127_V1_OWNER_AUDIT_REPAIR_REQUIRED_REAL_WORKTREE_BOUNDED_PROMPT_WINDOWS_LAUNCH_STATE_TIMING",
+  "workstream_id": "issue127-opencode-vertical-slice-v2",
   "source_issue": 127,
   "parent_issue": 90,
   "prerequisite_issue": 131,
   "related_research_issue": 126,
   "required_branch": "owner/issue127-opencode-vertical-slice-v1",
-  "starting_head": "e4e23028c6c78c4ab9a8e032677e71370ace7627",
+  "starting_head": "9d305996b9cefbd5170498e9e9db6577b3a341a5",
   "activation_base_sha": "e4e23028c6c78c4ab9a8e032677e71370ace7627",
   "risk_tier": "R3",
   "governance_artifact_risk_tier": "R3",
@@ -176,8 +176,8 @@
       ]
     },
     {
-      "command_id": "test.opencode_executor_unit",
-      "command": "python -m pytest tests/platform_v1 -q",
+      "command_id": "test.opencode_executor_focused",
+      "command": "python -m pytest tests/platform_v1/test_opencode_executor.py -q",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -187,8 +187,20 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
+      "command_id": "test.platform_v1_full_diagnostic",
+      "command": "python -m pytest tests/platform_v1 -q",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0, 1],
+      "execution_surface": "local",
+      "operations": ["run_checks", "landing_governance_failure_classification"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "validation_note": "Any failure must be listed by exact test node ID. Only failures whose assertions bind current decision_packet.md to project_state/mainline_merge_intents/active.json or final R2 landing authority may be classified as KNOWN_LANDING_GOVERNANCE_BLOCKER. Do not modify those tests or merge-intent files in this R3 product round. Any other failure is a product blocker and must be repaired."
+    },
+    {
       "command_id": "acceptance.opencode_task_plane",
-      "command": "python -m reverse_agent.platform_v1.opencode_task_plane_acceptance --repo-dir F:/reverse-agent --workspace-root F:/reverse-agent-workspaces/issue127-opencode-v1 --model sensetime/sensenova-6.7-flash-lite",
+      "command": "python -m reverse_agent.platform_v1.opencode_task_plane_acceptance --repo-dir F:/reverse-agent --workspace-root F:/reverse-agent-workspaces/issue127-opencode-v2 --model sensetime/sensenova-6.7-flash-lite",
       "phase": "acceptance",
       "required": true,
       "expected_exit_codes": [0],
@@ -196,7 +208,7 @@
       "operations": ["model_execution", "network_access", "worktree_creation", "tool_execution", "external_workspace_mutation", "deterministic_validation"],
       "network_access": true,
       "required_evidence_source": "local_command_evidence",
-      "validation_note": "Must invoke the installed OpenCode CLI as a separate child process using the pre-existing non-OpenAI SenseTime/SenseNova route. No Codex/OpenHands invocation, provider reconfiguration, or credential-value access. Acceptance worktree must be outside F:/reverse-agent tracked source."
+      "validation_note": "Must create a real linked Git worktree from repo_dir using git worktree semantics, not git init. Must prove worktree HEAD/base ancestry and that the Agent can read an existing reverse-agent file inside the worktree before creating the bounded acceptance output. Use the pre-existing non-OpenAI SenseTime/SenseNova route only."
     },
     {
       "command_id": "validation.diff_check",
@@ -255,12 +267,12 @@
     "reverse_agent/platform_v1/task_runtime.py",
     "reverse_agent/platform_v1/task_service.py",
     "reverse_agent/platform_v1/run_store.py",
-    "reverse_agent/coordinator_adapters.py",
     "reverse_agent/model_access/contracts.py",
     "reverse_agent/model_access/store.py",
     "frontend/src/lib/task-client.ts",
     "frontend/src/hooks/use-tasks.ts",
     "tests/platform_v1/**",
+    "project_state/mainline_merge_intents/active.json",
     "project_state/schemas/**"
   ],
   "generated_artifact_paths": [
@@ -312,7 +324,8 @@
     "git_clean",
     "create_pr",
     "mark_ready",
-    "merge"
+    "merge",
+    "merge_intent_mutation"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": true,
@@ -353,85 +366,57 @@
 
 ## Goal
 
-Issue #127 implementation v1 starts from the provider-free task plane already landed by PR #129 and the real OpenCode executor proof accepted from Issue #131 v2.
+Issue #127 v2 is a fail-forward repair round for the accepted v1 runtime direction. The v1 local acceptance proved that a separate OpenCode child process can be dispatched through Task API -> ExecutorRouter -> OpenCodeExecutor and can return normalized evidence. Owner exact-head review found that the implementation is not yet a truthful isolated-repository execution boundary.
 
-This round is deliberately narrower than the full historical Issue #127 body. The following pieces already exist on `main` and MUST be reused, not rewritten:
-
-```text
-Frontend task submission/readback chain
-loopback-only Task API
-SQLite TaskStore / idempotency
-ExecutorRouter abstraction
-activity / changed-file / evidence normalization
-provider-free deterministic fixture executor
-```
-
-The only product goal in this round is:
+The following v1 evidence remains accepted:
 
 ```text
-POST /api/tasks (executor_kind=opencode)
-→ POST /api/tasks/{id}/execute
-→ existing ExecutorRouter
-→ real OpenCodeExecutor child process
-→ isolated Git worktree outside the source tree
-→ read / shell / edit
-→ deterministic git diff validation
-→ normalized changed-files / events / evidence
-→ GET task readback
+OpenCode CLI 1.18.15 resolves on the host
+sensetime/sensenova-6.7-flash-lite executes successfully
+Task API create/execute/readback/events path works
+SQLite persistence works
+changed-file / validation / executor evidence plumbing works
+Codex calls = 0
+OpenHands calls = 0
 ```
 
-No frontend rewrite, no Model Access rewrite, no Draft-PR publication, no one-click launcher, and no multi-Agent work in this round.
+The following v1 findings MUST be repaired before a Draft PR is created:
 
-## Implementation constraints
+1. REAL WORKTREE: `OpenCodeExecutor._prepare_git_worktree()` currently uses `git init` in an empty directory. v2 must create a real linked worktree from the configured repository/base using `git worktree add` (or an existing repository utility that is demonstrably equivalent). The Agent must be able to read the target repository contents inside that isolated worktree. It must never operate in the source checkout.
+2. BOUNDED PROMPT: v1 uses `_PROMPT_TEMPLATE = "{task}"`. v2 must wrap the user task in a fixed authority envelope that explicitly restricts filesystem scope to the worktree and forbids commit, push, PR, merge, release/deploy, credential access, provider reconfiguration, and work outside the requested task.
+3. WINDOWS LAUNCH SAFETY: user-controlled task text must not be interpolated unsafely into a Windows `.cmd` command line. Prefer a native executable when available; otherwise keep user-controlled prompt content out of shell syntax (for example via a bounded prompt file/stdin mechanism supported by the installed CLI) and add metacharacter/injection regression tests. Do not use `shell=True`.
+4. STATE TIMING: TaskService must not persist `VALIDATING` before the real executor has even run. Preserve truthful phase ordering. External executor failures should leave an evidence-consistent RUNNING -> BLOCKED/FAILED path; successful execution should enter validation/review states in a truthful order.
+5. ACCEPTANCE TRUTH: the real acceptance must prove the workspace is a linked worktree of `F:/reverse-agent`, not merely an unrelated Git repository outside that path. It must verify worktree HEAD/base ancestry and read at least one existing reverse-agent file from the worktree before making the bounded acceptance mutation.
+6. GOVERNANCE TEST CLASSIFICATION: the current full Platform V1 suite may fail while this R3 implementation Decision is active because legacy landing tests dynamically require the current Decision to match `mainline_merge_intents/active.json` and an R2 `active_pr` landing authority. List every failing node ID. Do not modify those governance tests or merge intents in v2. Any failure not strictly attributable to that landing-authority mismatch is a product blocker and must be fixed before push.
 
-1. Add a thin `OpenCodeExecutor`; do not embed a second scheduler/orchestrator.
-2. Invoke the already-proven `opencode run` child-process surface. Do not use OpenCode Desktop IPC/ACP in this round.
-3. Use a non-secret explicit runtime model setting, preferably constructor injection with a bounded environment fallback such as `REVERSE_AGENT_OPENCODE_MODEL`. The v1 local acceptance value is `sensetime/sensenova-6.7-flash-lite`.
-4. Do not read or migrate provider credentials. OpenCode owns its pre-existing provider session/configuration.
-5. Run only in an isolated Git worktree outside `F:/reverse-agent`; do not let the model mutate the source checkout directly.
-6. Reuse existing Git/worktree utilities where compatible. Do not wholesale port old branches or PR #114.
-7. The Agent prompt must explicitly prohibit commit, push, PR, merge, release, or files outside the worktree.
-8. Capture and sanitize bounded JSON/event output from OpenCode. Never persist auth values, full environment dumps, or unbounded raw logs.
-9. Keep existing deterministic fixture behavior and tests working. Backward compatibility is required.
-10. Generalize runtime state only as much as needed for a real executor. If introducing `RUNNING` / `READY_FOR_REVIEW`, retain compatibility with existing `RUNNING_FIXTURE` / `READY_FOR_REVIEW_FIXTURE` persisted fixture tasks.
-11. Task API may accept `executor_kind=opencode`; unsupported kinds remain fail-closed.
-12. Validation truth is deterministic command evidence, not Agent prose.
+No frontend, Model Access, Draft-PR publication, one-click launcher, or multi-Agent work is authorized in this repair round.
 
 ## Acceptance
 
-The round is accepted only if all are true:
+v2 is accepted only if all are true:
 
-1. Decision commit precedes generated gates and product changes.
+1. v2 Decision commit precedes v2 gate generation and all repair changes.
 2. `transition-lint` passes and preflight is `PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]`.
-3. Unit tests do not require a live provider; subprocess/CLI behavior is injectable and testable with fakes.
-4. Existing provider-free fixture tests continue to pass.
-5. A real local acceptance invokes a separate OpenCode CLI child process with the pre-existing non-OpenAI SenseNova route.
-6. Acceptance runs against a disposable Git repository/worktree outside the reverse-agent source tree.
-7. HTTP chain succeeds: create → execute → task readback → events readback.
-8. Runtime evidence proves: workspace prepared, executor started, at least one real file mutation, deterministic validation exit 0, changed files recorded, executor/model evidence recorded, and terminal state maps to `READY_FOR_HUMAN`.
-9. OpenCode exit/nonzero/timeout/malformed output are normalized without leaking credentials; external/provider blockers are distinguishable from product validation failures.
-10. `git diff --check` passes.
-11. Final diff contains only Decision-authorized paths.
-12. No `frontend/**`, `reverse_agent/model_access/**`, workflows, dependencies, docs, merge intents, or credential/config files are modified.
-13. Codex runtime calls = 0. OpenHands runtime calls = 0.
-14. Branch is normal-pushed only. Local Agent creates no PR and performs no merge/Ready/main push.
+3. OpenCode workspace is created by real repository worktree semantics from the configured `repo_dir` and an approved base ref/SHA; an empty `git init` workspace is forbidden for the opencode executor.
+4. Worktree path is outside the source checkout and is present in `git -C <repo_dir> worktree list --porcelain` (or equivalent definitive evidence).
+5. Worktree `HEAD` is bound to the requested base/ref and the source checkout HEAD/status remains unchanged.
+6. Bounded prompt includes fixed authority constraints and the user task separately; tests verify task text with `&`, `|`, `>`, `<`, `%`, `!`, quotes and newlines cannot become host shell syntax.
+7. OpenCode process launching remains `shell=False`; Windows `.cmd` handling uses a tested safe strategy that does not expose user task text to shell interpretation.
+8. TaskService no longer transitions to `VALIDATING` before actual executor execution; state/event ordering is evidence-consistent.
+9. Focused OpenCode tests pass with 0 failures, including new real-worktree, prompt-boundary, Windows metacharacter, state-ordering, timeout/nonzero/malformed-output, secret-redaction and changed-file tests.
+10. Real HTTP acceptance uses a linked reverse-agent worktree, reads an existing repository file, performs one bounded worktree-only mutation, independently validates it, and proves source checkout unchanged.
+11. Full `tests/platform_v1` run is recorded. Every failure, if any, is listed by node ID and proven to be only a known landing-governance mismatch. Product/runtime tests must have zero failures.
+12. `git diff --check` passes and final changed paths remain Decision-authorized.
+13. No `frontend/**`, `reverse_agent/model_access/**`, `.github/**`, docs, dependency files, credentials/configuration, or `project_state/mainline_merge_intents/**` changes.
+14. Codex runtime calls = 0; OpenHands runtime calls = 0.
+15. Normal push only. No PR / Ready / merge / main push by the local Agent.
 
 Success terminal:
 
 ```text
-ISSUE127_V1_OPENCODE_BACKEND_VERTICAL_SLICE_READY_FOR_OWNER_AUDIT
+ISSUE127_V2_OPENCODE_BACKEND_REPAIR_READY_FOR_OWNER_AUDIT
 ```
 
-## Follow-up after this round
+## Owner follow-up
 
-Only after Owner accepts this backend vertical slice should Issue #127 proceed to the next bounded round:
-
-```text
-frontend executor/model cutover
-→ real frontend-created task
-→ Draft PR publication through trusted GitHub adapter
-→ one-click dev-up
-→ first reverse-agent-on-reverse-agent dogfood
-```
-
-This separation prevents frontend/Draft-PR work from obscuring whether the real executor boundary itself is reliable.
+After v2 exact-head acceptance, Owner may create the Draft PR. CI is expected to expose the known current-Decision-versus-active-landing-intent mismatch until an explicit R2 final landing authority round binds the PR/head/Decision/command-plan. That landing round must not be simulated by weakening Platform V1 tests during this R3 product repair.
