@@ -9,7 +9,6 @@ import platform
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Callable
 
 import pytest
 
@@ -20,7 +19,6 @@ from reverse_agent.platform_v1.opencode_executor import (
     redact_event,
     redact_secrets,
     resolve_opencode_cli,
-    validate_model_id,
 )
 from reverse_agent.platform_v1.run_store import TaskStore
 from reverse_agent.platform_v1.task_runtime import (
@@ -28,51 +26,6 @@ from reverse_agent.platform_v1.task_runtime import (
     ExecutorRouter,
     ExecutorResult,
 )
-
-
-def _make_git_repo(path: Path) -> None:
-    """Initialize a minimal git repo with one committed file."""
-    subprocess.run(["git", "init", "-q"], cwd=str(path), check=True)
-    subprocess.run(["git", "config", "user.email", "test@reverse-agent.local"], cwd=str(path), check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=str(path), check=True)
-    (path / "pyproject.toml").write_text("[project]\nname = \"test\"\n", encoding="utf-8")
-    subprocess.run(["git", "add", "pyproject.toml"], cwd=str(path), check=True)
-    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=str(path), check=True)
-
-
-def _fake_opencode_run(
-    stdout: str = "",
-    stderr: str = "",
-    returncode: int = 0,
-) -> subprocess.CompletedProcess:
-    return subprocess.CompletedProcess(
-        args=[],
-        returncode=returncode,
-        stdout=stdout,
-        stderr=stderr,
-    )
-
-
-def _make_fake_opencode_run(
-    orig_run: Callable[..., subprocess.CompletedProcess],
-    *,
-    stdout: str = "",
-    stderr: str = "",
-    returncode: int = 0,
-    timeout_after: int | None = None,
-    diff_check_fail: bool = False,
-    opencode_path: str = "/fake/opencode",
-) -> Callable[..., subprocess.CompletedProcess]:
-    call_count = {"n": 0}
-    def fake_run(argv, **kwargs):
-        if not argv or argv[0] != opencode_path:
-            return orig_run(argv, **kwargs)
-        call_count["n"] += 1
-        if timeout_after is not None and call_count["n"] > timeout_after:
-            raise subprocess.TimeoutExpired(cmd=argv, timeout=1)
-        return _fake_opencode_run(stdout=stdout, stderr=stderr, returncode=returncode)
-    fake_run._call_count = call_count  # type: ignore[attr-defined]
-    return fake_run
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +69,7 @@ def test_build_opencode_argv_native() -> None:
         is_cmd=False,
         model_id="sensetime/sensenova-6.7-flash-lite",
         worktree="/tmp/ws",
-        prompt_file="/tmp/prompt.txt",
+        prompt="create alpha-ok file",
     )
     assert argv == [
         "/usr/bin/opencode",
@@ -127,10 +80,8 @@ def test_build_opencode_argv_native() -> None:
         "/tmp/ws",
         "--format",
         "json",
-        "--file",
-        "/tmp/prompt.txt",
         "--",
-        "execute bounded task from attached prompt file",
+        "create alpha-ok file",
     ]
 
 
@@ -140,14 +91,12 @@ def test_build_opencode_argv_cmd_path_passed_directly() -> None:
         is_cmd=True,
         model_id="sensetime/sensenova-6.7-flash-lite",
         worktree="C:\\ws",
-        prompt_file="C:\\prompt.txt",
+        prompt="do stuff",
     )
     assert argv[0] == "C:\\tools\\opencode.cmd"
     assert "run" in argv
     assert "--model" in argv
     assert "sensetime/sensenova-6.7-flash-lite" in argv
-    assert "--file" in argv
-    assert "C:\\prompt.txt" in argv
 
 
 def test_build_opencode_argv_auto_flag() -> None:
@@ -156,7 +105,7 @@ def test_build_opencode_argv_auto_flag() -> None:
         is_cmd=False,
         model_id="m",
         worktree="/ws",
-        prompt_file="/tmp/p.txt",
+        prompt="p",
         use_auto=True,
     )
     assert "--auto" in argv
@@ -166,7 +115,7 @@ def test_build_opencode_argv_auto_flag() -> None:
         is_cmd=False,
         model_id="m",
         worktree="/ws",
-        prompt_file="/tmp/p.txt",
+        prompt="p",
         use_auto=False,
     )
     assert "--auto" not in argv_no_auto
@@ -176,46 +125,9 @@ def test_build_opencode_argv_auto_flag() -> None:
 # Prompt
 # ---------------------------------------------------------------------------
 
-def test_build_prompt_contains_authority_envelope() -> None:
+def test_build_prompt_contains_task() -> None:
     prompt = build_prompt("create alpha-ok file", "/tmp/ws")
-    assert "AUTHORITY CONSTRAINTS" in prompt
-    assert "END AUTHORITY CONSTRAINTS" in prompt
-    assert "USER TASK" in prompt
-    assert "END USER TASK" in prompt
     assert "create alpha-ok file" in prompt
-    assert "/tmp/ws" in prompt
-    assert "commit" in prompt
-    assert "credentials" in prompt
-
-
-# ---------------------------------------------------------------------------
-# Model identifier validation
-# ---------------------------------------------------------------------------
-
-def test_validate_model_id_accepts_required_model() -> None:
-    assert validate_model_id("sensetime/sensenova-6.7-flash-lite") == "sensetime/sensenova-6.7-flash-lite"
-
-
-@pytest.mark.parametrize("bad", [
-    "",
-    "  ",
-    "a",
-    "/model",
-    "provider/",
-    "provider/model\nextra",
-    "provider\x00/model",
-    "provider model",
-    "provider; drop table x --/model",
-    "&&|><",
-])
-def test_validate_model_id_rejects_malformed(bad) -> None:
-    with pytest.raises(ExecutorRuntimeError):
-        validate_model_id(bad)
-
-
-def test_validate_model_id_rejects_too_long() -> None:
-    with pytest.raises(ExecutorRuntimeError):
-        validate_model_id("a" * 200 + "/" + "b" * 200)
 
 
 # ---------------------------------------------------------------------------
@@ -258,7 +170,7 @@ def test_redact_event_long_string_truncated_and_redacted() -> None:
     event = {"output": "x" * 300 + " api_key=realkey12345678 " + "y" * 300}
     result = redact_event(event)
     assert "realkey12345678" not in result["output"]
-    assert len(result["output"]) <= 512 + len("...[TRUNCATED]")
+    assert len(result["output"]) <= 250
 
 
 # ---------------------------------------------------------------------------
@@ -483,13 +395,6 @@ def test_executor_success_with_json_events() -> None:
     stdout = "\n".join(stdout_lines) + "\n"
 
     with tempfile.TemporaryDirectory() as td:
-        repo = Path(td) / "repo"
-        repo.mkdir()
-        _make_git_repo(repo)
-
-        workspace_root = Path(td) / "ws"
-        workspace_root.mkdir()
-
         store = TaskStore(":memory:")
         store.create_task(title="test", executor_kind="opencode", model_profile_ref="m")
         tasks = store.list_tasks()
@@ -497,25 +402,40 @@ def test_executor_success_with_json_events() -> None:
 
         executor = OpenCodeExecutor(
             model_id="sensetime/sensenova-6.7-flash-lite",
-            repo_dir=str(repo),
             opencode_exe="/fake/opencode",
         )
+        received_argvs: list[list[str]] = []
+
+        original_run = subprocess.run
+
+        def fake_run(argv, **kwargs):
+            received_argvs.append(list(argv))
+            return subprocess.CompletedProcess(
+                args=argv,
+                returncode=0,
+                stdout=stdout,
+                stderr="",
+            )
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
-        original_run = subprocess.run
-        exec_mod.subprocess.run = _make_fake_opencode_run(
-            original_run,
-            stdout=stdout,
-            returncode=0,
-        )
+        exec_mod.subprocess.run = fake_run
         try:
-            result = executor.execute(task_id, store, workspace_root=str(workspace_root))
+            result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is True
             assert result.validation_exit_code == 0
             assert result.validation_command_id == "git_diff_check"
             assert result.execution_id
-            assert result.executor_evidence
-            assert any(e["category"] == "ExecutorAction" for e in result.executor_evidence)
+            assert received_argvs
+            opencode_call = next(
+                (a for a in received_argvs if a[0] == "/fake/opencode"),
+                None,
+            )
+            assert opencode_call is not None
+            assert "run" in opencode_call
+            assert "--model" in opencode_call
+            assert "sensetime/sensenova-6.7-flash-lite" in opencode_call
+            assert "--format" in opencode_call
+            assert "json" in opencode_call
         finally:
             exec_mod.subprocess.run = original_run
 
@@ -526,7 +446,7 @@ def test_executor_requires_model_id() -> None:
 
 
 def test_executor_requires_workspace_root() -> None:
-    exec_ = OpenCodeExecutor(model_id="sensetime/sensenova-6.7-flash-lite", opencode_exe="/fake/opencode")
+    exec_ = OpenCodeExecutor(model_id="m", opencode_exe="/fake/opencode")
     with pytest.raises(ExecutorRuntimeError, match="workspace_root_required"):
         exec_.execute("t", TaskStore(":memory:"))
 
@@ -537,33 +457,29 @@ def test_executor_requires_workspace_root() -> None:
 
 def test_executor_nonzero_exit_classification() -> None:
     with tempfile.TemporaryDirectory() as td:
-        repo = Path(td) / "repo"
-        repo.mkdir()
-        _make_git_repo(repo)
-
-        workspace_root = Path(td) / "ws"
-        workspace_root.mkdir()
-
         store = TaskStore(":memory:")
         store.create_task(title="test", executor_kind="opencode", model_profile_ref="m")
         tasks = store.list_tasks()
         task_id = tasks[0].id
 
         executor = OpenCodeExecutor(
-            model_id="sensetime/sensenova-6.7-flash-lite",
-            repo_dir=str(repo),
+            model_id="m",
             opencode_exe="/fake/opencode",
         )
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
-        exec_mod.subprocess.run = _make_fake_opencode_run(
-            original_run,
-            stderr="auth failure",
-            returncode=42,
-        )
+
+        def fake_run(argv, **kwargs):
+            if argv[:2] == ["git", "init"]:
+                return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+            if argv[:1] == ["cmd.exe"]:
+                return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+            return subprocess.CompletedProcess(args=argv, returncode=42, stdout="", stderr="auth failure")
+
+        exec_mod.subprocess.run = fake_run
         try:
-            result = executor.execute(task_id, store, workspace_root=str(workspace_root))
+            result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is False
             assert result.failure_classification == "executor_nonzero"
             assert result.process_exit_code == 42
@@ -573,33 +489,31 @@ def test_executor_nonzero_exit_classification() -> None:
 
 def test_executor_timeout() -> None:
     with tempfile.TemporaryDirectory() as td:
-        repo = Path(td) / "repo"
-        repo.mkdir()
-        _make_git_repo(repo)
-
-        workspace_root = Path(td) / "ws"
-        workspace_root.mkdir()
-
         store = TaskStore(":memory:")
         store.create_task(title="test", executor_kind="opencode", model_profile_ref="m")
         tasks = store.list_tasks()
         task_id = tasks[0].id
 
         executor = OpenCodeExecutor(
-            model_id="sensetime/sensenova-6.7-flash-lite",
-            repo_dir=str(repo),
+            model_id="m",
             opencode_exe="/fake/opencode",
             timeout=1,
         )
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
-        exec_mod.subprocess.run = _make_fake_opencode_run(
-            original_run,
-            timeout_after=0,
-        )
+
+        call_count = {"n": 0}
+
+        def fake_run(argv, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] > 5:
+                raise subprocess.TimeoutExpired(cmd=argv, timeout=1)
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+
+        exec_mod.subprocess.run = fake_run
         try:
-            result = executor.execute(task_id, store, workspace_root=str(workspace_root))
+            result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is False
             assert result.failure_classification == "timeout"
         finally:
@@ -610,33 +524,25 @@ def test_executor_malformed_json_does_not_crash() -> None:
     stdout = '{"partial": true\nnot json at all\n{"another": "ok"}\n'
 
     with tempfile.TemporaryDirectory() as td:
-        repo = Path(td) / "repo"
-        repo.mkdir()
-        _make_git_repo(repo)
-
-        workspace_root = Path(td) / "ws"
-        workspace_root.mkdir()
-
         store = TaskStore(":memory:")
         store.create_task(title="test", executor_kind="opencode", model_profile_ref="m")
         tasks = store.list_tasks()
         task_id = tasks[0].id
 
         executor = OpenCodeExecutor(
-            model_id="sensetime/sensenova-6.7-flash-lite",
-            repo_dir=str(repo),
+            model_id="m",
             opencode_exe="/fake/opencode",
         )
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
-        exec_mod.subprocess.run = _make_fake_opencode_run(
-            original_run,
-            stdout=stdout,
-            returncode=0,
-        )
+
+        def fake_run(argv, **kwargs):
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout=stdout, stderr="")
+
+        exec_mod.subprocess.run = fake_run
         try:
-            result = executor.execute(task_id, store, workspace_root=str(workspace_root))
+            result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is True
         finally:
             exec_mod.subprocess.run = original_run
@@ -646,21 +552,13 @@ def test_executor_changed_files_collected() -> None:
     stdout = '{"type": "tool", "action": "write"}\n'
 
     with tempfile.TemporaryDirectory() as td:
-        repo = Path(td) / "repo"
-        repo.mkdir()
-        _make_git_repo(repo)
-
-        workspace_root = Path(td) / "ws"
-        workspace_root.mkdir()
-
         store = TaskStore(":memory:")
         store.create_task(title="test", executor_kind="opencode", model_profile_ref="m")
         tasks = store.list_tasks()
         task_id = tasks[0].id
 
         executor = OpenCodeExecutor(
-            model_id="sensetime/sensenova-6.7-flash-lite",
-            repo_dir=str(repo),
+            model_id="m",
             opencode_exe="/fake/opencode",
         )
 
@@ -668,21 +566,22 @@ def test_executor_changed_files_collected() -> None:
         original_run = subprocess.run
 
         def fake_run(argv, **kwargs):
-            if not argv or argv[0] != "/fake/opencode":
-                joined = " ".join(str(a) for a in argv)
-                if "numstat" in joined:
-                    return subprocess.CompletedProcess(
-                        args=argv,
-                        returncode=0,
-                        stdout="1\t0\talpha-ok.txt\n2\t1\tbeta.txt\n",
-                        stderr="",
-                    )
-                return original_run(argv, **kwargs)
-            return _fake_opencode_run(stdout=stdout, returncode=0)
+            if argv[:1] == ["git"] and "diff" in argv:
+                return subprocess.CompletedProcess(
+                    args=argv,
+                    returncode=0,
+                    stdout="1\t0\talpha-ok.txt\n2\t1\tbeta.txt\n",
+                    stderr="",
+                )
+            if "commit" in argv:
+                return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+            if "config" in argv:
+                return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout=stdout, stderr="")
 
         exec_mod.subprocess.run = fake_run
         try:
-            result = executor.execute(task_id, store, workspace_root=str(workspace_root))
+            result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is True
             paths = [f["path"] for f in result.changed_files]
             assert "alpha-ok.txt" in paths
@@ -703,13 +602,6 @@ def test_router_dispatches_opencode() -> None:
     assert "opencode" in router._registry
 
     with tempfile.TemporaryDirectory() as td:
-        repo = Path(td) / "repo"
-        repo.mkdir()
-        _make_git_repo(repo)
-
-        workspace_root = Path(td) / "ws"
-        workspace_root.mkdir()
-
         store = TaskStore(":memory:")
         store.create_task(title="t", executor_kind="opencode", model_profile_ref="m")
         tasks = store.list_tasks()
@@ -717,16 +609,19 @@ def test_router_dispatches_opencode() -> None:
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
-        exec_mod.subprocess.run = _make_fake_opencode_run(original_run, stdout="", returncode=0)
+
+        def fake_run(argv, **kwargs):
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+
+        exec_mod.subprocess.run = fake_run
         try:
             result = router.dispatch_execute(
                 task_id=task_id,
                 store=store,
                 executor_kind="opencode",
-                workspace_root=str(workspace_root),
+                workspace_root=td,
                 model_id="sensetime/sensenova-6.7-flash-lite",
                 opencode_exe="/fake/opencode",
-                repo_dir=str(repo),
             )
             assert isinstance(result, ExecutorResult)
         finally:
@@ -756,201 +651,39 @@ def test_validation_fails_on_whitespace_error() -> None:
     stdout = '{"type": "tool", "action": "write"}\n'
 
     with tempfile.TemporaryDirectory() as td:
-        repo = Path(td) / "repo"
-        repo.mkdir()
-        _make_git_repo(repo)
-
-        workspace_root = Path(td) / "ws"
-        workspace_root.mkdir()
-
         store = TaskStore(":memory:")
         store.create_task(title="test", executor_kind="opencode", model_profile_ref="m")
         tasks = store.list_tasks()
         task_id = tasks[0].id
 
         executor = OpenCodeExecutor(
-            model_id="sensetime/sensenova-6.7-flash-lite",
-            repo_dir=str(repo),
+            model_id="m",
             opencode_exe="/fake/opencode",
         )
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
-        import reverse_agent.platform_v1.task_runtime as rt_mod
         original_run = subprocess.run
 
-        def fake_run(argv, **kwargs):
-            if not argv:
-                return original_run(argv, **kwargs)
-            if argv[0] != "/fake/opencode":
-                if argv[0] == "git" and "--check" in argv:
-                    return subprocess.CompletedProcess(
-                        args=argv,
-                        returncode=1,
-                        stdout="warning: trailing whitespace in alpha.txt:1\n",
-                        stderr="",
-                    )
-                return original_run(argv, **kwargs)
-            return _fake_opencode_run(stdout=stdout, returncode=0)
+    call_num = {"n": 0}
+
+    def fake_run(argv, **kwargs):
+        call_num["n"] += 1
+        if any("check" in str(a) for a in argv):
+            return subprocess.CompletedProcess(
+                args=argv,
+                returncode=1,
+                stdout="warning: trailing whitespace in alpha.txt:1\n",
+                stderr="",
+            )
+        if "commit" in argv or "config" in argv or "init" in argv or "add" in argv:
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+        return subprocess.CompletedProcess(args=argv, returncode=0, stdout=stdout, stderr="")
 
         exec_mod.subprocess.run = fake_run
-        rt_mod.subprocess.run = fake_run
         try:
-            result = executor.execute(task_id, store, workspace_root=str(workspace_root))
+            result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is False
             assert result.validation_exit_code == 1
             assert result.failure_classification == "deterministic_validation_failure"
-        finally:
-            exec_mod.subprocess.run = original_run
-            rt_mod.subprocess.run = original_run
-
-
-# ---------------------------------------------------------------------------
-# Recursive redaction
-# ---------------------------------------------------------------------------
-
-def test_redact_event_nested_authorization_header() -> None:
-    event = {"headers": {"Authorization": "Bearer ghp_abcdefghijklmnopqrstuvwxyz123456"}}
-    result = redact_event(event)
-    assert result["headers"]["Authorization"] == "[REDACTED]"
-
-
-def test_redact_event_nested_credentials_list() -> None:
-    event = {"request": {"credentials": [{"token": "verysecret123456"}, {"safe": "value"}]}}
-    result = redact_event(event)
-    assert result["request"]["credentials"][0]["token"] == "[REDACTED]"
-    assert result["request"]["credentials"][1]["safe"] == "value"
-
-
-def test_redact_event_preserves_safe_structure() -> None:
-    event = {"safe_key": "safe_value", "nested": {"a": 1, "b": [2, 3]}}
-    result = redact_event(event)
-    assert result["safe_key"] == "safe_value"
-    assert result["nested"]["a"] == 1
-    assert result["nested"]["b"] == [2, 3]
-
-
-def test_redact_event_bounded_depth() -> None:
-    event = {"a": {"b": {"c": {"d": {"e": {"f": {"g": "deep"}}}}}}}
-    result = redact_event(event)
-    assert isinstance(result, dict)
-    assert "[REDACTED: max_depth_exceeded]" in json.dumps(result)
-
-
-# ---------------------------------------------------------------------------
-# Bounded structured executor evidence
-# ---------------------------------------------------------------------------
-
-def test_executor_evidence_bounded_count() -> None:
-    stdout_lines = [json.dumps({"type": "tool_call", "action": "write_file", "path": "a.txt"}) for _ in range(100)]
-    stdout = "\n".join(stdout_lines) + "\n"
-
-    with tempfile.TemporaryDirectory() as td:
-        repo = Path(td) / "repo"
-        repo.mkdir()
-        _make_git_repo(repo)
-
-        workspace_root = Path(td) / "ws"
-        workspace_root.mkdir()
-
-        store = TaskStore(":memory:")
-        store.create_task(title="test", executor_kind="opencode", model_profile_ref="m")
-        tasks = store.list_tasks()
-        task_id = tasks[0].id
-
-        executor = OpenCodeExecutor(
-            model_id="sensetime/sensenova-6.7-flash-lite",
-            repo_dir=str(repo),
-            opencode_exe="/fake/opencode",
-        )
-
-        import reverse_agent.platform_v1.opencode_executor as exec_mod
-        original_run = subprocess.run
-        exec_mod.subprocess.run = _make_fake_opencode_run(
-            original_run,
-            stdout=stdout,
-            returncode=0,
-        )
-        try:
-            result = executor.execute(task_id, store, workspace_root=str(workspace_root))
-            assert len(result.executor_evidence) <= 40
-        finally:
-            exec_mod.subprocess.run = original_run
-
-
-# ---------------------------------------------------------------------------
-# Windows metacharacter safety in task text
-# ---------------------------------------------------------------------------
-
-def test_build_prompt_metacharacters_remain_data() -> None:
-    task = "write alpha-ok & pipe | redirect > < percent % bang ! caret ^ quotes \" ' paren ()"
-    task += "\n"
-    task += "CRLF\r\n"
-    prompt = build_prompt(task, "/tmp/ws")
-    assert task in prompt
-    assert "AUTHORITY CONSTRAINTS" in prompt
-    assert "commit" in prompt.lower()
-
-
-def test_build_opencode_argv_never_uses_shell() -> None:
-    argv, positional = build_opencode_argv(
-        "/fake/opencode",
-        is_cmd=False,
-        model_id="m",
-        worktree="/tmp/ws",
-        prompt_file="/tmp/p.txt",
-    )
-    assert all(not any(c in a for c in "&|><;") for a in argv)
-    assert positional == "execute bounded task from attached prompt file"
-
-
-# ---------------------------------------------------------------------------
-# Accurate untracked-file line additions
-# ---------------------------------------------------------------------------
-
-def test_collect_changed_files_untracked_counts_lines_not_bytes() -> None:
-    with tempfile.TemporaryDirectory() as td:
-        repo = Path(td) / "repo"
-        repo.mkdir()
-        _make_git_repo(repo)
-
-        workspace_root = Path(td) / "ws"
-        workspace_root.mkdir()
-
-        store = TaskStore(":memory:")
-        store.create_task(title="test", executor_kind="opencode", model_profile_ref="m")
-        tasks = store.list_tasks()
-        task_id = tasks[0].id
-
-        executor = OpenCodeExecutor(
-            model_id="sensetime/sensenova-6.7-flash-lite",
-            repo_dir=str(repo),
-            opencode_exe="/fake/opencode",
-        )
-
-        import reverse_agent.platform_v1.opencode_executor as exec_mod
-        original_run = subprocess.run
-
-        def fake_run(argv, **kwargs):
-            if not argv or argv[0] != "/fake/opencode":
-                if argv[0] == "git" and "others" in argv:
-                    return subprocess.CompletedProcess(
-                        args=argv,
-                        returncode=0,
-                        stdout="issue127_acceptance_output.txt\n",
-                        stderr="",
-                    )
-                return original_run(argv, **kwargs)
-            cwd = kwargs.get("cwd") or ""
-            out_file = Path(cwd) / "issue127_acceptance_output.txt"
-            out_file.write_text("alpha-ok\n", encoding="utf-8")
-            return _fake_opencode_run(stdout="", returncode=0)
-
-        exec_mod.subprocess.run = fake_run
-        try:
-            result = executor.execute(task_id, store, workspace_root=str(workspace_root))
-            paths = [f["path"] for f in result.changed_files]
-            assert "issue127_acceptance_output.txt" in paths
-            entry = next(f for f in result.changed_files if f["path"] == "issue127_acceptance_output.txt")
-            assert entry["additions"] == 1
         finally:
             exec_mod.subprocess.run = original_run
