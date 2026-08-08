@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260808_pr134_frontend_opencode_devup_landing_v1",
-  "round_id": "round_20260808_pr134_frontend_opencode_devup_landing_v1",
+  "decision_id": "decision_20260808_issue136_agent_canvas_pathb_cleanup_v5",
+  "round_id": "round_20260808_issue136_agent_canvas_pathb_cleanup_v5",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260808_pr134_frontend_opencode_devup_landing_v1 expected=decision_20260808_pr134_frontend_opencode_devup_landing_v1"
+      "detail": "observed=decision_20260808_issue136_agent_canvas_pathb_cleanup_v5 expected=decision_20260808_issue136_agent_canvas_pathb_cleanup_v5"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260808_pr134_frontend_opencode_devup_landing_v1 expected=round_20260808_pr134_frontend_opencode_devup_landing_v1"
+      "detail": "observed=round_20260808_issue136_agent_canvas_pathb_cleanup_v5 expected=round_20260808_issue136_agent_canvas_pathb_cleanup_v5"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=owner/issue133-frontend-opencode-devup-v1 expected=owner/issue133-frontend-opencode-devup-v1"
+      "detail": "observed=owner/issue136-agent-canvas-reuse-spike-v2 expected=owner/issue136-agent-canvas-reuse-spike-v2"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=a1d09d4ae8887405721efe9871881db788c5820a merge_base=a1d09d4ae8887405721efe9871881db788c5820a"
+      "detail": "base=dd4cb074ab5b9baacf300706878b29bd745f12c3 merge_base=dd4cb074ab5b9baacf300706878b29bd745f12c3"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=75efbc16adf3faca1cc4c416526facbd4051c7ce"
+      "detail": "decision_commit=9e5412843b19b3bdb0e56cd45b7fbc5e467ba054"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260808_pr134_frontend_opencode_devup_landing_v1/round_20260808_pr134_frontend_opencode_devup_landing_v1"
+      "detail": "plan=decision_20260808_issue136_agent_canvas_pathb_cleanup_v5/round_20260808_issue136_agent_canvas_pathb_cleanup_v5"
     },
     {
       "name": "command_plan_contract",
