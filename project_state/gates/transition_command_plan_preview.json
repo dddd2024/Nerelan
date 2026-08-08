@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260808_issue131_opencode_real_executor_v1",
-  "round_id": "round_20260808_issue131_opencode_real_executor_v1",
+  "decision_id": "decision_20260808_issue131_opencode_real_executor_v2",
+  "round_id": "round_20260808_issue131_opencode_real_executor_v2",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -188,14 +188,59 @@
       ]
     },
     {
+      "command_id": "observation.npm_package",
+      "command": "npm view opencode-ai name version dist-tags.latest",
+      "phase": "observation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "package_metadata_observation",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "experiment.install_opencode_cli",
+      "command": "npm install -g opencode-ai@latest",
+      "phase": "experiment",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "package_install",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
       "command_id": "observation.opencode_where",
       "command": "where.exe opencode",
       "phase": "observation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
-        0,
-        1
+        0
       ],
       "execution_surface": "local",
       "operations": [
@@ -217,8 +262,7 @@
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
-        0,
-        1
+        0
       ],
       "execution_surface": "local",
       "operations": [
@@ -281,7 +325,7 @@
       "command_id": "fixture.prepare",
       "command": "python -",
       "phase": "experiment",
-      "required": true,
+      "required": false,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
         0
@@ -303,7 +347,7 @@
       "command_id": "experiment.opencode_run_fixture",
       "command": "opencode run",
       "phase": "experiment",
-      "required": true,
+      "required": false,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
         0,
@@ -392,8 +436,8 @@
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
         "project_state/gates/**",
-        "docs/research/opencode-real-executor-2026-08-08.md",
-        "docs/research/opencode-real-executor-2026-08-08.json"
+        "docs/research/opencode-real-executor-2026-08-08-v2.md",
+        "docs/research/opencode-real-executor-2026-08-08-v2.json"
       ]
     },
     {
