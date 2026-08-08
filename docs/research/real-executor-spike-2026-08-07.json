@@ -1,0 +1,84 @@
+{
+  "report_id": "issue130-real-executor-spike-v1",
+  "generated_at": "2026-08-08T01:20:00Z",
+  "repository": "dddd2024/reverse-agent",
+  "local_repository": "F:/reverse-agent",
+  "branch": "owner/issue130-real-executor-spike-v1",
+  "main_sha": "e4e23028c6c78c4ab9a8e032677e71370ace7627",
+  "decision": {
+    "decision_id": "decision_20260807_issue130_real_executor_spike_v1",
+    "round_id": "round_20260807_issue130_real_executor_spike_v1",
+    "decision_commit": "5cde87646228895c0b604311dd61a5ff1e164587",
+    "risk_tier": "R3"
+  },
+  "gate_commit": "234ad0dbd3134a64e49a70d028aa700ae2981d71",
+  "preflight": {
+    "gate_status": "PRE_EXECUTION_AUTHORIZED",
+    "blocking_reasons": []
+  },
+  "host": {
+    "os": "Windows_NT",
+    "python_available": true
+  },
+  "codex_custom_provider": {
+    "status": "NOT_CONFIGURED",
+    "version": "0.147.0",
+    "present": true,
+    "cli_present": true,
+    "auth_mode": "openai",
+    "model_id": "gpt-5.6-sol",
+    "provider_id": "openai (built-in official provider)",
+    "wire_api": "openai-chat-completions",
+    "credential_present": true,
+    "credential_type": "OAuth token (via auth.json)",
+    "custom_provider_configured": false,
+    "profile_configured": false,
+    "base_url_override": false,
+    "secret_bearing_config_field_present": false,
+    "classification": "NOT_CONFIGURED",
+    "reason": "Only the built-in official OpenAI provider path is configured. Task explicitly forbids invoking the official OpenAI provider. No custom non-OpenAI provider profile is present in ~/.codex. No base_url override. No profile config file (only config.toml exists)."
+  },
+  "openhands_cli": {
+    "status": "NOT_CONFIGURED",
+    "present": false,
+    "version": null,
+    "classification": "NOT_CONFIGURED",
+    "reason": "where.exe openhands returned no path (file not found). openhands Python package is not installed."
+  },
+  "fixture": {
+    "fixture_directory_codex": "F:/reverse-agent-labs/issue130-real-executor/codex-custom",
+    "fixture_directory_openhands": "F:/reverse-agent-labs/issue130-real-executor/openhands",
+    "input_read": false,
+    "tool_used": false,
+    "output_created": false,
+    "output_exact_match": false,
+    "verification_executed": false,
+    "note": "No live model session was attempted. Both candidates were classified NOT_CONFIGURED at the provider/install level before any fixture run, per task's candidate-order and 'do not install/configure' rules."
+  },
+  "real_single_agent_executor_path_established": false,
+  "selected_executor_path": null,
+  "terminal_classification": "ISSUE130_NEEDS_ONE_PRECONFIGURED_REAL_EXECUTOR",
+  "credential_exposure": false,
+  "repository_source_mutation": false,
+  "product_delta_zero": true,
+  "repository_integrity": {
+    "git_diff_check_clean": true,
+    "changed_repository_paths": [
+      "project_state/decision_packet.md",
+      "project_state/gates/bootstrap_state.json",
+      "project_state/gates/command_plan.json",
+      "project_state/gates/startup_snapshot.json",
+      "project_state/gates/transition_command_plan_preview.json",
+      "project_state/gates/transition_preflight_result.json",
+      "docs/research/real-executor-spike-2026-08-07.md",
+      "docs/research/real-executor-spike-2026-08-07.json"
+    ],
+    "forbidden_paths_mutated": [],
+    "local_dirty_untracked_artifacts_preserved": [
+      ".frontend_stage/**",
+      ".platform_v1_runtime/**",
+      "task_workspaces/**"
+    ]
+  },
+  "recommendation": "Before #127 can proceed, provision one of: (a) a Codex custom non-OpenAI provider profile already authorized in ~/.codex/<profile>.config.toml with env-keyed credential present, or (b) an installed OpenHands CLI with a non-OpenAI provider preconfigured. Then re-run this spike."
+}
