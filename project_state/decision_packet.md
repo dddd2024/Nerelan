@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260808_pr132_opencode_backend_landing_v7",
-  "round_id": "round_20260808_pr132_opencode_backend_landing_v7",
+  "decision_id": "decision_20260808_issue133_frontend_opencode_devup_v1",
+  "round_id": "round_20260808_issue133_frontend_opencode_devup_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,50 +14,49 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260808_pr132_opencode_backend_landing_v6",
-  "follows_last_round_id": "round_20260808_pr132_opencode_backend_landing_v6",
-  "previous_audit_outcome": "PR132_V6_SUPERSEDED_PREEXECUTION_LANDING_UTILITY_COMMANDS_OMISSION",
-  "workstream_id": "pr132-opencode-backend-landing-v7",
-  "source_issue": 127,
-  "parent_issue": 90,
-  "active_pr": 132,
-  "required_branch": "owner/issue127-opencode-vertical-slice-v1",
-  "starting_head": "e9e801d8150303c8c8d973b0425a30fbd40a541c",
-  "activation_base_sha": "e4e23028c6c78c4ab9a8e032677e71370ace7627",
-  "accepted_product_head": "e103fc53bd985375f0513c0369eb9dcc18510004",
-  "allowed_merge_method": "merge",
-  "risk_tier": "R2",
-  "governance_artifact_risk_tier": "R2",
+  "follows_last_decision_id": "decision_20260808_pr132_opencode_backend_landing_v7",
+  "follows_last_round_id": "round_20260808_pr132_opencode_backend_landing_v7",
+  "previous_audit_outcome": "PR132_MERGED_MAIN_A1D09D4A",
+  "workstream_id": "issue133-frontend-opencode-devup-v1",
+  "source_issue": 133,
+  "parent_issue": 127,
+  "required_branch": "owner/issue133-frontend-opencode-devup-v1",
+  "starting_head": "a1d09d4ae8887405721efe9871881db788c5820a",
+  "activation_base_sha": "a1d09d4ae8887405721efe9871881db788c5820a",
+  "risk_tier": "R3",
+  "governance_artifact_risk_tier": "R3",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
   "pr_creation_allowed": false,
   "draft_pr_creation_allowed": false,
   "pr_body_update_allowed": false,
-  "pr_comment_allowed": true,
+  "pr_comment_allowed": false,
   "issue_comment_allowed": false,
   "branch_creation_allowed": false,
-  "worktree_creation_allowed": false,
+  "worktree_creation_allowed": true,
   "local_commit_allowed": true,
   "normal_push_allowed": true,
-  "exact_head_workflow_observation_allowed": true,
-  "merge_allowed": true,
-  "mark_ready_allowed": true,
+  "exact_head_workflow_observation_allowed": false,
+  "merge_allowed": false,
+  "mark_ready_allowed": false,
   "auto_merge_allowed": false,
   "force_push_allowed": false,
   "rebase_allowed": false,
   "direct_push_to_main_allowed": false,
   "release_allowed": false,
   "deployment_allowed": false,
-  "real_provider_credential_allowed": false,
-  "live_provider_probe_allowed": false,
-  "model_execution_required": false,
-  "model_api_invocation_allowed": false,
-  "opencode_invocation_allowed": false,
+  "model_execution_required": true,
+  "model_api_invocation_allowed": true,
+  "opencode_invocation_allowed": true,
   "codex_invocation_allowed": false,
   "openhands_invocation_allowed": false,
+  "package_installation_allowed": false,
+  "provider_configuration_mutation_allowed": false,
+  "credential_value_access_allowed": false,
+  "preexisting_provider_session_use_allowed": true,
   "bounded_external_source_access_allowed": false,
   "repair_attempt_limit": 1,
-  "infrastructure_retry_limit": 0,
+  "infrastructure_retry_limit": 1,
   "audit_generation_allowed": false,
   "prior_audits_immutable": true,
   "bootstrap_state_initial": "BOOTSTRAP_OPEN",
@@ -70,11 +69,8 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
-    "git status --short",
-    "git fetch origin owner/issue127-opencode-vertical-slice-v1",
-    "git show origin/owner/issue127-opencode-vertical-slice-v1:project_state/decision_packet.md",
-    "git merge --ff-only origin/owner/issue127-opencode-vertical-slice-v1",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+    "git status --short",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
     "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre"
@@ -92,39 +88,6 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "sync.fetch_pr132_branch",
-      "command": "git fetch origin owner/issue127-opencode-vertical-slice-v1",
-      "phase": "bootstrap",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "sync.inspect_remote_decision",
-      "command": "git show origin/owner/issue127-opencode-vertical-slice-v1:project_state/decision_packet.md",
-      "phase": "bootstrap",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "sync.fast_forward_pr132_branch",
-      "command": "git merge --ff-only origin/owner/issue127-opencode-vertical-slice-v1",
-      "phase": "bootstrap",
-      "required": false,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_sync"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
       "command_id": "observation.git_head",
       "command": "git rev-parse HEAD",
       "phase": "status",
@@ -136,8 +99,19 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
+      "command_id": "observation.git_main",
+      "command": "git rev-parse origin/main",
+      "phase": "status",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
       "command_id": "observation.merge_base",
-      "command": "git merge-base origin/main owner/issue127-opencode-vertical-slice-v1",
+      "command": "git merge-base HEAD origin/main",
       "phase": "status",
       "required": true,
       "expected_exit_codes": [0],
@@ -147,64 +121,99 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "observation.active_intent_hash_before",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/active.json').Hash.ToLower()\"",
-      "phase": "status",
+      "command_id": "gate.startup_snapshot",
+      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+      "phase": "gate",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "mutation.archive_pr129_intent",
-      "command": "powershell -NoProfile -Command \"Copy-Item 'project_state/mainline_merge_intents/active.json' 'project_state/mainline_merge_intents/archive/pr129_v5.json'\"",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["governance_artifact_mutation"],
+      "operations": ["gate_execution"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence",
-      "allowed_mutated_paths": ["project_state/mainline_merge_intents/archive/pr129_v5.json"]
+      "allowed_mutated_paths": ["project_state/gates/startup_snapshot.json"]
     },
     {
-      "command_id": "observation.archive_hash_after",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/archive/pr129_v5.json').Hash.ToLower()\"",
+      "command_id": "gate.transition_command_plan",
+      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["gate_execution"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": ["project_state/gates/command_plan.json", "project_state/gates/transition_command_plan_preview.json"]
+    },
+    {
+      "command_id": "gate.transition_lint",
+      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["gate_execution"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "gate.transition_preflight",
+      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
+      "phase": "gate",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["gate_execution"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": ["project_state/gates/transition_preflight_result.json", "project_state/gates/bootstrap_state.json"]
+    },
+    {
+      "command_id": "test.frontend",
+      "command": "npm --prefix frontend test",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["repository_observation"],
+      "operations": ["run_checks"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "observation.decision_sha256",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/decision_packet.md').Hash.ToLower()\"",
-      "phase": "status",
+      "command_id": "test.frontend_typecheck",
+      "command": "npm --prefix frontend run typecheck",
+      "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["repository_observation"],
+      "operations": ["run_checks"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "observation.command_plan_sha256",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/gates/command_plan.json').Hash.ToLower()\"",
-      "phase": "status",
+      "command_id": "test.frontend_lint",
+      "command": "npm --prefix frontend run lint",
+      "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["repository_observation"],
+      "operations": ["run_checks"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "test.mainline_landing",
-      "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
+      "command_id": "test.frontend_build",
+      "command": "npm --prefix frontend run build",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "test.issue133_backend_focused",
+      "command": "python -m pytest tests/test_model_access.py tests/platform_v1/test_task_service.py tests/platform_v1/test_opencode_executor.py tests/test_dev_up_contract.py -q",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -236,8 +245,91 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
+      "command_id": "validation.create_clean_source",
+      "command": "git worktree add --detach F:/reverse-agent-workspaces/issue133-gui-source HEAD",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["worktree_creation", "external_workspace_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "validation_note": "Run only after implementation and generated gates are committed. Destination must not pre-exist; do not delete or overwrite an existing path."
+    },
+    {
+      "command_id": "validation.clean_source_before",
+      "command": "git -C F:/reverse-agent-workspaces/issue133-gui-source status --short",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "exact_head_validation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "validation_note": "Output must be empty."
+    },
+    {
+      "command_id": "acceptance.dev_up",
+      "command": "powershell -ExecutionPolicy Bypass -File .\\dev-up.ps1 -RepoDir F:/reverse-agent-workspaces/issue133-gui-source -OpenCodeModel sensetime/sensenova-6.7-flash-lite -NoBrowser",
+      "phase": "acceptance",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["process_start", "loopback_service_start", "tool_execution"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "validation_note": "Must return only after model-control, Task API and frontend loopback health checks pass. It must not invoke a model by itself."
+    },
+    {
+      "command_id": "acceptance.frontend_http",
+      "command": "powershell -NoProfile -Command \"$r=Invoke-WebRequest -UseBasicParsing http://127.0.0.1:4173/; if ($r.StatusCode -ne 200) { exit 1 }\"",
+      "phase": "acceptance",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["loopback_http_probe"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "acceptance.real_opencode_task",
+      "command": "powershell -NoProfile -Command \"$body=@{title='Create issue133_gui_acceptance.txt containing exactly gui-opencode-ok and do not modify any other file';repository='dddd2024/reverse-agent';executor_kind='opencode';model_profile_ref='';permission_profile='ASK_FOR_APPROVAL';policy_ref='';workspace='';branch=''}|ConvertTo-Json -Compress; $created=Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8766/api/tasks -ContentType 'application/json' -Body $body; $done=Invoke-RestMethod -Method Post -Uri ('http://127.0.0.1:8766/api/tasks/'+$created.id+'/execute') -ContentType 'application/json' -Body '{}'; $read=Invoke-RestMethod -Method Get -Uri ('http://127.0.0.1:8766/api/tasks/'+$created.id); if ($read.status -ne 'READY_FOR_REVIEW') { throw ('unexpected status '+$read.status) }; if ($read.executor_kind -ne 'opencode') { throw 'executor mismatch' }; if (-not ($read.changed_files | Where-Object { $_.path -eq 'issue133_gui_acceptance.txt' })) { throw 'acceptance file missing' }; if (-not ($read.evidence | Where-Object { $_.category -eq 'ExecutorAction' -or $_.label -eq 'git_diff_check' })) { throw 'executor or validation evidence missing' }; Write-Output $created.id\"",
+      "phase": "acceptance",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["model_execution", "network_access", "tool_execution", "external_workspace_mutation", "deterministic_validation"],
+      "network_access": true,
+      "required_evidence_source": "local_command_evidence",
+      "validation_note": "Use only the pre-existing OpenCode provider session; no credential value access. Source validation worktree must remain unchanged."
+    },
+    {
+      "command_id": "validation.clean_source_after",
+      "command": "git -C F:/reverse-agent-workspaces/issue133-gui-source status --short",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "exact_head_validation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "validation_note": "Output must remain empty after real execution because mutations occur only in the executor linked worktree."
+    },
+    {
+      "command_id": "acceptance.dev_down",
+      "command": "powershell -ExecutionPolicy Bypass -File .\\dev-down.ps1",
+      "phase": "acceptance",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["process_stop", "loopback_service_stop"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "validation_note": "Stop only processes recorded by dev-up; never kill unrelated Python, Node or OpenCode processes."
+    },
+    {
       "command_id": "validation.diff_check",
-      "command": "git diff --check e4e23028c6c78c4ab9a8e032677e71370ace7627..HEAD",
+      "command": "git diff --check a1d09d4ae8887405721efe9871881db788c5820a..HEAD",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -248,7 +340,7 @@
     },
     {
       "command_id": "validation.path_list",
-      "command": "git diff --name-only e103fc53bd985375f0513c0369eb9dcc18510004..HEAD",
+      "command": "git diff --name-only a1d09d4ae8887405721efe9871881db788c5820a..HEAD",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -259,7 +351,7 @@
     },
     {
       "command_id": "publication.push_branch",
-      "command": "git push origin owner/issue127-opencode-vertical-slice-v1",
+      "command": "git push origin owner/issue133-frontend-opencode-devup-v1",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -277,26 +369,38 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr129_v5.json"
+    "dev-up.ps1",
+    "dev-down.ps1",
+    "frontend/src/components/new-task-composer.tsx",
+    "frontend/src/hooks/use-tasks.ts",
+    "frontend/src/lib/task-client.ts",
+    "frontend/tests/provider-free-task-plane.test.tsx",
+    "frontend/tests/real-executor-task-plane.test.tsx",
+    "tests/test_dev_up_contract.py"
   ],
   "reference_paths": [
     "AGENTS.md",
     "README.md",
     "pyproject.toml",
     "reverse_agent/project_gate.py",
-    "reverse_agent/mainline_landing.py",
-    "tests/test_project_gate.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_mainline_landing.py",
-    "tests/test_integration_baseline.py",
-    "tests/test_project_audits.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/task_runtime.py",
+    "reverse_agent/platform_v1/opencode_executor.py",
+    "reverse_agent/model_access/service.py",
+    "reverse_agent/model_access/contracts.py",
+    "frontend/src/lib/model-control-client.ts",
+    "frontend/src/schemas/model-profile.ts",
+    "frontend/src/components/model-profile-editor.tsx",
+    "frontend/vite.config.ts",
+    "frontend/package.json",
+    "tests/test_model_access.py",
     "tests/platform_v1/**",
+    "project_state/mainline_merge_intents/active.json",
     "project_state/schemas/**"
   ],
   "generated_artifact_paths": [
-    "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
+    "project_state/gates/command_plan.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json"
@@ -309,16 +413,22 @@
     "poetry.lock",
     "uv.lock",
     ".github/**",
-    "frontend/**",
-    "docs/**",
     "reverse_agent/**",
-    "tests/**",
+    "frontend/src/lib/model-control-client.ts",
+    "frontend/src/schemas/model-profile.ts",
+    "frontend/src/components/model-profile-editor.tsx",
+    "frontend/vite.config.ts",
+    "frontend/package.json",
+    "docs/**",
+    "project_state/mainline_merge_intents/**",
     "project_state/current_state.json",
     "project_state/state_manifest.json",
     "project_state/artifact_index.json",
     "project_state/schemas/**",
     "project_state/rounds/**",
-    "project_state/audits/**"
+    "project_state/audits/**",
+    "tests/platform_v1/**",
+    "tests/test_model_access.py"
   ],
   "forbidden_operations": [
     "direct_push_main",
@@ -330,142 +440,152 @@
     "tag_or_release",
     "release",
     "deployment",
-    "credential_access",
+    "credential_value_access",
     "credential_publication",
-    "model_api_invocation",
-    "opencode_invocation",
+    "provider_configuration_mutation",
+    "package_installation",
     "codex_invocation",
     "openhands_invocation",
-    "runner_dispatch",
-    "external_reverse_tool_invocation",
-    "unknown_binary_execution",
+    "multi_agent",
     "destructive",
     "unbounded_network_access",
-    "create_pr",
-    "pr_creation",
-    "draft_pr_creation",
-    "pr_body_update",
     "reset_hard",
-    "git_clean"
+    "git_clean",
+    "create_pr",
+    "mark_ready",
+    "merge",
+    "merge_intent_mutation"
   ],
   "capability_policy": {
-    "runner_dispatch_allowed": false,
-    "model_api_invocation_allowed": false,
-    "opencode_invocation_allowed": false,
+    "runner_dispatch_allowed": true,
+    "model_api_invocation_allowed": true,
+    "opencode_invocation_allowed": true,
     "codex_invocation_allowed": false,
     "openhands_invocation_allowed": false,
-    "external_reverse_tool_invocation_allowed": false,
-    "unknown_binary_execution_allowed": false,
     "destructive_operations_allowed": false,
     "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
-    "merge_allowed": true,
-    "mark_ready_allowed": true,
+    "merge_allowed": false,
     "force_push_allowed": false,
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
-      "git fetch origin owner/issue127-opencode-vertical-slice-v1",
-      "git push origin owner/issue127-opencode-vertical-slice-v1",
-      "gh pr view 132 --repo dddd2024/reverse-agent",
-      "gh pr checks 132 --repo dddd2024/reverse-agent"
+      "opencode run",
+      "git fetch origin main",
+      "git push origin owner/issue133-frontend-opencode-devup-v1",
+      "loopback http://127.0.0.1:4173",
+      "loopback http://127.0.0.1:8765",
+      "loopback http://127.0.0.1:8766"
     ],
     "ci_network_exceptions": []
   },
-  "authorized_risk_tier": "R2",
+  "authorized_risk_tier": "R3",
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
     "project_state/gates/**",
-    "project_state/mainline_merge_intents/**"
+    "dev-up.ps1",
+    "dev-down.ps1",
+    "frontend/src/components/new-task-composer.tsx",
+    "frontend/src/hooks/use-tasks.ts",
+    "frontend/src/lib/task-client.ts",
+    "frontend/tests/provider-free-task-plane.test.tsx",
+    "frontend/tests/real-executor-task-plane.test.tsx",
+    "tests/test_dev_up_contract.py"
   ],
   "path_risk_floor": [
     {"pattern": "project_state/decision_packet.md", "minimum_risk": "R2"},
     {"pattern": "project_state/gates/**", "minimum_risk": "R2"},
-    {"pattern": "project_state/mainline_merge_intents/**", "minimum_risk": "R2"}
+    {"pattern": "dev-up.ps1", "minimum_risk": "R2"},
+    {"pattern": "dev-down.ps1", "minimum_risk": "R2"},
+    {"pattern": "frontend/**", "minimum_risk": "R1"},
+    {"pattern": "tests/test_dev_up_contract.py", "minimum_risk": "R1"}
   ]
 }
 ```
 
 ## Goal
 
-PR #132 v7 is the final governance-only landing authority. It supersedes v5 and v6 before any local landing execution. v5 introduced the PR-bound R2 authority; v6 added explicit fast-forward bootstrap; v7 additionally makes remote Decision inspection, old-intent hashing/archive, and exact Decision/command-plan hash calculation first-class deterministic commands so the active intent can be derived without guessed values.
+Issue #133 v1 starts the first user-facing real-Agent round after PR #132 landed the OpenCode backend on `main`.
 
-No v5/v6 local gate generation or merge-intent mutation occurred. Accepted product head remains frozen at:
-
-```text
-e103fc53bd985375f0513c0369eb9dcc18510004
-```
-
-The prior PR-triggered product-head CI failed only the two expected stale mainline-intent tests:
+The target chain is:
 
 ```text
-tests/test_mainline_landing.py::test_committed_active_intent_binds_exact_current_authority
-tests/test_mainline_landing.py::test_production_pre_merge_simulation
+Frontend
+  -> explicit executor choice
+  -> Task API
+  -> ExecutorRouter
+  -> OpenCodeExecutor
+  -> linked Git worktree
+  -> deterministic validation
+  -> SQLite events / changes / evidence
+  -> frontend READY_FOR_HUMAN readback
 ```
 
-All earlier CI steps passed; Decision Preflight and State Gate succeeded on the accepted product head.
+At the same time add a Windows-first one-command local development entrypoint for this stack.
 
-After synchronizing to this Owner Decision and obtaining `PRE_EXECUTION_AUTHORIZED`, the landing round may only:
-1. record the SHA-256 of the current PR129 active intent;
-2. archive that exact file byte-for-byte to `project_state/mainline_merge_intents/archive/pr129_v5.json` and prove the archive SHA-256 equals the pre-copy hash;
-3. calculate SHA-256 of the committed v7 Decision and generated v7 command plan;
-4. replace `active.json` with the exact PR132 v7 intent using those observed hashes;
-5. run landing/platform/gate validation, diff/path checks, commit only the eight governance paths, and normal-push.
+### Architecture boundary
 
-The new active intent must use:
+Do **not** expand the model-access subsystem to add an OpenCode profile type in this round. Current model-control profiles describe the existing provider/profile routes, while OpenCode uses its own already-authenticated local CLI session. The current OpenCode backend also treats `model_profile_ref` as a concrete model id, so sending a frontend profile id would be false binding.
 
-```json
-{
-  "schema_version": 1,
-  "intent_id": "pr132_opencode_backend_landing_v7",
-  "repository": "dddd2024/reverse-agent",
-  "source_pr": 132,
-  "locked_base_sha": "e4e23028c6c78c4ab9a8e032677e71370ace7627",
-  "allowed_merge_method": "merge",
-  "decision_identity": {
-    "decision_id": "decision_20260808_pr132_opencode_backend_landing_v7",
-    "decision_content_sha256": "<OBSERVED_DECISION_SHA256>"
-  },
-  "command_plan_sha256": "<OBSERVED_COMMAND_PLAN_SHA256>",
-  "merge_tree_policy": "equal_to_accepted_head_tree",
-  "required_workflows": [
-    "CI",
-    "Decision Preflight",
-    "State Gate (pull_request)",
-    "State Gate (push)"
-  ],
-  "expires_at": "2026-08-15T23:59:59Z"
-}
-```
+For `executor_kind=opencode` in this round:
+
+- the frontend does not require a model-control profile;
+- it sends an empty `model_profile_ref`;
+- trusted-host `dev-up.ps1` supplies `REVERSE_AGENT_OPENCODE_MODEL`;
+- OpenCode uses the pre-existing provider session;
+- the UI clearly labels OpenCode as host-configured;
+- fixture remains explicit/mock-only and is never a silent fallback.
+
+The model-control service still starts under `dev-up.ps1` so Settings/model-profile functionality remains usable, but it is not the authority for the OpenCode CLI session.
+
+### One-click startup
+
+`dev-up.ps1` must start and health-check:
+
+1. `python -m reverse_agent.model_access.service` on loopback;
+2. `python -m reverse_agent.platform_v1.task_service` on loopback;
+3. `npm --prefix frontend run dev` on loopback.
+
+It must set coherent loopback origins/API bases, pass the selected repo dir and non-secret OpenCode model id to the Task API process, fail closed for missing Python/Node/npm/OpenCode prerequisites or occupied ports, avoid installation/global config changes, never print secrets, and record only child PIDs it owns under ignored runtime state.
+
+`dev-down.ps1` may stop only those recorded child PIDs and must never kill unrelated Python, Node or OpenCode processes.
+
+### Implementation scope
+
+Expected product edits are limited to task-client executor payload/type, create-task hook mapping, new-task composer executor selection and conditional model-profile requirement, focused frontend regressions, and root dev-up/dev-down scripts plus a static startup-contract test.
+
+Do not redesign the UI, rewrite TaskService/OpenCodeExecutor, change model-access contracts, mutate merge intents, or add Draft PR publication.
 
 ## Acceptance
 
-1. `git fetch` + remote Decision inspection + only `git merge --ff-only` for local synchronization; preserve unknown untracked files.
-2. v7 Decision commit precedes all v7 gate generation and merge-intent mutation.
-3. Standard transition sequence: transition-command-plan PASS, transition-lint PASS, transition-preflight `PRE_EXECUTION_AUTHORIZED`, `blocking_reasons=[]`.
-4. PR129 active-intent SHA before copy exactly equals `archive/pr129_v5.json` SHA after copy.
-5. PR132 active intent contains observed, not guessed, SHA-256 values for the exact committed Decision and generated command plan.
-6. Accepted product head remains ancestor and no product/test/runtime/frontend/workflow/doc/package file changes after it.
-7. Landing/integration/audit tests pass with zero failures.
-8. `tests/platform_v1` passes with zero failures; the known landing-governance failures disappear without modifying tests.
-9. project-gate/control-plane regression tests pass.
-10. `git diff --check e4e23028...HEAD` passes.
-11. `git diff --name-only e103fc53...HEAD` contains only the 8 authorized governance paths.
-12. No model/provider/runtime execution. OpenCode=0, Codex=0, OpenHands=0.
-13. Normal push only. No rebase, reset, clean, force push, squash, main push, Ready, merge, release or deploy by local Agent.
+1. Branch is `owner/issue133-frontend-opencode-devup-v1`, based on `main@a1d09d4ae8887405721efe9871881db788c5820a`.
+2. Decision commit precedes every implementation mutation and remains immutable after activation.
+3. transition-command-plan PASS; transition-lint PASS; transition-preflight returns `PRE_EXECUTION_AUTHORIZED`, `blocking_reasons=[]`.
+4. Normal HTTP frontend creation no longer hard-codes fixture; explicit OpenCode selection sends `executor_kind=opencode`.
+5. OpenCode selection does not require a model-control profile and sends empty `model_profile_ref`; no profile id is misrepresented as an OpenCode model id.
+6. Fixture/mock behavior remains deterministic and explicit.
+7. `dev-up.ps1` starts model-control, Task API and frontend on loopback with coherent origins/API bases; it installs nothing and exposes no secrets.
+8. `dev-down.ps1` stops only PIDs recorded by `dev-up.ps1`.
+9. Frontend test, typecheck, lint and build pass.
+10. Focused backend/startup-contract tests, full `tests/platform_v1`, and project-gate/control-plane regressions pass.
+11. After implementation commit, clean source worktree is empty before and after real acceptance.
+12. Real task through the running stack reaches `READY_FOR_REVIEW`, records only the intended acceptance file as the task change, persists executor/validation evidence, and uses `sensetime/sensenova-6.7-flash-lite` via the pre-existing OpenCode session.
+13. Codex calls = 0; OpenHands calls = 0; credential-value access = 0; provider-config mutation = 0; package installation = 0.
+14. `git diff --check a1d09d4a...HEAD` passes and changed paths stay inside the authorized list.
+15. Normal push only. No PR creation, Ready, merge, release or deploy by the local Agent.
 
 ```text
-PR132_V7_LANDING_GOVERNANCE_READY_FOR_OWNER_EXACT_HEAD_REVIEW
+ISSUE133_V1_FRONTEND_OPENCODE_DEVUP_READY_FOR_OWNER_AUDIT
 ```
 
 ## Execution policy
 
-- v7 is the only active local landing authority; v5/v6 are superseded pre-execution.
-- The remote v7 Decision may be read immediately after the authorized fetch before fast-forwarding the local branch.
-- Do not modify `active.json` until preflight authorizes execution and the old active intent has been hashed and archived.
-- Archive must be byte-for-byte identical; hash mismatch is a hard stop.
-- Do not guess or hand-copy Decision/command-plan digests; use the authorized `Get-FileHash` commands on committed/generated files.
-- Product head `e103fc53...` is immutable for landing; any post-product change outside the eight governance paths is a hard stop.
-- Owner-only PR comment/Ready/merge permissions are not delegated to the local Agent.
-- No OpenCode, Codex, OpenHands, provider/model, credential, release or deployment action is authorized.
+- Preserve every unknown staged, unstaged and untracked local file. Never `git clean`, `reset --hard`, rebase, force-push, amend or blanket-stage.
+- `.frontend_stage/` and `.platform_v1_runtime/` may already exist locally; preserve them.
+- If tracked local modifications exist before synchronization, classify them and do not discard them; use a safe worktree when needed.
+- No package installation is authorized. Existing Python/frontend dependencies must already be present; otherwise stop with a prerequisite blocker.
+- `dev-up.ps1` itself must not invoke a model. Model invocation occurs only in the explicit real acceptance after preflight and implementation validation.
+- `REVERSE_AGENT_OPENCODE_MODEL` is non-secret metadata. Provider credentials/tokens remain outside reverse-agent and must not be read or printed.
+- Do not mutate `reverse_agent/**`, frontend model-profile schema/editor/client, or `project_state/mainline_merge_intents/**`.
+- Do not create a PR. Owner will audit the exact pushed HEAD and handle Draft PR/landing separately.
