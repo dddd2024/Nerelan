@@ -281,6 +281,174 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
+      "command_id": "probe.prepare_primary",
+      "command": "powershell -NoProfile -Command \"if (Test-Path 'F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe') { exit 42 }; New-Item -ItemType Directory -Path 'F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe' | Out-Null\"",
+      "phase": "research",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["external_scratch_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "probe.primary_init",
+      "command": "npm --prefix F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe init -y",
+      "phase": "research",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["external_scratch_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "probe.primary_current_peers",
+      "command": "npm --prefix F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe install react@19.2.8 react-dom@19.2.8 react-router@8.3.0 --save-exact",
+      "phase": "research",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["package_installation", "external_scratch_mutation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "probe.primary_agent_canvas",
+      "command": "npm --prefix F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe install @openhands/agent-canvas@1.6.1 --save-exact",
+      "phase": "research",
+      "required": true,
+      "expected_exit_codes": [0, 1],
+      "execution_surface": "local",
+      "operations": ["package_installation", "external_scratch_mutation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "probe.prepare_diagnostic",
+      "command": "powershell -NoProfile -Command \"if (Test-Path 'F:/reverse-agent-workspaces/issue136-agent-canvas-diagnostic-probe') { exit 42 }; New-Item -ItemType Directory -Path 'F:/reverse-agent-workspaces/issue136-agent-canvas-diagnostic-probe' | Out-Null\"",
+      "phase": "research",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["external_scratch_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "probe.diagnostic_init",
+      "command": "npm --prefix F:/reverse-agent-workspaces/issue136-agent-canvas-diagnostic-probe init -y",
+      "phase": "research",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["external_scratch_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "probe.diagnostic_install",
+      "command": "npm --prefix F:/reverse-agent-workspaces/issue136-agent-canvas-diagnostic-probe install react@19.2.5 react-dom@19.2.5 react-router@7.17.0 @openhands/agent-canvas@1.6.1 --save-exact",
+      "phase": "research",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["package_installation", "external_scratch_mutation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "reference.cli_help_primary",
+      "command": "npm --prefix F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe exec -- agent-canvas --help",
+      "phase": "research",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["external_ui_reference_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "reference.cli_help_diagnostic",
+      "command": "npm --prefix F:/reverse-agent-workspaces/issue136-agent-canvas-diagnostic-probe exec -- agent-canvas --help",
+      "phase": "research",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["external_ui_reference_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "reference.artifact_dir",
+      "command": "powershell -NoProfile -Command \"New-Item -ItemType Directory -Force -Path 'frontend/artifacts/agent-canvas-v1.6.1' | Out-Null\"",
+      "phase": "research",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["authorized_artifact_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": ["frontend/artifacts/agent-canvas-v1.6.1/**"]
+    },
+    {
+      "command_id": "reference.start_primary",
+      "command": "powershell -NoProfile -Command \"$p=Start-Process -FilePath 'npm.cmd' -ArgumentList '--prefix','F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe','exec','--','agent-canvas','--frontend-only','--port','18080' -PassThru -RedirectStandardOutput 'F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe/reference.out.log' -RedirectStandardError 'F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe/reference.err.log'; $p.Id | Set-Content 'F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe/reference.pid'; Write-Output $p.Id\"",
+      "phase": "research",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["external_ui_reference_run", "external_scratch_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "reference.start_diagnostic",
+      "command": "powershell -NoProfile -Command \"$p=Start-Process -FilePath 'npm.cmd' -ArgumentList '--prefix','F:/reverse-agent-workspaces/issue136-agent-canvas-diagnostic-probe','exec','--','agent-canvas','--frontend-only','--port','18080' -PassThru -RedirectStandardOutput 'F:/reverse-agent-workspaces/issue136-agent-canvas-diagnostic-probe/reference.out.log' -RedirectStandardError 'F:/reverse-agent-workspaces/issue136-agent-canvas-diagnostic-probe/reference.err.log'; $p.Id | Set-Content 'F:/reverse-agent-workspaces/issue136-agent-canvas-diagnostic-probe/reference.pid'; Write-Output $p.Id\"",
+      "phase": "research",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["external_ui_reference_run", "external_scratch_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "reference.capture_upstream",
+      "command": "powershell -NoProfile -Command \"$edge=@('C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe','C:/Program Files/Microsoft/Edge/Application/msedge.exe') | Where-Object { Test-Path $_ } | Select-Object -First 1; if (-not $edge) { exit 2 }; & $edge --headless --disable-gpu --window-size=1440,900 --screenshot='F:/reverse-agent/frontend/artifacts/agent-canvas-v1.6.1/reference-home-1440x900.png' 'http://127.0.0.1:18080'\"",
+      "phase": "research",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["browser_screenshot", "authorized_artifact_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": ["frontend/artifacts/agent-canvas-v1.6.1/reference-home-1440x900.png"]
+    },
+    {
+      "command_id": "baseline.start_reverse_agent_mock",
+      "command": "powershell -NoProfile -Command \"$p=Start-Process -FilePath 'npm.cmd' -ArgumentList '--prefix','frontend','run','dev:mock','--','--host','127.0.0.1','--port','18081' -PassThru -RedirectStandardOutput 'F:/reverse-agent-workspaces/issue136-reverse-agent-baseline.out.log' -RedirectStandardError 'F:/reverse-agent-workspaces/issue136-reverse-agent-baseline.err.log'; $p.Id | Set-Content 'F:/reverse-agent-workspaces/issue136-reverse-agent-baseline.pid'; Write-Output $p.Id\"",
+      "phase": "research",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["local_ui_reference_run", "external_scratch_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "baseline.capture_reverse_agent",
+      "command": "powershell -NoProfile -Command \"$edge=@('C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe','C:/Program Files/Microsoft/Edge/Application/msedge.exe') | Where-Object { Test-Path $_ } | Select-Object -First 1; if (-not $edge) { exit 2 }; & $edge --headless --disable-gpu --window-size=1440,900 --screenshot='F:/reverse-agent/frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-current-1440x900.png' 'http://127.0.0.1:18081'\"",
+      "phase": "research",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["browser_screenshot", "authorized_artifact_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": ["frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-current-1440x900.png"]
+    },
+    {
       "command_id": "test.frontend",
       "command": "npm --prefix frontend test",
       "phase": "validation",
@@ -465,7 +633,11 @@ The official upstream clone authority is exact and immutable for this round:
 
 `https://github.com/OpenHands/agent-canvas.git` at tag `v1.6.1`.
 
-Package installs and any screenshot harness installs are permitted only under external scratch directories such as `F:/reverse-agent-workspaces/**`; they are forbidden in `F:/reverse-agent/frontend` and may not mutate tracked package manifests.
+The pinned npm CLI has been Owner-verified to support `--frontend-only` and `--port <port>`. Stage A may therefore run the static Agent Canvas frontend only on `127.0.0.1:18080` without starting an LLM conversation. Starting an Agent Server/LLM conversation remains forbidden.
+
+The primary compatibility probe must first model the current reverse-agent peers (`react@19.2.8`, `react-dom@19.2.8`, `react-router@8.3.0`) and attempt a normal install of `@openhands/agent-canvas@1.6.1`. If that install fails, the failure is evidence. A second diagnostic harness using the Agent Canvas peers (`19.2.5`, `19.2.5`, `7.17.0`) is optional and exists only to inspect/render the package; it cannot by itself justify package-embed acceptance.
+
+Package installs are permitted only under `F:/reverse-agent-workspaces/**`; they are forbidden in `F:/reverse-agent/frontend` and may not mutate tracked package manifests.
 
 Launching the Agent Canvas UI/reference without starting an LLM conversation is permitted. Starting an OpenHands Agent, submitting a model task, provider login/configuration, or reading credential values remains forbidden.
 
