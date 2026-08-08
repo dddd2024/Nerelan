@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260808_issue136_agent_canvas_source_fork_stageb1_typefix_v8",
-  "round_id": "round_20260808_issue136_agent_canvas_source_fork_stageb1_typefix_v8",
+  "decision_id": "decision_20260809_issue136_agent_canvas_source_fork_stageb1_validation_v9",
+  "round_id": "round_20260809_issue136_agent_canvas_source_fork_stageb1_validation_v9",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,14 +14,14 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260808_issue136_agent_canvas_source_fork_stageb1_v7",
-  "follows_last_round_id": "round_20260808_issue136_agent_canvas_source_fork_stageb1_v7",
-  "previous_audit_outcome": "BLOCKED_STAGE_B1_V7_TYPECHECK_AFTER_SINGLE_REPAIR_EXHAUSTED",
-  "workstream_id": "issue136-agent-canvas-source-fork-stageb1-typefix-v8",
+  "follows_last_decision_id": "decision_20260808_issue136_agent_canvas_source_fork_stageb1_typefix_v8",
+  "follows_last_round_id": "round_20260808_issue136_agent_canvas_source_fork_stageb1_typefix_v8",
+  "previous_audit_outcome": "STOPPED_STAGE_B1_V8_PLATFORM_V1_VALIDATION_FAILED_KNOWN_LANDING_GOVERNANCE_ONLY",
+  "workstream_id": "issue136-agent-canvas-source-fork-stageb1-validation-v9",
   "source_issue": 136,
   "parent_issue": 127,
   "required_branch": "owner/issue136-agent-canvas-reuse-spike-v2",
-  "starting_head": "940d99f4f57ddafe521744cde268b4c13139d1a1",
+  "starting_head": "21e22de25163ade90ce2ef2a0be631a71b36ad41",
   "activation_base_sha": "dd4cb074ab5b9baacf300706878b29bd745f12c3",
   "risk_tier": "R3",
   "governance_artifact_risk_tier": "R3",
@@ -56,31 +56,25 @@
   "provider_configuration_mutation_allowed": false,
   "credential_value_access_allowed": false,
   "bounded_external_source_access_allowed": true,
-  "repair_attempt_limit": 1,
+  "repair_attempt_limit": 0,
   "infrastructure_retry_limit": 0,
   "audit_generation_allowed": false,
   "prior_audits_immutable": true,
   "bootstrap_state_initial": "BOOTSTRAP_OPEN",
   "accepted_disposition": "AGENT_CANVAS_PINNED_SOURCE_FORK_SELECTED",
-  "carry_forward_from_v7": {
+  "carry_forward_from_v7_v8": {
     "allowed": true,
-    "description": "Preserve the already-produced uncommitted Stage B1 v7 vendor/adapters/provenance/tests/gate changes. Do not discard or redo them. v8 authorizes one code repair only, then full B1 validation and publication.",
-    "known_blocker": "frontend/src/vendor/agent-canvas-v1.6.1/resize-handle.tsx TS2322: MouseEvent<HTMLDivElement> is not assignable to MouseEventHandler<HTMLButtonElement>."
+    "description": "Preserve all uncommitted Stage B1 v7 implementation and the v8 one-line ResizeHandle type fix. Do not discard, redo, or broaden implementation. v9 authorizes validation, evidence capture, staging, commit, and push only.",
+    "v8_type_fix": "frontend/src/vendor/agent-canvas-v1.6.1/resize-handle.tsx event generic changed from HTMLDivElement to HTMLButtonElement; no further source repair is authorized in v9."
   },
-  "repair_contract": {
-    "only_new_code_mutation": "frontend/src/vendor/agent-canvas-v1.6.1/resize-handle.tsx",
-    "goal": "Make the ResizeHandle event/element typing internally consistent without removing the existing Agent Canvas v1.6.1 zero-width frame, 12px drag hit target, one-pixel hover/drag line, or the already-added keyboard accessibility semantics.",
-    "acceptable_repairs": [
-      "type the mouse handler for the actual interactive element type",
-      "or use an element whose event type matches the existing handler",
-      "with no behavioral broadening outside ResizeHandle"
+  "known_landing_governance_boundary": {
+    "status": "EXPECTED_OUTSIDE_ENGINEERING_SCOPE",
+    "files": [
+      "tests/platform_v1/test_contracts.py",
+      "tests/platform_v1/test_merge_intent.py"
     ],
-    "forbidden_repairs": [
-      "remove keyboard accessibility solely to silence TypeScript",
-      "add a package dependency",
-      "change reverse-agent data/runtime semantics",
-      "modify any other frontend source file as a new repair"
-    ]
+    "reason": "The committed active merge intent binds prior landing authority while this branch carries an engineering Decision with no active PR-bound landing intent. This exact class of failures was previously accepted on PR #132/#134 engineering branches and must not be repaired by mutating project_state/mainline_merge_intents/** in this round.",
+    "engineering_acceptance_rule": "All Platform V1 tests excluding the two landing-governance files must pass. The two landing-governance files are observed separately and may fail only for current-authority/active-intent binding fields such as active_pr, decision identity, locked_base_sha, Decision SHA-256, or command-plan SHA-256. Any other failure class blocks."
   },
   "pinned_upstream": {
     "repository": "https://github.com/OpenHands/agent-canvas.git",
@@ -131,12 +125,13 @@
     {"command_id":"test.frontend_typecheck","command":"npm --prefix frontend run typecheck","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"test.frontend_lint","command":"npm --prefix frontend run lint","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"test.frontend_build","command":"npm --prefix frontend run build","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"test.platform_v1","command":"python -m pytest tests/platform_v1 -q","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"test.platform_v1_product","command":"python -m pytest tests/platform_v1 --ignore=tests/platform_v1/test_contracts.py --ignore=tests/platform_v1/test_merge_intent.py -q","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence","validation_note":"All non-landing-governance Platform V1 tests must pass."},
+    {"command_id":"test.platform_v1_landing_observation","command":"python -m pytest tests/platform_v1/test_contracts.py tests/platform_v1/test_merge_intent.py -q","phase":"validation","required":true,"expected_exit_codes":[1],"execution_surface":"local","operations":["run_checks","repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence","validation_note":"Non-zero is acceptable only if every failure is the known current engineering Decision versus committed active merge-intent/PR landing-authority mismatch. Any product/runtime/import failure or unrelated assertion blocks."},
     {"command_id":"target.port_precheck","command":"powershell -NoProfile -Command 'if (Test-NetConnection 127.0.0.1 -Port 18082 -InformationLevel Quiet -WarningAction SilentlyContinue) { throw \"port 18082 already occupied\" }'","phase":"evidence","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["local_network_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"target.start_mock","command":"powershell -NoProfile -Command '$meta=\"F:/reverse-agent-workspaces/issue136-stageb1-v8-target-process.json\"; if (Test-Path -LiteralPath $meta) { throw \"target process metadata already exists\" }; $cmd=(Get-Command cmd.exe -ErrorAction Stop).Source; $p=Start-Process -FilePath $cmd -ArgumentList @(\"/d\",\"/s\",\"/c\",\"npm --prefix frontend run dev:mock -- --host 127.0.0.1 --port 18082 --strictPort\") -WorkingDirectory \"F:/reverse-agent\" -PassThru; [ordered]@{pid=$p.Id;path=$cmd;start_time=$p.StartTime.ToUniversalTime().ToString(\"o\")} | ConvertTo-Json | Set-Content -Encoding UTF8 -LiteralPath $meta; Write-Output $p.Id'","phase":"evidence","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["external_scratch_mutation","local_process_start"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"target.start_mock","command":"powershell -NoProfile -Command '$meta=\"F:/reverse-agent-workspaces/issue136-stageb1-v9-target-process.json\"; if (Test-Path -LiteralPath $meta) { throw \"target process metadata already exists\" }; $cmd=(Get-Command cmd.exe -ErrorAction Stop).Source; $p=Start-Process -FilePath $cmd -ArgumentList @(\"/d\",\"/s\",\"/c\",\"npm --prefix frontend run dev:mock -- --host 127.0.0.1 --port 18082 --strictPort\") -WorkingDirectory \"F:/reverse-agent\" -PassThru; [ordered]@{pid=$p.Id;path=$cmd;start_time=$p.StartTime.ToUniversalTime().ToString(\"o\")} | ConvertTo-Json | Set-Content -Encoding UTF8 -LiteralPath $meta; Write-Output $p.Id'","phase":"evidence","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["external_scratch_mutation","local_process_start"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"target.health","command":"powershell -NoProfile -Command '$ok=$false; for($i=0;$i -lt 30;$i++){ try { $r=Invoke-WebRequest -UseBasicParsing \"http://127.0.0.1:18082/\" -TimeoutSec 2; if($r.StatusCode -eq 200){$ok=$true; break} } catch {}; Start-Sleep -Seconds 1 }; if(-not $ok){ throw \"stage-b1 target did not become healthy\" }'","phase":"evidence","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["local_network_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"target.screenshot","command":"powershell -NoProfile -Command '$c=@(); if(${env:ProgramFiles(x86)}){$c+=(Join-Path ${env:ProgramFiles(x86)} \"Microsoft/Edge/Application/msedge.exe\")}; if($env:ProgramFiles){$c+=(Join-Path $env:ProgramFiles \"Microsoft/Edge/Application/msedge.exe\")}; $edge=$c | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1; if(-not $edge){$cmd=Get-Command msedge.exe -ErrorAction SilentlyContinue; if($cmd){$edge=$cmd.Source}}; if(-not $edge){throw \"Microsoft Edge not found\"}; & $edge --headless=new --disable-gpu --window-size=1440,900 --screenshot=\"F:/reverse-agent/frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-1440x900.png\" \"http://127.0.0.1:18082/\"; if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}'","phase":"evidence","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["evidence_artifact_mutation","local_browser_capture"],"network_access":false,"required_evidence_source":"local_command_evidence","allowed_mutated_paths":["frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-1440x900.png"]},
-    {"command_id":"target.stop","command":"powershell -NoProfile -Command '$meta=\"F:/reverse-agent-workspaces/issue136-stageb1-v8-target-process.json\"; $m=Get-Content -Raw -LiteralPath $meta | ConvertFrom-Json; $p=Get-Process -Id ([int]$m.pid) -ErrorAction SilentlyContinue; if(-not $p){Write-Output \"already_exited\"; exit 0}; if($p.Path -ne $m.path){throw \"target process path identity mismatch\"}; $recorded=[datetime]::Parse($m.start_time).ToUniversalTime(); $delta=[math]::Abs(($p.StartTime.ToUniversalTime()-$recorded).TotalMilliseconds); if($delta -gt 100){throw \"target process start_time identity mismatch\"}; taskkill /PID $p.Id /T /F; if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}'","phase":"cleanup","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["bounded_process_stop"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"target.stop","command":"powershell -NoProfile -Command '$meta=\"F:/reverse-agent-workspaces/issue136-stageb1-v9-target-process.json\"; $m=Get-Content -Raw -LiteralPath $meta | ConvertFrom-Json; $p=Get-Process -Id ([int]$m.pid) -ErrorAction SilentlyContinue; if(-not $p){Write-Output \"already_exited\"; exit 0}; if($p.Path -ne $m.path){throw \"target process path identity mismatch\"}; $recorded=[datetime]::Parse($m.start_time).ToUniversalTime(); $delta=[math]::Abs(($p.StartTime.ToUniversalTime()-$recorded).TotalMilliseconds); if($delta -gt 100){throw \"target process start_time identity mismatch\"}; taskkill /PID $p.Id /T /F; if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}'","phase":"cleanup","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["bounded_process_stop"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"target.port_closed","command":"powershell -NoProfile -Command 'if (Test-NetConnection 127.0.0.1 -Port 18082 -InformationLevel Quiet -WarningAction SilentlyContinue) { throw \"port 18082 still open\" }'","phase":"cleanup","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["local_network_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"validation.git_status","command":"git status --short","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"validation.working_diff_check","command":"git diff --check","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
@@ -144,7 +139,7 @@
     {"command_id":"validation.cached_diff_check","command":"git diff --cached --check","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"validation.cached_paths","command":"git diff --cached --name-only","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"publication.commit","command":"git commit -m \"feat(frontend): reuse pinned Agent Canvas workbench source\"","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["local_commit"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"validation.path_list","command":"git diff --name-only 940d99f4f57ddafe521744cde268b4c13139d1a1..HEAD","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"validation.path_list","command":"git diff --name-only 21e22de25163ade90ce2ef2a0be631a71b36ad41..HEAD","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"validation.final_diff_check","command":"git diff --check dd4cb074ab5b9baacf300706878b29bd745f12c3..HEAD","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"publication.push","command":"git push origin owner/issue136-agent-canvas-reuse-spike-v2","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["push","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation"},
     {"command_id":"publication.local_head","command":"git rev-parse HEAD","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
@@ -179,6 +174,7 @@
     "frontend/src/types.ts",
     "reverse_agent/project_gate.py",
     "tests/platform_v1/**",
+    "project_state/mainline_merge_intents/active.json",
     "project_state/schemas/**"
   ],
   "generated_artifact_paths": [
@@ -228,8 +224,8 @@
     "openhands_invocation",
     "package_installation",
     "provider_configuration_mutation",
-    "agent_server_emulation",
-    "openhands_runtime_graph_import"
+    "merge_intent_mutation",
+    "production_backend_mutation"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -243,6 +239,7 @@
       "git fetch origin owner/issue136-agent-canvas-reuse-spike-v2",
       "git push origin owner/issue136-agent-canvas-reuse-spike-v2"
     ],
+    "ci_network_exceptions": [],
     "remote_observation_read_only_allowed": true,
     "direct_push_to_main_allowed": false,
     "merge_allowed": false,
@@ -260,16 +257,18 @@
     {"pattern":"project_state/gates/**","minimum_risk":"R2"}
   ],
   "acceptance": {
-    "typecheck_blocker_resolved": true,
-    "frontend_checks": ["test", "typecheck", "lint", "build"],
-    "platform_v1": "PASS",
-    "forbidden_runtime_graph_matches": 0,
-    "package_dependency_changes": 0,
-    "model_calls": 0,
-    "target_http": 200,
+    "root_package": "ABSENT",
+    "upstream_tag": "v1.6.1",
+    "upstream_head": "43f091baf135142ed6c146f888f44a957141193f",
+    "frontend_checks": ["test","typecheck","lint","build"],
+    "platform_product_tests": "PASS",
+    "landing_governance_observation": "EXPECTED_KNOWN_MISMATCH_ONLY",
     "viewport": "1440x900",
     "required_screenshot": "frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-1440x900.png",
-    "terminal": "ISSUE136_STAGE_B1_V8_SOURCE_FORK_READY_FOR_OWNER_VISUAL_AUDIT"
+    "package_installs": 0,
+    "model_calls": 0,
+    "new_source_repairs": 0,
+    "terminal": "ISSUE136_STAGE_B1_V9_SOURCE_FORK_READY_FOR_OWNER_VISUAL_AUDIT"
   }
 }
 ```
