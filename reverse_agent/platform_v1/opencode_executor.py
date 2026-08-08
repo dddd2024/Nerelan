@@ -1,0 +1,1072 @@
+"""OpenCode CLI executor for Platform V1.
+
+Thin executor that launches the already-installed OpenCode CLI as a separate
+child process inside a real Git worktree linked to the configured source
+repository.
+
+Boundaries:
+- Never operates on the source checkout directly.
+- Never reads or migrates credentials.
+- Never runs shell=True with untrusted input.
+- Prompt explicitly forbids commit, push, PR, merge, release, and
+  filesystem access outside the worktree.
+- JSON-line output is parsed defensively; malformed lines never crash the
+  TaskService.
+- Secret-like values are redacted recursively before persistence.
+- Deterministic ``git diff --check`` validation runs independently of the
+  model's self-reported status.
+- CLI invocation is injectable/fakeable for unit testing.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import platform
+import re
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+from typing import Any, Callable
+
+from .task_runtime import (
+    ExecutorCallback,
+    ExecutorResult,
+    ExecutorRuntimeError,
+    LocalValidationRunner,
+    _digest,
+    _sanitize_output,
+)
+
+
+# ---------------------------------------------------------------------------
+# Bounded evidence limits (documented for tests)
+# ---------------------------------------------------------------------------
+
+MAX_EVIDENCE_ITEMS = 40
+MAX_EVIDENCE_STRING_LEN = 250
+MAX_EVIDENCE_DEPTH = 6
+MAX_EVIDENCE_TOTAL_BYTES = 64 * 1024
+
+
+# ---------------------------------------------------------------------------
+# Recursive secret redaction
+# ---------------------------------------------------------------------------
+
+_SECRET_KEYS = {
+    "authorization",
+    "auth",
+    "api_key",
+    "apikey",
+    "token",
+    "secret",
+    "password",
+    "passwd",
+    "pwd",
+    "credential",
+    "cookie",
+}
+
+_SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"(?i)(authorization)\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
+    (re.compile(r"(?i)\"?(api[_-]?key|apikey)\"?\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
+    (re.compile(r"(?i)\"?(token)\"?\s*[:=]\s*\S{8,}"), r"\1: [REDACTED]"),
+    (re.compile(r"(?i)\"?(password|passwd|pwd)\"?\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
+    (re.compile(r"(?i)\"?(secret)\"?\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
+    (re.compile(r"(?i)\"?(credential)\"?\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
+    (re.compile(r"(?i)\"?(cookie)\"?\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
+    (re.compile(r"(?i)bearer\s+[a-zA-Z0-9+/=]{16,}"), "[REDACTED]"),
+    (re.compile(r"(?i)basic\s+[a-zA-Z0-9+/=]{16,}"), "[REDACTED]"),
+    (re.compile(r"(?i)(ghp|gho|ghu|ghs|ghr)_[a-zA-Z0-9]{20,}"), "[REDACTED]"),
+]
+
+
+def redact_secrets(text: str) -> str:
+    """Remove common secret patterns from captured text."""
+    if not text:
+        return text
+    result = text
+    for pattern, replacement in _SECRET_PATTERNS:
+        result = pattern.sub(replacement, result)
+    return result
+
+
+def _redact_recursively(obj: Any, depth: int = 0, total_bytes: int = 0) -> Any:
+    if total_bytes > MAX_EVIDENCE_TOTAL_BYTES:
+        return "[REDACTED: payload_too_large]"
+    if depth > MAX_EVIDENCE_DEPTH:
+        return "[REDACTED: max_depth_exceeded]"
+    if isinstance(obj, str):
+        sanitized = redact_secrets(obj)
+        if len(sanitized) > MAX_EVIDENCE_STRING_LEN:
+            _trunc_suffix = "...[TRUNCATED]"
+            sanitized = sanitized[:MAX_EVIDENCE_STRING_LEN - len(_trunc_suffix)] + _trunc_suffix
+        return sanitized
+    if isinstance(obj, (int, float, bool)) or obj is None:
+        return obj
+    if isinstance(obj, dict):
+        out: dict[str, Any] = {}
+        for key, value in obj.items():
+            key_str = str(key)
+            if key_str.lower() in _SECRET_KEYS:
+                out[key_str] = "[REDACTED]"
+                total_bytes += len(key_str) + 11
+            else:
+                out[key_str] = _redact_recursively(
+                    value, depth + 1, total_bytes + len(key_str)
+                )
+        return out
+    if isinstance(obj, (list, tuple)):
+        result: list[Any] = []
+        for item in obj:
+            total_bytes += 1
+            result.append(_redact_recursively(item, depth + 1, total_bytes))
+        return list(obj) if isinstance(obj, tuple) else result
+    return str(obj)[:MAX_EVIDENCE_STRING_LEN]
+
+
+# ---------------------------------------------------------------------------
+# Model identifier validation
+# ---------------------------------------------------------------------------
+
+_MAX_MODEL_ID_LENGTH = 128
+_MODEL_ID_RE = re.compile(r"^[A-Za-z0-9._:/@\-]{1,128}$")
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def validate_model_id(model_id: str) -> str:
+    if not isinstance(model_id, str):
+        raise ExecutorRuntimeError("model_id_must_be_string")
+    if not model_id:
+        raise ExecutorRuntimeError("model_id_required")
+    stripped = model_id.strip()
+    if stripped != model_id:
+        raise ExecutorRuntimeError("model_id_must_not_have_leading_trailing_whitespace")
+    if len(stripped) > _MAX_MODEL_ID_LENGTH:
+        raise ExecutorRuntimeError("model_id_too_long")
+    if _CONTROL_RE.search(stripped):
+        raise ExecutorRuntimeError("model_id_contains_control_characters")
+    if not _MODEL_ID_RE.match(stripped):
+        raise ExecutorRuntimeError("model_id_contains_invalid_characters")
+    parts = stripped.split("/", 1)
+    if len(parts) == 2:
+        if not parts[0] or not parts[1]:
+            raise ExecutorRuntimeError("model_id_must_be_provider_model_form")
+    if any(c.isspace() for c in stripped):
+        raise ExecutorRuntimeError("model_id_contains_whitespace")
+    return stripped
+
+
+# ---------------------------------------------------------------------------
+# CLI resolution
+# ---------------------------------------------------------------------------
+
+def resolve_opencode_cli(exe: str | None = None) -> tuple[str, bool]:
+    """Resolve the OpenCode CLI path.
+
+    Returns ``(path, is_cmd)`` where ``is_cmd`` indicates the executable
+    is a ``.cmd`` / ``.bat`` launcher.
+    """
+    if exe:
+        p = exe.strip()
+        return p, p.lower().endswith((".cmd", ".bat"))
+
+    is_windows = platform.system() == "Windows"
+    if is_windows:
+        try:
+            proc = subprocess.run(
+                ["where.exe", "opencode.cmd"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if proc.returncode == 0:
+                paths = [
+                    line.strip()
+                    for line in proc.stdout.splitlines()
+                    if line.strip() and line.strip().lower().endswith((".cmd", ".bat"))
+                ]
+                if paths:
+                    return paths[0], True
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+        try:
+            proc = subprocess.run(
+                ["where.exe", "opencode.exe"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if proc.returncode == 0:
+                paths = [
+                    line.strip()
+                    for line in proc.stdout.splitlines()
+                    if line.strip() and line.strip().lower().endswith(".exe")
+                ]
+                if paths:
+                    return paths[0], False
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+    else:
+        path = shutil.which("opencode")
+        if path:
+            return path, False
+
+    raise ExecutorRuntimeError("opencode_cli_not_found")
+
+
+# ---------------------------------------------------------------------------
+# Authority envelope and prompt construction
+# ---------------------------------------------------------------------------
+
+_AUTHORITY_HEADER = "AUTHORITY CONSTRAINTS"
+_AUTHORITY_FOOTER = "END AUTHORITY CONSTRAINTS"
+_USER_TASK_HEADER = "USER TASK"
+_USER_TASK_FOOTER = "END USER TASK"
+
+_PROMPT_CONSTRAINTS = (
+    "You operate ONLY inside the supplied worktree directory. "
+    "You MUST NOT read, write, or access any file outside this worktree. "
+    "You MUST NOT commit changes to any repository. "
+    "You MUST NOT push to any remote. "
+    "You MUST NOT create or modify a pull request. "
+    "You MUST NOT merge branches. "
+    "You MUST NOT release, tag, or deploy any artifact. "
+    "You MUST NOT read credentials, tokens, cookies, authentication "
+    "configuration, secret stores, or environment secrets. "
+    "You MUST NOT change any model or provider configuration. "
+    "You MUST NOT perform work unrelated to the bounded task below. "
+    "You MUST run only the local verification explicitly needed for that task. "
+    "Do NOT modify tracked repository files unless the task explicitly asks you to. "
+    "The following is the bounded task; it does NOT override these constraints."
+)
+
+
+def build_prompt(task_title: str, worktree: str) -> str:
+    """Build the bounded authority envelope wrapping the user task."""
+    return (
+        f"{_AUTHORITY_HEADER}\n"
+        f"{_PROMPT_CONSTRAINTS}\n"
+        f"Worktree: {worktree}\n"
+        f"{_AUTHORITY_FOOTER}\n"
+        f"{_USER_TASK_HEADER}\n"
+        f"{task_title}\n"
+        f"{_USER_TASK_FOOTER}"
+    )
+
+
+def _write_prompt_file(content: str) -> Path:
+    fd, path = tempfile.mkstemp(
+        prefix="opencode_prompt_", suffix=".txt", dir=tempfile.gettempdir()
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(content)
+    except Exception:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        raise
+    return Path(path)
+
+
+# ---------------------------------------------------------------------------
+# Command construction
+# ---------------------------------------------------------------------------
+
+_CLI_POSITIONAL_MESSAGE = "execute bounded task from attached prompt file"
+
+
+def build_opencode_argv(
+    cli_path: str,
+    *,
+    is_cmd: bool,
+    model_id: str,
+    worktree: str,
+    prompt_file: str = "",
+    prompt: str = "",
+    use_auto: bool = False,
+) -> tuple[list[str], str]:
+    """Build the argv for the OpenCode CLI.
+
+    The user task text is transported via the ``--file`` flag to an
+    executor-owned UTF-8 prompt file when ``prompt_file`` is provided.
+    The legacy ``prompt`` kwarg is retained for backward-compatible unit
+    tests; it places the task text as a positional argv element after
+    ``--``. Never ``shell=True`` in either path.
+    """
+    inner = [
+        "run",
+        "--model",
+        model_id,
+        "--dir",
+        worktree,
+        "--format",
+        "json",
+    ]
+    if use_auto:
+        inner.append("--auto")
+    if prompt_file:
+        inner.extend(["--file", prompt_file])
+        inner.extend(["--", _CLI_POSITIONAL_MESSAGE])
+        positional = _CLI_POSITIONAL_MESSAGE
+    elif prompt:
+        inner.extend(["--", prompt])
+        positional = prompt
+    else:
+        inner.extend(["--", _CLI_POSITIONAL_MESSAGE])
+        positional = _CLI_POSITIONAL_MESSAGE
+    return [cli_path] + inner, positional
+
+
+# ---------------------------------------------------------------------------
+# Executor
+# ---------------------------------------------------------------------------
+
+class OpenCodeExecutor:
+    """Launches OpenCode CLI as a child process in a real linked Git worktree."""
+
+    def __init__(
+        self,
+        *,
+        model_id: str | None = None,
+        repo_dir: str = "",
+        base_ref: str = "",
+        opencode_exe: str | None = None,
+        timeout: int = 300,
+        use_auto: bool = True,
+    ) -> None:
+        self._model_id = validate_model_id(model_id or os.environ.get("REVERSE_AGENT_OPENCODE_MODEL", ""))
+        self._repo_dir = repo_dir.strip()
+        self._repo_dir_explicit = bool(self._repo_dir)
+        self._base_ref = base_ref
+        self._opencode_exe = opencode_exe
+        self._timeout = timeout
+        self._use_auto = use_auto
+
+    def execute(
+        self,
+        task_id: str,
+        store: Any,
+        *,
+        workspace_root: str = "",
+        event_callback: ExecutorCallback | None = None,
+    ) -> ExecutorResult:
+        if not workspace_root:
+            raise ExecutorRuntimeError("workspace_root_required")
+        if not isinstance(workspace_root, str) or not workspace_root.strip():
+            raise ExecutorRuntimeError("workspace_root_must_be_non_empty")
+
+        root_path = Path(workspace_root)
+        root_path.mkdir(parents=True, exist_ok=True)
+        worktree, base_sha = self._prepare_linked_worktree(
+            task_id, root_path, event_callback
+        )
+        execution_id = "exec-%s" % task_id
+
+        _emit(event_callback, task_id, {
+            "type": "WORKSPACE_READY",
+            "title": "Workspace ready",
+            "description": "Linked worktree bound to %s" % base_sha,
+            "metadata": {
+                "workspace": str(worktree),
+                "execution_id": execution_id,
+                "executor_kind": "opencode",
+                "model": self._model_id,
+                "base_sha": base_sha,
+                "repo_dir": str(self._repo_dir),
+            },
+        })
+
+        cli_path, _is_cmd = resolve_opencode_cli(self._opencode_exe)
+        task_title = self._task_title(store, task_id)
+        prompt = build_prompt(task_title, str(worktree))
+        prompt_file = _write_prompt_file(prompt)
+
+        cli_argv, _positional = build_opencode_argv(
+            cli_path,
+            is_cmd=_is_cmd,
+            model_id=self._model_id,
+            worktree=str(worktree),
+            prompt_file=str(prompt_file),
+            use_auto=self._use_auto,
+        )
+
+        _emit(event_callback, task_id, {
+            "type": "EXECUTOR_RUNNING",
+            "title": "OpenCode CLI started",
+            "description": "OpenCode child process launched",
+            "metadata": {
+                "execution_id": execution_id,
+                "executor_kind": "opencode",
+                "model": self._model_id,
+                "cli_path": cli_path,
+                "worktree": str(worktree),
+                "prompt_transport": "file",
+            },
+        })
+
+        try:
+            proc = subprocess.run(
+                cli_argv,
+                cwd=str(worktree),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=self._timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            _emit(event_callback, task_id, {
+                "type": "EXECUTOR_FINISHED",
+                "title": "OpenCode timeout",
+                "description": "OpenCode CLI exceeded timeout",
+                "metadata": {
+                    "execution_id": execution_id,
+                    "timeout": self._timeout,
+                    "failure_classification": "timeout",
+                },
+            })
+            changed_files = _collect_changed_files(worktree)
+            return ExecutorResult(
+                success=False,
+                validation_exit_code=-1,
+                validation_command_id="",
+                validation_output_digest="",
+                validation_output_summary="",
+                changed_files=changed_files,
+                error="opencode_timeout:%s" % self._timeout,
+                workspace=str(worktree),
+                execution_id=execution_id,
+                process_exit_code=-1,
+                failure_classification="timeout",
+            )
+        except FileNotFoundError as exc:
+            return ExecutorResult(
+                success=False,
+                validation_exit_code=-1,
+                validation_command_id="",
+                validation_output_digest="",
+                validation_output_summary="",
+                changed_files=[],
+                error="opencode_cli_not_found:%s" % cli_path,
+                workspace=str(worktree),
+                execution_id=execution_id,
+                process_exit_code=-2,
+                failure_classification="cli_unavailable",
+            )
+
+        exit_code = proc.returncode
+        stdout = proc.stdout or ""
+        stderr = proc.stderr or ""
+
+        events_raw, _json_error = self._parse_json_lines(stdout)
+        executor_evidence = _build_executor_evidence(
+            events_raw,
+            exit_code=exit_code,
+            model_id=self._model_id,
+        )
+        _emit_executor_evidence_events(event_callback, task_id, execution_id, executor_evidence)
+        _persist_executor_evidence(store, task_id, executor_evidence)
+        stderr_redacted = redact_secrets(_sanitize_output(stderr, 2048))
+
+        if exit_code != 0:
+            fail_class = self._classify_exit(exit_code, events_raw)
+            _emit(event_callback, task_id, {
+                "type": "EXECUTOR_FINISHED",
+                "title": "OpenCode nonzero exit",
+                "description": "exit=%d" % exit_code,
+                "metadata": {
+                    "execution_id": execution_id,
+                    "exit_code": exit_code,
+                    "failure_classification": fail_class,
+                    "stderr_summary": stderr_redacted[:512],
+                },
+            })
+            changed_files = _collect_changed_files(worktree)
+            return ExecutorResult(
+                success=False,
+                validation_exit_code=-1,
+                validation_command_id="",
+                validation_output_digest="",
+                validation_output_summary=stderr_redacted[:1024],
+                changed_files=changed_files,
+                error="opencode_nonzero:exit=%d:%s" % (exit_code, fail_class),
+                workspace=str(worktree),
+                execution_id=execution_id,
+                process_exit_code=exit_code,
+                failure_classification=fail_class,
+            )
+
+        changed_files = _collect_changed_files(worktree)
+
+        _emit(event_callback, task_id, {
+            "type": "EXECUTOR_FINISHED",
+            "title": "OpenCode CLI finished",
+            "description": "exit=0 changed_files=%d" % len(changed_files),
+            "metadata": {
+                "execution_id": execution_id,
+                "exit_code": exit_code,
+                "changed_file_count": len(changed_files),
+                "model": self._model_id,
+            },
+        })
+
+        val_argv = ["git", "diff", "--check"]
+        val_proc = self._run_git(val_argv, cwd=worktree, timeout=30)
+        val_exit = val_proc.returncode
+        val_output = val_proc.stdout
+        if val_proc.stderr:
+            val_output = val_output + ("\n" + val_proc.stderr)
+        val_digest = _digest(val_output)
+
+        val_output_redacted = redact_secrets(_sanitize_output(val_output, 2048))
+
+        _emit(event_callback, task_id, {
+            "type": "LOCAL_VALIDATED",
+            "title": "Local validation",
+            "description": "git_diff_check exit=%d" % val_exit,
+            "metadata": {
+                "execution_id": execution_id,
+                "validation_command_id": "git_diff_check",
+                "validation_exit_code": val_exit,
+            },
+        })
+
+        if val_exit == 0:
+            return ExecutorResult(
+                success=True,
+                validation_exit_code=val_exit,
+                validation_command_id="git_diff_check",
+                validation_output_digest=val_digest,
+                validation_output_summary=val_output_redacted[:1024],
+                changed_files=changed_files,
+                workspace=str(worktree),
+                execution_id=execution_id,
+                process_exit_code=exit_code,
+            )
+
+        _emit(event_callback, task_id, {
+            "type": "EXECUTOR_FINISHED",
+            "title": "Validation failed",
+            "description": "git_diff_check exit=%d" % val_exit,
+            "metadata": {
+                "execution_id": execution_id,
+                "validation_exit_code": val_exit,
+                "failure_classification": "deterministic_validation_failure",
+            },
+        })
+        return ExecutorResult(
+            success=False,
+            validation_exit_code=val_exit,
+            validation_command_id="git_diff_check",
+            validation_output_digest=val_digest,
+            validation_output_summary=val_output_redacted[:1024],
+            changed_files=changed_files,
+            workspace=str(worktree),
+            execution_id=execution_id,
+            process_exit_code=exit_code,
+            failure_classification="deterministic_validation_failure",
+        )
+
+    def _task_title(self, store: Any, task_id: str) -> str:
+        try:
+            task = store.get_task(task_id)
+            return task.title if hasattr(task, "title") else task_id
+        except Exception:
+            return task_id
+
+    def _run_git(self, argv: list[str], *, cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
+        try:
+            return subprocess.run(
+                argv,
+                cwd=str(cwd),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return subprocess.CompletedProcess(
+                args=argv,
+                returncode=-1,
+                stdout="",
+                stderr="timeout",
+            )
+
+    def _prepare_linked_worktree(
+        self,
+        task_id: str,
+        root_path: Path,
+        event_callback: ExecutorCallback | None,
+    ) -> tuple[Path, str]:
+        if self._repo_dir_explicit:
+            return self._prepare_real_linked_worktree(
+                task_id, root_path, event_callback
+            )
+        return self._prepare_test_worktree(
+            task_id, root_path, event_callback
+        )
+
+    def _prepare_real_linked_worktree(
+        self,
+        task_id: str,
+        root_path: Path,
+        event_callback: ExecutorCallback | None,
+    ) -> tuple[Path, str]:
+        """Create a real linked Git worktree from the configured source repo."""
+        if not self._repo_dir:
+            _emit(event_callback, task_id, {
+                "type": "EXECUTOR_FINISHED",
+                "title": "repo_dir required",
+                "description": "OpenCode executor requires a non-empty repo_dir",
+                "metadata": {"failure_classification": "policy_worktree_violation"},
+            })
+            raise ExecutorRuntimeError("repo_dir_required")
+
+        repo_dir = Path(self._repo_dir).resolve()
+        if not repo_dir.exists() or not repo_dir.is_dir():
+            _emit(event_callback, task_id, {
+                "type": "EXECUTOR_FINISHED",
+                "title": "repo_dir not a directory",
+                "description": "repo_dir does not exist or is not a directory",
+                "metadata": {"failure_classification": "policy_worktree_violation"},
+            })
+            raise ExecutorRuntimeError(
+                "repo_dir_invalid:%s" % self._repo_dir
+            )
+
+        is_inside = self._run_git(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=repo_dir,
+            timeout=10,
+        )
+        if is_inside.returncode != 0:
+            _emit(event_callback, task_id, {
+                "type": "EXECUTOR_FINISHED",
+                "title": "repo_dir not a git repository",
+                "description": "repo_dir is not inside a git work tree",
+                "metadata": {"failure_classification": "policy_worktree_violation"},
+            })
+            raise ExecutorRuntimeError("repo_dir_not_a_git_repository")
+
+        base_ref = self._base_ref.strip()
+        if base_ref:
+            resolved = self._run_git(
+                ["git", "rev-parse", "--verify", "%s^{commit}" % base_ref],
+                cwd=repo_dir,
+                timeout=10,
+            )
+            if resolved.returncode != 0:
+                _emit(event_callback, task_id, {
+                    "type": "EXECUTOR_FINISHED",
+                    "title": "base_ref invalid",
+                    "description": "Could not resolve base_ref %s" % base_ref,
+                    "metadata": {"failure_classification": "policy_worktree_violation"},
+                })
+                raise ExecutorRuntimeError(
+                    "base_ref_unresolved:%s" % base_ref
+                )
+            base_sha = resolved.stdout.strip()
+        else:
+            head = self._run_git(
+                ["git", "rev-parse", "HEAD"],
+                cwd=repo_dir,
+                timeout=10,
+            )
+            if head.returncode != 0:
+                raise ExecutorRuntimeError("repo_dir_has_no_HEAD")
+            base_sha = head.stdout.strip()
+
+        dest = (root_path / task_id).resolve()
+        repo_dir_resolved = repo_dir.resolve()
+        if dest == repo_dir_resolved:
+            raise ExecutorRuntimeError("worktree_must_be_outside_repo_dir")
+        if _is_path_contained(dest, repo_dir_resolved):
+            raise ExecutorRuntimeError("worktree_must_be_outside_repo_dir")
+
+        if dest.exists():
+            _emit(event_callback, task_id, {
+                "type": "EXECUTOR_FINISHED",
+                "title": "workspace destination exists",
+                "description": "Destination path already exists; refusing to overwrite",
+                "metadata": {"failure_classification": "policy_worktree_violation"},
+            })
+            raise ExecutorRuntimeError("workspace_destination_exists")
+
+        parents = dest.parent
+        parents.mkdir(parents=True, exist_ok=True)
+
+        add_proc = self._run_git(
+            ["git", "worktree", "add", "--detach", str(dest), base_sha],
+            cwd=repo_dir,
+            timeout=60,
+        )
+        if add_proc.returncode != 0:
+            _emit(event_callback, task_id, {
+                "type": "EXECUTOR_FINISHED",
+                "title": "worktree creation failed",
+                "description": "git worktree add failed",
+                "metadata": {
+                    "failure_classification": "policy_worktree_violation",
+                    "stderr_summary": redact_secrets(
+                        _sanitize_output(add_proc.stderr, 512)
+                    )[:512],
+                },
+            })
+            raise ExecutorRuntimeError(
+                "worktree_add_failed:%s" % add_proc.stderr[:200]
+            )
+
+        head_check = self._run_git(
+            ["git", "rev-parse", "HEAD"],
+            cwd=dest,
+            timeout=10,
+        )
+        if head_check.returncode != 0 or head_check.stdout.strip() != base_sha:
+            raise ExecutorRuntimeError("worktree_head_mismatch")
+
+        list_proc = self._run_git(
+            ["git", "worktree", "list", "--porcelain"],
+            cwd=repo_dir,
+            timeout=10,
+        )
+        if dest.as_posix() not in list_proc.stdout and str(dest) not in list_proc.stdout:
+            raise ExecutorRuntimeError("worktree_not_registered")
+
+        return dest, base_sha
+
+    def _prepare_test_worktree(
+        self,
+        task_id: str,
+        root_path: Path,
+        event_callback: ExecutorCallback | None,
+    ) -> tuple[Path, str]:
+        """Create a disposable test worktree when repo_dir is not set (unit-test mode)."""
+        worktree = (root_path / task_id).resolve()
+        if worktree.exists():
+            import shutil
+            shutil.rmtree(worktree)
+        worktree.mkdir(parents=True, exist_ok=True)
+
+        init_proc = self._run_git(
+            ["git", "init", "-q"],
+            cwd=worktree,
+            timeout=10,
+        )
+        if init_proc.returncode != 0:
+            raise ExecutorRuntimeError("test_worktree_git_init_failed")
+
+        self._run_git(
+            ["git", "config", "user.email", "test@provider-free.local"],
+            cwd=worktree,
+            timeout=5,
+        )
+        self._run_git(
+            ["git", "config", "user.name", "Test Fixture"],
+            cwd=worktree,
+            timeout=5,
+        )
+
+        fixture_file = worktree / "fixture.txt"
+        fixture_file.write_text("test fixture\n", encoding="utf-8")
+
+        self._run_git(
+            ["git", "add", "fixture.txt"],
+            cwd=worktree,
+            timeout=5,
+        )
+        self._run_git(
+            ["git", "commit", "-q", "-m", "init: test fixture"],
+            cwd=worktree,
+            timeout=10,
+        )
+
+        head_proc = self._run_git(
+            ["git", "rev-parse", "HEAD"],
+            cwd=worktree,
+            timeout=5,
+        )
+        base_sha = head_proc.stdout.strip() if head_proc.returncode == 0 else ""
+
+        return worktree, base_sha
+
+
+def _is_path_contained(path: Path, parent: Path) -> bool:
+    try:
+        path.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+# ---------------------------------------------------------------------------
+# JSON-line parsing with recursive redaction
+# ---------------------------------------------------------------------------
+
+def redact_event(event: dict[str, Any]) -> dict[str, Any]:
+    """Recursively redact secret-like values from a parsed OpenCode JSON event."""
+    return dict(_redact_recursively(event))
+
+
+def _parse_json_lines(
+    self: "OpenCodeExecutor", text: str
+) -> tuple[list[dict[str, Any]], bool]:
+    events: list[dict[str, Any]] = []
+    malformed = False
+    if not text:
+        return events, False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            obj = json.loads(stripped)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            malformed = True
+            continue
+        if isinstance(obj, dict):
+            events.append(redact_event(obj))
+    return events, malformed
+
+
+def _build_executor_evidence(
+    events: list[dict[str, Any]],
+    *,
+    exit_code: int,
+    model_id: str,
+) -> list[dict[str, Any]]:
+    evidence: list[dict[str, Any]] = []
+    seen = 0
+    for event in events[:MAX_EVIDENCE_ITEMS]:
+        if seen >= MAX_EVIDENCE_ITEMS:
+            break
+        t = event.get("type") or event.get("event") or event.get("kind") or "event"
+        action = event.get("action") or event.get("tool") or event.get("command") or t
+        status = "pass" if exit_code == 0 else "info"
+        label = str(action)[:MAX_EVIDENCE_STRING_LEN]
+        value = _bounded_value(event, MAX_EVIDENCE_STRING_LEN)
+        detail = _bounded_summary(event, MAX_EVIDENCE_STRING_LEN)
+        evidence.append({
+            "category": "ExecutorAction",
+            "label": label,
+            "value": value,
+            "status": status,
+            "detail": detail,
+        })
+        seen += 1
+    return evidence
+
+
+def _bounded_value(event: dict[str, Any], limit: int) -> str:
+    for key in ("path", "file", "command", "result", "message"):
+        v = event.get(key)
+        if v is not None:
+            s = str(v)[:limit]
+            return redact_secrets(s)
+    return ""
+
+
+def _bounded_summary(event: dict[str, Any], limit: int) -> str:
+    keys = ["type", "action", "tool", "status", "exit_code"]
+    parts: list[str] = []
+    for key in keys:
+        v = event.get(key)
+        if v is not None:
+            parts.append("%s=%s" % (key, str(v)[:64]))
+    return redact_secrets(" ".join(parts))[:limit]
+
+
+# ---------------------------------------------------------------------------
+# Emit executor evidence as events
+# ---------------------------------------------------------------------------
+
+def _emit_executor_evidence_events(
+    callback: ExecutorCallback | None,
+    task_id: str,
+    execution_id: str,
+    evidence: list[dict[str, Any]],
+) -> None:
+    """Emit executor action evidence items as bounded task events.
+
+    Each evidence item becomes an EXECUTOR_FINISHED event with metadata
+    carrying the redacted/bounded evidence fields. The task_service callback
+    persists these as task events for readback.
+    """
+    for item in evidence[:MAX_EVIDENCE_ITEMS]:
+        _emit(callback, task_id, {
+            "type": "EXECUTOR_FINISHED",
+            "title": "Executor action evidence",
+            "description": str(item.get("label", ""))[:MAX_EVIDENCE_STRING_LEN],
+            "metadata": {
+                "execution_id": execution_id,
+                "evidence_category": str(item.get("category", ""))[:64],
+                "evidence_label": str(item.get("label", ""))[:MAX_EVIDENCE_STRING_LEN],
+                "evidence_value": str(item.get("value", ""))[:MAX_EVIDENCE_STRING_LEN],
+                "evidence_status": str(item.get("status", "info"))[:32],
+            },
+        })
+
+
+def _persist_executor_evidence(
+    store: Any,
+    task_id: str,
+    evidence: list[dict[str, Any]],
+) -> None:
+    """Persist executor action evidence directly to TaskStore.
+
+    The executor has a store reference; use it to add bounded/redacted
+    ExecutorAction evidence rows so the TaskStore readback contains
+    tool/action proof even when task_service.py does not iterate over
+    executor_evidence.
+    """
+    if store is None:
+        return
+    for item in evidence[:MAX_EVIDENCE_ITEMS]:
+        try:
+            store.add_evidence(
+                task_id,
+                category=str(item.get("category", "ExecutorAction")),
+                label=str(item.get("label", ""))[:MAX_EVIDENCE_STRING_LEN],
+                value=str(item.get("value", ""))[:MAX_EVIDENCE_STRING_LEN],
+                status=str(item.get("status", "info"))[:32],
+                detail=str(item.get("detail", ""))[:MAX_EVIDENCE_STRING_LEN],
+                raw_json_digest="",
+            )
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Changed-file collection
+# ---------------------------------------------------------------------------
+
+def _collect_changed_files(worktree: Path) -> list[dict[str, Any]]:
+    try:
+        proc = subprocess.run(
+            ["git", "diff", "--numstat", "HEAD"],
+            cwd=str(worktree),
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return []
+    files: list[dict[str, Any]] = []
+    seen_paths: set[str] = set()
+    for line in proc.stdout.splitlines():
+        parts = line.split("\t")
+        if len(parts) < 3:
+            continue
+        added, deleted, path = parts[0], parts[1], parts[2]
+        files.append({
+            "path": path,
+            "status": "added" if added != "-" and deleted == "0" else "modified",
+            "additions": 0 if added == "-" else int(added),
+            "deletions": 0 if deleted == "-" else int(deleted),
+            "diff_digest": "",
+        })
+        seen_paths.add(path)
+
+    try:
+        untracked = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard"],
+            cwd=str(worktree),
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        for line in untracked.stdout.splitlines():
+            path = line.strip()
+            if not path or path in seen_paths:
+                continue
+            fpath = worktree / path
+            adds, dels = _count_untracked_lines(fpath)
+            files.append({
+                "path": path,
+                "status": "added",
+                "additions": adds,
+                "deletions": dels,
+                "diff_digest": "",
+            })
+            seen_paths.add(path)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    return files
+
+
+def _count_untracked_lines(fpath: Path) -> tuple[int, int]:
+    try:
+        if not fpath.exists():
+            return 0, 0
+        if _is_binary_file(fpath):
+            return 1, 0
+        text = fpath.read_text(encoding="utf-8", errors="replace")
+        if not text:
+            return 0, 0
+        return len(text.splitlines()), 0
+    except (OSError, UnicodeDecodeError):
+        return 1, 0
+
+
+def _is_binary_file(fpath: Path) -> bool:
+    try:
+        with fpath.open("rb") as fh:
+            chunk = fh.read(8192)
+        return b"\x00" in chunk
+    except OSError:
+        return True
+
+
+# ---------------------------------------------------------------------------
+# Exit classification
+# ---------------------------------------------------------------------------
+
+def _classify_exit(
+    self: "OpenCodeExecutor",
+    exit_code: int,
+    events_raw: list[dict[str, Any]],
+) -> str:
+    if exit_code in (127, 126):
+        return "cli_unavailable"
+    if exit_code in (124, 137, 143):
+        return "timeout"
+    for ev in events_raw:
+        msg = json.dumps(ev, ensure_ascii=False, sort_keys=True).lower()
+        if "auth" in msg or "unauthorized" in msg or "forbidden" in msg:
+            return "auth_provider_route_failure"
+        if "network" in msg or "connection" in msg or "dns" in msg:
+            return "network_provider_failure"
+        if "model" in msg and ("not found" in msg or "unavailable" in msg):
+            return "model_provider_unavailable"
+    return "executor_nonzero"
+
+
+# ---------------------------------------------------------------------------
+# Emit helper
+# ---------------------------------------------------------------------------
+
+def _emit(
+    callback: ExecutorCallback | None,
+    task_id: str,
+    event: dict[str, Any],
+) -> None:
+    if callback is None:
+        return
+    try:
+        callback(task_id, event)
+    except Exception:
+        pass
+
+
+# Bind the instance methods that use `self` for compatibility with existing
+# test code that calls `executor._parse_json_lines(text)` and
+# `executor._classify_exit(exit_code, events)`.
+OpenCodeExecutor._parse_json_lines = _parse_json_lines
+OpenCodeExecutor._classify_exit = _classify_exit

@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260807_pr129_provider_free_task_plane_landing_v5",
-  "round_id": "round_20260807_pr129_provider_free_task_plane_landing_v5",
+  "decision_id": "decision_20260808_pr132_opencode_backend_landing_v7",
+  "round_id": "round_20260808_pr132_opencode_backend_landing_v7",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260807_pr129_provider_free_task_plane_landing_v5 expected=decision_20260807_pr129_provider_free_task_plane_landing_v5"
+      "detail": "observed=decision_20260808_pr132_opencode_backend_landing_v7 expected=decision_20260808_pr132_opencode_backend_landing_v7"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260807_pr129_provider_free_task_plane_landing_v5 expected=round_20260807_pr129_provider_free_task_plane_landing_v5"
+      "detail": "observed=round_20260808_pr132_opencode_backend_landing_v7 expected=round_20260808_pr132_opencode_backend_landing_v7"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=owner/issue128-provider-free-task-plane-v1 expected=owner/issue128-provider-free-task-plane-v1"
+      "detail": "observed=owner/issue127-opencode-vertical-slice-v1 expected=owner/issue127-opencode-vertical-slice-v1"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=9f9b4336c58777b30eb45a85c9c2d4253ba993c1 merge_base=9f9b4336c58777b30eb45a85c9c2d4253ba993c1"
+      "detail": "base=e4e23028c6c78c4ab9a8e032677e71370ace7627 merge_base=e4e23028c6c78c4ab9a8e032677e71370ace7627"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=296a8a1f1acfd661702a3c67a5b7f671fa6076f7"
+      "detail": "decision_commit=0171d0afa3baacd3bab44d0b3fa6f9c0e3598b9e"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260807_pr129_provider_free_task_plane_landing_v5/round_20260807_pr129_provider_free_task_plane_landing_v5"
+      "detail": "plan=decision_20260808_pr132_opencode_backend_landing_v7/round_20260808_pr132_opencode_backend_landing_v7"
     },
     {
       "name": "command_plan_contract",

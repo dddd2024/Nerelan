@@ -29,7 +29,8 @@ from typing import Any, Callable, Mapping, Protocol
 # ---------------------------------------------------------------------------
 
 @dataclass
-class FixtureExecutorResult:
+class ExecutorResult:
+    """Neutral executor result returned by any registered executor."""
     success: bool
     validation_exit_code: int
     validation_command_id: str
@@ -39,6 +40,11 @@ class FixtureExecutorResult:
     error: str = ""
     workspace: str = ""
     execution_id: str = ""
+    process_exit_code: int | None = None
+    failure_classification: str = ""
+
+
+FixtureExecutorResult = ExecutorResult
 
 
 ExecutorCallback = Callable[[str, dict[str, Any]], None]
@@ -350,18 +356,17 @@ def _collect_changed_files(worktree: Path, task_id: str) -> list[dict[str, Any]]
 # ---------------------------------------------------------------------------
 
 class ExecutorRouter:
-    """Dispatch to the registered executor for a given executor_kind.
-
-    Future executor kinds (e.g. ``codex``) register here without changing the
-    Task API or the frontend task hooks.
-    """
+    """Dispatch to the registered executor for a given executor_kind."""
 
     def __init__(self) -> None:
-        self._registry: dict[str, Callable[[], Executor]] = {
-            "deterministic_fixture": lambda: DeterministicFixtureExecutor(),
+        from .opencode_executor import OpenCodeExecutor
+
+        self._registry: dict[str, Callable[..., Executor]] = {
+            "deterministic_fixture": lambda **_: DeterministicFixtureExecutor(),
+            "opencode": lambda **kwargs: OpenCodeExecutor(**kwargs),
         }
 
-    def register(self, kind: str, factory: Callable[[], Executor]) -> None:
+    def register(self, kind: str, factory: Callable[..., Executor]) -> None:
         if not isinstance(kind, str) or not kind.strip():
             raise ExecutorRuntimeError("executor_kind_must_be_non_empty")
         self._registry[kind] = factory
@@ -374,11 +379,12 @@ class ExecutorRouter:
         executor_kind: str,
         workspace_root: str = "",
         event_callback: ExecutorCallback | None = None,
+        **executor_kwargs: Any,
     ) -> FixtureExecutorResult:
         factory = self._registry.get(executor_kind)
         if factory is None:
             raise ExecutorRuntimeError(f"unknown_executor_kind:{executor_kind}")
-        return factory().execute(
+        return factory(**executor_kwargs).execute(
             task_id,
             store,
             workspace_root=workspace_root,

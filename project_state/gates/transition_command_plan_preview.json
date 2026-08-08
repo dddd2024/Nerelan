@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260807_pr129_provider_free_task_plane_landing_v5",
-  "round_id": "round_20260807_pr129_provider_free_task_plane_landing_v5",
+  "decision_id": "decision_20260808_pr132_opencode_backend_landing_v7",
+  "round_id": "round_20260808_pr132_opencode_backend_landing_v7",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -15,6 +15,73 @@
       "execution_surface": "local",
       "operations": [
         "repository_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "sync.fetch_pr132_branch",
+      "command": "git fetch origin owner/issue127-opencode-vertical-slice-v1",
+      "phase": "bootstrap",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "sync.inspect_remote_decision",
+      "command": "git show origin/owner/issue127-opencode-vertical-slice-v1:project_state/decision_packet.md",
+      "phase": "bootstrap",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "sync.fast_forward_pr132_branch",
+      "command": "git merge --ff-only origin/owner/issue127-opencode-vertical-slice-v1",
+      "phase": "bootstrap",
+      "required": false,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_sync"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -48,20 +115,19 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "sync.fetch_issue128_branch",
-      "command": "git fetch origin owner/issue128-provider-free-task-plane-v1",
-      "phase": "bootstrap",
-      "required": false,
-      "required_evidence_source": "repository_state_attestation",
+      "command_id": "observation.merge_base",
+      "command": "git merge-base origin/main owner/issue127-opencode-vertical-slice-v1",
+      "phase": "status",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
         0
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_observation",
-        "network_access"
+        "repository_observation"
       ],
-      "network_access": true,
+      "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
@@ -71,8 +137,98 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.merge_base",
-      "command": "git merge-base origin/main owner/issue128-provider-free-task-plane-v1",
+      "command_id": "observation.active_intent_hash_before",
+      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/active.json').Hash.ToLower()\"",
+      "phase": "status",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "mutation.archive_pr129_intent",
+      "command": "powershell -NoProfile -Command \"Copy-Item 'project_state/mainline_merge_intents/active.json' 'project_state/mainline_merge_intents/archive/pr129_v5.json'\"",
+      "phase": "implementation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "governance_artifact_mutation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/mainline_merge_intents/archive/pr129_v5.json"
+      ]
+    },
+    {
+      "command_id": "observation.archive_hash_after",
+      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/archive/pr129_v5.json').Hash.ToLower()\"",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "observation.decision_sha256",
+      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/decision_packet.md').Hash.ToLower()\"",
+      "phase": "status",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "observation.command_plan_sha256",
+      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/gates/command_plan.json').Hash.ToLower()\"",
       "phase": "status",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -160,7 +316,7 @@
     },
     {
       "command_id": "validation.diff_check",
-      "command": "git diff --check 9f9b4336c58777b30eb45a85c9c2d4253ba993c1..HEAD",
+      "command": "git diff --check e4e23028c6c78c4ab9a8e032677e71370ace7627..HEAD",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -182,7 +338,7 @@
     },
     {
       "command_id": "validation.path_list",
-      "command": "git diff --name-only 80761ed427e142f8cbd94a233c178618960a637c..HEAD",
+      "command": "git diff --name-only e103fc53bd985375f0513c0369eb9dcc18510004..HEAD",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -204,7 +360,7 @@
     },
     {
       "command_id": "publication.push_branch",
-      "command": "git push origin owner/issue128-provider-free-task-plane-v1",
+      "command": "git push origin owner/issue127-opencode-vertical-slice-v1",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",

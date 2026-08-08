@@ -40,8 +40,10 @@ _DEFAULT_TASK_DB_PATH = ".platform_v1_runtime/tasks.sqlite3"
 BACKEND_STATUS_TO_FRONTEND_STATE: dict[str, str] = {
     "QUEUED": "WAITING_FOR_OWNER",
     "PREPARING_WORKSPACE": "RUNNING",
+    "RUNNING": "RUNNING",
     "RUNNING_FIXTURE": "RUNNING",
     "VALIDATING": "RUNNING",
+    "READY_FOR_REVIEW": "READY_FOR_HUMAN",
     "READY_FOR_REVIEW_FIXTURE": "READY_FOR_HUMAN",
     "BLOCKED": "BLOCKED_EXTERNAL",
     "FAILED": "FAILED_TERMINAL",
@@ -54,7 +56,30 @@ FAILURE_CLASSIFICATION_TO_TEST_STATUS: dict[str, str] = {
     "execution_failed": "FAIL",
     "blocked": "PENDING",
     "failed": "FAIL",
+    "cli_unavailable": "PENDING",
+    "model_provider_unavailable": "PENDING",
+    "auth_provider_route_failure": "PENDING",
+    "network_provider_failure": "PENDING",
+    "timeout": "PENDING",
+    "malformed_executor_output": "FAIL",
+    "executor_nonzero": "FAIL",
+    "deterministic_validation_failure": "FAIL",
+    "policy_worktree_violation": "FAIL",
 }
+
+
+def _build_executor_kwargs(task: Mapping[str, Any]) -> dict[str, Any]:
+    """Build executor-specific kwargs from the task and environment."""
+    kwargs: dict[str, Any] = {}
+    executor_kind = str(_map_task_field(task, "executor_kind", ""))
+    if executor_kind == "opencode":
+        model_id = str(_map_task_field(task, "model_profile_ref", "")) or os.environ.get(
+            "REVERSE_AGENT_OPENCODE_MODEL", ""
+        )
+        kwargs["model_id"] = model_id
+        kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
+        kwargs["base_ref"] = str(_map_task_field(task, "branch", ""))
+    return kwargs
 
 
 class _EventView:
@@ -311,21 +336,25 @@ class _TaskHandler(BaseHTTPRequestHandler):
                             tempfile.gettempdir(), "issue128_task_workspaces"
                         )
                     os.makedirs(workspace_root, exist_ok=True)
+                executor_kind = task.executor_kind
+                running_status = "RUNNING" if executor_kind != "deterministic_fixture" else "RUNNING_FIXTURE"
+                review_status = "READY_FOR_REVIEW" if executor_kind != "deterministic_fixture" else "READY_FOR_REVIEW_FIXTURE"
                 task = self.store.transition_to(task.id, "PREPARING_WORKSPACE")
-                task = self.store.transition_to(task.id, "RUNNING_FIXTURE")
-                task = self.store.transition_to(task.id, "VALIDATING")
+                task = self.store.transition_to(task.id, running_status)
                 self.store.add_event(
                     task.id,
                     event_type="EXECUTOR_RUNNING",
                     title="Executor running",
-                    description="Executor %s started" % task.executor_kind,
-                    metadata={"executor_kind": task.executor_kind},
+                    description="Executor %s started" % executor_kind,
+                    metadata={"executor_kind": executor_kind},
                 )
+                executor_kwargs: dict[str, Any] = _build_executor_kwargs(task)
                 try:
                     result = self._run_executor(
                         task=task,
                         workspace_root=workspace_root,
                         validation_command_id=command_id or "git_diff_check",
+                        executor_kwargs=executor_kwargs,
                     )
                 except ExecutorRuntimeError as exc:
                     self.store.classify_failure(
@@ -337,9 +366,8 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     self._send_json(HTTPStatus.BAD_REQUEST, self._task_response(task))
                     return
                 if result["success"]:
-                    task = self.store.transition_to(
-                        task.id, "READY_FOR_REVIEW_FIXTURE"
-                    )
+                    task = self.store.transition_to(task.id, "VALIDATING")
+                    task = self.store.transition_to(task.id, review_status)
                     self.store.add_event(
                         task.id,
                         event_type="VALIDATED",
@@ -351,8 +379,10 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     classification = (
                         "blocked"
                         if "unapproved" in result.get("error", "")
-                        else "failed"
+                        else result.get("failure_classification", "failed")
                     )
+                    if classification == "":
+                        classification = "failed"
                     self.store.classify_failure(
                         task.id,
                         classification=classification,
@@ -387,13 +417,16 @@ class _TaskHandler(BaseHTTPRequestHandler):
         task: Any,
         workspace_root: str,
         validation_command_id: str | None,
+        executor_kwargs: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        kw = executor_kwargs or {}
         result = self.router.dispatch_execute(
             task_id=task.id,
             store=self.store,
             executor_kind=task.executor_kind,
             workspace_root=workspace_root,
             event_callback=self._store_event_callback,
+            **kw,
         )
         self.store.set_changed_files(task.id, result.changed_files)
         self.store.set_validation_result(
@@ -411,13 +444,18 @@ class _TaskHandler(BaseHTTPRequestHandler):
             detail=result.validation_output_summary,
             raw_json_digest=result.validation_output_digest,
         )
+        executor_detail = (
+            "fixture/provider-free executor"
+            if task.executor_kind == "deterministic_fixture"
+            else task.executor_kind
+        )
         self.store.add_evidence(
             task.id,
             category="Executor",
             label="executor_kind",
             value=task.executor_kind,
             status="pass",
-            detail="fixture/provider-free executor",
+            detail=executor_detail,
         )
         return {
             "success": result.success,
@@ -426,6 +464,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
             "validation_output_digest": result.validation_output_digest,
             "changed_files": result.changed_files,
             "error": result.error,
+            "failure_classification": getattr(result, "failure_classification", ""),
         }
 
     def _store_event_callback(self, task_id: str, event: dict[str, Any]) -> None:
@@ -446,7 +485,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
         if not title:
             raise TaskStoreError("title_required")
         executor_kind = str(payload.get("executor_kind", "deterministic_fixture"))
-        if executor_kind not in ("deterministic_fixture",):
+        if executor_kind not in ("deterministic_fixture", "opencode"):
             raise TaskStoreError(f"unsupported_executor_kind:{executor_kind}")
         return self.store.create_task(
             title=title,
