@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260808_pr132_opencode_backend_landing_v6",
-  "round_id": "round_20260808_pr132_opencode_backend_landing_v6",
+  "decision_id": "decision_20260808_pr132_opencode_backend_landing_v7",
+  "round_id": "round_20260808_pr132_opencode_backend_landing_v7",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,15 +14,15 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260808_pr132_opencode_backend_landing_v5",
-  "follows_last_round_id": "round_20260808_pr132_opencode_backend_landing_v5",
-  "previous_audit_outcome": "PR132_V5_SUPERSEDED_PREEXECUTION_BOOTSTRAP_SYNC_COMMAND_OMISSION",
-  "workstream_id": "pr132-opencode-backend-landing-v6",
+  "follows_last_decision_id": "decision_20260808_pr132_opencode_backend_landing_v6",
+  "follows_last_round_id": "round_20260808_pr132_opencode_backend_landing_v6",
+  "previous_audit_outcome": "PR132_V6_SUPERSEDED_PREEXECUTION_LANDING_UTILITY_COMMANDS_OMISSION",
+  "workstream_id": "pr132-opencode-backend-landing-v7",
   "source_issue": 127,
   "parent_issue": 90,
   "active_pr": 132,
   "required_branch": "owner/issue127-opencode-vertical-slice-v1",
-  "starting_head": "aa3da225f6da45232fa550ed6fc660442788f88a",
+  "starting_head": "e9e801d8150303c8c8d973b0425a30fbd40a541c",
   "activation_base_sha": "e4e23028c6c78c4ab9a8e032677e71370ace7627",
   "accepted_product_head": "e103fc53bd985375f0513c0369eb9dcc18510004",
   "allowed_merge_method": "merge",
@@ -72,6 +72,7 @@
   "bootstrap_exception_commands": [
     "git status --short",
     "git fetch origin owner/issue127-opencode-vertical-slice-v1",
+    "git show origin/owner/issue127-opencode-vertical-slice-v1:project_state/decision_packet.md",
     "git merge --ff-only origin/owner/issue127-opencode-vertical-slice-v1",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
@@ -102,6 +103,17 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
+      "command_id": "sync.inspect_remote_decision",
+      "command": "git show origin/owner/issue127-opencode-vertical-slice-v1:project_state/decision_packet.md",
+      "phase": "bootstrap",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
       "command_id": "sync.fast_forward_pr132_branch",
       "command": "git merge --ff-only origin/owner/issue127-opencode-vertical-slice-v1",
       "phase": "bootstrap",
@@ -126,6 +138,62 @@
     {
       "command_id": "observation.merge_base",
       "command": "git merge-base origin/main owner/issue127-opencode-vertical-slice-v1",
+      "phase": "status",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "observation.active_intent_hash_before",
+      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/active.json').Hash.ToLower()\"",
+      "phase": "status",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "mutation.archive_pr129_intent",
+      "command": "powershell -NoProfile -Command \"Copy-Item 'project_state/mainline_merge_intents/active.json' 'project_state/mainline_merge_intents/archive/pr129_v5.json'\"",
+      "phase": "implementation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["governance_artifact_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": ["project_state/mainline_merge_intents/archive/pr129_v5.json"]
+    },
+    {
+      "command_id": "observation.archive_hash_after",
+      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/archive/pr129_v5.json').Hash.ToLower()\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "observation.decision_sha256",
+      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/decision_packet.md').Hash.ToLower()\"",
+      "phase": "status",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "observation.command_plan_sha256",
+      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/gates/command_plan.json').Hash.ToLower()\"",
       "phase": "status",
       "required": true,
       "expected_exit_codes": [0],
@@ -321,54 +389,83 @@
 
 ## Goal
 
-PR #132 v6 supersedes v5 before any local gate generation or merge-intent mutation. v5 correctly established the PR-bound landing authority but omitted the explicit fast-forward bootstrap command needed to move a clean local implementation branch from the accepted product head to the Owner-committed landing Decision.
+PR #132 v7 is the final governance-only landing authority. It supersedes v5 and v6 before any local landing execution. v5 introduced the PR-bound R2 authority; v6 added explicit fast-forward bootstrap; v7 additionally makes remote Decision inspection, old-intent hashing/archive, and exact Decision/command-plan hash calculation first-class deterministic commands so the active intent can be derived without guessed values.
 
-No v5 local execution occurred. No v5 gate generation, active-intent mutation, product mutation, PR publication action, merge, model call, release or deploy occurred.
-
-Accepted product head remains:
+No v5/v6 local gate generation or merge-intent mutation occurred. Accepted product head remains frozen at:
 
 ```text
 e103fc53bd985375f0513c0369eb9dcc18510004
 ```
 
-The product tree is frozen. This v6 round is governance-only and differs from v5 only by explicitly authorizing the bounded branch fast-forward bootstrap needed after fetching the Owner Decision.
+The prior PR-triggered product-head CI failed only the two expected stale mainline-intent tests:
 
-After the local branch is fast-forwarded to the current remote Decision, the round authorizes only:
-1. standard transition gate generation against this v6 Decision;
-2. current PR129 v5 active intent archived byte-for-byte to `project_state/mainline_merge_intents/archive/pr129_v5.json`;
-3. new active intent bound to this committed v6 Decision and generated v6 command plan, with `source_pr=132`, `locked_base_sha=e4e23028c6c78c4ab9a8e032677e71370ace7627`, and merge method `merge`;
-4. governance-only validation and normal push.
+```text
+tests/test_mainline_landing.py::test_committed_active_intent_binds_exact_current_authority
+tests/test_mainline_landing.py::test_production_pre_merge_simulation
+```
 
-Owner retains PR comments, Ready and merge actions.
+All earlier CI steps passed; Decision Preflight and State Gate succeeded on the accepted product head.
+
+After synchronizing to this Owner Decision and obtaining `PRE_EXECUTION_AUTHORIZED`, the landing round may only:
+1. record the SHA-256 of the current PR129 active intent;
+2. archive that exact file byte-for-byte to `project_state/mainline_merge_intents/archive/pr129_v5.json` and prove the archive SHA-256 equals the pre-copy hash;
+3. calculate SHA-256 of the committed v7 Decision and generated v7 command plan;
+4. replace `active.json` with the exact PR132 v7 intent using those observed hashes;
+5. run landing/platform/gate validation, diff/path checks, commit only the eight governance paths, and normal-push.
+
+The new active intent must use:
+
+```json
+{
+  "schema_version": 1,
+  "intent_id": "pr132_opencode_backend_landing_v7",
+  "repository": "dddd2024/reverse-agent",
+  "source_pr": 132,
+  "locked_base_sha": "e4e23028c6c78c4ab9a8e032677e71370ace7627",
+  "allowed_merge_method": "merge",
+  "decision_identity": {
+    "decision_id": "decision_20260808_pr132_opencode_backend_landing_v7",
+    "decision_content_sha256": "<OBSERVED_DECISION_SHA256>"
+  },
+  "command_plan_sha256": "<OBSERVED_COMMAND_PLAN_SHA256>",
+  "merge_tree_policy": "equal_to_accepted_head_tree",
+  "required_workflows": [
+    "CI",
+    "Decision Preflight",
+    "State Gate (pull_request)",
+    "State Gate (push)"
+  ],
+  "expires_at": "2026-08-15T23:59:59Z"
+}
+```
 
 ## Acceptance
 
-1. Fetch the implementation branch, inspect the remote v6 Decision, and use only `git merge --ff-only origin/owner/issue127-opencode-vertical-slice-v1` to synchronize the clean local branch. No rebase/reset/force behavior.
-2. v6 Decision commit precedes all gate generation and merge-intent mutation.
-3. Accepted product head `e103fc53bd985375f0513c0369eb9dcc18510004` remains an immutable ancestor; no product/test/runtime file changes after it.
-4. Gate sequence reports `transition-lint: PASS` and `transition-preflight: PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]`.
-5. Current PR129 active intent is archived byte-for-byte to `project_state/mainline_merge_intents/archive/pr129_v5.json` before active modification.
-6. New active intent binds exactly: `source_pr=132`, `decision_id=decision_20260808_pr132_opencode_backend_landing_v6`, `locked_base_sha=e4e23028c6c78c4ab9a8e032677e71370ace7627`, `allowed_merge_method=merge`, and the exact SHA-256 of this Decision content and generated command plan.
-7. Required workflows are `[CI, Decision Preflight, State Gate (pull_request), State Gate (push)]`.
-8. `python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q` passes.
-9. `python -m pytest tests/platform_v1 -q` passes with zero failures; the prior landing-governance failures disappear without test modification.
-10. `python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q` passes.
-11. `git diff --check e4e23028c6c78c4ab9a8e032677e71370ace7627..HEAD` passes.
-12. `git diff --name-only e103fc53bd985375f0513c0369eb9dcc18510004..HEAD` contains only the 8 authorized governance paths.
-13. No product code, frontend, tests, workflows, docs, package, provider configuration or runtime model changes/calls.
-14. Codex calls = 0, OpenHands calls = 0, OpenCode/model/provider calls = 0 in this landing round.
-15. Normal branch push only; no force push, rebase, squash, main push, release or deploy.
+1. `git fetch` + remote Decision inspection + only `git merge --ff-only` for local synchronization; preserve unknown untracked files.
+2. v7 Decision commit precedes all v7 gate generation and merge-intent mutation.
+3. Standard transition sequence: transition-command-plan PASS, transition-lint PASS, transition-preflight `PRE_EXECUTION_AUTHORIZED`, `blocking_reasons=[]`.
+4. PR129 active-intent SHA before copy exactly equals `archive/pr129_v5.json` SHA after copy.
+5. PR132 active intent contains observed, not guessed, SHA-256 values for the exact committed Decision and generated command plan.
+6. Accepted product head remains ancestor and no product/test/runtime/frontend/workflow/doc/package file changes after it.
+7. Landing/integration/audit tests pass with zero failures.
+8. `tests/platform_v1` passes with zero failures; the known landing-governance failures disappear without modifying tests.
+9. project-gate/control-plane regression tests pass.
+10. `git diff --check e4e23028...HEAD` passes.
+11. `git diff --name-only e103fc53...HEAD` contains only the 8 authorized governance paths.
+12. No model/provider/runtime execution. OpenCode=0, Codex=0, OpenHands=0.
+13. Normal push only. No rebase, reset, clean, force push, squash, main push, Ready, merge, release or deploy by local Agent.
 
 ```text
-PR132_V6_LANDING_GOVERNANCE_READY_FOR_OWNER_EXACT_HEAD_REVIEW
+PR132_V7_LANDING_GOVERNANCE_READY_FOR_OWNER_EXACT_HEAD_REVIEW
 ```
 
 ## Execution policy
 
-- v5 is superseded pre-execution solely because its bootstrap command list omitted the explicit local fast-forward sync needed to obtain the already-committed Owner authority.
-- The remote v6 Decision may be read from `origin/owner/issue127-opencode-vertical-slice-v1` immediately after the authorized fetch, before the fast-forward command is executed.
-- The only history synchronization operation authorized is `git merge --ff-only origin/owner/issue127-opencode-vertical-slice-v1`; no rebase, force update, reset, squash or history rewrite.
-- v4 product Decision/evidence and product head `e103fc53...` remain immutable historical acceptance evidence.
-- Archive the old merge intent byte-for-byte and derive new hashes from actual committed files after gate generation; never guess them.
-- Owner-only permissions (`pr_comment_allowed`, `mark_ready_allowed`, `merge_allowed`) are not delegated to the local Agent.
-- No OpenCode, Codex, OpenHands, provider/model, credential, external binary, release or deployment action is authorized.
+- v7 is the only active local landing authority; v5/v6 are superseded pre-execution.
+- The remote v7 Decision may be read immediately after the authorized fetch before fast-forwarding the local branch.
+- Do not modify `active.json` until preflight authorizes execution and the old active intent has been hashed and archived.
+- Archive must be byte-for-byte identical; hash mismatch is a hard stop.
+- Do not guess or hand-copy Decision/command-plan digests; use the authorized `Get-FileHash` commands on committed/generated files.
+- Product head `e103fc53...` is immutable for landing; any post-product change outside the eight governance paths is a hard stop.
+- Owner-only PR comment/Ready/merge permissions are not delegated to the local Agent.
+- No OpenCode, Codex, OpenHands, provider/model, credential, release or deployment action is authorized.
