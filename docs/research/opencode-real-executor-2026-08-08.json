@@ -1,0 +1,33 @@
+{
+  "real_single_agent_executor_path_established": false,
+  "selected_executor_path": "NONE",
+  "integration_surface_recommendation": "BLOCKED_CLI_NOT_FOUND",
+  "primary_blocker": "CLI_NOT_FOUND",
+  "opencode": {
+    "present": false,
+    "version": null,
+    "provider_id": null,
+    "model_id": null,
+    "non_openai": false,
+    "exit_code": null
+  },
+  "fixture": {
+    "input_read": false,
+    "tool_used": false,
+    "cwd_command_executed": false,
+    "output_created": false,
+    "output_exact_match": false,
+    "verification_executed": false
+  },
+  "credential_exposure": false,
+  "repository_source_mutation": false,
+  "decision_id": "decision_20260808_issue131_opencode_real_executor_v1",
+  "round_id": "round_20260808_issue131_opencode_real_executor_v1",
+  "branch": "owner/issue131-opencode-real-executor-v1",
+  "base_main_sha": "e4e23028c6c78c4ab9a8e032677e71370ace7627",
+  "decision_commit": "e2a8af7a9a6a0af0c93fd95d2df3a86ac935cec7",
+  "gate_commit": "3a5dadf7a5492efb3db15b5f994e41ed0176181c",
+  "preflight": "PRE_EXECUTION_AUTHORIZED",
+  "preflight_blocking_reasons": [],
+  "terminal_signal": "ISSUE131_OPENCODE_EXECUTOR_BLOCKED_CLI_NOT_FOUND"
+}
