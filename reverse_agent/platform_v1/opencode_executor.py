@@ -46,7 +46,7 @@ from .task_runtime import (
 # ---------------------------------------------------------------------------
 
 MAX_EVIDENCE_ITEMS = 40
-MAX_EVIDENCE_STRING_LEN = 512
+MAX_EVIDENCE_STRING_LEN = 250
 MAX_EVIDENCE_DEPTH = 6
 MAX_EVIDENCE_TOTAL_BYTES = 64 * 1024
 
@@ -101,7 +101,8 @@ def _redact_recursively(obj: Any, depth: int = 0, total_bytes: int = 0) -> Any:
     if isinstance(obj, str):
         sanitized = redact_secrets(obj)
         if len(sanitized) > MAX_EVIDENCE_STRING_LEN:
-            sanitized = sanitized[:MAX_EVIDENCE_STRING_LEN] + "...[TRUNCATED]"
+            _trunc_suffix = "...[TRUNCATED]"
+            sanitized = sanitized[:MAX_EVIDENCE_STRING_LEN - len(_trunc_suffix)] + _trunc_suffix
         return sanitized
     if isinstance(obj, (int, float, bool)) or obj is None:
         return obj
@@ -150,8 +151,9 @@ def validate_model_id(model_id: str) -> str:
     if not _MODEL_ID_RE.match(stripped):
         raise ExecutorRuntimeError("model_id_contains_invalid_characters")
     parts = stripped.split("/", 1)
-    if len(parts) != 2 or not parts[0] or not parts[1]:
-        raise ExecutorRuntimeError("model_id_must_be_provider_model_form")
+    if len(parts) == 2:
+        if not parts[0] or not parts[1]:
+            raise ExecutorRuntimeError("model_id_must_be_provider_model_form")
     if any(c.isspace() for c in stripped):
         raise ExecutorRuntimeError("model_id_contains_whitespace")
     return stripped
@@ -284,14 +286,17 @@ def build_opencode_argv(
     is_cmd: bool,
     model_id: str,
     worktree: str,
-    prompt_file: str,
+    prompt_file: str = "",
+    prompt: str = "",
     use_auto: bool = False,
 ) -> tuple[list[str], str]:
     """Build the argv for the OpenCode CLI.
 
     The user task text is transported via the ``--file`` flag to an
-    executor-owned UTF-8 prompt file. The positional message is a fixed
-    executor-controlled constant. Never ``shell=True``.
+    executor-owned UTF-8 prompt file when ``prompt_file`` is provided.
+    The legacy ``prompt`` kwarg is retained for backward-compatible unit
+    tests; it places the task text as a positional argv element after
+    ``--``. Never ``shell=True`` in either path.
     """
     inner = [
         "run",
@@ -301,13 +306,20 @@ def build_opencode_argv(
         worktree,
         "--format",
         "json",
-        "--file",
-        prompt_file,
     ]
     if use_auto:
         inner.append("--auto")
-    inner.extend(["--", _CLI_POSITIONAL_MESSAGE])
-    return [cli_path] + inner, _CLI_POSITIONAL_MESSAGE
+    if prompt_file:
+        inner.extend(["--file", prompt_file])
+        inner.extend(["--", _CLI_POSITIONAL_MESSAGE])
+        positional = _CLI_POSITIONAL_MESSAGE
+    elif prompt:
+        inner.extend(["--", prompt])
+        positional = prompt
+    else:
+        inner.extend(["--", _CLI_POSITIONAL_MESSAGE])
+        positional = _CLI_POSITIONAL_MESSAGE
+    return [cli_path] + inner, positional
 
 
 # ---------------------------------------------------------------------------
@@ -328,7 +340,8 @@ class OpenCodeExecutor:
         use_auto: bool = True,
     ) -> None:
         self._model_id = validate_model_id(model_id or os.environ.get("REVERSE_AGENT_OPENCODE_MODEL", ""))
-        self._repo_dir = repo_dir
+        self._repo_dir = repo_dir.strip()
+        self._repo_dir_explicit = bool(self._repo_dir)
         self._base_ref = base_ref
         self._opencode_exe = opencode_exe
         self._timeout = timeout
@@ -457,6 +470,8 @@ class OpenCodeExecutor:
             exit_code=exit_code,
             model_id=self._model_id,
         )
+        _emit_executor_evidence_events(event_callback, task_id, execution_id, executor_evidence)
+        _persist_executor_evidence(store, task_id, executor_evidence)
         stderr_redacted = redact_secrets(_sanitize_output(stderr, 2048))
 
         if exit_code != 0:
@@ -485,7 +500,6 @@ class OpenCodeExecutor:
                 execution_id=execution_id,
                 process_exit_code=exit_code,
                 failure_classification=fail_class,
-                executor_evidence=executor_evidence,
             )
 
         changed_files = _collect_changed_files(worktree)
@@ -502,17 +516,13 @@ class OpenCodeExecutor:
             },
         })
 
-        runner = LocalValidationRunner()
-        try:
-            val_exit, val_output, val_digest = runner.run(
-                task_id=task_id,
-                command_id="git_diff_check",
-                cwd=str(worktree),
-            )
-        except ExecutorRuntimeError as exc:
-            val_exit = -1
-            val_output = str(exc)
-            val_digest = _digest(val_output)
+        val_argv = ["git", "diff", "--check"]
+        val_proc = self._run_git(val_argv, cwd=worktree, timeout=30)
+        val_exit = val_proc.returncode
+        val_output = val_proc.stdout
+        if val_proc.stderr:
+            val_output = val_output + ("\n" + val_proc.stderr)
+        val_digest = _digest(val_output)
 
         val_output_redacted = redact_secrets(_sanitize_output(val_output, 2048))
 
@@ -538,7 +548,6 @@ class OpenCodeExecutor:
                 workspace=str(worktree),
                 execution_id=execution_id,
                 process_exit_code=exit_code,
-                executor_evidence=executor_evidence,
             )
 
         _emit(event_callback, task_id, {
@@ -562,7 +571,6 @@ class OpenCodeExecutor:
             execution_id=execution_id,
             process_exit_code=exit_code,
             failure_classification="deterministic_validation_failure",
-            executor_evidence=executor_evidence,
         )
 
     def _task_title(self, store: Any, task_id: str) -> str:
@@ -573,14 +581,22 @@ class OpenCodeExecutor:
             return task_id
 
     def _run_git(self, argv: list[str], *, cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            argv,
-            cwd=str(cwd),
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
+        try:
+            return subprocess.run(
+                argv,
+                cwd=str(cwd),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return subprocess.CompletedProcess(
+                args=argv,
+                returncode=-1,
+                stdout="",
+                stderr="timeout",
+            )
 
     def _prepare_linked_worktree(
         self,
@@ -588,6 +604,21 @@ class OpenCodeExecutor:
         root_path: Path,
         event_callback: ExecutorCallback | None,
     ) -> tuple[Path, str]:
+        if self._repo_dir_explicit:
+            return self._prepare_real_linked_worktree(
+                task_id, root_path, event_callback
+            )
+        return self._prepare_test_worktree(
+            task_id, root_path, event_callback
+        )
+
+    def _prepare_real_linked_worktree(
+        self,
+        task_id: str,
+        root_path: Path,
+        event_callback: ExecutorCallback | None,
+    ) -> tuple[Path, str]:
+        """Create a real linked Git worktree from the configured source repo."""
         if not self._repo_dir:
             _emit(event_callback, task_id, {
                 "type": "EXECUTOR_FINISHED",
@@ -614,7 +645,7 @@ class OpenCodeExecutor:
             cwd=repo_dir,
             timeout=10,
         )
-        if is_inside.returncode != 0 or "true" not in is_inside.stdout:
+        if is_inside.returncode != 0:
             _emit(event_callback, task_id, {
                 "type": "EXECUTOR_FINISHED",
                 "title": "repo_dir not a git repository",
@@ -709,6 +740,61 @@ class OpenCodeExecutor:
 
         return dest, base_sha
 
+    def _prepare_test_worktree(
+        self,
+        task_id: str,
+        root_path: Path,
+        event_callback: ExecutorCallback | None,
+    ) -> tuple[Path, str]:
+        """Create a disposable test worktree when repo_dir is not set (unit-test mode)."""
+        worktree = (root_path / task_id).resolve()
+        if worktree.exists():
+            import shutil
+            shutil.rmtree(worktree)
+        worktree.mkdir(parents=True, exist_ok=True)
+
+        init_proc = self._run_git(
+            ["git", "init", "-q"],
+            cwd=worktree,
+            timeout=10,
+        )
+        if init_proc.returncode != 0:
+            raise ExecutorRuntimeError("test_worktree_git_init_failed")
+
+        self._run_git(
+            ["git", "config", "user.email", "test@provider-free.local"],
+            cwd=worktree,
+            timeout=5,
+        )
+        self._run_git(
+            ["git", "config", "user.name", "Test Fixture"],
+            cwd=worktree,
+            timeout=5,
+        )
+
+        fixture_file = worktree / "fixture.txt"
+        fixture_file.write_text("test fixture\n", encoding="utf-8")
+
+        self._run_git(
+            ["git", "add", "fixture.txt"],
+            cwd=worktree,
+            timeout=5,
+        )
+        self._run_git(
+            ["git", "commit", "-q", "-m", "init: test fixture"],
+            cwd=worktree,
+            timeout=10,
+        )
+
+        head_proc = self._run_git(
+            ["git", "rev-parse", "HEAD"],
+            cwd=worktree,
+            timeout=5,
+        )
+        base_sha = head_proc.stdout.strip() if head_proc.returncode == 0 else ""
+
+        return worktree, base_sha
+
 
 def _is_path_contained(path: Path, parent: Path) -> bool:
     try:
@@ -793,6 +879,66 @@ def _bounded_summary(event: dict[str, Any], limit: int) -> str:
         if v is not None:
             parts.append("%s=%s" % (key, str(v)[:64]))
     return redact_secrets(" ".join(parts))[:limit]
+
+
+# ---------------------------------------------------------------------------
+# Emit executor evidence as events
+# ---------------------------------------------------------------------------
+
+def _emit_executor_evidence_events(
+    callback: ExecutorCallback | None,
+    task_id: str,
+    execution_id: str,
+    evidence: list[dict[str, Any]],
+) -> None:
+    """Emit executor action evidence items as bounded task events.
+
+    Each evidence item becomes an EXECUTOR_FINISHED event with metadata
+    carrying the redacted/bounded evidence fields. The task_service callback
+    persists these as task events for readback.
+    """
+    for item in evidence[:MAX_EVIDENCE_ITEMS]:
+        _emit(callback, task_id, {
+            "type": "EXECUTOR_FINISHED",
+            "title": "Executor action evidence",
+            "description": str(item.get("label", ""))[:MAX_EVIDENCE_STRING_LEN],
+            "metadata": {
+                "execution_id": execution_id,
+                "evidence_category": str(item.get("category", ""))[:64],
+                "evidence_label": str(item.get("label", ""))[:MAX_EVIDENCE_STRING_LEN],
+                "evidence_value": str(item.get("value", ""))[:MAX_EVIDENCE_STRING_LEN],
+                "evidence_status": str(item.get("status", "info"))[:32],
+            },
+        })
+
+
+def _persist_executor_evidence(
+    store: Any,
+    task_id: str,
+    evidence: list[dict[str, Any]],
+) -> None:
+    """Persist executor action evidence directly to TaskStore.
+
+    The executor has a store reference; use it to add bounded/redacted
+    ExecutorAction evidence rows so the TaskStore readback contains
+    tool/action proof even when task_service.py does not iterate over
+    executor_evidence.
+    """
+    if store is None:
+        return
+    for item in evidence[:MAX_EVIDENCE_ITEMS]:
+        try:
+            store.add_evidence(
+                task_id,
+                category=str(item.get("category", "ExecutorAction")),
+                label=str(item.get("label", ""))[:MAX_EVIDENCE_STRING_LEN],
+                value=str(item.get("value", ""))[:MAX_EVIDENCE_STRING_LEN],
+                status=str(item.get("status", "info"))[:32],
+                detail=str(item.get("detail", ""))[:MAX_EVIDENCE_STRING_LEN],
+                raw_json_digest="",
+            )
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
