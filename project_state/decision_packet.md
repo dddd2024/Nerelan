@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260808_issue127_opencode_vertical_slice_v2",
-  "round_id": "round_20260808_issue127_opencode_vertical_slice_v2",
+  "decision_id": "decision_20260808_issue127_opencode_vertical_slice_v3",
+  "round_id": "round_20260808_issue127_opencode_vertical_slice_v3",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,16 +14,16 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260808_issue127_opencode_vertical_slice_v1",
-  "follows_last_round_id": "round_20260808_issue127_opencode_vertical_slice_v1",
-  "previous_audit_outcome": "ISSUE127_V1_OWNER_AUDIT_REPAIR_REQUIRED_REAL_WORKTREE_BOUNDED_PROMPT_WINDOWS_LAUNCH_STATE_TIMING",
-  "workstream_id": "issue127-opencode-vertical-slice-v2",
+  "follows_last_decision_id": "decision_20260808_issue127_opencode_vertical_slice_v2",
+  "follows_last_round_id": "round_20260808_issue127_opencode_vertical_slice_v2",
+  "previous_audit_outcome": "ISSUE127_V2_SUPERSEDED_PREEXECUTION_BY_EXTENDED_OWNER_EVIDENCE_SAFETY_AUDIT",
+  "workstream_id": "issue127-opencode-vertical-slice-v3",
   "source_issue": 127,
   "parent_issue": 90,
   "prerequisite_issue": 131,
   "related_research_issue": 126,
   "required_branch": "owner/issue127-opencode-vertical-slice-v1",
-  "starting_head": "9d305996b9cefbd5170498e9e9db6577b3a341a5",
+  "starting_head": "e8106de9378a657d9e0ca435991003b55c4e1e51",
   "activation_base_sha": "e4e23028c6c78c4ab9a8e032677e71370ace7627",
   "risk_tier": "R3",
   "governance_artifact_risk_tier": "R3",
@@ -196,11 +196,11 @@
       "operations": ["run_checks", "landing_governance_failure_classification"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence",
-      "validation_note": "Any failure must be listed by exact test node ID. Only failures whose assertions bind current decision_packet.md to project_state/mainline_merge_intents/active.json or final R2 landing authority may be classified as KNOWN_LANDING_GOVERNANCE_BLOCKER. Do not modify those tests or merge-intent files in this R3 product round. Any other failure is a product blocker and must be repaired."
+      "validation_note": "List every failing test node ID. Only tests whose failure is caused by the active R3 Decision not matching final R2 mainline_merge_intents authority may be KNOWN_LANDING_GOVERNANCE_BLOCKER. Do not modify those tests or merge intents in this round. Any other failure is a product blocker."
     },
     {
       "command_id": "acceptance.opencode_task_plane",
-      "command": "python -m reverse_agent.platform_v1.opencode_task_plane_acceptance --repo-dir F:/reverse-agent --workspace-root F:/reverse-agent-workspaces/issue127-opencode-v2 --model sensetime/sensenova-6.7-flash-lite",
+      "command": "python -m reverse_agent.platform_v1.opencode_task_plane_acceptance --repo-dir F:/reverse-agent --workspace-root F:/reverse-agent-workspaces/issue127-opencode-v3 --model sensetime/sensenova-6.7-flash-lite",
       "phase": "acceptance",
       "required": true,
       "expected_exit_codes": [0],
@@ -208,7 +208,7 @@
       "operations": ["model_execution", "network_access", "worktree_creation", "tool_execution", "external_workspace_mutation", "deterministic_validation"],
       "network_access": true,
       "required_evidence_source": "local_command_evidence",
-      "validation_note": "Must create a real linked Git worktree from repo_dir using git worktree semantics, not git init. Must prove worktree HEAD/base ancestry and that the Agent can read an existing reverse-agent file inside the worktree before creating the bounded acceptance output. Use the pre-existing non-OpenAI SenseTime/SenseNova route only."
+      "validation_note": "Must create a real linked Git worktree from repo_dir; prove HEAD/base binding, worktree-list membership, source checkout unchanged, actual read of an existing reverse-agent file, real tool/action evidence from OpenCode JSON, one bounded mutation, accurate changed-file statistics, and independent validation."
     },
     {
       "command_id": "validation.diff_check",
@@ -366,57 +366,56 @@
 
 ## Goal
 
-Issue #127 v2 is a fail-forward repair round for the accepted v1 runtime direction. The v1 local acceptance proved that a separate OpenCode child process can be dispatched through Task API -> ExecutorRouter -> OpenCodeExecutor and can return normalized evidence. Owner exact-head review found that the implementation is not yet a truthful isolated-repository execution boundary.
+Issue #127 v3 is the single repair round to make the OpenCode backend slice truthful enough for a Draft PR. v1 proved the runtime route but Owner review found the acceptance could pass without executing against the target repository. v2 was created as an initial repair authority but was superseded before gate generation or local repair so the evidence-safety findings below could be handled in the same implementation round.
 
-The following v1 evidence remains accepted:
+Accepted runtime direction:
 
 ```text
-OpenCode CLI 1.18.15 resolves on the host
-sensetime/sensenova-6.7-flash-lite executes successfully
-Task API create/execute/readback/events path works
-SQLite persistence works
-changed-file / validation / executor evidence plumbing works
+Task API -> ExecutorRouter -> OpenCode child process -> deterministic validation -> TaskStore readback
+OpenCode CLI 1.18.15
+sensetime/sensenova-6.7-flash-lite
 Codex calls = 0
 OpenHands calls = 0
 ```
 
-The following v1 findings MUST be repaired before a Draft PR is created:
+Required repairs:
 
-1. REAL WORKTREE: `OpenCodeExecutor._prepare_git_worktree()` currently uses `git init` in an empty directory. v2 must create a real linked worktree from the configured repository/base using `git worktree add` (or an existing repository utility that is demonstrably equivalent). The Agent must be able to read the target repository contents inside that isolated worktree. It must never operate in the source checkout.
-2. BOUNDED PROMPT: v1 uses `_PROMPT_TEMPLATE = "{task}"`. v2 must wrap the user task in a fixed authority envelope that explicitly restricts filesystem scope to the worktree and forbids commit, push, PR, merge, release/deploy, credential access, provider reconfiguration, and work outside the requested task.
-3. WINDOWS LAUNCH SAFETY: user-controlled task text must not be interpolated unsafely into a Windows `.cmd` command line. Prefer a native executable when available; otherwise keep user-controlled prompt content out of shell syntax (for example via a bounded prompt file/stdin mechanism supported by the installed CLI) and add metacharacter/injection regression tests. Do not use `shell=True`.
-4. STATE TIMING: TaskService must not persist `VALIDATING` before the real executor has even run. Preserve truthful phase ordering. External executor failures should leave an evidence-consistent RUNNING -> BLOCKED/FAILED path; successful execution should enter validation/review states in a truthful order.
-5. ACCEPTANCE TRUTH: the real acceptance must prove the workspace is a linked worktree of `F:/reverse-agent`, not merely an unrelated Git repository outside that path. It must verify worktree HEAD/base ancestry and read at least one existing reverse-agent file from the worktree before making the bounded acceptance mutation.
-6. GOVERNANCE TEST CLASSIFICATION: the current full Platform V1 suite may fail while this R3 implementation Decision is active because legacy landing tests dynamically require the current Decision to match `mainline_merge_intents/active.json` and an R2 `active_pr` landing authority. List every failing node ID. Do not modify those governance tests or merge intents in v2. Any failure not strictly attributable to that landing-authority mismatch is a product blocker and must be fixed before push.
+1. REAL LINKED WORKTREE. Replace the empty `git init` workspace with a worktree linked to configured `repo_dir`, using a resolved approved base commit/ref. Prefer `git -C <repo_dir> worktree add --detach <path> <base>` or an equivalent existing repository utility. Fail closed on invalid repo/base or pre-existing conflicting workspace. Do not mutate the source checkout.
+2. BOUNDED AUTHORITY PROMPT. Wrap task text in a fixed executor-owned authority envelope restricting tools/filesystem to the worktree and forbidding commit, push, PR, merge, release/deploy, credential access, provider configuration changes, and unrelated work.
+3. WINDOWS COMMAND BOUNDARY. Browser/task-controlled text and model identifiers must not become shell syntax when the installed OpenCode entrypoint is `.cmd`. Validate model identifiers. Keep `shell=False`. Prefer a safe native executable when available; otherwise keep user-controlled prompt text out of the `.cmd` command string by using a tested executor-owned prompt-file/stdin/attachment mechanism supported by the installed CLI. Add metacharacter regression tests (`& | > < % ! ^ quotes newlines`).
+4. TRUTHFUL STATE/EVENT ORDER. Do not persist `VALIDATING` before the child process has run. Avoid duplicate synthetic OpenCode lifecycle events where the executor already supplies the same event. Final status/evidence must correspond to actual runtime order.
+5. REAL STRUCTURED EXECUTOR EVIDENCE. Parsed OpenCode JSON action/tool events must not be discarded on success. Persist a bounded, normalized, recursively redacted summary sufficient to prove real executor/tool activity without storing arbitrary unbounded provider payloads.
+6. RECURSIVE SECRET REDACTION. Redact sensitive keys/values at nested dict/list depths before any OpenCode event/log persistence. Tests must cover nested Authorization/token/api-key/cookie/credential structures and bearer-like values. Preserve safe structural metadata where possible instead of stringifying entire nested objects.
+7. ACCURATE CHANGED-FILE EVIDENCE. Untracked file `additions` must represent diff/line semantics rather than file byte size. Binary/unreadable files must be handled conservatively and deterministically.
+8. ACCEPTANCE TRUTH. Acceptance must prove the workspace is listed by the target repository's worktree metadata, its HEAD is bound to the selected base, it can read an existing reverse-agent file from that worktree, the model performs a bounded worktree-only mutation, and the source checkout HEAD/status is unchanged.
+9. NO FABRICATED COUNTERS. Acceptance failure output must not claim `model_calls=0` after an OpenCode attempt may already have occurred. Track explicit attempted/completed child-process counts or omit unknown counters. Codex/OpenHands zero may only be asserted from code paths that do not invoke them.
+10. GOVERNANCE TEST CLASSIFICATION. Record every full `tests/platform_v1` failure by exact node ID. Only final-landing tests that dynamically bind the active R3 Decision to `mainline_merge_intents/active.json`, `active_pr`, or R2 landing authority may remain as `KNOWN_LANDING_GOVERNANCE_BLOCKER`. Do not modify those tests/merge intents in this R3 round. Any other failing test blocks publication.
 
-No frontend, Model Access, Draft-PR publication, one-click launcher, or multi-Agent work is authorized in this repair round.
+No frontend, Model Access, Draft-PR publication, one-click launcher, dependency installation, or multi-Agent work is authorized.
 
 ## Acceptance
 
-v2 is accepted only if all are true:
+v3 is accepted only if all are true:
 
-1. v2 Decision commit precedes v2 gate generation and all repair changes.
-2. `transition-lint` passes and preflight is `PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]`.
-3. OpenCode workspace is created by real repository worktree semantics from the configured `repo_dir` and an approved base ref/SHA; an empty `git init` workspace is forbidden for the opencode executor.
-4. Worktree path is outside the source checkout and is present in `git -C <repo_dir> worktree list --porcelain` (or equivalent definitive evidence).
-5. Worktree `HEAD` is bound to the requested base/ref and the source checkout HEAD/status remains unchanged.
-6. Bounded prompt includes fixed authority constraints and the user task separately; tests verify task text with `&`, `|`, `>`, `<`, `%`, `!`, quotes and newlines cannot become host shell syntax.
-7. OpenCode process launching remains `shell=False`; Windows `.cmd` handling uses a tested safe strategy that does not expose user task text to shell interpretation.
-8. TaskService no longer transitions to `VALIDATING` before actual executor execution; state/event ordering is evidence-consistent.
-9. Focused OpenCode tests pass with 0 failures, including new real-worktree, prompt-boundary, Windows metacharacter, state-ordering, timeout/nonzero/malformed-output, secret-redaction and changed-file tests.
-10. Real HTTP acceptance uses a linked reverse-agent worktree, reads an existing repository file, performs one bounded worktree-only mutation, independently validates it, and proves source checkout unchanged.
-11. Full `tests/platform_v1` run is recorded. Every failure, if any, is listed by node ID and proven to be only a known landing-governance mismatch. Product/runtime tests must have zero failures.
-12. `git diff --check` passes and final changed paths remain Decision-authorized.
-13. No `frontend/**`, `reverse_agent/model_access/**`, `.github/**`, docs, dependency files, credentials/configuration, or `project_state/mainline_merge_intents/**` changes.
-14. Codex runtime calls = 0; OpenHands runtime calls = 0.
-15. Normal push only. No PR / Ready / merge / main push by the local Agent.
+1. This v3 Decision commit precedes v3 gate generation and repair changes.
+2. transition-lint PASS; transition-preflight `PRE_EXECUTION_AUTHORIZED`; `blocking_reasons=[]`.
+3. Focused OpenCode tests pass with zero failures and cover every repair above.
+4. Real acceptance creates a linked worktree of `F:/reverse-agent`, proves worktree registration and exact base HEAD, and proves source checkout unchanged.
+5. Acceptance proves at least one read of an existing repository file, one real OpenCode tool/shell action, one bounded mutation, one structured executor action evidence record, accurate changed-file data, and independent `git diff --check` validation exit 0.
+6. OpenCode process exit 0 and task terminal state maps to `READY_FOR_HUMAN` only after deterministic validation.
+7. Failure-path tests cover CLI unavailable, model identifier rejection/unavailable route, timeout, malformed output, nonzero exit, validation failure, nested-secret redaction, worktree-preparation failure, and Windows metacharacter safety.
+8. Full Platform V1 diagnostic is recorded; non-governance product/runtime failures = 0. Known landing-governance failures are enumerated, not hidden.
+9. `git diff --check` passes and all changes remain inside authorized paths.
+10. No frontend/model-access/workflow/dependency/docs/merge-intent/credential/config changes.
+11. Codex runtime calls = 0; OpenHands runtime calls = 0.
+12. Normal push only; local Agent performs no PR/Ready/merge/main push.
 
 Success terminal:
 
 ```text
-ISSUE127_V2_OPENCODE_BACKEND_REPAIR_READY_FOR_OWNER_AUDIT
+ISSUE127_V3_OPENCODE_BACKEND_REPAIR_READY_FOR_OWNER_AUDIT
 ```
 
 ## Owner follow-up
 
-After v2 exact-head acceptance, Owner may create the Draft PR. CI is expected to expose the known current-Decision-versus-active-landing-intent mismatch until an explicit R2 final landing authority round binds the PR/head/Decision/command-plan. That landing round must not be simulated by weakening Platform V1 tests during this R3 product repair.
+After v3 exact-head acceptance, Owner will create a Draft PR. Remote CI may remain red only for the known current-R3-Decision versus final landing-intent assertions. Owner will then create a separate R2 PR landing authority bound to the Draft PR exact head, regenerate landing gates/intent, and require full remote CI success before Ready/merge.
