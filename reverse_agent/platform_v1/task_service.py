@@ -341,7 +341,6 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 review_status = "READY_FOR_REVIEW" if executor_kind != "deterministic_fixture" else "READY_FOR_REVIEW_FIXTURE"
                 task = self.store.transition_to(task.id, "PREPARING_WORKSPACE")
                 task = self.store.transition_to(task.id, running_status)
-                task = self.store.transition_to(task.id, "VALIDATING")
                 self.store.add_event(
                     task.id,
                     event_type="EXECUTOR_RUNNING",
@@ -367,6 +366,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     self._send_json(HTTPStatus.BAD_REQUEST, self._task_response(task))
                     return
                 if result["success"]:
+                    task = self.store.transition_to(task.id, "VALIDATING")
                     task = self.store.transition_to(task.id, review_status)
                     self.store.add_event(
                         task.id,

@@ -189,3 +189,108 @@ def test_router_injection_http_execute(task_server) -> None:
     finally:
         server.shutdown()
         server.server_close()
+
+
+# ---------------------------------------------------------------------------
+# Timeline regression (v4-F1): executor runs while state == RUNNING, not VALIDATING
+# ---------------------------------------------------------------------------
+
+def test_task_service_executor_runs_while_state_is_running_not_validating(tmp_path) -> None:
+    from reverse_agent.platform_v1.task_runtime import (
+        ExecutorRuntimeError,
+        ExecutorResult,
+    )
+
+    db_path = str(tmp_path / "tasks.sqlite3")
+    store = TaskStore(db_path=db_path)
+
+    class _TimelineRouter(ExecutorRouter):
+        def __init__(self):
+            super().__init__()
+            self.states_at_dispatch: list[str] = []
+            self.tasks_at_dispatch: list[str] = []
+
+        def dispatch_execute(self, *, task_id: str, store, **kwargs):
+            self.states_at_dispatch.append(store.get_task(task_id).status)
+            self.tasks_at_dispatch.append(task_id)
+            return super().dispatch_execute(
+                task_id=task_id,
+                store=store,
+                executor_kind=kwargs.get("executor_kind", "deterministic_fixture"),
+                workspace_root=kwargs.get("workspace_root", ""),
+            )
+
+    router = _TimelineRouter()
+    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173")
+    from http.server import ThreadingHTTPServer
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = "http://127.0.0.1:%d" % port
+        _, created = _req(base, "POST", "/api/tasks", {"title": "timeline", "executor_kind": "deterministic_fixture"})
+        tid = created["id"]
+        status, executed = _req(base, "POST", f"/api/tasks/{tid}/execute")
+        assert status == 200
+        assert executed["status"] == "READY_FOR_REVIEW_FIXTURE"
+        assert router.states_at_dispatch, "executor must be dispatched"
+        for s in router.states_at_dispatch:
+            assert s == "RUNNING_FIXTURE", s
+            assert s != "VALIDATING", s
+            assert s != "READY_FOR_REVIEW_FIXTURE", s
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_task_service_validator_runs_after_executor(tmp_path) -> None:
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+
+    db_path = str(tmp_path / "tasks.sqlite3")
+    store = TaskStore(db_path=db_path)
+    router = ExecutorRouter()
+
+    class _StateObserver(ExecutorRouter):
+        def __init__(self):
+            super().__init__()
+            self.states: list[str] = []
+
+        def dispatch_execute(self, *, task_id: str, store, **kwargs):
+            before = store.get_task(task_id).status
+            result = super().dispatch_execute(
+                task_id=task_id,
+                store=store,
+                executor_kind=kwargs.get("executor_kind", "deterministic_fixture"),
+                workspace_root=kwargs.get("workspace_root", ""),
+            )
+            after = store.get_task(task_id).status
+            self.states.append((before, after))
+            return result
+
+    obs = _StateObserver()
+    handler_cls = _handler_factory(store, obs, allowed_origin="http://localhost:5173")
+    from http.server import ThreadingHTTPServer
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = "http://127.0.0.1:%d" % port
+        _, created = _req(base, "POST", "/api/tasks", {"title": "timeline2", "executor_kind": "deterministic_fixture"})
+        tid = created["id"]
+        status, executed = _req(base, "POST", f"/api/tasks/{tid}/execute")
+        assert status == 200
+        assert executed["status"] == "READY_FOR_REVIEW_FIXTURE"
+        assert obs.states, "executor must run"
+        for before, after in obs.states:
+            assert before == "RUNNING_FIXTURE"
+            assert after == "RUNNING_FIXTURE"
+        task = store.get_task(tid)
+        assert task.validation_exit_code == 0
+        assert task.validation_command_id == "git_diff_check"
+    finally:
+        server.shutdown()
+        server.server_close()
