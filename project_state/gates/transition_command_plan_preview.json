@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260808_pr134_frontend_opencode_devup_landing_v1",
-  "round_id": "round_20260808_pr134_frontend_opencode_devup_landing_v1",
+  "decision_id": "decision_20260808_issue136_agent_canvas_direct_reuse_spike_v1",
+  "round_id": "round_20260808_issue136_agent_canvas_direct_reuse_spike_v1",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -15,118 +15,6 @@
       "execution_surface": "local",
       "operations": [
         "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "sync.fetch_main",
-      "command": "git fetch origin main",
-      "phase": "bootstrap",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "sync.fetch_pr134_branch",
-      "command": "git fetch origin owner/issue133-frontend-opencode-devup-v1",
-      "phase": "bootstrap",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "sync.inspect_remote_decision",
-      "command": "git show origin/owner/issue133-frontend-opencode-devup-v1:project_state/decision_packet.md",
-      "phase": "bootstrap",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "sync.switch_branch",
-      "command": "git switch owner/issue133-frontend-opencode-devup-v1",
-      "phase": "bootstrap",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_sync"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "sync.fast_forward_pr134_branch",
-      "command": "git merge --ff-only origin/owner/issue133-frontend-opencode-devup-v1",
-      "phase": "bootstrap",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_sync"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -182,7 +70,7 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.merge_base",
+      "command_id": "observation.git_merge_base",
       "command": "git merge-base HEAD origin/main",
       "phase": "status",
       "required": true,
@@ -204,9 +92,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.active_intent_hash_before",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/active.json').Hash.ToLower()\"",
-      "phase": "status",
+      "command_id": "gate.startup_snapshot",
+      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+      "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -214,29 +102,7 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "mutation.archive_pr132_intent",
-      "command": "powershell -NoProfile -Command \"Copy-Item 'project_state/mainline_merge_intents/active.json' 'project_state/mainline_merge_intents/archive/pr132_v7.json'\"",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "governance_artifact_mutation"
+        "gate_execution"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -246,13 +112,13 @@
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/archive/pr132_v7.json"
+        "project_state/gates/startup_snapshot.json"
       ]
     },
     {
-      "command_id": "observation.archive_hash_after",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/archive/pr132_v7.json').Hash.ToLower()\"",
-      "phase": "validation",
+      "command_id": "gate.transition_command_plan",
+      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+      "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -260,7 +126,32 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_observation"
+        "gate_execution"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json"
+      ]
+    },
+    {
+      "command_id": "gate.transition_lint",
+      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "gate_execution"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -272,9 +163,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.decision_sha256",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/decision_packet.md').Hash.ToLower()\"",
-      "phase": "status",
+      "command_id": "gate.transition_preflight",
+      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
+      "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -282,7 +173,32 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_observation"
+        "gate_execution"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/transition_preflight_result.json",
+        "project_state/gates/bootstrap_state.json"
+      ]
+    },
+    {
+      "command_id": "observation.node_version",
+      "command": "node --version",
+      "phase": "observation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "tool_observation"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -294,9 +210,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.command_plan_sha256",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/gates/command_plan.json').Hash.ToLower()\"",
-      "phase": "status",
+      "command_id": "observation.npm_version",
+      "command": "npm --version",
+      "phase": "observation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -304,7 +220,7 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_observation"
+        "tool_observation"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -316,8 +232,269 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.mainline_landing",
-      "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
+      "command_id": "observation.frontend_peers",
+      "command": "npm --prefix frontend ls react react-dom react-router --depth=0",
+      "phase": "observation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "dependency_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "observation.package_metadata",
+      "command": "npm view @openhands/agent-canvas@1.6.1 version license engines repository peerDependencies exports --json",
+      "phase": "experiment",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "bounded_network_access",
+        "package_metadata_observation"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "experiment.clone_upstream",
+      "command": "git clone --branch v1.6.1 --depth 1 https://github.com/All-Hands-AI/agent-canvas.git F:/reverse-agent-upstreams/agent-canvas-v1.6.1",
+      "phase": "experiment",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "bounded_network_access",
+        "external_source_checkout"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "experiment.package_probe_install",
+      "command": "npm --prefix F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe install @openhands/agent-canvas@1.6.1",
+      "phase": "experiment",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "bounded_network_access",
+        "external_package_installation"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "experiment.agent_canvas_help",
+      "command": "F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe/node_modules/.bin/agent-canvas.cmd --help",
+      "phase": "experiment",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "upstream_ui_reference_execution"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "experiment.agent_canvas_frontend_only",
+      "command": "F:/reverse-agent-workspaces/issue136-agent-canvas-package-probe/node_modules/.bin/agent-canvas.cmd --frontend-only",
+      "phase": "experiment",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0,
+        130
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "upstream_ui_reference_execution",
+        "local_process_execution"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "experiment.capture_install",
+      "command": "npm --prefix F:/reverse-agent-workspaces/issue136-agent-canvas-capture install playwright-core",
+      "phase": "experiment",
+      "required": false,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "bounded_network_access",
+        "external_package_installation"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "experiment.capture_screenshots",
+      "command": "npm --prefix F:/reverse-agent-workspaces/issue136-agent-canvas-capture run capture",
+      "phase": "experiment",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "browser_execution",
+        "screenshot_capture",
+        "file_mutation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "frontend/artifacts/agent-canvas-v1.6.1/**"
+      ]
+    },
+    {
+      "command_id": "experiment.embed_normal_install",
+      "command": "npm --prefix F:/reverse-agent-workspaces/issue136-agent-canvas-embed-probe install @openhands/agent-canvas@1.6.1",
+      "phase": "experiment",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "bounded_network_access",
+        "external_package_installation",
+        "compatibility_probe"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "experiment.embed_diagnostic_install",
+      "command": "npm --prefix F:/reverse-agent-workspaces/issue136-agent-canvas-embed-probe install --legacy-peer-deps @openhands/agent-canvas@1.6.1",
+      "phase": "experiment",
+      "required": false,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "bounded_network_access",
+        "external_package_installation",
+        "diagnostic_compatibility_probe"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "experiment.embed_build",
+      "command": "npm --prefix F:/reverse-agent-workspaces/issue136-agent-canvas-embed-probe run build",
+      "phase": "experiment",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "local_build",
+        "compatibility_probe"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "validation.frontend_test",
+      "command": "npm --prefix frontend test",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -338,8 +515,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.platform_v1",
-      "command": "python -m pytest tests/platform_v1 -q",
+      "command_id": "validation.frontend_typecheck",
+      "command": "npm --prefix frontend run typecheck",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -360,8 +537,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.gate_regression",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q",
+      "command_id": "validation.frontend_lint",
+      "command": "npm --prefix frontend run lint",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -382,8 +559,30 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "validation.diff_check",
-      "command": "git diff --check a1d09d4ae8887405721efe9871881db788c5820a..HEAD",
+      "command_id": "validation.frontend_build",
+      "command": "npm --prefix frontend run build",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "validation.git_diff_check",
+      "command": "git diff --check dd4cb074ab5b9baacf300706878b29bd745f12c3..HEAD",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -404,8 +603,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "validation.path_list",
-      "command": "git diff --name-only f6c9bad0cfad9f380a917f1a8f8c14eb58a52466..HEAD",
+      "command_id": "validation.git_diff_name_only",
+      "command": "git diff --name-only dd4cb074ab5b9baacf300706878b29bd745f12c3..HEAD",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -426,8 +625,34 @@
       "allowed_mutated_paths": []
     },
     {
+      "command_id": "publication.commit_evidence",
+      "command": "git commit -m frontend: evaluate direct Agent Canvas reuse",
+      "phase": "publication",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "local_commit"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/**",
+        "frontend/AGENT_CANVAS_DIRECT_REUSE_SPIKE.md",
+        "frontend/artifacts/agent-canvas-v1.6.1/**"
+      ]
+    },
+    {
       "command_id": "publication.push_branch",
-      "command": "git push origin owner/issue133-frontend-opencode-devup-v1",
+      "command": "git push -u origin owner/issue136-agent-canvas-reuse-spike-v1",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -449,9 +674,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.python -m reverse_agent.project_gate startup-snapshot --state-di",
-      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "phase": "gate",
+      "command_id": "bootstrap.git fetch origin main",
+      "command": "git fetch origin main",
+      "phase": "status",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -469,9 +694,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.python -m reverse_agent.project_gate transition-command-plan --s",
-      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
-      "phase": "gate",
+      "command_id": "bootstrap.git switch main",
+      "command": "git switch main",
+      "phase": "status",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -489,9 +714,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.python -m reverse_agent.project_gate transition-lint --state-dir",
-      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
-      "phase": "gate",
+      "command_id": "bootstrap.git merge --ff-only origin/main",
+      "command": "git merge --ff-only origin/main",
+      "phase": "status",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -509,9 +734,89 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.python -m reverse_agent.project_gate transition-preflight --stat",
-      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
-      "phase": "gate",
+      "command_id": "bootstrap.git diff --name-only 200964fee8c5bf7325addee0496cfb287e2da857..H",
+      "command": "git diff --name-only 200964fee8c5bf7325addee0496cfb287e2da857..HEAD",
+      "phase": "status",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.git ls-remote --heads origin owner/issue136-agent-canvas-reuse-s",
+      "command": "git ls-remote --heads origin owner/issue136-agent-canvas-reuse-spike-v1",
+      "phase": "status",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.git switch -c owner/issue136-agent-canvas-reuse-spike-v1",
+      "command": "git switch -c owner/issue136-agent-canvas-reuse-spike-v1",
+      "phase": "status",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.git add project_state/decision_packet.md",
+      "command": "git add project_state/decision_packet.md",
+      "phase": "status",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.git commit -m governance: authorize issue136 Agent Canvas reuse ",
+      "command": "git commit -m governance: authorize issue136 Agent Canvas reuse spike",
+      "phase": "status",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [

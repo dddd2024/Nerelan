@@ -3,10 +3,10 @@
   "artifact_name": "startup_snapshot.json",
   "gate_name": "startup-snapshot",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260808_pr134_frontend_opencode_devup_landing_v1",
-  "round_id": "round_20260808_pr134_frontend_opencode_devup_landing_v1",
+  "decision_id": "decision_20260808_issue136_agent_canvas_direct_reuse_spike_v1",
+  "round_id": "round_20260808_issue136_agent_canvas_direct_reuse_spike_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-08-08T11:01:46.867133Z",
+  "generated_at": "2026-08-08T12:42:02.303456Z",
   "artifact_path": "project_state/gates/startup_snapshot.json",
   "startup_sequence": [
     {
@@ -138,7 +138,7 @@
   "repository_root": "F:/reverse-agent",
   "expected_repository_root": "F:\\reverse-agent",
   "repository_root_matches": true,
-  "head_commit": "75efbc16adf3",
+  "head_commit": "5211ab41fd4c",
   "raw_git_status_short": [
     "?? .frontend_stage/.gitignore",
     "?? .frontend_stage/OPENHANDS_REUSE_MAP.md",
