@@ -275,7 +275,7 @@
       "execution_surface": "local",
       "operations": ["upstream_ui_reference_execution", "local_process_execution"],
       "network_access": false,
-      "required_evidence_source": "screenshot_evidence"
+      "required_evidence_source": "local_command_evidence"
     },
     {
       "command_id": "experiment.capture_install",
@@ -298,7 +298,7 @@
       "execution_surface": "local",
       "operations": ["browser_execution", "screenshot_capture", "file_mutation"],
       "network_access": false,
-      "required_evidence_source": "screenshot_evidence",
+      "required_evidence_source": "local_command_evidence",
       "allowed_mutated_paths": ["frontend/artifacts/agent-canvas-v1.6.1/**"]
     },
     {
