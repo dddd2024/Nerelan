@@ -22,6 +22,8 @@ param(
   [Parameter(Mandatory = $false)]
   [string]$RepoDir = "",
   [Parameter(Mandatory = $false)]
+  [string]$SourceDir = "",
+  [Parameter(Mandatory = $false)]
   [string]$OpenCodeModel = "sensetime/sensenova-6.7-flash-lite",
   [Parameter(Mandatory = $false)]
   [switch]$NoBrowser
@@ -38,11 +40,14 @@ $TaskApiUrl = "http://127.0.0.1:${TaskApiPort}"
 $ModelControlUrl = "http://127.0.0.1:${ModelControlPort}"
 
 function Fail-Closed([string]$msg) {
+  $errLog = Join-Path (Join-Path (Get-Location).Path ".platform_v1_runtime") "devup.fail.log"
+  try { New-Item -ItemType Directory -Path (Split-Path $errLog) -Force | Out-Null } catch {}
+  Add-Content -LiteralPath $errLog -Value "[FAIL] ${msg}" -Encoding UTF8 -ErrorAction SilentlyContinue
   Write-Error "dev-up: ${msg}"
   exit 1
 }
 
-function Resolve-RepoDir([string]$candidate) {
+function Resolve-InputPath([string]$candidate) {
   if ([string]::IsNullOrWhiteSpace($candidate)) {
     return (Get-Location).Path
   }
@@ -51,18 +56,53 @@ function Resolve-RepoDir([string]$candidate) {
   return $candidate
 }
 
+# RepoDir is the development host: frontend npm prefix, runtime metadata.
+# SourceDir is where the OpenCode executor sees the repository (acceptance source).
+# When SourceDir is omitted it equals RepoDir.
+$repoDir = Resolve-InputPath $RepoDir
+$sourceDir = Resolve-InputPath $SourceDir
+if ([string]::IsNullOrWhiteSpace($sourceDir)) {
+  $sourceDir = $repoDir
+}
+
+$script:logWriters = @{}
+$script:runningPids = [ordered]@{}
+
 function Find-Executable([string]$name) {
-  $found = Get-Command -Name $name -CommandType Application, Filter, Function, Cmdlet -ErrorAction SilentlyContinue
-  if ($found) { return $found.Source }
-  $exts = @($env:PATHEXT -split ";")
-  foreach ($dir in ($env:PATH -split ";")) {
-    $full = Join-Path $dir "$name$ext"
-    foreach ($ext in $exts) {
-      $candidate = Join-Path $dir "$name$ext"
+  $exts = @($env:PATHEXT -split ";") | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+  $searchExts = @()
+  foreach ($ext in $exts) {
+    $e = if ($ext.StartsWith('.')) { $ext } else { ".$ext" }
+    $searchExts += $e
+  }
+  $searchExts += @(".cmd", ".ps1", ".bat", ".exe", ".com", "")
+
+  $candidates = @($env:PATH -split ";") | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+  $candidates += @((Get-Location).Path)
+
+  foreach ($dir in $candidates) {
+    foreach ($ext in $searchExts) {
+      $candidate = Join-Path $dir "${name}${ext}"
       if (Test-Path -LiteralPath $candidate) {
         return (Get-Item -LiteralPath $candidate).FullName
       }
     }
+  }
+
+  $found = Get-Command -Name $name -CommandType Application, Filter, Function, Cmdlet, ExternalScript -ErrorAction SilentlyContinue
+  if ($found) {
+    if ($found -is [array] -and $found.Length -gt 0) { $found = $found[0] }
+    $source = $found.Source
+    if ($source -match '\.(ps1|cmd|bat|exe|com)$') { return $source }
+    foreach ($dir in $candidates) {
+      foreach ($ext in $searchExts) {
+        $candidate = Join-Path $dir "${name}${ext}"
+        if (Test-Path -LiteralPath $candidate) {
+          return (Get-Item -LiteralPath $candidate).FullName
+        }
+      }
+    }
+    return $source
   }
   return $null
 }
@@ -98,17 +138,14 @@ function Get-PortProcess([int]$port) {
 
 function New-ProcessArgs(
   [string]$cmd,
-  [string[]]$args,
+  [object[]]$serviceArgs,
   [hashtable]$env,
   [string]$cwd
 ) {
   $psi = New-Object System.Diagnostics.ProcessStartInfo
   $psi.FileName = $cmd
-  $psi.Arguments = ($args -join " ")
+  $psi.Arguments = ($serviceArgs -join " ")
   $psi.WorkingDirectory = $cwd
-  $psi.UseShellExecute = $false
-  $psi.RedirectStandardOutput = $true
-  $psi.RedirectStandardError = $true
   foreach ($kv in $env.GetEnumerator()) {
     $psi.Environment[$kv.Key] = $kv.Value
   }
@@ -118,40 +155,45 @@ function New-ProcessArgs(
 function Start-ServiceProcess(
   [string]$name,
   [string]$cmd,
-  [string[]]$args,
+  [object[]]$serviceArgs,
   [hashtable]$env,
   [string]$cwd,
   [string]$logDir
 ) {
-  $psi = New-ProcessArgs -cmd $cmd -args $args -env $env -cwd $cwd
+  $argString = ($serviceArgs -join " ")
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.WorkingDirectory = $cwd
+  $psi.UseShellExecute = $false
+  $psi.CreateNoWindow = $true
+
+  foreach ($kv in $env.GetEnumerator()) {
+    $psi.Environment[$kv.Key] = $kv.Value
+  }
+
+  if ($cmd -match '\.ps1$') {
+    $pwsh = Get-Command "powershell.exe" -ErrorAction SilentlyContinue
+    $pwshPath = if ($pwsh) { $pwsh.Source } else { "powershell.exe" }
+    $psi.FileName = $pwshPath
+    $psi.Arguments = "-NoProfile -NonInteractive -NoLogo -File `"$cmd`" $argString"
+  } elseif ($cmd -match '\.cmd$|\.bat$') {
+    $psi.FileName = "cmd.exe"
+    $psi.Arguments = "/c `"$cmd`" $argString"
+  } else {
+    $psi.FileName = $cmd
+    $psi.Arguments = $argString
+  }
+
   $proc = New-Object System.Diagnostics.Process
   $proc.StartInfo = $psi
-  $proc.EnableRaisingEvents = $true
-  $null = $proc.Start()
+  try {
+    $null = $proc.Start()
+  } catch {
+    Fail-Closed "service '${name}' (${cmd} ${argString}) failed to start: $($_.Exception.Message)"
+  }
 
-  $logFile = Join-Path $logDir "${name}.log"
-  $pid = $proc.Id
-
-  Register-ObjectEvent -InputObject $proc -EventName OutputDataReceived `
-    -Action {
-      param($sender, $e)
-      if ($sender -and $sender.Handle -and $sender.Handle -ne [IntPtr]::Zero -and
-          -not $sender.HasExited) {
-        Add-Content -LiteralPath $logFile -Value $e.Data -ErrorAction SilentlyContinue
-      }
-    } | Out-Null
-
-  Register-ObjectEvent -InputObject $proc -EventName ErrorDataReceived `
-    -Action {
-      param($sender, $e)
-      if ($sender -and $sender.Handle -and $sender.Handle -ne [IntPtr]::Zero -and
-          -not $sender.HasExited) {
-        Add-Content -LiteralPath $logFile -Value $e.Data -ErrorAction SilentlyContinue
-      }
-    } | Out-Null
-
-  $proc.BeginOutputReadLine()
-  $proc.BeginErrorReadLine()
+  $script:runningPids[$name] = $proc.Id | Out-Null
+  Set-Content -LiteralPath (Join-Path $logDir "${name}.pid") -Value $proc.Id -Encoding UTF8 | Out-Null
+  Write-Host "dev-up: ${name} started pid=$($proc.Id)"
   return $proc
 }
 
@@ -162,12 +204,12 @@ function Wait-ServiceReady(
 ) {
   for ($i = 0; $i -lt $attempts; $i++) {
     try {
-      $resp = Invoke-WebRequest -UseBasicParsing -Method Head -Uri $url -TimeoutSec 2 -ErrorAction SilentlyContinue
+      $resp = Invoke-WebRequest -UseBasicParsing -Method Get -Uri $url -TimeoutSec 2 -ErrorAction SilentlyContinue
       if ($resp -and $resp.StatusCode -and
           ($resp.StatusCode -eq 200 -or $resp.StatusCode -eq 204 -or
            $resp.StatusCode -eq 301 -or $resp.StatusCode -eq 302 -or
            $resp.StatusCode -eq 400 -or $resp.StatusCode -eq 404 -or
-           $resp.StatusCode -eq 405)) {
+           $resp.StatusCode -eq 405 -or $resp.StatusCode -eq 406)) {
         return $true
       }
     } catch {}
@@ -176,7 +218,7 @@ function Wait-ServiceReady(
   return $false
 }
 
-$repoDir = Resolve-RepoDir $RepoDir
+$repoDir = Resolve-InputPath $RepoDir
 $runtimeDir = Join-Path $repoDir ".platform_v1_runtime"
 $pidFile = Join-Path $runtimeDir "devup_pids.json"
 
@@ -193,6 +235,8 @@ if (-not $npm) { Fail-Closed "prerequisite missing: npm (not installed)" }
 
 $opencode = Find-Executable "opencode"
 if (-not $opencode) { Fail-Closed "prerequisite missing: opencode (not installed)" }
+Write-Output "dev-up: startup repo=${repoDir} source=${sourceDir}"
+Write-Output "dev-up: py=$py npm=$npm opencode=$opencode"
 
 $nodeModules = Join-Path $repoDir "frontend\node_modules"
 if (-not (Test-Path -LiteralPath $nodeModules)) {
@@ -201,9 +245,9 @@ if (-not (Test-Path -LiteralPath $nodeModules)) {
 
 foreach ($port in @($FrontendPort, $TaskApiPort, $ModelControlPort)) {
   if (Is-PortInUse $port) {
-    $pid = Get-PortProcess $port
+    $portProc = Get-PortProcess $port
     $hint = ""
-    if ($pid) { $hint = " (process ${pid})" }
+    if ($portProc) { $hint = " (process ${portProc})" }
     Fail-Closed "port ${port} is already occupied by an unknown process${hint}; refusing to interfere"
   }
 }
@@ -218,7 +262,7 @@ $taskApiEnv = [ordered]@{
   "REVERSE_AGENT_TASK_SERVICE_HOST" = "127.0.0.1"
   "REVERSE_AGENT_TASK_SERVICE_PORT" = [string]$TaskApiPort
   "REVERSE_AGENT_TASK_SERVICE_ORIGIN" = $FrontendUrl
-  "REVERSE_AGENT_REPO_DIR" = $repoDir
+  "REVERSE_AGENT_REPO_DIR" = $sourceDir
   "REVERSE_AGENT_OPENCODE_MODEL" = $OpenCodeModel
 }
 
@@ -231,13 +275,13 @@ $frontendEnv = [ordered]@{
 
 $modelProc = Start-ServiceProcess `
   -name "model-control" `
-  -cmd $py -args @("-m", "reverse_agent.model_access.service") `
+  -cmd $py -serviceArgs @("-m", "reverse_agent.model_access.service") `
   -env $modelControlEnv -cwd $repoDir -logDir $runtimeDir
 
-$taskProc = Start-ServiceProcess `
-  -name "task-api" `
-  -cmd $py -args @("-m", "reverse_agent.platform_v1.task_service") `
-  -env $taskApiEnv -cwd $repoDir -logDir $runtimeDir
+ $taskProc = Start-ServiceProcess `
+   -name "task-api" `
+   -cmd $py -serviceArgs @("-m", "reverse_agent.platform_v1.task_service") `
+   -env $taskApiEnv -cwd $repoDir -logDir $runtimeDir
 
 Start-Sleep -Milliseconds 1500
 
@@ -263,7 +307,7 @@ if (-not $taskProc.HasExited) {
 
 $frontendProc = Start-ServiceProcess `
   -name "frontend-vite" `
-  -cmd $npm -args @("--prefix", "frontend", "run", "dev") `
+  -cmd $npm -serviceArgs @("--prefix", "frontend", "run", "dev") `
   -env $frontendEnv -cwd $repoDir -logDir $runtimeDir
 
 Start-Sleep -Milliseconds 1500
@@ -284,6 +328,7 @@ if (-not $frontendProc.HasExited) {
 $record = [ordered]@{
   created_at = (Get-Date -Format o)
   repo_dir = $repoDir
+  source_dir = $sourceDir
   open_code_model = $OpenCodeModel
   children = @(
     [ordered]@{ name = "model-control"; pid = $modelProc.Id; cmd = "$py -m reverse_agent.model_access.service"; url = $ModelControlUrl },
