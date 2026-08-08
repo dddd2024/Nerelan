@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260808_issue133_frontend_opencode_devup_v3",
-  "round_id": "round_20260808_issue133_frontend_opencode_devup_v3",
+  "decision_id": "decision_20260808_issue133_frontend_opencode_devup_v4",
+  "round_id": "round_20260808_issue133_frontend_opencode_devup_v4",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,15 +14,15 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260808_issue133_frontend_opencode_devup_v2",
-  "follows_last_round_id": "round_20260808_issue133_frontend_opencode_devup_v2",
-  "previous_audit_outcome": "ISSUE133_V2_REWORK_REQUIRED_WINDOWS_DEV_LIFECYCLE_CONTRACT",
-  "workstream_id": "issue133-frontend-opencode-devup-v3",
+  "follows_last_decision_id": "decision_20260808_issue133_frontend_opencode_devup_v3",
+  "follows_last_round_id": "round_20260808_issue133_frontend_opencode_devup_v3",
+  "previous_audit_outcome": "ISSUE133_V3_REWORK_REQUIRED_PROCESS_INSTANCE_AND_PROFILE_SELECTION",
+  "workstream_id": "issue133-frontend-opencode-devup-v4",
   "source_issue": 133,
   "parent_issue": 127,
   "active_pr": 134,
   "required_branch": "owner/issue133-frontend-opencode-devup-v1",
-  "starting_head": "fb69c1b6476c088db8e34910b8636281b12768f2",
+  "starting_head": "2002f353bbe00f9379bbef7e8ea3fddf977ec434",
   "activation_base_sha": "a1d09d4ae8887405721efe9871881db788c5820a",
   "risk_tier": "R3",
   "governance_artifact_risk_tier": "R3",
@@ -103,15 +103,15 @@
     {"command_id":"test.backend_focused","command":"python -m pytest tests/test_model_access.py tests/platform_v1/test_task_service.py tests/platform_v1/test_opencode_executor.py -q","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"test.platform_v1","command":"python -m pytest tests/platform_v1 -q","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"test.gate_regression","command":"python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"validation.create_clean_source","command":"git worktree add --detach F:/reverse-agent-workspaces/issue133-gui-v3-source HEAD","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["worktree_creation","external_workspace_mutation"],"network_access":false,"required_evidence_source":"local_command_evidence","validation_note":"Run only after v3 repair and generated gates are committed. Destination must not pre-exist; do not delete or overwrite an existing path."},
-    {"command_id":"validation.clean_source_before","command":"git -C F:/reverse-agent-workspaces/issue133-gui-v3-source status --short","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation","exact_head_validation"],"network_access":false,"required_evidence_source":"local_command_evidence","validation_note":"Output must be empty."},
-    {"command_id":"acceptance.dev_up","command":"powershell -ExecutionPolicy Bypass -File .\\dev-up.ps1 -RepoDir F:/reverse-agent -SourceDir F:/reverse-agent-workspaces/issue133-gui-v3-source -OpenCodeModel sensetime/sensenova-6.7-flash-lite -NoBrowser","phase":"acceptance","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["process_start","loopback_service_start","tool_execution"],"network_access":false,"required_evidence_source":"local_command_evidence","validation_note":"RepoDir is the trusted service host with existing dependencies. SourceDir is the clean exact-head repository used only as REVERSE_AGENT_REPO_DIR for OpenCode linked-worktree execution. dev-up itself must not invoke a model."},
+    {"command_id":"validation.create_clean_source","command":"git worktree add --detach F:/reverse-agent-workspaces/issue133-gui-v4-source HEAD","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["worktree_creation","external_workspace_mutation"],"network_access":false,"required_evidence_source":"local_command_evidence","validation_note":"Run only after v4 repair and generated gates are committed. Destination must not pre-exist; do not delete or overwrite an existing path."},
+    {"command_id":"validation.clean_source_before","command":"git -C F:/reverse-agent-workspaces/issue133-gui-v4-source status --short","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation","exact_head_validation"],"network_access":false,"required_evidence_source":"local_command_evidence","validation_note":"Output must be empty."},
+    {"command_id":"acceptance.dev_up","command":"powershell -ExecutionPolicy Bypass -File .\\dev-up.ps1 -RepoDir F:/reverse-agent -SourceDir F:/reverse-agent-workspaces/issue133-gui-v4-source -OpenCodeModel sensetime/sensenova-6.7-flash-lite -NoBrowser","phase":"acceptance","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["process_start","loopback_service_start","tool_execution"],"network_access":false,"required_evidence_source":"local_command_evidence","validation_note":"RepoDir is the trusted service host; SourceDir is the clean exact-head repository exposed to OpenCode. dev-up must not invoke a model."},
     {"command_id":"acceptance.frontend_http","command":"powershell -NoProfile -Command \"$r=Invoke-WebRequest -UseBasicParsing http://127.0.0.1:4173/; if ($r.StatusCode -ne 200) { exit 1 }\"","phase":"acceptance","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["loopback_http_probe"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"acceptance.real_opencode_task","command":"powershell -NoProfile -Command \"$body=@{title='Create issue133_gui_v3_acceptance.txt containing exactly gui-opencode-v3-ok and do not modify any other file';repository='dddd2024/reverse-agent';executor_kind='opencode';model_profile_ref='';permission_profile='ASK_FOR_APPROVAL';policy_ref='';workspace='';branch=''}|ConvertTo-Json -Compress; $created=Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8766/api/tasks -ContentType 'application/json' -Body $body; $done=Invoke-RestMethod -Method Post -Uri ('http://127.0.0.1:8766/api/tasks/'+$created.id+'/execute') -ContentType 'application/json' -Body '{}'; $read=Invoke-RestMethod -Method Get -Uri ('http://127.0.0.1:8766/api/tasks/'+$created.id); if ($read.status -ne 'READY_FOR_REVIEW') { throw ('unexpected status '+$read.status) }; if ($read.executor_kind -ne 'opencode') { throw 'executor mismatch' }; if (-not ($read.changed_files | Where-Object { $_.path -eq 'issue133_gui_v3_acceptance.txt' })) { throw 'acceptance file missing' }; if (-not ($read.evidence | Where-Object { $_.category -eq 'ExecutorAction' -or $_.label -eq 'git_diff_check' })) { throw 'executor or validation evidence missing' }; Write-Output $created.id\"","phase":"acceptance","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["model_execution","network_access","tool_execution","external_workspace_mutation","deterministic_validation"],"network_access":true,"required_evidence_source":"local_command_evidence","validation_note":"Use only the pre-existing OpenCode provider session; no credential-value access. Source validation worktree must remain unchanged."},
-    {"command_id":"validation.clean_source_after","command":"git -C F:/reverse-agent-workspaces/issue133-gui-v3-source status --short","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation","exact_head_validation"],"network_access":false,"required_evidence_source":"local_command_evidence","validation_note":"Output must remain empty after real execution."},
-    {"command_id":"acceptance.dev_down","command":"powershell -ExecutionPolicy Bypass -File .\\dev-down.ps1 -RepoDir F:/reverse-agent","phase":"acceptance","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["process_stop","loopback_service_stop"],"network_access":false,"required_evidence_source":"local_command_evidence","validation_note":"Stop the exact owned process tree recorded by dev-up; never use name-wide process termination."},
+    {"command_id":"acceptance.real_opencode_task","command":"powershell -NoProfile -Command \"$body=@{title='Create issue133_gui_v4_acceptance.txt containing exactly gui-opencode-v4-ok and do not modify any other file';repository='dddd2024/reverse-agent';executor_kind='opencode';model_profile_ref='';permission_profile='ASK_FOR_APPROVAL';policy_ref='';workspace='';branch=''}|ConvertTo-Json -Compress; $created=Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8766/api/tasks -ContentType 'application/json' -Body $body; $done=Invoke-RestMethod -Method Post -Uri ('http://127.0.0.1:8766/api/tasks/'+$created.id+'/execute') -ContentType 'application/json' -Body '{}'; $read=Invoke-RestMethod -Method Get -Uri ('http://127.0.0.1:8766/api/tasks/'+$created.id); if ($read.status -ne 'READY_FOR_REVIEW') { throw ('unexpected status '+$read.status) }; if ($read.executor_kind -ne 'opencode') { throw 'executor mismatch' }; if (-not ($read.changed_files | Where-Object { $_.path -eq 'issue133_gui_v4_acceptance.txt' })) { throw 'acceptance file missing' }; if (-not ($read.evidence | Where-Object { $_.category -eq 'ExecutorAction' -or $_.label -eq 'git_diff_check' })) { throw 'executor or validation evidence missing' }; Write-Output $created.id\"","phase":"acceptance","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["model_execution","network_access","tool_execution","external_workspace_mutation","deterministic_validation"],"network_access":true,"required_evidence_source":"local_command_evidence","validation_note":"Exactly one real task. Use only the pre-existing OpenCode provider session; no credential-value access. Source validation worktree must remain unchanged."},
+    {"command_id":"validation.clean_source_after","command":"git -C F:/reverse-agent-workspaces/issue133-gui-v4-source status --short","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation","exact_head_validation"],"network_access":false,"required_evidence_source":"local_command_evidence","validation_note":"Output must remain empty after real execution."},
+    {"command_id":"acceptance.dev_down","command":"powershell -ExecutionPolicy Bypass -File .\\dev-down.ps1 -RepoDir F:/reverse-agent","phase":"acceptance","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["process_stop","loopback_service_stop"],"network_access":false,"required_evidence_source":"local_command_evidence","validation_note":"Stop only exact owned process instances after PID, executable, and recorded start-time validation."},
     {"command_id":"acceptance.ports_closed","command":"powershell -NoProfile -Command \"$open=@(4173,8765,8766)|Where-Object { Test-NetConnection 127.0.0.1 -Port $_ -InformationLevel Quiet -WarningAction SilentlyContinue }; if ($open) { throw ('ports still open: '+($open -join ',')) }\"","phase":"acceptance","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["loopback_http_probe"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"acceptance.dev_up_repeat","command":"powershell -ExecutionPolicy Bypass -File .\\dev-up.ps1 -RepoDir F:/reverse-agent -SourceDir F:/reverse-agent-workspaces/issue133-gui-v3-source -OpenCodeModel sensetime/sensenova-6.7-flash-lite -NoBrowser","phase":"acceptance","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["process_start","loopback_service_start"],"network_access":false,"required_evidence_source":"local_command_evidence","validation_note":"Second startup proves repeatability after a clean shutdown; do not execute another model task."},
+    {"command_id":"acceptance.dev_up_repeat","command":"powershell -ExecutionPolicy Bypass -File .\\dev-up.ps1 -RepoDir F:/reverse-agent -SourceDir F:/reverse-agent-workspaces/issue133-gui-v4-source -OpenCodeModel sensetime/sensenova-6.7-flash-lite -NoBrowser","phase":"acceptance","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["process_start","loopback_service_start"],"network_access":false,"required_evidence_source":"local_command_evidence","validation_note":"Second startup proves repeatability; no second model task."},
     {"command_id":"acceptance.dev_down_repeat","command":"powershell -ExecutionPolicy Bypass -File .\\dev-down.ps1 -RepoDir F:/reverse-agent","phase":"acceptance","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["process_stop","loopback_service_stop"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"acceptance.ports_closed_repeat","command":"powershell -NoProfile -Command \"$open=@(4173,8765,8766)|Where-Object { Test-NetConnection 127.0.0.1 -Port $_ -InformationLevel Quiet -WarningAction SilentlyContinue }; if ($open) { throw ('ports still open after repeat: '+($open -join ',')) }\"","phase":"acceptance","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["loopback_http_probe"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"validation.diff_check","command":"git diff --check a1d09d4ae8887405721efe9871881db788c5820a..HEAD","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
@@ -139,6 +139,8 @@
     "frontend/vite.config.ts",
     "frontend/src/hooks/use-tasks.ts",
     "frontend/src/lib/task-client.ts",
+    "frontend/src/lib/model-control-client.ts",
+    "frontend/tests/provider-free-task-plane.test.tsx",
     "reverse_agent/model_access/service.py",
     "reverse_agent/platform_v1/task_service.py",
     "reverse_agent/platform_v1/opencode_executor.py",
@@ -170,6 +172,7 @@
     "frontend/src/lib/model-control-client.ts",
     "frontend/src/schemas/model-profile.ts",
     "frontend/src/components/model-profile-editor.tsx",
+    "frontend/tests/provider-free-task-plane.test.tsx",
     "reverse_agent/**",
     "docs/**",
     "project_state/mainline_merge_intents/**",
@@ -250,72 +253,52 @@
 
 ## Goal
 
-v3 is a minimal fail-forward repair after Owner audit of Draft PR #134 at exact pushed head `fb69c1b6476c088db8e34910b8636281b12768f2`.
+v4 is a minimal fail-forward repair after Owner exact-head audit of Draft PR #134 at `2002f353bbe00f9379bbef7e8ea3fddf977ec434`.
 
-The v2 frontend OpenCode cutover is retained. Do **not** rebuild the task plane, model-access subsystem, or OpenCode executor. v3 repairs only the Windows one-command startup/shutdown contract and one duplicate frontend test identifier, then performs the first real exact-head GUI-stack OpenCode acceptance.
+The v2 frontend-to-OpenCode cutover and the v3 RepoDir/SourceDir, partial-start cleanup, truthful shutdown outcome, and duplicate-note repairs are retained. Do **not** rebuild the task plane, model-access subsystem, OpenCode executor, or startup architecture. v4 fixes only two remaining correctness/safety defects, then repeats the exact local runtime acceptance.
 
 ## Owner findings
 
-### V3-F1 — host repo and OpenCode source repo are conflated by the v2 acceptance command
+### V4-F1 — fixture model selection is overwritten after the user clears it
 
-The current `dev-up.ps1` intentionally distinguishes `RepoDir` (service host / frontend dependency location) from `SourceDir` (repository exposed to OpenCode), but the v2 Decision's required acceptance command passes the fresh detached acceptance worktree as `RepoDir`. A fresh worktree does not normally carry ignored `frontend/node_modules`, so the authorized command can fail before services start.
+Exact-head GitHub `Model Access` workflow failed twice, including an Owner-triggered rerun, on the existing test `fixture submission is disabled when no model profile is selected`.
 
-v3 makes the contract explicit:
+`NewTaskComposer` derives `enabledProfiles` with a fresh `.filter(...)` array on render and has an effect keyed by that array. After the user deliberately changes the fixture model select to an empty value, another render reruns the effect and restores the default `coding-default` profile. The submit boundary therefore receives a profile even though the user explicitly cleared it.
 
-```text
-RepoDir   = F:/reverse-agent
-SourceDir = F:/reverse-agent-workspaces/issue133-gui-v3-source
-```
+Repair the initialization/synchronization semantics so an explicit empty fixture selection remains empty and Submit remains disabled. Default-profile initialization may still occur when appropriate, but it must not continuously overwrite a deliberate user choice. Do not modify the existing provider-free regression test to hide the failure.
 
-`REVERSE_AGENT_REPO_DIR` must resolve to SourceDir. Frontend package lookup and runtime metadata must resolve under RepoDir.
+### V4-F2 — dev-down records start_time but does not validate the process instance
 
-### V3-F2 — SourceDir default implementation contradicts its own contract
+v3 records `start_time`, PID and executable for each owned child, but current `dev-down.ps1` validates only PID + executable before terminating. If Windows recycles a PID to another process with the same executable, the current code can terminate an unrelated process.
 
-Current `Resolve-InputPath("")` returns the current working directory, so omitting `-SourceDir` does not reliably make SourceDir equal RepoDir when `-RepoDir` points elsewhere. Fix the default deterministically: omitted/blank SourceDir must become resolved RepoDir.
-
-### V3-F3 — npm.cmd ownership cannot be shut down by current dev-down
-
-On Windows, npm commonly resolves to `npm.cmd`. Current dev-up invokes `.cmd` through `cmd.exe /c` and records the wrapper PID, while current dev-down rejects a `cmd.exe` process for the `frontend-vite` record. This can leave the frontend process tree alive after dev-down.
-
-v3 must implement bounded process-tree ownership. It may use an exact recorded root PID plus descendant traversal or exact-PID tree termination, but it must verify the recorded process identity/start instance and must never kill by image/name globally. After dev-down, ports 4173/8765/8766 must all be closed.
-
-### V3-F4 — partial startup failure can leak already-started children
-
-If a later child fails to start, current `Start-ServiceProcess` can call `Fail-Closed` immediately after earlier services have already started. v3 must centralize failure cleanup so every process successfully started by the current dev-up invocation is stopped before returning failure.
-
-### V3-F5 — dev-down records an untruthful blanket `stopped=true`
-
-Current dev-down rewrites every recorded child as `stopped=true` even for missing/refused/failed stops. Persist truthful per-child outcome (`stopped`, `already_exited`, `refused_identity_mismatch`, `stop_failed`, or equivalent) without exposing credentials.
-
-### V3-F6 — duplicate OpenCode model-note test id
-
-`NewTaskComposer` currently renders two `data-testid="opencode-model-note"` nodes in OpenCode mode. Keep one authoritative note/test id and add/update regression coverage.
+Before any termination, `dev-down` must compare the recorded `start_time` with the currently observed process start time using a deterministic normalized representation/tolerance appropriate to PowerShell/JSON DateTime serialization. Missing, unreadable, or mismatched start-time identity must produce `refused_identity_mismatch` (or an equivalent explicit refusal) and **must not kill the process**. The regression must prove dev-down consumes and checks the recorded start instance, not merely that dev-up writes the field.
 
 ## Acceptance
 
 1. Transition command plan PASS, transition lint PASS, preflight `PRE_EXECUTION_AUTHORIZED`, blockers empty.
-2. Only v3-authorized paths mutate after the v3 Decision commit.
-3. `-SourceDir` is the only repository fed to `REVERSE_AGENT_REPO_DIR`; omitted SourceDir deterministically falls back to RepoDir.
-4. `dev-up` starts model-control, Task API, and frontend on loopback only, without installing packages or invoking a model.
-5. A single real OpenCode task using the pre-existing SenseNova session reaches `READY_FOR_REVIEW`, records the expected changed file and validation/evidence, and leaves the clean source worktree unchanged.
-6. `dev-down` stops the exact owned process tree; all three ports close.
-7. A second dev-up/dev-down cycle succeeds without model execution, proving repeatability.
-8. Partial-start failure cleanup and PID/process-identity handling have deterministic regression coverage.
-9. Frontend tests/typecheck/lint/build, focused backend tests, full `tests/platform_v1`, and gate/control-plane regressions pass with zero failures.
-10. No OpenCode credential read/copy/log, no Codex/OpenHands call, no package install, no provider config mutation.
-11. Normal push only; local Agent does not create/update PR #134, mark Ready, merge, release, or deploy.
+2. Only v4-authorized paths mutate after the v4 Decision commit.
+3. Existing `frontend/tests/provider-free-task-plane.test.tsx` passes unchanged, including deliberate empty fixture profile behavior.
+4. OpenCode remains the default real executor; fixture remains explicit test mode; no task-client/hook/model-access mutation.
+5. `dev-down` validates exact process instance using PID + executable + recorded start time before any termination and refuses mismatches.
+6. Lifecycle regression covers matching and mismatching start-time identity plus bounded exact-PID tree termination.
+7. Frontend tests/typecheck/lint/build, focused backend tests, full `tests/platform_v1`, and gate/control-plane regressions pass with zero failures.
+8. One real OpenCode task using the pre-existing SenseNova session reaches `READY_FOR_REVIEW`, records the expected changed file and evidence, and leaves the exact-head source worktree unchanged.
+9. First and repeat dev-up/dev-down cycles close ports 4173/8765/8766; repeat cycle runs no second model task.
+10. No credential read/copy/log, no Codex/OpenHands call, no package install, no provider config mutation.
+11. Do not modify mainline merge intent. The two known engineering-vs-landing-governance CI failures remain Owner landing work.
+12. Normal push only; local Agent does not update PR #134, mark Ready, merge, release, or deploy.
 
 Terminal target:
 
 ```text
-ISSUE133_V3_RUNTIME_LIFECYCLE_READY_FOR_OWNER_EXACT_HEAD_REVIEW
+ISSUE133_V4_RUNTIME_AND_PROFILE_STATE_READY_FOR_OWNER_EXACT_HEAD_REVIEW
 ```
 
 ## Execution policy
 
-- v2 implementation is preserved unless a v3 finding explicitly requires a change.
-- v3 is the only executable repair authority after the Owner Decision commit.
+- v4 is the only executable repair authority after this Owner Decision commit; v3 is superseded for further execution.
 - Preserve all unknown staged/unstaged/untracked local files. Never clean/reset/rebase/force-push.
-- Do not modify backend, model-access, task client/hook, package, workflow, docs, or merge-intent files.
-- One real OpenCode model execution is required; do not substitute fixture acceptance and do not run a second model task during repeatability validation.
-- Stop after tested normal push and report the exact remote head to Owner.
+- Do not edit `frontend/tests/provider-free-task-plane.test.tsx`; it is the existing regression that exposed V4-F1.
+- Keep repair scope minimal. No backend/model-access/task-client/hook/package/workflow/docs/merge-intent changes.
+- Exactly one real OpenCode model execution is required after deterministic tests pass; do not substitute fixture acceptance and do not run a second model task during repeatability validation.
+- Stop after tested normal push and report exact remote head to Owner.
