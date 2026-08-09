@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_pr146_agent_canvas_committed_head_landing_v23",
-  "round_id": "round_20260809_pr146_agent_canvas_committed_head_landing_v23",
+  "decision_id": "decision_20260809_pr146_agent_canvas_committed_head_landing_v24",
+  "round_id": "round_20260809_pr146_agent_canvas_committed_head_landing_v24",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,14 +14,14 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260809_pr146_agent_canvas_owner_provenance_landing_v22",
-  "follows_last_round_id": "round_20260809_pr146_agent_canvas_owner_provenance_landing_v22",
-  "previous_audit_outcome": "V22_OWNER_PREDELEGATION_AUDIT_FOUND_COMMITTED_HEAD_TEST_ORDER_DEFECT",
+  "follows_last_decision_id": "decision_20260809_pr146_agent_canvas_committed_head_landing_v23",
+  "follows_last_round_id": "round_20260809_pr146_agent_canvas_committed_head_landing_v23",
+  "previous_audit_outcome": "V23_OWNER_PREDELEGATION_SELF_AUDIT_FOUND_BOOTSTRAP_REF_TYPO",
   "source_issue": 136,
   "parent_issue": 127,
   "active_pr": 146,
   "required_branch": "owner/issue136-agent-canvas-reuse-spike-v2",
-  "starting_head": "ac9e61205b2c08f348f5afa44fc027216dda3337",
+  "starting_head": "b8e32059d01fba1d81734c1101a3713df3bebd19",
   "activation_base_sha": "dd4cb074ab5b9baacf300706878b29bd745f12c3",
   "accepted_stage_b_evidence_head": "ab00b03952d96c2421be8297f29699a59ec69fda",
   "repair_attempt_limit": 0,
@@ -93,7 +93,7 @@
     "git status --short",
     "git fetch origin main",
     "git fetch origin owner/issue136-agent-canvas-reuse-spike-v2",
-    "git show origin/issue136-agent-canvas-reuse-spike-v2:project_state/decision_packet.md",
+    "git show origin/owner/issue136-agent-canvas-reuse-spike-v2:project_state/decision_packet.md",
     "git switch owner/issue136-agent-canvas-reuse-spike-v2",
     "git merge --ff-only origin/owner/issue136-agent-canvas-reuse-spike-v2",
     "git rev-parse HEAD",
@@ -163,7 +163,7 @@
     },
     {
       "command_id": "mutation.write_pr146_intent",
-      "command": "python -c \"from pathlib import Path; import hashlib,json; decision=hashlib.sha256(Path('project_state/decision_packet.md').read_bytes()).hexdigest(); plan=hashlib.sha256(Path('project_state/gates/command_plan.json').read_bytes()).hexdigest(); x={'schema_version':1,'intent_id':'pr146_agent_canvas_landing_v1','repository':'dddd2024/reverse-agent','source_pr':146,'locked_base_sha':'dd4cb074ab5b9baacf300706878b29bd745f12c3','allowed_merge_method':'merge','decision_identity':{'decision_id':'decision_20260809_pr146_agent_canvas_committed_head_landing_v23','decision_content_sha256':decision},'command_plan_sha256':plan,'merge_tree_policy':'equal_to_accepted_head_tree','required_workflows':['CI','Decision Preflight','State Gate (pull_request)','State Gate (push)'],'expires_at':'2026-08-16T23:59:59Z'}; Path('project_state/mainline_merge_intents/active.json').write_text(json.dumps(x,indent=2)+'\\n',encoding='utf-8',newline='\\n'); print('PR146_INTENT_WRITTEN DECISION_SHA256='+decision+' PLAN_SHA256='+plan)\"",
+      "command": "python -c \"from pathlib import Path; import hashlib,json; decision=hashlib.sha256(Path('project_state/decision_packet.md').read_bytes()).hexdigest(); plan=hashlib.sha256(Path('project_state/gates/command_plan.json').read_bytes()).hexdigest(); x={'schema_version':1,'intent_id':'pr146_agent_canvas_landing_v1','repository':'dddd2024/reverse-agent','source_pr':146,'locked_base_sha':'dd4cb074ab5b9baacf300706878b29bd745f12c3','allowed_merge_method':'merge','decision_identity':{'decision_id':'decision_20260809_pr146_agent_canvas_committed_head_landing_v24','decision_content_sha256':decision},'command_plan_sha256':plan,'merge_tree_policy':'equal_to_accepted_head_tree','required_workflows':['CI','Decision Preflight','State Gate (pull_request)','State Gate (push)'],'expires_at':'2026-08-16T23:59:59Z'}; Path('project_state/mainline_merge_intents/active.json').write_text(json.dumps(x,indent=2)+'\\n',encoding='utf-8',newline='\\n'); print('PR146_INTENT_WRITTEN DECISION_SHA256='+decision+' PLAN_SHA256='+plan)\"",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
@@ -175,7 +175,7 @@
     },
     {
       "command_id": "validation.pr146_intent_worktree",
-      "command": "python -c \"from pathlib import Path; import hashlib,json; x=json.loads(Path('project_state/mainline_merge_intents/active.json').read_text(encoding='utf-8')); assert x['intent_id']=='pr146_agent_canvas_landing_v1' and x['source_pr']==146 and x['locked_base_sha']=='dd4cb074ab5b9baacf300706878b29bd745f12c3'; assert x['decision_identity']['decision_id']=='decision_20260809_pr146_agent_canvas_committed_head_landing_v23'; assert x['decision_identity']['decision_content_sha256']==hashlib.sha256(Path('project_state/decision_packet.md').read_bytes()).hexdigest(); assert x['command_plan_sha256']==hashlib.sha256(Path('project_state/gates/command_plan.json').read_bytes()).hexdigest(); print('PR146_INTENT_WORKTREE_VALID')\"",
+      "command": "python -c \"from pathlib import Path; import hashlib,json; x=json.loads(Path('project_state/mainline_merge_intents/active.json').read_text(encoding='utf-8')); assert x['intent_id']=='pr146_agent_canvas_landing_v1' and x['source_pr']==146 and x['locked_base_sha']=='dd4cb074ab5b9baacf300706878b29bd745f12c3'; assert x['decision_identity']['decision_id']=='decision_20260809_pr146_agent_canvas_committed_head_landing_v24'; assert x['decision_identity']['decision_content_sha256']==hashlib.sha256(Path('project_state/decision_packet.md').read_bytes()).hexdigest(); assert x['command_plan_sha256']==hashlib.sha256(Path('project_state/gates/command_plan.json').read_bytes()).hexdigest(); print('PR146_INTENT_WORKTREE_VALID')\"",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -239,7 +239,7 @@
     },
     {
       "command_id": "candidate.commit",
-      "command": "git commit -m \"landing: bind PR146 v23 intent\"",
+      "command": "git commit -m \"landing: bind PR146 v24 intent\"",
       "phase": "candidate",
       "required": true,
       "expected_exit_codes": [0],
@@ -463,8 +463,8 @@
 
 ## Owner audit and execution policy
 
-v23 supersedes v22 before local delegation. Owner pre-delegation audit found that the landing tests read `active.json`, `decision_packet.md`, and `command_plan.json` from committed `HEAD` blobs; `test_production_pre_merge_simulation` also clones committed HEAD. Therefore testing a working-tree PR146 intent before commit would deterministically test stale PR134 authority and fail.
+v24 supersedes v23 before local delegation. v23 introduced the correct committed-head validation ordering but contained a bootstrap typo in the remote Decision ref (`origin/issue136...` instead of `origin/owner/issue136...`). No v23 local execution occurred.
 
-v23 uses a local unpublished candidate commit as the object under test. After preflight, archive/provenance/intent worktree validation and diff checks, the Agent stages exactly seven governance paths and creates one local candidate commit. No push is authorized yet. The three required test groups then run against that committed candidate HEAD. Any failure stops with the candidate commit local only. Only after every committed-head test passes and tracked diff remains clean may the normal branch push occur.
+v24 retains the corrected sequence: after preflight and working-tree validation, the Agent stages exactly seven governance paths and creates one local unpublished candidate commit. The three required test groups then run against that committed candidate HEAD. Any failure stops with the candidate commit local only and forbids push. Only a fully tested committed head may be normal-pushed.
 
-The two provenance documents were already corrected and committed by the Owner under v22 and are read-only in v23. `.frontend_stage/**` and `.platform_v1_runtime/**` remain pre-existing carryover scope only, with zero normal-command mutation grants. Ready/merge remain Owner-only after fresh exact-head workflows and final PR audit.
+The two provenance documents were already corrected and committed by the Owner under v22 and remain read-only. `.frontend_stage/**` and `.platform_v1_runtime/**` remain pre-existing carryover scope only, with zero normal-command mutation grants. Ready/merge remain Owner-only after fresh exact-head workflows and final PR audit.
