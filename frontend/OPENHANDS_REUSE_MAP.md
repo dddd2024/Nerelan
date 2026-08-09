@@ -1,8 +1,9 @@
 # OpenHands Reuse Map
 
-This document records the exact OpenHands 1.8.0 source-to-target mappings for
-the reverse-agent Frontend V1 adaptation on branch
-`agent/frontend-v1-openhands-ui`.
+This document preserves the historical OpenHands 1.8.0 source-to-target mapping
+created for the reverse-agent Frontend V1 adaptation on branch
+`agent/frontend-v1-openhands-ui`, and records the later bounded Agent Canvas
+v1.6.1 direct source fork.
 
 - **Upstream repository:** OpenHands/OpenHands
 - **Upstream tag:** 1.8.0
@@ -37,7 +38,11 @@ Task activity/changes/evidence/authority panels, and local collapse/resize
 state to the vendored presentation frames. No fake Agent Server API, backend
 registry, OpenHands provider, or second execution-state model is present.
 
-## Source-to-target reuse map (exact upstream paths)
+## Historical OpenHands 1.8.0 structural map (PR #119 snapshot)
+
+The table below records the pre-PR #134 fixture-only baseline. Its fixture-only
+wording is retained as historical evidence and does not describe current runtime.
+The current runtime uses the reverse-agent Task API and OpenCode paths.
 
 | OpenHands 1.8.0 source path | Upstream component | reverse-agent target path | Reuse type | Modifications | License |
 |---|---|---|---|---|---|
@@ -81,7 +86,11 @@ registry, OpenHands provider, or second execution-state model is present.
 | `src/themes/color-themes.ts` | Color theme definitions | `frontend/src/index.css` (`@theme inline`) | structurally-ported | `--cool-grey-*` → `--ra-*` tokens; `--oh-accent` → `--ra-accent`; green/red status → `--ra-status-success`/`--ra-status-error` | MIT |
 | `tailwind.config.js` | Tailwind config | `frontend/src/index.css` (`@theme inline` + `@layer base`) | structurally-ported | Color palette + typography plugin → `@theme` + `@layer` in CSS; dark mode class preserved | MIT |
 
-## Not reused (concrete incompatibilities)
+## Historical PR #119 exclusions (snapshot)
+
+These exclusions describe the historical PR #119 structural-adaptation baseline,
+not the current reverse-agent runtime. The current Task API/OpenCode data flow is
+not a fixture-only browser path.
 
 | OpenHands source | Reason not reused |
 |---|---|
