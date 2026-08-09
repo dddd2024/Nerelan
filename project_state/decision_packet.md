@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_issue151_owner_audit_rework_v1",
-  "round_id": "round_20260809_issue151_owner_audit_rework_v1",
+  "decision_id": "decision_20260809_issue151_owner_audit_rework_v2",
+  "round_id": "round_20260809_issue151_owner_audit_rework_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,7 +16,7 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "previous_audit_outcome": "ISSUE151_REWORK_REQUIRED",
+  "previous_audit_outcome": "V1_OWNER_PREDELEGATION_SUPERSEDED_BEFORE_EXECUTION_BOOTSTRAP_SWITCH_OMISSION",
   "workstream_id": "issue151-owner-audit-rework-v1",
   "source_issue": 151,
   "parent_issue": 148,
@@ -73,6 +73,8 @@
     "git fetch origin main",
     "git fetch origin owner/issue151-langgraph-worker-team-v1",
     "git fetch origin owner/issue151-langgraph-worker-team-rework-v1",
+    "git show origin/owner/issue151-langgraph-worker-team-rework-v1:project_state/decision_packet.md",
+    "git switch -c owner/issue151-langgraph-worker-team-rework-v1 --track origin/owner/issue151-langgraph-worker-team-rework-v1",
     "git rev-parse HEAD",
     "git rev-parse origin/main",
     "git rev-parse origin/owner/issue151-langgraph-worker-team-v1",
@@ -88,13 +90,9 @@
       "command": "git status --short",
       "phase": "status",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
+      "operations": ["repository_observation"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -103,13 +101,9 @@
       "command": "git rev-parse HEAD",
       "phase": "status",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
+      "operations": ["repository_observation"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation"
     },
@@ -118,13 +112,9 @@
       "command": "git rev-parse origin/owner/issue151-langgraph-worker-team-v1",
       "phase": "status",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
+      "operations": ["repository_observation"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation"
     },
@@ -133,13 +123,9 @@
       "command": "python -m pytest tests/test_development_graph.py tests/test_team_graph.py -q",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "run_checks"
-      ],
+      "operations": ["run_checks"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -148,13 +134,9 @@
       "command": "python -m pytest tests/platform_v1/test_task_contracts.py tests/platform_v1/test_task_execution.py tests/platform_v1/test_task_service.py tests/platform_v1/test_task_runtime.py tests/platform_v1/test_opencode_executor.py -q",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "run_checks"
-      ],
+      "operations": ["run_checks"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -163,13 +145,9 @@
       "command": "python -m pytest tests/platform_v1 -q",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "run_checks"
-      ],
+      "operations": ["run_checks"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -178,13 +156,9 @@
       "command": "powershell -NoProfile -Command \"1..20 | ForEach-Object { python -m pytest tests/platform_v1/test_task_contracts.py -q -k 'taskstore_concurrent_writes_two_threads'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }\"",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "run_checks"
-      ],
+      "operations": ["run_checks"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -193,13 +167,9 @@
       "command": "powershell -NoProfile -Command \"1..20 | ForEach-Object { python -m pytest tests/test_team_graph.py -q -k 'fan_out_is_parallel_via_barrier'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }\"",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "run_checks"
-      ],
+      "operations": ["run_checks"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -208,13 +178,9 @@
       "command": "git diff --check acf022c8865973cef59a4da742db10ec023d01d8..HEAD",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "diff_validation"
-      ],
+      "operations": ["diff_validation"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -223,13 +189,9 @@
       "command": "git diff --name-only acf022c8865973cef59a4da742db10ec023d01d8..HEAD",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
+      "operations": ["repository_observation"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -238,14 +200,9 @@
       "command": "git push origin owner/issue151-langgraph-worker-team-rework-v1",
       "phase": "publication",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "push",
-        "network_access"
-      ],
+      "operations": ["push", "network_access"],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "allowed_only_after_validation": true
@@ -372,23 +329,23 @@
     "project_state/gates/**"
   ],
   "path_risk_floor": [
-    {
-      "pattern": "project_state/decision_packet.md",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "project_state/gates/**",
-      "minimum_risk": "R2"
-    }
+    {"pattern": "project_state/decision_packet.md", "minimum_risk": "R2"},
+    {"pattern": "project_state/gates/**", "minimum_risk": "R2"}
   ],
   "runner_managed_artifact_paths": [
     "project_state/gates/evidence/**",
     "project_state/gates/execution_log.json"
-  ]
+  ],
+  "follows_last_decision_id": "decision_20260809_issue151_owner_audit_rework_v1",
+  "follows_last_round_id": "round_20260809_issue151_owner_audit_rework_v1"
 }
 ```
 
 ## Goal
+
+v2 supersedes v1 before any local delegation. v1 was never executed. The only v1 defect was
+that its bootstrap exception set omitted the exact local branch-switch needed to move an existing
+fresh #151 clone onto the Owner-created descendant rework branch.
 
 This is a one-time Path-B rework authority for Issue #151 after independent Owner audit of
 `owner/issue151-langgraph-worker-team-v1@acf022c8865973cef59a4da742db10ec023d01d8`.
@@ -410,6 +367,8 @@ Freshness #152, PR #146 work, dependency/workflow changes, or any model/Agent ru
 
 ## Acceptance
 
+- bootstrap first reads back this exact remote v2 Decision, then creates the local tracking rework branch from the exact remote rework ref;
+- rework branch ancestry remains rooted at `acf022c8865973cef59a4da742db10ec023d01d8`;
 - transition command plan is non-empty and bound to this Decision/round;
 - transition lint passes;
 - transition preflight returns `PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]`;
@@ -423,7 +382,8 @@ Freshness #152, PR #146 work, dependency/workflow changes, or any model/Agent ru
 - LangGraph barrier fan-out check passes 20 consecutive runs;
 - required focused and full Platform V1 tests pass;
 - `git diff --check acf022c8865973cef59a4da742db10ec023d01d8..HEAD` passes;
-- no frontend, `.github`, `project_state` implementation commit, dependency, provider/credential, legacy orchestrator, or #146 product mutation;
+- no frontend, `.github`, dependency, provider/credential, legacy orchestrator, or #146 product mutation;
+- generated local gate files are not staged in the product implementation commit;
 - exactly one normal push to the rework branch after validation;
 - no PR creation, Ready, merge, main push, rebase, force push, reset, clean, stash, amend, model/OpenCode/Codex/OpenHands call, release, or deploy.
 
