@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_issue151_owner_audit_rework_v3",
-  "round_id": "round_20260809_issue151_owner_audit_rework_v3",
+  "decision_id": "decision_20260809_issue151_owner_audit_rework_v4",
+  "round_id": "round_20260809_issue151_owner_audit_rework_v4",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,8 +16,8 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "previous_audit_outcome": "V2_OWNER_PREDELEGATION_SUPERSEDED_BEFORE_EXECUTION_NORMAL_PLAN_COMMIT_GRANTS_OMITTED",
-  "workstream_id": "issue151-owner-audit-rework-v1",
+  "previous_audit_outcome": "ISSUE151_V3_VALIDATION_STOPPED_GOVERNANCE_COUPLING_FALSE_NEGATIVE",
+  "workstream_id": "issue151-owner-audit-rework-validation-v4",
   "source_issue": 151,
   "parent_issue": 148,
   "required_branch": "owner/issue151-langgraph-worker-team-rework-v1",
@@ -32,7 +32,7 @@
   "pr_comment_allowed": false,
   "issue_comment_allowed": false,
   "branch_creation_allowed": false,
-  "worktree_creation_allowed": false,
+  "worktree_creation_allowed": true,
   "local_commit_allowed": true,
   "normal_push_allowed": true,
   "exact_head_workflow_observation_allowed": false,
@@ -74,7 +74,7 @@
     "git fetch origin owner/issue151-langgraph-worker-team-v1",
     "git fetch origin owner/issue151-langgraph-worker-team-rework-v1",
     "git show origin/owner/issue151-langgraph-worker-team-rework-v1:project_state/decision_packet.md",
-    "git switch -c owner/issue151-langgraph-worker-team-rework-v1 --track origin/owner/issue151-langgraph-worker-team-rework-v1",
+    "git merge --ff-only origin/owner/issue151-langgraph-worker-team-rework-v1",
     "git rev-parse HEAD",
     "git rev-parse origin/main",
     "git rev-parse origin/owner/issue151-langgraph-worker-team-v1",
@@ -92,7 +92,9 @@
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["repository_observation"],
+      "operations": [
+        "repository_observation"
+      ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -103,7 +105,9 @@
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["repository_observation"],
+      "operations": [
+        "repository_observation"
+      ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation"
     },
@@ -114,62 +118,249 @@
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["repository_observation"],
+      "operations": [
+        "repository_observation"
+      ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "test.team_and_graph",
-      "command": "python -m pytest tests/test_development_graph.py tests/test_team_graph.py -q",
+      "command_id": "validation.product_diff_check_before",
+      "command": "git diff --check",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["run_checks"],
+      "operations": [
+        "diff_validation"
+      ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "test.platform_focused",
-      "command": "python -m pytest tests/platform_v1/test_task_contracts.py tests/platform_v1/test_task_execution.py tests/platform_v1/test_task_service.py tests/platform_v1/test_task_runtime.py tests/platform_v1/test_opencode_executor.py -q",
+      "command_id": "validation.product_paths_before",
+      "command": "git diff --name-only",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["run_checks"],
+      "operations": [
+        "repository_observation"
+      ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "test.platform_all",
-      "command": "python -m pytest tests/platform_v1 -q",
+      "command_id": "evidence.export_product_patch",
+      "command": "python -c \"import subprocess,pathlib; paths=['docs/architecture/LANGGRAPH_ORCHESTRATION_BOUNDARY.md', 'docs/architecture/LANGGRAPH_TEAM_RUNTIME.md', 'reverse_agent/platform_v1/run_store.py', 'reverse_agent/platform_v1/task_execution.py', 'reverse_agent/platform_v1/task_service.py', 'reverse_agent/workflows/nodes/acceptance_gate.py', 'tests/platform_v1/test_task_contracts.py', 'tests/platform_v1/test_task_execution.py', 'tests/platform_v1/test_task_service.py', 'tests/test_team_graph.py']; data=subprocess.check_output(['git','diff','--binary','--',*paths]); pathlib.Path(r'F:\\reverse-agent-issue151-rework-20260809\\issue151_v4_product.patch').write_bytes(data)\"",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["run_checks"],
+      "operations": [
+        "artifact_generation"
+      ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "test.taskstore_concurrency_20x",
-      "command": "powershell -NoProfile -Command \"1..20 | ForEach-Object { python -m pytest tests/platform_v1/test_task_contracts.py -q -k 'taskstore_concurrent_writes_two_threads'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }\"",
+      "command_id": "evidence.product_patch_sha256",
+      "command": "python -c \"import hashlib,pathlib; p=pathlib.Path(r'F:\\reverse-agent-issue151-rework-20260809\\issue151_v4_product.patch'); print(hashlib.sha256(p.read_bytes()).hexdigest())\"",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["run_checks"],
+      "operations": [
+        "artifact_observation"
+      ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "test.langgraph_barrier_20x",
-      "command": "powershell -NoProfile -Command \"1..20 | ForEach-Object { python -m pytest tests/test_team_graph.py -q -k 'fan_out_is_parallel_via_barrier'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }\"",
+      "command_id": "validation.create_detached_worktree",
+      "command": "git worktree add --detach F:\\reverse-agent-issue151-validation-v4-20260809 acf022c8865973cef59a4da742db10ec023d01d8",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["run_checks"],
+      "operations": [
+        "repository_worktree"
+      ],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "validation.apply_product_patch",
+      "command": "git -C F:\\reverse-agent-issue151-validation-v4-20260809 apply F:\\reverse-agent-issue151-rework-20260809\\issue151_v4_product.patch",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_worktree"
+      ],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "evidence.export_validation_patch",
+      "command": "python -c \"import subprocess,pathlib; paths=['docs/architecture/LANGGRAPH_ORCHESTRATION_BOUNDARY.md', 'docs/architecture/LANGGRAPH_TEAM_RUNTIME.md', 'reverse_agent/platform_v1/run_store.py', 'reverse_agent/platform_v1/task_execution.py', 'reverse_agent/platform_v1/task_service.py', 'reverse_agent/workflows/nodes/acceptance_gate.py', 'tests/platform_v1/test_task_contracts.py', 'tests/platform_v1/test_task_execution.py', 'tests/platform_v1/test_task_service.py', 'tests/test_team_graph.py']; data=subprocess.check_output(['git','-C',r'F:\\reverse-agent-issue151-validation-v4-20260809','diff','--binary','--',*paths]); pathlib.Path(r'F:\\reverse-agent-issue151-rework-20260809\\issue151_v4_validation.patch').write_bytes(data)\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "artifact_generation"
+      ],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "evidence.validation_patch_sha256",
+      "command": "python -c \"import hashlib,pathlib; p=pathlib.Path(r'F:\\reverse-agent-issue151-rework-20260809\\issue151_v4_validation.patch'); print(hashlib.sha256(p.read_bytes()).hexdigest())\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "artifact_observation"
+      ],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "validation.patch_digest_identity",
+      "command": "python -c \"import hashlib,pathlib; a=hashlib.sha256(pathlib.Path(r'F:\\reverse-agent-issue151-rework-20260809\\issue151_v4_product.patch').read_bytes()).hexdigest(); b=hashlib.sha256(pathlib.Path(r'F:\\reverse-agent-issue151-rework-20260809\\issue151_v4_validation.patch').read_bytes()).hexdigest(); print(a); print(b); assert a==b, 'product_patch_digest_mismatch'\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "artifact_validation"
+      ],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "test.validation_team_and_graph",
+      "command": "powershell -NoProfile -Command \"Set-Location 'F:\\reverse-agent-issue151-validation-v4-20260809'; python -m pytest tests/test_development_graph.py tests/test_team_graph.py -q\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "test.validation_platform_focused",
+      "command": "powershell -NoProfile -Command \"Set-Location 'F:\\reverse-agent-issue151-validation-v4-20260809'; python -m pytest tests/platform_v1/test_task_contracts.py tests/platform_v1/test_task_execution.py tests/platform_v1/test_task_service.py tests/platform_v1/test_task_runtime.py tests/platform_v1/test_opencode_executor.py -q\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "test.validation_platform_all",
+      "command": "powershell -NoProfile -Command \"Set-Location 'F:\\reverse-agent-issue151-validation-v4-20260809'; python -m pytest tests/platform_v1 -q\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "test.validation_taskstore_20x",
+      "command": "powershell -NoProfile -Command \"Set-Location 'F:\\reverse-agent-issue151-validation-v4-20260809'; 1..20 | ForEach-Object { python -m pytest tests/platform_v1/test_task_contracts.py -q -k 'taskstore_concurrent_writes_two_threads'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "test.validation_langgraph_20x",
+      "command": "powershell -NoProfile -Command \"Set-Location 'F:\\reverse-agent-issue151-validation-v4-20260809'; 1..20 | ForEach-Object { python -m pytest tests/test_team_graph.py -q -k 'fan_out_is_parallel_via_barrier'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "validation.validation_worktree_diff_check",
+      "command": "git -C F:\\reverse-agent-issue151-validation-v4-20260809 diff --check",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "diff_validation"
+      ],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "validation.validation_worktree_paths",
+      "command": "git -C F:\\reverse-agent-issue151-validation-v4-20260809 diff --name-only",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation"
+      ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -178,9 +369,13 @@
       "command": "git diff --check",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["diff_validation"],
+      "operations": [
+        "diff_validation"
+      ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -189,20 +384,28 @@
       "command": "git diff --name-only",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["repository_observation"],
+      "operations": [
+        "repository_observation"
+      ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
     {
       "command_id": "mutation.stage_exact_paths",
-      "command": "git add reverse_agent/platform_v1/run_store.py reverse_agent/platform_v1/task_execution.py reverse_agent/platform_v1/task_service.py reverse_agent/workflows/nodes/acceptance_gate.py reverse_agent/architecture/contracts.py tests/platform_v1/test_task_contracts.py tests/platform_v1/test_task_execution.py tests/platform_v1/test_task_service.py tests/test_team_graph.py docs/architecture/LANGGRAPH_TEAM_RUNTIME.md docs/architecture/LANGGRAPH_ORCHESTRATION_BOUNDARY.md",
+      "command": "git add docs/architecture/LANGGRAPH_ORCHESTRATION_BOUNDARY.md docs/architecture/LANGGRAPH_TEAM_RUNTIME.md reverse_agent/platform_v1/run_store.py reverse_agent/platform_v1/task_execution.py reverse_agent/platform_v1/task_service.py reverse_agent/workflows/nodes/acceptance_gate.py tests/platform_v1/test_task_contracts.py tests/platform_v1/test_task_execution.py tests/platform_v1/test_task_service.py tests/test_team_graph.py reverse_agent/architecture/contracts.py",
       "phase": "implementation",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["repository_staging"],
+      "operations": [
+        "repository_staging"
+      ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -211,9 +414,13 @@
       "command": "git diff --cached --name-only",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["repository_observation"],
+      "operations": [
+        "repository_observation"
+      ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -222,9 +429,28 @@
       "command": "git commit -m \"fix: close issue151 owner audit gaps\"",
       "phase": "implementation",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["commit"],
+      "operations": [
+        "commit"
+      ],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "validation.implementation_commit_paths",
+      "command": "git show --name-only --format= HEAD",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation"
+      ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -233,9 +459,13 @@
       "command": "git diff --check acf022c8865973cef59a4da742db10ec023d01d8..HEAD",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["diff_validation"],
+      "operations": [
+        "diff_validation"
+      ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -244,9 +474,13 @@
       "command": "git diff --name-only acf022c8865973cef59a4da742db10ec023d01d8..HEAD",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["repository_observation"],
+      "operations": [
+        "repository_observation"
+      ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -255,9 +489,14 @@
       "command": "git push origin owner/issue151-langgraph-worker-team-rework-v1",
       "phase": "publication",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["push", "network_access"],
+      "operations": [
+        "push",
+        "network_access"
+      ],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "allowed_only_after_validation": true
@@ -270,17 +509,17 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
+    "docs/architecture/LANGGRAPH_ORCHESTRATION_BOUNDARY.md",
+    "docs/architecture/LANGGRAPH_TEAM_RUNTIME.md",
     "reverse_agent/platform_v1/run_store.py",
     "reverse_agent/platform_v1/task_execution.py",
     "reverse_agent/platform_v1/task_service.py",
     "reverse_agent/workflows/nodes/acceptance_gate.py",
-    "reverse_agent/architecture/contracts.py",
     "tests/platform_v1/test_task_contracts.py",
     "tests/platform_v1/test_task_execution.py",
     "tests/platform_v1/test_task_service.py",
     "tests/test_team_graph.py",
-    "docs/architecture/LANGGRAPH_TEAM_RUNTIME.md",
-    "docs/architecture/LANGGRAPH_ORCHESTRATION_BOUNDARY.md"
+    "reverse_agent/architecture/contracts.py"
   ],
   "reference_paths": [
     "AGENTS.md",
@@ -291,6 +530,7 @@
     "reverse_agent/workflows/development_graph.py",
     "tests/platform_v1/test_task_runtime.py",
     "tests/platform_v1/test_opencode_executor.py",
+    "project_state/mainline_merge_intents/**",
     "project_state/schemas/**"
   ],
   "generated_artifact_paths": [
@@ -317,6 +557,7 @@
     "project_state/current_state.json",
     "project_state/state_manifest.json",
     "project_state/artifact_index.json",
+    "project_state/mainline_merge_intents/**",
     "project_state/schemas/**",
     "project_state/rounds/**",
     "project_state/audits/**"
@@ -384,61 +625,78 @@
     "project_state/gates/**"
   ],
   "path_risk_floor": [
-    {"pattern": "project_state/decision_packet.md", "minimum_risk": "R2"},
-    {"pattern": "project_state/gates/**", "minimum_risk": "R2"}
+    {
+      "pattern": "project_state/decision_packet.md",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "project_state/gates/**",
+      "minimum_risk": "R2"
+    }
   ],
   "runner_managed_artifact_paths": [
     "project_state/gates/evidence/**",
     "project_state/gates/execution_log.json"
   ],
-  "follows_last_decision_id": "decision_20260809_issue151_owner_audit_rework_v2",
-  "follows_last_round_id": "round_20260809_issue151_owner_audit_rework_v2"
+  "follows_last_decision_id": "decision_20260809_issue151_owner_audit_rework_v3",
+  "follows_last_round_id": "round_20260809_issue151_owner_audit_rework_v3"
 }
 ```
 
 ## Goal
 
-v3 supersedes v2 before any local delegation. v1 and v2 were never executed.
+v4 is a validation-continuation round after v3 correctly stopped with 32 failures in
+`python -m pytest tests/platform_v1 -q`.
 
-- v1 was superseded because its bootstrap set omitted the exact local switch onto the Owner-created descendant rework branch.
-- v2 fixed bootstrap switching but was superseded because its normal plan omitted explicit staging/commit commands.
+Owner classification: `GOVERNANCE_COUPLING_FALSE_NEGATIVE`.
 
-v3 is the first #151 rework Decision eligible for local delegation.
+The v3 rework product diff itself already passed:
+- development/team graph suite: 45 passed;
+- focused Platform V1 suite: 104 passed;
+- no source commit or push occurred.
 
-This is a one-time Path-B rework authority for Issue #151 after independent Owner audit of
-`owner/issue151-langgraph-worker-team-v1@acf022c8865973cef59a4da742db10ec023d01d8`.
+The 32 full-Platform failures were caused by the temporary #151 Path-B Decision replacing
+`project_state/decision_packet.md`, while legacy Platform V1 tests still bind repository-level
+fixtures to the PR #134 landing Decision / active merge-intent snapshot.
 
-The original #151 branch remains untouched while this authority is activated on
-`owner/issue151-langgraph-worker-team-rework-v1`.
+v4 does **not** authorize any further source/test/doc repair. It authorizes only:
+1. binding the existing uncommitted v3 product diff to a binary patch and SHA-256;
+2. creating one detached local validation worktree at exact baseline `acf022c8865973cef59a4da742db10ec023d01d8`;
+3. applying exactly that product patch there, where the baseline PR #134 governance snapshot remains intact;
+4. proving the validation-worktree diff has the same binary patch SHA-256;
+5. running all required tests plus both 20x concurrency checks in that isolated validation worktree;
+6. returning to the original rework worktree, staging only the already-existing approved product paths, committing once, validating the implementation commit has zero `project_state/**` paths, and normal-pushing once.
 
-Authorized implementation is limited to:
+The validation worktree is a test surface only. It must not be committed or pushed.
 
-1. retire duplicate Task API execution helpers so `TaskExecutionService` is the sole programmatic lifecycle and OpenCode kwargs implementation;
-2. propagate persisted failure classification/detail into `TaskExecutionOutcome` and `WorkerExecutionResult`;
-3. make present-but-malformed `team_execution_result` fail closed while preserving the no-result legacy behavior;
-4. retain one `TaskStore` `RLock` but prevent `create_task_and_execute()` from holding it across the external executor callback;
-5. add focused regressions and run repeated TaskStore/LangGraph concurrency checks;
-6. correct docs so the historical `sqlite3.InterfaceError` / `20/20` claim is not represented as independently reproduced evidence.
+If the validation directory already exists or is non-empty, STOP. Do not clean, reset, delete, or overwrite it.
 
-No new Multi-Agent feature, provider/model work, Product Setup, #152 implementation, PR #146 work,
-dependency/workflow change, or model/Agent runtime invocation is authorized.
+No further implementation mutation is authorized in v4. Any test failure or patch-digest mismatch is terminal because `repair_attempt_limit=0`.
 
-## Acceptance and execution order
+No PR creation, Ready, merge, main/planning mutation, original #151 branch push, #146 mutation,
+dependency/workflow/provider/credential change, or model/OpenCode/Codex/OpenHands invocation is authorized.
 
-1. Read back remote v3, switch exactly to the rework tracking branch, and prove its pre-implementation ancestry.
-2. Run transition generation/lint/preflight and require `PRE_EXECUTION_AUTHORIZED`, `blocking_reasons=[]`.
-3. Make only the allowed source/test/doc edits.
-4. Run the two 20x concurrency checks and all required focused/full Platform V1 tests.
-5. Run working-tree `git diff --check` and `git diff --name-only`; fail closed on any out-of-scope product path.
-6. Stage only the exact enumerated source/test/doc paths. Generated `project_state/gates/*` files must not be staged.
-7. Verify cached paths, then commit exactly `fix: close issue151 owner audit gaps`.
-8. Run committed-head diff/path validation. The cumulative branch diff is expected to include the Owner-authored `project_state/decision_packet.md` authority commit in addition to the implementation paths; the implementation commit itself must contain zero `project_state` paths.
-9. Normal-push only the rework branch after all validation passes.
-10. STOP. Owner will independently audit the remote head, remove the temporary governance delta by GitHub-side follow-up, then decide whether to fast-forward the original #151 branch and create the Draft PR.
+## Acceptance
 
-Forbidden throughout: PR creation, Ready, merge, main push, rebase, force push, reset, clean, stash,
-amend, squash, cherry-pick, model/OpenCode/Codex/OpenHands invocation, release, deploy, #146 mutation.
+- v4 preflight = `PRE_EXECUTION_AUTHORIZED`, `blocking_reasons=[]`;
+- the existing v3 product patch and validation-worktree patch have identical SHA-256;
+- validation worktree is detached at `acf022c8865973cef59a4da742db10ec023d01d8` before patch application;
+- team/development suite passes;
+- focused Platform V1 suite passes;
+- full `tests/platform_v1` passes with zero failures under the baseline governance snapshot;
+- TaskStore concurrency regression passes 20/20;
+- LangGraph barrier regression passes 20/20;
+- both worktrees pass `git diff --check`;
+- validation worktree changed paths equal only the bound product patch paths;
+- original rework worktree stages only approved source/test/doc paths;
+- implementation commit contains zero `project_state/**` paths;
+- one normal push only to `owner/issue151-langgraph-worker-team-rework-v1`;
+- original #151 branch and `main` receive zero pushes.
 
-Terminal success token:
+Terminal success:
 
-`ISSUE151_REWORK_PUSHED_FOR_OWNER_REAUDIT`
+`ISSUE151_V4_VALIDATION_BOUND_REWORK_PUSHED_FOR_OWNER_REAUDIT`
+
+Terminal failure:
+
+`ISSUE151_V4_VALIDATION_STOPPED_WITH_EVIDENCE`
