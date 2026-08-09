@@ -8,7 +8,8 @@
 #149 LangGraph seam               DONE
 #151 parallel team + verifier     CURRENT
 Product Setup & Connections       NEXT
-real OpenCode multi-Agent dogfood AFTER SETUP
+#152 Freshness Automation         AFTER SETUP
+real OpenCode multi-Agent dogfood AFTER FRESHNESS FOUNDATION
 ```
 
 ## Objective
@@ -104,6 +105,9 @@ This phase is complete only when:
 6. a thin double-click launcher works while reusing existing service lifecycle logic;
 7. all connection status exposed to the frontend is sanitized;
 8. the current `ModelProfile.executor` coupling has a migration/retirement path;
-9. the system is ready for real OpenCode multi-Agent dogfood.
+9. the Connection/Executor/Binding contracts are stable enough to register in #152 Freshness Automation Foundation.
+
+After this phase, run #152 before treating real OpenCode multi-Agent dogfood / Pack growth as a stable operating mode.
 
 Canonical architecture details live in `docs/architecture/CONNECTION_EXECUTOR_BINDING_ARCHITECTURE.md`.
+Freshness architecture lives in `docs/architecture/FRESHNESS_AND_DRIFT_GOVERNANCE.md` and Issue #152.
