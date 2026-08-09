@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260809_issue136_agent_canvas_source_fork_stageb1_evidence_v10",
-  "round_id": "round_20260809_issue136_agent_canvas_source_fork_stageb1_evidence_v10",
+  "decision_id": "decision_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17",
+  "round_id": "round_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260809_issue136_agent_canvas_source_fork_stageb1_evidence_v10 expected=decision_20260809_issue136_agent_canvas_source_fork_stageb1_evidence_v10"
+      "detail": "observed=decision_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17 expected=decision_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260809_issue136_agent_canvas_source_fork_stageb1_evidence_v10 expected=round_20260809_issue136_agent_canvas_source_fork_stageb1_evidence_v10"
+      "detail": "observed=round_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17 expected=round_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17"
     },
     {
       "name": "decision_approved",
@@ -43,12 +43,12 @@
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=8a47e7c4590b0f06b4d34ea1f840a288a31c8151"
+      "detail": "decision_commit=ab9355f986aa3e2d8a4f831db9c9a19e62e84134"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260809_issue136_agent_canvas_source_fork_stageb1_evidence_v10/round_20260809_issue136_agent_canvas_source_fork_stageb1_evidence_v10"
+      "detail": "plan=decision_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17/round_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17"
     },
     {
       "name": "command_plan_contract",
@@ -82,11 +82,6 @@
     },
     {
       "name": "network_policy_enforced",
-      "status": "PASS",
-      "detail": "violations=[]"
-    },
-    {
-      "name": "path_risk_floor_enforced",
       "status": "PASS",
       "detail": "violations=[]"
     },
