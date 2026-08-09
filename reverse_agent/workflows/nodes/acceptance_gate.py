@@ -9,6 +9,20 @@ from reverse_agent.architecture.risk import AcceptanceStatus, AuthorizationStatu
 
 
 def acceptance_gate_node(state: DevelopmentWorkflowState) -> dict[str, Any]:
+    team_result = state.get("team_execution_result")
+    if team_result is not None:
+        accepted = bool(team_result.get("accepted", True))
+        if not accepted:
+            reasons = tuple(team_result.get("reasons") or [])
+            if not reasons:
+                reasons = ("team_execution_rejected",)
+            return {
+                "acceptance_result": AcceptanceResult(
+                    AcceptanceStatus.BLOCKED, False, reasons
+                ).to_dict(),
+                "node_trace": [*(state.get("node_trace") or []), "acceptance_gate"],
+            }
+
     route = WorkflowRoute(state["risk_decision"]["route"])
     if route is WorkflowRoute.STANDARD_PATH:
         result = AcceptanceResult(AcceptanceStatus.ACCEPTED, True, ("standard_path",))

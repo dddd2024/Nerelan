@@ -31,6 +31,7 @@ from .run_store import (
     TaskStore,
     TaskStoreError,
 )
+from .task_execution import TaskExecutionError, TaskExecutionService
 from .task_runtime import ExecutorRuntimeError, ExecutorRouter
 
 _MAX_BODY_BYTES = 256 * 1024
@@ -315,17 +316,6 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 )
                 payload = self._read_json(optional=True)
                 command_id = str(payload.get("validation_command_id", "")) if payload else ""
-                try:
-                    task = self.store.get_task(segments[2])
-                except TaskStoreError:
-                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
-                    return
-                if task.status != "QUEUED":
-                    self._send_json(
-                        HTTPStatus.CONFLICT,
-                        {"error": "task_not_queued:%s" % task.status},
-                    )
-                    return
                 if not workspace_root:
                     try:
                         db_path = self.store.db_path
@@ -333,71 +323,32 @@ class _TaskHandler(BaseHTTPRequestHandler):
                         workspace_root = os.path.join(db_dir, "task_workspaces")
                     except Exception:
                         workspace_root = os.path.join(
-                            tempfile.gettempdir(), "issue128_task_workspaces"
+                            tempfile.gettempdir(), "issue151_task_workspaces"
                         )
                     os.makedirs(workspace_root, exist_ok=True)
-                executor_kind = task.executor_kind
-                running_status = "RUNNING" if executor_kind != "deterministic_fixture" else "RUNNING_FIXTURE"
-                review_status = "READY_FOR_REVIEW" if executor_kind != "deterministic_fixture" else "READY_FOR_REVIEW_FIXTURE"
-                task = self.store.transition_to(task.id, "PREPARING_WORKSPACE")
-                task = self.store.transition_to(task.id, running_status)
-                self.store.add_event(
-                    task.id,
-                    event_type="EXECUTOR_RUNNING",
-                    title="Executor running",
-                    description="Executor %s started" % executor_kind,
-                    metadata={"executor_kind": executor_kind},
+                execution_service = TaskExecutionService(
+                    store=self.store,
+                    router=self.router,
                 )
-                executor_kwargs: dict[str, Any] = _build_executor_kwargs(task)
                 try:
-                    result = self._run_executor(
-                        task=task,
+                    outcome = execution_service.execute(
+                        task_id=segments[2],
                         workspace_root=workspace_root,
                         validation_command_id=command_id or "git_diff_check",
-                        executor_kwargs=executor_kwargs,
                     )
-                except ExecutorRuntimeError as exc:
-                    self.store.classify_failure(
-                        task.id,
-                        classification="blocked",
-                        detail=str(exc),
+                except TaskExecutionError as exc:
+                    if "task_not_found" in str(exc):
+                        self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
+                        return
+                    self._send_json(
+                        HTTPStatus.CONFLICT,
+                        {"error": str(exc)},
                     )
-                    task = self.store.get_task(task.id)
-                    self._send_json(HTTPStatus.BAD_REQUEST, self._task_response(task))
                     return
-                if result["success"]:
-                    task = self.store.transition_to(task.id, "VALIDATING")
-                    task = self.store.transition_to(task.id, review_status)
-                    self.store.add_event(
-                        task.id,
-                        event_type="VALIDATED",
-                        title="Validation passed",
-                        description=f"{result['validation_command_id']} passed",
-                        metadata={"validation_exit_code": result["validation_exit_code"]},
-                    )
-                else:
-                    classification = (
-                        "blocked"
-                        if "unapproved" in result.get("error", "")
-                        else result.get("failure_classification", "failed")
-                    )
-                    if classification == "":
-                        classification = "failed"
-                    self.store.classify_failure(
-                        task.id,
-                        classification=classification,
-                        detail=result.get("error", "execution failed"),
-                    )
-                    self.store.add_event(
-                        task.id,
-                        event_type="EXECUTOR_FINISHED",
-                        title="Executor finished",
-                        description=result.get("error", "execution failed"),
-                        metadata={
-                            "validation_exit_code": result["validation_exit_code"],
-                        },
-                    )
-                task = self.store.get_task(task.id)
+                except ExecutorRuntimeError as exc:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                    return
+                task = self.store.get_task(segments[2])
                 self._send_json(HTTPStatus.OK, self._task_response(task))
                 return
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "route not found"})

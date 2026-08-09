@@ -100,3 +100,59 @@ A `BLOCKED` authorization result is guaranteed never to reach the seam.
 Default `build_development_graph` behavior (no `execution_node`) remains
 observably compatible with the covered pre-#149 Phase E behavior and does not
 traverse the seam.
+
+## G. Multi-worker team orchestration boundary (proven in #151)
+
+The next multi-worker task (#151) plugs a compiled LangGraph team subgraph
+into the existing `execution_node` seam via a **thin parent adapter**. The
+proven flow is:
+
+```text
+DevelopmentWorkflowState
+  -> Policy / Trust Authorization
+  -> build_team_execution_node(team_graph=...)
+       -> internal LangGraph Team Subgraph (own state schema)
+            -> Send(worker-a)
+            -> Send(worker-b)
+            -> reducer (worker_results join)
+            -> verifier
+       -> TeamExecutionResult only
+  -> Acceptance Gate
+
+Each worker
+  -> WorkerAssignment(task_id, workspace_root)
+  -> TaskExecutionService.execute()
+  -> ExecutorRouter
+  -> concrete executor (deterministic_fixture / opencode)
+  -> TaskStore events / evidence / validation
+```
+
+Explicit boundary statements:
+
+- **Team orchestration is not an executor kind.** No `executor_kind =
+  "multi_agent"` is ever synthesized; each worker selects its concrete
+  executor through the existing `ExecutorRouter` registry.
+- **TaskStore is durable product truth.** LangGraph team/development state
+  is transient. The internal team graph carries only `assignments`,
+  `worker_results`, and `team_execution_result`; the parent graph carries
+  only `team_assignments` and `team_execution_result`. No TaskStore
+  row / event / evidence / changed_files is duplicated into either.
+- **Internal team graph and parent graph have different state schemas.**
+  `build_team_execution_node` is an explicit adapter, not a reliance on
+  implicit cross-schema channel merging.
+- **Native LangGraph `Send` is the fan-out primitive.** No custom
+  thread pool, scheduler, or message bus is introduced. Parallelism is
+  proven with a `threading.Barrier(2)` instrument in tests (barrier is
+  a test instrument only, not a production scheduler).
+- **TaskStore concurrency is protected by `threading.RLock`.** The shared
+  TaskStore now holds a single re-entrant lock; the lock was required
+  because the concurrency probe exposed `sqlite3.InterfaceError` without
+  it.
+- **Acceptance gate reads `team_execution_result`.** When present and
+  `accepted == False`, the gate returns `AcceptanceStatus.BLOCKED`,
+  `executable = False`, using the team reasons. Without `team_execution_result`
+  the gate behaves exactly as before #151.
+- **Legacy `reverse_agent/orchestrator_*` is `RETIRE_LATER`** and was
+  not extended.
+
+See also :doc:`LANGGRAPH_TEAM_RUNTIME` for the proven runtime contracts.
