@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_pr146_stale_local_candidate_reconcile_v25",
-  "round_id": "round_20260809_pr146_stale_local_candidate_reconcile_v25",
+  "decision_id": "decision_20260809_pr146_stale_local_candidate_reconcile_v26",
+  "round_id": "round_20260809_pr146_stale_local_candidate_reconcile_v26",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,14 +14,14 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260809_pr146_agent_canvas_committed_head_landing_v24",
-  "follows_last_round_id": "round_20260809_pr146_agent_canvas_committed_head_landing_v24",
-  "previous_audit_outcome": "V24_BOOTSTRAP_FAIL_CLOSED_LOCAL_UNPUBLISHED_CANDIDATE_AHEAD_OF_REMOTE",
+  "follows_last_decision_id": "decision_20260809_pr146_stale_local_candidate_reconcile_v25",
+  "follows_last_round_id": "round_20260809_pr146_stale_local_candidate_reconcile_v25",
+  "previous_audit_outcome": "V25_OWNER_PREDELEGATION_SUPERSEDED_BEFORE_EXECUTION_DUE_TO_DECISION_CONTENT_DRIFT",
   "source_issue": 136,
   "parent_issue": 127,
   "active_pr": 146,
   "required_branch": "owner/issue136-agent-canvas-reuse-spike-v2",
-  "starting_remote_head": "cd8cc3e3e10e961fc22fe0400a262760507ada57",
+  "starting_remote_head": "9c6d6987d5e13c8a0ed92aef8bd9dcd4caf191b6",
   "activation_base_sha": "dd4cb074ab5b9baacf300706878b29bd745f12c3",
   "accepted_stage_b_evidence_head": "ab00b03952d96c2421be8297f29699a59ec69fda",
   "repair_attempt_limit": 0,
@@ -247,10 +247,12 @@
 
 ## Owner audit and execution policy
 
-v25 exists only to reconcile one known unpublished local v24 candidate commit after the local Agent correctly stopped because local HEAD was one commit ahead of the canonical remote v24 authority.
+v26 supersedes v25 before any local delegation. v25 was never executed. During Owner predelegation self-audit, the first v25 commit contained an unsupported explanatory capability-policy field and a follow-up commit changed the same Decision ID's content; even though the parser would ignore the extra field, that content drift violates the project's immutable-Decision discipline. v26 re-establishes one immutable authority object.
 
-The unpublished commit `0befedf8b4b912c9cd29a11e2717abe8795aa9ca` is not present on GitHub. Before reset, the local Agent must prove all of the following: local HEAD is exactly that SHA; its parent is exactly v24 `cd8cc3e3e10e961fc22fe0400a262760507ada57`; its subject is exactly `landing: bind PR146 v24 intent`; its committed paths are exactly the seven governance paths listed in the reconciliation contract; tracked worktree and index are clean; remote `main` remains `dd4cb074ab5b9baacf300706878b29bd745f12c3`; and the target remote branch equals the v25 authority fetched from GitHub.
+v26 exists only to reconcile one known unpublished local v24 candidate commit after the local Agent correctly stopped because local HEAD was one commit ahead of the canonical remote authority.
 
-Only after every precondition passes is exactly one destructive operation authorized: `git reset --hard origin/owner/issue136-agent-canvas-reuse-spike-v2`. This reset intentionally discards only the verified unpublished stale candidate and advances the local checkout onto v25. It does not authorize `git clean`, stash, rebase, amend, cherry-pick, force push, or deletion of the pre-existing untracked `.frontend_stage/**` / `.platform_v1_runtime/**` carryover.
+The unpublished commit `0befedf8b4b912c9cd29a11e2717abe8795aa9ca` is not present on GitHub. Before reset, the local Agent must prove all of the following: local HEAD is exactly that SHA; its parent is exactly v24 `cd8cc3e3e10e961fc22fe0400a262760507ada57`; its subject is exactly `landing: bind PR146 v24 intent`; its committed paths are exactly the seven governance paths listed in the reconciliation contract; tracked worktree and index are clean; remote `main` remains `dd4cb074ab5b9baacf300706878b29bd745f12c3`; and the target remote branch equals the v26 authority fetched from GitHub.
 
-After reset, regenerate the standard transition artifacts, require transition lint PASS and `PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]`, run the four read-only reconciliation validations, then STOP. Do not perform PR146 landing preparation under v25. Owner will issue a fresh landing Decision after successful reconciliation.
+Only after every precondition passes is exactly one destructive operation authorized: `git reset --hard origin/owner/issue136-agent-canvas-reuse-spike-v2`. This reset intentionally discards only the verified unpublished stale candidate and advances the local checkout onto v26. It does not authorize `git clean`, stash, rebase, amend, cherry-pick, force push, or deletion of the pre-existing untracked `.frontend_stage/**` / `.platform_v1_runtime/**` carryover.
+
+After reset, regenerate the standard transition artifacts, require transition lint PASS and `PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]`, run the four read-only reconciliation validations, then STOP. Do not perform PR146 landing preparation under v26. Owner will issue a fresh landing Decision after successful reconciliation.
