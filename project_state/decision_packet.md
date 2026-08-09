@@ -207,7 +207,6 @@
     "external_reverse_tool_invocation_allowed": false,
     "unknown_binary_execution_allowed": false,
     "destructive_operations_allowed": true,
-    "destructive_operation_scope": ["git reset --hard origin/owner/issue136-agent-canvas-reuse-spike-v2"],
     "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
