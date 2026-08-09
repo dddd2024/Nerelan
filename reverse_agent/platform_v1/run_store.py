@@ -17,6 +17,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from threading import RLock
 from typing import Any, Mapping, Sequence
 
 
@@ -212,6 +213,7 @@ class TaskStore:
         )
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
+        self._lock = RLock()
         self._init_schema()
 
     # ------------------------------------------------------------------
@@ -305,6 +307,32 @@ class TaskStore:
         branch: str = "",
         idempotency_key: str = "",
     ) -> Task:
+        with self._lock:
+            return self._create_task_impl(
+                title=title,
+                repository=repository,
+                executor_kind=executor_kind,
+                model_profile_ref=model_profile_ref,
+                permission_profile=permission_profile,
+                policy_ref=policy_ref,
+                workspace=workspace,
+                branch=branch,
+                idempotency_key=idempotency_key,
+            )
+
+    def _create_task_impl(
+        self,
+        *,
+        title: str,
+        repository: str,
+        executor_kind: str,
+        model_profile_ref: str,
+        permission_profile: str,
+        policy_ref: str,
+        workspace: str,
+        branch: str,
+        idempotency_key: str,
+    ) -> Task:
         if idempotency_key:
             existing = self._conn.execute(
                 "SELECT task_id, title, repository, executor_kind FROM "
@@ -384,90 +412,97 @@ class TaskStore:
         create_kwargs: dict[str, Any],
         executor_runner: Any,
     ) -> tuple[Task, Any]:
-        task = self.create_task(**create_kwargs)
-        self.transition_to(task.id, "PREPARING_WORKSPACE")
-        self.transition_to(task.id, "RUNNING_FIXTURE")
-        self._append_event(
-            task_id=task.id,
-            event_type="EXECUTOR_RUNNING",
-            title="Executor running",
-            description=f"Executor {task.executor_kind} started",
-            metadata={"executor_kind": task.executor_kind},
-        )
-        result = executor_runner(task.id, self)
-        self._append_event(
-            task_id=task.id,
-            event_type="EXECUTOR_FINISHED",
-            title="Executor finished",
-            description="Executor completed",
-            metadata={
-                "success": bool(result.get("success")) if isinstance(result, dict) else False,
-            },
-        )
-        return task, result
+        with self._lock:
+            task = self.create_task(**create_kwargs)
+            self.transition_to(task.id, "PREPARING_WORKSPACE")
+            self.transition_to(task.id, "RUNNING_FIXTURE")
+            self._append_event(
+                task_id=task.id,
+                event_type="EXECUTOR_RUNNING",
+                title="Executor running",
+                description=f"Executor {task.executor_kind} started",
+                metadata={"executor_kind": task.executor_kind},
+            )
+            result = executor_runner(task.id, self)
+            self._append_event(
+                task_id=task.id,
+                event_type="EXECUTOR_FINISHED",
+                title="Executor finished",
+                description="Executor completed",
+                metadata={
+                    "success": bool(result.get("success")) if isinstance(result, dict) else False,
+                },
+            )
+            return task, result
 
     def get_task(self, task_id: str) -> Task:
-        try:
-            row = self._conn.execute(
-                "SELECT * FROM tasks WHERE id = ?", (task_id,),
-            ).fetchone()
-        except sqlite3.ProgrammingError as exc:
-            raise TaskStoreError(f"task_lookup_error:{task_id}") from exc
-        if row is None:
-            raise TaskStoreError(f"task_not_found:{task_id}")
-        return _row_to_task(self._conn, row)
+        with self._lock:
+            try:
+                row = self._conn.execute(
+                    "SELECT * FROM tasks WHERE id = ?", (task_id,),
+                ).fetchone()
+            except sqlite3.ProgrammingError as exc:
+                raise TaskStoreError(f"task_lookup_error:{task_id}") from exc
+            if row is None:
+                raise TaskStoreError(f"task_not_found:{task_id}")
+            return _row_to_task(self._conn, row)
 
     def list_tasks(self, limit: int = 100, offset: int = 0) -> list[Task]:
-        rows = self._conn.execute(
-            "SELECT * FROM tasks ORDER BY created_at DESC LIMIT ? OFFSET ?",
-            (limit, offset),
-        ).fetchall()
-        return [_row_to_task(self._conn, r) for r in rows]
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM tasks ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (limit, offset),
+            ).fetchall()
+            return [_row_to_task(self._conn, r) for r in rows]
 
     def count_tasks(self) -> int:
-        row = self._conn.execute("SELECT COUNT(*) AS c FROM tasks").fetchone()
-        return int(row["c"])
+        with self._lock:
+            row = self._conn.execute("SELECT COUNT(*) AS c FROM tasks").fetchone()
+            return int(row["c"])
 
     def find_by_idempotency_key(self, key: str) -> Task | None:
-        if not key:
-            return None
-        row = self._conn.execute(
-            "SELECT ik.task_id FROM idempotency_keys ik "
-            "WHERE ik.key = ? LIMIT 1",
-            (key,),
-        ).fetchone()
-        if row is None:
-            return None
-        return self.get_task(row["task_id"])
+        with self._lock:
+            if not key:
+                return None
+            row = self._conn.execute(
+                "SELECT ik.task_id FROM idempotency_keys ik "
+                "WHERE ik.key = ? LIMIT 1",
+                (key,),
+            ).fetchone()
+            if row is None:
+                return None
+            return self.get_task(row["task_id"])
 
     # ------------------------------------------------------------------
     # State transitions
     # ------------------------------------------------------------------
 
     def set_state(self, task_id: str, status: str) -> Task:
-        if status not in TASK_STATUS_ORDER:
-            raise TaskStoreError(f"invalid_status:{status}")
-        self._update_task_fields(task_id, {"status": status})
-        return self.get_task(task_id)
+        with self._lock:
+            if status not in TASK_STATUS_ORDER:
+                raise TaskStoreError(f"invalid_status:{status}")
+            self._update_task_fields(task_id, {"status": status})
+            return self.get_task(task_id)
 
     def transition_to(self, task_id: str, status: str) -> Task:
-        if status not in TASK_STATUS_ORDER:
-            raise TaskStoreError(f"invalid_status:{status}")
-        current = self.get_task(task_id)
-        if current.status == status:
-            return current
-        allowed = TRANSITION_RULES.get(current.status, ())
-        if status not in allowed:
-            raise InvalidTransitionError(
-                f"invalid_transition:{current.status}->{status} "
-                f"allowed={allowed}"
-            )
-        if current.status in TERMINAL_STATUSES:
-            raise InvalidTransitionError(
-                f"terminal_status:{current.status}"
-            )
-        self._update_task_fields(task_id, {"status": status})
-        return self.get_task(task_id)
+        with self._lock:
+            if status not in TASK_STATUS_ORDER:
+                raise TaskStoreError(f"invalid_status:{status}")
+            current = self.get_task(task_id)
+            if current.status == status:
+                return current
+            allowed = TRANSITION_RULES.get(current.status, ())
+            if status not in allowed:
+                raise InvalidTransitionError(
+                    f"invalid_transition:{current.status}->{status} "
+                    f"allowed={allowed}"
+                )
+            if current.status in TERMINAL_STATUSES:
+                raise InvalidTransitionError(
+                    f"terminal_status:{current.status}"
+                )
+            self._update_task_fields(task_id, {"status": status})
+            return self.get_task(task_id)
 
     def classify_failure(
         self,
@@ -476,21 +511,22 @@ class TaskStore:
         classification: str,
         detail: str = "",
     ) -> Task:
-        task = self.get_task(task_id)
-        if task.status in TERMINAL_STATUSES:
-            raise TaskStoreError(f"terminal_status:{task.status}")
-        self._update_task_fields(
-            task_id,
-            {
-                "failure_classification": classification,
-                "failure_detail": detail,
-            },
-        )
-        target = "BLOCKED" if classification == "blocked" else "FAILED"
-        if task.status != target:
-            self._update_task_fields(task_id, {"status": target})
-        self._append_event(
-            task_id=task_id,
+        with self._lock:
+            task = self.get_task(task_id)
+            if task.status in TERMINAL_STATUSES:
+                raise TaskStoreError(f"terminal_status:{task.status}")
+            self._update_task_fields(
+                task_id,
+                {
+                    "failure_classification": classification,
+                    "failure_detail": detail,
+                },
+            )
+            target = "BLOCKED" if classification == "blocked" else "FAILED"
+            if task.status != target:
+                self._update_task_fields(task_id, {"status": target})
+            self._append_event(
+                task_id=task_id,
             event_type="EXECUTOR_FINISHED",
             title="Executor failed",
             description=f"failure_classification={classification}",
@@ -512,35 +548,37 @@ class TaskStore:
         raw_log: str = "",
         metadata: Mapping[str, Any] | None = None,
     ) -> TaskEvent:
-        self.get_task(task_id)
-        return self._append_event(
-            task_id=task_id,
-            event_type=event_type,
-            title=title,
-            description=description,
-            raw_log=raw_log,
-            metadata=metadata,
-        )
+        with self._lock:
+            self.get_task(task_id)
+            return self._append_event(
+                task_id=task_id,
+                event_type=event_type,
+                title=title,
+                description=description,
+                raw_log=raw_log,
+                metadata=metadata,
+            )
 
     def get_events(self, task_id: str) -> list[TaskEvent]:
-        rows = self._conn.execute(
-            "SELECT id, task_id, type, timestamp, title, description, raw_log, "
-            "metadata FROM task_events WHERE task_id = ? ORDER BY seq ASC",
-            (task_id,),
-        ).fetchall()
-        return [
-            TaskEvent(
-                id=r["id"],
-                task_id=r["task_id"],
-                type=r["type"],
-                timestamp=r["timestamp"],
-                title=r["title"],
-                description=r["description"],
-                raw_log=r["raw_log"],
-                metadata=dict(self._decode_json(r["metadata"])),
-            )
-            for r in rows
-        ]
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, task_id, type, timestamp, title, description, raw_log, "
+                "metadata FROM task_events WHERE task_id = ? ORDER BY seq ASC",
+                (task_id,),
+            ).fetchall()
+            return [
+                TaskEvent(
+                    id=r["id"],
+                    task_id=r["task_id"],
+                    type=r["type"],
+                    timestamp=r["timestamp"],
+                    title=r["title"],
+                    description=r["description"],
+                    raw_log=r["raw_log"],
+                    metadata=dict(self._decode_json(r["metadata"])),
+                )
+                for r in rows
+            ]
 
     def _append_event(
         self,
@@ -580,24 +618,25 @@ class TaskStore:
     # ------------------------------------------------------------------
 
     def set_changed_files(self, task_id: str, files: Sequence[Mapping[str, Any]]) -> Task:
-        self.get_task(task_id)
-        self._conn.execute("DELETE FROM task_changed_files WHERE task_id = ?", (task_id,))
-        for idx, f in enumerate(files, start=1):
-            self._conn.execute(
-                "INSERT INTO task_changed_files "
-                "(task_id, path, status, additions, deletions, diff_digest) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (
-                    task_id,
-                    str(f.get("path", "")),
-                    str(f.get("status", "modified")),
-                    int(f.get("additions", 0)),
-                    int(f.get("deletions", 0)),
-                    str(f.get("diff_digest", "")),
-                ),
-            )
-        self._update_task_fields(task_id, {"updated_at": _utc_now()})
-        return self.get_task(task_id)
+        with self._lock:
+            self.get_task(task_id)
+            self._conn.execute("DELETE FROM task_changed_files WHERE task_id = ?", (task_id,))
+            for idx, f in enumerate(files, start=1):
+                self._conn.execute(
+                    "INSERT INTO task_changed_files "
+                    "(task_id, path, status, additions, deletions, diff_digest) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        task_id,
+                        str(f.get("path", "")),
+                        str(f.get("status", "modified")),
+                        int(f.get("additions", 0)),
+                        int(f.get("deletions", 0)),
+                        str(f.get("diff_digest", "")),
+                    ),
+                )
+            self._update_task_fields(task_id, {"updated_at": _utc_now()})
+            return self.get_task(task_id)
 
     def add_evidence(
         self,
@@ -610,16 +649,17 @@ class TaskStore:
         detail: str = "",
         raw_json_digest: str = "",
     ) -> Task:
-        self.get_task(task_id)
-        ev_id = f"ev-{task_id}-{_short_uuid()}"
-        self._conn.execute(
-            "INSERT INTO task_evidence "
-            "(id, task_id, category, label, value, status, detail, raw_json_digest) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (ev_id, task_id, category, label, value, status, detail, raw_json_digest),
-        )
-        self._update_task_fields(task_id, {"updated_at": _utc_now()})
-        return self.get_task(task_id)
+        with self._lock:
+            self.get_task(task_id)
+            ev_id = f"ev-{task_id}-{_short_uuid()}"
+            self._conn.execute(
+                "INSERT INTO task_evidence "
+                "(id, task_id, category, label, value, status, detail, raw_json_digest) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (ev_id, task_id, category, label, value, status, detail, raw_json_digest),
+            )
+            self._update_task_fields(task_id, {"updated_at": _utc_now()})
+            return self.get_task(task_id)
 
     def set_validation_result(
         self,
@@ -629,16 +669,17 @@ class TaskStore:
         exit_code: int,
         output_digest: str,
     ) -> Task:
-        self.get_task(task_id)
-        self._update_task_fields(
-            task_id,
-            {
-                "validation_command_id": command_id,
-                "validation_exit_code": exit_code,
-                "validation_output_digest": output_digest,
-            },
-        )
-        return self.get_task(task_id)
+        with self._lock:
+            self.get_task(task_id)
+            self._update_task_fields(
+                task_id,
+                {
+                    "validation_command_id": command_id,
+                    "validation_exit_code": exit_code,
+                    "validation_output_digest": output_digest,
+                },
+            )
+            return self.get_task(task_id)
 
     # ------------------------------------------------------------------
     # Internals

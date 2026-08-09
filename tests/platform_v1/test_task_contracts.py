@@ -165,3 +165,69 @@ def test_invalid_event_type_rejected() -> None:
     task = store.create_task(title="t")
     with pytest.raises(TaskStoreError):
         store.add_event(task.id, event_type="NOT_VALID", title="x")
+
+
+# ---------------------------------------------------------------------------
+# Concurrency probe: two threads, one shared TaskStore, two distinct tasks
+# ---------------------------------------------------------------------------
+
+def test_taskstore_concurrent_writes_two_threads(tmp_path) -> None:
+    """One shared TaskStore must tolerate two worker threads that each append
+    one event and one evidence row to their own task, synchronized only by
+    a ``threading.Barrier(2)``. No production lock may be required merely for
+    style if this probe stays stable.
+    """
+    import threading
+
+    db_path = str(tmp_path / "probe.sqlite3")
+    store = TaskStore(db_path=db_path)
+    task_a = store.create_task(title="probe-a", idempotency_key="probe-a")
+    task_b = store.create_task(title="probe-b", idempotency_key="probe-b")
+    assert task_a.id != task_b.id
+
+    barrier = threading.Barrier(2, timeout=10)
+    exceptions: list[Exception] = []
+
+    def worker(task, *, task_label: str) -> None:
+        try:
+            barrier.wait(10)
+            store.add_event(
+                task.id,
+                event_type="EXECUTOR_RUNNING",
+                title=f"Probe {task_label} running",
+                description="concurrent probe event",
+                metadata={"worker": task_label},
+            )
+            store.add_evidence(
+                task.id,
+                category="Probe",
+                label=task_label,
+                value="concurrent",
+                status="info",
+                detail="concurrent-write-probe",
+                raw_json_digest="probe",
+            )
+            read = store.get_task(task.id)
+            assert read.id == task.id
+            assert any(e["type"] == "DISCOVERED" for e in read.events)
+            assert any(e["type"] == "EXECUTOR_RUNNING" for e in read.events)
+            assert any(ev["label"] == task_label for ev in read.evidence_refs)
+        except Exception as exc:
+            exceptions.append(exc)
+
+    t1 = threading.Thread(target=worker, args=(task_a,), kwargs={"task_label": "A"})
+    t2 = threading.Thread(target=worker, args=(task_b,), kwargs={"task_label": "B"})
+    t1.start()
+    t2.start()
+    t1.join(15)
+    t2.join(15)
+    assert not exceptions, [str(e) for e in exceptions]
+
+    ta = store.get_task(task_a.id)
+    tb = store.get_task(task_b.id)
+    assert any(e["type"] == "DISCOVERED" for e in ta.events)
+    assert any(e["type"] == "EXECUTOR_RUNNING" for e in ta.events)
+    assert len(ta.evidence_refs) >= 1
+    assert any(e["type"] == "DISCOVERED" for e in tb.events)
+    assert any(e["type"] == "EXECUTOR_RUNNING" for e in tb.events)
+    assert len(tb.evidence_refs) >= 1
