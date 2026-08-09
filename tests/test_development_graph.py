@@ -332,3 +332,85 @@ def test_caller_without_policy_snapshot_still_proceeds_via_provider() -> None:
     )
     assert result["risk_decision"]["route"] != WorkflowRoute.BLOCKED.value
     assert result["workflow_identity"]["policy_digest"]
+
+
+# --- Phase F: bounded execution-seam insertion ---------------------------
+
+
+def _seam_node(state: dict) -> dict:
+    """Deterministic fake execution seam: appends exactly one marker."""
+    trace = list(state.get("node_trace") or [])
+    return {"node_trace": trace + ["execution_seam"]}
+
+
+def test_default_graph_does_not_include_execution_seam() -> None:
+    """Default build_development_graph must remain byte-for-behavior
+    equivalent to current: no execution seam is traversed.
+    """
+
+    port = RecordingPort()
+    graph = build_development_graph(port, provider=_provider())
+    result = graph.invoke(_input("source_edit"), {"configurable": {"thread_id": "seam-default"}})
+    assert "execution_seam" not in result["node_trace"]
+    assert result["acceptance_result"]["status"] == AcceptanceStatus.ACCEPTED.value
+    assert port.calls == 0
+
+
+def test_execution_seam_runs_after_authorization_and_before_acceptance() -> None:
+    """When an execution node is explicitly supplied, the graph must route
+    risk -> authorization -> execution_seam -> acceptance_gate.
+    """
+
+    port = RecordingPort()
+    graph = build_development_graph(port, provider=_provider(), execution_node=_seam_node)
+    # High-risk input forces the trust-authorization branch.
+    result = graph.invoke(
+        _input("dependency_change"),
+        {"configurable": {"thread_id": "seam-ordered"}},
+    )
+    trace = result["node_trace"]
+    assert "execution_seam" in trace
+    assert "request_trust_authorization" in trace
+    assert "acceptance_gate" in trace
+    assert trace.index("request_trust_authorization") < trace.index("execution_seam")
+    assert trace.index("execution_seam") < trace.index("acceptance_gate")
+    assert port.calls == 1
+    assert result["acceptance_result"]["status"] == AcceptanceStatus.ACCEPTED.value
+
+
+def test_execution_seam_runs_on_standard_r1_path_when_supplied() -> None:
+    """A supplied execution seam is also traversed on the standard (non-trust)
+    path; the seam sits between risk classification and acceptance, not only
+    after trust authorization.
+    """
+
+    port = RecordingPort()
+    graph = build_development_graph(port, provider=_provider(), execution_node=_seam_node)
+    result = graph.invoke(_input("source_edit"), {"configurable": {"thread_id": "seam-r1"}})
+    trace = result["node_trace"]
+    assert "execution_seam" in trace
+    assert "classify_risk" in trace
+    assert "acceptance_gate" in trace
+    assert trace.index("classify_risk") < trace.index("execution_seam")
+    assert trace.index("execution_seam") < trace.index("acceptance_gate")
+    assert "request_trust_authorization" not in trace
+    assert port.calls == 0
+
+
+def test_blocked_authorization_cannot_reach_execution_seam() -> None:
+    """A BLOCKED trust-authorization result must still prevent the execution
+    seam from running, exactly as today's BLOCKED acceptance behavior.
+    """
+
+    port = RecordingPort(AuthorizationStatus.BLOCKED)
+    graph = build_development_graph(port, provider=_provider(), execution_node=_seam_node)
+    result = graph.invoke(
+        _input("workflow_change"),
+        {"configurable": {"thread_id": "seam-blocked"}},
+    )
+    trace = result["node_trace"]
+    assert "execution_seam" not in trace
+    assert "request_trust_authorization" in trace
+    assert "acceptance_gate" in trace
+    assert result["acceptance_result"]["status"] == AcceptanceStatus.BLOCKED.value
+    assert result["acceptance_result"]["executable"] is False
