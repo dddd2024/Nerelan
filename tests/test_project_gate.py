@@ -1,4 +1,5 @@
 import json
+import hashlib
 import shutil
 import subprocess
 from pathlib import Path
@@ -28812,6 +28813,139 @@ def test_worktree_publication_readiness_uses_shared_classifier_and_trusted_decis
     assert records[path]["classification"] == classification
     assert records[path]["stageable"] is stageable
     assert records[path]["deleted"] is False
+
+
+def _git_for_r1(repo: Path, *args: str) -> str:
+    completed = subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return completed.stdout.strip()
+
+
+def _make_r1_publication_material(tmp_path: Path) -> tuple[Path, Path, Path, str, str]:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git_for_r1(repo, "init", "-b", "main")
+    _git_for_r1(repo, "config", "user.email", "r1@example.invalid")
+    _git_for_r1(repo, "config", "user.name", "R1 Test")
+    (repo / "allowed.txt").write_text("base\n", encoding="utf-8")
+    _git_for_r1(repo, "add", "allowed.txt")
+    _git_for_r1(repo, "commit", "-m", "base")
+    base_sha = _git_for_r1(repo, "rev-parse", "HEAD")
+    _git_for_r1(repo, "update-ref", "refs/remotes/origin/main", base_sha)
+    _git_for_r1(repo, "switch", "-c", "owner/r1-test")
+    _git_for_r1(repo, "commit", "--allow-empty", "-m", "chore: activate R1 work item #157")
+    head_sha = _git_for_r1(repo, "rev-parse", "HEAD")
+
+    issue_body = """## Allowed paths
+```text
+allowed.txt
+```
+"""
+    digest = hashlib.sha256(issue_body.encode("utf-8")).hexdigest()
+    snapshot = f"""```text
+repository: dddd2024/reverse-agent
+issue_number: 157
+approval_state: APPROVED
+approved_by: owner
+approval_event_or_time: 2026-08-09T00:00:00Z
+body_digest_sha256: {digest}
+immutable_observation_ref: {digest}
+work_item_identity: dddd2024/reverse-agent#157@{digest}
+target_branch: owner/r1-test
+integration_base_ref: main
+base_sha: {base_sha}
+exact_head_sha: {head_sha}
+```
+"""
+    issue_file = tmp_path / "approved-issue.md"
+    pr_file = tmp_path / "draft-pr.md"
+    issue_file.write_text(issue_body, encoding="utf-8")
+    pr_file.write_text(snapshot, encoding="utf-8")
+    return repo, issue_file, pr_file, base_sha, head_sha
+
+
+def _r1_publication_result(repo: Path, issue_file: Path, pr_file: Path) -> dict[str, Any]:
+    readiness = getattr(project_gate_module, "worktree_r1_publication_readiness", None)
+    assert callable(readiness), "R1 publication-readiness gate is missing"
+    return readiness(issue_body_file=issue_file, pr_body_file=pr_file, repo_root=repo)
+
+
+@pytest.mark.parametrize(
+    ("status_line", "path", "classification", "ready", "stageable"),
+    [
+        (" M allowed.txt", "allowed.txt", "AUTHORIZED_TRACKED_DELTA", True, True),
+        ("?? task_workspaces/task-a/output.txt", "task_workspaces/task-a/output.txt", "KNOWN_RUNTIME_SCRATCH", True, False),
+        ("?? .platform_v1_runtime/tasks.sqlite3", ".platform_v1_runtime/tasks.sqlite3", "KNOWN_RUNTIME_SCRATCH", True, False),
+        (" M project_state/gates/command_plan.json", "project_state/gates/command_plan.json", "GENERATED_GOVERNANCE_ARTIFACT", True, False),
+        ("?? scratch/unexplained.txt", "scratch/unexplained.txt", "UNKNOWN_UNTRACKED", False, False),
+        ("?? config/service-secret.json", "config/service-secret.json", "UNAUTHORIZED_TRACKED_OR_SENSITIVE", False, False),
+        (" M unauthorized.txt", "unauthorized.txt", "UNAUTHORIZED_TRACKED_OR_SENSITIVE", False, False),
+    ],
+)
+def test_r1_publication_readiness_uses_issue_allowlist_and_shared_classifier(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status_line: str,
+    path: str,
+    classification: str,
+    ready: bool,
+    stageable: bool,
+) -> None:
+    repo, issue_file, pr_file, _, _ = _make_r1_publication_material(tmp_path)
+    monkeypatch.setattr("reverse_agent.project_gate._git_status_short_lines", lambda _repo: [status_line])
+
+    result = _r1_publication_result(repo, issue_file, pr_file)
+
+    records = {record["path"]: record for record in result["worktree_classifications"]}
+    assert (result["gate_status"] == "R1_PUBLICATION_READY") is ready, result
+    assert result["authority_source"] == "frozen_issue_and_draft_pr_snapshot"
+    assert result["authorized_paths"] == ["allowed.txt"]
+    assert records[path]["classification"] == classification
+    assert records[path]["stageable"] is stageable
+
+
+@pytest.mark.parametrize(
+    ("mutation", "blocking_reason"),
+    [
+        ("issue_digest", "r1_issue_body_digest_mismatch"),
+        ("target_branch", "r1_target_branch_mismatch"),
+        ("head", "r1_exact_head_mismatch"),
+        ("base_ref", "r1_integration_base_sha_mismatch"),
+        ("merge_base", "r1_merge_base_mismatch"),
+    ],
+)
+def test_r1_publication_readiness_blocks_broken_local_bindings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+    blocking_reason: str,
+) -> None:
+    repo, issue_file, pr_file, _, head_sha = _make_r1_publication_material(tmp_path)
+    if mutation == "issue_digest":
+        issue_file.write_text(issue_file.read_text(encoding="utf-8") + "changed\n", encoding="utf-8")
+    elif mutation == "target_branch":
+        pr_file.write_text(pr_file.read_text(encoding="utf-8").replace("target_branch: owner/r1-test", "target_branch: owner/other"), encoding="utf-8")
+    elif mutation == "head":
+        pr_file.write_text(pr_file.read_text(encoding="utf-8").replace(f"exact_head_sha: {head_sha}", f"exact_head_sha: {'f' * 40}"), encoding="utf-8")
+    elif mutation == "base_ref":
+        _git_for_r1(repo, "update-ref", "refs/remotes/origin/main", head_sha)
+    else:
+        original = project_gate_module._transition_git
+        monkeypatch.setattr(
+            project_gate_module,
+            "_transition_git",
+            lambda root, *args, **kwargs: "e" * 40 if args and args[0] == "merge-base" else original(root, *args, **kwargs),
+        )
+
+    result = _r1_publication_result(repo, issue_file, pr_file)
+
+    assert result["gate_status"] == "BLOCKED"
+    assert blocking_reason in result["blocking_reasons"]
 
 
 @pytest.mark.parametrize(

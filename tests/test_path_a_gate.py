@@ -681,6 +681,57 @@ def test_runtime_change_without_task_test_mapping_fails_closed() -> None:
         select_task_checks(("reverse_agent/unmapped_runtime.py",))
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "reverse_agent/platform_v1/run_store.py",
+        "reverse_agent/platform_v1/task_execution.py",
+        "reverse_agent/platform_v1/task_service.py",
+        "tests/platform_v1/test_task_execution.py",
+    ],
+)
+def test_platform_v1_paths_select_repository_owned_platform_suite(path: str) -> None:
+    result = select_task_checks((path,))
+
+    assert result["check_ids"] == ("platform_v1",)
+    assert result["commands"] == ("python -m pytest tests/platform_v1 -q",)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "reverse_agent/architecture/contracts.py",
+        "reverse_agent/workflows/team_graph.py",
+        "reverse_agent/workflows/nodes/acceptance_gate.py",
+        "tests/test_team_graph.py",
+    ],
+)
+def test_team_paths_select_repository_owned_team_regression_suite(path: str) -> None:
+    result = select_task_checks((path,))
+
+    assert result["check_ids"] == ("team_targets",)
+    assert result["commands"] == (
+        "python -m pytest tests/test_development_graph.py tests/test_team_graph.py -q",
+    )
+
+
+def test_mixed_issue_151_paths_select_both_suites_once() -> None:
+    result = select_task_checks(
+        (
+            "reverse_agent/platform_v1/task_service.py",
+            "tests/platform_v1/test_task_execution.py",
+            "reverse_agent/workflows/team_graph.py",
+            "tests/test_team_graph.py",
+        )
+    )
+
+    assert result["check_ids"] == ("platform_v1", "team_targets")
+    assert result["commands"] == (
+        "python -m pytest tests/platform_v1 -q",
+        "python -m pytest tests/test_development_graph.py tests/test_team_graph.py -q",
+    )
+
+
 def test_missing_mapped_test_target_fails_closed(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

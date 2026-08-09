@@ -98,6 +98,30 @@ def test_agents_documents_deterministic_worktree_classification() -> None:
         assert token in content
 
 
+@pytest.mark.parametrize("path", [AGENTS_MD, R1_TEMPLATE])
+def test_r1_activation_lifecycle_is_tree_identical_and_exact_head_bound(path: Path) -> None:
+    content = _read(path)
+    for token in (
+        'git commit --allow-empty -m "chore: activate R1 work item #<issue>"',
+        "exact_head_sha",
+        "empty activation commit",
+        "tree-identical",
+    ):
+        assert token in content, f"{path.name} missing {token}"
+    assert "No product/source/test file may change before" in content
+    assert "rebind" in content.lower()
+    assert "transient" in content.lower()
+
+
+def test_agents_documents_r1_local_guard_and_live_state_gate_boundary() -> None:
+    content = _read(AGENTS_MD)
+    assert "worktree-r1-publication-readiness" in content
+    assert "approved Issue body" in content
+    assert "Draft PR body" in content
+    assert "does not replace" in content
+    assert "GitHub State Gate" in content
+
+
 @pytest.mark.parametrize("path", [AGENTS_MD, ROADMAP_MD, SOURCE_OF_TRUTH_MD, R1_TEMPLATE])
 def test_material_issue_edit_invalidates_snapshot(path: Path) -> None:
     content = _read(path).lower()

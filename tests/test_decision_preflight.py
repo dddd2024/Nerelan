@@ -10,6 +10,7 @@ from reverse_agent.project_jobs import build_planned_job_payload, planned_job_id
 
 DECISION_ID = "decision_20260706_post_final_sync_job_preflight_big_step_v1"
 ROUND_ID = "round_20260706_post_final_sync_job_preflight_big_step_v1"
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -131,3 +132,17 @@ def test_decision_preflight_rejects_missing_workflow_command(tmp_path: Path) -> 
     assert result["gate_status"] == "FAILED"
     assert result["workflow_readiness_status"] == "REWORK_REQUIRED"
     assert any("workflow readiness" in error for error in result["errors"])
+
+
+def test_decision_preflight_uses_event_aware_mode_and_explicit_path_a_delegation() -> None:
+    workflow = (REPO_ROOT / ".github" / "workflows" / "decision-preflight.yml").read_text(encoding="utf-8")
+
+    assert 'control-plane-mode --state-dir project_state --event-path "$GITHUB_EVENT_PATH"' in workflow
+    assert "Path-A R1 authority delegated to State Gate" in workflow
+    assert "steps.control_plane.outputs.mode == 'path_a_r1'" in workflow
+    path_a_step = workflow.split("Path-A R1 authority delegated to State Gate", 1)[1].split("- name:", 1)[0]
+    assert "transition-lint" not in path_a_step
+    assert "transition-command-plan" not in path_a_step
+    assert "transition-preflight" not in path_a_step
+    assert "path-a-r1-gate" not in path_a_step
+    assert "github.event.pull_request.number" not in workflow
