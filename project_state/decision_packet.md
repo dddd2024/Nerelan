@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_issue136_agent_canvas_stageb2_timeout_forensics_v12",
-  "round_id": "round_20260809_issue136_agent_canvas_stageb2_timeout_forensics_v12",
+  "decision_id": "decision_20260809_issue136_agent_canvas_stageb2_persisted_gui_readback_v13",
+  "round_id": "round_20260809_issue136_agent_canvas_stageb2_persisted_gui_readback_v13",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,17 +14,23 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260809_issue136_agent_canvas_source_fork_stageb2_real_opencode_v11",
-  "follows_last_round_id": "round_20260809_issue136_agent_canvas_source_fork_stageb2_real_opencode_v11",
-  "previous_audit_outcome": "STOPPED_STAGE_B2_V11_REAL_OPENCODE_COMMAND_TIMEOUT_AFTER_SINGLE_EXECUTION",
-  "workstream_id": "issue136-agent-canvas-stageb2-timeout-forensics-v12",
+  "follows_last_decision_id": "decision_20260809_issue136_agent_canvas_stageb2_timeout_forensics_v12",
+  "follows_last_round_id": "round_20260809_issue136_agent_canvas_stageb2_timeout_forensics_v12",
+  "previous_audit_outcome": "V11_TASK_TERMINAL_SUCCESS_EVIDENCE_FOUND",
+  "workstream_id": "issue136-agent-canvas-stageb2-persisted-gui-readback-v13",
   "source_issue": 136,
   "parent_issue": 127,
   "required_branch": "owner/issue136-agent-canvas-reuse-spike-v2",
-  "starting_head": "1a19cc901f8e6a0b2985a36cc09908fffb1169c9",
+  "starting_head": "35f1315912f2f6caec836e64d7658cf43a2e85b5",
   "activation_base_sha": "dd4cb074ab5b9baacf300706878b29bd745f12c3",
-  "risk_tier": "R2",
-  "governance_artifact_risk_tier": "R2",
+  "risk_tier": "R3",
+  "governance_artifact_risk_tier": "R3",
+  "authorized_risk_tier": "R3",
+  "authorized_risk_paths": [
+    "project_state/decision_packet.md",
+    "project_state/gates/**",
+    "frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png"
+  ],
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
   "pr_creation_allowed": false,
@@ -34,8 +40,8 @@
   "issue_comment_allowed": false,
   "branch_creation_allowed": false,
   "worktree_creation_allowed": false,
-  "local_commit_allowed": false,
-  "normal_push_allowed": false,
+  "local_commit_allowed": true,
+  "normal_push_allowed": true,
   "exact_head_workflow_observation_allowed": true,
   "merge_allowed": false,
   "mark_ready_allowed": false,
@@ -62,21 +68,23 @@
   "audit_generation_allowed": false,
   "prior_audits_immutable": true,
   "bootstrap_state_initial": "BOOTSTRAP_OPEN",
-  "forensic_contract": {
-    "purpose": "Determine what the one and only v11 OpenCode execution persisted before the caller timed out and cleanup stopped the stack.",
+  "stage_b2_readback_contract": {
+    "purpose": "Restart the existing Platform V1 stack without model execution, prove durable GET readback of the successful v11 task, capture the real task workbench screenshot, stop services, and publish only screenshot plus gate evidence.",
     "model_calls_allowed": 0,
-    "service_start_allowed": false,
-    "service_restart_allowed": false,
     "task_create_allowed": false,
     "task_execute_allowed": false,
-    "database_mutation_allowed": false,
-    "source_mutation_allowed": false,
-    "expected_task_db": "F:/reverse-agent/.platform_v1_runtime/tasks.sqlite3",
-    "expected_task_workspaces": "F:/reverse-agent/.platform_v1_runtime/task_workspaces",
-    "v11_source_checkout": "F:/reverse-agent-workspaces/issue136-stageb2-v11-source",
-    "accepted_b1_head": "5629306ecb1ac1377ad414decbe31993e3b34c27",
-    "search_title_marker": "issue136_stageb2_acceptance.txt",
-    "interpretation": "If a matching task is terminal, preserve its exact persisted status/events/evidence for Owner disposition. If it is RUNNING/PREPARING/QUEUED or absent, do not repair or resume it. No second model call is authorized."
+    "task_id": "task-1786237330883-8460dbd1c478",
+    "expected_backend_status": "READY_FOR_REVIEW",
+    "expected_frontend_state": "READY_FOR_HUMAN",
+    "expected_executor_kind": "opencode",
+    "expected_validation_exit_code": 0,
+    "expected_changed_file": "issue136_stageb2_acceptance.txt",
+    "expected_source_head": "5629306ecb1ac1377ad414decbe31993e3b34c27",
+    "source_checkout": "F:/reverse-agent-workspaces/issue136-stageb2-v11-source",
+    "real_task_screenshot": "frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png",
+    "service_restart_allowed": true,
+    "readback_method": "GET only",
+    "source_or_product_repair_allowed": false
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
@@ -224,185 +232,293 @@
       "allowed_mutated_paths": ["project_state/gates/transition_preflight_result.json", "project_state/gates/bootstrap_state.json"]
     },
     {
-      "command_id": "forensic.runtime_tree",
-      "command": "powershell -NoProfile -Command 'if(-not (Test-Path -LiteralPath \"F:/reverse-agent/.platform_v1_runtime\")){throw \"runtime directory missing\"}; Get-ChildItem -LiteralPath \"F:/reverse-agent/.platform_v1_runtime\" -Force -Recurse | Select-Object FullName,Length,LastWriteTime | Format-Table -AutoSize'",
-      "phase": "forensics",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "external_source_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "forensic.sqlite_readonly",
-      "command": "python -c \"import sqlite3,json; p='F:/reverse-agent/.platform_v1_runtime/tasks.sqlite3'; c=sqlite3.connect('file:'+p+'?mode=ro',uri=True); c.row_factory=sqlite3.Row; rows=c.execute('SELECT * FROM tasks WHERE title LIKE ? ORDER BY created_at DESC',('%issue136_stageb2_acceptance.txt%',)).fetchall(); out=[]; [(lambda d: out.append({'task':d,'events':[dict(x) for x in c.execute('SELECT id,task_id,type,timestamp,title,description,metadata FROM task_events WHERE task_id=? ORDER BY seq',(d['id'],)).fetchall()],'changed_files':[dict(x) for x in c.execute('SELECT path,status,additions,deletions,diff_digest FROM task_changed_files WHERE task_id=? ORDER BY seq',(d['id'],)).fetchall()],'evidence':[dict(x) for x in c.execute('SELECT id,category,label,value,status,detail,raw_json_digest FROM task_evidence WHERE task_id=? ORDER BY seq',(d['id'],)).fetchall()]}) )(dict(r)) for r in rows]; print(json.dumps(out,ensure_ascii=False,indent=2)); c.close()\"",
-      "phase": "forensics",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["external_source_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "validation_note": "SQLite must be opened mode=ro. Report exact matching task count and persisted lifecycle; do not write or initialize the DB."
-    },
-    {
-      "command_id": "forensic.acceptance_files",
-      "command": "powershell -NoProfile -Command '$root=\"F:/reverse-agent/.platform_v1_runtime/task_workspaces\"; if(-not (Test-Path -LiteralPath $root)){Write-Output \"task_workspaces_missing\"; exit 0}; $files=@(Get-ChildItem -LiteralPath $root -Recurse -File -Filter \"issue136_stageb2_acceptance.txt\" -ErrorAction SilentlyContinue); if(-not $files){Write-Output \"acceptance_file_not_found\"; exit 0}; foreach($f in $files){Write-Output (\"PATH=\"+$f.FullName); Write-Output (\"SIZE=\"+$f.Length); Write-Output \"CONTENT_BEGIN\"; Get-Content -Raw -LiteralPath $f.FullName; Write-Output \"CONTENT_END\"}'",
-      "phase": "forensics",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["external_source_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "forensic.worktree_registry",
-      "command": "git -C F:/reverse-agent-workspaces/issue136-stageb2-v11-source worktree list --porcelain",
-      "phase": "forensics",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "external_source_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "forensic.source_head",
-      "command": "git -C F:/reverse-agent-workspaces/issue136-stageb2-v11-source rev-parse HEAD",
-      "phase": "forensics",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "exact_head_validation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "forensic.source_status",
-      "command": "git -C F:/reverse-agent-workspaces/issue136-stageb2-v11-source status --short",
-      "phase": "forensics",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "exact_head_validation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "validation_note": "Output should be empty; report exactly if not."
-    },
-    {
-      "command_id": "forensic.main_working_diff",
-      "command": "git diff --name-only",
-      "phase": "forensics",
+      "command_id": "guard.root_package_absent",
+      "command": "powershell -NoProfile -Command 'if(Test-Path -LiteralPath \"package.json\"){throw \"unexpected repository-root package.json\"}'",
+      "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["repository_observation"],
       "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "guard.source_head",
+      "command": "powershell -NoProfile -Command '$h=(git -C \"F:/reverse-agent-workspaces/issue136-stageb2-v11-source\" rev-parse HEAD).Trim(); if($h -ne \"5629306ecb1ac1377ad414decbe31993e3b34c27\"){throw (\"unexpected source head \"+$h)}; Write-Output $h'",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "exact_head_validation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "guard.source_clean_before",
+      "command": "powershell -NoProfile -Command '$s=@(git -C \"F:/reverse-agent-workspaces/issue136-stageb2-v11-source\" status --short); if($s){throw (\"source checkout dirty: \"+($s -join \" | \"))}; Write-Output \"SOURCE_CLEAN\"'",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "exact_head_validation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "guard.screenshot_absent",
+      "command": "powershell -NoProfile -Command '$p=\"F:/reverse-agent/frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png\"; if(Test-Path -LiteralPath $p){throw \"real OpenCode readback screenshot already exists\"}'",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "acceptance.ports_precheck",
+      "command": "powershell -NoProfile -Command '$open=@(4173,8765,8766)|Where-Object { Test-NetConnection 127.0.0.1 -Port $_ -InformationLevel Quiet -WarningAction SilentlyContinue }; if($open){throw (\"ports already open: \"+($open -join \",\"))}'",
+      "phase": "acceptance",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["loopback_http_probe"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "acceptance.dev_up",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\dev-up.ps1 -RepoDir F:\\reverse-agent -SourceDir F:\\reverse-agent-workspaces\\issue136-stageb2-v11-source -OpenCodeModel sensetime/sensenova-6.7-flash-lite -NoBrowser",
+      "phase": "acceptance",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["local_service_start", "runtime_metadata_mutation"],
+      "network_access": false,
       "required_evidence_source": "local_command_evidence",
-      "validation_note": "Only regenerated gate artifacts are expected. Do not stage, restore, commit, or push."
+      "allowed_mutated_paths": [".platform_v1_runtime/**"],
+      "validation_note": "dev-up starts existing loopback services only; this Decision forbids POST task creation/execute and forbids any OpenCode/model invocation."
+    },
+    {
+      "command_id": "acceptance.health",
+      "command": "powershell -NoProfile -Command '$ports=@(4173,8765,8766); foreach($p in $ports){if(-not (Test-NetConnection 127.0.0.1 -Port $p -InformationLevel Quiet -WarningAction SilentlyContinue)){throw (\"port not healthy: \"+$p)}}; $r=Invoke-WebRequest -UseBasicParsing -Uri \"http://127.0.0.1:4173/\" -TimeoutSec 10; if($r.StatusCode -ne 200){throw (\"frontend HTTP \"+$r.StatusCode)}; Write-Output \"SERVICES_HEALTHY\"'",
+      "phase": "acceptance",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["loopback_http_probe"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "acceptance.readback_persisted_task",
+      "command": "powershell -NoProfile -Command '$r=Invoke-RestMethod -Method Get -Uri \"http://127.0.0.1:8766/api/tasks/task-1786237330883-8460dbd1c478\" -TimeoutSec 20; if($r.id -ne \"task-1786237330883-8460dbd1c478\"){throw \"task id mismatch\"}; if($r.status -ne \"READY_FOR_REVIEW\"){throw (\"unexpected backend status \"+$r.status)}; if($r.state -ne \"READY_FOR_HUMAN\"){throw (\"unexpected frontend state \"+$r.state)}; if($r.executor_kind -ne \"opencode\"){throw (\"unexpected executor \"+$r.executor_kind)}; if($r.validation_exit_code -ne 0){throw (\"unexpected validation exit \"+$r.validation_exit_code)}; $cf=@($r.changed_files); if($cf.Count -ne 1 -or $cf[0].path -ne \"issue136_stageb2_acceptance.txt\"){throw \"changed-files readback mismatch\"}; $cats=@($r.evidence|ForEach-Object {$_.category}); foreach($c in @(\"Executor\",\"Validation\",\"ExecutorAction\")){if($cats -notcontains $c){throw (\"missing evidence category \"+$c)}}; $types=@($r.events|ForEach-Object {$_.type}); foreach($t in @(\"DISCOVERED\",\"EXECUTOR_RUNNING\",\"WORKSPACE_READY\",\"EXECUTOR_FINISHED\",\"LOCAL_VALIDATED\",\"VALIDATED\")){if($types -notcontains $t){throw (\"missing event \"+$t)}}; $r|ConvertTo-Json -Depth 12'",
+      "phase": "acceptance",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["loopback_http_probe", "persistent_state_readback"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "validation_note": "GET only. No POST /api/tasks and no POST /execute is authorized."
+    },
+    {
+      "command_id": "acceptance.verify_persisted_file",
+      "command": "powershell -NoProfile -Command '$p=\"F:/reverse-agent/.platform_v1_runtime/task_workspaces/task-1786237330883-8460dbd1c478/issue136_stageb2_acceptance.txt\"; if(-not (Test-Path -LiteralPath $p)){throw \"persisted acceptance file missing\"}; $c=(Get-Content -Raw -LiteralPath $p); if($c -ne \"issue136-b2-ok\"){throw (\"unexpected acceptance content: \"+$c)}; $s=@(git -C \"F:/reverse-agent/.platform_v1_runtime/task_workspaces/task-1786237330883-8460dbd1c478\" status --short); if($s.Count -ne 1 -or $s[0].Trim() -ne \"?? issue136_stageb2_acceptance.txt\"){throw (\"unexpected executor worktree status: \"+($s -join \" | \"))}; Write-Output \"PERSISTED_FILE_OK\"'",
+      "phase": "acceptance",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["external_source_observation", "repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "acceptance.screenshot_real_task",
+      "command": "powershell -NoProfile -Command '$out=\"F:/reverse-agent/frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png\"; $c=@(); if(${env:ProgramFiles(x86)}){$c+=(Join-Path ${env:ProgramFiles(x86)} \"Microsoft/Edge/Application/msedge.exe\")}; if($env:ProgramFiles){$c+=(Join-Path $env:ProgramFiles \"Microsoft/Edge/Application/msedge.exe\")}; $edge=$c|Where-Object {Test-Path -LiteralPath $_}|Select-Object -First 1; if(-not $edge){$cmd=Get-Command msedge.exe -ErrorAction SilentlyContinue; if($cmd){$edge=$cmd.Source}}; if(-not $edge){throw \"Microsoft Edge not found\"}; & $edge --headless=new --disable-gpu --window-size=1440,900 --virtual-time-budget=5000 --screenshot=$out \"http://127.0.0.1:4173/tasks/task-1786237330883-8460dbd1c478\"; if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}; if(-not (Test-Path -LiteralPath $out)){throw \"real-task screenshot missing\"}; $len=(Get-Item -LiteralPath $out).Length; if($len -lt 50000){throw (\"real-task screenshot unexpectedly small: \"+$len)}; Write-Output (\"SCREENSHOT_BYTES=\"+$len)'",
+      "phase": "evidence",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["loopback_http_probe", "evidence_generation"],
+      "network_access": false,
+      "required_evidence_source": "artifact_evidence",
+      "allowed_mutated_paths": ["frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png"]
+    },
+    {
+      "command_id": "acceptance.source_clean_after",
+      "command": "powershell -NoProfile -Command '$s=@(git -C \"F:/reverse-agent-workspaces/issue136-stageb2-v11-source\" status --short); if($s){throw (\"source checkout dirty after readback: \"+($s -join \" | \"))}; Write-Output \"SOURCE_STILL_CLEAN\"'",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "exact_head_validation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "acceptance.dev_down",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\dev-down.ps1 -RepoDir F:\\reverse-agent",
+      "phase": "cleanup",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["local_service_stop", "runtime_metadata_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": [".platform_v1_runtime/**"]
+    },
+    {
+      "command_id": "acceptance.ports_closed",
+      "command": "powershell -NoProfile -Command '$open=@(4173,8765,8766)|Where-Object { Test-NetConnection 127.0.0.1 -Port $_ -InformationLevel Quiet -WarningAction SilentlyContinue }; if($open){throw (\"ports still open: \"+($open -join \",\"))}; Write-Output \"PORTS_CLOSED\"'",
+      "phase": "cleanup",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["loopback_http_probe"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "validation.diff_check",
+      "command": "git diff --check",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "publication.stage",
+      "command": "git add -- project_state/gates/bootstrap_state.json project_state/gates/command_plan.json project_state/gates/startup_snapshot.json project_state/gates/transition_command_plan_preview.json project_state/gates/transition_preflight_result.json frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_stage"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [
+        "project_state/gates/bootstrap_state.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/gates/transition_command_plan_preview.json",
+        "project_state/gates/transition_preflight_result.json",
+        "frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png"
+      ]
+    },
+    {
+      "command_id": "publication.cached_check",
+      "command": "git diff --cached --check",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "publication.staged_paths",
+      "command": "git diff --cached --name-only",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "publication.commit",
+      "command": "git commit -m \"evidence(frontend): record issue136 real OpenCode GUI readback\"",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_commit"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "publication.commit_paths",
+      "command": "git diff-tree --no-commit-id --name-only -r HEAD",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "publication.push",
+      "command": "git push origin owner/issue136-agent-canvas-reuse-spike-v2",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["network_access", "repository_push"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "publication.local_head",
+      "command": "git rev-parse HEAD",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "publication.remote_head",
+      "command": "git rev-parse origin/owner/issue136-agent-canvas-reuse-spike-v2",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "publication.final_status",
+      "command": "git status --short",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
     }
   ],
-  "allowed_mutated_paths": [
-    "project_state/decision_packet.md",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
-  ],
-  "reference_paths": [
-    "dev-up.ps1",
-    "dev-down.ps1",
-    "reverse_agent/platform_v1/task_service.py",
-    "reverse_agent/platform_v1/run_store.py",
-    "reverse_agent/platform_v1/opencode_executor.py"
-  ],
-  "generated_artifact_paths": [
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+  "allowed_network": [
+    "git fetch origin main",
+    "git fetch origin owner/issue136-agent-canvas-reuse-spike-v2",
+    "git push origin owner/issue136-agent-canvas-reuse-spike-v2"
   ],
   "forbidden_mutated_paths": [
-    "frontend/**",
+    "frontend/src/**",
+    "frontend/tests/**",
+    "frontend/package.json",
+    "frontend/package-lock.json",
     "reverse_agent/**",
     "tests/**",
-    "docs/**",
-    ".github/**",
     "dev-up.ps1",
     "dev-down.ps1",
-    "project_state/mainline_merge_intents/**",
-    "project_state/current_state.json",
-    "project_state/schemas/**",
-    "project_state/rounds/**",
-    "project_state/audits/**"
-  ],
-  "forbidden_operations": [
-    "model_api_invocation",
-    "opencode_invocation",
-    "codex_invocation",
-    "openhands_invocation",
-    "task_creation",
-    "task_execution",
-    "service_start",
-    "service_restart",
-    "database_mutation",
-    "source_mutation",
-    "package_installation",
-    "credential_access",
-    "provider_configuration_mutation",
-    "repository_stage",
-    "local_commit",
-    "push",
-    "direct_push_main",
-    "merge",
-    "force_push",
-    "rebase",
-    "amend",
-    "release",
-    "deployment"
-  ],
-  "capability_policy": {
-    "runner_dispatch_allowed": false,
-    "model_api_invocation_allowed": false,
-    "opencode_invocation_allowed": false,
-    "codex_invocation_allowed": false,
-    "openhands_invocation_allowed": false,
-    "destructive_operations_allowed": false,
-    "network_access_default_allowed": false,
-    "local_network_exceptions": [
-      "git fetch origin main",
-      "git fetch origin owner/issue136-agent-canvas-reuse-spike-v2"
-    ],
-    "ci_network_exceptions": [],
-    "remote_observation_read_only_allowed": true,
-    "direct_push_to_main_allowed": false,
-    "merge_allowed": false,
-    "force_push_allowed": false,
-    "rebase_during_execution_allowed": false,
-    "tag_or_release_allowed": false
-  },
-  "authorized_risk_tier": "R2",
-  "authorized_risk_paths": [
-    "project_state/decision_packet.md",
-    "project_state/gates/**"
-  ],
-  "path_risk_floor": [
-    {"pattern": "project_state/decision_packet.md", "minimum_risk": "R2"},
-    {"pattern": "project_state/gates/**", "minimum_risk": "R2"}
-  ],
-  "acceptance": {
-    "model_calls": 0,
-    "service_starts": 0,
-    "source_mutations": 0,
-    "database_mutations": 0,
-    "task_store_forensics": "OBSERVED",
-    "source_checkout": "OBSERVED",
-    "publication": "NONE",
-    "terminal": "ISSUE136_STAGE_B2_V12_TIMEOUT_FORENSICS_READY_FOR_OWNER_DISPOSITION"
-  }
+    "project_state/mainline_merge_intents/**"
+  ]
 }
 ```
+
+## Owner instruction
+
+This v13 consumes the already-successful v11 task. It authorizes **zero** OpenCode/model executions and **zero** task create/execute POSTs. The only runtime mutation is starting/stopping the existing loopback services so the persistent TaskStore can be read through its normal API and rendered by the accepted Agent Canvas source-fork frontend.
+
+If any GET readback or screenshot check fails after `acceptance.dev_up`, execute only the already-authorized `acceptance.dev_down` and `acceptance.ports_closed` cleanup where safe, then stop. Do not create a replacement task, do not rerun OpenCode, and do not repair source/product code.
