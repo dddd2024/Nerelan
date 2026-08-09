@@ -9605,16 +9605,30 @@ def worktree_r1_publication_readiness(
     blocking_reasons: list[str] = []
     status_error = ""
     snapshot = None
+    snapshot_approval_state = ""
     allowed_paths: tuple[str, ...] = ()
     issue_body = ""
     try:
         issue_body = Path(issue_body_file).read_text(encoding="utf-8")
         pr_body = Path(pr_body_file).read_text(encoding="utf-8")
+        approval_state_match = re.search(
+            r"(?m)^\s*approval_state\s*:\s*(.*?)\s*$",
+            pr_body,
+        )
+        snapshot_approval_state = (
+            approval_state_match.group(1) if approval_state_match else ""
+        )
         snapshot = parse_snapshot(pr_body)
+        snapshot_approval_state = snapshot.approval_state
+        if snapshot.approval_state != "APPROVED":
+            blocking_reasons.append("r1_snapshot_not_approved")
         allowed_paths = parse_allowed_paths(issue_body)
     except (OSError, UnicodeError, PathAGateError, ValueError) as exc:
         code = exc.code if isinstance(exc, PathAGateError) else type(exc).__name__
-        blocking_reasons.append(f"r1_authority_material_invalid:{code}")
+        if code == "snapshot_not_approved":
+            blocking_reasons.append("r1_snapshot_not_approved")
+        else:
+            blocking_reasons.append(f"r1_authority_material_invalid:{code}")
 
     branch = ""
     head_sha = ""
@@ -9677,7 +9691,7 @@ def worktree_r1_publication_readiness(
         "gate_status": "BLOCKED" if blocking_reasons else "R1_PUBLICATION_READY",
         "authority_source": "frozen_issue_and_draft_pr_snapshot",
         "live_github_authority_verified": False,
-        "snapshot_approval_state": snapshot.approval_state if snapshot else "",
+        "snapshot_approval_state": snapshot_approval_state,
         "target_branch": snapshot.target_branch if snapshot else "",
         "observed_branch": branch,
         "exact_head_sha": snapshot.exact_head_sha if snapshot else "",

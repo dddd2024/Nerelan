@@ -28948,6 +28948,23 @@ def test_r1_publication_readiness_blocks_broken_local_bindings(
     assert blocking_reason in result["blocking_reasons"]
 
 
+def test_r1_publication_readiness_requires_approved_snapshot(tmp_path: Path) -> None:
+    repo, issue_file, pr_file, _, _ = _make_r1_publication_material(tmp_path)
+    pr_file.write_text(
+        pr_file.read_text(encoding="utf-8").replace(
+            "approval_state: APPROVED",
+            "approval_state: CANDIDATE",
+        ),
+        encoding="utf-8",
+    )
+
+    result = _r1_publication_result(repo, issue_file, pr_file)
+
+    assert result["gate_status"] == "BLOCKED"
+    assert "r1_snapshot_not_approved" in result["blocking_reasons"]
+    assert result["snapshot_approval_state"] == "CANDIDATE"
+
+
 @pytest.mark.parametrize(
     "path",
     [
