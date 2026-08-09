@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_governance_v2_r1_execution_unblocker_v2",
-  "round_id": "round_20260809_governance_v2_r1_execution_unblocker_v2",
+  "decision_id": "decision_20260809_governance_v2_r1_execution_unblocker_v3",
+  "round_id": "round_20260809_governance_v2_r1_execution_unblocker_v3",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,16 +14,16 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260809_governance_v2_r1_execution_unblocker_v1",
-  "follows_last_round_id": "round_20260809_governance_v2_r1_execution_unblocker_v1",
-  "previous_audit_outcome": "V1_OWNER_PREDELEGATION_SUPERSEDED_VALIDATION_ENCODING_AND_FINAL_CAS_GAPS",
-  "workstream_id": "governance-v2-r1-execution-unblocker-v2",
+  "follows_last_decision_id": "decision_20260809_governance_v2_r1_execution_unblocker_v2",
+  "follows_last_round_id": "round_20260809_governance_v2_r1_execution_unblocker_v2",
+  "previous_audit_outcome": "V2_OWNER_PREDELEGATION_SUPERSEDED_FULL_TREE_AND_UNSCOPED_STAGED_DIFF_WOULD_INCLUDE_TEMPORARY_DECISION",
+  "workstream_id": "governance-v2-r1-execution-unblocker-v3",
   "source_issue": 157,
   "parent_issue": 148,
   "related_issue": 156,
   "blocked_issue": 151,
   "required_branch": "owner/governance-v2-r1-unblocker-v1",
-  "starting_head": "5c9bd2cbcb50ce020445fed3739e85b6a387b411",
+  "starting_head": "0f497f6d9e58acbd6f48d274e393bccecaf43a1d",
   "activation_base_sha": "f8010e1c05d64f556d64f81c35e6916bf825409e",
   "integration_target_branch": "owner/repository-modernization-v2-planning",
   "risk_tier": "R2",
@@ -85,11 +85,11 @@
     {"command_id":"validation.diff_check","command":"git diff --check","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"mutation.stage_product","command":"git add .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py","phase":"implementation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_staging"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"validation.cached_paths","command":"git diff --cached --name-only","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"evidence.source_tree","command":"git write-tree","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["evidence_export"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"evidence.source_product_manifest","command":"git diff --cached --raw --full-index --no-renames f8010e1c05d64f556d64f81c35e6916bf825409e -- .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"mutation.validation_worktree","command":"git worktree add --detach F:\\reverse-agent-governance-v2-r1-unblocker-validation-20260809 f8010e1c05d64f556d64f81c35e6916bf825409e","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["worktree_create"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"mutation.apply_staged_diff","command":"cmd /d /c \"git diff --cached --binary f8010e1c05d64f556d64f81c35e6916bf825409e | git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-20260809 apply -\"","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["source_mutation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"mutation.apply_scoped_product_diff","command":"cmd /d /c \"git diff --cached --binary f8010e1c05d64f556d64f81c35e6916bf825409e -- .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py | git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-20260809 apply -\"","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["source_mutation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"mutation.stage_validation","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-20260809 add .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_staging"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"evidence.validation_tree","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-20260809 write-tree","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["evidence_export"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"evidence.validation_product_manifest","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-20260809 diff --cached --raw --full-index --no-renames f8010e1c05d64f556d64f81c35e6916bf825409e -- .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"test.platform_baseline","command":"powershell -NoProfile -Command \"Set-Location 'F:\\reverse-agent-governance-v2-r1-unblocker-validation-20260809'; python -m pytest tests/platform_v1 -q\"","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"validation.validation_diff_check","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-20260809 diff --cached --check","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"mutation.commit_product","command":"git commit -m \"governance: unblock branch-neutral R1 execution\"","phase":"implementation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["commit"],"network_access":false,"required_evidence_source":"local_command_evidence"},
@@ -239,8 +239,8 @@
 
 ## Goal
 
-v2 supersedes v1 before delegation. v1 was never executed. The implementation scope is unchanged. v2 replaces text-file patch identity with direct staged Git-tree identity and adds final remote re-observation before publication.
+v3 supersedes v2 before delegation. v1 and v2 were never executed. The implementation scope is unchanged. v3 keeps validation path-scoped so neither the temporary Decision nor other repository-global state can enter the detached planning-baseline validation worktree; source and validation product identity is compared using path-scoped Git raw full-index manifests.
 
 Implement only Issue #157's four #151 blockers: deterministic Path-A task-check mappings for the existing Platform V1 and LangGraph team surfaces, a documented tree-identical empty-commit R1 activation lifecycle with explicit `exact_head_sha`, an R1-specific local publication-readiness command that reuses the shared classifier without weakening the existing Path-B command, and event-aware Decision Preflight routing that delegates `path_a_r1` to State Gate.
 
-Do not touch #151 product code, the frozen #151 workspace, #146, Product Setup, #152, providers/models/credentials/dependencies, State Gate, or #156's broader sidecar/transition-lint redesign. The final Platform V1 acceptance run must use the exact staged product diff in the detached planning-baseline validation worktree so the temporary R2 Decision does not pollute the PR134 Platform fixture.
+Do not touch #151 product code, the frozen #151 workspace, #146, Product Setup, #152, providers/models/credentials/dependencies, State Gate, or #156's broader sidecar/transition-lint redesign. The final Platform V1 acceptance run must use the exact path-scoped staged product diff in the detached planning-baseline validation worktree so the temporary R2 Decision does not pollute the PR134 Platform fixture.
