@@ -110,8 +110,7 @@ verbatim) into the reverse-agent frontend under `frontend/src/`:
 ### Disclaimer
 
 The reverse-agent frontend is a derivative work that structurally adapts
-OpenHands UI patterns. The current product uses the reverse-agent Task API, TaskStore,
-executor, validation/evidence, model-control, and credential handling; these remain
+OpenHands UI patterns. The current product uses the reverse-agent Task API, TaskStore, executor, validation/evidence, model-control, and credential handling; these remain
 reverse-agent-owned runtime and control-plane responsibilities. It does not include,
 execute, or redistribute OpenHands backend, runtime, sandbox, or enterprise code.
 Agent Canvas/OpenHands presentation reuse does not supply those reverse-agent runtime
