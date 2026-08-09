@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_governance_v2_foundation_planning_landing_v1",
-  "round_id": "round_20260809_governance_v2_foundation_planning_landing_v1",
+  "decision_id": "decision_20260809_governance_v2_foundation_planning_landing_v2",
+  "round_id": "round_20260809_governance_v2_foundation_planning_landing_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,15 +14,16 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260809_governance_v2_foundation_sanitized_integration_v3",
-  "follows_last_round_id": "round_20260809_governance_v2_foundation_sanitized_integration_v3",
-  "previous_audit_outcome": "SANITIZED_PRODUCT_ACCEPTED_PR154_CI_SUCCESS_R2_BOOTSTRAP_GATES_REQUIRE_EXTERNAL_LANDING_AUTHORITY",
-  "workstream_id": "governance-v2-foundation-planning-landing-v1",
+  "follows_last_decision_id": "decision_20260809_governance_v2_foundation_planning_landing_v1",
+  "follows_last_round_id": "round_20260809_governance_v2_foundation_planning_landing_v1",
+  "previous_audit_outcome": "LANDING_V1_LINT_BLOCKED_STALE_COMMAND_PLAN_BOOTSTRAP_ARTIFACT",
+  "workstream_id": "governance-v2-foundation-planning-landing-v2",
   "source_issue": 153,
   "parent_issue": 148,
   "active_pr": 154,
+  "authority_validation_pr": 155,
   "required_branch": "owner/governance-v2-foundation-landing-authority-v1",
-  "starting_head": "7e068aac0a4142e611a5d5b825353db31efd2cb7",
+  "starting_head": "296f34ba2faaa8ba9c3ebcc69de8b5d3d9018a54",
   "activation_base_sha": "7e068aac0a4142e611a5d5b825353db31efd2cb7",
   "integration_target_branch": "owner/repository-modernization-v2-planning",
   "expected_planning_head_before": "7e068aac0a4142e611a5d5b825353db31efd2cb7",
@@ -276,8 +277,8 @@
 
 ## Goal
 
-One-time external R2 landing authority for Governance V2 Foundation. The accepted product is immutable at `f8010e1c05d64f556d64f81c35e6916bf825409e`, whose only parent is planning `7e068aac0a4142e611a5d5b825353db31efd2cb7`. Product PR #154 has independently audited remote object identity and exact-head CI run `31309425882` completed successfully.
+v2 supersedes landing v1 after the validation-only PR exposed a historical bootstrap coupling: `transition-lint` runs before `transition-command-plan` and therefore requires a command plan already matching the active Decision. The authority-only branch now carries the deterministic v2 `project_state/gates/command_plan.json` projection before this Decision commit.
 
-PR #154 cannot itself carry a Path-B Decision without reintroducing the authority-placement defect this foundation exists to remove. State Gate correctly routes it to Path A and blocks with `snapshot_missing`; the historical Decision Preflight workflow separately exposes residual stale-Decision routing because it does not yet pass pull-request event context.
+The accepted product remains immutable at `f8010e1c05d64f556d64f81c35e6916bf825409e`, whose only parent is planning `7e068aac0a4142e611a5d5b825353db31efd2cb7`. Product PR #154 has independently audited remote object identity and exact-head CI run `31309425882` completed successfully.
 
-This Decision therefore authorizes only: validate this authority on the isolated landing-authority branch, then Owner fast-forward `owner/repository-modernization-v2-planning` from exact `7e068aac0a4142e611a5d5b825353db31efd2cb7` to exact `f8010e1c05d64f556d64f81c35e6916bf825409e`. It does not authorize product mutation, PR #154 Ready/merge, main mutation, force/rebase, or any authority commit entering planning. The authority PR is validation-only and must never be merged.
+This one-time external R2 landing authority permits only validation on PR #155 and, after successful authority checks and final exact-head re-observation, Owner fast-forward of `owner/repository-modernization-v2-planning` from exact `7e068aac0a4142e611a5d5b825353db31efd2cb7` to exact `f8010e1c05d64f556d64f81c35e6916bf825409e`. It does not authorize product mutation, merging PR #155, PR #154 Ready/merge, main mutation, force/rebase, or any authority commit entering planning.
