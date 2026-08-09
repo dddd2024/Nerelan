@@ -1,6 +1,6 @@
 # Freshness and Drift Governance Architecture
 
-> Status: fixed modernization architecture under #148. This document defines the selected mature-component-first approach for keeping Skills, governance/policy, adapters and external integration assumptions current. It does not grant code-mutation authority.
+> Status: fixed modernization architecture under #148 and #152. This document defines the selected mature-component-first approach for keeping Skills, governance/policy, adapters and external integration assumptions current. It does not grant code-mutation authority.
 
 ## 1. Problem
 
@@ -276,12 +276,12 @@ sanitized report generation
 
 Do not interrupt #151.
 
-After Product Setup & Connections reaches a stable contract, implement freshness automation before broad Pack/Skill proliferation:
+After Product Setup & Connections reaches a stable contract, implement #152 before broad Pack/Skill proliferation and before declaring real OpenCode multi-Agent dogfood a stable operating mode:
 
 ```text
 #151 multi-worker team
 -> Product Setup & Connections
--> Freshness Automation Foundation
+-> #152 Freshness Automation Foundation
    1. Renovate config + Dependency Dashboard
    2. freshness registry schema
    3. impacted compatibility check
@@ -290,7 +290,7 @@ After Product Setup & Connections reaches a stable contract, implement freshness
 -> real OpenCode multi-Agent dogfood / Pack growth
 ```
 
-If Product Setup creates high-value Skills/adapters before the Freshness task lands, register them in the initial registry migration instead of inventing temporary per-component freshness mechanisms.
+If Product Setup creates high-value Skills/adapters before #152 lands, register them in the initial registry migration instead of inventing temporary per-component freshness mechanisms.
 
 ## 13. Acceptance criteria
 
