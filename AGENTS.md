@@ -70,6 +70,10 @@ approval_event_or_time
 body_digest_sha256
 immutable_observation_ref
 work_item_identity: {repository}#{issue_number}@{immutable_observation_ref}
+target_branch
+integration_base_ref
+base_sha
+exact_head_sha
 ```
 
 For this minimal model, `immutable_observation_ref` is the approved normalized Issue-body SHA-256 digest unless GitHub supplies a stronger immutable revision reference. The approved Issue body, exact digest, allowed paths, forbidden operations, acceptance criteria, target branch, `integration_base_ref`, and `base_sha` together form the Path-A authority snapshot. `integration_base_ref` may be `main` or an explicitly owner-approved repository planning branch; no implicit `main` fallback is permitted.
@@ -77,6 +81,18 @@ For this minimal model, `immutable_observation_ref` is the approved normalized I
 Issue comments and PR comments are never authority. A material Issue-body edit changes the digest, invalidates the previous snapshot, and requires owner/maintainer reapproval plus a new snapshot before execution continues.
 
 `project_state/decision_packet.md` and `project_state/gates/command_plan.json` are not used for ordinary R0/R1 work.
+
+### Fresh R1 activation lifecycle
+
+After owner/maintainer approval, verify the approved Issue digest, exact target branch, `integration_base_ref`, and `base_sha`. Create the fresh target branch from that exact base and create exactly one tree-identical empty activation commit:
+
+```text
+git commit --allow-empty -m "chore: activate R1 work item #<issue>"
+```
+
+Push that exact branch, create the Draft PR, and record the complete authority snapshot with initial `exact_head_sha` equal to the empty activation commit. No product/source/test file may change before the first Draft PR snapshot exists. The bootstrap grant is only for this empty commit; arbitrary seed-file commits and history rewrite remain forbidden.
+
+After an implementation push, the permitted Draft-PR-body update must rebind `exact_head_sha` to the new exact implementation head. Final State Gate must pass against that rebinding. A transient synchronize failure against the stale previous `exact_head_sha` is not acceptance and grants no merge authority.
 
 ### Path B — transition / R2-R3 authority
 
@@ -159,6 +175,8 @@ Working-tree observations are classified without deleting, restoring, staging, o
 
 Classification is not cleanup authorization. Agents must not use reset, clean, stash, restore, deletion, or broad staging to manufacture a clean tree.
 `startup-snapshot` machine-enforces bootstrap classification; before product staging or publication, run `python -m reverse_agent.project_gate worktree-publication-readiness --state-dir project_state` and require `PUBLICATION_READY`.
+
+For ordinary R1 local readiness, run `python -m reverse_agent.project_gate worktree-r1-publication-readiness --issue-body-file <approved-issue-body-file> --pr-body-file <draft-pr-body-file>` using frozen approved Issue body and current Draft PR body material stored outside the repository. This command derives allowed paths only from the approved Issue body and proves the frozen digest plus local branch/base/head/merge-base binding and worktree classification. It does not replace live `r1-approved`, owner/maintainer permission, Issue state, Draft PR state, auto-merge, or authority-revision verification; GitHub State Gate remains the final live authority verification.
 
 This carve-out does not authorize Agent-initiated, automation-initiated, workflow-initiated, scheduled, delegated, or external-service-initiated mark-ready or merge. Those remain Path-B. This carve-out does not apply to R2/R3 work items; each requires its own Path-B Decision.
 

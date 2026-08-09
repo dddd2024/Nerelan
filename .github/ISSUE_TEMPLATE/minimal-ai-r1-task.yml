@@ -24,7 +24,16 @@ body:
         target_branch
         integration_base_ref
         base_sha
+        exact_head_sha
         ```
+
+        After approval, verify the approved Issue digest, target branch, integration base, and base SHA; create the fresh target branch from that exact base; then create exactly one tree-identical empty activation commit:
+
+        `git commit --allow-empty -m "chore: activate R1 work item #<issue>"`
+
+        Push that exact target branch, create the Draft PR, and record the complete snapshot with initial `exact_head_sha` equal to the empty activation commit. No product/source/test file may change before the first Draft PR snapshot exists. This bootstrap grant permits only the empty commit and never permits an arbitrary seed-file commit or history rewrite.
+
+        After each implementation push, update the permitted Draft PR body to rebind `exact_head_sha` to the new exact implementation head. Final State Gate must pass against that rebinding. A transient synchronize failure against the stale previous `exact_head_sha` is not acceptance and grants no merge authority.
 
         Unless GitHub supplies a stronger immutable revision reference, `immutable_observation_ref` is the approved normalized Issue-body SHA-256 digest. A material Issue-body edit changes the digest, invalidates the previous snapshot, and requires owner/maintainer reapproval. Issue comments and PR comments are never authority.
 
@@ -152,7 +161,7 @@ body:
       options:
         - label: I acknowledge this Issue is CANDIDATE until a repository owner or maintainer applies r1-approved after review.
           required: true
-        - label: I will not begin implementation until the Draft PR body records approver identity, approval event/time, normalized Issue-body SHA-256 digest, immutable_observation_ref, Work Item identity, target branch, integration base ref, and base SHA.
+        - label: I will not begin implementation until the Draft PR body records approver identity, approval event/time, normalized Issue-body SHA-256 digest, immutable_observation_ref, Work Item identity, target branch, integration base ref, base SHA, and exact_head_sha bound to the empty activation commit.
           required: true
         - label: I will stop and obtain reapproval if a material Issue-body edit changes the approved digest.
           required: true

@@ -192,12 +192,43 @@ BASE_PLATFORM_TASK_CHECK = TaskCheck(
     argv=("python", "-m", "pytest", "tests/base_platform", "-q"),
     required_targets=("tests/base_platform",),
 )
+PLATFORM_V1_TASK_CHECK = TaskCheck(
+    check_id="platform_v1",
+    argv=("python", "-m", "pytest", "tests/platform_v1", "-q"),
+    required_targets=("tests/platform_v1",),
+)
+TEAM_TARGETS_TASK_CHECK = TaskCheck(
+    check_id="team_targets",
+    argv=(
+        "python", "-m", "pytest",
+        "tests/test_development_graph.py",
+        "tests/test_team_graph.py",
+        "-q",
+    ),
+    required_targets=("tests/test_development_graph.py", "tests/test_team_graph.py"),
+)
 
 BASELINE_CHECK = BASELINE_TASK_CHECK.command
 PATH_A_CHECK = PATH_A_TASK_CHECK.command
 BASE_PLATFORM_CHECK = BASE_PLATFORM_TASK_CHECK.command
+PLATFORM_V1_CHECK = PLATFORM_V1_TASK_CHECK.command
+TEAM_TARGETS_CHECK = TEAM_TARGETS_TASK_CHECK.command
 
 TASK_CHECK_MAPPING = (
+    (
+        ("reverse_agent/platform_v1/**", "tests/platform_v1/**"),
+        PLATFORM_V1_TASK_CHECK,
+    ),
+    (
+        (
+            "reverse_agent/architecture/contracts.py",
+            "reverse_agent/workflows/team_graph.py",
+            "reverse_agent/workflows/nodes/acceptance_gate.py",
+            "tests/test_development_graph.py",
+            "tests/test_team_graph.py",
+        ),
+        TEAM_TARGETS_TASK_CHECK,
+    ),
     (
         ("reverse_agent/base_platform/**", "tests/base_platform/**"),
         BASE_PLATFORM_TASK_CHECK,

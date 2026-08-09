@@ -32,6 +32,9 @@ from .control_plane.legacy_adapter import (
 from .control_plane.local_seal import evaluate_reconciliation, seal_local
 from .control_plane.path_a import (
     execute_task_checks,
+    issue_body_digest,
+    parse_allowed_paths,
+    parse_snapshot,
     PathAGateError,
     run_path_a_gate,
     write_task_check_outputs,
@@ -9576,6 +9579,129 @@ def worktree_publication_readiness(
         "authority_source": "approved_decision_and_current_transition_preflight",
         "authority_valid": authority_valid,
         "authorized_paths": list(authorized_paths),
+        "raw_git_status_short": raw_status,
+        "worktree_classifications": [record.to_mapping() for record in records],
+        "stageable_paths": sorted(record.path for record in records if record.stageable),
+        "non_stageable_paths": sorted(record.path for record in records if not record.stageable),
+        "blocking_reasons": blocking_reasons,
+        "worktree_status_error": status_error,
+    }
+
+
+def worktree_r1_publication_readiness(
+    *,
+    issue_body_file: Path,
+    pr_body_file: Path,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """Validate frozen Path-A material and classify the local worktree.
+
+    This local guard deliberately does not verify mutable GitHub authority.
+    Live label, permission, Issue, Draft PR, auto-merge, and authority-revision
+    checks remain the responsibility of GitHub State Gate.
+    """
+
+    repo_root = repo_root or Path.cwd()
+    blocking_reasons: list[str] = []
+    status_error = ""
+    snapshot = None
+    snapshot_approval_state = ""
+    allowed_paths: tuple[str, ...] = ()
+    issue_body = ""
+    try:
+        issue_body = Path(issue_body_file).read_text(encoding="utf-8")
+        pr_body = Path(pr_body_file).read_text(encoding="utf-8")
+        approval_state_match = re.search(
+            r"(?m)^\s*approval_state\s*:\s*(.*?)\s*$",
+            pr_body,
+        )
+        snapshot_approval_state = (
+            approval_state_match.group(1) if approval_state_match else ""
+        )
+        snapshot = parse_snapshot(pr_body)
+        snapshot_approval_state = snapshot.approval_state
+        if snapshot.approval_state != "APPROVED":
+            blocking_reasons.append("r1_snapshot_not_approved")
+        allowed_paths = parse_allowed_paths(issue_body)
+    except (OSError, UnicodeError, PathAGateError, ValueError) as exc:
+        code = exc.code if isinstance(exc, PathAGateError) else type(exc).__name__
+        if code == "snapshot_not_approved":
+            blocking_reasons.append("r1_snapshot_not_approved")
+        else:
+            blocking_reasons.append(f"r1_authority_material_invalid:{code}")
+
+    branch = ""
+    head_sha = ""
+    fetched_base_sha = ""
+    merge_base_sha = ""
+    integration_remote_ref = ""
+    if snapshot is not None and not blocking_reasons:
+        branch = _transition_git(repo_root, "branch", "--show-current", check=False)
+        head_sha = _transition_git(repo_root, "rev-parse", "HEAD", check=False).lower()
+        base_name = snapshot.integration_base_ref
+        if base_name.startswith("refs/heads/"):
+            base_name = base_name[len("refs/heads/"):]
+        integration_remote_ref = f"origin/{base_name}"
+        fetched_base_sha = _transition_git(
+            repo_root,
+            "rev-parse",
+            integration_remote_ref,
+            check=False,
+        ).lower()
+        merge_base_sha = _transition_git(
+            repo_root,
+            "merge-base",
+            "HEAD",
+            integration_remote_ref,
+            check=False,
+        ).lower()
+        if issue_body_digest(issue_body) != snapshot.body_digest_sha256:
+            blocking_reasons.append("r1_issue_body_digest_mismatch")
+        if branch != snapshot.target_branch:
+            blocking_reasons.append("r1_target_branch_mismatch")
+        if head_sha != snapshot.exact_head_sha:
+            blocking_reasons.append("r1_exact_head_mismatch")
+        if fetched_base_sha != snapshot.base_sha:
+            blocking_reasons.append("r1_integration_base_sha_mismatch")
+        if merge_base_sha != snapshot.base_sha:
+            blocking_reasons.append("r1_merge_base_mismatch")
+
+    raw_status = _git_status_short_lines(repo_root) if not blocking_reasons else []
+    records = ()
+    if not blocking_reasons:
+        try:
+            records = classify_worktree_status(raw_status, authorized_paths=allowed_paths)
+        except ValueError as exc:
+            status_error = str(exc)
+            blocking_reasons.append("r1_publication_worktree_status_invalid")
+    if any(
+        record.classification is WorktreeClassification.UNKNOWN_UNTRACKED
+        for record in records
+    ):
+        blocking_reasons.append("r1_publication_unknown_untracked")
+    if any(
+        record.classification is WorktreeClassification.UNAUTHORIZED_TRACKED_OR_SENSITIVE
+        for record in records
+    ):
+        blocking_reasons.append("r1_publication_unauthorized_tracked_or_sensitive")
+
+    return {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "gate_name": "worktree-r1-publication-readiness",
+        "gate_status": "BLOCKED" if blocking_reasons else "R1_PUBLICATION_READY",
+        "authority_source": "frozen_issue_and_draft_pr_snapshot",
+        "live_github_authority_verified": False,
+        "snapshot_approval_state": snapshot_approval_state,
+        "target_branch": snapshot.target_branch if snapshot else "",
+        "observed_branch": branch,
+        "exact_head_sha": snapshot.exact_head_sha if snapshot else "",
+        "observed_head_sha": head_sha,
+        "integration_base_ref": snapshot.integration_base_ref if snapshot else "",
+        "integration_remote_ref": integration_remote_ref,
+        "base_sha": snapshot.base_sha if snapshot else "",
+        "observed_integration_base_sha": fetched_base_sha,
+        "observed_merge_base_sha": merge_base_sha,
+        "authorized_paths": list(allowed_paths),
         "raw_git_status_short": raw_status,
         "worktree_classifications": [record.to_mapping() for record in records],
         "stageable_paths": sorted(record.path for record in records if record.stageable),
@@ -37073,6 +37199,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     worktree_publication_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     worktree_publication_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    worktree_r1_publication_parser = subparsers.add_parser(
+        "worktree-r1-publication-readiness",
+        help="Validate frozen Path-A material and classify the local worktree before publication.",
+    )
+    worktree_r1_publication_parser.add_argument("--issue-body-file", required=True)
+    worktree_r1_publication_parser.add_argument("--pr-body-file", required=True)
+    worktree_r1_publication_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     control_plane_snapshot_parser = subparsers.add_parser("control-plane-snapshot", help="Generate the read-only control-plane snapshot artifact.")
     control_plane_snapshot_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     control_plane_snapshot_parser.add_argument("--final-state", action="store_true", help="Require final closeout state evidence.")
@@ -38077,6 +38210,17 @@ def main(argv: list[str] | None = None) -> int:
         else:
             _print_result(result)
         return 0 if result.get("gate_status") == "PUBLICATION_READY" else 1
+    if args.command == "worktree-r1-publication-readiness":
+        result = worktree_r1_publication_readiness(
+            issue_body_file=Path(args.issue_body_file),
+            pr_body_file=Path(args.pr_body_file),
+            repo_root=Path.cwd(),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+        return 0 if result.get("gate_status") == "R1_PUBLICATION_READY" else 1
     if args.command == "control-plane-snapshot":
         result = control_plane_snapshot(
             state_dir=Path(args.state_dir),
