@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_pr146_agent_canvas_committed_head_landing_v24",
-  "round_id": "round_20260809_pr146_agent_canvas_committed_head_landing_v24",
+  "decision_id": "decision_20260809_pr146_stale_local_candidate_reconcile_v25",
+  "round_id": "round_20260809_pr146_stale_local_candidate_reconcile_v25",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,53 +14,23 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260809_pr146_agent_canvas_committed_head_landing_v23",
-  "follows_last_round_id": "round_20260809_pr146_agent_canvas_committed_head_landing_v23",
-  "previous_audit_outcome": "V23_OWNER_PREDELEGATION_SELF_AUDIT_FOUND_BOOTSTRAP_REF_TYPO",
+  "follows_last_decision_id": "decision_20260809_pr146_agent_canvas_committed_head_landing_v24",
+  "follows_last_round_id": "round_20260809_pr146_agent_canvas_committed_head_landing_v24",
+  "previous_audit_outcome": "V24_BOOTSTRAP_FAIL_CLOSED_LOCAL_UNPUBLISHED_CANDIDATE_AHEAD_OF_REMOTE",
   "source_issue": 136,
   "parent_issue": 127,
   "active_pr": 146,
   "required_branch": "owner/issue136-agent-canvas-reuse-spike-v2",
-  "starting_head": "b8e32059d01fba1d81734c1101a3713df3bebd19",
+  "starting_remote_head": "cd8cc3e3e10e961fc22fe0400a262760507ada57",
   "activation_base_sha": "dd4cb074ab5b9baacf300706878b29bd745f12c3",
   "accepted_stage_b_evidence_head": "ab00b03952d96c2421be8297f29699a59ec69fda",
   "repair_attempt_limit": 0,
   "infrastructure_retry_limit": 0,
-  "provenance_state": {
-    "owner_applied_under_v22": true,
-    "local_mutation_allowed": false,
-    "local_validation_required": true,
-    "paths": [
-      "frontend/THIRD_PARTY_NOTICES.md",
-      "frontend/OPENHANDS_REUSE_MAP.md"
-    ]
-  },
-  "preexisting_carryover_contract": {
-    "kernel_followup_issue": 147,
-    "paths": [".frontend_stage/**", ".platform_v1_runtime/**"],
-    "decision_scope_only": true,
-    "normal_command_mutation_grant": false,
-    "must_not_be_staged": true,
-    "must_not_be_cleaned_or_stashed": true
-  },
-  "mainline_intent_contract": {
-    "expected_old_intent_id": "pr134_frontend_opencode_devup_landing_v1",
-    "expected_old_source_pr": 134,
-    "archive_path": "project_state/mainline_merge_intents/archive/pr134_v1.json",
-    "archive_may_preexist_locally_from_v21": true,
-    "new_intent_id": "pr146_agent_canvas_landing_v1",
-    "new_source_pr": 146,
-    "locked_base_sha": "dd4cb074ab5b9baacf300706878b29bd745f12c3",
-    "allowed_merge_method": "merge",
-    "merge_tree_policy": "equal_to_accepted_head_tree",
-    "required_workflows": ["CI", "Decision Preflight", "State Gate (pull_request)", "State Gate (push)"],
-    "expires_at": "2026-08-16T23:59:59Z"
-  },
-  "committed_head_validation_contract": {
-    "reason": "test_mainline_landing reads active intent, Decision and command plan through HEAD blobs and the production simulation clones HEAD",
-    "candidate_commit_required_before_tests": true,
-    "candidate_commit_must_remain_local_until_all_tests_pass": true,
-    "candidate_commit_paths": [
+  "stale_candidate_reconciliation_contract": {
+    "expected_local_head": "0befedf8b4b912c9cd29a11e2717abe8795aa9ca",
+    "expected_local_parent": "cd8cc3e3e10e961fc22fe0400a262760507ada57",
+    "expected_subject": "landing: bind PR146 v24 intent",
+    "expected_commit_paths": [
       "project_state/mainline_merge_intents/active.json",
       "project_state/mainline_merge_intents/archive/pr134_v1.json",
       "project_state/gates/bootstrap_state.json",
@@ -69,7 +39,20 @@
       "project_state/gates/transition_command_plan_preview.json",
       "project_state/gates/transition_preflight_result.json"
     ],
-    "push_forbidden_until_tests_pass": true
+    "tracked_worktree_must_be_clean_before_reset": true,
+    "index_must_be_clean_before_reset": true,
+    "reset_target_must_equal_current_remote_authority_head": true,
+    "single_reset_allowed": true,
+    "reset_command": "git reset --hard origin/owner/issue136-agent-canvas-reuse-spike-v2",
+    "post_reset_stop_required": true
+  },
+  "preexisting_carryover_contract": {
+    "kernel_followup_issue": 147,
+    "paths": [".frontend_stage/**", ".platform_v1_runtime/**"],
+    "decision_scope_only": true,
+    "must_not_be_staged": true,
+    "must_not_be_cleaned_or_stashed": true,
+    "must_not_be_deleted": true
   },
   "owner_landing_contract": {
     "pr": 146,
@@ -87,18 +70,24 @@
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr134_v1.json"
   ],
   "bootstrap_exception_commands": [
     "git status --short",
     "git fetch origin main",
     "git fetch origin owner/issue136-agent-canvas-reuse-spike-v2",
-    "git show origin/owner/issue136-agent-canvas-reuse-spike-v2:project_state/decision_packet.md",
-    "git switch owner/issue136-agent-canvas-reuse-spike-v2",
-    "git merge --ff-only origin/owner/issue136-agent-canvas-reuse-spike-v2",
     "git rev-parse HEAD",
+    "git rev-parse HEAD^",
+    "git show -s --format=%s HEAD",
+    "git diff-tree --no-commit-id --name-only -r HEAD",
+    "git diff --exit-code",
+    "git diff --cached --exit-code",
     "git rev-parse origin/main",
     "git rev-parse origin/owner/issue136-agent-canvas-reuse-spike-v2",
+    "git show origin/owner/issue136-agent-canvas-reuse-spike-v2:project_state/decision_packet.md",
+    "git reset --hard origin/owner/issue136-agent-canvas-reuse-spike-v2",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
@@ -106,8 +95,8 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "validation.accepted_evidence_ancestor",
-      "command": "git merge-base --is-ancestor ab00b03952d96c2421be8297f29699a59ec69fda HEAD",
+      "command_id": "validation.reconciled_head",
+      "command": "git rev-parse HEAD",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -117,183 +106,7 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "validation.old_intent_identity",
-      "command": "python -c \"import json; from pathlib import Path; x=json.loads(Path('project_state/mainline_merge_intents/active.json').read_text(encoding='utf-8')); assert x['intent_id']=='pr134_frontend_opencode_devup_landing_v1'; assert x['source_pr']==134; print('OLD_INTENT_PR134_VALID')\"",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "mutation.ensure_pr134_archive",
-      "command": "python -c \"from pathlib import Path; s=Path('project_state/mainline_merge_intents/active.json'); d=Path('project_state/mainline_merge_intents/archive/pr134_v1.json'); data=s.read_bytes(); d.parent.mkdir(parents=True,exist_ok=True); d.write_bytes(data) if not d.exists() else None; assert d.read_bytes()==data; print('PR134_ARCHIVE_READY')\"",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["governance_artifact_mutation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "allowed_mutated_paths": ["project_state/mainline_merge_intents/archive/pr134_v1.json"]
-    },
-    {
-      "command_id": "validation.archive_identity",
-      "command": "python -c \"from pathlib import Path; import hashlib; a=hashlib.sha256(Path('project_state/mainline_merge_intents/active.json').read_bytes()).hexdigest(); b=hashlib.sha256(Path('project_state/mainline_merge_intents/archive/pr134_v1.json').read_bytes()).hexdigest(); assert a==b; print('PR134_ARCHIVE_IDENTICAL SHA256='+a)\"",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "validation.provenance_docs",
-      "command": "python -c \"from pathlib import Path; import re; a=Path('frontend/THIRD_PARTY_NOTICES.md').read_text(encoding='utf-8'); b=Path('frontend/OPENHANDS_REUSE_MAP.md').read_text(encoding='utf-8'); assert a.count('**Copyright:** Copyright © 2025 OpenHands contributors')==2; assert re.search(r'fixture-driven,\\s+offline prototype',a) is None; assert re.search(r'All OpenHands runtime/backend dependencies are stubbed or\\s+replaced with deterministic fixtures\\.',a) is None; assert 'reverse-agent Task API, TaskStore, executor, validation/evidence, model-control, and credential handling' in a; assert '## Historical OpenHands 1.8.0 structural map (PR #119 snapshot)' in b; assert '## Historical PR #119 exclusions (snapshot)' in b; assert 'current runtime uses the reverse-agent Task API and OpenCode paths' in b; print('PROVENANCE_DOCS_VALID')\"",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "mutation.write_pr146_intent",
-      "command": "python -c \"from pathlib import Path; import hashlib,json; decision=hashlib.sha256(Path('project_state/decision_packet.md').read_bytes()).hexdigest(); plan=hashlib.sha256(Path('project_state/gates/command_plan.json').read_bytes()).hexdigest(); x={'schema_version':1,'intent_id':'pr146_agent_canvas_landing_v1','repository':'dddd2024/reverse-agent','source_pr':146,'locked_base_sha':'dd4cb074ab5b9baacf300706878b29bd745f12c3','allowed_merge_method':'merge','decision_identity':{'decision_id':'decision_20260809_pr146_agent_canvas_committed_head_landing_v24','decision_content_sha256':decision},'command_plan_sha256':plan,'merge_tree_policy':'equal_to_accepted_head_tree','required_workflows':['CI','Decision Preflight','State Gate (pull_request)','State Gate (push)'],'expires_at':'2026-08-16T23:59:59Z'}; Path('project_state/mainline_merge_intents/active.json').write_text(json.dumps(x,indent=2)+'\\n',encoding='utf-8',newline='\\n'); print('PR146_INTENT_WRITTEN DECISION_SHA256='+decision+' PLAN_SHA256='+plan)\"",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["governance_artifact_mutation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "allowed_mutated_paths": ["project_state/mainline_merge_intents/active.json"]
-    },
-    {
-      "command_id": "validation.pr146_intent_worktree",
-      "command": "python -c \"from pathlib import Path; import hashlib,json; x=json.loads(Path('project_state/mainline_merge_intents/active.json').read_text(encoding='utf-8')); assert x['intent_id']=='pr146_agent_canvas_landing_v1' and x['source_pr']==146 and x['locked_base_sha']=='dd4cb074ab5b9baacf300706878b29bd745f12c3'; assert x['decision_identity']['decision_id']=='decision_20260809_pr146_agent_canvas_committed_head_landing_v24'; assert x['decision_identity']['decision_content_sha256']==hashlib.sha256(Path('project_state/decision_packet.md').read_bytes()).hexdigest(); assert x['command_plan_sha256']==hashlib.sha256(Path('project_state/gates/command_plan.json').read_bytes()).hexdigest(); print('PR146_INTENT_WORKTREE_VALID')\"",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "validation.diff_check_precommit",
-      "command": "git diff --check",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "candidate.stage",
-      "command": "git add -- project_state/mainline_merge_intents/active.json project_state/mainline_merge_intents/archive/pr134_v1.json project_state/gates/bootstrap_state.json project_state/gates/command_plan.json project_state/gates/startup_snapshot.json project_state/gates/transition_command_plan_preview.json project_state/gates/transition_preflight_result.json",
-      "phase": "candidate",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_stage"],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr134_v1.json",
-        "project_state/gates/bootstrap_state.json",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/transition_command_plan_preview.json",
-        "project_state/gates/transition_preflight_result.json"
-      ]
-    },
-    {
-      "command_id": "candidate.cached_check",
-      "command": "git diff --cached --check",
-      "phase": "candidate",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "candidate.staged_paths",
-      "command": "git diff --cached --name-only",
-      "phase": "candidate",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "candidate.commit",
-      "command": "git commit -m \"landing: bind PR146 v24 intent\"",
-      "phase": "candidate",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_commit"],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "candidate.commit_paths",
-      "command": "git diff-tree --no-commit-id --name-only -r HEAD",
-      "phase": "candidate",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "test.mainline_landing_committed_head",
-      "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "test.platform_v1_committed_head",
-      "command": "python -m pytest tests/platform_v1 -q",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "test.gate_regression_committed_head",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "validation.post_test_tracked_clean",
+      "command_id": "validation.reconciled_tracked_clean",
       "command": "git diff --exit-code",
       "phase": "validation",
       "required": true,
@@ -304,43 +117,20 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "publication.push",
-      "command": "git push origin owner/issue136-agent-canvas-reuse-spike-v2",
-      "phase": "publication",
+      "command_id": "validation.reconciled_index_clean",
+      "command": "git diff --cached --exit-code",
+      "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["repository_push", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_only_after_validation": true
-    },
-    {
-      "command_id": "publication.local_head",
-      "command": "git rev-parse HEAD",
-      "phase": "publication",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
+      "operations": ["repository_observation", "run_checks"],
       "network_access": false,
-      "required_evidence_source": "repository_state_attestation"
+      "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "publication.remote_head",
-      "command": "git rev-parse origin/owner/issue136-agent-canvas-reuse-spike-v2",
-      "phase": "publication",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "publication.final_status",
+      "command_id": "validation.final_status",
       "command": "git status --short",
-      "phase": "publication",
+      "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
@@ -350,6 +140,7 @@
     }
   ],
   "allowed_mutated_paths": [
+    "project_state/decision_packet.md",
     "project_state/mainline_merge_intents/active.json",
     "project_state/mainline_merge_intents/archive/pr134_v1.json",
     "project_state/gates/bootstrap_state.json",
@@ -367,13 +158,7 @@
     ".github/**",
     "reverse_agent/**",
     "tests/**",
-    "frontend/src/**",
-    "frontend/tests/**",
-    "frontend/artifacts/**",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "frontend/THIRD_PARTY_NOTICES.md",
-    "frontend/OPENHANDS_REUSE_MAP.md",
+    "frontend/**",
     "dev-up.ps1",
     "dev-down.ps1",
     "project_state/schemas/**"
@@ -389,13 +174,7 @@
     ".github/**",
     "reverse_agent/**",
     "tests/**",
-    "frontend/src/**",
-    "frontend/tests/**",
-    "frontend/artifacts/**",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "frontend/THIRD_PARTY_NOTICES.md",
-    "frontend/OPENHANDS_REUSE_MAP.md",
+    "frontend/**",
     "dev-up.ps1",
     "dev-down.ps1",
     "project_state/schemas/**"
@@ -407,6 +186,8 @@
     "rebase",
     "amend",
     "squash",
+    "cherry_pick",
+    "stash",
     "tag_or_release",
     "release",
     "deployment",
@@ -418,23 +199,26 @@
     "openhands_invocation",
     "runner_dispatch",
     "external_reverse_tool_invocation",
-    "unknown_binary_execution",
-    "destructive"
+    "unknown_binary_execution"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
     "model_api_invocation_allowed": false,
     "external_reverse_tool_invocation_allowed": false,
     "unknown_binary_execution_allowed": false,
-    "destructive_operations_allowed": false,
+    "destructive_operations_allowed": true,
+    "destructive_operation_scope": ["git reset --hard origin/owner/issue136-agent-canvas-reuse-spike-v2"],
     "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
-    "merge_allowed": true,
+    "merge_allowed": false,
     "force_push_allowed": false,
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
-    "local_network_exceptions": ["git push origin owner/issue136-agent-canvas-reuse-spike-v2"],
+    "local_network_exceptions": [
+      "git fetch origin main",
+      "git fetch origin owner/issue136-agent-canvas-reuse-spike-v2"
+    ],
     "ci_network_exceptions": [],
     "remote_observation_read_only_allowed": true
   },
@@ -444,8 +228,9 @@
     {"pattern": "reverse_agent/**", "minimum_risk": "R2"},
     {"pattern": "tests/**", "minimum_risk": "R2"}
   ],
-  "authorized_risk_tier": "R2",
+  "authorized_risk_tier": "R3",
   "authorized_risk_paths": [
+    "project_state/decision_packet.md",
     "project_state/mainline_merge_intents/active.json",
     "project_state/mainline_merge_intents/archive/pr134_v1.json",
     "project_state/gates/bootstrap_state.json",
@@ -463,8 +248,10 @@
 
 ## Owner audit and execution policy
 
-v24 supersedes v23 before local delegation. v23 introduced the correct committed-head validation ordering but contained a bootstrap typo in the remote Decision ref (`origin/issue136...` instead of `origin/owner/issue136...`). No v23 local execution occurred.
+v25 exists only to reconcile one known unpublished local v24 candidate commit after the local Agent correctly stopped because local HEAD was one commit ahead of the canonical remote v24 authority.
 
-v24 retains the corrected sequence: after preflight and working-tree validation, the Agent stages exactly seven governance paths and creates one local unpublished candidate commit. The three required test groups then run against that committed candidate HEAD. Any failure stops with the candidate commit local only and forbids push. Only a fully tested committed head may be normal-pushed.
+The unpublished commit `0befedf8b4b912c9cd29a11e2717abe8795aa9ca` is not present on GitHub. Before reset, the local Agent must prove all of the following: local HEAD is exactly that SHA; its parent is exactly v24 `cd8cc3e3e10e961fc22fe0400a262760507ada57`; its subject is exactly `landing: bind PR146 v24 intent`; its committed paths are exactly the seven governance paths listed in the reconciliation contract; tracked worktree and index are clean; remote `main` remains `dd4cb074ab5b9baacf300706878b29bd745f12c3`; and the target remote branch equals the v25 authority fetched from GitHub.
 
-The two provenance documents were already corrected and committed by the Owner under v22 and remain read-only. `.frontend_stage/**` and `.platform_v1_runtime/**` remain pre-existing carryover scope only, with zero normal-command mutation grants. Ready/merge remain Owner-only after fresh exact-head workflows and final PR audit.
+Only after every precondition passes is exactly one destructive operation authorized: `git reset --hard origin/owner/issue136-agent-canvas-reuse-spike-v2`. This reset intentionally discards only the verified unpublished stale candidate and advances the local checkout onto v25. It does not authorize `git clean`, stash, rebase, amend, cherry-pick, force push, or deletion of the pre-existing untracked `.frontend_stage/**` / `.platform_v1_runtime/**` carryover.
+
+After reset, regenerate the standard transition artifacts, require transition lint PASS and `PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]`, run the four read-only reconciliation validations, then STOP. Do not perform PR146 landing preparation under v25. Owner will issue a fresh landing Decision after successful reconciliation.
