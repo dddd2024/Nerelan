@@ -158,6 +158,7 @@ Working-tree observations are classified without deleting, restoring, staging, o
 - `UNAUTHORIZED_TRACKED_OR_SENSITIVE`: a tracked change outside the allowlist or any sensitive-looking path; stop immediately and never stage it.
 
 Classification is not cleanup authorization. Agents must not use reset, clean, stash, restore, deletion, or broad staging to manufacture a clean tree.
+`startup-snapshot` machine-enforces bootstrap classification; before product staging or publication, run `python -m reverse_agent.project_gate worktree-publication-readiness --state-dir project_state` and require `PUBLICATION_READY`.
 
 This carve-out does not authorize Agent-initiated, automation-initiated, workflow-initiated, scheduled, delegated, or external-service-initiated mark-ready or merge. Those remain Path-B. This carve-out does not apply to R2/R3 work items; each requires its own Path-B Decision.
 

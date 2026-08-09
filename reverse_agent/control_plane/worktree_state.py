@@ -6,7 +6,7 @@ or otherwise mutates a working tree.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, replace
 from enum import Enum
 from fnmatch import fnmatchcase
 from pathlib import PurePosixPath
@@ -29,20 +29,44 @@ class WorktreePathClassification:
     bootstrap_blocking: bool
     publication_blocking: bool
     deleted: bool = False
+    tracked: bool = False
+    status_code: str = ""
+
+    def to_mapping(self) -> dict[str, object]:
+        payload = asdict(self)
+        payload["classification"] = self.classification.value
+        return payload
 
 
 _SENSITIVE_PATTERNS = (
+    "secrets/**",
+    "**/secrets/**",
     ".env",
     ".env.*",
     "**/.env",
     "**/.env.*",
+    "*credential*",
+    "**/*credential*",
+    "*secret*",
+    "**/*secret*",
+    "*.pem",
     "**/credentials*",
     "**/*private*key*",
     "**/*.pem",
+    "*.key",
+    "**/*.key",
+    "*.p12",
     "**/*.p12",
+    "*.pfx",
     "**/*.pfx",
+    "*.exe",
     "**/*.exe",
+    "*.dll",
     "**/*.dll",
+    "*.so",
+    "**/*.so",
+    "*.dylib",
+    "**/*.dylib",
 )
 
 
@@ -55,12 +79,14 @@ def _normalized(path: str) -> str:
 
 
 def _matches(path: str, patterns: Iterable[str]) -> bool:
-    return any(
-        path == pattern.rstrip("/**")
-        or (pattern.endswith("/**") and path.startswith(pattern[:-3].rstrip("/") + "/"))
-        or fnmatchcase(path, pattern)
-        for pattern in patterns
-    )
+    for pattern in patterns:
+        if pattern.endswith("/**"):
+            root = pattern[:-3].rstrip("/")
+            if path == root or path.startswith(root + "/"):
+                return True
+        if fnmatchcase(path, pattern):
+            return True
+    return False
 
 
 def classify_worktree_path(
@@ -105,3 +131,46 @@ def classify_worktree_path(
         bootstrap_blocking=bootstrap_blocking,
         publication_blocking=publication_blocking,
     )
+
+
+def classify_worktree_status(
+    status_lines: Iterable[str],
+    *,
+    authorized_paths: Iterable[str] = (),
+) -> tuple[WorktreePathClassification, ...]:
+    """Normalize ``git status --short`` records and classify every path.
+
+    Exact-authorized untracked additions are governed deltas rather than
+    arbitrary untracked content. Rename/copy records classify both the old and
+    new path so authority cannot be bypassed through a previous pathname.
+    """
+
+    authority = tuple(_normalized(path) for path in authorized_paths)
+    records: list[WorktreePathClassification] = []
+    for raw_line in status_lines:
+        line = str(raw_line).rstrip()
+        if len(line) < 4:
+            raise ValueError(f"malformed git status record: {line!r}")
+        status_code = line[:2]
+        path_text = line[3:].strip().strip('"')
+        paths = tuple(part.strip().strip('"') for part in path_text.split(" -> "))
+        if not all(paths):
+            raise ValueError(f"malformed git status path: {line!r}")
+        git_tracked = status_code != "??"
+        for path in paths:
+            normalized = _normalized(path)
+            authority_tracked = _matches(normalized, authority)
+            classified = classify_worktree_path(
+                normalized,
+                tracked=git_tracked or authority_tracked,
+                authorized_paths=authority,
+            )
+            records.append(
+                replace(
+                    classified,
+                    tracked=git_tracked,
+                    status_code=status_code,
+                )
+            )
+    unique = {(record.status_code, record.path): record for record in records}
+    return tuple(unique[key] for key in sorted(unique))

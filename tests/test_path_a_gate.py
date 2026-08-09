@@ -970,3 +970,30 @@ def test_unauthorized_tracked_path_is_immediate_hard_stop() -> None:
     assert result.bootstrap_blocking is True
     assert result.publication_blocking is True
     assert result.stageable is False
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "config/service-secret.json",
+        "config/service-credential.json",
+        ".env",
+        "config/.env.production",
+        "certs/client.pem",
+        "certs/client.KEY",
+        "certs/client.p12",
+        "certs/client.PFX",
+        "native/tool.exe",
+        "native/tool.DLL",
+        "native/library.SO",
+        "native/library.DYLIB",
+        "Config/Secrets/API.KEY",
+    ],
+)
+def test_untracked_path_a_r3_categories_are_sensitive_case_insensitively(path: str) -> None:
+    result = classify_worktree_path(path, tracked=False, authorized_paths=())
+
+    assert result.classification is WorktreeClassification.UNAUTHORIZED_TRACKED_OR_SENSITIVE
+    assert result.bootstrap_blocking is True
+    assert result.publication_blocking is True
+    assert result.stageable is False
