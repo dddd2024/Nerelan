@@ -1,7 +1,7 @@
 # LangGraph Orchestration Boundary
 
 Authoritative boundary for the Modernization V2 consolidation task (#149).
-Verified against the current implementation at commit
+Introduced against baseline commit
 `d8ad86e35910ec289032579655d49a95176605cb` on branch
 `owner/issue149-langgraph-spine-v1` with pinned `langgraph==1.0.5`.
 
@@ -39,6 +39,10 @@ risk classification, authorization, an optional execution seam, and the
 acceptance gate. It is not persisted to a second database and never
 duplicates the TaskStore row / event / evidence / changed_files shape.
 
+If a later task adopts a durable LangGraph checkpointer, that checkpoint may
+persist workflow mechanics only. It must not become a second canonical store
+for reverse-agent task, event, evidence, or changed-file truth.
+
 ## E. Module classification matrix
 
 | Module                          | Class             | Reason                                                                                      | Future multi-Agent seam                                                                                          |
@@ -48,9 +52,9 @@ duplicates the TaskStore row / event / evidence / changed_files shape.
 | `architecture/policy_provider.py` | **KEEP**        | Remains the single authoritative source of `RiskPolicySnapshot` / `WorkflowIdentity`.        | Multi-agent workers still receive a provider-issued snapshot; no provider duplication.                            |
 | `architecture/risk.py`          | **KEEP**          | Risk tiers / routes / authorization statuses unchanged.                                     | New agent-tier tags (e.g. `TEAM_ROUTED`) added later if required.                                                 |
 | `platform_v1/task_service.py`   | **KEEP**          | HTTP surface over TaskStore. LangGraph has no HTTP surface role.                            | May be the ingress that binds a worker's durable task row; behavior unchanged in #149.                            |
-| `platform_v1/run_store.py`      | **KEEP**          | Durable SQLite TaskStore (task / event / evidence rows). LangGraph must not duplicate it.   | LangGraph checkpointers remain in-memory; run rows stay in TaskStore.                                            |
+| `platform_v1/run_store.py`      | **KEEP**          | Durable SQLite TaskStore (task / event / evidence rows). LangGraph must not duplicate it.   | Workflow checkpoints remain separate from canonical TaskStore truth.                                             |
 | `platform_v1/task_runtime.py`   | **KEEP**          | ExecutorRouter + LocalValidationRunner. LangGraph is not an executor.                      | Multi-agent workers invoke ExecutorRouter per task row; runtime ownership stays here.                            |
-| `platform_v1/opencode_executor.py` | **KEEP**        | Deterministic executor semantics unchanged; no LangGraph substitution.                     | Remains one concrete executor kind; multi-agent dispatch is a different executor kind added later.                |
+| `platform_v1/opencode_executor.py` | **KEEP**        | Deterministic executor semantics unchanged; no LangGraph substitution.                     | OpenCode remains an executor kind; multi-agent dispatch stays in LangGraph orchestration, and each worker selects an executor through `ExecutorRouter`. |
 | `workflows/nodes/*.py`          | **KEEP**          | Node callables already return `DevelopmentWorkflowState` deltas; no shape change needed.    | Multi-agent worker node will be another `state -> dict` callable, structurally identical to existing nodes.       |
 | `workflows/__init__.py`         | **KEEP**          | Public export of `build_development_graph`. New seam is a kwarg, no new export required.    | If a worker graph type is later exposed, it can be added here.                                                    |
 
@@ -93,6 +97,6 @@ classify_risk -> execution_seam -> acceptance_gate
 ```
 
 A `BLOCKED` authorization result is guaranteed never to reach the seam.
-Default `build_development_graph` behavior (no `execution_node`) is
-byte-for-behavior equivalent to the pre-#149 Phase E graph and does not
+Default `build_development_graph` behavior (no `execution_node`) remains
+observably compatible with the covered pre-#149 Phase E behavior and does not
 traverse the seam.
