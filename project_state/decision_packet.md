@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_governance_v2_foundation_sanitized_integration_v2",
-  "round_id": "round_20260809_governance_v2_foundation_sanitized_integration_v2",
+  "decision_id": "decision_20260809_governance_v2_foundation_sanitized_integration_v3",
+  "round_id": "round_20260809_governance_v2_foundation_sanitized_integration_v3",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,14 +14,14 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260809_governance_v2_foundation_sanitized_integration_v1",
-  "follows_last_round_id": "round_20260809_governance_v2_foundation_sanitized_integration_v1",
-  "previous_audit_outcome": "INTEGRATION_V1_OWNER_PREDELEGATION_SUPERSEDED_FRESH_CLONE_AND_FINAL_REMOTE_REVERIFY_OMITTED",
-  "workstream_id": "governance-v2-foundation-sanitized-integration-v2",
+  "follows_last_decision_id": "decision_20260809_governance_v2_foundation_sanitized_integration_v2",
+  "follows_last_round_id": "round_20260809_governance_v2_foundation_sanitized_integration_v2",
+  "previous_audit_outcome": "INTEGRATION_V2_STOPPED_FALSE_NEGATIVE_UNTRACKED_ADDITIONS_OMITTED_FROM_VALIDATION_DIFF",
+  "workstream_id": "governance-v2-foundation-sanitized-integration-v3",
   "source_issue": 153,
   "parent_issue": 148,
   "required_branch": "owner/governance-v2-foundation-integration-authority-v1",
-  "starting_head": "7e068aac0a4142e611a5d5b825353db31efd2cb7",
+  "starting_head": "d8af81d624ad800e9b39a2e2749ff732d65514fe",
   "activation_base_sha": "7e068aac0a4142e611a5d5b825353db31efd2cb7",
   "integration_target_branch": "owner/repository-modernization-v2-planning",
   "accepted_product_source_branch": "owner/governance-v2-foundation-v1",
@@ -36,8 +36,8 @@
   "pr_body_update_allowed": false,
   "pr_comment_allowed": false,
   "issue_comment_allowed": false,
-  "branch_creation_allowed": true,
-  "worktree_creation_allowed": true,
+  "branch_creation_allowed": false,
+  "worktree_creation_allowed": false,
   "local_commit_allowed": true,
   "normal_push_allowed": true,
   "exact_head_workflow_observation_allowed": false,
@@ -71,10 +71,13 @@
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/gates/transition_preflight_result.json",
+    "issue153_sanitized_product.patch",
+    "issue153_sanitized_validation.patch",
+    "issue153_source_raw_manifest.txt",
+    "issue153_staged_raw_manifest.txt"
   ],
   "bootstrap_exception_commands": [
-    "git clone --branch owner/governance-v2-foundation-integration-authority-v1 https://github.com/dddd2024/reverse-agent.git F:\\reverse-agent-governance-v2-integration-authority-20260809",
     "git status --short",
     "git fetch origin owner/repository-modernization-v2-planning",
     "git fetch origin owner/governance-v2-foundation-v1",
@@ -84,6 +87,7 @@
     "git rev-parse origin/owner/repository-modernization-v2-planning",
     "git rev-parse origin/owner/governance-v2-foundation-v1",
     "git rev-parse origin/owner/governance-v2-foundation-integration-authority-v1",
+    "git merge --ff-only origin/owner/governance-v2-foundation-integration-authority-v1",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
@@ -146,18 +150,6 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "evidence.export_product_patch",
-      "command": "git diff --binary 7e068aac0a4142e611a5d5b825353db31efd2cb7 41733d9f0cedfbdf862672a584268a72c56138cf -- .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml .github/workflows/state-gate.yml .gitignore AGENTS.md reverse_agent/control_plane/legacy_adapter.py reverse_agent/control_plane/path_a.py reverse_agent/control_plane/worktree_state.py reverse_agent/project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_path_a_gate.py tests/test_project_gate.py > issue153_sanitized_product.patch",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["evidence_export"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "allowed_mutated_paths": ["issue153_sanitized_product.patch"]
-    },
-    {
       "command_id": "evidence.product_patch_sha256",
       "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'issue153_sanitized_product.patch').Hash.ToLower()\"",
       "phase": "validation",
@@ -169,41 +161,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "mutation.create_sanitized_worktree",
-      "command": "git worktree add -b owner/governance-v2-foundation-sanitized-v1 F:\\reverse-agent-governance-v2-sanitized-20260809 7e068aac0a4142e611a5d5b825353db31efd2cb7",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["worktree_create", "branch_create"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "mutation.apply_product_patch",
-      "command": "git -C F:\\reverse-agent-governance-v2-sanitized-20260809 apply F:\\reverse-agent-governance-v2-integration-authority-20260809\\issue153_sanitized_product.patch",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["source_mutation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "evidence.export_validation_patch",
-      "command": "git -C F:\\reverse-agent-governance-v2-sanitized-20260809 diff --binary 7e068aac0a4142e611a5d5b825353db31efd2cb7 -- .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml .github/workflows/state-gate.yml .gitignore AGENTS.md reverse_agent/control_plane/legacy_adapter.py reverse_agent/control_plane/path_a.py reverse_agent/control_plane/worktree_state.py reverse_agent/project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_path_a_gate.py tests/test_project_gate.py > issue153_sanitized_validation.patch",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["evidence_export"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "allowed_mutated_paths": ["issue153_sanitized_validation.patch"]
-    },
-    {
-      "command_id": "evidence.validation_patch_sha256",
+      "command_id": "evidence.failed_validation_patch_sha256",
       "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'issue153_sanitized_validation.patch').Hash.ToLower()\"",
       "phase": "validation",
       "required": true,
@@ -214,31 +172,20 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "test.sanitized_governance_foundation",
-      "command": "powershell -NoProfile -Command \"Set-Location 'F:\\reverse-agent-governance-v2-sanitized-20260809'; python -m pytest tests/test_path_a_gate.py tests/test_control_plane_transition.py tests/test_planning_and_github_adapters.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py -q\"",
-      "phase": "validation",
+      "command_id": "observation.sanitized_head_before_stage",
+      "command": "git -C F:\\reverse-agent-governance-v2-sanitized-20260809 rev-parse HEAD",
+      "phase": "status",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["run_checks"],
+      "operations": ["repository_observation"],
       "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "validation.sanitized_diff_check",
-      "command": "git -C F:\\reverse-agent-governance-v2-sanitized-20260809 diff --check",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["diff_validation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "validation.sanitized_paths",
-      "command": "git -C F:\\reverse-agent-governance-v2-sanitized-20260809 diff --name-only 7e068aac0a4142e611a5d5b825353db31efd2cb7",
-      "phase": "validation",
+      "command_id": "observation.sanitized_status_before_stage",
+      "command": "git -C F:\\reverse-agent-governance-v2-sanitized-20260809 status --short",
+      "phase": "status",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
@@ -265,6 +212,74 @@
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "evidence.export_source_raw_manifest",
+      "command": "git diff --raw --full-index --no-renames 7e068aac0a4142e611a5d5b825353db31efd2cb7 41733d9f0cedfbdf862672a584268a72c56138cf -- .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml .github/workflows/state-gate.yml .gitignore AGENTS.md reverse_agent/control_plane/legacy_adapter.py reverse_agent/control_plane/path_a.py reverse_agent/control_plane/worktree_state.py reverse_agent/project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_path_a_gate.py tests/test_project_gate.py > issue153_source_raw_manifest.txt",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["evidence_export"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": ["issue153_source_raw_manifest.txt"]
+    },
+    {
+      "command_id": "evidence.export_staged_raw_manifest",
+      "command": "git -C F:\\reverse-agent-governance-v2-sanitized-20260809 diff --cached --raw --full-index --no-renames 7e068aac0a4142e611a5d5b825353db31efd2cb7 -- .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml .github/workflows/state-gate.yml .gitignore AGENTS.md reverse_agent/control_plane/legacy_adapter.py reverse_agent/control_plane/path_a.py reverse_agent/control_plane/worktree_state.py reverse_agent/project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_path_a_gate.py tests/test_project_gate.py > F:\\reverse-agent-governance-v2-integration-authority-20260809\\issue153_staged_raw_manifest.txt",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["evidence_export"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": ["issue153_staged_raw_manifest.txt"]
+    },
+    {
+      "command_id": "evidence.source_raw_manifest_sha256",
+      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'issue153_source_raw_manifest.txt').Hash.ToLower()\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "evidence.staged_raw_manifest_sha256",
+      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'issue153_staged_raw_manifest.txt').Hash.ToLower()\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "test.sanitized_governance_foundation",
+      "command": "powershell -NoProfile -Command \"Set-Location 'F:\\reverse-agent-governance-v2-sanitized-20260809'; python -m pytest tests/test_path_a_gate.py tests/test_control_plane_transition.py tests/test_planning_and_github_adapters.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py -q\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "validation.sanitized_diff_check",
+      "command": "git -C F:\\reverse-agent-governance-v2-sanitized-20260809 diff --cached --check",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["diff_validation"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -302,6 +317,28 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
+      "command_id": "validation.accepted_product_tree_equivalence",
+      "command": "git -C F:\\reverse-agent-governance-v2-sanitized-20260809 diff --exit-code 41733d9f0cedfbdf862672a584268a72c56138cf HEAD -- .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml .github/workflows/state-gate.yml .gitignore AGENTS.md reverse_agent/control_plane/legacy_adapter.py reverse_agent/control_plane/path_a.py reverse_agent/control_plane/worktree_state.py reverse_agent/project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_path_a_gate.py tests/test_project_gate.py",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "diff_validation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "validation.sanitized_cumulative_paths",
+      "command": "git -C F:\\reverse-agent-governance-v2-sanitized-20260809 diff --name-only 7e068aac0a4142e611a5d5b825353db31efd2cb7..HEAD",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
       "command_id": "sync.final_fetch_planning",
       "command": "git fetch origin owner/repository-modernization-v2-planning",
       "phase": "validation",
@@ -324,29 +361,7 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "validation.final_planning_head",
-      "command": "git rev-parse origin/owner/repository-modernization-v2-planning",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "validation.final_source_head",
-      "command": "git rev-parse origin/owner/governance-v2-foundation-v1",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "publication.push_sanitized_branch",
+      "command_id": "publication.push_sanitized",
       "command": "git -C F:\\reverse-agent-governance-v2-sanitized-20260809 push origin owner/governance-v2-foundation-sanitized-v1",
       "phase": "publication",
       "required": true,
@@ -367,6 +382,10 @@
     "project_state/gates/transition_preflight_result.json",
     "issue153_sanitized_product.patch",
     "issue153_sanitized_validation.patch",
+    "issue153_source_raw_manifest.txt",
+    "issue153_staged_raw_manifest.txt"
+  ],
+  "reference_paths": [
     ".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml",
     ".github/workflows/state-gate.yml",
     ".gitignore",
@@ -377,7 +396,10 @@
     "reverse_agent/project_gate.py",
     "tests/test_minimal_integration_baseline_docs.py",
     "tests/test_path_a_gate.py",
-    "tests/test_project_gate.py"
+    "tests/test_project_gate.py",
+    "tests/test_control_plane_transition.py",
+    "tests/test_planning_and_github_adapters.py",
+    "pyproject.toml"
   ],
   "generated_artifact_paths": [
     "project_state/gates/bootstrap_state.json",
@@ -387,20 +409,17 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "forbidden_mutated_paths": [
+    ".github/**",
+    ".gitignore",
+    "AGENTS.md",
     "frontend/**",
     "docs/**",
     "pyproject.toml",
     "requirements*.txt",
     "poetry.lock",
     "uv.lock",
-    ".github/actions/**",
-    ".github/workflows/ci.yml",
-    ".github/CODEOWNERS",
-    "reverse_agent/platform_v1/**",
-    "reverse_agent/workflows/**",
-    "reverse_agent/orchestrator_api.py",
-    "reverse_agent/orchestrator_context.py",
-    "reverse_agent/orchestrator_console_schema.py",
+    "reverse_agent/**",
+    "tests/**",
     "project_state/current_state.json",
     "project_state/state_manifest.json",
     "project_state/artifact_index.json",
@@ -410,6 +429,8 @@
     "project_state/audits/**"
   ],
   "forbidden_operations": [
+    "source_edit",
+    "test_edit",
     "direct_push_main",
     "merge",
     "mark_ready",
@@ -422,6 +443,7 @@
     "reset_hard",
     "git_clean",
     "stash",
+    "restore",
     "tag_or_release",
     "release",
     "deployment",
@@ -442,7 +464,8 @@
     "pr_body_update",
     "dependency_change",
     "provider_configuration_mutation",
-    "source_repair"
+    "issue151_product_mutation",
+    "pr146_mutation"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -457,7 +480,6 @@
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
     "local_network_exceptions": [
-      "git clone --branch owner/governance-v2-foundation-integration-authority-v1 https://github.com/dddd2024/reverse-agent.git F:\\reverse-agent-governance-v2-integration-authority-20260809",
       "git fetch origin owner/repository-modernization-v2-planning",
       "git fetch origin owner/governance-v2-foundation-v1",
       "git fetch origin owner/governance-v2-foundation-integration-authority-v1",
@@ -470,38 +492,36 @@
   "authorized_risk_tier": "R2",
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
-    "project_state/gates/**",
-    ".github/workflows/state-gate.yml",
-    ".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml",
-    "AGENTS.md",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/control_plane/**"
+    "project_state/gates/**"
   ],
   "path_risk_floor": [
     {"pattern": "project_state/decision_packet.md", "minimum_risk": "R2"},
-    {"pattern": "project_state/gates/**", "minimum_risk": "R2"},
-    {"pattern": ".github/workflows/**", "minimum_risk": "R2"},
-    {"pattern": ".github/ISSUE_TEMPLATE/**", "minimum_risk": "R2"},
-    {"pattern": "AGENTS.md", "minimum_risk": "R2"},
-    {"pattern": "reverse_agent/project_gate.py", "minimum_risk": "R2"},
-    {"pattern": "reverse_agent/control_plane/**", "minimum_risk": "R2"},
-    {"pattern": "tests/**", "minimum_risk": "R1"}
+    {"pattern": "project_state/gates/**", "minimum_risk": "R2"}
   ]
 }
 ```
 
 ## Goal
 
-v2 supersedes v1 before delegation. v1 was never executed. v2 adds the missing bounded fresh-clone bootstrap and mandatory final remote re-verification; product patch scope and tests are unchanged.
+Resume the preserved v2 sanitized worktree without regenerating or editing product content. v2 stopped because it compared a commit-to-commit source patch with a pre-stage working-tree diff. The accepted product delta contains new files; Git does not include ordinary untracked files in `git diff <commit>` before they enter the index, so byte-equality of those two patch renderings was an invalid acceptance invariant.
 
-Create one sanitized product commit whose parent is exactly the Modernization planning head `7e068aac0a4142e611a5d5b825353db31efd2cb7` and whose product tree delta is byte-for-byte equivalent to the accepted Governance V2 Foundation product delta at `41733d9f0cedfbdf862672a584268a72c56138cf`, excluding all temporary `project_state` authority history.
+v3 replaces patch-text identity with canonical Git object identity:
 
-No source repair, refactor, compatibility patch, test modification, or authority change is permitted. Source product patch SHA-256 must equal sanitized validation patch SHA-256. The sanitized commit must contain zero `project_state/**` paths and exactly one parent: the planning SHA above. Stop after one normal push of `owner/governance-v2-foundation-sanitized-v1`; Owner handles all PR/merge work.
+1. preserve the original source patch and failed validation patch as immutable local evidence;
+2. stage exactly the eleven accepted product paths, with no broad staging;
+3. compare `git diff --raw --full-index --no-renames` from planning->accepted source against planning->staged index; equal raw manifests prove equal paths, modes and Git blob object IDs;
+4. run the accepted deterministic Governance V2 test suite;
+5. create exactly one sanitized commit whose parent is the planning head;
+6. require zero diff between accepted source and sanitized commit over the eleven accepted product paths;
+7. require the sanitized cumulative path set from planning to be exactly those eleven paths;
+8. re-fetch planning/source exact heads before the one normal push.
 
-Success token:
+No product/source/test edits, patch regeneration, cleanup, reset, restore or repair are authorized.
+
+Terminal success:
 
 `GOVERNANCE_V2_FOUNDATION_SANITIZED_BRANCH_PUSHED_FOR_OWNER_AUDIT`
 
-Failure token:
+Terminal failure:
 
-`GOVERNANCE_V2_FOUNDATION_SANITIZED_INTEGRATION_STOPPED_WITH_EVIDENCE`
+`GOVERNANCE_V2_FOUNDATION_SANITIZED_INTEGRATION_V3_STOPPED_WITH_EVIDENCE`
