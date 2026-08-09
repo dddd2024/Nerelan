@@ -2,6 +2,8 @@ name: State Gate
 
 on:
   push:
+    branches:
+      - main
     paths:
       - "project_state/**"
       - "reverse_agent/**"
@@ -10,13 +12,17 @@ on:
       - ".codex-skills/**"
       - "docs/prompts/**"
   pull_request:
-    paths:
-      - "project_state/**"
-      - "reverse_agent/**"
-      - "tests/**"
-      - ".github/workflows/**"
-      - ".codex-skills/**"
-      - "docs/prompts/**"
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+      - converted_to_draft
+      - ready_for_review
+      - labeled
+      - unlabeled
+      - auto_merge_enabled
+      - auto_merge_disabled
   pull_request_target:
     types:
       - opened
@@ -53,7 +59,13 @@ jobs:
       - name: Detect control-plane mode
         id: control_plane
         shell: bash
-        run: echo "mode=$(python -m reverse_agent.project_gate control-plane-mode --state-dir project_state)" >> "$GITHUB_OUTPUT"
+        run: echo "mode=$(python -m reverse_agent.project_gate control-plane-mode --state-dir project_state --event-path "$GITHUB_EVENT_PATH")" >> "$GITHUB_OUTPUT"
+
+      - name: Path-A R1 gate
+        if: steps.control_plane.outputs.mode == 'path_a_r1'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python -m reverse_agent.project_gate path-a-r1-gate --event-path "$GITHUB_EVENT_PATH" --repository "$GITHUB_REPOSITORY"
 
       - name: Transition lint
         if: steps.control_plane.outputs.mode == 'transition'
@@ -178,6 +190,10 @@ jobs:
 
       - name: Focused gate tests
         run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q
+
+      - name: Path-A gate tests
+        if: steps.control_plane.outputs.mode == 'path_a_r1'
+        run: python -m pytest tests/test_path_a_gate.py tests/test_control_plane_transition.py tests/test_planning_and_github_adapters.py -q
 
       - name: Project gate final check
         if: steps.control_plane.outputs.mode == 'legacy'

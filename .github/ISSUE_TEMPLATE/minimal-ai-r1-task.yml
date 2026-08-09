@@ -22,6 +22,7 @@ body:
         immutable_observation_ref
         work_item_identity: {repository}#{issue_number}@{immutable_observation_ref}
         target_branch
+        integration_base_ref
         base_sha
         ```
 
@@ -151,7 +152,7 @@ body:
       options:
         - label: I acknowledge this Issue is CANDIDATE until a repository owner or maintainer applies r1-approved after review.
           required: true
-        - label: I will not begin implementation until the Draft PR body records approver identity, approval event/time, normalized Issue-body SHA-256 digest, immutable_observation_ref, Work Item identity, target branch, and base SHA.
+        - label: I will not begin implementation until the Draft PR body records approver identity, approval event/time, normalized Issue-body SHA-256 digest, immutable_observation_ref, Work Item identity, target branch, integration base ref, and base SHA.
           required: true
         - label: I will stop and obtain reapproval if a material Issue-body edit changes the approved digest.
           required: true
@@ -176,10 +177,19 @@ body:
       required: true
 
   - type: input
+    id: integration_base_ref
+    attributes:
+      label: Integration base ref
+      description: Exact owner-approved repository branch that the Draft PR targets, such as main or an owner-approved planning branch.
+      placeholder: main
+    validations:
+      required: true
+
+  - type: input
     id: base_sha
     attributes:
       label: Base SHA
-      description: Current origin/main commit approved for this Work Item. Fetch it; do not hard-code a historical SHA.
-      placeholder: <current origin/main SHA>
+      description: Exact SHA of the explicitly approved integration base. Fetch and verify the named ref; do not hard-code a historical SHA.
+      placeholder: <exact approved integration-base SHA>
     validations:
       required: true
