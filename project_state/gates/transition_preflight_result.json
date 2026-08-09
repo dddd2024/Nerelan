@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17",
-  "round_id": "round_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17",
+  "decision_id": "decision_20260809_issue136_agent_canvas_draft_pr_landing_v18",
+  "round_id": "round_20260809_issue136_agent_canvas_draft_pr_landing_v18",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17 expected=decision_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17"
+      "detail": "observed=decision_20260809_issue136_agent_canvas_draft_pr_landing_v18 expected=decision_20260809_issue136_agent_canvas_draft_pr_landing_v18"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17 expected=round_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17"
+      "detail": "observed=round_20260809_issue136_agent_canvas_draft_pr_landing_v18 expected=round_20260809_issue136_agent_canvas_draft_pr_landing_v18"
     },
     {
       "name": "decision_approved",
@@ -43,12 +43,12 @@
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=ab9355f986aa3e2d8a4f831db9c9a19e62e84134"
+      "detail": "decision_commit=441f6faae136e0c0b01a895f9615c14b7246107b"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17/round_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17"
+      "detail": "plan=decision_20260809_issue136_agent_canvas_draft_pr_landing_v18/round_20260809_issue136_agent_canvas_draft_pr_landing_v18"
     },
     {
       "name": "command_plan_contract",
