@@ -1,20 +1,363 @@
 # Decision Packet
 
 ```json decision_meta
-{"schema_version":1,"decision_id":"decision_20260809_issue136_agent_canvas_stageb2_screenshot_recovery_v15","round_id":"round_20260809_issue136_agent_canvas_stageb2_screenshot_recovery_v15","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260809_issue136_agent_canvas_stageb2_existing_screenshot_publication_v16",
+  "round_id": "round_20260809_issue136_agent_canvas_stageb2_existing_screenshot_publication_v16",
+  "status": "APPROVED",
+  "mainline": "engineering_branch",
+  "skill_profiles": ["reverse-agent-iteration@v2"]
+}
 ```
 
 ```json decision_contract
-{"transition_kernel_required":true,"follows_last_decision_id":"decision_20260809_issue136_agent_canvas_stageb2_persisted_gui_readback_v14","follows_last_round_id":"round_20260809_issue136_agent_canvas_stageb2_persisted_gui_readback_v14","previous_audit_outcome":"ISSUE136_STAGE_B2_V14_READBACK_PASSED_SCREENSHOT_PATH_GUARD_FAILED_AFTER_EDGE_WROTE_138341_BYTES","workstream_id":"issue136-agent-canvas-stageb2-screenshot-recovery-v15","source_issue":136,"parent_issue":127,"required_branch":"owner/issue136-agent-canvas-reuse-spike-v2","starting_head":"5551512f37af5e87b73ce33a2e0b67cf50ba0086","activation_base_sha":"dd4cb074ab5b9baacf300706878b29bd745f12c3","risk_tier":"R3","governance_artifact_risk_tier":"R3","decision_commit_must_precede_implementation":true,"decision_content_immutable_after_activation":true,"pr_creation_allowed":false,"draft_pr_creation_allowed":false,"pr_body_update_allowed":false,"pr_comment_allowed":false,"issue_comment_allowed":false,"branch_creation_allowed":false,"worktree_creation_allowed":false,"local_commit_allowed":true,"normal_push_allowed":true,"exact_head_workflow_observation_allowed":true,"merge_allowed":false,"mark_ready_allowed":false,"auto_merge_allowed":false,"force_push_allowed":false,"rebase_allowed":false,"direct_push_to_main_allowed":false,"release_allowed":false,"deployment_allowed":false,"real_provider_credential_allowed":false,"live_provider_probe_allowed":false,"model_execution_required":false,"model_api_invocation_allowed":false,"opencode_invocation_allowed":false,"codex_invocation_allowed":false,"openhands_invocation_allowed":false,"package_installation_allowed":false,"provider_configuration_mutation_allowed":false,"credential_value_access_allowed":false,"preexisting_provider_session_use_allowed":false,"bounded_external_source_access_allowed":false,"repair_attempt_limit":0,"infrastructure_retry_limit":0,"audit_generation_allowed":false,"prior_audits_immutable":true,"bootstrap_state_initial":"BOOTSTRAP_OPEN","screenshot_recovery_contract":{"purpose":"Recover the v14 Edge screenshot if it landed at Chromium's default cwd path; otherwise perform exactly one isolated Edge screenshot-only recapture against the already-persisted successful task. No model/task execution.","v14_edge_reported_bytes":138341,"default_candidate":"screenshot.png","required_screenshot":"frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png","task_id":"task-1786237330883-8460dbd1c478","expected_backend_status":"READY_FOR_REVIEW","expected_frontend_state":"READY_FOR_HUMAN","expected_executor_kind":"opencode","expected_validation_exit_code":0,"expected_source_head":"5629306ecb1ac1377ad414decbe31993e3b34c27","source_checkout":"F:/reverse-agent-workspaces/issue136-stageb2-v11-source","model_calls_allowed":0,"task_create_allowed":false,"task_execute_allowed":false,"recapture_limit":1},"bootstrap_exception_files":["project_state/decision_packet.md","project_state/gates/bootstrap_state.json","project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"],"bootstrap_exception_commands":["git status --short","git fetch origin main","git fetch origin owner/issue136-agent-canvas-reuse-spike-v2","git show origin/owner/issue136-agent-canvas-reuse-spike-v2:project_state/decision_packet.md","git switch owner/issue136-agent-canvas-reuse-spike-v2","git merge --ff-only origin/owner/issue136-agent-canvas-reuse-spike-v2","git rev-parse HEAD","git rev-parse origin/main","git rev-parse origin/owner/issue136-agent-canvas-reuse-spike-v2","python -m reverse_agent.project_gate startup-snapshot --state-dir project_state","python -m reverse_agent.project_gate transition-command-plan --state-dir project_state","python -m reverse_agent.project_gate transition-lint --state-dir project_state","python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre"],"allowed_commands":[{"command_id":"recovery.salvage_v14_screenshot","command":"powershell -NoProfile -Command '$required=\"F:/reverse-agent/frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png\"; if(Test-Path -LiteralPath $required){$len=(Get-Item -LiteralPath $required).Length; if($len -lt 50000){throw (\"existing required screenshot too small: \"+$len)}; Write-Output (\"REQUIRED_SCREENSHOT_ALREADY_PRESENT BYTES=\"+$len); exit 0}; $roots=@(\"F:/reverse-agent\",\"F:/reverse-agent/frontend/artifacts/agent-canvas-v1.6.1\"); $matches=@(); foreach($r in $roots){if(Test-Path -LiteralPath $r){$matches+=@(Get-ChildItem -LiteralPath $r -File -Filter *.png -ErrorAction SilentlyContinue|Where-Object {$_.Length -eq 138341})}}; $matches=@($matches|Sort-Object FullName -Unique); if($matches.Count -eq 0){Write-Output \"NO_RECOVERABLE_V14_SCREENSHOT\"; exit 0}; if($matches.Count -ne 1){throw (\"ambiguous 138341-byte png candidates: \"+(($matches|ForEach-Object {$_.FullName}) -join \" | \"))}; $src=$matches[0].FullName; $b=[IO.File]::ReadAllBytes($src); $sig=@(137,80,78,71,13,10,26,10); for($i=0;$i -lt 8;$i++){if($b[$i] -ne $sig[$i]){throw \"candidate is not PNG\"}}; $hash=(Get-FileHash -Algorithm SHA256 -LiteralPath $src).Hash.ToLower(); Move-Item -LiteralPath $src -Destination $required; if(-not (Test-Path -LiteralPath $required)){throw \"recovered screenshot destination missing\"}; $hash2=(Get-FileHash -Algorithm SHA256 -LiteralPath $required).Hash.ToLower(); if($hash2 -ne $hash){throw \"recovered screenshot hash mismatch\"}; Write-Output (\"V14_SCREENSHOT_RECOVERED SOURCE=\"+$src+\" BYTES=138341 SHA256=\"+$hash)'","phase":"recovery","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation","evidence_recovery"],"network_access":false,"required_evidence_source":"local_command_evidence","allowed_mutated_paths":["screenshot.png","frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png"],"produced_artifacts":["frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png"]},{"command_id":"recovery.validate_or_recapture_screenshot","command":"powershell -NoProfile -ExecutionPolicy Bypass -Command '$ErrorActionPreference=\"Stop\"; $required=\"F:/reverse-agent/frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png\"; if(Test-Path -LiteralPath $required){$len=(Get-Item -LiteralPath $required).Length; if($len -lt 50000){throw (\"required screenshot too small: \"+$len)}; Write-Output (\"SCREENSHOT_READY_WITHOUT_RECAPTURE BYTES=\"+$len); exit 0}; $src=\"F:/reverse-agent-workspaces/issue136-stageb2-v11-source\"; $h=(git -C $src rev-parse HEAD).Trim(); if($h -ne \"5629306ecb1ac1377ad414decbe31993e3b34c27\"){throw (\"unexpected source head \"+$h)}; $s=@(git -C $src status --short); if($s){throw (\"source checkout dirty: \"+($s -join \" | \"))}; $open=@(4173,8765,8766)|Where-Object {Test-NetConnection 127.0.0.1 -Port $_ -InformationLevel Quiet -WarningAction SilentlyContinue}; if($open){throw (\"ports already open: \"+($open -join \",\"))}; try { & .\\dev-up.ps1 -RepoDir F:\\reverse-agent -SourceDir F:\\reverse-agent-workspaces\\issue136-stageb2-v11-source -OpenCodeModel sensetime/sensenova-6.7-flash-lite -NoBrowser; if($LASTEXITCODE -ne 0){throw (\"dev-up exit \"+$LASTEXITCODE)}; $r=Invoke-RestMethod -Method Get -Uri \"http://127.0.0.1:8766/api/tasks/task-1786237330883-8460dbd1c478\" -TimeoutSec 20; if($r.id -ne \"task-1786237330883-8460dbd1c478\" -or $r.status -ne \"READY_FOR_REVIEW\" -or $r.state -ne \"READY_FOR_HUMAN\" -or $r.executor_kind -ne \"opencode\" -or $r.validation_exit_code -ne 0){throw \"persisted task readback mismatch before recapture\"}; $c=@(); if(${env:ProgramFiles(x86)}){$c+=(Join-Path ${env:ProgramFiles(x86)} \"Microsoft/Edge/Application/msedge.exe\")}; if($env:ProgramFiles){$c+=(Join-Path $env:ProgramFiles \"Microsoft/Edge/Application/msedge.exe\")}; $edge=$c|Where-Object {Test-Path -LiteralPath $_}|Select-Object -First 1; if(-not $edge){$ec=Get-Command msedge.exe -ErrorAction SilentlyContinue; if($ec){$edge=$ec.Source}}; if(-not $edge){throw \"Microsoft Edge not found\"}; $profile=\"F:/reverse-agent/.platform_v1_runtime/edge-v15-isolated-profile\"; $args=@(\"--headless=new\",\"--disable-gpu\",\"--no-first-run\",\"--no-default-browser-check\",\"--user-data-dir=$profile\",\"--window-size=1440,900\",\"--virtual-time-budget=5000\",\"--screenshot=$required\",\"http://127.0.0.1:4173/tasks/task-1786237330883-8460dbd1c478\"); $p=Start-Process -FilePath $edge -ArgumentList $args -Wait -PassThru -NoNewWindow; if($p.ExitCode -ne 0){throw (\"Edge screenshot exit \"+$p.ExitCode)}; for($i=0;$i -lt 20 -and -not (Test-Path -LiteralPath $required);$i++){Start-Sleep -Milliseconds 250}; if(-not (Test-Path -LiteralPath $required)){throw \"isolated Edge screenshot missing\"}; $len=(Get-Item -LiteralPath $required).Length; if($len -lt 50000){throw (\"isolated Edge screenshot too small: \"+$len)}; $s2=@(git -C $src status --short); if($s2){throw (\"source checkout dirty after recapture: \"+($s2 -join \" | \"))}; Write-Output (\"SCREENSHOT_RECAPTURED BYTES=\"+$len) } finally { & .\\dev-down.ps1 -RepoDir F:\\reverse-agent; $down=$LASTEXITCODE; $open2=@(4173,8765,8766)|Where-Object {Test-NetConnection 127.0.0.1 -Port $_ -InformationLevel Quiet -WarningAction SilentlyContinue}; if($open2){throw (\"ports still open: \"+($open2 -join \",\"))}; if($down -ne 0){throw (\"dev-down exit \"+$down)}; Write-Output \"PORTS_CLOSED\" }'","phase":"recovery","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation","exact_head_validation","loopback_http_probe","local_service_start","runtime_metadata_mutation","persistent_state_readback","evidence_generation","local_service_stop"],"network_access":false,"required_evidence_source":"local_command_evidence","allowed_mutated_paths":[".platform_v1_runtime/**","frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png"],"produced_artifacts":["frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png"]},{"command_id":"validation.diff_check","command":"git diff --check","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation","run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"publication.stage","command":"git add -- project_state/gates/bootstrap_state.json project_state/gates/command_plan.json project_state/gates/startup_snapshot.json project_state/gates/transition_command_plan_preview.json project_state/gates/transition_preflight_result.json frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_stage"],"network_access":false,"required_evidence_source":"repository_state_attestation","allowed_mutated_paths":["project_state/gates/bootstrap_state.json","project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json","frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png"]},{"command_id":"publication.cached_check","command":"git diff --cached --check","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"publication.staged_paths","command":"git diff --cached --name-only","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"repository_state_attestation"},{"command_id":"publication.commit","command":"git commit -m \"evidence(frontend): recover issue136 real task screenshot\"","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_commit"],"network_access":false,"required_evidence_source":"repository_state_attestation"},{"command_id":"publication.commit_paths","command":"git diff-tree --no-commit-id --name-only -r HEAD","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"repository_state_attestation"},{"command_id":"publication.push","command":"git push origin owner/issue136-agent-canvas-reuse-spike-v2","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_push","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation"},{"command_id":"publication.local_head","command":"git rev-parse HEAD","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"repository_state_attestation"},{"command_id":"publication.remote_head","command":"git rev-parse origin/owner/issue136-agent-canvas-reuse-spike-v2","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"repository_state_attestation"},{"command_id":"publication.final_status","command":"git status --short","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"repository_state_attestation"}],"allowed_mutated_paths":["project_state/decision_packet.md","project_state/gates/bootstrap_state.json","project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json","frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png","screenshot.png",".platform_v1_runtime/**"],"reference_paths":["dev-up.ps1","dev-down.ps1","reverse_agent/**","tests/**","frontend/src/**","frontend/tests/**",".frontend_stage/**","project_state/schemas/**"],"generated_artifact_paths":["project_state/gates/bootstrap_state.json","project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json","frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png"],"forbidden_mutated_paths":[".github/**",".frontend_stage/**","frontend/src/**","frontend/tests/**","frontend/package.json","frontend/package-lock.json","reverse_agent/**","tests/**","dev-up.ps1","dev-down.ps1","project_state/current_state.json","project_state/state_manifest.json","project_state/artifact_index.json","project_state/schemas/**","project_state/rounds/**","project_state/audits/**","project_state/mainline_merge_intents/**"],"forbidden_operations":["direct_push_main","auto_merge","force_push","rebase","amend","squash","tag_or_release","release","deployment","credential_access","credential_publication","model_api_invocation","opencode_invocation","codex_invocation","openhands_invocation","runner_dispatch","external_reverse_tool_invocation","unknown_binary_execution","destructive","package_install","dependency_install","provider_configuration_mutation","create_pr","pr_creation","draft_pr_creation","pr_body_update","reset_hard","git_clean"],"capability_policy":{"runner_dispatch_allowed":false,"model_api_invocation_allowed":false,"opencode_invocation_allowed":false,"codex_invocation_allowed":false,"openhands_invocation_allowed":false,"external_reverse_tool_invocation_allowed":false,"unknown_binary_execution_allowed":false,"destructive_operations_allowed":false,"bmad_installation_allowed":false,"network_access_default_allowed":false,"direct_push_to_main_allowed":false,"merge_allowed":false,"force_push_allowed":false,"rebase_during_execution_allowed":false,"tag_or_release_allowed":false,"remote_observation_read_only_allowed":true,"local_network_exceptions":["git fetch origin main","git fetch origin owner/issue136-agent-canvas-reuse-spike-v2","git push origin owner/issue136-agent-canvas-reuse-spike-v2"],"ci_network_exceptions":[]},"authorized_risk_tier":"R3","authorized_risk_paths":["project_state/decision_packet.md","project_state/gates/**","frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png","screenshot.png"],"path_risk_floor":[{"pattern":"project_state/decision_packet.md","minimum_risk":"R2"},{"pattern":"project_state/gates/**","minimum_risk":"R2"},{"pattern":"frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png","minimum_risk":"R2"},{"pattern":"screenshot.png","minimum_risk":"R2"}]}
+{
+  "transition_kernel_required": true,
+  "follows_last_decision_id": "decision_20260809_issue136_agent_canvas_stageb2_screenshot_recovery_v15",
+  "follows_last_round_id": "round_20260809_issue136_agent_canvas_stageb2_screenshot_recovery_v15",
+  "previous_audit_outcome": "ISSUE136_STAGE_B2_V15_BLOCKED_AT_VALIDATE_OR_RECAPTURE_TOOL_POLICY_REJECTION_AFTER_EXISTING_SCREENSHOT_CONFIRMED",
+  "workstream_id": "issue136-agent-canvas-stageb2-existing-screenshot-publication-v16",
+  "source_issue": 136,
+  "parent_issue": 127,
+  "required_branch": "owner/issue136-agent-canvas-reuse-spike-v2",
+  "starting_head": "03228ae287cbcd2719f10a10e3f14b35442ff8e7",
+  "activation_base_sha": "dd4cb074ab5b9baacf300706878b29bd745f12c3",
+  "risk_tier": "R3",
+  "governance_artifact_risk_tier": "R3",
+  "decision_commit_must_precede_implementation": true,
+  "decision_content_immutable_after_activation": true,
+  "pr_creation_allowed": false,
+  "draft_pr_creation_allowed": false,
+  "pr_body_update_allowed": false,
+  "pr_comment_allowed": false,
+  "issue_comment_allowed": false,
+  "branch_creation_allowed": false,
+  "worktree_creation_allowed": false,
+  "local_commit_allowed": true,
+  "normal_push_allowed": true,
+  "exact_head_workflow_observation_allowed": true,
+  "merge_allowed": false,
+  "mark_ready_allowed": false,
+  "auto_merge_allowed": false,
+  "force_push_allowed": false,
+  "rebase_allowed": false,
+  "direct_push_to_main_allowed": false,
+  "release_allowed": false,
+  "deployment_allowed": false,
+  "real_provider_credential_allowed": false,
+  "live_provider_probe_allowed": false,
+  "model_execution_required": false,
+  "model_api_invocation_allowed": false,
+  "opencode_invocation_allowed": false,
+  "codex_invocation_allowed": false,
+  "openhands_invocation_allowed": false,
+  "package_installation_allowed": false,
+  "provider_configuration_mutation_allowed": false,
+  "credential_value_access_allowed": false,
+  "preexisting_provider_session_use_allowed": false,
+  "bounded_external_source_access_allowed": false,
+  "repair_attempt_limit": 0,
+  "infrastructure_retry_limit": 0,
+  "audit_generation_allowed": false,
+  "prior_audits_immutable": true,
+  "bootstrap_state_initial": "BOOTSTRAP_OPEN",
+  "publication_contract": {
+    "purpose": "Validate and publish the already-existing v14 real-task screenshot. No recapture, service start, task GET/POST, model, provider, or runtime execution is authorized.",
+    "required_screenshot": "frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png",
+    "expected_bytes": 138341,
+    "expected_width": 1440,
+    "expected_height": 900,
+    "task_id": "task-1786237330883-8460dbd1c478",
+    "prior_readback_backend_status": "READY_FOR_REVIEW",
+    "prior_readback_frontend_state": "READY_FOR_HUMAN",
+    "prior_readback_executor_kind": "opencode",
+    "prior_readback_validation_exit_code": 0,
+    "model_calls_allowed": 0,
+    "task_create_allowed": false,
+    "task_execute_allowed": false,
+    "service_start_allowed": false,
+    "screenshot_recapture_allowed": false
+  },
+  "bootstrap_exception_files": [
+    "project_state/decision_packet.md",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
+  "bootstrap_exception_commands": [
+    "git status --short",
+    "git fetch origin main",
+    "git fetch origin owner/issue136-agent-canvas-reuse-spike-v2",
+    "git show origin/owner/issue136-agent-canvas-reuse-spike-v2:project_state/decision_packet.md",
+    "git switch owner/issue136-agent-canvas-reuse-spike-v2",
+    "git merge --ff-only origin/owner/issue136-agent-canvas-reuse-spike-v2",
+    "git rev-parse HEAD",
+    "git rev-parse origin/main",
+    "git rev-parse origin/owner/issue136-agent-canvas-reuse-spike-v2",
+    "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+    "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+    "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
+    "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre"
+  ],
+  "allowed_commands": [
+    {
+      "command_id": "validation.existing_screenshot",
+      "command": "powershell -NoProfile -Command '$p=\"F:/reverse-agent/frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png\"; if(-not (Test-Path -LiteralPath $p)){throw \"required screenshot missing\"}; $b=[IO.File]::ReadAllBytes($p); if($b.Length -ne 138341){throw (\"unexpected screenshot bytes: \"+$b.Length)}; $sig=@(137,80,78,71,13,10,26,10); for($i=0;$i -lt 8;$i++){if($b[$i] -ne $sig[$i]){throw \"invalid PNG signature\"}}; $w=($b[16]-shl 24)-bor($b[17]-shl 16)-bor($b[18]-shl 8)-bor$b[19]; $h=($b[20]-shl 24)-bor($b[21]-shl 16)-bor($b[22]-shl 8)-bor$b[23]; if($w -ne 1440 -or $h -ne 900){throw (\"unexpected screenshot dimensions: \"+$w+\"x\"+$h)}; $hash=(Get-FileHash -Algorithm SHA256 -LiteralPath $p).Hash.ToLower(); Write-Output (\"EXISTING_SCREENSHOT_VALID BYTES=\"+$b.Length+\" DIMENSIONS=\"+$w+\"x\"+$h+\" SHA256=\"+$hash)'",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "validation.diff_check",
+      "command": "git diff --check",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "publication.stage",
+      "command": "git add -- project_state/gates/bootstrap_state.json project_state/gates/command_plan.json project_state/gates/startup_snapshot.json project_state/gates/transition_command_plan_preview.json project_state/gates/transition_preflight_result.json frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_stage"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [
+        "project_state/gates/bootstrap_state.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/gates/transition_command_plan_preview.json",
+        "project_state/gates/transition_preflight_result.json",
+        "frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png"
+      ]
+    },
+    {
+      "command_id": "publication.cached_check",
+      "command": "git diff --cached --check",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "publication.staged_paths",
+      "command": "git diff --cached --name-only",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "publication.commit",
+      "command": "git commit -m \"evidence(frontend): publish issue136 real task screenshot\"",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_commit"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "publication.commit_paths",
+      "command": "git diff-tree --no-commit-id --name-only -r HEAD",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "publication.push",
+      "command": "git push origin owner/issue136-agent-canvas-reuse-spike-v2",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_push", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "publication.local_head",
+      "command": "git rev-parse HEAD",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "publication.remote_head",
+      "command": "git rev-parse origin/owner/issue136-agent-canvas-reuse-spike-v2",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "publication.final_status",
+      "command": "git status --short",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    }
+  ],
+  "allowed_mutated_paths": [
+    "project_state/decision_packet.md",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json",
+    "frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png"
+  ],
+  "reference_paths": [
+    "dev-up.ps1",
+    "dev-down.ps1",
+    "reverse_agent/**",
+    "tests/**",
+    "frontend/src/**",
+    "frontend/tests/**",
+    ".frontend_stage/**",
+    ".platform_v1_runtime/**",
+    "project_state/schemas/**"
+  ],
+  "generated_artifact_paths": [
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
+  "forbidden_mutated_paths": [
+    ".github/**",
+    ".frontend_stage/**",
+    ".platform_v1_runtime/**",
+    "frontend/src/**",
+    "frontend/tests/**",
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "reverse_agent/**",
+    "tests/**",
+    "dev-up.ps1",
+    "dev-down.ps1",
+    "project_state/current_state.json",
+    "project_state/state_manifest.json",
+    "project_state/artifact_index.json",
+    "project_state/schemas/**",
+    "project_state/rounds/**",
+    "project_state/audits/**",
+    "project_state/mainline_merge_intents/**"
+  ],
+  "forbidden_operations": [
+    "direct_push_main",
+    "auto_merge",
+    "force_push",
+    "rebase",
+    "amend",
+    "squash",
+    "tag_or_release",
+    "release",
+    "deployment",
+    "credential_access",
+    "credential_publication",
+    "model_api_invocation",
+    "opencode_invocation",
+    "codex_invocation",
+    "openhands_invocation",
+    "runner_dispatch",
+    "external_reverse_tool_invocation",
+    "unknown_binary_execution",
+    "destructive",
+    "package_install",
+    "dependency_install",
+    "provider_configuration_mutation",
+    "local_service_start",
+    "local_service_stop",
+    "loopback_http_probe",
+    "persistent_state_readback",
+    "create_pr",
+    "pr_creation",
+    "draft_pr_creation",
+    "pr_body_update",
+    "reset_hard",
+    "git_clean"
+  ],
+  "capability_policy": {
+    "runner_dispatch_allowed": false,
+    "model_api_invocation_allowed": false,
+    "opencode_invocation_allowed": false,
+    "codex_invocation_allowed": false,
+    "openhands_invocation_allowed": false,
+    "external_reverse_tool_invocation_allowed": false,
+    "unknown_binary_execution_allowed": false,
+    "destructive_operations_allowed": false,
+    "bmad_installation_allowed": false,
+    "network_access_default_allowed": false,
+    "direct_push_to_main_allowed": false,
+    "merge_allowed": false,
+    "force_push_allowed": false,
+    "rebase_during_execution_allowed": false,
+    "tag_or_release_allowed": false,
+    "remote_observation_read_only_allowed": true,
+    "local_network_exceptions": [
+      "git fetch origin main",
+      "git fetch origin owner/issue136-agent-canvas-reuse-spike-v2",
+      "git push origin owner/issue136-agent-canvas-reuse-spike-v2"
+    ],
+    "ci_network_exceptions": []
+  },
+  "authorized_risk_tier": "R3",
+  "authorized_risk_paths": [
+    "project_state/decision_packet.md",
+    "project_state/gates/**",
+    "frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png"
+  ],
+  "path_risk_floor": [
+    {"pattern": "project_state/decision_packet.md", "minimum_risk": "R2"},
+    {"pattern": "project_state/gates/**", "minimum_risk": "R2"},
+    {"pattern": "frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png", "minimum_risk": "R2"}
+  ]
+}
 ```
 
 ## Owner instruction
 
-v15 supersedes v14. v14 proved the persisted v11 task through normal GET (`READY_FOR_REVIEW` / `READY_FOR_HUMAN`, executor `opencode`, validation 0, expected acceptance file/content) and reached Edge screenshot generation. Chromium only emits its `bytes written to file` success log after `WriteFile` succeeds; v14 observed 138341 bytes written, but the subsequent guard could not find the requested target path. Therefore v15 treats this as screenshot-path recovery, not a task/model failure.
+v16 supersedes v15. The v15 salvage command already established that the required screenshot exists at the final target path with exactly 138341 bytes. The v15 combined validate-or-recapture command was rejected by the outer local-Agent execution policy before process creation because the entire command contained fallback process-launch/service-start behavior even though its runtime first branch would have exited immediately.
 
-Known pre-existing local scratch `.frontend_stage/**` and `.platform_v1_runtime/**` were already present in earlier startup snapshots. `.frontend_stage/**` is read-only/forbidden for v15 and must never be staged. Runtime remains mutable only for the bounded service recapture fallback.
+v16 deliberately removes every fallback and runtime branch. It authorizes only a read-only validation of the already-existing PNG (existence, exact byte length, PNG signature, 1440x900 IHDR dimensions, SHA-256), then publication of that screenshot plus the five generated gate artifacts.
 
-After standard bootstrap and transition gates, execute `recovery.salvage_v14_screenshot` once, then `recovery.validate_or_recapture_screenshot` once. The first command recovers exactly one 138341-byte PNG from the repo root/artifact directory if present. The second performs no service start if the required screenshot is already recovered; otherwise it permits exactly one isolated-profile Edge recapture after GET-verifying the same persisted task. No task create/execute POST and no OpenCode/model/provider call is authorized.
+No service start/stop, GET/POST, Edge/browser process, model/OpenCode/provider call, credential access, package operation, product/source/test mutation, PR, merge, or main push is authorized.
 
-Any nonzero recovery command is terminal. On success publish only the five generated gate artifacts plus the required screenshot. Do not stage `.frontend_stage/**`, `.platform_v1_runtime/**`, `screenshot.png`, product/source/test files, or prior evidence logs.
-```
+Require command-plan PASS, lint PASS, preflight `PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]`, screenshot validation PASS, exact staged-path verification, normal commit/push, and local/remote head equality.
