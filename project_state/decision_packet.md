@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_governance_v2_r1_execution_unblocker_v5",
-  "round_id": "round_20260809_governance_v2_r1_execution_unblocker_v5",
+  "decision_id": "decision_20260809_governance_v2_r1_execution_unblocker_v6",
+  "round_id": "round_20260809_governance_v2_r1_execution_unblocker_v6",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,16 +14,16 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260809_governance_v2_r1_execution_unblocker_v4",
-  "follows_last_round_id": "round_20260809_governance_v2_r1_execution_unblocker_v4",
-  "previous_audit_outcome": "V4_STOPPED_WITH_EVIDENCE_WINDOWS_WORKTREE_BYTE_NORMALIZATION_INVALIDATED_PLATFORM_HASH_FIXTURES",
-  "workstream_id": "governance-v2-r1-execution-unblocker-v5",
+  "follows_last_decision_id": "decision_20260809_governance_v2_r1_execution_unblocker_v5",
+  "follows_last_round_id": "round_20260809_governance_v2_r1_execution_unblocker_v5",
+  "previous_audit_outcome": "V5_OWNER_EXACT_HEAD_AUDIT_REWORK_REQUIRED_R1_LOCAL_READINESS_DID_NOT_ENFORCE_APPROVED_SNAPSHOT",
+  "workstream_id": "governance-v2-r1-execution-unblocker-v6",
   "source_issue": 157,
   "parent_issue": 148,
   "related_issue": 156,
   "blocked_issue": 151,
   "required_branch": "owner/governance-v2-r1-unblocker-v1",
-  "starting_head": "02e5ec58998909f4ea27356f7a4b1cabb7a96c4e",
+  "starting_head": "a4634d53f0f316bedb94d7b0d528e08366990986",
   "activation_base_sha": "f8010e1c05d64f556d64f81c35e6916bf825409e",
   "integration_target_branch": "owner/repository-modernization-v2-planning",
   "risk_tier": "R2",
@@ -53,7 +53,7 @@
   "package_installation_allowed": false,
   "provider_configuration_mutation_allowed": false,
   "credential_value_access_allowed": false,
-  "repair_attempt_limit": 0,
+  "repair_attempt_limit": 1,
   "infrastructure_retry_limit": 1,
   "bootstrap_state_initial": "BOOTSTRAP_OPEN",
   "bootstrap_exception_files": [
@@ -83,16 +83,22 @@
     {"command_id":"test.current_team_anchor","command":"python -m pytest tests/test_development_graph.py -q","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"validation.publication_readiness","command":"python -m reverse_agent.project_gate worktree-publication-readiness --state-dir project_state","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"validation.diff_check","command":"git diff --check","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"mutation.stage_rework","command":"git add reverse_agent/project_gate.py tests/test_project_gate.py","phase":"implementation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_staging"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"validation.cached_paths","command":"git diff --cached --name-only","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"evidence.source_product_manifest","command":"git diff --cached --raw --full-index --no-renames f8010e1c05d64f556d64f81c35e6916bf825409e -- .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"mutation.validation_lf_worktree","command":"git -c core.autocrlf=false -c core.eol=lf worktree add --detach F:\\reverse-agent-governance-v2-r1-unblocker-validation-lf-20260809 f8010e1c05d64f556d64f81c35e6916bf825409e","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["worktree_create"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"validation.canonical_lf_identity","command":"powershell -NoProfile -Command \"$r='F:\\reverse-agent-governance-v2-r1-unblocker-validation-lf-20260809'; $ps=@('project_state/decision_packet.md','project_state/gates/command_plan.json','project_state/mainline_merge_intents/archive/pr97_v4.json'); foreach($p in $ps){$w=(git -C $r hash-object --no-filters -- $p).Trim(); $h=(git -C $r rev-parse ('HEAD:'+$p)).Trim(); Write-Output ($p+' working='+$w+' head='+$h); if($w -ne $h){exit 1}}\"","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"mutation.apply_scoped_product_diff_lf","command":"cmd /d /c \"git diff --cached --binary f8010e1c05d64f556d64f81c35e6916bf825409e -- .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py | git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-lf-20260809 apply -\"","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["source_mutation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"mutation.stage_validation_lf","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-lf-20260809 add .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_staging"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"evidence.validation_product_manifest_lf","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-lf-20260809 diff --cached --raw --full-index --no-renames f8010e1c05d64f556d64f81c35e6916bf825409e -- .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"test.platform_baseline_lf","command":"powershell -NoProfile -Command \"Set-Location 'F:\\reverse-agent-governance-v2-r1-unblocker-validation-lf-20260809'; python -m pytest tests/platform_v1 -q\"","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"validation.validation_diff_check_lf","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-lf-20260809 diff --cached --check","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"mutation.commit_product","command":"git commit -m \"governance: unblock branch-neutral R1 execution\"","phase":"implementation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["commit"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"evidence.source_cumulative_product_manifest","command":"git diff --cached --raw --full-index --no-renames f8010e1c05d64f556d64f81c35e6916bf825409e -- .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml .github/workflows/decision-preflight.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_decision_preflight.py tests/test_minimal_integration_baseline_docs.py tests/test_path_a_gate.py tests/test_project_gate.py","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"mutation.validation_v6_lf_worktree","command":"git -c core.autocrlf=false -c core.eol=lf worktree add --detach F:\\reverse-agent-governance-v2-r1-unblocker-validation-v6-lf-20260809 f8010e1c05d64f556d64f81c35e6916bf825409e","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["worktree_create"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"validation.v6_lf_decision_worktree_blob","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-v6-lf-20260809 hash-object --no-filters project_state/decision_packet.md","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"validation.v6_lf_decision_head_blob","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-v6-lf-20260809 rev-parse HEAD:project_state/decision_packet.md","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"validation.v6_lf_plan_worktree_blob","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-v6-lf-20260809 hash-object --no-filters project_state/gates/command_plan.json","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"validation.v6_lf_plan_head_blob","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-v6-lf-20260809 rev-parse HEAD:project_state/gates/command_plan.json","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"validation.v6_lf_archive_worktree_blob","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-v6-lf-20260809 hash-object --no-filters project_state/mainline_merge_intents/archive/pr97_v4.json","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"validation.v6_lf_archive_head_blob","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-v6-lf-20260809 rev-parse HEAD:project_state/mainline_merge_intents/archive/pr97_v4.json","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"mutation.apply_cumulative_product_diff_v6_lf","command":"cmd /d /c \"git diff --cached --binary f8010e1c05d64f556d64f81c35e6916bf825409e -- .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml .github/workflows/decision-preflight.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_decision_preflight.py tests/test_minimal_integration_baseline_docs.py tests/test_path_a_gate.py tests/test_project_gate.py | git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-v6-lf-20260809 apply -\"","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["source_mutation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"mutation.stage_validation_v6_lf","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-v6-lf-20260809 add .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml .github/workflows/decision-preflight.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_decision_preflight.py tests/test_minimal_integration_baseline_docs.py tests/test_path_a_gate.py tests/test_project_gate.py","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_staging"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"evidence.validation_cumulative_product_manifest_v6_lf","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-v6-lf-20260809 diff --cached --raw --full-index --no-renames f8010e1c05d64f556d64f81c35e6916bf825409e -- .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml .github/workflows/decision-preflight.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_decision_preflight.py tests/test_minimal_integration_baseline_docs.py tests/test_path_a_gate.py tests/test_project_gate.py","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"test.platform_baseline_v6_lf","command":"powershell -NoProfile -Command \"Set-Location 'F:\\reverse-agent-governance-v2-r1-unblocker-validation-v6-lf-20260809'; python -m pytest tests/platform_v1 -q\"","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"validation.validation_diff_check_v6_lf","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-v6-lf-20260809 diff --cached --check","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"mutation.commit_rework","command":"git commit -m \"governance: require approved R1 publication snapshot\"","phase":"implementation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["commit"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"validation.committed_paths","command":"git show --name-only --format= HEAD","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"sync.final_fetch_planning","command":"git fetch origin owner/repository-modernization-v2-planning","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation"},
     {"command_id":"sync.final_fetch_branch","command":"git fetch origin owner/governance-v2-r1-unblocker-v1","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation"},
@@ -105,26 +111,19 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    ".github/workflows/decision-preflight.yml",
-    ".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml",
-    "AGENTS.md",
-    "reverse_agent/control_plane/path_a.py",
     "reverse_agent/project_gate.py",
-    "tests/test_path_a_gate.py",
-    "tests/test_project_gate.py",
-    "tests/test_minimal_integration_baseline_docs.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_decision_preflight.py"
+    "tests/test_project_gate.py"
   ],
   "reference_paths": [
-    ".github/workflows/state-gate.yml",
-    "reverse_agent/control_plane/worktree_state.py",
+    ".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml",
+    ".github/workflows/decision-preflight.yml",
+    "AGENTS.md",
+    "reverse_agent/control_plane/path_a.py",
+    "tests/test_decision_preflight.py",
+    "tests/test_minimal_integration_baseline_docs.py",
+    "tests/test_path_a_gate.py",
     "tests/test_development_graph.py",
-    "tests/test_team_graph.py",
     "tests/platform_v1/**",
-    "reverse_agent/platform_v1/**",
-    "reverse_agent/workflows/**",
-    "reverse_agent/architecture/contracts.py",
     "project_state/mainline_merge_intents/**"
   ],
   "generated_artifact_paths": [
@@ -135,9 +134,8 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "forbidden_mutated_paths": [
-    ".github/workflows/state-gate.yml",
-    ".github/actions/**",
-    ".gitignore",
+    ".github/**",
+    "AGENTS.md",
     ".gitattributes",
     "frontend/**",
     "docs/**",
@@ -145,11 +143,14 @@
     "requirements*.txt",
     "poetry.lock",
     "uv.lock",
+    "reverse_agent/control_plane/**",
     "reverse_agent/platform_v1/**",
     "reverse_agent/workflows/**",
     "reverse_agent/architecture/contracts.py",
-    "reverse_agent/control_plane/worktree_state.py",
     "tests/platform_v1/**",
+    "tests/test_path_a_gate.py",
+    "tests/test_decision_preflight.py",
+    "tests/test_minimal_integration_baseline_docs.py",
     "tests/test_development_graph.py",
     "tests/test_team_graph.py",
     "project_state/current_state.json",
@@ -192,10 +193,9 @@
     "provider_configuration_mutation",
     "issue151_product_mutation",
     "pr146_mutation",
-    "sidecar_authority_lifecycle_redesign",
-    "transition_lint_architecture_redesign",
     "historical_fixture_mutation",
-    "gitattributes_change"
+    "mapping_redesign",
+    "workflow_redesign"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -221,19 +221,12 @@
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
     "project_state/gates/**",
-    ".github/workflows/decision-preflight.yml",
-    ".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml",
-    "AGENTS.md",
-    "reverse_agent/control_plane/path_a.py",
-    "reverse_agent/project_gate.py"
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "path_risk_floor": [
     {"pattern":"project_state/decision_packet.md","minimum_risk":"R2"},
     {"pattern":"project_state/gates/**","minimum_risk":"R2"},
-    {"pattern":".github/workflows/**","minimum_risk":"R2"},
-    {"pattern":".github/ISSUE_TEMPLATE/**","minimum_risk":"R2"},
-    {"pattern":"AGENTS.md","minimum_risk":"R2"},
-    {"pattern":"reverse_agent/control_plane/**","minimum_risk":"R2"},
     {"pattern":"reverse_agent/project_gate.py","minimum_risk":"R2"},
     {"pattern":"tests/**","minimum_risk":"R1"}
   ]
@@ -242,8 +235,8 @@
 
 ## Goal
 
-v5 supersedes v4 after detached Platform V1 validation failed only in byte/hash identity assertions on Windows. Owner independently confirmed the planning repository has no `.gitattributes`; the affected tests hash raw working-tree bytes; the remote archived Git blob identities themselves match the hard-coded expected blob IDs; and the current planning Decision plus active mainline merge intent both bind PR #134. The v4 failed detached worktree is preserved as evidence and must not be modified or removed.
+v6 supersedes v5 after Owner exact-head audit of implementation commit `a4634d53f0f316bedb94d7b0d528e08366990986` found one fail-open defect in the new ordinary-R1 local publication guard: the parsed snapshot's `approval_state` is reported but not enforced. A structurally valid non-APPROVED snapshot can therefore pass the remaining digest/branch/head/base/worktree checks and reach `R1_PUBLICATION_READY`.
 
-No product repair is authorized in v5. Resume the already staged nine-path #157 product delta, rebind the authority worktree by ff-only to this v5 Decision, regenerate transition artifacts, rerun the already passing focused Governance/current-team checks, and create a second detached validation worktree using command-scoped `core.autocrlf=false` and `core.eol=lf`. Before applying the product delta, prove raw working-tree bytes for representative authority/history files hash to the same Git blob IDs as HEAD. Then apply and stage only the existing product delta, prove path-scoped raw full-index manifest equality, and rerun the same complete `tests/platform_v1` suite. If that suite still fails, stop with evidence; do not edit tests, historical intents, `.gitattributes`, or product code.
+Fix only this defect. `worktree_r1_publication_readiness()` must fail closed unless `snapshot.approval_state == "APPROVED"`, with a deterministic blocking reason, and `tests/test_project_gate.py` must include a negative regression proving a non-APPROVED snapshot is BLOCKED. Do not alter `parse_snapshot()` semantics globally, the task-check mappings, Decision Preflight, R1 activation documentation, Platform V1 fixtures, historical merge intents, #151 product code, or any other #157 behavior.
 
-If the canonical-LF full Platform suite passes, complete the existing product-only commit, final exact-head CAS, one normal push, and stop for Owner exact-head audit.
+After the two-file rework, validate the final cumulative nine-path #157 product tree from planning in a fresh canonical-LF detached worktree. The prior v4 and v5 validation worktrees are immutable evidence and must remain preserved. No further product repair is authorized after detached v6 validation begins.
