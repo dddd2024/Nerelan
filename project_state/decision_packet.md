@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_governance_v2_r1_execution_unblocker_v4",
-  "round_id": "round_20260809_governance_v2_r1_execution_unblocker_v4",
+  "decision_id": "decision_20260809_governance_v2_r1_execution_unblocker_v5",
+  "round_id": "round_20260809_governance_v2_r1_execution_unblocker_v5",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,16 +14,16 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260809_governance_v2_r1_execution_unblocker_v3",
-  "follows_last_round_id": "round_20260809_governance_v2_r1_execution_unblocker_v3",
-  "previous_audit_outcome": "V3_STOPPED_WITH_EVIDENCE_REQUIRED_TEAM_VALIDATION_REFERENCED_FUTURE_ISSUE151_TEST_ABSENT_FROM_CURRENT_BASE",
-  "workstream_id": "governance-v2-r1-execution-unblocker-v4",
+  "follows_last_decision_id": "decision_20260809_governance_v2_r1_execution_unblocker_v4",
+  "follows_last_round_id": "round_20260809_governance_v2_r1_execution_unblocker_v4",
+  "previous_audit_outcome": "V4_STOPPED_WITH_EVIDENCE_WINDOWS_WORKTREE_BYTE_NORMALIZATION_INVALIDATED_PLATFORM_HASH_FIXTURES",
+  "workstream_id": "governance-v2-r1-execution-unblocker-v5",
   "source_issue": 157,
   "parent_issue": 148,
   "related_issue": 156,
   "blocked_issue": 151,
   "required_branch": "owner/governance-v2-r1-unblocker-v1",
-  "starting_head": "a172c10eeafa099b556e57aeb90e1e8c89b98a87",
+  "starting_head": "02e5ec58998909f4ea27356f7a4b1cabb7a96c4e",
   "activation_base_sha": "f8010e1c05d64f556d64f81c35e6916bf825409e",
   "integration_target_branch": "owner/repository-modernization-v2-planning",
   "risk_tier": "R2",
@@ -53,7 +53,7 @@
   "package_installation_allowed": false,
   "provider_configuration_mutation_allowed": false,
   "credential_value_access_allowed": false,
-  "repair_attempt_limit": 1,
+  "repair_attempt_limit": 0,
   "infrastructure_retry_limit": 1,
   "bootstrap_state_initial": "BOOTSTRAP_OPEN",
   "bootstrap_exception_files": [
@@ -83,15 +83,15 @@
     {"command_id":"test.current_team_anchor","command":"python -m pytest tests/test_development_graph.py -q","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"validation.publication_readiness","command":"python -m reverse_agent.project_gate worktree-publication-readiness --state-dir project_state","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"validation.diff_check","command":"git diff --check","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"mutation.stage_product","command":"git add .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py","phase":"implementation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_staging"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"validation.cached_paths","command":"git diff --cached --name-only","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"evidence.source_product_manifest","command":"git diff --cached --raw --full-index --no-renames f8010e1c05d64f556d64f81c35e6916bf825409e -- .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"mutation.validation_worktree","command":"git worktree add --detach F:\\reverse-agent-governance-v2-r1-unblocker-validation-20260809 f8010e1c05d64f556d64f81c35e6916bf825409e","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["worktree_create"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"mutation.apply_scoped_product_diff","command":"cmd /d /c \"git diff --cached --binary f8010e1c05d64f556d64f81c35e6916bf825409e -- .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py | git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-20260809 apply -\"","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["source_mutation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"mutation.stage_validation","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-20260809 add .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_staging"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"evidence.validation_product_manifest","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-20260809 diff --cached --raw --full-index --no-renames f8010e1c05d64f556d64f81c35e6916bf825409e -- .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"test.platform_baseline","command":"powershell -NoProfile -Command \"Set-Location 'F:\\reverse-agent-governance-v2-r1-unblocker-validation-20260809'; python -m pytest tests/platform_v1 -q\"","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"validation.validation_diff_check","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-20260809 diff --cached --check","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"mutation.validation_lf_worktree","command":"git -c core.autocrlf=false -c core.eol=lf worktree add --detach F:\\reverse-agent-governance-v2-r1-unblocker-validation-lf-20260809 f8010e1c05d64f556d64f81c35e6916bf825409e","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["worktree_create"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"validation.canonical_lf_identity","command":"powershell -NoProfile -Command \"$r='F:\\reverse-agent-governance-v2-r1-unblocker-validation-lf-20260809'; $ps=@('project_state/decision_packet.md','project_state/gates/command_plan.json','project_state/mainline_merge_intents/archive/pr97_v4.json'); foreach($p in $ps){$w=(git -C $r hash-object --no-filters -- $p).Trim(); $h=(git -C $r rev-parse ('HEAD:'+$p)).Trim(); Write-Output ($p+' working='+$w+' head='+$h); if($w -ne $h){exit 1}}\"","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"mutation.apply_scoped_product_diff_lf","command":"cmd /d /c \"git diff --cached --binary f8010e1c05d64f556d64f81c35e6916bf825409e -- .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py | git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-lf-20260809 apply -\"","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["source_mutation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"mutation.stage_validation_lf","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-lf-20260809 add .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_staging"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"evidence.validation_product_manifest_lf","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-lf-20260809 diff --cached --raw --full-index --no-renames f8010e1c05d64f556d64f81c35e6916bf825409e -- .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"test.platform_baseline_lf","command":"powershell -NoProfile -Command \"Set-Location 'F:\\reverse-agent-governance-v2-r1-unblocker-validation-lf-20260809'; python -m pytest tests/platform_v1 -q\"","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"validation.validation_diff_check_lf","command":"git -C F:\\reverse-agent-governance-v2-r1-unblocker-validation-lf-20260809 diff --cached --check","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"mutation.commit_product","command":"git commit -m \"governance: unblock branch-neutral R1 execution\"","phase":"implementation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["commit"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"validation.committed_paths","command":"git show --name-only --format= HEAD","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"sync.final_fetch_planning","command":"git fetch origin owner/repository-modernization-v2-planning","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation"},
@@ -124,7 +124,8 @@
     "tests/platform_v1/**",
     "reverse_agent/platform_v1/**",
     "reverse_agent/workflows/**",
-    "reverse_agent/architecture/contracts.py"
+    "reverse_agent/architecture/contracts.py",
+    "project_state/mainline_merge_intents/**"
   ],
   "generated_artifact_paths": [
     "project_state/gates/bootstrap_state.json",
@@ -137,6 +138,7 @@
     ".github/workflows/state-gate.yml",
     ".github/actions/**",
     ".gitignore",
+    ".gitattributes",
     "frontend/**",
     "docs/**",
     "pyproject.toml",
@@ -191,7 +193,9 @@
     "issue151_product_mutation",
     "pr146_mutation",
     "sidecar_authority_lifecycle_redesign",
-    "transition_lint_architecture_redesign"
+    "transition_lint_architecture_redesign",
+    "historical_fixture_mutation",
+    "gitattributes_change"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -238,8 +242,8 @@
 
 ## Goal
 
-v4 supersedes v3 after v3 stopped fail-closed on a required validation command that referenced `tests/test_team_graph.py`, a test file not yet present on the current Governance V2 planning base. Owner independently verified that the file does exist at frozen #151 product head `acf022c8865973cef59a4da742db10ec023d01d8`; therefore the future #151 task-check mapping may correctly retain that team regression target, while #157 itself must validate only against regression targets present on its current base.
+v5 supersedes v4 after detached Platform V1 validation failed only in byte/hash identity assertions on Windows. Owner independently confirmed the planning repository has no `.gitattributes`; the affected tests hash raw working-tree bytes; the remote archived Git blob identities themselves match the hard-coded expected blob IDs; and the current planning Decision plus active mainline merge intent both bind PR #134. The v4 failed detached worktree is preserved as evidence and must not be modified or removed.
 
-Resume the preserved #157 implementation worktree. Do not regenerate or discard the already completed in-scope edits. Rebind to this v4 Decision by an ff-only update of the authority branch, regenerate the deterministic command plan, rerun lint/preflight, rerun the required focused Governance tests, and use `tests/test_development_graph.py` as this round's existing team/development anchor. The remaining repair budget is one. Continue with the unchanged publication-readiness, exact staging, path-scoped Git-object manifest binding, detached planning-baseline Platform V1 validation, product-only commit, final remote CAS and one normal push.
+No product repair is authorized in v5. Resume the already staged nine-path #157 product delta, rebind the authority worktree by ff-only to this v5 Decision, regenerate transition artifacts, rerun the already passing focused Governance/current-team checks, and create a second detached validation worktree using command-scoped `core.autocrlf=false` and `core.eol=lf`. Before applying the product delta, prove raw working-tree bytes for representative authority/history files hash to the same Git blob IDs as HEAD. Then apply and stage only the existing product delta, prove path-scoped raw full-index manifest equality, and rerun the same complete `tests/platform_v1` suite. If that suite still fails, stop with evidence; do not edit tests, historical intents, `.gitattributes`, or product code.
 
-Do not create or modify `tests/test_team_graph.py` in #157. Do not touch #151 product code or its frozen workspace. Do not broaden scope, redesign #156, or alter the accepted mapping semantics merely to make this round pass.
+If the canonical-LF full Platform suite passes, complete the existing product-only commit, final exact-head CAS, one normal push, and stop for Owner exact-head audit.
