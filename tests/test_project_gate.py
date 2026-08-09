@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import reverse_agent.project_gate as project_gate_module
 
 from reverse_agent.project_gate import (
     BUILD_OUTPUT_WHITELIST,
@@ -28161,6 +28162,41 @@ def test_startup_snapshot_writes_and_reuses_first_current_round_artifact(
     assert check["status"] == "PASS"
 
 
+def test_startup_snapshot_reobserves_current_round_artifact_without_classifier_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    decision_id = "decision_startup_classifier_migration"
+    round_id = "round_startup_classifier_migration"
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id=decision_id,
+        round_id=round_id,
+    )
+    _write_json(
+        state_dir / "gates" / "startup_snapshot.json",
+        {
+            "schema_version": 1,
+            "artifact_name": "startup_snapshot.json",
+            "gate_name": "startup-snapshot",
+            "gate_status": "PASSED",
+            "decision_id": decision_id,
+            "round_id": round_id,
+        },
+    )
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_status_short_lines",
+        lambda _repo: ["?? config/service-secret.json"],
+    )
+    monkeypatch.setattr("reverse_agent.project_gate._git_toplevel", lambda repo: str(repo))
+    monkeypatch.setattr("reverse_agent.project_gate._git_head_commit", lambda _repo: "commit_migration")
+
+    result = startup_snapshot(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "BLOCKED"
+    assert result["worktree_classifier_schema_version"] == 1
+    assert result["worktree_classifications"][0]["classification"] == "UNAUTHORIZED_TRACKED_OR_SENSITIVE"
+
+
 def test_preflight_requires_startup_snapshot_and_baseline_derivation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -28643,6 +28679,180 @@ def test_startup_snapshot_authorizes_dirty_files_via_bootstrap_exception_files(
     assert "reverse_agent/control_plane/local_seal.py" in result["authorized_source_test_dirty_files"]
     assert "tests/test_local_execution_seal.py" in result["authorized_source_test_dirty_files"]
     assert "startup_source_test_dirty" not in result["blocking_reasons"]
+
+
+@pytest.mark.parametrize(
+    ("status_line", "path", "classification"),
+    [
+        ("?? task_workspaces/task-a/output.txt", "task_workspaces/task-a/output.txt", "KNOWN_RUNTIME_SCRATCH"),
+        ("?? .platform_v1_runtime/tasks.sqlite3", ".platform_v1_runtime/tasks.sqlite3", "KNOWN_RUNTIME_SCRATCH"),
+        ("?? scratch/unexplained.txt", "scratch/unexplained.txt", "UNKNOWN_UNTRACKED"),
+        (" M project_state/gates/command_plan.json", "project_state/gates/command_plan.json", "GENERATED_GOVERNANCE_ARTIFACT"),
+    ],
+)
+def test_startup_snapshot_exposes_nonblocking_shared_worktree_classifications(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status_line: str,
+    path: str,
+    classification: str,
+) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_worktree_startup_nonblocking",
+        round_id="round_worktree_startup_nonblocking",
+    )
+    monkeypatch.setattr("reverse_agent.project_gate._git_status_short_lines", lambda _repo: [status_line])
+    monkeypatch.setattr("reverse_agent.project_gate._git_toplevel", lambda repo: str(repo))
+    monkeypatch.setattr("reverse_agent.project_gate._git_head_commit", lambda _repo: "commit_worktree")
+
+    result = startup_snapshot(state_dir=state_dir, repo_root=tmp_path)
+
+    records = {record["path"]: record for record in result["worktree_classifications"]}
+    assert result["gate_status"] == "PASSED"
+    assert records[path]["classification"] == classification
+    assert records[path]["bootstrap_blocking"] is False
+    assert records[path]["deleted"] is False
+
+
+@pytest.mark.parametrize(
+    ("status_line", "path"),
+    [
+        (" M frontend/src/unauthorized.ts", "frontend/src/unauthorized.ts"),
+        ("?? config/service-secret.json", "config/service-secret.json"),
+    ],
+)
+def test_startup_snapshot_blocks_real_unauthorized_or_sensitive_worktree_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status_line: str,
+    path: str,
+) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_worktree_startup_blocked",
+        round_id="round_worktree_startup_blocked",
+    )
+    monkeypatch.setattr("reverse_agent.project_gate._git_status_short_lines", lambda _repo: [status_line])
+    monkeypatch.setattr("reverse_agent.project_gate._git_toplevel", lambda repo: str(repo))
+    monkeypatch.setattr("reverse_agent.project_gate._git_head_commit", lambda _repo: "commit_worktree")
+
+    result = startup_snapshot(state_dir=state_dir, repo_root=tmp_path)
+
+    records = {record["path"]: record for record in result["worktree_classifications"]}
+    assert result["gate_status"] == "BLOCKED"
+    assert records[path]["classification"] == "UNAUTHORIZED_TRACKED_OR_SENSITIVE"
+    assert records[path]["bootstrap_blocking"] is True
+    assert "startup_worktree_unauthorized_tracked_or_sensitive" in result["blocking_reasons"]
+
+
+def _make_worktree_publication_state(tmp_path: Path) -> Path:
+    decision_id = "decision_worktree_publication"
+    round_id = "round_worktree_publication"
+    contract = {
+        "allowed_mutated_paths": [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/gates/**",
+        ]
+    }
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id=decision_id,
+        round_id=round_id,
+        implementation_scope=(
+            "```json decision_contract\n"
+            + json.dumps(contract)
+            + "\n```\n"
+        ),
+    )
+    _write_json(
+        state_dir / "gates" / "transition_preflight_result.json",
+        {
+            "gate_status": "PRE_EXECUTION_AUTHORIZED",
+            "decision_id": decision_id,
+            "round_id": round_id,
+            "blocking_reasons": [],
+        },
+    )
+    return state_dir
+
+
+@pytest.mark.parametrize(
+    ("status_line", "path", "classification", "ready", "stageable"),
+    [
+        (" M reverse_agent/project_gate.py", "reverse_agent/project_gate.py", "AUTHORIZED_TRACKED_DELTA", True, True),
+        ("?? task_workspaces/task-a/output.txt", "task_workspaces/task-a/output.txt", "KNOWN_RUNTIME_SCRATCH", True, False),
+        ("?? .platform_v1_runtime/tasks.sqlite3", ".platform_v1_runtime/tasks.sqlite3", "KNOWN_RUNTIME_SCRATCH", True, False),
+        (" M project_state/gates/command_plan.json", "project_state/gates/command_plan.json", "GENERATED_GOVERNANCE_ARTIFACT", True, False),
+        ("?? scratch/unexplained.txt", "scratch/unexplained.txt", "UNKNOWN_UNTRACKED", False, False),
+        ("?? config/service-secret.json", "config/service-secret.json", "UNAUTHORIZED_TRACKED_OR_SENSITIVE", False, False),
+        (" M frontend/src/unauthorized.ts", "frontend/src/unauthorized.ts", "UNAUTHORIZED_TRACKED_OR_SENSITIVE", False, False),
+    ],
+)
+def test_worktree_publication_readiness_uses_shared_classifier_and_trusted_decision_allowlist(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status_line: str,
+    path: str,
+    classification: str,
+    ready: bool,
+    stageable: bool,
+) -> None:
+    state_dir = _make_worktree_publication_state(tmp_path)
+    monkeypatch.setattr("reverse_agent.project_gate._git_status_short_lines", lambda _repo: [status_line])
+
+    result = project_gate_module.worktree_publication_readiness(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+    )
+
+    records = {record["path"]: record for record in result["worktree_classifications"]}
+    assert (result["gate_status"] == "PUBLICATION_READY") is ready, result
+    assert records[path]["classification"] == classification
+    assert records[path]["stageable"] is stageable
+    assert records[path]["deleted"] is False
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "config/service-secret.json",
+        "config/service-credential.json",
+        ".env",
+        "config/.env.production",
+        "certs/client.pem",
+        "certs/client.KEY",
+        "certs/client.p12",
+        "certs/client.PFX",
+        "native/tool.exe",
+        "native/tool.DLL",
+        "native/library.SO",
+        "native/library.DYLIB",
+        "Config/Secrets/API.KEY",
+    ],
+)
+def test_sensitive_untracked_paths_block_both_real_startup_and_publication_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+) -> None:
+    state_dir = _make_worktree_publication_state(tmp_path)
+    status_line = f"?? {path}"
+    monkeypatch.setattr("reverse_agent.project_gate._git_status_short_lines", lambda _repo: [status_line])
+    monkeypatch.setattr("reverse_agent.project_gate._git_toplevel", lambda repo: str(repo))
+    monkeypatch.setattr("reverse_agent.project_gate._git_head_commit", lambda _repo: "commit_sensitive")
+
+    startup = startup_snapshot(state_dir=state_dir, repo_root=tmp_path)
+    publication = project_gate_module.worktree_publication_readiness(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+    )
+
+    assert startup["gate_status"] == "BLOCKED"
+    assert publication["gate_status"] == "BLOCKED"
+    assert startup["worktree_classifications"][0]["classification"] == "UNAUTHORIZED_TRACKED_OR_SENSITIVE"
+    assert publication["worktree_classifications"][0]["classification"] == "UNAUTHORIZED_TRACKED_OR_SENSITIVE"
 
 
 def test_record_startup_diagnostics_rewrites_status_from_startup_snapshot(

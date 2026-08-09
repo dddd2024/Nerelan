@@ -30,6 +30,16 @@ from .control_plane.legacy_adapter import (
     persist_bootstrap_state,
 )
 from .control_plane.local_seal import evaluate_reconciliation, seal_local
+from .control_plane.path_a import (
+    execute_task_checks,
+    PathAGateError,
+    run_path_a_gate,
+    write_task_check_outputs,
+)
+from .control_plane.worktree_state import (
+    WorktreeClassification,
+    classify_worktree_status,
+)
 from .control_plane.models import (
     ExecutionEnvelope,
     ExecutionRecord,
@@ -9355,6 +9365,22 @@ def _startup_snapshot_matches_round(
     )
 
 
+def _worktree_authorized_paths(
+    decision_contract: Mapping[str, Any],
+    *,
+    include_bootstrap_exceptions: bool,
+) -> tuple[str, ...]:
+    fields = ["allowed_source_files", "required_files_changed", "allowed_mutated_paths"]
+    if include_bootstrap_exceptions:
+        fields.append("bootstrap_exception_files")
+    paths: set[str] = set()
+    for field in fields:
+        values = decision_contract.get(field) or []
+        if isinstance(values, list):
+            paths.update(_norm_path(path) for path in values if str(path).strip())
+    return tuple(sorted(paths))
+
+
 def startup_snapshot(
     *,
     state_dir: Path,
@@ -9370,14 +9396,11 @@ def startup_snapshot(
     if (
         _startup_snapshot_matches_round(existing, decision_id, round_id)
         and str(existing.get("gate_status") or "") == "PASSED"
+        and existing.get("worktree_classifier_schema_version") == 1
+        and isinstance(existing.get("worktree_classifications"), list)
     ):
         return existing
     raw_status = _git_status_short_lines(repo_root)
-    dirty_files = _dirty_files_from_status_lines(raw_status)
-    all_source_test_dirty = sorted(
-        path for path in dirty_files
-        if _path_is_source_or_test(path) and not _is_generated_state_or_archive_path(path)
-    )
     decision_text = _read_text(state_dir / "decision_packet.md")
     decision_contract = read_decision_contract(state_dir)
     contract_block = extract_markdown_json_block(decision_text, "decision_contract")
@@ -9388,27 +9411,37 @@ def startup_snapshot(
         or decision_contract.get("accepted_requires_no_authorized_source_test_dirty_override")
         or decision_contract.get("accepted_requires_no_source_test_inherited_dirty_allowlist")
     )
-    allowed_source_test_dirty = {
-        _norm_path(path)
-        for path in (
-            list(decision_contract.get("allowed_source_files") or [])
-            + list(decision_contract.get("required_files_changed") or [])
-            + list(decision_contract.get("allowed_mutated_paths") or [])
-            + list(decision_contract.get("bootstrap_exception_files") or [])
+    authorized_worktree_paths = (
+        _worktree_authorized_paths(
+            decision_contract,
+            include_bootstrap_exceptions=True,
         )
-        if _path_is_source_or_test(_norm_path(path))
-    } if not strict_source_test_clean_start else set()
-    source_test_dirty = sorted(
-        all_source_test_dirty
-        if strict_source_test_clean_start
-        else [
-            path for path in all_source_test_dirty
-            if _norm_path(path) not in allowed_source_test_dirty
-        ]
+        if not strict_source_test_clean_start
+        else ()
     )
-    authorized_source_test_dirty = [] if strict_source_test_clean_start else sorted(
-        path for path in all_source_test_dirty
-        if _norm_path(path) in allowed_source_test_dirty
+    status_error = ""
+    try:
+        worktree_records = classify_worktree_status(
+            raw_status,
+            authorized_paths=authorized_worktree_paths,
+        )
+    except ValueError as exc:
+        worktree_records = ()
+        status_error = str(exc)
+    dirty_files = sorted({record.path for record in worktree_records})
+    unauthorized_records = tuple(
+        record
+        for record in worktree_records
+        if record.classification is WorktreeClassification.UNAUTHORIZED_TRACKED_OR_SENSITIVE
+    )
+    source_test_dirty = sorted(
+        record.path for record in unauthorized_records if _path_is_source_or_test(record.path)
+    )
+    authorized_source_test_dirty = sorted(
+        record.path
+        for record in worktree_records
+        if record.classification is WorktreeClassification.AUTHORIZED_TRACKED_DELTA
+        and _path_is_source_or_test(record.path)
     )
     generated_state_dirty = sorted(path for path in dirty_files if path.startswith("project_state/"))
     root = _git_toplevel(repo_root)
@@ -9419,6 +9452,10 @@ def startup_snapshot(
         blocking_reasons.append("decision metadata missing")
     if not root_matches:
         blocking_reasons.append("repository root mismatch")
+    if status_error:
+        blocking_reasons.append("startup_worktree_status_invalid")
+    if unauthorized_records:
+        blocking_reasons.append("startup_worktree_unauthorized_tracked_or_sensitive")
     if source_test_dirty:
         blocking_reasons.append("startup_source_test_dirty")
 
@@ -9445,6 +9482,9 @@ def startup_snapshot(
         "head_commit": head_commit,
         "raw_git_status_short": raw_status,
         "dirty_files": dirty_files,
+        "worktree_classifier_schema_version": 1,
+        "worktree_classifications": [record.to_mapping() for record in worktree_records],
+        "worktree_status_error": status_error,
         "source_test_dirty_files": source_test_dirty,
         "authorized_source_test_dirty_files": authorized_source_test_dirty,
         "generated_state_dirty_files": generated_state_dirty,
@@ -9461,6 +9501,88 @@ def startup_snapshot(
             newline="\n",
         )
     return snapshot
+
+
+def worktree_publication_readiness(
+    *,
+    state_dir: Path,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """Classify the live worktree before staging or publication.
+
+    Path authority comes only from the current approved Decision and is used
+    only when the current transition preflight artifact proves that exact
+    Decision/round was authorized.
+    """
+
+    state_dir = Path(state_dir)
+    repo_root = repo_root or Path.cwd()
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    decision_contract = read_decision_contract(state_dir)
+    decision_text = _read_text(state_dir / "decision_packet.md")
+    contract_block = extract_markdown_json_block(decision_text, "decision_contract")
+    if contract_block.get("found") and not contract_block.get("parse_error"):
+        decision_contract = {**decision_contract, **contract_block}
+    preflight = _read_json(state_dir / "gates" / "transition_preflight_result.json")
+    authority_valid = (
+        str(decision.get("status") or "") == "APPROVED"
+        and bool(decision_id)
+        and bool(round_id)
+        and str(preflight.get("gate_status") or "") == "PRE_EXECUTION_AUTHORIZED"
+        and str(preflight.get("decision_id") or "") == decision_id
+        and str(preflight.get("round_id") or "") == round_id
+        and not list(preflight.get("blocking_reasons") or [])
+    )
+    authorized_paths = (
+        _worktree_authorized_paths(
+            decision_contract,
+            include_bootstrap_exceptions=False,
+        )
+        if authority_valid
+        else ()
+    )
+    raw_status = _git_status_short_lines(repo_root)
+    status_error = ""
+    try:
+        records = classify_worktree_status(raw_status, authorized_paths=authorized_paths)
+    except ValueError as exc:
+        records = ()
+        status_error = str(exc)
+
+    blocking_reasons: list[str] = []
+    if not authority_valid:
+        blocking_reasons.append("publication_authority_not_validated")
+    if status_error:
+        blocking_reasons.append("publication_worktree_status_invalid")
+    if any(
+        record.classification is WorktreeClassification.UNKNOWN_UNTRACKED
+        for record in records
+    ):
+        blocking_reasons.append("publication_unknown_untracked")
+    if any(
+        record.classification is WorktreeClassification.UNAUTHORIZED_TRACKED_OR_SENSITIVE
+        for record in records
+    ):
+        blocking_reasons.append("publication_unauthorized_tracked_or_sensitive")
+
+    return {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "gate_name": "worktree-publication-readiness",
+        "gate_status": "BLOCKED" if blocking_reasons else "PUBLICATION_READY",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "authority_source": "approved_decision_and_current_transition_preflight",
+        "authority_valid": authority_valid,
+        "authorized_paths": list(authorized_paths),
+        "raw_git_status_short": raw_status,
+        "worktree_classifications": [record.to_mapping() for record in records],
+        "stageable_paths": sorted(record.path for record in records if record.stageable),
+        "non_stageable_paths": sorted(record.path for record in records if not record.stageable),
+        "blocking_reasons": blocking_reasons,
+        "worktree_status_error": status_error,
+    }
 
 
 def _startup_snapshot_gate_check(
@@ -36945,6 +37067,12 @@ def main(argv: list[str] | None = None) -> int:
     startup_snapshot_parser = subparsers.add_parser("startup-snapshot", help="Generate or return the first startup snapshot artifact for the current round.")
     startup_snapshot_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     startup_snapshot_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    worktree_publication_parser = subparsers.add_parser(
+        "worktree-publication-readiness",
+        help="Classify the live worktree against validated Decision authority before staging or publication.",
+    )
+    worktree_publication_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    worktree_publication_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     control_plane_snapshot_parser = subparsers.add_parser("control-plane-snapshot", help="Generate the read-only control-plane snapshot artifact.")
     control_plane_snapshot_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     control_plane_snapshot_parser.add_argument("--final-state", action="store_true", help="Require final closeout state evidence.")
@@ -37041,16 +37169,79 @@ def main(argv: list[str] | None = None) -> int:
     transition_run_command_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     control_plane_mode_parser = subparsers.add_parser("control-plane-mode", help="Print the deterministic control-plane mode token.")
     control_plane_mode_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    control_plane_mode_parser.add_argument("--event-path", default="")
+    path_a_parser = subparsers.add_parser("path-a-r1-gate", help="Verify immutable ordinary R1 GitHub Work Item authority.")
+    path_a_parser.add_argument("--event-path", default="")
+    path_a_parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY", ""))
+    path_a_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    task_checks_parser = subparsers.add_parser("task-scoped-checks", help="Select deterministic repository-owned checks for the exact event head.")
+    task_checks_parser.add_argument("--event-path", default="")
+    task_checks_parser.add_argument("--output-path", default=os.environ.get("GITHUB_OUTPUT", ""))
+    task_checks_parser.add_argument("--execute", action="store_true", help="Execute only repository-mapped task checks.")
+    task_checks_parser.add_argument("--json", action="store_true", help="Print JSON result.")
 
     args = parser.parse_args(argv)
     if args.command == "control-plane-mode":
         try:
-            mode = detect_control_plane_mode(Path(args.state_dir) / "decision_packet.md")
+            event = None
+            if args.event_path:
+                event = json.loads(Path(args.event_path).read_text(encoding="utf-8"))
+            mode = detect_control_plane_mode(
+                Path(args.state_dir) / "decision_packet.md",
+                event=event,
+            )
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             print(f"control-plane-mode: ERROR: {exc}", file=sys.stderr)
             return 2
         print(mode)
         return 0
+    if args.command == "path-a-r1-gate":
+        try:
+            if not args.event_path:
+                raise PathAGateError("event_path_missing")
+            if not args.repository:
+                raise PathAGateError("repository_missing")
+            result = run_path_a_gate(
+                event_path=Path(args.event_path),
+                repository=args.repository,
+                repo_root=Path.cwd(),
+            )
+        except (OSError, ValueError, json.JSONDecodeError, subprocess.SubprocessError) as exc:
+            code = exc.code if isinstance(exc, PathAGateError) else "path_a_gate_error"
+            result = {
+                "schema_version": 1,
+                "gate_name": "path-a-r1-gate",
+                "gate_status": "BLOCKED",
+                "mode": "path_a_r1",
+                "blocking_reasons": [str(exc)],
+                "error_code": code,
+            }
+        print(json.dumps(result, ensure_ascii=True, indent=2))
+        return 0 if result.get("gate_status") == "PATH_A_R1_AUTHORIZED" else 1
+    if args.command == "task-scoped-checks":
+        try:
+            if not args.event_path:
+                raise PathAGateError("event_path_missing")
+            result = write_task_check_outputs(
+                event_path=Path(args.event_path),
+                repo_root=Path.cwd(),
+                output_path=Path(args.output_path) if args.output_path else None,
+            )
+            print(json.dumps(result, ensure_ascii=True, indent=2), flush=True)
+            if args.execute:
+                execute_task_checks(result, repo_root=Path.cwd())
+        except (OSError, ValueError, json.JSONDecodeError, subprocess.SubprocessError) as exc:
+            code = exc.code if isinstance(exc, PathAGateError) else "task_check_selection_error"
+            result = {
+                "schema_version": 1,
+                "gate_name": "task-scoped-check-selection",
+                "gate_status": "BLOCKED",
+                "blocking_reasons": [str(exc)],
+                "error_code": code,
+            }
+        if result.get("gate_status") != "TASK_CHECKS_SELECTED":
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        return 0 if result.get("gate_status") == "TASK_CHECKS_SELECTED" else 1
     if args.command == "transition-lint":
         result = transition_lint(state_dir=Path(args.state_dir))
         if args.json:
@@ -37876,6 +38067,16 @@ def main(argv: list[str] | None = None) -> int:
             _print_result(result)
         gate_status = str(result.get("gate_status") or "")
         return 1 if gate_status in {"FAILED", "BLOCKED"} else 0
+    if args.command == "worktree-publication-readiness":
+        result = worktree_publication_readiness(
+            state_dir=Path(args.state_dir),
+            repo_root=_derive_repo_root(Path(args.state_dir)),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+        return 0 if result.get("gate_status") == "PUBLICATION_READY" else 1
     if args.command == "control-plane-snapshot":
         result = control_plane_snapshot(
             state_dir=Path(args.state_dir),
