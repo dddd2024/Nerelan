@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_governance_v2_foundation_v2",
-  "round_id": "round_20260809_governance_v2_foundation_v2",
+  "decision_id": "decision_20260809_governance_v2_foundation_v3",
+  "round_id": "round_20260809_governance_v2_foundation_v3",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,15 +14,15 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "previous_audit_outcome": "V1_OWNER_PREDELEGATION_SUPERSEDED_FRESH_CLONE_AND_REUSE_INSPECTION_BOOTSTRAP_OMITTED",
-  "workstream_id": "governance-v2-foundation-v2",
+  "follows_last_decision_id": "decision_20260809_governance_v2_foundation_v2",
+  "follows_last_round_id": "round_20260809_governance_v2_foundation_v2",
+  "previous_audit_outcome": "V2_EXACT_HEAD_REWORK_REQUIRED_WORKTREE_CLASSIFIER_NOT_WIRED_AND_SENSITIVE_POLICY_INCOMPLETE",
+  "workstream_id": "governance-v2-foundation-v3",
   "source_issue": 153,
   "parent_issue": 148,
   "related_issue": 105,
-  "historical_reference_pr": 49,
-  "historical_reference_head": "40400440e257e0d0a4aa6cabae8672bff937cde4",
   "required_branch": "owner/governance-v2-foundation-v1",
-  "starting_head": "7e068aac0a4142e611a5d5b825353db31efd2cb7",
+  "starting_head": "2aeafcbc5b9b314ae4f63394b23f9e7d3b0b8d52",
   "activation_base_sha": "7e068aac0a4142e611a5d5b825353db31efd2cb7",
   "integration_target_branch": "owner/repository-modernization-v2-planning",
   "risk_tier": "R2",
@@ -57,7 +57,7 @@
   "provider_configuration_mutation_allowed": false,
   "credential_value_access_allowed": false,
   "bounded_external_source_access_allowed": false,
-  "repair_attempt_limit": 2,
+  "repair_attempt_limit": 1,
   "infrastructure_retry_limit": 1,
   "audit_generation_allowed": false,
   "prior_audits_immutable": true,
@@ -71,16 +71,14 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
-    "git clone --branch owner/governance-v2-foundation-v1 https://github.com/dddd2024/reverse-agent.git F:\\reverse-agent-governance-v2-foundation-20260809",
     "git status --short",
     "git fetch origin owner/repository-modernization-v2-planning",
     "git fetch origin owner/governance-v2-foundation-v1",
-    "git fetch origin codex/path-a-r1-state-gate-cutover-v1",
     "git show origin/owner/governance-v2-foundation-v1:project_state/decision_packet.md",
     "git rev-parse HEAD",
     "git rev-parse origin/owner/repository-modernization-v2-planning",
     "git rev-parse origin/owner/governance-v2-foundation-v1",
-    "git rev-parse origin/codex/path-a-r1-state-gate-cutover-v1",
+    "git merge --ff-only origin/owner/governance-v2-foundation-v1",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
@@ -121,40 +119,7 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "observation.historical_path_a_head",
-      "command": "git rev-parse origin/codex/path-a-r1-state-gate-cutover-v1",
-      "phase": "status",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "observation.historical_scope",
-      "command": "git diff --name-only 61570724495aa7053eba78bd2e34d8bda22f6407..40400440e257e0d0a4aa6cabae8672bff937cde4",
-      "phase": "status",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "observation.historical_reuse_diff",
-      "command": "git diff 7e068aac0a4142e611a5d5b825353db31efd2cb7 40400440e257e0d0a4aa6cabae8672bff937cde4 -- .github/workflows/state-gate.yml reverse_agent/control_plane/legacy_adapter.py reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py",
-      "phase": "status",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "test.governance_foundation",
+      "command_id": "test.governance_foundation_rework",
       "command": "python -m pytest tests/test_path_a_gate.py tests/test_control_plane_transition.py tests/test_planning_and_github_adapters.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py -q",
       "phase": "validation",
       "required": true,
@@ -188,7 +153,7 @@
     },
     {
       "command_id": "mutation.stage_exact_paths",
-      "command": "git add .github/workflows/state-gate.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml .gitignore AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/control_plane/legacy_adapter.py reverse_agent/control_plane/worktree_state.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_control_plane_transition.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py",
+      "command": "git add AGENTS.md reverse_agent/control_plane/worktree_state.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
@@ -209,8 +174,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "mutation.commit_foundation",
-      "command": "git commit -m \"governance: establish modernization v2 foundation\"",
+      "command_id": "mutation.commit_rework",
+      "command": "git commit -m \"governance: wire worktree classification into gates\"",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
@@ -221,7 +186,7 @@
     },
     {
       "command_id": "validation.committed_diff_check",
-      "command": "git diff --check 7e068aac0a4142e611a5d5b825353db31efd2cb7..HEAD",
+      "command": "git diff --check 2aeafcbc5b9b314ae4f63394b23f9e7d3b0b8d52..HEAD",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -232,7 +197,7 @@
     },
     {
       "command_id": "validation.committed_paths",
-      "command": "git diff --name-only 7e068aac0a4142e611a5d5b825353db31efd2cb7..HEAD",
+      "command": "git diff --name-only 2aeafcbc5b9b314ae4f63394b23f9e7d3b0b8d52..HEAD",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -261,26 +226,22 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    ".github/workflows/state-gate.yml",
-    ".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml",
-    ".gitignore",
     "AGENTS.md",
-    "reverse_agent/control_plane/path_a.py",
-    "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/worktree_state.py",
     "reverse_agent/project_gate.py",
     "tests/test_path_a_gate.py",
-    "tests/test_control_plane_transition.py",
     "tests/test_project_gate.py",
     "tests/test_minimal_integration_baseline_docs.py"
   ],
   "reference_paths": [
-    "README.md",
-    "pyproject.toml",
-    ".github/workflows/ci.yml",
+    ".github/workflows/state-gate.yml",
+    ".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml",
+    ".gitignore",
+    "reverse_agent/control_plane/path_a.py",
+    "reverse_agent/control_plane/legacy_adapter.py",
+    "tests/test_control_plane_transition.py",
     "tests/test_planning_and_github_adapters.py",
-    "reverse_agent/platform_v1/task_service.py",
-    "project_state/schemas/**"
+    "pyproject.toml"
   ],
   "generated_artifact_paths": [
     "project_state/gates/bootstrap_state.json",
@@ -290,20 +251,23 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "forbidden_mutated_paths": [
+    ".github/**",
+    ".gitignore",
     "frontend/**",
     "docs/**",
     "pyproject.toml",
     "requirements*.txt",
     "poetry.lock",
     "uv.lock",
-    ".github/actions/**",
-    ".github/workflows/ci.yml",
-    ".github/CODEOWNERS",
     "reverse_agent/platform_v1/**",
     "reverse_agent/workflows/**",
+    "reverse_agent/control_plane/path_a.py",
+    "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/orchestrator_api.py",
     "reverse_agent/orchestrator_context.py",
     "reverse_agent/orchestrator_console_schema.py",
+    "tests/test_control_plane_transition.py",
+    "tests/test_planning_and_github_adapters.py",
     "project_state/current_state.json",
     "project_state/state_manifest.json",
     "project_state/artifact_index.json",
@@ -354,7 +318,6 @@
     "external_reverse_tool_invocation_allowed": false,
     "unknown_binary_execution_allowed": false,
     "destructive_operations_allowed": false,
-    "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
     "merge_allowed": false,
@@ -362,10 +325,8 @@
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
     "local_network_exceptions": [
-      "git clone --branch owner/governance-v2-foundation-v1 https://github.com/dddd2024/reverse-agent.git F:\\reverse-agent-governance-v2-foundation-20260809",
       "git fetch origin owner/repository-modernization-v2-planning",
       "git fetch origin owner/governance-v2-foundation-v1",
-      "git fetch origin codex/path-a-r1-state-gate-cutover-v1",
       "git push origin owner/governance-v2-foundation-v1"
     ],
     "ci_network_exceptions": [],
@@ -375,71 +336,45 @@
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
     "project_state/gates/**",
-    ".github/workflows/state-gate.yml",
-    ".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml",
     "AGENTS.md",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/control_plane/**"
+    "reverse_agent/control_plane/worktree_state.py",
+    "reverse_agent/project_gate.py"
   ],
   "path_risk_floor": [
     {"pattern": "project_state/decision_packet.md", "minimum_risk": "R2"},
     {"pattern": "project_state/gates/**", "minimum_risk": "R2"},
-    {"pattern": ".github/workflows/**", "minimum_risk": "R2"},
-    {"pattern": ".github/ISSUE_TEMPLATE/**", "minimum_risk": "R2"},
     {"pattern": "AGENTS.md", "minimum_risk": "R2"},
-    {"pattern": "reverse_agent/project_gate.py", "minimum_risk": "R2"},
     {"pattern": "reverse_agent/control_plane/**", "minimum_risk": "R2"},
+    {"pattern": "reverse_agent/project_gate.py", "minimum_risk": "R2"},
     {"pattern": "tests/**", "minimum_risk": "R1"}
-  ],
-  "runner_managed_artifact_paths": [
-    "project_state/gates/evidence/**",
-    "project_state/gates/execution_log.json"
-  ],
-  "follows_last_decision_id": "decision_20260809_governance_v2_foundation_v1",
-  "follows_last_round_id": "round_20260809_governance_v2_foundation_v1"
+  ]
 }
 ```
 
 ## Goal
 
-v2 supersedes v1 **before any local delegation or execution**. v1 was never executed. v1 correctly bounded the Governance V2 Foundation scope but omitted two bootstrap requirements needed by a fresh isolated local implementation: the exact repository clone and an authorized read-only diff exposing the historical PR #49 implementation that must be reused rather than reinvented.
+v3 is a bounded exact-head rework of the accepted v2 direction. It does not redesign Path A.
 
-v2 is the first Governance V2 Foundation Decision eligible for local delegation.
+Owner exact-head static audit accepted the v2 branch topology, branch-neutral immutable snapshot, live Issue/PR authority observation, authority-revision binding, R2/R3 Path-A risk floor, State Gate ordinary-PR routing, narrow runtime ignores, and v2 implementation scope. Two blocking defects remain:
 
-Implement the minimum Governance V2 foundation required to unblock Modernization V2, using historical PR #49 / Issue #105 as the mandatory reuse source rather than building a second control plane.
+1. `reverse_agent/control_plane/worktree_state.py` exists and is unit-tested, but v2 does not wire it into any real startup/pre-publication gate path. The Foundation requirement is machine-enforced classification, not a library plus prompt/documentation convention.
+2. the classifier's sensitive-path patterns are narrower than the already-accepted Path-A R3 policy. Sensitive-looking untracked paths such as `*secret*`, `*.key`, `*.so`, and `*.dylib` can be classified as `UNKNOWN_UNTRACKED` instead of immediate `UNAUTHORIZED_TRACKED_OR_SENSITIVE`.
 
-Required outcomes:
+Required rework:
 
-1. restore `path_a_r1` routing for ordinary R1 PRs so an unrelated active Path-B Decision cannot hijack them;
-2. adapt the R1 immutable snapshot from a hard-coded `main` base to an explicit `integration_base_ref + base_sha` contract, allowing exact owner-approved planning branches while retaining exact merge-base/head binding;
-3. introduce deterministic worktree-state classification so known runtime scratch (`task_workspaces/**`, `.platform_v1_runtime/**`) is non-authoritative/non-staged but does not hard-stop bootstrap merely for existing, while unknown untracked content is read-only classifiable and remains blocking before staging/publication unless resolved;
-4. narrowly ignore the two known managed runtime scratch roots;
-5. preserve R2/R3 path-risk floors, live authority re-observation, rename/previous-path checks, security-path case normalization and fail-closed semantics from PR #49;
-6. do not add a permanent compatibility fallback for old snapshot schemas; old Work Items without `integration_base_ref` are historical and need a fresh approved Work Item.
+- wire the deterministic classifier into the existing `startup-snapshot` / startup dirty-state path so `KNOWN_RUNTIME_SCRATCH` and generated Gate artifacts do not hard-stop bootstrap, while `UNAUTHORIZED_TRACKED_OR_SENSITIVE` still does;
+- wire the same classifier or one shared helper into the existing pre-publication/worktree validation surface, or expose one repository-owned deterministic `project_gate` pre-publication command that consumes trusted authorized paths and blocks `UNKNOWN_UNTRACKED` plus `UNAUTHORIZED_TRACKED_OR_SENSITIVE` before staging/push;
+- do not encode either behavior only in AGENTS/prompt text;
+- align worktree sensitive patterns with the accepted Path-A R3 categories at minimum for secret/credential names, `.env*`, private-key formats (`.pem`, `.key`, `.p12`, `.pfx`) and native binaries (`.exe`, `.dll`, `.so`, `.dylib`), case-insensitively;
+- add integration-level regressions proving the real gate path, not only direct calls to `classify_worktree_path`;
+- preserve the v2 branch-neutral Path-A behavior unchanged.
 
-## Reuse and implementation policy
+No `.github`, template, Path-A verifier, legacy router, runtime product, dependency, provider/model, #151, or #146 changes are authorized in v3.
 
-- Fetch historical PR #49 branch and run the exact authorized `historical_reuse_diff` observation before implementation.
-- Reuse only behavior still correct against current planning base `7e068aac0a4142e611a5d5b825353db31efd2cb7`.
-- Do not merge/cherry-pick PR #49 wholesale.
-- Keep the worktree classifier in `reverse_agent/control_plane/worktree_state.py` so runtime-scratch classification does not become ad-hoc prompt logic.
-- `AGENTS.md` and the R1 Issue template must describe the same branch-neutral snapshot contract as the machine verifier.
-- State Gate must route ordinary PRs to Path A and Decision-bound R2/R3 surfaces to Path B without PR-number-specific special cases.
+Terminal success:
 
-## Test and repair policy
+`GOVERNANCE_V2_FOUNDATION_V3_READY_FOR_OWNER_EXACT_HEAD_AUDIT`
 
-This round permits at most two bounded repair cycles after deterministic test failures, provided every edit remains inside `allowed_mutated_paths`. Test failure alone is not authority drift. Stop immediately instead on branch/base drift, forbidden-path mutation, sensitive/credential/provider/dependency scope expansion, history rewrite, or remote publication mismatch.
+Terminal failure:
 
-The local Agent must not touch `F:\\reverse-agent-issue151-rework-20260809`; that dirty #151 product diff remains frozen for recovery after this foundation is accepted.
-
-## Publication boundary
-
-After tests pass, commit exactly the bounded governance implementation and normal-push only `owner/governance-v2-foundation-v1`. Do not create a PR, mark ready, merge, modify planning/main/#151/#146, or run model/OpenCode/Codex/OpenHands actions. Owner will independently audit the exact pushed head and create a sanitized integration branch/PR that excludes temporary `project_state` authority artifacts.
-
-Terminal success token:
-
-`GOVERNANCE_V2_FOUNDATION_READY_FOR_OWNER_EXACT_HEAD_AUDIT`
-
-Failure token:
-
-`GOVERNANCE_V2_FOUNDATION_STOPPED_WITH_EVIDENCE`
+`GOVERNANCE_V2_FOUNDATION_V3_STOPPED_WITH_EVIDENCE`
