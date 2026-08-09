@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_pr146_agent_canvas_owner_provenance_landing_v22",
-  "round_id": "round_20260809_pr146_agent_canvas_owner_provenance_landing_v22",
+  "decision_id": "decision_20260809_pr146_agent_canvas_committed_head_landing_v23",
+  "round_id": "round_20260809_pr146_agent_canvas_committed_head_landing_v23",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,27 +14,26 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260809_pr146_agent_canvas_carryover_safe_landing_v21",
-  "follows_last_round_id": "round_20260809_pr146_agent_canvas_carryover_safe_landing_v21",
-  "previous_audit_outcome": "V21_PREFLIGHT_AUTHORIZED_THIRD_PARTY_MUTATION_FAILED_ON_MARKDOWN_LINE_WRAP",
+  "follows_last_decision_id": "decision_20260809_pr146_agent_canvas_owner_provenance_landing_v22",
+  "follows_last_round_id": "round_20260809_pr146_agent_canvas_owner_provenance_landing_v22",
+  "previous_audit_outcome": "V22_OWNER_PREDELEGATION_AUDIT_FOUND_COMMITTED_HEAD_TEST_ORDER_DEFECT",
   "source_issue": 136,
   "parent_issue": 127,
   "active_pr": 146,
   "required_branch": "owner/issue136-agent-canvas-reuse-spike-v2",
-  "starting_head": "cb4cb80432fda2aba932451c25c524a4095cdeb1",
+  "starting_head": "ac9e61205b2c08f348f5afa44fc027216dda3337",
   "activation_base_sha": "dd4cb074ab5b9baacf300706878b29bd745f12c3",
   "accepted_stage_b_evidence_head": "ab00b03952d96c2421be8297f29699a59ec69fda",
   "repair_attempt_limit": 0,
   "infrastructure_retry_limit": 0,
-  "owner_preapplied_provenance_contract": {
-    "owner_github_write_allowed": true,
+  "provenance_state": {
+    "owner_applied_under_v22": true,
+    "local_mutation_allowed": false,
+    "local_validation_required": true,
     "paths": [
       "frontend/THIRD_PARTY_NOTICES.md",
       "frontend/OPENHANDS_REUSE_MAP.md"
-    ],
-    "decision_must_precede_writes": true,
-    "local_agent_mutation_allowed": false,
-    "local_validation_required": true
+    ]
   },
   "preexisting_carryover_contract": {
     "kernel_followup_issue": 147,
@@ -56,6 +55,21 @@
     "merge_tree_policy": "equal_to_accepted_head_tree",
     "required_workflows": ["CI", "Decision Preflight", "State Gate (pull_request)", "State Gate (push)"],
     "expires_at": "2026-08-16T23:59:59Z"
+  },
+  "committed_head_validation_contract": {
+    "reason": "test_mainline_landing reads active intent, Decision and command plan through HEAD blobs and the production simulation clones HEAD",
+    "candidate_commit_required_before_tests": true,
+    "candidate_commit_must_remain_local_until_all_tests_pass": true,
+    "candidate_commit_paths": [
+      "project_state/mainline_merge_intents/active.json",
+      "project_state/mainline_merge_intents/archive/pr134_v1.json",
+      "project_state/gates/bootstrap_state.json",
+      "project_state/gates/command_plan.json",
+      "project_state/gates/startup_snapshot.json",
+      "project_state/gates/transition_command_plan_preview.json",
+      "project_state/gates/transition_preflight_result.json"
+    ],
+    "push_forbidden_until_tests_pass": true
   },
   "owner_landing_contract": {
     "pr": 146,
@@ -79,7 +93,7 @@
     "git status --short",
     "git fetch origin main",
     "git fetch origin owner/issue136-agent-canvas-reuse-spike-v2",
-    "git show origin/owner/issue136-agent-canvas-reuse-spike-v2:project_state/decision_packet.md",
+    "git show origin/issue136-agent-canvas-reuse-spike-v2:project_state/decision_packet.md",
     "git switch owner/issue136-agent-canvas-reuse-spike-v2",
     "git merge --ff-only origin/owner/issue136-agent-canvas-reuse-spike-v2",
     "git rev-parse HEAD",
@@ -149,7 +163,7 @@
     },
     {
       "command_id": "mutation.write_pr146_intent",
-      "command": "python -c \"from pathlib import Path; import hashlib,json; decision=hashlib.sha256(Path('project_state/decision_packet.md').read_bytes()).hexdigest(); plan=hashlib.sha256(Path('project_state/gates/command_plan.json').read_bytes()).hexdigest(); x={'schema_version':1,'intent_id':'pr146_agent_canvas_landing_v1','repository':'dddd2024/reverse-agent','source_pr':146,'locked_base_sha':'dd4cb074ab5b9baacf300706878b29bd745f12c3','allowed_merge_method':'merge','decision_identity':{'decision_id':'decision_20260809_pr146_agent_canvas_owner_provenance_landing_v22','decision_content_sha256':decision},'command_plan_sha256':plan,'merge_tree_policy':'equal_to_accepted_head_tree','required_workflows':['CI','Decision Preflight','State Gate (pull_request)','State Gate (push)'],'expires_at':'2026-08-16T23:59:59Z'}; Path('project_state/mainline_merge_intents/active.json').write_text(json.dumps(x,indent=2)+'\\n',encoding='utf-8',newline='\\n'); print('PR146_INTENT_WRITTEN DECISION_SHA256='+decision+' PLAN_SHA256='+plan)\"",
+      "command": "python -c \"from pathlib import Path; import hashlib,json; decision=hashlib.sha256(Path('project_state/decision_packet.md').read_bytes()).hexdigest(); plan=hashlib.sha256(Path('project_state/gates/command_plan.json').read_bytes()).hexdigest(); x={'schema_version':1,'intent_id':'pr146_agent_canvas_landing_v1','repository':'dddd2024/reverse-agent','source_pr':146,'locked_base_sha':'dd4cb074ab5b9baacf300706878b29bd745f12c3','allowed_merge_method':'merge','decision_identity':{'decision_id':'decision_20260809_pr146_agent_canvas_committed_head_landing_v23','decision_content_sha256':decision},'command_plan_sha256':plan,'merge_tree_policy':'equal_to_accepted_head_tree','required_workflows':['CI','Decision Preflight','State Gate (pull_request)','State Gate (push)'],'expires_at':'2026-08-16T23:59:59Z'}; Path('project_state/mainline_merge_intents/active.json').write_text(json.dumps(x,indent=2)+'\\n',encoding='utf-8',newline='\\n'); print('PR146_INTENT_WRITTEN DECISION_SHA256='+decision+' PLAN_SHA256='+plan)\"",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
@@ -160,8 +174,8 @@
       "allowed_mutated_paths": ["project_state/mainline_merge_intents/active.json"]
     },
     {
-      "command_id": "validation.pr146_intent",
-      "command": "python -c \"from pathlib import Path; import hashlib,json; x=json.loads(Path('project_state/mainline_merge_intents/active.json').read_text(encoding='utf-8')); assert x['intent_id']=='pr146_agent_canvas_landing_v1' and x['source_pr']==146 and x['locked_base_sha']=='dd4cb074ab5b9baacf300706878b29bd745f12c3'; assert x['decision_identity']['decision_id']=='decision_20260809_pr146_agent_canvas_owner_provenance_landing_v22'; assert x['decision_identity']['decision_content_sha256']==hashlib.sha256(Path('project_state/decision_packet.md').read_bytes()).hexdigest(); assert x['command_plan_sha256']==hashlib.sha256(Path('project_state/gates/command_plan.json').read_bytes()).hexdigest(); print('PR146_INTENT_VALID')\"",
+      "command_id": "validation.pr146_intent_worktree",
+      "command": "python -c \"from pathlib import Path; import hashlib,json; x=json.loads(Path('project_state/mainline_merge_intents/active.json').read_text(encoding='utf-8')); assert x['intent_id']=='pr146_agent_canvas_landing_v1' and x['source_pr']==146 and x['locked_base_sha']=='dd4cb074ab5b9baacf300706878b29bd745f12c3'; assert x['decision_identity']['decision_id']=='decision_20260809_pr146_agent_canvas_committed_head_landing_v23'; assert x['decision_identity']['decision_content_sha256']==hashlib.sha256(Path('project_state/decision_packet.md').read_bytes()).hexdigest(); assert x['command_plan_sha256']==hashlib.sha256(Path('project_state/gates/command_plan.json').read_bytes()).hexdigest(); print('PR146_INTENT_WORKTREE_VALID')\"",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -171,40 +185,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "test.mainline_landing",
-      "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "test.platform_v1",
-      "command": "python -m pytest tests/platform_v1 -q",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "test.gate_regression",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "validation.diff_check",
+      "command_id": "validation.diff_check_precommit",
       "command": "git diff --check",
       "phase": "validation",
       "required": true,
@@ -215,9 +196,9 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "publication.stage",
+      "command_id": "candidate.stage",
       "command": "git add -- project_state/mainline_merge_intents/active.json project_state/mainline_merge_intents/archive/pr134_v1.json project_state/gates/bootstrap_state.json project_state/gates/command_plan.json project_state/gates/startup_snapshot.json project_state/gates/transition_command_plan_preview.json project_state/gates/transition_preflight_result.json",
-      "phase": "publication",
+      "phase": "candidate",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
@@ -235,9 +216,9 @@
       ]
     },
     {
-      "command_id": "publication.cached_check",
+      "command_id": "candidate.cached_check",
       "command": "git diff --cached --check",
-      "phase": "publication",
+      "phase": "candidate",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
@@ -246,9 +227,9 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "publication.staged_paths",
+      "command_id": "candidate.staged_paths",
       "command": "git diff --cached --name-only",
-      "phase": "publication",
+      "phase": "candidate",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
@@ -257,9 +238,9 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "publication.commit",
-      "command": "git commit -m \"landing: bind PR146 v22 intent\"",
-      "phase": "publication",
+      "command_id": "candidate.commit",
+      "command": "git commit -m \"landing: bind PR146 v23 intent\"",
+      "phase": "candidate",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
@@ -268,15 +249,59 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "publication.commit_paths",
+      "command_id": "candidate.commit_paths",
       "command": "git diff-tree --no-commit-id --name-only -r HEAD",
-      "phase": "publication",
+      "phase": "candidate",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["repository_observation"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "test.mainline_landing_committed_head",
+      "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "test.platform_v1_committed_head",
+      "command": "python -m pytest tests/platform_v1 -q",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "test.gate_regression_committed_head",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "validation.post_test_tracked_clean",
+      "command": "git diff --exit-code",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
     },
     {
       "command_id": "publication.push",
@@ -287,7 +312,8 @@
       "execution_surface": "local",
       "operations": ["repository_push", "network_access"],
       "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_only_after_validation": true
     },
     {
       "command_id": "publication.local_head",
@@ -437,6 +463,8 @@
 
 ## Owner audit and execution policy
 
-v21 proved the carryover-safe preflight workaround: startup snapshot, command-plan, lint and preflight all passed. The local archive was created and verified byte-identical, but `mutation.third_party_notice_fix` failed before write because the stale disclaimer sentence is physically wrapped between `or` and `replaced`, while v21 required a single-line exact string. The v21 validation had the same latent single-line assumption.
+v23 supersedes v22 before local delegation. Owner pre-delegation audit found that the landing tests read `active.json`, `decision_packet.md`, and `command_plan.json` from committed `HEAD` blobs; `test_production_pre_merge_simulation` also clones committed HEAD. Therefore testing a working-tree PR146 intent before commit would deterministically test stale PR134 authority and fail.
 
-v22 removes all local provenance-document mutation. After this Decision commit, the Owner will correct only `frontend/THIRD_PARTY_NOTICES.md` and `frontend/OPENHANDS_REUSE_MAP.md` through GitHub and independently re-read them. The local Agent may only validate those documents. Its remaining duties are to preserve/verify the PR134 archive (accepting the v21 local file only if byte-identical), bind `active.json` to the committed v22 Decision and generated v22 command plan, run the three required test groups, stage exactly the seven landing/gate paths, commit, and normal-push. `.frontend_stage/**` and `.platform_v1_runtime/**` remain pre-existing carryover scope only; no normal command may mutate or stage them. Ready/merge remain Owner-only after fresh exact-head workflows and final PR audit.
+v23 uses a local unpublished candidate commit as the object under test. After preflight, archive/provenance/intent worktree validation and diff checks, the Agent stages exactly seven governance paths and creates one local candidate commit. No push is authorized yet. The three required test groups then run against that committed candidate HEAD. Any failure stops with the candidate commit local only. Only after every committed-head test passes and tracked diff remains clean may the normal branch push occur.
+
+The two provenance documents were already corrected and committed by the Owner under v22 and are read-only in v23. `.frontend_stage/**` and `.platform_v1_runtime/**` remain pre-existing carryover scope only, with zero normal-command mutation grants. Ready/merge remain Owner-only after fresh exact-head workflows and final PR audit.
