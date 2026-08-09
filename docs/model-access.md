@@ -96,6 +96,27 @@ LiteLLM Proxy logical model alias
 
 The profile `model_id` should be a LiteLLM logical alias such as `coding-default`; upstream provider changes then do not require frontend changes.
 
+## Planned quota and budget extension
+
+Quota, provider balance, usage/cost accounting and budget-aware model scheduling belong to this same `model_access` plane rather than a separate API-key management subsystem.
+
+The fixed long-term plan is documented in:
+
+```text
+docs/roadmap/model_access_quota_budget_plan.md
+```
+
+Key boundaries:
+
+- provider-authoritative balance/quota must remain distinct from gateway accounting and estimates;
+- LiteLLM remains the default gateway/routing candidate and should provide generic accounting/budget capabilities where possible;
+- provider-specific quota support should use thin trusted-host adapters and official APIs/headers where available;
+- New API is a reference/optional reuse candidate for provider balance-refresh patterns, not an automatic second gateway;
+- every quota/balance value exposed to the frontend must carry provenance and freshness;
+- resource/cost signals may later influence deterministic model scheduling but may not bypass execution, permission or trust gates.
+
+This roadmap does not mean quota/billing is implemented in the current version.
+
 ## Security boundaries
 
 - The model-control service is loopback-only.
