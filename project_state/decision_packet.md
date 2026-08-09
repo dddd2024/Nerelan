@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_pr146_agent_canvas_landing_provenance_fix_v19",
-  "round_id": "round_20260809_pr146_agent_canvas_landing_provenance_fix_v19",
+  "decision_id": "decision_20260809_pr146_agent_canvas_landing_provenance_fix_v20",
+  "round_id": "round_20260809_pr146_agent_canvas_landing_provenance_fix_v20",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,15 +14,15 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260809_issue136_agent_canvas_draft_pr_landing_v18",
-  "follows_last_round_id": "round_20260809_issue136_agent_canvas_draft_pr_landing_v18",
-  "previous_audit_outcome": "PR146_AUDIT_FOUND_STALE_PR134_INTENT_AND_PROVENANCE_DOC_DRIFT",
-  "workstream_id": "pr146-agent-canvas-landing-provenance-fix-v19",
+  "follows_last_decision_id": "decision_20260809_pr146_agent_canvas_landing_provenance_fix_v19",
+  "follows_last_round_id": "round_20260809_pr146_agent_canvas_landing_provenance_fix_v19",
+  "previous_audit_outcome": "V19_OWNER_PREEXECUTION_SELF_AUDIT_FOUND_COMMAND_QUOTING_DEFECT",
+  "workstream_id": "pr146-agent-canvas-landing-provenance-fix-v20",
   "source_issue": 136,
   "parent_issue": 127,
   "active_pr": 146,
   "required_branch": "owner/issue136-agent-canvas-reuse-spike-v2",
-  "starting_head": "7731fb15a2a0a7c617e4720a665f571a33e5d51e",
+  "starting_head": "f5c3a14344761414a93e235285c1817f23403446",
   "activation_base_sha": "dd4cb074ab5b9baacf300706878b29bd745f12c3",
   "accepted_stage_b_evidence_head": "ab00b03952d96c2421be8297f29699a59ec69fda",
   "allowed_merge_method": "merge",
@@ -89,6 +89,8 @@
       "frontend/OPENHANDS_REUSE_MAP.md retained unlabeled fixture-only PR119 architecture statements that can be misread as current runtime truth",
       "Agent Canvas v1.6.1 copyright line omitted the upstream LICENSE year 2025"
     ],
+    "v19_preexecution_defect": "third_party_notice Python command used unsafe backslash-escaped double quotes for Windows PowerShell; v19 was never delegated or executed",
+    "v20_command_probe": "replacement commands and PR146 intent writer syntax/effect tested in isolated Python before publication",
     "nonblocking_ui_debt_issue": 145
   },
   "provenance_fix_contract": {
@@ -148,7 +150,7 @@
       "no unresolved review threads",
       "PR mergeable",
       "PR base remains dd4cb074ab5b9baacf300706878b29bd745f12c3",
-      "PR head remains the audited v19 implementation head"
+      "PR head remains the audited v20 implementation head"
     ],
     "auto_merge_forbidden": true
   },
@@ -223,7 +225,7 @@
     },
     {
       "command_id": "mutation.third_party_notice_fix",
-      "command": "python -c \"from pathlib import Path; p=Path('frontend/THIRD_PARTY_NOTICES.md'); s=p.read_text(encoding='utf-8'); a='**Copyright:** Copyright © OpenHands contributors'; b='**Copyright:** Copyright © 2025 OpenHands contributors'; c='for a fixture-driven, offline prototype.'; d=\\\"while the current product uses reverse-agent's real Task API and executor paths.\\\"; e='All OpenHands runtime/backend dependencies are stubbed or replaced with deterministic fixtures.'; f=\\\"Agent Canvas/OpenHands presentation reuse does not supply reverse-agent's Task API, TaskStore, executor, validation/evidence, model-control, or credential handling.\\\"; assert s.count(a)==1 and s.count(c)==1 and s.count(e)==1; s=s.replace(a,b).replace(c,d).replace(e,f); p.write_text(s,encoding='utf-8'); print('THIRD_PARTY_NOTICE_CORRECTED')\"",
+      "command": "python -c \"from pathlib import Path; p=Path('frontend/THIRD_PARTY_NOTICES.md'); s=p.read_text(encoding='utf-8'); a='**Copyright:** Copyright © OpenHands contributors'; b='**Copyright:** Copyright © 2025 OpenHands contributors'; c='for a fixture-driven, offline prototype.'; d='while the current product uses the real reverse-agent Task API and executor paths.'; e='All OpenHands runtime/backend dependencies are stubbed or replaced with deterministic fixtures.'; f='Agent Canvas/OpenHands presentation reuse does not supply the reverse-agent Task API, TaskStore, executor, validation/evidence, model-control, or credential handling.'; assert s.count(a)==1 and s.count(c)==1 and s.count(e)==1; s=s.replace(a,b).replace(c,d).replace(e,f); p.write_text(s,encoding='utf-8'); print('THIRD_PARTY_NOTICE_CORRECTED')\"",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
@@ -258,7 +260,7 @@
     },
     {
       "command_id": "mutation.write_pr146_intent",
-      "command": "python -c \"from pathlib import Path; import hashlib,json; decision=hashlib.sha256(Path('project_state/decision_packet.md').read_bytes()).hexdigest(); plan=hashlib.sha256(Path('project_state/gates/command_plan.json').read_bytes()).hexdigest(); x={'schema_version':1,'intent_id':'pr146_agent_canvas_landing_v1','repository':'dddd2024/reverse-agent','source_pr':146,'locked_base_sha':'dd4cb074ab5b9baacf300706878b29bd745f12c3','allowed_merge_method':'merge','decision_identity':{'decision_id':'decision_20260809_pr146_agent_canvas_landing_provenance_fix_v19','decision_content_sha256':decision},'command_plan_sha256':plan,'merge_tree_policy':'equal_to_accepted_head_tree','required_workflows':['CI','Decision Preflight','State Gate (pull_request)','State Gate (push)'],'expires_at':'2026-08-16T23:59:59Z'}; Path('project_state/mainline_merge_intents/active.json').write_text(json.dumps(x,indent=2)+'\\n',encoding='utf-8'); print('PR146_INTENT_WRITTEN DECISION_SHA256='+decision+' COMMAND_PLAN_SHA256='+plan)\"",
+      "command": "python -c \"from pathlib import Path; import hashlib,json; decision=hashlib.sha256(Path('project_state/decision_packet.md').read_bytes()).hexdigest(); plan=hashlib.sha256(Path('project_state/gates/command_plan.json').read_bytes()).hexdigest(); x={'schema_version':1,'intent_id':'pr146_agent_canvas_landing_v1','repository':'dddd2024/reverse-agent','source_pr':146,'locked_base_sha':'dd4cb074ab5b9baacf300706878b29bd745f12c3','allowed_merge_method':'merge','decision_identity':{'decision_id':'decision_20260809_pr146_agent_canvas_landing_provenance_fix_v20','decision_content_sha256':decision},'command_plan_sha256':plan,'merge_tree_policy':'equal_to_accepted_head_tree','required_workflows':['CI','Decision Preflight','State Gate (pull_request)','State Gate (push)'],'expires_at':'2026-08-16T23:59:59Z'}; Path('project_state/mainline_merge_intents/active.json').write_text(json.dumps(x,indent=2)+'\\n',encoding='utf-8'); print('PR146_INTENT_WRITTEN DECISION_SHA256='+decision+' COMMAND_PLAN_SHA256='+plan)\"",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
@@ -270,7 +272,7 @@
     },
     {
       "command_id": "validation.pr146_intent",
-      "command": "python -c \"from pathlib import Path; import hashlib,json; x=json.loads(Path('project_state/mainline_merge_intents/active.json').read_text(encoding='utf-8')); assert x['intent_id']=='pr146_agent_canvas_landing_v1' and x['source_pr']==146 and x['locked_base_sha']=='dd4cb074ab5b9baacf300706878b29bd745f12c3'; assert x['decision_identity']['decision_id']=='decision_20260809_pr146_agent_canvas_landing_provenance_fix_v19'; assert x['decision_identity']['decision_content_sha256']==hashlib.sha256(Path('project_state/decision_packet.md').read_bytes()).hexdigest(); assert x['command_plan_sha256']==hashlib.sha256(Path('project_state/gates/command_plan.json').read_bytes()).hexdigest(); print('PR146_INTENT_VALID')\"",
+      "command": "python -c \"from pathlib import Path; import hashlib,json; x=json.loads(Path('project_state/mainline_merge_intents/active.json').read_text(encoding='utf-8')); assert x['intent_id']=='pr146_agent_canvas_landing_v1' and x['source_pr']==146 and x['locked_base_sha']=='dd4cb074ab5b9baacf300706878b29bd745f12c3'; assert x['decision_identity']['decision_id']=='decision_20260809_pr146_agent_canvas_landing_provenance_fix_v20'; assert x['decision_identity']['decision_content_sha256']==hashlib.sha256(Path('project_state/decision_packet.md').read_bytes()).hexdigest(); assert x['command_plan_sha256']==hashlib.sha256(Path('project_state/gates/command_plan.json').read_bytes()).hexdigest(); print('PR146_INTENT_VALID')\"",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -576,7 +578,7 @@
     "network_policy": "deny_unless_command_explicitly_marks_network_access"
   },
   "external_prerequisites": [],
-  "generated_at": "2026-08-09T03:50:00Z",
+  "generated_at": "2026-08-09T03:54:00Z",
   "created_by": "chatgpt-owner"
 }
 ```
@@ -587,7 +589,9 @@ PR #146 Stage B product/runtime evidence remains accepted. The exact-head CI fai
 
 A separate Owner audit found provenance documentation drift that must be corrected before merge. The Agent Canvas v1.6.1 upstream LICENSE states `Copyright © 2025 OpenHands contributors`; the current notice omitted `2025`. The historical OpenHands structural mapping also retained fixture-only language without sufficiently marking those rows/exclusions as a PR #119-era snapshot, while current reverse-agent has a real Task API/OpenCode path.
 
-After synchronizing to this v19 Decision and obtaining `PRE_EXECUTION_AUTHORIZED`, the local Agent may execute only the compiler-generated commands above. It must archive the current PR #134 intent byte-for-byte before replacing it, correct only the two provenance documents, bind `active.json` to PR #146 using hashes observed from the committed v19 Decision and generated command plan, run the required validation, stage only the nine authorized files, commit once, and normal-push the existing branch.
+v19 was never delegated or executed. Owner pre-execution self-audit found an unsafe quoting construction in one generated Python mutation command. v20 supersedes v19 and uses only syntax/effect-probed atomic Python mutation commands.
+
+After synchronizing to this v20 Decision and obtaining `PRE_EXECUTION_AUTHORIZED`, the local Agent may execute only the compiler-generated commands above. It must archive the current PR #134 intent byte-for-byte before replacing it, correct only the two provenance documents, bind `active.json` to PR #146 using hashes observed from the committed v20 Decision and generated command plan, run the required validation, stage only the nine authorized files, commit once, and normal-push the existing branch.
 
 No frontend source, frontend tests, screenshots, backend, workflow, dependency, model/executor configuration, Task API, TaskStore, OpenCode task, credential, browser, runtime service, or main branch mutation is authorized locally.
 
@@ -595,4 +599,4 @@ The local Agent must not mark PR #146 Ready and must not merge. Those actions re
 
 Terminal after local publication:
 
-`PR146_V19_LANDING_PREP_PUBLISHED_AWAITING_EXACT_HEAD_CHECKS`
+`PR146_V20_LANDING_PREP_PUBLISHED_AWAITING_EXACT_HEAD_CHECKS`
