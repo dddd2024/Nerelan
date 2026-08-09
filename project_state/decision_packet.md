@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_governance_v2_foundation_v1",
-  "round_id": "round_20260809_governance_v2_foundation_v1",
+  "decision_id": "decision_20260809_governance_v2_foundation_v2",
+  "round_id": "round_20260809_governance_v2_foundation_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,8 +14,8 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "previous_audit_outcome": "OWNER_AUDIT_GOVERNANCE_FALSE_NEGATIVES_BLOCKING_MODERNIZATION",
-  "workstream_id": "governance-v2-foundation-v1",
+  "previous_audit_outcome": "V1_OWNER_PREDELEGATION_SUPERSEDED_FRESH_CLONE_AND_REUSE_INSPECTION_BOOTSTRAP_OMITTED",
+  "workstream_id": "governance-v2-foundation-v2",
   "source_issue": 153,
   "parent_issue": 148,
   "related_issue": 105,
@@ -71,6 +71,7 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
+    "git clone --branch owner/governance-v2-foundation-v1 https://github.com/dddd2024/reverse-agent.git F:\\reverse-agent-governance-v2-foundation-20260809",
     "git status --short",
     "git fetch origin owner/repository-modernization-v2-planning",
     "git fetch origin owner/governance-v2-foundation-v1",
@@ -133,6 +134,17 @@
     {
       "command_id": "observation.historical_scope",
       "command": "git diff --name-only 61570724495aa7053eba78bd2e34d8bda22f6407..40400440e257e0d0a4aa6cabae8672bff937cde4",
+      "phase": "status",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "observation.historical_reuse_diff",
+      "command": "git diff 7e068aac0a4142e611a5d5b825353db31efd2cb7 40400440e257e0d0a4aa6cabae8672bff937cde4 -- .github/workflows/state-gate.yml reverse_agent/control_plane/legacy_adapter.py reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py",
       "phase": "status",
       "required": true,
       "expected_exit_codes": [0],
@@ -350,6 +362,7 @@
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
     "local_network_exceptions": [
+      "git clone --branch owner/governance-v2-foundation-v1 https://github.com/dddd2024/reverse-agent.git F:\\reverse-agent-governance-v2-foundation-20260809",
       "git fetch origin owner/repository-modernization-v2-planning",
       "git fetch origin owner/governance-v2-foundation-v1",
       "git fetch origin codex/path-a-r1-state-gate-cutover-v1",
@@ -382,12 +395,16 @@
     "project_state/gates/evidence/**",
     "project_state/gates/execution_log.json"
   ],
-  "follows_last_decision_id": "decision_20260808_pr134_frontend_opencode_devup_landing_v1",
-  "follows_last_round_id": "round_20260808_pr134_frontend_opencode_devup_landing_v1"
+  "follows_last_decision_id": "decision_20260809_governance_v2_foundation_v1",
+  "follows_last_round_id": "round_20260809_governance_v2_foundation_v1"
 }
 ```
 
 ## Goal
+
+v2 supersedes v1 **before any local delegation or execution**. v1 was never executed. v1 correctly bounded the Governance V2 Foundation scope but omitted two bootstrap requirements needed by a fresh isolated local implementation: the exact repository clone and an authorized read-only diff exposing the historical PR #49 implementation that must be reused rather than reinvented.
+
+v2 is the first Governance V2 Foundation Decision eligible for local delegation.
 
 Implement the minimum Governance V2 foundation required to unblock Modernization V2, using historical PR #49 / Issue #105 as the mandatory reuse source rather than building a second control plane.
 
@@ -395,14 +412,14 @@ Required outcomes:
 
 1. restore `path_a_r1` routing for ordinary R1 PRs so an unrelated active Path-B Decision cannot hijack them;
 2. adapt the R1 immutable snapshot from a hard-coded `main` base to an explicit `integration_base_ref + base_sha` contract, allowing exact owner-approved planning branches while retaining exact merge-base/head binding;
-3. introduce deterministic worktree-state classification so known runtime scratch (`task_workspaces/**`, `.platform_v1_runtime/**`) is non-authoritative/non-staged but does not hard-stop bootstrap merely for existing, while unknown untracked content is read-only classifiable and remains blocking before publication unless resolved;
+3. introduce deterministic worktree-state classification so known runtime scratch (`task_workspaces/**`, `.platform_v1_runtime/**`) is non-authoritative/non-staged but does not hard-stop bootstrap merely for existing, while unknown untracked content is read-only classifiable and remains blocking before staging/publication unless resolved;
 4. narrowly ignore the two known managed runtime scratch roots;
 5. preserve R2/R3 path-risk floors, live authority re-observation, rename/previous-path checks, security-path case normalization and fail-closed semantics from PR #49;
 6. do not add a permanent compatibility fallback for old snapshot schemas; old Work Items without `integration_base_ref` are historical and need a fresh approved Work Item.
 
 ## Reuse and implementation policy
 
-- First fetch and inspect historical PR #49 exact head `40400440e257e0d0a4aa6cabae8672bff937cde4`.
+- Fetch historical PR #49 branch and run the exact authorized `historical_reuse_diff` observation before implementation.
 - Reuse only behavior still correct against current planning base `7e068aac0a4142e611a5d5b825353db31efd2cb7`.
 - Do not merge/cherry-pick PR #49 wholesale.
 - Keep the worktree classifier in `reverse_agent/control_plane/worktree_state.py` so runtime-scratch classification does not become ad-hoc prompt logic.
@@ -413,7 +430,7 @@ Required outcomes:
 
 This round permits at most two bounded repair cycles after deterministic test failures, provided every edit remains inside `allowed_mutated_paths`. Test failure alone is not authority drift. Stop immediately instead on branch/base drift, forbidden-path mutation, sensitive/credential/provider/dependency scope expansion, history rewrite, or remote publication mismatch.
 
-The local Agent must not touch `F:\reverse-agent-issue151-rework-20260809`; that dirty #151 product diff remains frozen for recovery after this foundation is accepted.
+The local Agent must not touch `F:\\reverse-agent-issue151-rework-20260809`; that dirty #151 product diff remains frozen for recovery after this foundation is accepted.
 
 ## Publication boundary
 
