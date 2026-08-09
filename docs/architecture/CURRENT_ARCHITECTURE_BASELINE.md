@@ -45,7 +45,9 @@ Current main contains the Platform V1 task foundation:
 - model-profile reference plumbing;
 - permission/policy reference fields;
 - recursive evidence/secret redaction mechanisms;
-- one-click local dev lifecycle from #133 / PR #134.
+- **one-command** local dev lifecycle from #133 / PR #134 via `dev-up.ps1` / `dev-down.ps1`.
+
+The current startup path is not yet a true user-facing one-click/double-click launcher. It requires an existing local toolchain and explicit PowerShell invocation.
 
 ### 2.2 Frontend on main
 
@@ -64,7 +66,22 @@ The frontend client supports `deterministic_fixture` and `opencode` executors.
 
 However, main does **not** yet contain the final Agent Canvas v1.6.1 source-forked workbench from #136 / Draft PR #146.
 
-### 2.3 Governance/control plane on main
+### 2.3 Model access on main
+
+Main contains a loopback Model Control service and frontend settings UI for model profiles. It supports OpenAI-compatible/LiteLLM-style provider configuration, model ID, API-key submission/environment references, default selection and connection probing.
+
+However, the current `ModelProfile` shape couples provider/model configuration with an executor field, and current OpenCode execution does **not** automatically inherit an API credential configured through Model Control.
+
+Current truth is therefore:
+
+```text
+reverse-agent Model Control provider/API configuration
+    != automatic OpenCode provider/login configuration
+```
+
+The canonical modernization replacement is documented in `docs/architecture/CONNECTION_EXECUTOR_BINDING_ARCHITECTURE.md`: separate **Connection**, **Executor**, and **Binding** concepts, with executor adapters reusing a user-configured/authenticated Connection without requiring duplicate manual credential entry.
+
+### 2.4 Governance/control plane on main
 
 Main currently contains multiple generations of repository governance:
 
@@ -100,34 +117,15 @@ Therefore the correct claim is:
 
 > **The real frontend -> Task API -> OpenCode -> validation -> persisted readback path has been demonstrated on the #136 branch, but the corrected Agent Canvas presentation layer is not yet on main.**
 
-## 4. Not yet operational: multi-Agent orchestration
+## 4. Multi-Agent orchestration status
 
-The repository does **not** currently have a demonstrated production multi-Agent collaboration vertical slice.
+Main does **not** currently have a demonstrated production multi-Agent collaboration vertical slice.
 
-What exists today:
+Modernization planning has now selected the existing pinned `langgraph==1.0.5` as the orchestration spine rather than introducing another orchestration framework.
 
-- one task can be routed to one registered executor;
-- executor abstraction is pluggable;
-- #103 defines cross-Agent memory/source-of-truth semantics;
-- #126 defines a Codex native-multi-agent compatibility research round;
-- #137 defines the future capability/multi-Agent architecture;
-- #118 defines later worker delegation policy concepts.
+#149 / PR #150 established and merged an explicit bounded execution seam into the isolated Modernization planning branch. #151 is the next bounded implementation task for LangGraph-native parallel worker fan-out, shared TaskStore/ExecutorRouter execution, structured worker/team results, verifier rejection, and final acceptance propagation.
 
-What has **not** been proven as current product capability:
-
-```text
-manager Agent -> spawn worker Agents
-structured parent -> child task handoff
-parallel worker execution
-worker -> parent artifact/result handoff
-dependency graph / join semantics
-bounded replan across multiple Agents
-multi-Agent recovery/checkpointing
-cross-provider child routing
-policy-enforced worker delegation
-```
-
-Until one exact-head real vertical slice proves these properties, documentation must say **planned / research**, not `supported`.
+Until #151 and later real-model dogfood are independently accepted and landed, product documentation must not claim operational multi-Agent support on main.
 
 ## 5. Publication boundary status
 
@@ -198,6 +196,26 @@ Decision semantics currently emerge from several places simultaneously:
 
 Modernization must converge these into one explicit typed contract and one validation path.
 
+### 6.7 Connection / executor coupling debt
+
+Current model settings couple provider/model access and executor selection. Concrete executors can also own native API/account-login state, so users can be forced into duplicate configuration.
+
+Modernization must separate:
+
+```text
+Connection -> provider + authentication + capability/model access
+Executor   -> OpenCode / Codex / OpenHands / other concrete runtime
+Binding    -> Executor + Connection + Model
+```
+
+The desired UX is **configure/authenticate once, adapt safely per executor**, not silently copy credentials between tools.
+
+### 6.8 Startup productization debt
+
+`dev-up.ps1` already performs useful prerequisite checks, process ownership, health checks and browser launch, but is a one-command developer entry point rather than a true user-facing launcher.
+
+A later Product Setup & Connections phase should add a thin double-click/launcher entry that reuses the existing lifecycle rather than replacing it with a large desktop runtime.
+
 ## 7. Security verification priority
 
 `OpenCodeExecutor` recursive evidence redaction requires a focused regression audit for tuple/container handling before broader refactoring. Modernization Phase 1 treats this as a P0 verification/fix candidate.
@@ -215,6 +233,7 @@ Until Modernization V2 completes:
 | Active modernization direction | #148 + modernization planning branch |
 | Historical implementation evidence | old PR/branch/Issue, explicitly historical |
 | Runtime task truth | TaskStore/API persisted state |
+| Model/provider/executor architecture | `CONNECTION_EXECUTOR_BINDING_ARCHITECTURE.md` |
 | Private Agent/session memory | advisory only |
 | Legacy reverse challenge state | domain-specific historical/compatibility evidence only |
 
