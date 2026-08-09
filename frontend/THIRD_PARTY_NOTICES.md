@@ -13,7 +13,7 @@ License. The MIT terms reproduced below apply to both attributions.
 **Tag:** v1.6.1
 **Commit:** `43f091baf135142ed6c146f888f44a957141193f`
 **License:** MIT
-**Copyright:** Copyright © OpenHands contributors
+**Copyright:** Copyright © 2025 OpenHands contributors
 
 Vendored or directly derived presentation files are recorded in
 `frontend/OPENHANDS_REUSE_MAP.md`. OpenHands backend, Agent Server,
@@ -110,7 +110,9 @@ verbatim) into the reverse-agent frontend under `frontend/src/`:
 ### Disclaimer
 
 The reverse-agent frontend is a derivative work that structurally adapts
-OpenHands UI patterns for a fixture-driven, offline prototype. It does not
-include, execute, or redistribute OpenHands backend, runtime, sandbox, or
-enterprise code. All OpenHands runtime/backend dependencies are stubbed or
-replaced with deterministic fixtures.
+OpenHands UI patterns. The current product uses the reverse-agent Task API, TaskStore,
+executor, validation/evidence, model-control, and credential handling; these remain
+reverse-agent-owned runtime and control-plane responsibilities. It does not include,
+execute, or redistribute OpenHands backend, runtime, sandbox, or enterprise code.
+Agent Canvas/OpenHands presentation reuse does not supply those reverse-agent runtime
+or control-plane components.
