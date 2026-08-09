@@ -3,44 +3,45 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_issue136_agent_canvas_draft_pr_landing_v18",
-  "round_id": "round_20260809_issue136_agent_canvas_draft_pr_landing_v18",
+  "decision_id": "decision_20260809_pr146_agent_canvas_landing_provenance_fix_v19",
+  "round_id": "round_20260809_pr146_agent_canvas_landing_provenance_fix_v19",
   "status": "APPROVED",
   "mainline": "engineering_branch",
-  "skill_profiles": [
-    "reverse-agent-iteration@v2"
-  ]
+  "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17",
-  "follows_last_round_id": "round_20260809_issue136_agent_canvas_stageb2_atomic_screenshot_recapture_v17",
-  "previous_audit_outcome": "ISSUE136_STAGE_B_PIXEL_VISUAL_ACCEPTED_READY_FOR_DRAFT_PR_LANDING_AUTHORITY",
-  "workstream_id": "issue136-agent-canvas-draft-pr-landing-v18",
+  "follows_last_decision_id": "decision_20260809_issue136_agent_canvas_draft_pr_landing_v18",
+  "follows_last_round_id": "round_20260809_issue136_agent_canvas_draft_pr_landing_v18",
+  "previous_audit_outcome": "PR146_AUDIT_FOUND_STALE_PR134_INTENT_AND_PROVENANCE_DOC_DRIFT",
+  "workstream_id": "pr146-agent-canvas-landing-provenance-fix-v19",
   "source_issue": 136,
   "parent_issue": 127,
+  "active_pr": 146,
   "required_branch": "owner/issue136-agent-canvas-reuse-spike-v2",
-  "starting_head": "ab00b03952d96c2421be8297f29699a59ec69fda",
+  "starting_head": "7731fb15a2a0a7c617e4720a665f571a33e5d51e",
   "activation_base_sha": "dd4cb074ab5b9baacf300706878b29bd745f12c3",
-  "risk_tier": "R3",
-  "governance_artifact_risk_tier": "R3",
+  "accepted_stage_b_evidence_head": "ab00b03952d96c2421be8297f29699a59ec69fda",
+  "allowed_merge_method": "merge",
+  "risk_tier": "R2",
+  "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
-  "pr_creation_allowed": true,
-  "draft_pr_creation_allowed": true,
-  "pr_body_update_allowed": false,
-  "pr_comment_allowed": false,
-  "issue_comment_allowed": false,
+  "pr_creation_allowed": false,
+  "draft_pr_creation_allowed": false,
+  "pr_body_update_allowed": true,
+  "pr_comment_allowed": true,
+  "issue_comment_allowed": true,
   "branch_creation_allowed": false,
   "worktree_creation_allowed": false,
   "local_commit_allowed": true,
   "normal_push_allowed": true,
   "exact_head_workflow_observation_allowed": true,
-  "merge_allowed": false,
-  "mark_ready_allowed": false,
+  "merge_allowed": true,
+  "mark_ready_allowed": true,
   "auto_merge_allowed": false,
   "force_push_allowed": false,
   "rebase_allowed": false,
@@ -58,47 +59,98 @@
   "provider_configuration_mutation_allowed": false,
   "credential_value_access_allowed": false,
   "preexisting_provider_session_use_allowed": false,
-  "bounded_external_source_access_allowed": false,
   "repair_attempt_limit": 0,
   "infrastructure_retry_limit": 0,
   "audit_generation_allowed": false,
   "prior_audits_immutable": true,
   "bootstrap_state_initial": "BOOTSTRAP_OPEN",
-  "accepted_stage_b": {
-    "stage_a_disposition": "AGENT_CANVAS_PINNED_SOURCE_FORK_SELECTED",
-    "implementation_head": "5629306ecb1ac1377ad414decbe31993e3b34c27",
-    "real_opencode_evidence_head": "ab00b03952d96c2421be8297f29699a59ec69fda",
-    "real_task_id": "task-1786237330883-8460dbd1c478",
-    "real_task_state": "READY_FOR_HUMAN",
-    "real_task_backend_status": "READY_FOR_REVIEW",
-    "real_task_executor": "opencode",
-    "validation_exit_code": 0,
-    "screenshot_path": "frontend/artifacts/agent-canvas-v1.6.1/reverse-agent-source-fork-real-opencode-task-1440x900.png",
-    "screenshot_sha256": "5d4610dc2383fd3c09081c77d346b408b37e4f3a58ffea7bd1eda7ec8dab0083",
-    "screenshot_dimensions": "1440x900",
-    "owner_pixel_review": "ACCEPTED",
-    "nonblocking_followup_issue": 145
+  "audit_findings": {
+    "pr146_pre_v19_head": "7731fb15a2a0a7c617e4720a665f571a33e5d51e",
+    "pr146_draft": true,
+    "pr146_mergeable": true,
+    "review_threads": 0,
+    "decision_preflight_run": 31293014404,
+    "decision_preflight_conclusion": "success",
+    "state_gate_pull_request_run": 31293014442,
+    "state_gate_pull_request_conclusion": "success",
+    "model_access_run": 31293014414,
+    "model_access_conclusion": "success",
+    "ci_run": 31293014417,
+    "ci_conclusion": "failure",
+    "ci_failure_classification": "STALE_MAINLINE_INTENT_ONLY",
+    "ci_failure_tests": [
+      "tests/test_mainline_landing.py::test_committed_active_intent_binds_exact_current_authority",
+      "tests/test_mainline_landing.py::test_production_pre_merge_simulation"
+    ],
+    "ci_pre_failure_green": "1706 passed, 1 skipped; 282 passed; 11 passed",
+    "stale_intent_source_pr": 134,
+    "provenance_doc_drift": [
+      "frontend/THIRD_PARTY_NOTICES.md still described the current frontend as fixture-driven/offline and all runtime/backend dependencies as deterministic fixtures",
+      "frontend/OPENHANDS_REUSE_MAP.md retained unlabeled fixture-only PR119 architecture statements that can be misread as current runtime truth",
+      "Agent Canvas v1.6.1 copyright line omitted the upstream LICENSE year 2025"
+    ],
+    "nonblocking_ui_debt_issue": 145
   },
-  "draft_pr_contract": {
+  "provenance_fix_contract": {
+    "allowed_files": [
+      "frontend/THIRD_PARTY_NOTICES.md",
+      "frontend/OPENHANDS_REUSE_MAP.md"
+    ],
+    "third_party_notice_requirements": [
+      "Agent Canvas copyright must match upstream v1.6.1 LICENSE: Copyright © 2025 OpenHands contributors",
+      "remove current-product fixture-driven/offline claim",
+      "remove claim that all OpenHands runtime/backend dependencies are deterministic fixtures",
+      "state that reverse-agent Task API/TaskStore/executor/validation/evidence/model-control remain reverse-agent-owned"
+    ],
+    "reuse_map_requirements": [
+      "mark the old OpenHands structural source-to-target table as a historical PR119 snapshot",
+      "mark old fixture-only exclusions as historical PR119 snapshot",
+      "make explicit that current runtime uses reverse-agent Task API/OpenCode and the fixture-only wording is historical evidence"
+    ],
+    "product_source_change_allowed": false,
+    "screenshot_change_allowed": false
+  },
+  "mainline_intent_contract": {
+    "archive_source": "project_state/mainline_merge_intents/active.json",
+    "expected_old_intent_id": "pr134_frontend_opencode_devup_landing_v1",
+    "expected_old_source_pr": 134,
+    "archive_path": "project_state/mainline_merge_intents/archive/pr134_v1.json",
+    "archive_must_be_byte_identical": true,
+    "new_intent_id": "pr146_agent_canvas_landing_v1",
+    "new_source_pr": 146,
+    "locked_base_sha": "dd4cb074ab5b9baacf300706878b29bd745f12c3",
+    "allowed_merge_method": "merge",
+    "merge_tree_policy": "equal_to_accepted_head_tree",
+    "required_workflows": [
+      "CI",
+      "Decision Preflight",
+      "State Gate (pull_request)",
+      "State Gate (push)"
+    ],
+    "expires_at": "2026-08-16T23:59:59Z",
+    "decision_and_command_plan_hashes_must_be_observed_from_committed_files": true
+  },
+  "owner_landing_contract": {
+    "pr": 146,
     "base_branch": "main",
     "expected_base_sha": "dd4cb074ab5b9baacf300706878b29bd745f12c3",
     "head_branch": "owner/issue136-agent-canvas-reuse-spike-v2",
-    "draft_required": true,
-    "owner_connector_creation_only": true,
-    "creation_only_after_v18_preflight_and_generated_gate_commit_are_pushed": true,
-    "title": "Frontend: reuse Agent Canvas v1.6.1 workbench source",
-    "body_must_reference_issues": [
-      136,
-      127,
-      145
+    "draft_until_final_audit": true,
+    "owner_only_ready_and_merge": true,
+    "expected_head_protection_required": true,
+    "merge_method": "merge",
+    "before_ready_and_merge_require": [
+      "CI exact-head success",
+      "Decision Preflight exact-head success",
+      "State Gate pull_request exact-head success",
+      "State Gate push exact-head success",
+      "Model Access exact-head success",
+      "no unresolved review threads",
+      "PR mergeable",
+      "PR base remains dd4cb074ab5b9baacf300706878b29bd745f12c3",
+      "PR head remains the audited v19 implementation head"
     ],
-    "must_record_stage_a_disposition": "AGENT_CANVAS_PINNED_SOURCE_FORK_SELECTED",
-    "must_record_real_task_evidence_head": "ab00b03952d96c2421be8297f29699a59ec69fda",
-    "must_record_nonblocking_ui_debt": 145,
-    "merge_allowed": false,
-    "mark_ready_allowed": false,
-    "auto_merge_allowed": false,
-    "subsequent_pr_bound_landing_authority_required": true
+    "auto_merge_forbidden": true
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
@@ -129,48 +181,174 @@
       "command": "git merge-base --is-ancestor ab00b03952d96c2421be8297f29699a59ec69fda HEAD",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "repository_observation",
-        "exact_head_validation"
-      ],
+      "operations": ["repository_observation", "exact_head_validation"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "validation.old_intent_identity",
+      "command": "python -c \"import json; from pathlib import Path; x=json.loads(Path('project_state/mainline_merge_intents/active.json').read_text(encoding='utf-8')); assert x['intent_id']=='pr134_frontend_opencode_devup_landing_v1'; assert x['source_pr']==134; print('OLD_INTENT_PR134_VALID')\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "mutation.archive_pr134_intent",
+      "command": "python -c \"from pathlib import Path; s=Path('project_state/mainline_merge_intents/active.json'); d=Path('project_state/mainline_merge_intents/archive/pr134_v1.json'); assert s.exists(); assert not d.exists(); d.write_bytes(s.read_bytes()); print('PR134_INTENT_ARCHIVED')\"",
+      "phase": "implementation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["governance_artifact_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": ["project_state/mainline_merge_intents/archive/pr134_v1.json"]
+    },
+    {
+      "command_id": "validation.archive_identity",
+      "command": "python -c \"from pathlib import Path; import hashlib; a=hashlib.sha256(Path('project_state/mainline_merge_intents/active.json').read_bytes()).hexdigest(); b=hashlib.sha256(Path('project_state/mainline_merge_intents/archive/pr134_v1.json').read_bytes()).hexdigest(); assert a==b; print('PR134_ARCHIVE_IDENTICAL SHA256='+a)\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "mutation.third_party_notice_fix",
+      "command": "python -c \"from pathlib import Path; p=Path('frontend/THIRD_PARTY_NOTICES.md'); s=p.read_text(encoding='utf-8'); a='**Copyright:** Copyright © OpenHands contributors'; b='**Copyright:** Copyright © 2025 OpenHands contributors'; c='for a fixture-driven, offline prototype.'; d=\\\"while the current product uses reverse-agent's real Task API and executor paths.\\\"; e='All OpenHands runtime/backend dependencies are stubbed or replaced with deterministic fixtures.'; f=\\\"Agent Canvas/OpenHands presentation reuse does not supply reverse-agent's Task API, TaskStore, executor, validation/evidence, model-control, or credential handling.\\\"; assert s.count(a)==1 and s.count(c)==1 and s.count(e)==1; s=s.replace(a,b).replace(c,d).replace(e,f); p.write_text(s,encoding='utf-8'); print('THIRD_PARTY_NOTICE_CORRECTED')\"",
+      "phase": "implementation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["governance_artifact_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": ["frontend/THIRD_PARTY_NOTICES.md"]
+    },
+    {
+      "command_id": "mutation.reuse_map_historical_labels",
+      "command": "python -c \"from pathlib import Path; p=Path('frontend/OPENHANDS_REUSE_MAP.md'); s=p.read_text(encoding='utf-8'); a='## Source-to-target reuse map (exact upstream paths)'; b='## Historical OpenHands 1.8.0 structural map (PR #119 snapshot)\\n\\nThe table below records the pre-PR #134 fixture-only baseline. Its fixture-only wording is retained as historical evidence and does not describe the current runtime, which uses reverse-agent Task API and OpenCode paths.'; c='## Not reused (concrete incompatibilities)'; d='## Historical PR #119 exclusions (snapshot)\\n\\nThese exclusions describe the historical structural-adaptation baseline, not current reverse-agent runtime. Current Task API/OpenCode data flow is not a fixture-only browser path.'; assert s.count(a)==1 and s.count(c)==1; s=s.replace(a,b).replace(c,d); p.write_text(s,encoding='utf-8'); print('REUSE_MAP_HISTORICAL_LABELS_CORRECTED')\"",
+      "phase": "implementation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["governance_artifact_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": ["frontend/OPENHANDS_REUSE_MAP.md"]
+    },
+    {
+      "command_id": "validation.provenance_docs",
+      "command": "python -c \"from pathlib import Path; a=Path('frontend/THIRD_PARTY_NOTICES.md').read_text(encoding='utf-8'); b=Path('frontend/OPENHANDS_REUSE_MAP.md').read_text(encoding='utf-8'); assert 'Copyright © 2025 OpenHands contributors' in a; assert 'fixture-driven, offline prototype' not in a; assert 'All OpenHands runtime/backend dependencies are stubbed or replaced with deterministic fixtures.' not in a; assert 'Historical OpenHands 1.8.0 structural map (PR #119 snapshot)' in b; assert 'Historical PR #119 exclusions (snapshot)' in b; print('PROVENANCE_DOCS_VALID')\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "mutation.write_pr146_intent",
+      "command": "python -c \"from pathlib import Path; import hashlib,json; decision=hashlib.sha256(Path('project_state/decision_packet.md').read_bytes()).hexdigest(); plan=hashlib.sha256(Path('project_state/gates/command_plan.json').read_bytes()).hexdigest(); x={'schema_version':1,'intent_id':'pr146_agent_canvas_landing_v1','repository':'dddd2024/reverse-agent','source_pr':146,'locked_base_sha':'dd4cb074ab5b9baacf300706878b29bd745f12c3','allowed_merge_method':'merge','decision_identity':{'decision_id':'decision_20260809_pr146_agent_canvas_landing_provenance_fix_v19','decision_content_sha256':decision},'command_plan_sha256':plan,'merge_tree_policy':'equal_to_accepted_head_tree','required_workflows':['CI','Decision Preflight','State Gate (pull_request)','State Gate (push)'],'expires_at':'2026-08-16T23:59:59Z'}; Path('project_state/mainline_merge_intents/active.json').write_text(json.dumps(x,indent=2)+'\\n',encoding='utf-8'); print('PR146_INTENT_WRITTEN DECISION_SHA256='+decision+' COMMAND_PLAN_SHA256='+plan)\"",
+      "phase": "implementation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["governance_artifact_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": ["project_state/mainline_merge_intents/active.json"]
+    },
+    {
+      "command_id": "validation.pr146_intent",
+      "command": "python -c \"from pathlib import Path; import hashlib,json; x=json.loads(Path('project_state/mainline_merge_intents/active.json').read_text(encoding='utf-8')); assert x['intent_id']=='pr146_agent_canvas_landing_v1' and x['source_pr']==146 and x['locked_base_sha']=='dd4cb074ab5b9baacf300706878b29bd745f12c3'; assert x['decision_identity']['decision_id']=='decision_20260809_pr146_agent_canvas_landing_provenance_fix_v19'; assert x['decision_identity']['decision_content_sha256']==hashlib.sha256(Path('project_state/decision_packet.md').read_bytes()).hexdigest(); assert x['command_plan_sha256']==hashlib.sha256(Path('project_state/gates/command_plan.json').read_bytes()).hexdigest(); print('PR146_INTENT_VALID')\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "test.docs_contracts",
+      "command": "python -m pytest tests/test_minimal_integration_baseline_docs.py -q",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "test.mainline_landing",
+      "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "test.platform_v1",
+      "command": "python -m pytest tests/platform_v1 -q",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "test.gate_regression",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
     },
     {
       "command_id": "validation.diff_check",
       "command": "git diff --check dd4cb074ab5b9baacf300706878b29bd745f12c3..HEAD",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "repository_observation",
-        "run_checks"
-      ],
+      "operations": ["diff_validation"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "publication.stage_gates",
-      "command": "git add -- project_state/gates/bootstrap_state.json project_state/gates/command_plan.json project_state/gates/startup_snapshot.json project_state/gates/transition_command_plan_preview.json project_state/gates/transition_preflight_result.json",
+      "command_id": "publication.stage",
+      "command": "git add -- frontend/OPENHANDS_REUSE_MAP.md frontend/THIRD_PARTY_NOTICES.md project_state/mainline_merge_intents/active.json project_state/mainline_merge_intents/archive/pr134_v1.json project_state/gates/bootstrap_state.json project_state/gates/command_plan.json project_state/gates/startup_snapshot.json project_state/gates/transition_command_plan_preview.json project_state/gates/transition_preflight_result.json",
       "phase": "publication",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "repository_stage"
-      ],
+      "operations": ["repository_stage"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
+        "frontend/OPENHANDS_REUSE_MAP.md",
+        "frontend/THIRD_PARTY_NOTICES.md",
+        "project_state/mainline_merge_intents/active.json",
+        "project_state/mainline_merge_intents/archive/pr134_v1.json",
         "project_state/gates/bootstrap_state.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/startup_snapshot.json",
@@ -183,13 +361,9 @@
       "command": "git diff --cached --check",
       "phase": "publication",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "run_checks"
-      ],
+      "operations": ["run_checks"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
@@ -198,28 +372,20 @@
       "command": "git diff --cached --name-only",
       "phase": "publication",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
+      "operations": ["repository_observation"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "publication.commit_gates",
-      "command": "git commit -m \"governance: generate issue136 draft-pr landing authority\"",
+      "command_id": "publication.commit",
+      "command": "git commit -m \"landing: bind PR146 and correct frontend provenance\"",
       "phase": "publication",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "repository_commit"
-      ],
+      "operations": ["repository_commit"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation"
     },
@@ -228,13 +394,9 @@
       "command": "git diff-tree --no-commit-id --name-only -r HEAD",
       "phase": "publication",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
+      "operations": ["repository_observation"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation"
     },
@@ -243,14 +405,9 @@
       "command": "git push origin owner/issue136-agent-canvas-reuse-spike-v2",
       "phase": "publication",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "repository_push",
-        "network_access"
-      ],
+      "operations": ["repository_push", "network_access"],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation"
     },
@@ -259,13 +416,9 @@
       "command": "git rev-parse HEAD",
       "phase": "publication",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
+      "operations": ["repository_observation"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation"
     },
@@ -274,13 +427,9 @@
       "command": "git rev-parse origin/owner/issue136-agent-canvas-reuse-spike-v2",
       "phase": "publication",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
+      "operations": ["repository_observation"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation"
     },
@@ -289,13 +438,9 @@
       "command": "git status --short",
       "phase": "publication",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
+      "operations": ["repository_observation"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation"
     }
@@ -323,7 +468,9 @@
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr134_v1.json"
   ],
   "carry_forward_cumulative_paths": [
     "frontend/OPENHANDS_REUSE_MAP.md",
@@ -350,21 +497,20 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json"
   ],
-  "no_new_product_mutation": true,
   "reference_paths": [
+    "AGENTS.md",
+    "README.md",
+    "pyproject.toml",
+    ".github/**",
     "reverse_agent/**",
     "tests/**",
-    ".github/**",
-    ".frontend_stage/**",
-    ".platform_v1_runtime/**",
+    "project_state/schemas/**",
     "dev-up.ps1",
     "dev-down.ps1",
     "frontend/package.json",
     "frontend/package-lock.json",
-    "project_state/schemas/**",
-    "project_state/mainline_merge_intents/**",
-    "project_state/rounds/**",
-    "project_state/audits/**"
+    ".frontend_stage/**",
+    ".platform_v1_runtime/**"
   ],
   "generated_artifact_paths": [
     "project_state/gates/bootstrap_state.json",
@@ -373,29 +519,9 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json"
   ],
-  "forbidden_mutated_paths": [
-    ".github/**",
-    "reverse_agent/**",
-    "tests/**",
-    ".frontend_stage/**",
-    ".platform_v1_runtime/**",
-    "dev-up.ps1",
-    "dev-down.ps1",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "project_state/current_state.json",
-    "project_state/state_manifest.json",
-    "project_state/artifact_index.json",
-    "project_state/schemas/**",
-    "project_state/mainline_merge_intents/**",
-    "project_state/rounds/**",
-    "project_state/audits/**"
-  ],
   "forbidden_operations": [
     "direct_push_main",
     "auto_merge",
-    "merge",
-    "mark_ready",
     "force_push",
     "rebase",
     "amend",
@@ -409,61 +535,64 @@
     "opencode_invocation",
     "codex_invocation",
     "openhands_invocation",
-    "runner_dispatch",
-    "external_reverse_tool_invocation",
-    "unknown_binary_execution",
-    "destructive",
-    "package_install",
-    "dependency_install",
-    "provider_configuration_mutation",
-    "local_service_start",
-    "local_service_stop",
-    "loopback_http_probe",
-    "persistent_state_readback",
     "task_create",
-    "task_execute"
+    "task_execute",
+    "browser_capture",
+    "runtime_service_start"
   ],
   "capability_policy": {
-    "runner_dispatch_allowed": false,
-    "model_api_invocation_allowed": false,
-    "opencode_invocation_allowed": false,
-    "codex_invocation_allowed": false,
-    "openhands_invocation_allowed": false,
-    "external_reverse_tool_invocation_allowed": false,
-    "unknown_binary_execution_allowed": false,
-    "destructive_operations_allowed": false,
-    "bmad_installation_allowed": false,
-    "network_access_default_allowed": false,
-    "direct_push_to_main_allowed": false,
-    "merge_allowed": false,
-    "force_push_allowed": false,
-    "rebase_during_execution_allowed": false,
-    "tag_or_release_allowed": false,
-    "remote_observation_read_only_allowed": true,
-    "local_network_exceptions": [
-      "git fetch origin main",
-      "git fetch origin owner/issue136-agent-canvas-reuse-spike-v2",
-      "git push origin owner/issue136-agent-canvas-reuse-spike-v2"
+    "mode": "deny_by_default",
+    "default_decision": "deny",
+    "allowed_operations": [
+      "repository_observation",
+      "exact_head_validation",
+      "run_checks",
+      "governance_artifact_mutation",
+      "diff_validation",
+      "repository_stage",
+      "repository_commit",
+      "repository_push",
+      "network_access"
     ],
-    "ci_network_exceptions": []
+    "forbidden_operations": [
+      "direct_push_main",
+      "auto_merge",
+      "force_push",
+      "rebase",
+      "amend",
+      "squash",
+      "release",
+      "deployment",
+      "credential_access",
+      "model_api_invocation",
+      "opencode_invocation",
+      "codex_invocation",
+      "openhands_invocation",
+      "task_create",
+      "task_execute",
+      "browser_capture",
+      "runtime_service_start"
+    ],
+    "network_policy": "deny_unless_command_explicitly_marks_network_access"
   },
-  "authorized_risk_tier": "R3",
-  "authorized_risk_paths": [
-    "project_state/decision_packet.md",
-    "project_state/gates/**",
-    "frontend/artifacts/agent-canvas-v1.6.1/**",
-    "frontend/src/**",
-    "frontend/tests/**",
-    "frontend/OPENHANDS_REUSE_MAP.md",
-    "frontend/THIRD_PARTY_NOTICES.md"
-  ]
+  "external_prerequisites": [],
+  "generated_at": "2026-08-09T03:50:00Z",
+  "created_by": "chatgpt-owner"
 }
 ```
 
-## Owner instructions
+## Owner audit and execution policy
 
-This v18 Decision is a landing-publication authority only. Stage A and Stage B implementation/runtime evidence are already accepted. The cumulative implementation/evidence paths are carry-forward scope only: no new product/source/test/artifact mutation is authorized by any command in this round.
+PR #146 Stage B product/runtime evidence remains accepted. The exact-head CI failure on `7731fb15...` is not a frontend regression: CI completed the broad repository suite (`1706 passed, 1 skipped`), supervisor/repository hygiene (`282 passed`), and Codex skill sync (`11 passed`), then failed only the two mainline-landing tests because `project_state/mainline_merge_intents/active.json` still binds the already-landed PR #134 authority.
 
-Do not rerun OpenCode/model/task execution, do not recapture screenshots, and do not modify frontend/product/backend/tests/runtime scratch. Local execution is limited to syncing the exact v18 Decision, regenerating the five standard transition Gate artifacts, requiring `PRE_EXECUTION_AUTHORIZED` with `blocking_reasons=[]`, validating that accepted evidence head `ab00b03952d96c2421be8297f29699a59ec69fda` remains an ancestor, staging only the five generated Gate JSON files, committing them with the exact authorized message, and normal-pushing `owner/issue136-agent-canvas-reuse-spike-v2`.
+A separate Owner audit found provenance documentation drift that must be corrected before merge. The Agent Canvas v1.6.1 upstream LICENSE states `Copyright © 2025 OpenHands contributors`; the current notice omitted `2025`. The historical OpenHands structural mapping also retained fixture-only language without sufficiently marking those rows/exclusions as a PR #119-era snapshot, while current reverse-agent has a real Task API/OpenCode path.
 
-After the generated-gate commit is pushed and local/remote heads match, stop. The repository Owner will create exactly one Draft PR from `owner/issue136-agent-canvas-reuse-spike-v2` to `main` through the GitHub connector under this Decision. Do not create the PR locally. The Draft PR must not be marked Ready or merged. A separate PR-bound landing authority is required before any merge-readiness or merge action.
+After synchronizing to this v19 Decision and obtaining `PRE_EXECUTION_AUTHORIZED`, the local Agent may execute only the compiler-generated commands above. It must archive the current PR #134 intent byte-for-byte before replacing it, correct only the two provenance documents, bind `active.json` to PR #146 using hashes observed from the committed v19 Decision and generated command plan, run the required validation, stage only the nine authorized files, commit once, and normal-push the existing branch.
+
+No frontend source, frontend tests, screenshots, backend, workflow, dependency, model/executor configuration, Task API, TaskStore, OpenCode task, credential, browser, runtime service, or main branch mutation is authorized locally.
+
+The local Agent must not mark PR #146 Ready and must not merge. Those actions remain Owner-only and are allowed by this Decision only after the resulting exact head has all required CI/Decision Preflight/State Gate push+PR/Model Access checks successful, no unresolved review threads, the PR remains mergeable, and base/head identities remain exact. Owner merge must use merge-commit method with expected-head protection.
+
+Terminal after local publication:
+
+`PR146_V19_LANDING_PREP_PUBLISHED_AWAITING_EXACT_HEAD_CHECKS`
