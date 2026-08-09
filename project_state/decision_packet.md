@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_governance_v2_r1_execution_unblocker_v3",
-  "round_id": "round_20260809_governance_v2_r1_execution_unblocker_v3",
+  "decision_id": "decision_20260809_governance_v2_r1_execution_unblocker_v4",
+  "round_id": "round_20260809_governance_v2_r1_execution_unblocker_v4",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,16 +14,16 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260809_governance_v2_r1_execution_unblocker_v2",
-  "follows_last_round_id": "round_20260809_governance_v2_r1_execution_unblocker_v2",
-  "previous_audit_outcome": "V2_OWNER_PREDELEGATION_SUPERSEDED_FULL_TREE_AND_UNSCOPED_STAGED_DIFF_WOULD_INCLUDE_TEMPORARY_DECISION",
-  "workstream_id": "governance-v2-r1-execution-unblocker-v3",
+  "follows_last_decision_id": "decision_20260809_governance_v2_r1_execution_unblocker_v3",
+  "follows_last_round_id": "round_20260809_governance_v2_r1_execution_unblocker_v3",
+  "previous_audit_outcome": "V3_STOPPED_WITH_EVIDENCE_REQUIRED_TEAM_VALIDATION_REFERENCED_FUTURE_ISSUE151_TEST_ABSENT_FROM_CURRENT_BASE",
+  "workstream_id": "governance-v2-r1-execution-unblocker-v4",
   "source_issue": 157,
   "parent_issue": 148,
   "related_issue": 156,
   "blocked_issue": 151,
   "required_branch": "owner/governance-v2-r1-unblocker-v1",
-  "starting_head": "0f497f6d9e58acbd6f48d274e393bccecaf43a1d",
+  "starting_head": "a172c10eeafa099b556e57aeb90e1e8c89b98a87",
   "activation_base_sha": "f8010e1c05d64f556d64f81c35e6916bf825409e",
   "integration_target_branch": "owner/repository-modernization-v2-planning",
   "risk_tier": "R2",
@@ -53,7 +53,7 @@
   "package_installation_allowed": false,
   "provider_configuration_mutation_allowed": false,
   "credential_value_access_allowed": false,
-  "repair_attempt_limit": 2,
+  "repair_attempt_limit": 1,
   "infrastructure_retry_limit": 1,
   "bootstrap_state_initial": "BOOTSTRAP_OPEN",
   "bootstrap_exception_files": [
@@ -65,7 +65,6 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
-    "git clone --branch owner/governance-v2-r1-unblocker-v1 https://github.com/dddd2024/reverse-agent.git F:\\reverse-agent-governance-v2-r1-unblocker-20260809",
     "git status --short",
     "git fetch origin owner/repository-modernization-v2-planning",
     "git fetch origin owner/governance-v2-r1-unblocker-v1",
@@ -73,6 +72,7 @@
     "git rev-parse HEAD",
     "git rev-parse origin/owner/repository-modernization-v2-planning",
     "git rev-parse origin/owner/governance-v2-r1-unblocker-v1",
+    "git merge --ff-only origin/owner/governance-v2-r1-unblocker-v1",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
@@ -80,7 +80,7 @@
   ],
   "allowed_commands": [
     {"command_id":"test.focused_governance","command":"python -m pytest tests/test_path_a_gate.py tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_minimal_integration_baseline_docs.py tests/test_decision_preflight.py -q","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
-    {"command_id":"test.team_targets","command":"python -m pytest tests/test_development_graph.py tests/test_team_graph.py -q","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"test.current_team_anchor","command":"python -m pytest tests/test_development_graph.py -q","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"validation.publication_readiness","command":"python -m reverse_agent.project_gate worktree-publication-readiness --state-dir project_state","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"validation.diff_check","command":"git diff --check","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
     {"command_id":"mutation.stage_product","command":"git add .github/workflows/decision-preflight.yml .github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml AGENTS.md reverse_agent/control_plane/path_a.py reverse_agent/project_gate.py tests/test_path_a_gate.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py tests/test_control_plane_transition.py tests/test_decision_preflight.py","phase":"implementation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_staging"],"network_access":false,"required_evidence_source":"local_command_evidence"},
@@ -206,7 +206,6 @@
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
     "local_network_exceptions": [
-      "git clone --branch owner/governance-v2-r1-unblocker-v1 https://github.com/dddd2024/reverse-agent.git F:\\reverse-agent-governance-v2-r1-unblocker-20260809",
       "git fetch origin owner/repository-modernization-v2-planning",
       "git fetch origin owner/governance-v2-r1-unblocker-v1",
       "git push origin owner/governance-v2-r1-unblocker-v1"
@@ -239,8 +238,8 @@
 
 ## Goal
 
-v3 supersedes v2 before delegation. v1 and v2 were never executed. The implementation scope is unchanged. v3 keeps validation path-scoped so neither the temporary Decision nor other repository-global state can enter the detached planning-baseline validation worktree; source and validation product identity is compared using path-scoped Git raw full-index manifests.
+v4 supersedes v3 after v3 stopped fail-closed on a required validation command that referenced `tests/test_team_graph.py`, a test file not yet present on the current Governance V2 planning base. Owner independently verified that the file does exist at frozen #151 product head `acf022c8865973cef59a4da742db10ec023d01d8`; therefore the future #151 task-check mapping may correctly retain that team regression target, while #157 itself must validate only against regression targets present on its current base.
 
-Implement only Issue #157's four #151 blockers: deterministic Path-A task-check mappings for the existing Platform V1 and LangGraph team surfaces, a documented tree-identical empty-commit R1 activation lifecycle with explicit `exact_head_sha`, an R1-specific local publication-readiness command that reuses the shared classifier without weakening the existing Path-B command, and event-aware Decision Preflight routing that delegates `path_a_r1` to State Gate.
+Resume the preserved #157 implementation worktree. Do not regenerate or discard the already completed in-scope edits. Rebind to this v4 Decision by an ff-only update of the authority branch, regenerate the deterministic command plan, rerun lint/preflight, rerun the required focused Governance tests, and use `tests/test_development_graph.py` as this round's existing team/development anchor. The remaining repair budget is one. Continue with the unchanged publication-readiness, exact staging, path-scoped Git-object manifest binding, detached planning-baseline Platform V1 validation, product-only commit, final remote CAS and one normal push.
 
-Do not touch #151 product code, the frozen #151 workspace, #146, Product Setup, #152, providers/models/credentials/dependencies, State Gate, or #156's broader sidecar/transition-lint redesign. The final Platform V1 acceptance run must use the exact path-scoped staged product diff in the detached planning-baseline validation worktree so the temporary R2 Decision does not pollute the PR134 Platform fixture.
+Do not create or modify `tests/test_team_graph.py` in #157. Do not touch #151 product code or its frozen workspace. Do not broaden scope, redesign #156, or alter the accepted mapping semantics merely to make this round pass.
