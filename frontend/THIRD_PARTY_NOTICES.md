@@ -3,6 +3,22 @@
 reverse-agent Frontend V1 incorporates structural adaptations of OpenHands 1.8.0
 (commit `c7a765d900df294cbbf0f405ae26c9cbbd0fcc29`), licensed under the MIT License.
 
+It also incorporates a bounded pinned direct source fork of selected
+presentation/layout files from Agent Canvas v1.6.1, licensed under the MIT
+License. The MIT terms reproduced below apply to both attributions.
+
+## Agent Canvas v1.6.1
+
+**Repository:** https://github.com/OpenHands/agent-canvas
+**Tag:** v1.6.1
+**Commit:** `43f091baf135142ed6c146f888f44a957141193f`
+**License:** MIT
+**Copyright:** Copyright © OpenHands contributors
+
+Vendored or directly derived presentation files are recorded in
+`frontend/OPENHANDS_REUSE_MAP.md`. OpenHands backend, Agent Server,
+conversation API/store, credentials, and model/runtime code are not included.
+
 ## OpenHands 1.8.0
 
 **Repository:** https://github.com/OpenHands/OpenHands

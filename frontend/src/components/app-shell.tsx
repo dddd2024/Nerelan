@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { NavLink, useLocation } from "react-router";
+import { Menu, Plus, X } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { ConversationPanel } from "@/components/conversation-panel";
 import { NewTaskComposer } from "@/components/new-task-composer";
@@ -174,6 +175,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div
         data-testid="mobile-menu-bar"
+        data-agent-canvas-source="v1.6.1"
         className="md:hidden flex flex-row items-center gap-2 px-3 h-[54px] shrink-0 bg-ra-base border-b border-ra-border"
         inert={mobileNavOpen ? true : undefined}
         aria-hidden={mobileNavOpen ? "true" : undefined}
@@ -188,20 +190,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           ref={triggerRef}
           className="flex items-center gap-2 text-ra-text-secondary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-5 w-5"
-            aria-hidden="true"
-          >
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="18" x2="21" y2="18" />
-          </svg>
+          <Menu className="h-5 w-5" aria-hidden="true" />
           <span className="font-semibold text-ra-text">reverse-agent</span>
         </button>
       </div>
@@ -236,19 +225,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             ref={closeButtonRef}
             className="text-ra-text-tertiary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
           >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-5 w-5"
-              aria-hidden="true"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -284,19 +261,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             }}
             className="flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-ra-accent text-ra-base text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-4 w-4"
-              aria-hidden="true"
-            >
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
+            <Plus className="h-4 w-4" aria-hidden="true" />
             新建任务
           </button>
           <button
@@ -315,7 +280,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div
         data-testid="app-shell-workspace"
-        className="flex flex-col w-full min-w-0 flex-1 gap-3 h-full"
+        data-agent-canvas-source="v1.6.1"
+        className="flex flex-col w-full min-w-0 flex-1 h-full bg-[var(--oh-surface)]"
         inert={mobileNavOpen ? true : undefined}
         aria-hidden={mobileNavOpen ? "true" : undefined}
       >
