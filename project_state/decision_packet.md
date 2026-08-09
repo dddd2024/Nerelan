@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260809_governance_v2_foundation_sanitized_integration_v1",
-  "round_id": "round_20260809_governance_v2_foundation_sanitized_integration_v1",
+  "decision_id": "decision_20260809_governance_v2_foundation_sanitized_integration_v2",
+  "round_id": "round_20260809_governance_v2_foundation_sanitized_integration_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,8 +14,10 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "previous_audit_outcome": "GOVERNANCE_V2_FOUNDATION_V3_EXACT_HEAD_STATICALLY_ACCEPTED_SANITIZED_INTEGRATION_REQUIRED",
-  "workstream_id": "governance-v2-foundation-sanitized-integration-v1",
+  "follows_last_decision_id": "decision_20260809_governance_v2_foundation_sanitized_integration_v1",
+  "follows_last_round_id": "round_20260809_governance_v2_foundation_sanitized_integration_v1",
+  "previous_audit_outcome": "INTEGRATION_V1_OWNER_PREDELEGATION_SUPERSEDED_FRESH_CLONE_AND_FINAL_REMOTE_REVERIFY_OMITTED",
+  "workstream_id": "governance-v2-foundation-sanitized-integration-v2",
   "source_issue": 153,
   "parent_issue": 148,
   "required_branch": "owner/governance-v2-foundation-integration-authority-v1",
@@ -72,6 +74,7 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
+    "git clone --branch owner/governance-v2-foundation-integration-authority-v1 https://github.com/dddd2024/reverse-agent.git F:\\reverse-agent-governance-v2-integration-authority-20260809",
     "git status --short",
     "git fetch origin owner/repository-modernization-v2-planning",
     "git fetch origin owner/governance-v2-foundation-v1",
@@ -212,12 +215,11 @@
     },
     {
       "command_id": "test.sanitized_governance_foundation",
-      "command": "python -m pytest tests/test_path_a_gate.py tests/test_control_plane_transition.py tests/test_planning_and_github_adapters.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py -q",
+      "command": "powershell -NoProfile -Command \"Set-Location 'F:\\reverse-agent-governance-v2-sanitized-20260809'; python -m pytest tests/test_path_a_gate.py tests/test_control_plane_transition.py tests/test_planning_and_github_adapters.py tests/test_project_gate.py tests/test_minimal_integration_baseline_docs.py -q\"",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "working_directory": "F:\\reverse-agent-governance-v2-sanitized-20260809",
       "operations": ["run_checks"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
@@ -298,6 +300,50 @@
       "operations": ["repository_observation"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "sync.final_fetch_planning",
+      "command": "git fetch origin owner/repository-modernization-v2-planning",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "sync.final_fetch_source",
+      "command": "git fetch origin owner/governance-v2-foundation-v1",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "validation.final_planning_head",
+      "command": "git rev-parse origin/owner/repository-modernization-v2-planning",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "validation.final_source_head",
+      "command": "git rev-parse origin/owner/governance-v2-foundation-v1",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
     },
     {
       "command_id": "publication.push_sanitized_branch",
@@ -411,6 +457,7 @@
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
     "local_network_exceptions": [
+      "git clone --branch owner/governance-v2-foundation-integration-authority-v1 https://github.com/dddd2024/reverse-agent.git F:\\reverse-agent-governance-v2-integration-authority-20260809",
       "git fetch origin owner/repository-modernization-v2-planning",
       "git fetch origin owner/governance-v2-foundation-v1",
       "git fetch origin owner/governance-v2-foundation-integration-authority-v1",
@@ -445,22 +492,11 @@
 
 ## Goal
 
+v2 supersedes v1 before delegation. v1 was never executed. v2 adds the missing bounded fresh-clone bootstrap and mandatory final remote re-verification; product patch scope and tests are unchanged.
+
 Create one sanitized product commit whose parent is exactly the Modernization planning head `7e068aac0a4142e611a5d5b825353db31efd2cb7` and whose product tree delta is byte-for-byte equivalent to the accepted Governance V2 Foundation product delta at `41733d9f0cedfbdf862672a584268a72c56138cf`, excluding all temporary `project_state` authority history.
 
-This is an integration/transplant operation only. No source repair, refactor, compatibility patch, test modification, or authority change is permitted.
-
-Required invariant:
-
-```text
-planning@7e068aac...
-  -> exactly one sanitized product commit
-  -> owner/governance-v2-foundation-sanitized-v1
-
-source product patch SHA-256 == sanitized worktree patch SHA-256
-project_state/** in sanitized commit == 0
-```
-
-The local Agent must stop after the normal push. Owner will independently compare the sanitized branch to the accepted source product delta and will create any Draft PR/merge only after that audit.
+No source repair, refactor, compatibility patch, test modification, or authority change is permitted. Source product patch SHA-256 must equal sanitized validation patch SHA-256. The sanitized commit must contain zero `project_state/**` paths and exactly one parent: the planning SHA above. Stop after one normal push of `owner/governance-v2-foundation-sanitized-v1`; Owner handles all PR/merge work.
 
 Success token:
 
