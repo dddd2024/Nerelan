@@ -3,7 +3,7 @@
 > **For agentic workers:** execute only a separately authorized phase. Do not interpret this roadmap as code-mutation authority.
 
 **Umbrella:** #148  
-**Strategy:** strangler migration  
+**Strategy:** strangler migration + mature-component-first  
 **Planning branch:** `owner/repository-modernization-v2-planning`  
 **Baseline main:** `dd4cb074ab5b9baacf300706878b29bd745f12c3`
 
@@ -11,42 +11,52 @@
 
 Reduce reverse-agent to one current, testable architecture while preserving the already-proven Task API / TaskStore / OpenCode / evidence / frontend vertical slice and retiring historical state, governance, CI and backlog residue.
 
+The modernization is not a greenfield rewrite. Prefer:
+
+```text
+REUSE mature component
+-> ADAPT through a thin reverse-agent boundary
+-> RETIRE duplicated historical implementation
+```
+
+rather than rebuilding generic orchestration, provider/auth, repository-host or observability infrastructure.
+
 ## Global constraints
 
 - Do not greenfield-rewrite the product core.
-- Do not merge or mutate Draft PR #146 during Phase 0.
+- Do not merge or mutate Draft PR #146 until an explicit modernization bridge is selected.
 - Do not use old `project_state/current_*` files as global product truth.
 - Each implementation phase gets its own bounded branch, tests and review.
 - Each replacement must retire/archive the superseded path; compatibility layers are temporary, not permanent.
 - No direct push to `main`, force push, rebase, release or deploy as part of modernization implementation.
-- Multi-Agent support is not considered operational until an exact-head real vertical slice proves it.
+- Multi-Agent support is not considered operational until exact-head integration evidence exists.
+- Model/provider authentication must be separated from executor identity.
+- A user should not need to enter the same provider credential separately into reverse-agent and every executor.
 
 ---
 
 ## Phase 0 — Current Truth Freeze and Inventory
 
-**Objective:** create a reliable map before any product mutation.
+**Objective:** create a reliable map before broad product mutation.
 
 ### Deliverables
 
 - `docs/architecture/CURRENT_ARCHITECTURE_BASELINE.md`
 - `docs/architecture/HISTORICAL_DEBT_MATRIX.md`
+- `docs/architecture/CONNECTION_EXECUTOR_BINDING_ARCHITECTURE.md`
 - this plan
 - open Issue classification
 - branch/PR classification where historical branches materially affect current assumptions
 
-### Exit criteria
+### Current status
 
-- [ ] landed-vs-branch-only-vs-planned capability states are explicit;
-- [ ] every known governance/state/CI debt item has an owner phase;
-- [ ] #146 is frozen as evidence, not used as modernization working branch;
-- [ ] no product source file changed.
+Phase 0 baseline work is substantially established. PR #146 remains frozen as accepted branch evidence rather than current main truth.
 
 ---
 
 ## Phase 1A — P0 Security Verification: OpenCode Evidence Redaction
 
-**Goal:** prove or refute the suspected tuple-container redaction defect before broad refactoring.
+**Goal:** prove or refute the suspected tuple-container redaction defect before broader executor refactoring.
 
 **Candidate files:**
 
@@ -55,22 +65,11 @@ Reduce reverse-agent to one current, testable architecture while preserving the 
 
 ### Test-first acceptance
 
-1. Add a nested evidence payload containing secret-like values in:
-   - dict;
-   - list;
-   - tuple;
-   - tuple nested inside dict/list.
+1. Add nested evidence payloads containing secret-like values in dict/list/tuple shapes.
 2. Call the same production redaction entry point used before persistence.
 3. Assert no original secret survives any container form.
-4. If tuple regression fails, minimally change `_redact_recursively` so returned tuple-derived data uses the recursively redacted result.
-5. Re-run focused executor tests.
-6. Run the relevant Platform V1 suite and `git diff --check`.
-
-### Exit criteria
-
-- [ ] exploitability/path behavior is demonstrated by test, not assumed;
-- [ ] regression is fixed if reproducible;
-- [ ] no unrelated executor redesign.
+4. If tuple regression fails, minimally fix `_redact_recursively`.
+5. Re-run focused executor and relevant Platform V1 tests.
 
 ---
 
@@ -78,9 +77,7 @@ Reduce reverse-agent to one current, testable architecture while preserving the 
 
 **Goal:** stop completed historical authority from masquerading as active current state.
 
-### Required design
-
-Replace ambiguous perpetual `active` semantics with an explicit lifecycle:
+Target lifecycle:
 
 ```text
 DRAFT
@@ -89,52 +86,23 @@ DRAFT
 -> ARCHIVE
 ```
 
-### Required properties
-
-- `active` means currently applicable authority only;
-- completed PR landing authority cannot remain current merely because a tracked file was not cleaned up;
-- state transition records bind exact Decision/PR/head identity;
-- archive history remains auditable;
-- legacy reverse-engineering state is separately classified from platform execution authority;
-- no destructive cleanup of local runtime scratch is implied.
-
-### Candidate paths to audit before implementation
-
-- `project_state/decision_packet.md`
-- `project_state/mainline_merge_intents/**`
-- `project_state/current_state.json`
-- `project_state/state_manifest.json`
-- source-of-truth docs
-- relevant state/gate tests
-
-### Exit criteria
-
-- [ ] one machine-readable lifecycle exists;
-- [ ] completed #134-era authority cannot satisfy an active-current query;
-- [ ] legacy reverse state is explicitly non-global;
-- [ ] old state remains available in archive form where needed.
+Completed PR landing authority must not remain current merely because a tracked file was never retired.
 
 ---
 
 ## Phase 1C — Runtime Scratch / Workspace Lifecycle
 
-**Goal:** remove long-lived ambiguous `.frontend_stage/**` and `.platform_v1_runtime/**` carryover from normal governance semantics.
+**Goal:** distinguish tracked repository state, managed runtime state and unrelated pre-existing local dirt.
 
-### Required properties
-
-- runtime scratch location and ownership are explicit;
-- startup can distinguish tracked repository state, managed runtime state and unrelated local dirt;
-- preservation is default; no `clean`/`reset --hard` automation;
-- lifecycle includes create, identify, reuse/recover when valid, quarantine when suspect, retire when safe;
-- #147 baseline-vs-delta semantics feed Phase 2 rather than being solved by broad allowlists.
+Preservation is default; do not normalize by destructive `clean`/`reset --hard` behavior.
 
 ---
 
 ## Phase 2A — One Typed Decision Contract
 
-**Goal:** make one schema/compiler path authoritative for Decision structure.
+**Goal:** one schema/compiler path for Decision structure and semantics.
 
-### Architecture
+Direction:
 
 ```text
 Decision source
@@ -145,248 +113,264 @@ Decision source
 -> execution evidence
 ```
 
-Tests verify the contract; they do not secretly define additional required fields.
-
-### Required fields/classes
-
-At minimum model:
-
-- identity / revision;
-- risk tier;
-- repository/base/branch binding;
-- allowed mutation paths;
-- read-only/reference paths;
-- command-local mutation grants;
-- capability/network policy;
-- evidence-source types;
-- publication/merge capability flags;
-- baseline dirty-state identity;
-- retry/repair budget;
-- lifecycle state.
-
-### Required regression inputs
-
-Use historical failures as fixtures:
-
-- #142 unsupported evidence-source token;
-- #143 outer execution-surface command incompatibility;
-- #147 pre-existing dirty carryover;
-- #136/#146 landing contracts that passed some layers but exposed later implicit fields.
-
-### Exit criteria
-
-- [ ] Decision can be validated read-only before activation;
-- [ ] schema and semantic compiler produce actionable machine-readable errors;
-- [ ] no Platform V1 test can introduce an undocumented required Decision field;
-- [ ] old contract parser has a documented retirement point.
+Historical #142/#143/#147 failures become regression fixtures rather than reasons to add more implicit fields and compatibility branches.
 
 ---
 
 ## Phase 2B — Baseline vs Current-Round Delta
 
-**Goal:** formalize the distinction tracked by #147.
-
-### Model
-
-```text
-startup baseline
-  + stable identity/digest of pre-existing dirty paths
-  + current-round command receipts
-  = post-round delta
-```
-
-A path dirty before the round is not automatically a mutation by the round. A new write after the baseline remains subject to exact command/path authority.
-
-### Exit criteria
-
-- [ ] unchanged pre-existing scratch does not cause false mutation attribution;
-- [ ] a new write to the same path fails without grant;
-- [ ] reference paths fail closed on actual delta;
-- [ ] artifacts expose baseline and delta separately.
+Formalize the difference between pre-existing dirty state and mutations attributable to the current execution round.
 
 ---
 
 ## Phase 2C — Execution-Surface Compatibility
 
-**Goal:** prevent repository-authorized commands from being rejected only after reaching the outer local Agent/tool layer.
-
-### Direction
-
-- prefer short atomic commands;
-- move complex behavior into reviewed repository-owned helpers;
-- declare executor capability profiles;
-- statically reject known-incompatible command shapes before activation;
-- keep host safety stricter than repository policy when necessary.
-
-#143 and #139 should be consolidated into this design if still applicable.
+Prefer short atomic commands and reviewed repository-owned helpers; statically reject command shapes incompatible with the actual local execution surface before activation.
 
 ---
 
-## Phase 3A — CI / Gate Simplification
+## Phase 3 — CI / GitHub-Native Governance Cutover
 
-**Goal:** retire permanent migration machinery from normal CI.
+### CI simplification
 
-### Inventory targets
+Retire permanent legacy/transition dual paths, historical PR-number exceptions and duplicate normal-path validation.
 
-- `State Gate` transition path;
-- legacy Gate path;
-- Path-A compatibility;
-- Decision Preflight duplication;
-- PR-number-specific bootstrap/authority branches;
-- duplicate pytest invocations across workflows.
-
-### Target responsibility split
-
-Prefer a small set such as:
+Prefer explicit responsibility boundaries:
 
 ```text
-CI                -> build/unit/integration correctness
-Agent Policy      -> typed Decision/policy validation when applicable
-Evidence          -> required artifacts/provenance when applicable
-Security          -> security/static checks
+CI
+Agent Policy
+Evidence
+Security
 ```
 
-Do not preserve a legacy path solely because historical PRs once required it.
+### GitHub-native protection
+
+Use GitHub Rulesets/required checks/PR requirements/force-push protection for repository-host mechanics where available. Reverse-agent keeps Agent-specific capability/evidence policy, not duplicate GitHub merge authority.
+
+---
+
+## Phase 4 — Runtime / Frontend Contract Consolidation
+
+### 4A Runtime naming and contract cleanup
+
+- TaskStore naming/ownership;
+- fixture vs real executor semantics;
+- task execution service boundaries;
+- workspace and evidence contracts.
+
+### 4B Typed frontend/backend task truth
+
+- fix #145;
+- remove real-task dependence on mock-era fallbacks;
+- keep Agent Canvas as presentation rather than a second task truth model.
+
+### 4C Backlog/docs migration
+
+Classify stale Issues and docs as `KEEP / REWRITE / SUPERSEDED / ARCHIVE` and retire superseded architecture references.
+
+---
+
+## Multi-Agent track — moved forward, not deferred to the end
+
+The earlier plan placed Multi-Agent at the end of modernization. That is superseded.
+
+The repository already pins `langgraph==1.0.5`, and #149 / PR #150 proved a bounded LangGraph execution seam on the isolated modernization planning branch. Therefore reverse-agent should reuse that mature orchestration spine rather than evaluate or introduce another framework first.
+
+### #149 — completed foundation
+
+Established:
+
+```text
+Development Graph
+-> optional bounded execution seam
+-> acceptance gate
+```
+
+with TaskStore remaining durable product truth.
+
+### #151 — current next implementation
+
+Build the first real LangGraph-native parallel worker team adapter:
+
+```text
+manager/router
+-> Send(worker A)
+-> Send(worker B)
+-> reducer/join
+-> verifier
+-> TeamExecutionResult
+-> parent acceptance
+```
+
+Required integration:
+
+- one shared TaskStore;
+- existing ExecutorRouter;
+- shared trusted TaskExecutionService path;
+- at least two real deterministic-fixture tasks;
+- genuine parallelism proof;
+- structured worker/team results;
+- verifier rejection propagates to final acceptance;
+- no `executor_kind="multi_agent"`.
+
+This proves the reverse-agent integration boundary, not LangGraph itself.
+
+---
+
+## Product Setup & Connections — fixed next phase after #151
+
+**Purpose:** remove the current mismatch where provider/API configuration, executor selection and executor-owned login state are mixed together.
+
+Canonical design:
+
+`docs/architecture/CONNECTION_EXECUTOR_BINDING_ARCHITECTURE.md`
+
+### Required domain split
+
+```text
+Connection
+  = provider/service access + authentication
+
+Executor
+  = OpenCode / Codex / OpenHands / other concrete runtime
+
+Binding
+  = Executor + Connection + Model
+```
+
+Authentication methods are Connection properties, for example:
+
+```text
+api_key
+account_login / oauth
+external_cli_session
+none
+```
+
+API and account login are not different Agents.
+
+### Single-configuration rule
+
+A user configures/authenticates a provider once. Executor adapters reuse that Connection through supported transient env/config/session mechanisms.
+
+Do not silently copy credentials into executor config stores. Do not expose raw secrets to TaskStore, frontend task state, evidence or logs.
+
+### OpenCode target behavior
+
+Current truth:
+
+```text
+Model Control API config
+!= automatic OpenCode provider/login config
+```
+
+Target:
+
+```text
+Binding
+-> Connection
+-> OpenCode adapter
+-> supported OpenCode env/config/session integration
+-> OpenCode execution
+```
+
+If safe inheritance is unsupported for a provider/auth method, surface an explicit unsupported-binding/setup requirement rather than pretending it worked.
+
+### GitHub/repository connection
+
+GitHub is a separate repository-domain connection, not a model provider.
+
+Prefer mature GitHub App/OAuth/`gh`/existing git credential mechanisms. Reverse-agent should expose sanitized connection/repository status and selection without creating a new credential protocol.
+
+### Startup productization
+
+Current `dev-up.ps1` / `dev-down.ps1` provide a **one-command** development lifecycle, not true one-click startup.
+
+Add a thin Windows double-click/launcher entry that reuses existing prerequisite checks, PID ownership, health checks and browser launch. Do not build a large custom desktop runtime first.
+
+### Live probe UX
+
+Current connection testing requires explicit `REVERSE_AGENT_MODEL_CONTROL_LIVE=1`, while standard `dev-up.ps1` does not enable it. Product setup must make live probing explicit and coherent without silently enabling network access.
 
 ### Exit criteria
 
-- [ ] no normal workflow contains special logic for old PR numbers such as #106/#112;
-- [ ] one authority validation path exists;
-- [ ] duplicate test execution is reduced;
-- [ ] historical migration tests move to archival regression fixtures or are retired.
+- one provider/API Connection can be configured once and consumed by a supported executor adapter without second manual credential entry;
+- API-key and account-login connections are represented distinctly;
+- Executor selection is distinct from Provider/Auth selection;
+- Binding identifies Executor + Connection + Model;
+- GitHub repository connection is separate from model connections;
+- true thin launcher exists;
+- no raw credentials leak into product task/evidence state;
+- old `ModelProfile.executor` coupling has a retirement path.
 
 ---
 
-## Phase 3B — GitHub-Native Repository Protection
+## Real OpenCode Multi-Agent dogfood
 
-**Goal:** stop duplicating repository-host enforcement inside reverse-agent where GitHub can enforce it directly.
+Only after #151 plus Product Setup & Connections should the multi-Agent team be given real OpenCode/model work against reverse-agent itself.
 
-Audit and configure, where supported:
-
-- require pull request before main changes;
-- required status checks;
-- allowed merge methods;
-- force-push protection;
-- deletion protection where desired.
-
-Repository-owned policy should still decide Agent capabilities and evidence requirements; GitHub should enforce GitHub repository mechanics.
-
----
-
-## Phase 4A — Runtime Contract Consolidation
-
-**Goal:** make current runtime naming and interfaces match actual architecture.
-
-### Required audit
-
-- `run_store.py` vs `TaskStore` naming;
-- obsolete coordinator/execution-adapter references;
-- fixture-first comments and defaults;
-- executor result/state contracts;
-- publication-state separation.
-
-Renames must be compatibility-audited; do not churn import paths merely for aesthetics.
-
----
-
-## Phase 4B — Typed Frontend/Backend Task Contract
-
-**Goal:** replace broad fallback-driven truth reconstruction with an explicit API contract.
-
-### Required outcomes
-
-- real validation state derives from authoritative backend truth;
-- #145 is fixed;
-- mock/fixture behavior is explicit and cannot leak into real tasks;
-- `nextAction`, validation, workflow and authority states have declared semantics;
-- frontend tests include real OpenCode-shaped payloads;
-- Agent Canvas-derived presentation remains presentation, not a second runtime-state model.
-
----
-
-## Phase 4C — Backlog and Documentation Migration
-
-**Goal:** make GitHub planning and repository docs describe the current architecture.
-
-### Classify every relevant open Issue
-
-- `KEEP` — still accurate and applicable;
-- `REWRITE` — problem remains, implementation assumptions stale;
-- `SUPERSEDED` — replaced by landed/current architecture;
-- `ARCHIVE` — historical evidence only.
-
-Initial known examples:
-
-- #145: KEEP, fold into Phase 4B;
-- #142/#143/#147: KEEP/REWRITE into Phase 2;
-- #139: likely REWRITE/merge into Phase 2C;
-- #138: SUPERSEDED by #148 documentation alignment scope;
-- #120: problem likely KEEP, implementation path REWRITE because referenced coordinator architecture is stale;
-- #105: likely ARCHIVE/SUPERSEDED after current authority path is replaced;
-- #126: KEEP as research reference, not product capability;
-- #137: KEEP as post-modernization mother-platform direction.
-
-Update README, AGENTS and source-of-truth docs only after the architecture states they describe are actually selected.
-
----
-
-## Phase 5 — Multi-Agent Capability Vertical Slice
-
-**Prerequisite:** Phases 1-4 produce one stable runtime/policy/evidence substrate.
-
-**Goal:** prove one real multi-Agent collaboration path without building a custom scheduler from zero.
-
-### Required spike before implementation
-
-Evaluate a mature orchestration runtime or native runtime capability against the exact required contract:
+Target dogfood:
 
 ```text
-parent/manager
--> structured child task
--> isolated worker execution
--> artifact/evidence return
--> join/dependency resolution
--> independent verification
--> bounded replan/escalation
+Owner goal
+-> LangGraph manager/team
+-> multiple bounded workers
+-> concrete OpenCode executor via Binding/Connection
+-> TaskStore/evidence
+-> verifier
+-> final review result
 ```
 
-### Minimum acceptance slice
-
-Use one real repository task decomposable into at least two independent workers and one verifier/join step.
-
-Must prove:
-
-- [ ] two or more workers actually execute;
-- [ ] overlap/parallelism where requested is observable;
-- [ ] each worker has bounded task/path/tool authority;
-- [ ] parent passes structured constraints, not only prose chat;
-- [ ] artifacts/results have stable identities;
-- [ ] join waits for required dependencies;
-- [ ] verifier can reject one worker result;
-- [ ] failure/retry does not duplicate already accepted work;
-- [ ] UI can represent the worker relationship/evidence without inventing task truth;
-- [ ] exact-head regression evidence exists.
-
-Only after this phase may README/AGENTS claim operational multi-Agent support.
+Use this dogfood to drive the remaining modernization rather than completing every historical cleanup before exercising the new architecture.
 
 ---
 
-## Landing strategy for frozen #146
+## Frozen #146 landing strategy
 
-Do not continue adding v25/v26 landing contracts to the old authority system.
+Do not continue v25/v26-style landing-contract patching under the old authority system.
 
-After Phase 1/2 establishes the modernization bridge, choose one explicit disposition:
+After the modernization bridge is stable, explicitly choose either:
 
-1. land #146 through a minimal compatibility bridge proven against the new lifecycle; or
-2. transplant the already-accepted product commits into a fresh branch on the new baseline without rewriting product logic.
+1. land #146 through the new lifecycle/authority bridge; or
+2. transplant already-accepted product commits onto a fresh modernized baseline without rewriting the accepted frontend product logic.
 
-The selected option must preserve the accepted Stage B evidence and avoid a new frontend rewrite.
+Preserve accepted Stage B evidence.
+
+---
+
+## Current execution order
+
+The fixed near-term sequence is:
+
+```text
+#149 LangGraph orchestration seam          DONE
+        |
+        v
+#151 parallel worker team + verifier       NEXT/CURRENT
+        |
+        v
+Product Setup & Connections
+  Connection / Executor / Binding
+  provider/API/account adapters
+  GitHub repository connection
+  thin one-click launcher
+        |
+        v
+real OpenCode Multi-Agent dogfood
+        |
+        v
+continue Governance / CI / state / frontend debt burn-down
+using the new runtime as an acceptance mechanism
+```
+
+This sequence intentionally allows mature Multi-Agent infrastructure to participate in later modernization instead of deferring it until all cleanup is complete.
 
 ---
 
 ## Modernization completion definition
 
-The repository is considered modernized when:
+The repository is considered modernized when it has:
 
 ```text
 one current architecture
@@ -395,9 +379,11 @@ one typed Decision/policy contract
 one active-state lifecycle
 one normal CI authority path
 one durable Task API/store runtime
-one explicit executor abstraction
+one explicit concrete executor abstraction
+one Connection / Executor / Binding model
 one evidence/verifier boundary
 one frontend task truth mapping
+one thin product startup path
 historical artifacts clearly archived
 multi-Agent claims backed by real evidence
 ```
