@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260810_state_gate_pr_head_checkout_owner_recovery_v1",
-  "round_id": "round_20260810_state_gate_pr_head_checkout_owner_recovery_v1",
+  "decision_id": "decision_20260810_state_gate_pr_head_checkout_owner_exact_head_landing_v1",
+  "round_id": "round_20260810_state_gate_pr_head_checkout_owner_exact_head_landing_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,60 +14,70 @@
 ```json decision_contract
 {
   "transition_kernel_required": false,
-  "owner_recovery_carveout": true,
-  "recovery_reason": "Draft PR #160 proved a structural ordinary-R1 bootstrap defect: GitHub pull_request workflows default-checkout the synthetic merge commit while Path-A correctly binds authority to pull_request.head.sha, making workflow_exact_head_mismatch unavoidable before real Path-A evaluation. This narrow recovery repairs only the State Gate checkout seam and does not expand the unresolved general Path-B lifecycle in Issue #156.",
-  "workstream_id": "state-gate-pr-head-checkout-owner-recovery-v1",
+  "owner_exact_head_landing_carveout": true,
+  "follows_last_decision_id": "decision_20260810_state_gate_pr_head_checkout_owner_recovery_v1",
+  "follows_last_round_id": "round_20260810_state_gate_pr_head_checkout_owner_recovery_v1",
+  "previous_audit_outcome": "OWNER_REMOTE_VALIDATION_CONFIRMED_STATE_GATE_CHECKOUTS_REAL_PR_HEAD",
+  "workstream_id": "state-gate-pr-head-checkout-owner-exact-head-landing-v1",
   "source_issue": 161,
   "parent_issue": 156,
   "blocked_recovery_issue": 159,
   "blocked_product_issue": 151,
-  "evidence_pr": 160,
-  "evidence_state_gate_run": 31345663992,
-  "evidence_state_gate_job": 93327002168,
-  "observed_synthetic_merge_sha": "0476a6daa51b8459b1354e25dfbcdc12d0aa04a8",
-  "observed_real_pr_head_sha": "de7cdf822bc7ee8c531ed68cfdfe97de5c499bef",
-  "observed_error_code": "workflow_exact_head_mismatch",
-  "required_branch": "owner/state-gate-pr-head-checkout-fix-authority-v1",
-  "starting_head": "5a109df046cf3d8fe74b88fbc049c454ef4d2a53",
-  "activation_base_sha": "5a109df046cf3d8fe74b88fbc049c454ef4d2a53",
+  "validation_pr": 162,
+  "validation_state_gate_run": 31347543645,
+  "validation_state_gate_job": 93332167954,
+  "required_branch": "owner/state-gate-pr-head-checkout-fix-landing-authority-v1",
+  "starting_head": "fcc34e4258c11eed1b93a4591f0cba1dc9244a8d",
   "integration_target_branch": "owner/repository-modernization-v2-planning",
-  "sanitized_target_branch": "owner/state-gate-pr-head-checkout-fix-v1",
+  "target_before_sha": "5a109df046cf3d8fe74b88fbc049c454ef4d2a53",
+  "target_after_sha": "0a41df542fc90e8de4de7112c08d7f227e31c4a7",
+  "sanitized_branch": "owner/state-gate-pr-head-checkout-fix-v1",
+  "sanitized_head": "0a41df542fc90e8de4de7112c08d7f227e31c4a7",
+  "recovery_authority_branch": "owner/state-gate-pr-head-checkout-fix-authority-v1",
+  "recovery_authority_head": "fcc34e4258c11eed1b93a4591f0cba1dc9244a8d",
   "risk_tier": "R2",
-  "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
   "transition_commands_forbidden": true,
-  "transition_commands_forbidden_reason": "The workflow being repaired is itself part of the authority bootstrap path, and Issue #156 still tracks the unresolved first-class Path-B sidecar/transition lifecycle. This one exact Owner recovery must not recursively depend on the failing lifecycle it is repairing.",
+  "transition_commands_forbidden_reason": "This successor authorizes only one exact non-force planning fast-forward after independent remote object/path/runtime validation; it must not recursively invoke the still-unfinished general Path-B lifecycle tracked by #156.",
   "required_product_paths": [
     ".github/workflows/state-gate.yml",
     "tests/test_state_gate_exact_head_checkout.py"
   ],
   "required_product_path_count": 2,
-  "project_state_paths_in_sanitized_commit": 0,
-  "required_behavior": [
-    "State Gate pull_request checkout resolves to github.event.pull_request.head.sha",
-    "events without pull_request.head.sha retain github.sha fallback",
-    "Path-A verifier exact-head semantics remain unchanged",
-    "CI synthetic-merge integration behavior remains unchanged",
-    "no PR-number-specific exception"
-  ],
-  "required_tests": [
-    "python -m pytest tests/test_state_gate_exact_head_checkout.py tests/test_path_a_gate.py tests/test_control_plane_transition.py tests/test_planning_and_github_adapters.py -q",
-    "python -m pytest tests/test_project_gate.py -q",
-    "git diff --check"
-  ],
-  "remote_validation_requirement": "A real Draft PR for the sanitized product branch must demonstrate that State Gate no longer fails workflow_exact_head_mismatch. A later R2/path-risk rejection is not product acceptance but is acceptable evidence that the checkout seam advanced beyond the exact-head contradiction.",
+  "sanitized_project_state_path_count": 0,
+  "sanitized_commit_parent": "5a109df046cf3d8fe74b88fbc049c454ef4d2a53",
+  "sanitized_commit_message": "governance: bind State Gate checkout to PR head",
+  "remote_runtime_validation": {
+    "checkout_ref_observed": "0a41df542fc90e8de4de7112c08d7f227e31c4a7",
+    "checkout_head_observed": "0a41df542fc90e8de4de7112c08d7f227e31c4a7",
+    "previous_error_absent": "workflow_exact_head_mismatch",
+    "expected_later_blocker": "snapshot_missing"
+  },
+  "reported_local_validation": {
+    "exact_head_checkout_test": "PASS",
+    "path_a_control_plane": "259 passed",
+    "project_gate": "1216 passed, 1 skipped",
+    "diff_check": "PASS"
+  },
   "final_remote_cas_required": true,
-  "planning_head_must_remain": "5a109df046cf3d8fe74b88fbc049c454ef4d2a53",
+  "planning_head_must_equal_before": "5a109df046cf3d8fe74b88fbc049c454ef4d2a53",
+  "sanitized_head_must_equal": "0a41df542fc90e8de4de7112c08d7f227e31c4a7",
+  "recovery_authority_head_must_equal": "fcc34e4258c11eed1b93a4591f0cba1dc9244a8d",
+  "issue159_head_must_remain": "de7cdf822bc7ee8c531ed68cfdfe97de5c499bef",
+  "planning_fast_forward_allowed": true,
+  "planning_fast_forward_limit": 1,
+  "planning_fast_forward_exact_from": "5a109df046cf3d8fe74b88fbc049c454ef4d2a53",
+  "planning_fast_forward_exact_to": "0a41df542fc90e8de4de7112c08d7f227e31c4a7",
+  "validation_pr_merge_allowed": false,
+  "validation_pr_mark_ready_allowed": false,
+  "validation_pr_auto_merge_allowed": false,
   "branch_creation_allowed": true,
-  "worktree_creation_allowed": true,
-  "local_commit_allowed": true,
-  "normal_push_allowed": true,
-  "normal_push_limit": 1,
+  "worktree_creation_allowed": false,
+  "local_commit_allowed": false,
+  "normal_push_allowed": false,
   "pr_creation_allowed": false,
   "draft_pr_creation_allowed": false,
   "pr_body_update_allowed": false,
-  "pr_comment_allowed": false,
-  "issue_comment_allowed": false,
   "merge_allowed": false,
   "mark_ready_allowed": false,
   "auto_merge_allowed": false,
@@ -87,38 +97,16 @@
   "destructive_operations_allowed": false,
   "unknown_binary_execution_allowed": false,
   "external_reverse_tool_invocation_allowed": false,
-  "repair_attempt_limit": 1,
+  "repair_attempt_limit": 0,
   "infrastructure_retry_limit": 0,
-  "allowed_mutated_paths": [
-    ".github/workflows/state-gate.yml",
-    "tests/test_state_gate_exact_head_checkout.py"
-  ],
-  "forbidden_mutated_paths": [
-    "project_state/**",
-    ".github/workflows/ci.yml",
-    ".github/ISSUE_TEMPLATE/**",
-    "AGENTS.md",
-    "reverse_agent/**",
-    "tests/platform_v1/**",
-    "tests/test_team_graph.py",
-    "docs/**",
-    "frontend/**",
-    "pyproject.toml",
-    "requirements*.txt",
-    "poetry.lock",
-    "uv.lock",
-    "package.json",
-    "package-lock.json"
-  ],
+  "allowed_mutated_paths": ["project_state/decision_packet.md"],
   "forbidden_operations": [
-    "transition_gate_regeneration",
-    "issue159_product_recovery",
-    "historical_path_b_transplant",
-    "planning_push",
+    "source_repair",
+    "test_repair",
     "main_push",
-    "pr_create",
-    "merge",
+    "pr_merge",
     "mark_ready",
+    "auto_merge",
     "reset",
     "clean",
     "restore",
@@ -131,16 +119,16 @@
     "tag_or_release",
     "deployment",
     "credential_access",
-    "model_api_invocation"
+    "model_api_invocation",
+    "issue159_product_recovery_before_rebinding"
   ]
 }
 ```
 
-## Owner recovery notes
+## Owner landing notes
 
-- This Decision authorizes only the two-path #161 State Gate exact-head checkout repair. It does not authorize the broader #156 redesign.
-- The authority branch may contain this `project_state/decision_packet.md` commit; the sanitized product branch must start independently from exact planning `5a109df046cf3d8fe74b88fbc049c454ef4d2a53` and must contain no `project_state/**` delta.
-- Do not weaken `reverse_agent/control_plane/path_a.py`; the verifier is correct to bind authority to the live PR head.
-- Do not modify `.github/workflows/ci.yml`; CI may continue testing the synthetic merge result while State Gate validates the exact PR head.
-- Local implementation must stop after one normal non-force push of `owner/state-gate-pr-head-checkout-fix-v1`. Owner will independently audit the exact remote head, create the validation Draft PR, inspect State Gate evidence, and issue any separate landing authority.
-- #159/#160 and the frozen #151 worktree remain frozen during this repair. No #151 product mutation is authorized by this Decision.
+- Independent remote audit proved the sanitized product branch is exactly one commit ahead of planning and changes only the two #161 product paths.
+- Validation PR #162 is evidence only and must never be merged. Its State Gate checkout explicitly used the real PR head `0a41df...`; Path-A then failed later with `snapshot_missing`, proving the former merge-ref exact-head contradiction is removed without weakening authority semantics.
+- Before the planning ref update, re-observe planning, sanitized product, recovery authority, landing authority, and #159 target refs. Any drift blocks execution.
+- The only authorized product-side mutation is one non-force fast-forward of `owner/repository-modernization-v2-planning` from exact `5a109df...` to exact `0a41df...`.
+- After landing, #159/#160 must be re-audited because their approved base SHA is `5a109df...`; do not rebase, merge, or mutate that stale R1 history to absorb this governance commit.
