@@ -165,3 +165,114 @@ def test_invalid_event_type_rejected() -> None:
     task = store.create_task(title="t")
     with pytest.raises(TaskStoreError):
         store.add_event(task.id, event_type="NOT_VALID", title="x")
+
+
+# ---------------------------------------------------------------------------
+# Concurrency probe: two threads, one shared TaskStore, two distinct tasks
+# ---------------------------------------------------------------------------
+
+def test_taskstore_concurrent_writes_two_threads(tmp_path) -> None:
+    """One shared TaskStore must tolerate two worker threads that each append
+    one event and one evidence row to their own task, synchronized only by
+    a ``threading.Barrier(2)``. No production lock may be required merely for
+    style if this probe stays stable.
+    """
+    import threading
+
+    db_path = str(tmp_path / "probe.sqlite3")
+    store = TaskStore(db_path=db_path)
+    task_a = store.create_task(title="probe-a", idempotency_key="probe-a")
+    task_b = store.create_task(title="probe-b", idempotency_key="probe-b")
+    assert task_a.id != task_b.id
+
+    barrier = threading.Barrier(2, timeout=10)
+    exceptions: list[Exception] = []
+
+    def worker(task, *, task_label: str) -> None:
+        try:
+            barrier.wait(10)
+            store.add_event(
+                task.id,
+                event_type="EXECUTOR_RUNNING",
+                title=f"Probe {task_label} running",
+                description="concurrent probe event",
+                metadata={"worker": task_label},
+            )
+            store.add_evidence(
+                task.id,
+                category="Probe",
+                label=task_label,
+                value="concurrent",
+                status="info",
+                detail="concurrent-write-probe",
+                raw_json_digest="probe",
+            )
+            read = store.get_task(task.id)
+            assert read.id == task.id
+            assert any(e["type"] == "DISCOVERED" for e in read.events)
+            assert any(e["type"] == "EXECUTOR_RUNNING" for e in read.events)
+            assert any(ev["label"] == task_label for ev in read.evidence_refs)
+        except Exception as exc:
+            exceptions.append(exc)
+
+    t1 = threading.Thread(target=worker, args=(task_a,), kwargs={"task_label": "A"})
+    t2 = threading.Thread(target=worker, args=(task_b,), kwargs={"task_label": "B"})
+    t1.start()
+    t2.start()
+    t1.join(15)
+    t2.join(15)
+    assert not exceptions, [str(e) for e in exceptions]
+
+    ta = store.get_task(task_a.id)
+    tb = store.get_task(task_b.id)
+    assert any(e["type"] == "DISCOVERED" for e in ta.events)
+    assert any(e["type"] == "EXECUTOR_RUNNING" for e in ta.events)
+    assert len(ta.evidence_refs) >= 1
+    assert any(e["type"] == "DISCOVERED" for e in tb.events)
+    assert any(e["type"] == "EXECUTOR_RUNNING" for e in tb.events)
+    assert len(tb.evidence_refs) >= 1
+
+
+def test_create_task_and_execute_does_not_hold_store_lock_across_runner() -> None:
+    """A blocked external runner must not prevent independent store reads."""
+    import threading
+
+    store = TaskStore(":memory:")
+    runner_entered = threading.Event()
+    release_runner = threading.Event()
+    read_completed = threading.Event()
+    execution_errors: list[Exception] = []
+
+    def runner(task_id: str, runner_store: TaskStore) -> dict[str, object]:
+        assert runner_store is store
+        assert store.get_task(task_id).status == "RUNNING_FIXTURE"
+        runner_entered.set()
+        assert release_runner.wait(5), "runner release timed out"
+        return {"success": True}
+
+    def execute() -> None:
+        try:
+            store.create_task_and_execute(
+                create_kwargs={"title": "lock-boundary"},
+                executor_runner=runner,
+            )
+        except Exception as exc:
+            execution_errors.append(exc)
+
+    execution_thread = threading.Thread(target=execute)
+    execution_thread.start()
+    assert runner_entered.wait(5), "executor runner did not start"
+
+    read_thread = threading.Thread(
+        target=lambda: (store.count_tasks(), read_completed.set())
+    )
+    read_thread.start()
+    read_thread.join(1)
+    completed_before_release = read_completed.is_set()
+
+    release_runner.set()
+    execution_thread.join(5)
+    read_thread.join(5)
+
+    assert completed_before_release, "TaskStore read blocked behind executor runtime"
+    assert not execution_errors
