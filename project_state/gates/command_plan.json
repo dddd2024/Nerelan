@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260808_pr134_frontend_opencode_devup_landing_v1",
-  "round_id": "round_20260808_pr134_frontend_opencode_devup_landing_v1",
+  "decision_id": "decision_20260810_issue165_product_setup_3a_planning_landing_v1",
+  "round_id": "round_20260810_issue165_product_setup_3a_planning_landing_v1",
   "commands": [
     {
       "command_id": "observation.git_status",
@@ -26,142 +26,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "sync.fetch_main",
-      "command": "git fetch origin main",
-      "phase": "bootstrap",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "sync.fetch_pr134_branch",
-      "command": "git fetch origin owner/issue133-frontend-opencode-devup-v1",
-      "phase": "bootstrap",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "sync.inspect_remote_decision",
-      "command": "git show origin/owner/issue133-frontend-opencode-devup-v1:project_state/decision_packet.md",
-      "phase": "bootstrap",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "sync.switch_branch",
-      "command": "git switch owner/issue133-frontend-opencode-devup-v1",
-      "phase": "bootstrap",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_sync"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "sync.fast_forward_pr134_branch",
-      "command": "git merge --ff-only origin/owner/issue133-frontend-opencode-devup-v1",
-      "phase": "bootstrap",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_sync"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "observation.git_head",
-      "command": "git rev-parse HEAD",
-      "phase": "status",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "observation.git_main",
-      "command": "git rev-parse origin/main",
+      "command_id": "observation.planning_head",
+      "command": "git rev-parse origin/owner/repository-modernization-v2-planning",
       "phase": "status",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -182,11 +48,11 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.merge_base",
-      "command": "git merge-base HEAD origin/main",
+      "command_id": "observation.accepted_product_head",
+      "command": "git rev-parse origin/owner/issue165-product-setup-3a-sanitized-v1",
       "phase": "status",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
@@ -204,11 +70,11 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.active_intent_hash_before",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/active.json').Hash.ToLower()\"",
-      "phase": "status",
+      "command_id": "validation.accepted_product_parent",
+      "command": "git rev-parse d2b3d513a19c12304977e72b4e416a9b606aa9a0^",
+      "phase": "validation",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
@@ -226,17 +92,18 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "mutation.archive_pr132_intent",
-      "command": "powershell -NoProfile -Command \"Copy-Item 'project_state/mainline_merge_intents/active.json' 'project_state/mainline_merge_intents/archive/pr132_v7.json'\"",
-      "phase": "implementation",
-      "required": true,
+      "command_id": "bootstrap.stage_compiled_command_plan",
+      "command": "git add project_state/gates/command_plan.json",
+      "phase": "bootstrap",
+      "required": false,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
         0
       ],
       "execution_surface": "local",
       "operations": [
-        "governance_artifact_mutation"
+        "governance_artifact_mutation",
+        "repository_staging"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -246,23 +113,49 @@
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/archive/pr132_v7.json"
+        "project_state/gates/command_plan.json"
       ]
     },
     {
-      "command_id": "observation.archive_hash_after",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/archive/pr132_v7.json').Hash.ToLower()\"",
-      "phase": "validation",
-      "required": true,
+      "command_id": "bootstrap.commit_compiled_command_plan",
+      "command": "git commit -m \"chore: compile issue165 landing authority command plan\"",
+      "phase": "bootstrap",
+      "required": false,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
         0
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_observation"
+        "governance_artifact_mutation",
+        "local_commit"
       ],
       "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/command_plan.json"
+      ]
+    },
+    {
+      "command_id": "bootstrap.push_compiled_command_plan",
+      "command": "git push origin owner/issue165-product-setup-3a-landing-authority-v1",
+      "phase": "bootstrap",
+      "required": false,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "push",
+        "network_access"
+      ],
+      "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
@@ -272,162 +165,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.decision_sha256",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/decision_packet.md').Hash.ToLower()\"",
-      "phase": "status",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "observation.command_plan_sha256",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/gates/command_plan.json').Hash.ToLower()\"",
-      "phase": "status",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "test.mainline_landing",
-      "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "run_checks"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "test.platform_v1",
-      "command": "python -m pytest tests/platform_v1 -q",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "run_checks"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "test.gate_regression",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "run_checks"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "validation.diff_check",
-      "command": "git diff --check a1d09d4ae8887405721efe9871881db788c5820a..HEAD",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "diff_validation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "validation.path_list",
-      "command": "git diff --name-only f6c9bad0cfad9f380a917f1a8f8c14eb58a52466..HEAD",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "publication.push_branch",
-      "command": "git push origin owner/issue133-frontend-opencode-devup-v1",
+      "command_id": "publication.fast_forward_planning",
+      "command": "git push origin d2b3d513a19c12304977e72b4e416a9b606aa9a0:refs/heads/owner/repository-modernization-v2-planning",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -449,9 +188,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.python -m reverse_agent.project_gate startup-snapshot --state-di",
-      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "phase": "gate",
+      "command_id": "bootstrap.git rev-parse HEAD",
+      "command": "git rev-parse HEAD",
+      "phase": "status",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
