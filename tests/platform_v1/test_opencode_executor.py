@@ -8,12 +8,16 @@ import os
 import platform
 import subprocess
 import tempfile
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 
 import pytest
 
+from reverse_agent.platform_v1.binding_resolver import OpenCodeBindingResolution
 from reverse_agent.platform_v1.opencode_executor import (
     OpenCodeExecutor,
+    build_binding_child_env,
+    build_binding_config_content,
     build_opencode_argv,
     build_prompt,
     redact_event,
@@ -120,6 +124,97 @@ def test_build_opencode_argv_auto_flag() -> None:
         use_auto=False,
     )
     assert "--auto" not in argv_no_auto
+
+
+def _binding_resolution() -> OpenCodeBindingResolution:
+    return OpenCodeBindingResolution(
+        binding_ref="coding-fast",
+        connection_id="sense-api",
+        executor_id="opencode",
+        provider_id="openai-compatible",
+        model_id="openai-compatible/sense-coding-fast",
+        base_url="https://models.example.test/v1",
+        auth_method="external_cli_session",
+        external_session_status="available",
+    )
+
+
+class _GuardedParentEnvironment(Mapping[str, str]):
+    forbidden = {
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "FAKE_TOKEN",
+        "FAKE_PASSWORD",
+    }
+
+    def __init__(self) -> None:
+        self.read_keys: list[str] = []
+        self.allowed = {
+            "PATH": "C:\\safe-bin",
+            "PATHEXT": ".EXE;.CMD",
+            "SystemRoot": "C:\\Windows",
+            "TEMP": "C:\\safe-temp",
+            "USERPROFILE": "C:\\Users\\safe",
+            "APPDATA": "C:\\Users\\safe\\AppData\\Roaming",
+        }
+
+    def get(self, key: str, default=None):
+        if key in self.forbidden:
+            raise AssertionError(f"forbidden environment read: {key}")
+        self.read_keys.append(key)
+        return self.allowed.get(key, default)
+
+    def __getitem__(self, key: str) -> str:
+        raise AssertionError("environment must be accessed with explicit get")
+
+    def __iter__(self) -> Iterator[str]:
+        raise AssertionError("environment iteration is forbidden")
+
+    def __len__(self) -> int:
+        raise AssertionError("environment sizing is forbidden")
+
+
+def test_binding_config_contains_only_provider_base_url_metadata() -> None:
+    content = build_binding_config_content(_binding_resolution())
+
+    assert json.loads(content) == {
+        "provider": {
+            "openai-compatible": {
+                "options": {"baseURL": "https://models.example.test/v1"}
+            }
+        }
+    }
+    lowered = content.lower()
+    for forbidden in ("apikey", "token", "password", "credential", "cookie"):
+        assert forbidden not in lowered
+
+
+def test_binding_child_environment_uses_explicit_allowlist_without_iteration() -> None:
+    parent = _GuardedParentEnvironment()
+    content = build_binding_config_content(_binding_resolution())
+
+    child = build_binding_child_env(parent, content)
+
+    assert child == {
+        "PATH": "C:\\safe-bin",
+        "PATHEXT": ".EXE;.CMD",
+        "SystemRoot": "C:\\Windows",
+        "TEMP": "C:\\safe-temp",
+        "USERPROFILE": "C:\\Users\\safe",
+        "APPDATA": "C:\\Users\\safe\\AppData\\Roaming",
+        "OPENCODE_CONFIG_CONTENT": content,
+    }
+    assert not parent.forbidden.intersection(parent.read_keys)
+
+
+def test_binding_constructor_does_not_require_legacy_model_id() -> None:
+    executor = OpenCodeExecutor(
+        binding_resolution=_binding_resolution(),
+        parent_env=_GuardedParentEnvironment(),
+        opencode_exe="/fake/opencode",
+    )
+
+    assert executor._model_id == "openai-compatible/sense-coding-fast"
 
 
 # ---------------------------------------------------------------------------
@@ -439,6 +534,97 @@ def test_executor_success_with_json_events() -> None:
             assert "json" in opencode_call
         finally:
             exec_mod.subprocess.run = original_run
+
+
+def test_binding_execution_passes_only_secret_free_env_and_sanitized_metadata() -> None:
+    fake_secret_sentinels = (
+        "fake-openai-key-not-real",
+        "fake-anthropic-key-not-real",
+        "fake-token-not-real",
+        "fake-password-not-real",
+    )
+    parent = _GuardedParentEnvironment()
+    events: list[dict[str, object]] = []
+
+    with tempfile.TemporaryDirectory() as td:
+        store = TaskStore(":memory:")
+        task = store.create_task(
+            title="bound fake execution",
+            executor_kind="opencode",
+            binding_ref="coding-fast",
+        )
+        executor = OpenCodeExecutor(
+            binding_resolution=_binding_resolution(),
+            parent_env=parent,
+            opencode_exe="/fake/opencode",
+        )
+        captured: list[tuple[list[str], dict[str, object]]] = []
+
+        def fake_run(argv, **kwargs):
+            captured.append((list(argv), dict(kwargs)))
+            stdout = ""
+            if argv and argv[0] == "/fake/opencode":
+                stdout = json.dumps(
+                    {
+                        "type": "tool_call",
+                        "action": "read_file",
+                        "token": "fake-token-not-real",
+                    }
+                )
+            return subprocess.CompletedProcess(
+                args=argv,
+                returncode=0,
+                stdout=stdout,
+                stderr="",
+            )
+
+        import reverse_agent.platform_v1.opencode_executor as exec_mod
+        original_run = subprocess.run
+        exec_mod.subprocess.run = fake_run
+        try:
+            result = executor.execute(
+                task.id,
+                store,
+                workspace_root=td,
+                event_callback=lambda _task_id, event: events.append(event),
+            )
+        finally:
+            exec_mod.subprocess.run = original_run
+
+        assert result.success is True
+        opencode_calls = [call for call in captured if call[0][0] == "/fake/opencode"]
+        assert len(opencode_calls) == 1
+        argv, kwargs = opencode_calls[0]
+        model_index = argv.index("--model")
+        assert argv[model_index + 1] == "openai-compatible/sense-coding-fast"
+        assert "--dir" in argv
+        assert argv[argv.index("--format") + 1] == "json"
+        child_env = kwargs["env"]
+        assert isinstance(child_env, dict)
+        config = json.loads(child_env["OPENCODE_CONFIG_CONTENT"])
+        assert config == {
+            "provider": {
+                "openai-compatible": {
+                    "options": {"baseURL": "https://models.example.test/v1"}
+                }
+            }
+        }
+        assert not parent.forbidden.intersection(child_env)
+
+        serialized = json.dumps(
+            {
+                "events": events,
+                "stored_events": store.get_task(task.id).events,
+                "evidence": store.get_task(task.id).evidence_refs,
+            }
+        )
+        assert "coding-fast" in serialized
+        assert "sense-api" in serialized
+        assert "external_cli_session" in serialized
+        assert "OPENCODE_CONFIG_CONTENT" not in serialized
+        assert "models.example.test" not in serialized
+        for sentinel in fake_secret_sentinels:
+            assert sentinel not in serialized
 
 
 def test_executor_requires_model_id() -> None:

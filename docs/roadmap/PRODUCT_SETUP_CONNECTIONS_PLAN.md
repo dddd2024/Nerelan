@@ -7,8 +7,8 @@
 ```text
 #149 LangGraph seam               DONE
 #151 parallel team + verifier     DONE
-Task 3A contract foundation       CURRENT (#165)
-Task 3B binding consumption       NEXT
+Task 3A contract foundation       DONE (#165)
+Task 3B secret-free consumption   IMPLEMENTED (#170)
 #152 Freshness Automation         AFTER SETUP
 real OpenCode multi-Agent dogfood AFTER FRESHNESS FOUNDATION
 ```
@@ -32,8 +32,9 @@ and implement the user rule:
 Task 3A provides the process-local contracts, sanitized registry API and
 fail-closed references. It exposes only `opencode` as an operational executor
 descriptor and preserves the legacy `ModelProfile` API for migration. Task 3B
-must prove that a supported executor adapter consumes a selected Binding; Task
-3A alone does not claim credential inheritance or runtime execution.
+adds durable Task Binding selection and proves a secret-free OpenCode adapter
+for `none` and available executor-owned sessions. It deliberately rejects
+Model-Control-owned `api_key` connections before launch.
 
 ## Workstream A — Connection model
 
@@ -58,7 +59,14 @@ For OpenCode, Codex and later executors, detect/use only supported integration m
 
 Do not scrape or migrate credentials between tools.
 
-Current OpenCode behavior must remain documented accurately until replaced: Model Control API configuration is not automatically inherited by OpenCode.
+The Task 3B OpenCode path resolves sanitized Binding data over trusted loopback,
+normalizes `provider/model`, supplies provider/`baseURL` metadata through a
+transient child-only config, and builds the child environment from an explicit
+allowlist. It never retrieves a Model Control credential or reads the OpenCode
+auth store. The legacy non-Binding model path remains compatible.
+
+Model Control API-key configuration is still not inherited by OpenCode.
+`api_key` bridging remains outside #170 and requires a separate design.
 
 ## Workstream C — Binding profiles
 
@@ -124,8 +132,8 @@ Freshness architecture lives in `docs/architecture/FRESHNESS_AND_DRIFT_GOVERNANC
 ```text
 #149 DONE
 -> #151 DONE
--> Task 3A Connection / Executor / Binding foundation (#165)
--> Task 3B supported executor Binding consumption
+-> Task 3A Connection / Executor / Binding foundation (#165, done)
+-> Task 3B secret-free OpenCode Binding consumption (#170, implemented)
 -> remaining Product Setup: repository connection, probe UX, thin launcher
 -> #152 Freshness Automation Foundation
 -> real OpenCode Multi-Agent dogfood

@@ -113,6 +113,7 @@ class Task:
     executor_kind: str
     execution_id: str
     model_profile_ref: str
+    binding_ref: str
     permission_profile: str
     policy_ref: str
     workspace: str
@@ -182,6 +183,7 @@ def _row_to_task(conn: sqlite3.Connection, row: sqlite3.Row) -> Task:
         executor_kind=row["executor_kind"],
         execution_id=row["execution_id"],
         model_profile_ref=row["model_profile_ref"],
+        binding_ref=row["binding_ref"],
         permission_profile=row["permission_profile"],
         policy_ref=row["policy_ref"],
         workspace=row["workspace"],
@@ -231,6 +233,7 @@ class TaskStore:
                 executor_kind TEXT NOT NULL,
                 execution_id TEXT NOT NULL,
                 model_profile_ref TEXT NOT NULL,
+                binding_ref TEXT NOT NULL DEFAULT '',
                 permission_profile TEXT NOT NULL,
                 policy_ref TEXT NOT NULL,
                 workspace TEXT NOT NULL,
@@ -285,6 +288,13 @@ class TaskStore:
             );
             """
         )
+        task_columns = {
+            row["name"] for row in self._conn.execute("PRAGMA table_info(tasks)")
+        }
+        if "binding_ref" not in task_columns:
+            self._conn.execute(
+                "ALTER TABLE tasks ADD COLUMN binding_ref TEXT NOT NULL DEFAULT ''"
+            )
 
     @property
     def db_path(self) -> str:
@@ -301,6 +311,7 @@ class TaskStore:
         repository: str = "dddd2024/reverse-agent",
         executor_kind: str = "deterministic_fixture",
         model_profile_ref: str = "",
+        binding_ref: str = "",
         permission_profile: str = "ASK_FOR_APPROVAL",
         policy_ref: str = "",
         workspace: str = "",
@@ -313,6 +324,7 @@ class TaskStore:
                 repository=repository,
                 executor_kind=executor_kind,
                 model_profile_ref=model_profile_ref,
+                binding_ref=binding_ref,
                 permission_profile=permission_profile,
                 policy_ref=policy_ref,
                 workspace=workspace,
@@ -327,16 +339,21 @@ class TaskStore:
         repository: str,
         executor_kind: str,
         model_profile_ref: str,
+        binding_ref: str,
         permission_profile: str,
         policy_ref: str,
         workspace: str,
         branch: str,
         idempotency_key: str,
     ) -> Task:
+        if binding_ref and executor_kind != "opencode":
+            raise TaskStoreError("binding_ref_requires_opencode_executor")
         if idempotency_key:
             existing = self._conn.execute(
-                "SELECT task_id, title, repository, executor_kind FROM "
-                "idempotency_keys WHERE key = ? LIMIT 1",
+                "SELECT keys_table.task_id, keys_table.title, keys_table.repository, "
+                "keys_table.executor_kind, tasks.binding_ref FROM idempotency_keys "
+                "AS keys_table JOIN tasks ON tasks.id = keys_table.task_id "
+                "WHERE keys_table.key = ? LIMIT 1",
                 (idempotency_key,),
             ).fetchone()
             if existing:
@@ -344,6 +361,7 @@ class TaskStore:
                     existing["title"] == title
                     and existing["repository"] == repository
                     and existing["executor_kind"] == executor_kind
+                    and existing["binding_ref"] == binding_ref
                 ):
                     return self.get_task(existing["task_id"])
                 raise DuplicateTaskError(
@@ -358,11 +376,11 @@ class TaskStore:
             """
             INSERT INTO tasks (
                 id, title, repository, status, executor_kind, execution_id,
-                model_profile_ref, permission_profile, policy_ref, workspace,
+                model_profile_ref, binding_ref, permission_profile, policy_ref, workspace,
                 branch, created_at, updated_at, failure_classification,
                 failure_detail, validation_command_id, validation_exit_code,
                 validation_output_digest, idempotency_key
-            ) VALUES (?, ?, ?, 'QUEUED', ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', '', NULL, '', ?)
+            ) VALUES (?, ?, ?, 'QUEUED', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', '', NULL, '', ?)
             """,
             (
                 task_id,
@@ -371,6 +389,7 @@ class TaskStore:
                 executor_kind,
                 execution_id,
                 model_profile_ref,
+                binding_ref,
                 permission_profile,
                 policy_ref,
                 workspace,

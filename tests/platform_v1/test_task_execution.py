@@ -7,6 +7,10 @@ import tempfile
 
 import pytest
 
+from reverse_agent.platform_v1.binding_resolver import (
+    BindingResolutionError,
+    OpenCodeBindingResolution,
+)
 from reverse_agent.platform_v1.run_store import TaskStore
 from reverse_agent.platform_v1.task_execution import (
     TaskExecutionError,
@@ -138,3 +142,147 @@ def test_failed_executor_outcome_uses_persisted_failure_truth(tmp_path) -> None:
     assert persisted.failure_detail == "validator returned exit code 7"
     assert outcome.failure_classification == persisted.failure_classification
     assert outcome.failure_detail == persisted.failure_detail
+
+
+def _resolved_binding() -> OpenCodeBindingResolution:
+    return OpenCodeBindingResolution(
+        binding_ref="coding-fast",
+        connection_id="sense-api",
+        executor_id="opencode",
+        provider_id="openai-compatible",
+        model_id="openai-compatible/sense-coding-fast",
+        base_url="https://models.example.test/v1",
+        auth_method="none",
+        external_session_status="not_applicable",
+    )
+
+
+def test_binding_is_resolved_before_state_or_workspace_side_effects(tmp_path) -> None:
+    store = TaskStore(db_path=str(tmp_path / "bound.sqlite3"))
+    workspace_root = tmp_path / "bound-workspace"
+    task = store.create_task(
+        title="bound execution",
+        executor_kind="opencode",
+        binding_ref="coding-fast",
+    )
+    captured: list[dict[str, object]] = []
+
+    class _Resolver:
+        def resolve(self, binding_ref: str, *, task_executor: str):
+            assert binding_ref == "coding-fast"
+            assert task_executor == "opencode"
+            assert store.get_task(task.id).status == "QUEUED"
+            assert not workspace_root.exists()
+            return _resolved_binding()
+
+    class _Router(ExecutorRouter):
+        def dispatch_execute(self, **kwargs):
+            captured.append(kwargs)
+            return ExecutorResult(
+                success=True,
+                validation_exit_code=0,
+                validation_command_id="git_diff_check",
+                validation_output_digest="digest",
+                validation_output_summary="",
+            )
+
+    outcome = TaskExecutionService(
+        store=store,
+        router=_Router(),
+        binding_resolver=_Resolver(),
+    ).execute(task.id, workspace_root=str(workspace_root))
+
+    assert outcome.success is True
+    assert len(captured) == 1
+    assert captured[0]["binding_resolution"] == _resolved_binding()
+    assert "model_id" not in captured[0]
+
+
+def test_binding_resolution_failure_blocks_before_executor_or_workspace(tmp_path) -> None:
+    store = TaskStore(db_path=str(tmp_path / "blocked.sqlite3"))
+    workspace_root = tmp_path / "blocked-workspace"
+    task = store.create_task(
+        title="blocked binding",
+        executor_kind="opencode",
+        binding_ref="api-key-binding",
+    )
+
+    class _Resolver:
+        def resolve(self, binding_ref: str, *, task_executor: str):
+            raise BindingResolutionError("auth_method_api_key_forbidden")
+
+    class _Router(ExecutorRouter):
+        def dispatch_execute(self, **kwargs):
+            raise AssertionError("executor must not run")
+
+    outcome = TaskExecutionService(
+        store=store,
+        router=_Router(),
+        binding_resolver=_Resolver(),
+    ).execute(task.id, workspace_root=str(workspace_root))
+
+    assert outcome.success is False
+    assert outcome.failure_classification == "blocked"
+    assert outcome.failure_detail == "auth_method_api_key_forbidden"
+    assert store.get_task(task.id).status == "BLOCKED"
+    assert not workspace_root.exists()
+
+
+def test_legacy_opencode_task_still_passes_model_profile_to_executor(tmp_path) -> None:
+    store = TaskStore(db_path=str(tmp_path / "legacy-open.sqlite3"))
+    task = store.create_task(
+        title="legacy execution",
+        executor_kind="opencode",
+        model_profile_ref="legacy-provider/legacy-model",
+    )
+    captured: list[dict[str, object]] = []
+
+    class _Router(ExecutorRouter):
+        def dispatch_execute(self, **kwargs):
+            captured.append(kwargs)
+            return ExecutorResult(
+                success=True,
+                validation_exit_code=0,
+                validation_command_id="git_diff_check",
+                validation_output_digest="digest",
+                validation_output_summary="",
+            )
+
+    outcome = TaskExecutionService(store=store, router=_Router()).execute(
+        task.id, workspace_root=str(tmp_path / "legacy-workspace")
+    )
+
+    assert outcome.success is True
+    assert captured[0]["model_id"] == "legacy-provider/legacy-model"
+    assert "binding_resolution" not in captured[0]
+
+
+def test_legacy_opencode_task_keeps_environment_model_fallback(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("REVERSE_AGENT_OPENCODE_MODEL", "legacy-env/model")
+    store = TaskStore(db_path=str(tmp_path / "legacy-env.sqlite3"))
+    task = store.create_task(
+        title="legacy environment execution",
+        executor_kind="opencode",
+    )
+    captured: list[dict[str, object]] = []
+
+    class _Router(ExecutorRouter):
+        def dispatch_execute(self, **kwargs):
+            captured.append(kwargs)
+            return ExecutorResult(
+                success=True,
+                validation_exit_code=0,
+                validation_command_id="git_diff_check",
+                validation_output_digest="digest",
+                validation_output_summary="",
+            )
+
+    outcome = TaskExecutionService(store=store, router=_Router()).execute(
+        task.id, workspace_root=str(tmp_path / "legacy-env-workspace")
+    )
+
+    assert outcome.success is True
+    assert captured[0]["model_id"] == "legacy-env/model"
+    assert "binding_resolution" not in captured[0]

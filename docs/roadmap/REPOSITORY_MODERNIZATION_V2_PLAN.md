@@ -226,7 +226,7 @@ Canonical design:
 
 `docs/architecture/CONNECTION_EXECUTOR_BINDING_ARCHITECTURE.md`
 
-### Task 3A / #165 — current contract foundation
+### Task 3A / #165 — contract foundation
 
 Task 3A adds distinct process-local Connection, ExecutorDescriptor and Binding
 contracts to the trusted Model Control store and loopback API. Public structures
@@ -235,11 +235,14 @@ available for compatibility. The operational executor registry currently
 contains only `opencode`; Codex and OpenHands are not claimed as operational by
 this foundation.
 
-### Task 3B — next runtime consumption proof
+### Task 3B / #170 — secret-free OpenCode consumption proof
 
-Task 3B must resolve a selected Binding through a supported executor adapter and
-prove the supported environment/config/session mechanism. Until that proof,
-Task 3A does not imply that Model Control credentials are inherited by OpenCode.
+Task 3B adds durable `Task.binding_ref`, resolves sanitized Binding data through
+the trusted-loopback Task 3A API, and passes only provider/`baseURL` metadata to
+OpenCode through transient config plus an explicit child-environment allowlist.
+It supports `none` and available executor-owned session authentication.
+Model-Control-owned `api_key` connections fail closed before subprocess launch;
+credential bridging remains a separate design task.
 
 ### Required domain split
 
@@ -273,14 +276,17 @@ Do not silently copy credentials into executor config stores. Do not expose raw 
 
 ### OpenCode target behavior
 
-Current truth:
+Task 3B bounded truth:
 
 ```text
-Model Control API config
-!= automatic OpenCode provider/login config
+Binding + none or available executor-owned session
+-> secret-free OpenCode adapter
+
+Model Control api_key
+-> fail closed before OpenCode launch
 ```
 
-Target:
+Implemented secret-free path:
 
 ```text
 Binding
@@ -366,8 +372,8 @@ The fixed near-term sequence is:
         |
         v
 Product Setup & Connections
-  Task 3A Connection / Executor / Binding foundation (#165, current)
-  Task 3B supported executor Binding consumption (next)
+  Task 3A Connection / Executor / Binding foundation (#165, done)
+  Task 3B secret-free OpenCode Binding consumption (#170, implemented)
   provider/API/account status adapters
   GitHub repository connection + coherent live probe UX
   thin one-click launcher

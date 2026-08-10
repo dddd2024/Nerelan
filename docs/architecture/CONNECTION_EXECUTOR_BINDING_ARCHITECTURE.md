@@ -1,13 +1,14 @@
 # Connection / Executor / Binding Architecture
 
-> Status: **CANONICAL MODERNIZATION DESIGN + TASK 3A FOUNDATION** under #148 / #165.
+> Status: **CANONICAL MODERNIZATION DESIGN + TASK 3A FOUNDATION + TASK 3B SECRET-FREE OPENCODE ADAPTER** under #148 / #165 / #170.
 > Scope: model/provider authentication, Agent/Executor integration, repository connection, and product startup UX.
 > This document is design authority, not code-mutation authority.
 
-Task 3A establishes the first process-local contracts and trusted-loopback API
-for `Connection`, `ExecutorDescriptor`, and `Binding`. It deliberately does not
-claim executor consumption: resolving a Binding into an OpenCode launch is Task
-3B. The legacy `ModelProfile` surface remains available during migration.
+Task 3A establishes the process-local contracts and trusted-loopback API for
+`Connection`, `ExecutorDescriptor`, and `Binding`. Task 3B adds an explicit,
+durable `Task.binding_ref` and a secret-free OpenCode adapter for `none` and
+available executor-owned session authentication. The legacy `ModelProfile`
+surface and non-Binding OpenCode path remain available during migration.
 
 ## 1. Problem being corrected
 
@@ -178,15 +179,22 @@ Raw credentials must not be persisted into TaskStore, frontend state, evidence, 
 
 ## 4. OpenCode-specific rule
 
-Current behavior:
+Task 3B behavior:
 
 ```text
-reverse-agent Model Control API configuration
-    !=
-OpenCode provider/login configuration
+Task.binding_ref
+  -> trusted-loopback Binding / Connection / ExecutorDescriptor lookup
+  -> provider/model normalization
+  -> bounded secret-free OPENCODE_CONFIG_CONTENT
+  -> explicitly allowlisted child environment
+  -> OpenCode launch
 ```
 
-The current OpenCode executor receives model/worktree/repository inputs but does not automatically receive the Model Control credential.
+The adapter supports `none`, `external_cli_session`, and `account_login`.
+Session-backed methods require the sanitized public session status to be
+`available`. Model-Control-owned `api_key` connections fail closed before
+subprocess launch because Task 3B does not transport a reverse-agent credential
+to OpenCode.
 
 Target behavior:
 
@@ -198,7 +206,15 @@ selected Binding
   -> launch OpenCode
 ```
 
-The adapter must not silently scrape or migrate OpenCode credentials. Existing OpenCode account/login state may be detected and referenced when the executor officially supports it.
+The adapter does not scrape or migrate OpenCode credentials. Existing OpenCode
+account/login state is reused only through OpenCode's normal runtime locations;
+reverse-agent does not inspect or export the auth store.
+
+For Binding launches, reverse-agent copies only an explicit allowlist of
+non-secret runtime/location variables into the child environment and adds a
+transient `OPENCODE_CONFIG_CONTENT` containing only provider and `baseURL`
+metadata. That config, the complete child environment, and upstream Model
+Control response bodies are not persisted into TaskStore, events, or evidence.
 
 If OpenCode requires a provider-specific configuration that cannot be safely supplied transiently, the product must expose that as an explicit connection requirement instead of pretending inheritance succeeded.
 
@@ -311,8 +327,8 @@ The agreed sequence is:
         |
         v
 Product Setup & Connections
-  - Task 3A: Connection / Executor / Binding foundation (current)
-  - Task 3B: supported executor consumption of Bindings
+  - Task 3A: Connection / Executor / Binding foundation (done in #165)
+  - Task 3B: secret-free OpenCode Binding consumption (implemented in #170)
   - provider/API/account status adapters
   - GitHub repository connection
   - true double-click/thin launcher
@@ -373,10 +389,13 @@ The design is considered implemented only when all of the following are proven:
 - live connection testing has an explicit trusted opt-in path;
 - old `ModelProfile.executor` coupling has a documented retirement/migration path.
 
-Task 3A satisfies only the structural subset: distinct sanitized Connection,
+Task 3A satisfies the structural subset: distinct sanitized Connection,
 Executor, and Binding contracts; fail-closed references; trusted-loopback CRUD;
-and legacy ModelProfile compatibility. The single-configuration consumption
-criterion remains open until Task 3B proves an adapter using a Binding.
+and legacy ModelProfile compatibility. Task 3B proves secret-free Binding
+consumption for `none` and available executor-owned sessions while preserving
+the legacy path. It deliberately does not satisfy the provider-API
+single-configuration criterion: Model-Control-owned `api_key` bridging remains
+a separate design task.
 
 ## 12. Non-goals
 

@@ -1,6 +1,7 @@
 """Task contract and store tests for the server-owned TaskStore."""
 
 import os
+import sqlite3
 import tempfile
 
 import pytest
@@ -37,6 +38,137 @@ def test_idempotency_key_collision_different_request_raises() -> None:
     store.create_task(title="first", idempotency_key="k-x")
     with pytest.raises(DuplicateTaskError):
         store.create_task(title="second", idempotency_key="k-x")
+
+
+def test_binding_ref_is_explicit_durable_task_truth() -> None:
+    store = TaskStore(":memory:")
+
+    task = store.create_task(
+        title="bound",
+        executor_kind="opencode",
+        binding_ref="coding-fast",
+        model_profile_ref="legacy-profile",
+    )
+
+    assert task.binding_ref == "coding-fast"
+    assert task.model_profile_ref == "legacy-profile"
+    assert store.get_task(task.id).binding_ref == "coding-fast"
+
+
+def test_binding_ref_requires_explicit_opencode_executor() -> None:
+    store = TaskStore(":memory:")
+
+    with pytest.raises(TaskStoreError, match="binding_ref_requires_opencode_executor"):
+        store.create_task(title="wrong executor", binding_ref="coding-fast")
+
+
+def test_fresh_database_binding_ref_column_is_non_null_with_empty_default() -> None:
+    store = TaskStore(":memory:")
+
+    columns = {
+        row["name"]: row
+        for row in store._conn.execute("PRAGMA table_info(tasks)").fetchall()
+    }
+
+    assert columns["binding_ref"]["notnull"] == 1
+    assert columns["binding_ref"]["dflt_value"] == "''"
+    assert store.create_task(title="legacy-compatible").binding_ref == ""
+
+
+def _create_legacy_task_database(path: str) -> str:
+    task_id = "task-legacy-binding-migration"
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            """
+            CREATE TABLE tasks (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                repository TEXT NOT NULL,
+                status TEXT NOT NULL,
+                executor_kind TEXT NOT NULL,
+                execution_id TEXT NOT NULL,
+                model_profile_ref TEXT NOT NULL,
+                permission_profile TEXT NOT NULL,
+                policy_ref TEXT NOT NULL,
+                workspace TEXT NOT NULL,
+                branch TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                failure_classification TEXT NOT NULL,
+                failure_detail TEXT NOT NULL,
+                validation_command_id TEXT NOT NULL,
+                validation_exit_code INTEGER,
+                validation_output_digest TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO tasks VALUES (
+                ?, 'legacy row', 'dddd2024/reverse-agent', 'QUEUED',
+                'opencode', ?, 'legacy/model', 'ASK_FOR_APPROVAL', '', '', '',
+                '2026-08-10T00:00:00Z', '2026-08-10T00:00:00Z', '', '', '',
+                NULL, '', ''
+            )
+            """,
+            (task_id, f"exec-{task_id}"),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    return task_id
+
+
+def test_legacy_database_migrates_binding_ref_without_losing_rows(tmp_path) -> None:
+    db_path = str(tmp_path / "legacy.sqlite3")
+    task_id = _create_legacy_task_database(db_path)
+
+    store = TaskStore(db_path)
+    try:
+        migrated = store.get_task(task_id)
+        assert migrated.title == "legacy row"
+        assert migrated.model_profile_ref == "legacy/model"
+        assert migrated.binding_ref == ""
+    finally:
+        store._conn.close()
+
+
+def test_binding_ref_migration_is_idempotent_on_second_initialization(tmp_path) -> None:
+    db_path = str(tmp_path / "legacy-twice.sqlite3")
+    task_id = _create_legacy_task_database(db_path)
+
+    first = TaskStore(db_path)
+    first._conn.close()
+    second = TaskStore(db_path)
+    try:
+        columns = [
+            row["name"]
+            for row in second._conn.execute("PRAGMA table_info(tasks)").fetchall()
+        ]
+        assert columns.count("binding_ref") == 1
+        assert second.get_task(task_id).binding_ref == ""
+    finally:
+        second._conn.close()
+
+
+def test_idempotency_key_rejects_materially_different_binding_ref() -> None:
+    store = TaskStore(":memory:")
+    store.create_task(
+        title="bound",
+        executor_kind="opencode",
+        binding_ref="coding-fast",
+        idempotency_key="binding-key",
+    )
+
+    with pytest.raises(DuplicateTaskError, match="different_request"):
+        store.create_task(
+            title="bound",
+            executor_kind="opencode",
+            binding_ref="coding-safe",
+            idempotency_key="binding-key",
+        )
 
 
 def test_find_by_idempotency_key_returns_existing() -> None:

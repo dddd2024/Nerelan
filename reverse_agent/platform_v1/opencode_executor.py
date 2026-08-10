@@ -29,8 +29,9 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
+from .binding_resolver import OpenCodeBindingResolution
 from .task_runtime import (
     ExecutorCallback,
     ExecutorResult,
@@ -135,6 +136,24 @@ _MAX_MODEL_ID_LENGTH = 128
 _MODEL_ID_RE = re.compile(r"^[A-Za-z0-9._:/@\-]{1,128}$")
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 
+_BINDING_CHILD_ENV_ALLOWLIST = (
+    "PATH",
+    "PATHEXT",
+    "SystemRoot",
+    "WINDIR",
+    "COMSPEC",
+    "TEMP",
+    "TMP",
+    "HOME",
+    "USERPROFILE",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_STATE_HOME",
+    "XDG_CACHE_HOME",
+)
+
 
 def validate_model_id(model_id: str) -> str:
     if not isinstance(model_id, str):
@@ -157,6 +176,34 @@ def validate_model_id(model_id: str) -> str:
     if any(c.isspace() for c in stripped):
         raise ExecutorRuntimeError("model_id_contains_whitespace")
     return stripped
+
+
+def build_binding_config_content(
+    resolution: OpenCodeBindingResolution,
+) -> str:
+    """Build transient non-secret provider metadata for one OpenCode child."""
+    payload = {
+        "provider": {
+            resolution.provider_id: {
+                "options": {"baseURL": resolution.base_url},
+            }
+        }
+    }
+    return json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+
+
+def build_binding_child_env(
+    parent_env: Mapping[str, str],
+    config_content: str,
+) -> dict[str, str]:
+    """Copy only explicit non-secret runtime/location keys for Binding launch."""
+    child: dict[str, str] = {}
+    for key in _BINDING_CHILD_ENV_ALLOWLIST:
+        value = parent_env.get(key)
+        if isinstance(value, str) and value:
+            child[key] = value
+    child["OPENCODE_CONFIG_CONTENT"] = config_content
+    return child
 
 
 # ---------------------------------------------------------------------------
@@ -333,13 +380,31 @@ class OpenCodeExecutor:
         self,
         *,
         model_id: str | None = None,
+        binding_resolution: OpenCodeBindingResolution | None = None,
+        parent_env: Mapping[str, str] | None = None,
         repo_dir: str = "",
         base_ref: str = "",
         opencode_exe: str | None = None,
         timeout: int = 300,
         use_auto: bool = True,
     ) -> None:
-        self._model_id = validate_model_id(model_id or os.environ.get("REVERSE_AGENT_OPENCODE_MODEL", ""))
+        self._binding_resolution = binding_resolution
+        if binding_resolution is not None:
+            if binding_resolution.executor_id != "opencode":
+                raise ExecutorRuntimeError("binding_executor_mismatch")
+            if binding_resolution.auth_method == "api_key":
+                raise ExecutorRuntimeError("auth_method_api_key_forbidden")
+            if binding_resolution.auth_method in {
+                "external_cli_session",
+                "account_login",
+            } and binding_resolution.external_session_status != "available":
+                raise ExecutorRuntimeError("external_session_unavailable")
+            self._model_id = validate_model_id(binding_resolution.model_id)
+        else:
+            self._model_id = validate_model_id(
+                model_id or os.environ.get("REVERSE_AGENT_OPENCODE_MODEL", "")
+            )
+        self._parent_env = parent_env if parent_env is not None else os.environ
         self._repo_dir = repo_dir.strip()
         self._repo_dir_explicit = bool(self._repo_dir)
         self._base_ref = base_ref
@@ -366,6 +431,7 @@ class OpenCodeExecutor:
             task_id, root_path, event_callback
         )
         execution_id = "exec-%s" % task_id
+        binding_metadata = self._binding_event_metadata()
 
         _emit(event_callback, task_id, {
             "type": "WORKSPACE_READY",
@@ -378,6 +444,7 @@ class OpenCodeExecutor:
                 "model": self._model_id,
                 "base_sha": base_sha,
                 "repo_dir": str(self._repo_dir),
+                **binding_metadata,
             },
         })
 
@@ -406,20 +473,29 @@ class OpenCodeExecutor:
                 "cli_path": cli_path,
                 "worktree": str(worktree),
                 "prompt_transport": "file",
+                **binding_metadata,
             },
         })
 
         try:
-            proc = subprocess.run(
-                cli_argv,
-                cwd=str(worktree),
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=self._timeout,
-                check=False,
-            )
+            run_kwargs: dict[str, Any] = {
+                "cwd": str(worktree),
+                "capture_output": True,
+                "text": True,
+                "encoding": "utf-8",
+                "errors": "replace",
+                "timeout": self._timeout,
+                "check": False,
+            }
+            if self._binding_resolution is not None:
+                config_content = build_binding_config_content(
+                    self._binding_resolution
+                )
+                run_kwargs["env"] = build_binding_child_env(
+                    self._parent_env,
+                    config_content,
+                )
+            proc = subprocess.run(cli_argv, **run_kwargs)
         except subprocess.TimeoutExpired as exc:
             _emit(event_callback, task_id, {
                 "type": "EXECUTOR_FINISHED",
@@ -579,6 +655,19 @@ class OpenCodeExecutor:
             return task.title if hasattr(task, "title") else task_id
         except Exception:
             return task_id
+
+    def _binding_event_metadata(self) -> dict[str, str]:
+        resolution = self._binding_resolution
+        if resolution is None:
+            return {}
+        return {
+            "binding_ref": resolution.binding_ref,
+            "connection_id": resolution.connection_id,
+            "executor_id": resolution.executor_id,
+            "provider_id": resolution.provider_id,
+            "model_id": resolution.model_id,
+            "auth_method": resolution.auth_method,
+        }
 
     def _run_git(self, argv: list[str], *, cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
         try:

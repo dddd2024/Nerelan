@@ -65,6 +65,46 @@ def test_create_and_read_task(task_server) -> None:
     assert got["events"][0]["type"] == "DISCOVERED"
 
 
+def test_task_api_round_trips_explicit_binding_ref(task_server) -> None:
+    base, _store = task_server
+    status, created = _req(
+        base,
+        "POST",
+        "/api/tasks",
+        {
+            "title": "bound task",
+            "executor_kind": "opencode",
+            "binding_ref": "coding-fast",
+            "model_profile_ref": "legacy-profile",
+        },
+    )
+
+    assert status == 201
+    assert created["binding_ref"] == "coding-fast"
+    assert created["model_profile_ref"] == "legacy-profile"
+    status, fetched = _req(base, "GET", f"/api/tasks/{created['id']}")
+    assert status == 200
+    assert fetched["binding_ref"] == "coding-fast"
+
+
+def test_task_api_keeps_legacy_empty_binding_compatible(task_server) -> None:
+    base, _store = task_server
+    status, created = _req(
+        base,
+        "POST",
+        "/api/tasks",
+        {
+            "title": "legacy opencode",
+            "executor_kind": "opencode",
+            "model_profile_ref": "provider/model",
+        },
+    )
+
+    assert status == 201
+    assert created["binding_ref"] == ""
+    assert created["model_profile_ref"] == "provider/model"
+
+
 def test_list_tasks_and_events(task_server) -> None:
     base, _ = task_server
     _, created = _req(base, "POST", "/api/tasks", {"title": "t", "executor_kind": "deterministic_fixture"})

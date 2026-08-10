@@ -13,6 +13,7 @@ import tempfile
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
+from .binding_resolver import BindingResolver
 from .run_store import (
     InvalidTransitionError,
     TaskStore,
@@ -38,14 +39,25 @@ class TaskExecutionOutcome:
     failure_detail: str = ""
 
 
-def _build_executor_kwargs(task: Mapping[str, Any]) -> dict[str, Any]:
+def _build_executor_kwargs(
+    task: Mapping[str, Any],
+    *,
+    binding_resolver: Any | None = None,
+) -> dict[str, Any]:
     kwargs: dict[str, Any] = {}
     executor_kind = str(_map_task_field(task, "executor_kind", ""))
     if executor_kind == "opencode":
-        model_id = str(_map_task_field(task, "model_profile_ref", "")) or os.environ.get(
-            "REVERSE_AGENT_OPENCODE_MODEL", ""
-        )
-        kwargs["model_id"] = model_id
+        binding_ref = str(_map_task_field(task, "binding_ref", ""))
+        if binding_ref:
+            resolver = binding_resolver or BindingResolver()
+            kwargs["binding_resolution"] = resolver.resolve(
+                binding_ref, task_executor=executor_kind
+            )
+        else:
+            model_id = str(
+                _map_task_field(task, "model_profile_ref", "")
+            ) or os.environ.get("REVERSE_AGENT_OPENCODE_MODEL", "")
+            kwargs["model_id"] = model_id
         kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
         kwargs["base_ref"] = str(_map_task_field(task, "branch", ""))
     return kwargs
@@ -68,9 +80,11 @@ class TaskExecutionService:
         *,
         store: TaskStore,
         router: ExecutorRouter,
+        binding_resolver: Any | None = None,
     ) -> None:
         self.store = store
         self.router = router
+        self.binding_resolver = binding_resolver
 
     def execute(
         self,
@@ -103,6 +117,32 @@ class TaskExecutionService:
 
         before_evidence = tuple(ev.get("id", "") for ev in task.evidence_refs)
 
+        try:
+            executor_kwargs = _build_executor_kwargs(
+                task,
+                binding_resolver=self.binding_resolver,
+            )
+        except ExecutorRuntimeError as exc:
+            self.store.classify_failure(
+                task_id,
+                classification="blocked",
+                detail=str(exc),
+            )
+            final = self.store.get_task(task_id)
+            after_evidence = tuple(
+                ev.get("id", "") for ev in final.evidence_refs
+            )
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=final.execution_id,
+                success=False,
+                validation_command_id=validation_command_id,
+                validation_exit_code=-1,
+                evidence_ids=tuple(after_evidence[len(before_evidence):]),
+                failure_classification=final.failure_classification,
+                failure_detail=final.failure_detail,
+            )
+
         self.store.transition_to(task_id, "PREPARING_WORKSPACE")
         self.store.transition_to(task_id, running_status)
         self.store.add_event(
@@ -112,8 +152,6 @@ class TaskExecutionService:
             description=f"Executor {executor_kind} started",
             metadata={"executor_kind": executor_kind},
         )
-
-        executor_kwargs = _build_executor_kwargs(task)
 
         try:
             exec_result = self._dispatch_executor(
