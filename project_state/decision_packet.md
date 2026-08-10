@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260810_issue165_product_setup_3a_r2_v1",
-  "round_id": "round_20260810_issue165_product_setup_3a_r2_v1",
+  "decision_id": "decision_20260810_issue165_product_setup_3a_r2_v2",
+  "round_id": "round_20260810_issue165_product_setup_3a_r2_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,10 +14,10 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260808_pr134_frontend_opencode_devup_landing_v1",
-  "follows_last_round_id": "round_20260808_pr134_frontend_opencode_devup_landing_v1",
-  "previous_audit_outcome": "ISSUE151_LANGGRAPH_PARALLEL_TEAM_ADAPTER_ACCEPTED_AND_LANDED",
-  "workstream_id": "issue165-product-setup-3a-r2-v1",
+  "follows_last_decision_id": "decision_20260810_issue165_product_setup_3a_r2_v1",
+  "follows_last_round_id": "round_20260810_issue165_product_setup_3a_r2_v1",
+  "previous_audit_outcome": "V1_OWNER_PREDELEGATION_SUPERSEDED_PREPUSH_CAS_COMMAND_OMITTED",
+  "workstream_id": "issue165-product-setup-3a-r2-v2",
   "source_issue": 165,
   "parent_issue": 148,
   "required_branch": "owner/issue165-product-setup-3a-r2-v1",
@@ -229,6 +229,18 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
+      "command_id": "sync.prepush_cas_fetch",
+      "command": "git fetch --no-tags origin owner/repository-modernization-v2-planning owner/issue165-product-setup-3a-r2-v1",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_only_after_validation": true
+    },
+    {
       "command_id": "publication.push_branch",
       "command": "git push origin owner/issue165-product-setup-3a-r2-v1",
       "phase": "publication",
@@ -356,6 +368,7 @@
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
     "local_network_exceptions": [
+      "git fetch --no-tags origin owner/repository-modernization-v2-planning owner/issue165-product-setup-3a-r2-v1",
       "git push origin owner/issue165-product-setup-3a-r2-v1"
     ],
     "ci_network_exceptions": [],
