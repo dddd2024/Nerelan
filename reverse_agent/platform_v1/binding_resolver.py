@@ -21,14 +21,23 @@ DEFAULT_MODEL_CONTROL_URL = "http://127.0.0.1:8765"
 DEFAULT_TIMEOUT_SECONDS = 3.0
 DEFAULT_MAX_RESPONSE_BYTES = 64 * 1024
 
+_SAFE_PUBLIC_STATUS_KEYS = {
+    "secretstatus",
+    "externalsessionstatus",
+}
+
 _SECRET_KEYS = {
     "apikey",
-    "token",
     "password",
-    "secret",
+    "secretkey",
     "credential",
+    "credentials",
     "cookie",
+    "authorization",
+    "privatekey",
 }
+
+_SECRET_KEY_SUFFIXES = ("token", "secret")
 
 Transport = Callable[[str, float, int], tuple[int, Any]]
 
@@ -219,8 +228,11 @@ def _http_get_json(url: str, timeout: float, max_response_bytes: int) -> tuple[i
 def _reject_secret_material(value: Any) -> None:
     if isinstance(value, Mapping):
         for key, nested in value.items():
-            normalized = str(key).replace("_", "").replace("-", "").lower()
-            if normalized in _SECRET_KEYS:
+            normalized = str(key).replace("_", "").replace("-", "").casefold()
+            if normalized not in _SAFE_PUBLIC_STATUS_KEYS and (
+                normalized in _SECRET_KEYS
+                or normalized.endswith(_SECRET_KEY_SUFFIXES)
+            ):
                 raise BindingResolutionError("secret_material_rejected")
             _reject_secret_material(nested)
     elif isinstance(value, (list, tuple)):

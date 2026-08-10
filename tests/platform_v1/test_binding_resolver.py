@@ -108,6 +108,20 @@ def test_resolver_normalizes_secret_free_none_auth_resolution() -> None:
     assert all(call[1] > 0 and call[2] > 0 for call in transport.calls)
 
 
+def test_sanitized_public_status_fields_remain_accepted() -> None:
+    resolution = BindingResolver(
+        transport=_FakeTransport(
+            connection=_connection(
+                secret_status="not_applicable",
+                external_session_status="not_applicable",
+            )
+        )
+    ).resolve("coding-fast", task_executor="opencode")
+
+    assert resolution.auth_method == "none"
+    assert resolution.external_session_status == "not_applicable"
+
+
 @pytest.mark.parametrize(
     ("transport", "reason"),
     [
@@ -222,10 +236,21 @@ def test_provider_base_url_query_is_rejected_before_transient_config() -> None:
     [
         {"api_key": "fake-openai-key-not-real"},
         {"nested": {"apiKey": "fake-anthropic-key-not-real"}},
+        {"access_token": "fake-access-token-not-real"},
+        {"nested": {"refresh_token": "fake-refresh-token-not-real"}},
+        {"nested": [{"client_secret": "fake-client-secret-not-real"}]},
         {"nested": [{"token": "fake-token-not-real"}]},
+        {"auth_token": "fake-auth-token-not-real"},
+        {"bearer_token": "fake-bearer-token-not-real"},
         {"password": "fake-password-not-real"},
+        {"secret": "fake-secret-not-real"},
+        {"secret_key": "fake-secret-key-not-real"},
         {"credential": "fake-credential-not-real"},
+        {"credentials": {"value": "fake-credentials-not-real"}},
         {"cookie": "fake-cookie-not-real"},
+        {"authorization": "fake-authorization-not-real"},
+        {"nested": {"private_key": "fake-private-key-not-real"}},
+        {"nested": {"Access-Token": "fake-normalized-access-token-not-real"}},
     ],
 )
 def test_resolver_rejects_recursive_secret_material_without_echoing_value(
@@ -239,7 +264,7 @@ def test_resolver_rejects_recursive_secret_material_without_echoing_value(
             "coding-fast", task_executor="opencode"
         )
 
-    assert "secret_material_rejected" in str(excinfo.value)
+    assert str(excinfo.value) == "secret_material_rejected"
     assert "fake-" not in str(excinfo.value)
 
 
