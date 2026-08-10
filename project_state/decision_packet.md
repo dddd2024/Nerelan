@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260810_issue165_product_setup_3a_r2_v2",
-  "round_id": "round_20260810_issue165_product_setup_3a_r2_v2",
+  "decision_id": "decision_20260810_issue165_product_setup_3a_r2_v3",
+  "round_id": "round_20260810_issue165_product_setup_3a_r2_v3",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,10 +14,10 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260810_issue165_product_setup_3a_r2_v1",
-  "follows_last_round_id": "round_20260810_issue165_product_setup_3a_r2_v1",
-  "previous_audit_outcome": "V1_OWNER_PREDELEGATION_SUPERSEDED_PREPUSH_CAS_COMMAND_OMITTED",
-  "workstream_id": "issue165-product-setup-3a-r2-v2",
+  "follows_last_decision_id": "decision_20260810_issue165_product_setup_3a_r2_v2",
+  "follows_last_round_id": "round_20260810_issue165_product_setup_3a_r2_v2",
+  "previous_audit_outcome": "V2_OWNER_PREDELEGATION_SUPERSEDED_REMOTE_TRACKING_FETCH_SEMANTICS_TOO_AMBIGUOUS_FOR_CAS",
+  "workstream_id": "issue165-product-setup-3a-r2-v3",
   "source_issue": 165,
   "parent_issue": 148,
   "required_branch": "owner/issue165-product-setup-3a-r2-v1",
@@ -73,12 +73,10 @@
   "bootstrap_exception_commands": [
     "git clone --branch owner/issue165-product-setup-3a-r2-v1 https://github.com/dddd2024/reverse-agent.git F:\\reverse-agent-issue165-product-setup-3a-20260810",
     "git status --short",
-    "git fetch origin owner/repository-modernization-v2-planning",
-    "git fetch origin owner/issue165-product-setup-3a-r2-v1",
-    "git show origin/owner/issue165-product-setup-3a-r2-v1:project_state/decision_packet.md",
+    "git ls-remote --heads origin owner/repository-modernization-v2-planning owner/issue165-product-setup-3a-r2-v1",
+    "git show HEAD:project_state/decision_packet.md",
     "git rev-parse HEAD",
-    "git rev-parse origin/owner/repository-modernization-v2-planning",
-    "git rev-parse origin/owner/issue165-product-setup-3a-r2-v1",
+    "git merge-base HEAD 61af5932d35959567d541077cda67cdb5d7b5100",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
@@ -108,8 +106,8 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "observation.planning_head",
-      "command": "git rev-parse origin/owner/repository-modernization-v2-planning",
+      "command_id": "observation.base_ancestry",
+      "command": "git merge-base HEAD 61af5932d35959567d541077cda67cdb5d7b5100",
       "phase": "status",
       "required": true,
       "expected_exit_codes": [0],
@@ -229,8 +227,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "sync.prepush_cas_fetch",
-      "command": "git fetch --no-tags origin owner/repository-modernization-v2-planning owner/issue165-product-setup-3a-r2-v1",
+      "command_id": "sync.prepush_remote_cas",
+      "command": "git ls-remote origin refs/heads/owner/repository-modernization-v2-planning refs/heads/owner/issue165-product-setup-3a-r2-v1",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -368,7 +366,7 @@
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
     "local_network_exceptions": [
-      "git fetch --no-tags origin owner/repository-modernization-v2-planning owner/issue165-product-setup-3a-r2-v1",
+      "git ls-remote origin refs/heads/owner/repository-modernization-v2-planning refs/heads/owner/issue165-product-setup-3a-r2-v1",
       "git push origin owner/issue165-product-setup-3a-r2-v1"
     ],
     "ci_network_exceptions": [],
