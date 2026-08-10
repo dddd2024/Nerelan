@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -184,6 +185,20 @@ def _parse_structured_command(raw: Mapping[str, Any], *, bootstrap_exception: bo
     )
 
 
+def _bootstrap_command_id(canonical: str) -> str:
+    """Deterministic bounded identity for a bootstrap command.
+
+    SHA-256 over the full canonical command prevents two distinct bootstrap
+    commands sharing a long raw prefix from colliding.  Avoids ``hash()``
+    (not cross-process stable), random numbers, and timestamps.
+    """
+
+    return (
+        "bootstrap."
+        + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    )
+
+
 def _bootstrap_command_phase(command: str) -> str:
     if command.startswith("python -m pytest"):
         return "test"
@@ -236,7 +251,7 @@ def build_transition_command_plan(
             diagnostic_only=False,
             allowed_only_after_validation=False,
             bootstrap_exception=True,
-            command_id=f"bootstrap.{command[:64]}",
+            command_id=_bootstrap_command_id(canonical_command(command)),
             required_evidence_source=normalize_evidence_source("local_provenance"),
             authority_origin="bootstrap_exception",
         )

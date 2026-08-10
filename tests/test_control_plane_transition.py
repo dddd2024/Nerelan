@@ -624,3 +624,224 @@ def test_transition_authority_missing_scope_fails_closed(tmp_path: Path, missing
         project_gate.transition_command_plan(state_dir=state_dir)
         result = project_gate.transition_preflight(state_dir=state_dir, repo_root=tmp_path)
     assert result.get("plan_status", result.get("gate_status")) == "BLOCKED"
+
+
+def _write_collision_decision(
+    state_dir: Path,
+    *,
+    decision_id: str = "decision_collision",
+    round_id: str = "round_collision",
+    branch: str = "codex/example-v1",
+    commands: list[str],
+    structured_command_ids: list[str] | None = None,
+) -> None:
+    """Write a Decision that exercises bootstrap command-ID semantics.
+
+    The two bootstrap commands passed in share an identical long prefix so
+    the old ``bootstrap.<command[:64]>`` derivation would collide.
+    """
+
+    if structured_command_ids is None:
+        structured_command_ids = ["status.git_status"]
+    structured_commands = []
+    for i, cid in enumerate(structured_command_ids):
+        if i == 1:
+            cmd_str = "git diff --check"
+            phase = "validation"
+            ops = ["diff_validation"]
+        else:
+            cmd_str = "git status --short"
+            phase = "status"
+            ops = ["repository_observation"]
+        structured_commands.append(
+            {
+                "command_id": cid,
+                "command": cmd_str,
+                "phase": phase,
+                "required": True,
+                "expected_exit_codes": [0],
+                "execution_surface": "local",
+                "operations": ops,
+                "network_access": False,
+            }
+        )
+    contract = {
+        "transition_kernel_required": True,
+        "required_branch": branch,
+        "activation_base_sha": "a" * 40,
+        "bootstrap_exception_files": ["reverse_agent/project_gate.py"],
+        "bootstrap_exception_commands": commands,
+        "allowed_commands": structured_commands,
+        "allowed_mutated_paths": ["reverse_agent/example/**"],
+        "forbidden_mutated_paths": ["frontend/**"],
+        "reference_paths": ["docs/roadmap/example.md"],
+        "capability_policy": {
+            "runner_dispatch_allowed": False,
+            "model_api_invocation_allowed": False,
+            "external_reverse_tool_invocation_allowed": False,
+            "unknown_binary_execution_allowed": False,
+            "destructive_operations_allowed": False,
+            "bmad_installation_allowed": False,
+            "network_access_default_allowed": False,
+            "local_network_exceptions": [],
+            "ci_network_exceptions": [],
+            "remote_observation_read_only_allowed": True,
+            "direct_push_to_main_allowed": False,
+            "merge_allowed": False,
+            "force_push_allowed": False,
+            "rebase_during_execution_allowed": False,
+            "tag_or_release_allowed": False,
+        },
+        "path_risk_floor": [],
+    }
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "decision_packet.md").write_text(
+        "```json decision_meta\n"
+        + json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": decision_id,
+                "round_id": round_id,
+                "status": "APPROVED",
+                "mainline": "engineering_branch",
+                "skill_profiles": ["reverse-agent-iteration@v2"],
+            }
+        )
+        + "\n```\n\n```json decision_contract\n"
+        + json.dumps(contract)
+        + "\n```\n",
+        encoding="utf-8",
+    )
+
+
+def _collision_commands() -> tuple[str, str]:
+    """Two commands whose first 64 characters are identical but that differ."""
+
+    prefix = "git fetch --depth=1 origin refs/heads/branch-owner-abc-xyz-1234567890-"
+    assert len(prefix) >= 64
+    assert (prefix + "TAIL-A")[:64] == (prefix + "TAIL-B")[:64]
+    return prefix + "TAIL-A", prefix + "TAIL-B"
+
+
+def test_bootstrap_command_ids_are_distinct_under_prefix_collision(tmp_path: Path) -> None:
+    """Two bootstrap commands sharing an identical first 64 characters
+    must yield distinct, deterministic command IDs.
+    """
+
+    from reverse_agent.control_plane.legacy_adapter import (
+        build_transition_command_plan,
+    )
+    from reverse_agent.control_plane.models import TransitionDecision
+
+    state_dir = tmp_path / "project_state"
+    cmd_a, cmd_b = _collision_commands()
+    _write_collision_decision(state_dir, commands=[cmd_a, cmd_b])
+    decision, contract = project_gate.load_transition_decision(state_dir / "decision_packet.md")
+    plan = build_transition_command_plan(decision, contract)
+    assert project_gate.validate_transition_command_plan(plan) == ()
+    bootstrap = [
+        cmd for cmd in plan.commands if cmd.bootstrap_exception
+    ]
+    ids = [cmd.command_id for cmd in bootstrap]
+    assert len(ids) == 2
+    assert ids[0] != ids[1]
+    assert all(i for i in ids)
+    assert all(i.startswith("bootstrap.") for i in ids)
+    # ID is bounded: fixed "bootstrap." prefix + 64 hex digest
+    assert all(len(i) == len("bootstrap.") + 64 for i in ids)
+    # Same projection from the same Decision yields the same IDs.
+    plan2 = build_transition_command_plan(decision, contract)
+    ids2 = [cmd.command_id for cmd in plan2.commands if cmd.bootstrap_exception]
+    assert ids2 == ids
+
+
+def test_bootstrap_command_canonical_duplicates_are_deduped(tmp_path: Path) -> None:
+    """Exact duplicate canonical bootstrap commands remain de-duplicated."""
+
+    from reverse_agent.control_plane.legacy_adapter import (
+        build_transition_command_plan,
+    )
+    from reverse_agent.control_plane.models import TransitionDecision
+
+    state_dir = tmp_path / "project_state"
+    cmd = "python -m pytest tests/test_project_gate.py -q"
+    _write_collision_decision(state_dir, commands=[cmd, "  python   -m   pytest   tests/test_project_gate.py   -q  "])
+    decision, contract = project_gate.load_transition_decision(state_dir / "decision_packet.md")
+    plan = build_transition_command_plan(decision, contract)
+    assert project_gate.validate_transition_command_plan(plan) == ()
+    bootstrap = [cmd for cmd in plan.commands if cmd.bootstrap_exception]
+    assert len(bootstrap) == 1
+    assert bootstrap[0].command_id
+    assert bootstrap[0].command_id.startswith("bootstrap.")
+
+
+def test_structured_allowed_commands_ids_are_unchanged(tmp_path: Path) -> None:
+    """Structured ``allowed_commands`` keep their authored command_id values."""
+
+    state_dir = tmp_path / "project_state"
+    ids = ["status.git_status", "validation.diff_check"]
+    _write_collision_decision(state_dir, commands=[_collision_commands()[0]], structured_command_ids=ids)
+    result = project_gate.transition_command_plan(state_dir=state_dir)
+    assert result["plan_status"] == "PASSED"
+    observed = [cmd for cmd in result["commands"] if not cmd.get("bootstrap_exception")]
+    observed_ids = [cmd["command_id"] for cmd in observed]
+    assert observed_ids == ids
+
+
+def test_bootstrap_command_plan_provenance_rejects_tampered_plan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing transition lint / provenance behavior is unaffected."""
+
+    from tests.test_project_gate import _write_decision as _pg_write_decision
+
+    # Use the same decision shape used elsewhere in this suite.
+    state_dir = tmp_path / "project_state"
+    contract = {
+        "transition_kernel_required": True,
+        "required_branch": "codex/example-v1",
+        "activation_base_sha": "a" * 40,
+        "bootstrap_exception_files": ["reverse_agent/project_gate.py"],
+        "bootstrap_exception_commands": [
+            "python -m pytest tests/test_project_gate.py -q",
+            "git diff --check",
+        ],
+        "allowed_source_paths": ["reverse_agent/example/**"],
+        "forbidden_mutated_paths": ["frontend/**"],
+        "direct_push_to_main_allowed": False,
+        "merge_allowed": False,
+        "force_push_allowed": False,
+        "rebase_during_execution_allowed": False,
+        "destructive_operations_allowed": False,
+        "unknown_binary_execution_allowed": False,
+        "model_api_invocation_allowed": False,
+        "external_reverse_tool_invocation_allowed": False,
+    }
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "decision_packet.md").write_text(
+        "```json decision_meta\n"
+        + json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": "decision_provenance",
+                "round_id": "round_provenance",
+                "status": "APPROVED",
+                "mainline": "engineering_branch",
+                "skill_profiles": ["reverse-agent-iteration@v2"],
+            }
+        )
+        + "\n```\n\n```json decision_contract\n"
+        + json.dumps(contract)
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    project_gate.transition_command_plan(state_dir=state_dir)
+    plan_path = state_dir / "gates" / "command_plan.json"
+    payload = json.loads(plan_path.read_text(encoding="utf-8"))
+    payload["commands"][0]["command"] = "python unexpected.py"
+    plan_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(project_gate, "_derive_repo_root", lambda _sd: tmp_path)
+    result = project_gate.transition_lint(state_dir=state_dir)
+    assert result["gate_status"] == "BLOCKED"
+    assert any(
+        item["name"] == "command_plan_provenance" and item["status"] == "FAIL"
+        for item in result["checks"]
+    )
