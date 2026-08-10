@@ -7,7 +7,7 @@ import os
 from threading import RLock
 from typing import Any, Mapping
 
-from .contracts import ModelProfile
+from .contracts import Binding, Connection, ExecutorDescriptor, ModelProfile
 
 
 @dataclass(slots=True)
@@ -28,12 +28,186 @@ class _StoredProfile:
         return self.profile.to_public_dict(self.secret_status)
 
 
+@dataclass(slots=True)
+class _StoredConnection:
+    connection: Connection
+    api_key: str | None = None
+    api_key_env: str | None = None
+    external_session_status: str = "not_applicable"
+
+    @property
+    def secret_status(self) -> str:
+        if self.connection.auth_method != "api_key":
+            return "not_applicable"
+        if self.api_key:
+            return "session"
+        if self.api_key_env:
+            return "environment"
+        return "missing"
+
+    def public(self) -> dict[str, Any]:
+        return self.connection.to_public_dict(
+            secret_status=self.secret_status,
+            external_session_status=self.external_session_status,
+        )
+
+
 class ModelProfileStore:
     """Process-local profile store that never serializes secret values."""
 
     def __init__(self) -> None:
         self._profiles: dict[str, _StoredProfile] = {}
+        self._connections: dict[str, _StoredConnection] = {}
+        self._executors = {
+            "opencode": ExecutorDescriptor(
+                executor_id="opencode",
+                name="OpenCode",
+                operational=True,
+                capabilities=("model_selection", "workspace_execution"),
+            )
+        }
+        self._bindings: dict[str, Binding] = {}
         self._lock = RLock()
+
+    def list_connections_public(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return [stored.public() for stored in self._connections.values()]
+
+    def get_connection_public(self, connection_id: str) -> dict[str, Any]:
+        with self._lock:
+            stored = self._connections.get(connection_id)
+            if stored is None:
+                raise KeyError(f"connection not found: {connection_id}")
+            return stored.public()
+
+    def upsert_connection(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        connection = Connection.from_mapping(payload)
+        with self._lock:
+            existing = self._connections.get(connection.connection_id)
+            api_key = existing.api_key if existing else None
+            api_key_env = existing.api_key_env if existing else None
+            external_status = (
+                existing.external_session_status if existing else "not_applicable"
+            )
+
+            incoming_api_key = _optional_secret(payload, "api_key", "apiKey")
+            incoming_api_key_env = _optional_env(payload, "api_key_env", "apiKeyEnv")
+            if incoming_api_key and incoming_api_key_env:
+                raise ValueError("api_key and api_key_env are mutually exclusive")
+            clear_secret = payload.get("clear_secret") is True or payload.get(
+                "clearSecret"
+            ) is True
+
+            if connection.auth_method == "api_key":
+                if clear_secret:
+                    api_key = None
+                    api_key_env = None
+                elif incoming_api_key:
+                    api_key = incoming_api_key
+                    api_key_env = None
+                elif incoming_api_key_env:
+                    api_key = None
+                    api_key_env = incoming_api_key_env
+                external_status = "not_applicable"
+            else:
+                if incoming_api_key or incoming_api_key_env:
+                    raise ValueError(
+                        "raw session credentials are not accepted for this auth_method"
+                    )
+                _reject_raw_session_credentials(payload)
+                api_key = None
+                api_key_env = None
+                if connection.auth_method in {"account_login", "external_cli_session"}:
+                    incoming_status = payload.get(
+                        "external_session_status",
+                        payload.get("externalSessionStatus"),
+                    )
+                    if incoming_status is not None:
+                        if incoming_status not in {"missing", "available"}:
+                            raise ValueError(
+                                "external_session_status must be missing or available"
+                            )
+                        external_status = str(incoming_status)
+                    elif (
+                        not existing
+                        or existing.connection.auth_method != connection.auth_method
+                    ):
+                        external_status = "missing"
+                else:
+                    external_status = "not_applicable"
+
+            stored = _StoredConnection(
+                connection=connection,
+                api_key=api_key,
+                api_key_env=api_key_env,
+                external_session_status=external_status,
+            )
+            self._connections[connection.connection_id] = stored
+            return stored.public()
+
+    def delete_connection(self, connection_id: str) -> None:
+        with self._lock:
+            if connection_id not in self._connections:
+                raise KeyError(f"connection not found: {connection_id}")
+            referenced_by = sorted(
+                binding.binding_id
+                for binding in self._bindings.values()
+                if binding.connection_id == connection_id
+            )
+            if referenced_by:
+                raise ValueError(
+                    f"connection is referenced by binding: {referenced_by[0]}"
+                )
+            del self._connections[connection_id]
+
+    def resolve_connection_secret(self, connection_id: str) -> str | None:
+        with self._lock:
+            stored = self._connections.get(connection_id)
+            if stored is None:
+                raise KeyError(f"connection not found: {connection_id}")
+            if stored.api_key:
+                return stored.api_key
+            if stored.api_key_env:
+                return os.environ.get(stored.api_key_env)
+            return None
+
+    def list_executors_public(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return [executor.to_public_dict() for executor in self._executors.values()]
+
+    def get_executor_public(self, executor_id: str) -> dict[str, Any]:
+        with self._lock:
+            executor = self._executors.get(executor_id)
+            if executor is None:
+                raise KeyError(f"executor not found: {executor_id}")
+            return executor.to_public_dict()
+
+    def list_bindings_public(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return [binding.to_public_dict() for binding in self._bindings.values()]
+
+    def get_binding_public(self, binding_id: str) -> dict[str, Any]:
+        with self._lock:
+            binding = self._bindings.get(binding_id)
+            if binding is None:
+                raise KeyError(f"binding not found: {binding_id}")
+            return binding.to_public_dict()
+
+    def upsert_binding(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        binding = Binding.from_mapping(payload)
+        with self._lock:
+            if binding.connection_id not in self._connections:
+                raise ValueError(f"unknown connection_id: {binding.connection_id}")
+            if binding.executor_id not in self._executors:
+                raise ValueError(f"unknown executor_id: {binding.executor_id}")
+            self._bindings[binding.binding_id] = binding
+            return binding.to_public_dict()
+
+    def delete_binding(self, binding_id: str) -> None:
+        with self._lock:
+            if binding_id not in self._bindings:
+                raise KeyError(f"binding not found: {binding_id}")
+            del self._bindings[binding_id]
 
     def list_public(self) -> list[dict[str, Any]]:
         with self._lock:
@@ -165,3 +339,16 @@ def _optional_env(
     if normalized.upper() != normalized:
         raise ValueError(f"{snake} must use uppercase characters")
     return normalized
+
+
+def _reject_raw_session_credentials(payload: Mapping[str, Any]) -> None:
+    forbidden = {
+        "token",
+        "access_token",
+        "accessToken",
+        "password",
+        "session_credential",
+        "sessionCredential",
+    }
+    if forbidden.intersection(payload):
+        raise ValueError("raw session credentials are not accepted")

@@ -189,7 +189,7 @@ Development Graph
 
 with TaskStore remaining durable product truth.
 
-### #151 — current next implementation
+### #151 — completed parallel-team foundation
 
 Build the first real LangGraph-native parallel worker team adapter:
 
@@ -218,13 +218,28 @@ This proves the reverse-agent integration boundary, not LangGraph itself.
 
 ---
 
-## Product Setup & Connections — fixed next phase after #151
+## Product Setup & Connections — active phase after #151
 
 **Purpose:** remove the current mismatch where provider/API configuration, executor selection and executor-owned login state are mixed together.
 
 Canonical design:
 
 `docs/architecture/CONNECTION_EXECUTOR_BINDING_ARCHITECTURE.md`
+
+### Task 3A / #165 — current contract foundation
+
+Task 3A adds distinct process-local Connection, ExecutorDescriptor and Binding
+contracts to the trusted Model Control store and loopback API. Public structures
+are sanitized, references fail closed, and the legacy ModelProfile path remains
+available for compatibility. The operational executor registry currently
+contains only `opencode`; Codex and OpenHands are not claimed as operational by
+this foundation.
+
+### Task 3B — next runtime consumption proof
+
+Task 3B must resolve a selected Binding through a supported executor adapter and
+prove the supported environment/config/session mechanism. Until that proof,
+Task 3A does not imply that Model Control credentials are inherited by OpenCode.
 
 ### Required domain split
 
@@ -347,21 +362,27 @@ The fixed near-term sequence is:
 #149 LangGraph orchestration seam          DONE
         |
         v
-#151 parallel worker team + verifier       NEXT/CURRENT
+#151 parallel worker team + verifier       DONE
         |
         v
 Product Setup & Connections
-  Connection / Executor / Binding
-  provider/API/account adapters
-  GitHub repository connection
+  Task 3A Connection / Executor / Binding foundation (#165, current)
+  Task 3B supported executor Binding consumption (next)
+  provider/API/account status adapters
+  GitHub repository connection + coherent live probe UX
   thin one-click launcher
+        |
+        v
+#152 Freshness Automation Foundation
         |
         v
 real OpenCode Multi-Agent dogfood
         |
         v
-continue Governance / CI / state / frontend debt burn-down
-using the new runtime as an acceptance mechanism
+Pack / Capability growth
+        |
+        v
+later data-based routing and broader debt burn-down
 ```
 
 This sequence intentionally allows mature Multi-Agent infrastructure to participate in later modernization instead of deferring it until all cleanup is complete.

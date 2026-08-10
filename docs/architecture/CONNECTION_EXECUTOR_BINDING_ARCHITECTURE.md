@@ -1,8 +1,13 @@
 # Connection / Executor / Binding Architecture
 
-> Status: **CANONICAL MODERNIZATION DESIGN** under #148.
+> Status: **CANONICAL MODERNIZATION DESIGN + TASK 3A FOUNDATION** under #148 / #165.
 > Scope: model/provider authentication, Agent/Executor integration, repository connection, and product startup UX.
 > This document is design authority, not code-mutation authority.
+
+Task 3A establishes the first process-local contracts and trusted-loopback API
+for `Connection`, `ExecutorDescriptor`, and `Binding`. It deliberately does not
+claim executor consumption: resolving a Binding into an OpenCode launch is Task
+3B. The legacy `ModelProfile` surface remains available during migration.
 
 ## 1. Problem being corrected
 
@@ -111,6 +116,11 @@ Codex
 OpenHands
 future concrete executor runtimes
 ```
+
+The Task 3A registry exposes only `opencode` as an operational executor. Codex
+and OpenHands remain architectural examples until a later bounded task adds and
+proves concrete runtime descriptors; their legacy `ModelProfile.executor`
+values are compatibility inputs, not operational registry claims.
 
 Multi-Agent orchestration is **not** an executor kind. LangGraph/team orchestration selects and coordinates worker execution; each worker still reaches a concrete executor through the normal execution adapter/router.
 
@@ -222,6 +232,13 @@ These names are conceptual; implementation may reuse existing files/types if tha
 
 Do not create three databases merely because there are three logical registries. Prefer one trusted configuration service/store unless implementation evidence proves otherwise.
 
+Task 3A follows that rule by extending the existing process-local
+`ModelProfileStore`. Public Connection responses expose only sanitized status;
+raw API keys stay process-local, environment-variable names are retained only
+inside the trusted store, and account/external-CLI Connections record status
+without accepting raw session credentials. Bindings contain identifiers only
+and are rejected when their Connection or Executor reference is unknown.
+
 ## 6. GitHub/repository connection is a separate domain
 
 GitHub is not a model provider Connection.
@@ -290,11 +307,12 @@ Modernization must make this UX explicit and coherent. Acceptable solutions incl
 The agreed sequence is:
 
 ```text
-#151 LangGraph real parallel team foundation
+#151 LangGraph real parallel team foundation (done)
         |
         v
 Product Setup & Connections
-  - Connection / Executor / Binding split
+  - Task 3A: Connection / Executor / Binding foundation (current)
+  - Task 3B: supported executor consumption of Bindings
   - provider/API/account status adapters
   - GitHub repository connection
   - true double-click/thin launcher
@@ -339,7 +357,7 @@ multiple independent secret stores
 executor-specific duplicated provider configuration UIs
 ```
 
-## 11. Acceptance criteria for the future implementation phase
+## 11. Acceptance criteria for the Product Setup implementation phase
 
 The design is considered implemented only when all of the following are proven:
 
@@ -354,6 +372,11 @@ The design is considered implemented only when all of the following are proven:
 - a user-facing double-click/thin launcher reuses the existing service lifecycle;
 - live connection testing has an explicit trusted opt-in path;
 - old `ModelProfile.executor` coupling has a documented retirement/migration path.
+
+Task 3A satisfies only the structural subset: distinct sanitized Connection,
+Executor, and Binding contracts; fail-closed references; trusted-loopback CRUD;
+and legacy ModelProfile compatibility. The single-configuration consumption
+criterion remains open until Task 3B proves an adapter using a Binding.
 
 ## 12. Non-goals
 

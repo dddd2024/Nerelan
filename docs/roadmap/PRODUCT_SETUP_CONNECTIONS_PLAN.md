@@ -6,8 +6,9 @@
 
 ```text
 #149 LangGraph seam               DONE
-#151 parallel team + verifier     CURRENT
-Product Setup & Connections       NEXT
+#151 parallel team + verifier     DONE
+Task 3A contract foundation       CURRENT (#165)
+Task 3B binding consumption       NEXT
 #152 Freshness Automation         AFTER SETUP
 real OpenCode multi-Agent dogfood AFTER FRESHNESS FOUNDATION
 ```
@@ -28,6 +29,12 @@ and implement the user rule:
 
 > Configure/authenticate once; supported executor adapters reuse that Connection without asking for the same credential a second time.
 
+Task 3A provides the process-local contracts, sanitized registry API and
+fail-closed references. It exposes only `opencode` as an operational executor
+descriptor and preserves the legacy `ModelProfile` API for migration. Task 3B
+must prove that a supported executor adapter consumes a selected Binding; Task
+3A alone does not claim credential inheritance or runtime execution.
+
 ## Workstream A — Connection model
 
 Replace the current conceptual coupling between provider/model profiles and executor choice.
@@ -41,7 +48,7 @@ Required authentication types:
 
 Do not expose raw secrets to browser task state, TaskStore, evidence or logs.
 
-## Workstream B — Executor adapters
+## Workstream B — Executor adapters (Task 3B)
 
 For OpenCode, Codex and later executors, detect/use only supported integration mechanisms:
 
@@ -111,3 +118,17 @@ After this phase, run #152 before treating real OpenCode multi-Agent dogfood / P
 
 Canonical architecture details live in `docs/architecture/CONNECTION_EXECUTOR_BINDING_ARCHITECTURE.md`.
 Freshness architecture lives in `docs/architecture/FRESHNESS_AND_DRIFT_GOVERNANCE.md` and Issue #152.
+
+## Fixed delivery order
+
+```text
+#149 DONE
+-> #151 DONE
+-> Task 3A Connection / Executor / Binding foundation (#165)
+-> Task 3B supported executor Binding consumption
+-> remaining Product Setup: repository connection, probe UX, thin launcher
+-> #152 Freshness Automation Foundation
+-> real OpenCode Multi-Agent dogfood
+-> Pack / Capability growth
+-> later data-based routing
+```

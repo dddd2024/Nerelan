@@ -141,6 +141,33 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
             if segments == ["api", "model-profiles"]:
                 self._send_json(HTTPStatus.OK, self.store.list_public())
                 return
+            if segments == ["api", "connections"]:
+                self._send_json(HTTPStatus.OK, self.store.list_connections_public())
+                return
+            if len(segments) == 3 and segments[:2] == ["api", "connections"]:
+                self._send_json(
+                    HTTPStatus.OK,
+                    self.store.get_connection_public(segments[2]),
+                )
+                return
+            if segments == ["api", "executors"]:
+                self._send_json(HTTPStatus.OK, self.store.list_executors_public())
+                return
+            if len(segments) == 3 and segments[:2] == ["api", "executors"]:
+                self._send_json(
+                    HTTPStatus.OK,
+                    self.store.get_executor_public(segments[2]),
+                )
+                return
+            if segments == ["api", "bindings"]:
+                self._send_json(HTTPStatus.OK, self.store.list_bindings_public())
+                return
+            if len(segments) == 3 and segments[:2] == ["api", "bindings"]:
+                self._send_json(
+                    HTTPStatus.OK,
+                    self.store.get_binding_public(segments[2]),
+                )
+                return
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "route not found"})
         except Exception as error:  # handler boundary
             self._send_exception(error)
@@ -155,6 +182,22 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
                 payload["id"] = segments[2]
                 self._send_json(HTTPStatus.OK, self.store.upsert(payload))
                 return
+            if len(segments) == 3 and segments[:2] == ["api", "connections"]:
+                payload = self._read_json()
+                payload["connection_id"] = segments[2]
+                self._send_json(
+                    HTTPStatus.OK,
+                    self.store.upsert_connection(payload),
+                )
+                return
+            if len(segments) == 3 and segments[:2] == ["api", "bindings"]:
+                payload = self._read_json()
+                payload["binding_id"] = segments[2]
+                self._send_json(
+                    HTTPStatus.OK,
+                    self.store.upsert_binding(payload),
+                )
+                return
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "route not found"})
         except Exception as error:  # handler boundary
             self._send_exception(error)
@@ -166,6 +209,14 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
             segments = self._segments()
             if len(segments) == 3 and segments[:2] == ["api", "model-profiles"]:
                 self.store.delete(segments[2])
+                self._send_json(HTTPStatus.OK, {"deleted": True})
+                return
+            if len(segments) == 3 and segments[:2] == ["api", "connections"]:
+                self.store.delete_connection(segments[2])
+                self._send_json(HTTPStatus.OK, {"deleted": True})
+                return
+            if len(segments) == 3 and segments[:2] == ["api", "bindings"]:
+                self.store.delete_binding(segments[2])
                 self._send_json(HTTPStatus.OK, {"deleted": True})
                 return
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "route not found"})
