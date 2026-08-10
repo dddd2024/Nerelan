@@ -84,6 +84,47 @@ def test_resolver_rejects_non_loopback_model_control_before_transport() -> None:
     assert transport.calls == []
 
 
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://127.0.0.1:8765",
+        "http://localhost:8765",
+        "http://[::1]:8765",
+    ],
+)
+def test_resolver_accepts_only_approved_loopback_hosts(base_url: str) -> None:
+    transport = _FakeTransport()
+
+    resolution = BindingResolver(base_url, transport=transport).resolve(
+        "coding-fast", task_executor="opencode"
+    )
+
+    assert resolution.binding_ref == "coding-fast"
+    assert len(transport.calls) == 3
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://127.0.0.2:8765",
+        "http://127.255.255.254:8765",
+        "http://[::2]:8765",
+        "http://loopback.example.test:8765",
+    ],
+)
+def test_resolver_rejects_unapproved_loopback_addresses_before_transport(
+    base_url: str,
+) -> None:
+    transport = _FakeTransport()
+
+    with pytest.raises(
+        BindingResolutionError, match="^model_control_not_loopback$"
+    ):
+        BindingResolver(base_url, transport=transport)
+
+    assert transport.calls == []
+
+
 def test_resolver_normalizes_secret_free_none_auth_resolution() -> None:
     transport = _FakeTransport()
     resolver = BindingResolver(transport=transport)

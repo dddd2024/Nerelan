@@ -185,13 +185,14 @@ def _validate_loopback_base_url(value: str) -> str:
         raise BindingResolutionError("model_control_url_invalid")
     if parsed.path not in {"", "/"}:
         raise BindingResolutionError("model_control_url_invalid")
-    host = parsed.hostname.lower()
+    host = parsed.hostname.casefold()
     if host != "localhost":
         try:
-            if not ip_address(host).is_loopback:
-                raise BindingResolutionError("model_control_not_loopback")
+            address = ip_address(host)
         except ValueError as exc:
             raise BindingResolutionError("model_control_not_loopback") from exc
+        if address not in {ip_address("127.0.0.1"), ip_address("::1")}:
+            raise BindingResolutionError("model_control_not_loopback")
     return normalized
 
 
