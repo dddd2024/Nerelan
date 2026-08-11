@@ -76,7 +76,7 @@ class TestLeaseCreation:
         assert isinstance(lease, ExecutionLease)
         assert len(lease.lease_id) >= 32
         assert lease.relay_url == "http://127.0.0.1:0"
-        assert lease.model_id == "openai-compatible/gpt-4o"
+        assert lease.model_id == "gpt-4o"
         assert lease.expires_at > __import__("datetime").datetime.now(
             __import__("datetime").timezone.utc
         )
@@ -111,7 +111,7 @@ class TestLeaseValidation:
                 "totally-missing-lease",
                 method="POST",
                 path="/chat/completions",
-                model="openai-compatible/gpt-4o",
+                model="gpt-4o",
             )
 
     def test_wrong_method_fails_closed(self, manager: CredentialRelayManager, snapshot: ExecutionSnapshot) -> None:
@@ -121,7 +121,7 @@ class TestLeaseValidation:
                 lease.lease_id,
                 method="GET",
                 path="/chat/completions",
-                model="openai-compatible/gpt-4o",
+                model="gpt-4o",
             )
 
     def test_wrong_path_fails_closed(self, manager: CredentialRelayManager, snapshot: ExecutionSnapshot) -> None:
@@ -131,7 +131,7 @@ class TestLeaseValidation:
                 lease.lease_id,
                 method="POST",
                 path="/responses",
-                model="openai-compatible/gpt-4o",
+                model="gpt-4o",
             )
 
     def test_wrong_model_fails_closed(self, manager: CredentialRelayManager, snapshot: ExecutionSnapshot) -> None:
@@ -157,12 +157,12 @@ class TestLeaseValidation:
     def test_released_lease_replay_fails(self, manager: CredentialRelayManager, snapshot: ExecutionSnapshot) -> None:
         lease = manager.create_lease(snapshot, relay_url="http://127.0.0.1:0")
         manager.release_lease(lease.lease_id)
-        with pytest.raises(CredentialRelayError, match="lease_released"):
+        with pytest.raises(CredentialRelayError, match="lease_not_found|lease_released"):
             manager._validate_lease_for_request(
                 lease.lease_id,
                 method="POST",
                 path="/chat/completions",
-                model="openai-compatible/gpt-4o",
+                model="gpt-4o",
             )
 
     def test_expired_lease_fails_closed(self, snapshot: ExecutionSnapshot) -> None:
@@ -175,7 +175,7 @@ class TestLeaseValidation:
                 lease.lease_id,
                 method="POST",
                 path="/chat/completions",
-                model="openai-compatible/gpt-4o",
+                model="gpt-4o",
             )
 
 
@@ -233,7 +233,7 @@ class TestRelayHttpIntegration:
                 lease2 = manager.create_lease(snap_with_local, relay_url=relay.url)
 
                 body = json.dumps({
-                    "model": "openai-compatible/gpt-4o",
+                    "model": "gpt-4o",
                     "messages": [{"role": "user", "content": "hello"}],
                 }).encode("utf-8")
                 conn = HTTPConnection("127.0.0.1", relay._port, timeout=5)
@@ -325,7 +325,7 @@ class TestRelayHttpIntegration:
                 snap_local = _make_snapshot(base_url=f"http://127.0.0.1:{port}")
                 lease = manager.create_lease(snap_local, relay_url=relay.url)
 
-                body = b'{"model":"openai-compatible/gpt-4o"}'
+                body = b'{"model":"gpt-4o"}'
                 conn = HTTPConnection("127.0.0.1", relay._port, timeout=5)
                 conn.request("POST", "/responses", body=body, headers={"Authorization": f"Bearer {lease.lease_id}"})
                 resp = conn.getresponse()
@@ -340,7 +340,7 @@ class TestRelayHttpIntegration:
         relay = CredentialRelayServer(manager, host="127.0.0.1", port=_free_port(), upstream_timeout=5.0)
         with relay:
             lease = manager.create_lease(snapshot, relay_url=relay.url)
-            body = b'{"model":"openai-compatible/gpt-4o"}'
+            body = b'{"model":"gpt-4o"}'
             conn = HTTPConnection("127.0.0.1", relay._port, timeout=5)
             conn.request("POST", "/chat/completions", body=body, headers={"Authorization": f"Bearer {lease.lease_id}"})
             resp = conn.getresponse()
@@ -351,7 +351,7 @@ class TestRelayHttpIntegration:
     def test_missing_lease_rejected(self, manager: CredentialRelayManager, snapshot: ExecutionSnapshot) -> None:
         relay = CredentialRelayServer(manager, host="127.0.0.1", port=_free_port(), upstream_timeout=5.0)
         with relay:
-            body = b'{"model":"openai-compatible/gpt-4o"}'
+            body = b'{"model":"gpt-4o"}'
             conn = HTTPConnection("127.0.0.1", relay._port, timeout=5)
             conn.request("POST", "/chat/completions", body=body, headers={"Content-Type": "application/json"})
             resp = conn.getresponse()
@@ -389,7 +389,7 @@ class TestRelayHttpIntegration:
                 snap_local = _make_snapshot(base_url=f"http://127.0.0.1:{port}")
                 lease = manager.create_lease(snap_local, relay_url=relay.url)
 
-                body = json.dumps({"model": "openai-compatible/gpt-4o"}).encode("utf-8")
+                body = json.dumps({"model": "gpt-4o"}).encode("utf-8")
 
                 conn = HTTPConnection("127.0.0.1", relay._port, timeout=5)
                 conn.request("POST", "/chat/completions", body=body, headers={"Authorization": f"Bearer {lease.lease_id}"})
@@ -449,12 +449,12 @@ class TestProviderMasterInjection:
             snap = _make_snapshot(base_url=f"http://127.0.0.1:{port}", resolved_api_key=master)
             lease = manager.create_lease(snap, relay_url="http://127.0.0.1:0")
 
-            body = b'{"model":"openai-compatible/gpt-4o"}'
+            body = b'{"model":"gpt-4o"}'
             active_lease = manager._validate_lease_for_request(
                 lease.lease_id,
                 method="POST",
                 path="/chat/completions",
-                model="openai-compatible/gpt-4o",
+                model="gpt-4o",
             )
             status, resp_body, _ = forward_to_upstream(active_lease, body=body, timeout=5.0)
             assert status == 200
@@ -498,7 +498,7 @@ class TestJsonAndSseResponses:
                 lease.lease_id,
                 method="POST",
                 path="/chat/completions",
-                model="openai-compatible/gpt-4o",
+                model="gpt-4o",
             )
             status, body, _ = forward_to_upstream(active, body=b"{}", timeout=5.0)
             assert status == 200
@@ -544,7 +544,7 @@ class TestJsonAndSseResponses:
                 lease.lease_id,
                 method="POST",
                 path="/chat/completions",
-                model="openai-compatible/gpt-4o",
+                model="gpt-4o",
             )
 
             import io
@@ -552,7 +552,7 @@ class TestJsonAndSseResponses:
             buf = io.BytesIO()
             status = stream_sse(
                 active,
-                body=b'{"model":"openai-compatible/gpt-4o"}',
+                body=b'{"model":"gpt-4o"}',
                 wfile=buf,
                 timeout=5.0,
             )

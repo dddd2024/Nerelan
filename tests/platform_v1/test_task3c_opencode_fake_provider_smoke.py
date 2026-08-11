@@ -68,7 +68,7 @@ def _make_binding_resolution(base_url: str) -> OpenCodeBindingResolution:
         connection_id="smoke-conn",
         executor_id="opencode",
         provider_id="openai-compatible",
-        model_id="openai-compatible/gpt-4o",
+        model_id="reverse-agent-relay/gpt-4o",
         base_url=base_url,
         auth_method="api_key",
         external_session_status="not_applicable",
@@ -145,15 +145,17 @@ class TestFakeProviderSmoke:
         lease = ExecutionLeaseHandle(
             lease_id=FAKE_LEASE_ID,
             relay_url="http://127.0.0.1:9000",
-            model_id="openai-compatible/gpt-4o",
+            model_id="reverse-agent-relay/gpt-4o",
         )
 
         config_content = build_binding_config_content(resolution, lease=lease)
         config_obj = json.loads(config_content)
 
-        assert "relay" in config_obj["provider"]
-        assert config_obj["provider"]["relay"]["options"]["baseURL"] == "http://127.0.0.1:9000"
-        assert config_obj["provider"]["relay"]["apiKey"] == FAKE_LEASE_ID
+        assert "reverse-agent-relay" in config_obj["provider"]
+        assert config_obj["provider"]["reverse-agent-relay"]["options"]["baseURL"] == "http://127.0.0.1:9000"
+        assert config_obj["provider"]["reverse-agent-relay"]["options"]["apiKey"] == FAKE_LEASE_ID
+        assert config_obj["provider"]["reverse-agent-relay"]["npm"] == "@ai-sdk/openai-compatible"
+        assert "gpt-4o" in config_obj["provider"]["reverse-agent-relay"]["models"]
         assert FAKE_MASTER_KEY not in config_content
         assert "provider-master" not in config_content
 
@@ -172,7 +174,7 @@ class TestFakeProviderSmoke:
         lease = ExecutionLeaseHandle(
             lease_id=FAKE_LEASE_ID,
             relay_url="http://127.0.0.1:9000",
-            model_id="openai-compatible/gpt-4o",
+            model_id="reverse-agent-relay/gpt-4o",
         )
         config_content = build_binding_config_content(resolution, lease=lease)
         child_env = build_binding_child_env(
@@ -199,7 +201,7 @@ class TestFakeProviderSmoke:
             relay = CredentialRelayServer(manager, host="127.0.0.1", port=_free_port(), upstream_timeout=5.0)
             with relay:
                 body = json.dumps({
-                    "model": "openai-compatible/gpt-4o",
+                    "model": "gpt-4o",
                     "messages": [{"role": "user", "content": "hello"}],
                 }).encode("utf-8")
 
@@ -242,7 +244,7 @@ class TestFakeProviderSmoke:
 
             relay = CredentialRelayServer(manager, host="127.0.0.1", port=_free_port(), upstream_timeout=5.0)
             with relay:
-                body = b'{"model":"openai-compatible/gpt-4o","messages":[]}'
+                body = b'{"model":"gpt-4o","messages":[]}'
                 conn = HTTPConnection("127.0.0.1", relay._port, timeout=5)
                 conn.request(
                     "POST",

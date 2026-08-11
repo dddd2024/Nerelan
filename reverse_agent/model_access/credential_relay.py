@@ -125,14 +125,18 @@ class CredentialRelayManager:
             raise CredentialRelayError("lease_requires_resolved_secret")
 
         _validate_loopback_url(relay_url)
-        model_id = _normalize_model_id(snapshot.provider, snapshot.raw_model_id)
+        model_id = snapshot.raw_model_id
 
         expiry = expiry_seconds if expiry_seconds is not None else self._default_expiry
         if not isinstance(expiry, (int, float)) or expiry <= 0:
             raise CredentialRelayError("invalid_expiry_seconds")
 
-        lease_id = secrets.token_urlsafe(48)
-        assert len(lease_id) >= 32
+        # Lease IDs are prefixed with "sk-" so that OpenCode's built-in
+        # OpenAI provider validator accepts them as valid API keys.
+        # The remaining 48 bytes are high-entropy URL-safe randomness.
+        raw = secrets.token_urlsafe(48)
+        assert len(raw) >= 32
+        lease_id = "sk-" + raw
 
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=expiry)
 
@@ -155,10 +159,9 @@ class CredentialRelayManager:
 
     def release_lease(self, lease_id: str) -> None:
         with self._lock:
-            active = self._leases.get(lease_id)
-            if active is None:
-                return
-            active.released = True
+            active = self._leases.pop(lease_id, None)
+            if active is not None:
+                active.released = True
             self._cleanup_locked()
 
     def release_all(self) -> None:
@@ -247,6 +250,7 @@ def forward_to_upstream(
     timeout: float = 120.0,
 ) -> tuple[int, bytes, dict[str, str]]:
     """Inject provider Authorization and forward to the frozen upstream URL."""
+    _validate_upstream_url(active.snapshot.base_url)
     upstream_url = f"{active.snapshot.base_url}/chat/completions"
     headers = {
         "Authorization": f"Bearer {active.snapshot.resolved_api_key}",
@@ -268,7 +272,13 @@ def stream_sse(
     wfile: Any,
     timeout: float = 120.0,
 ) -> int:
-    """Forward request and relay SSE response directly to the client wfile."""
+    """Forward request and relay raw SSE response directly to the client wfile.
+
+    Pure passthrough: no fabricated status events, no extra [DONE], no
+    newline injection, no payload transformation. The upstream stream is
+    read in bounded chunks and flushed to the client in upstream order.
+    """
+    _validate_upstream_url(active.snapshot.base_url)
     upstream_url = f"{active.snapshot.base_url}/chat/completions"
     headers = {
         "Authorization": f"Bearer {active.snapshot.resolved_api_key}",
@@ -281,22 +291,15 @@ def stream_sse(
     try:
         with urlopen(req, timeout=timeout) as resp:  # noqa: S310
             status = int(resp.status)
-            wfile.write(f"data: {json.dumps({'status': status})}\n\n".encode("utf-8"))
-            wfile.flush()
             chunk_size = 4096
             while True:
                 chunk = resp.read(chunk_size)
                 if not chunk:
                     break
-                line = chunk.decode("utf-8", errors="replace")
-                wfile.write(line.encode("utf-8"))
-                wfile.write(b"\n")
+                wfile.write(chunk)
                 wfile.flush()
-            wfile.write("data: [DONE]\n\n".encode("utf-8"))
-            wfile.flush()
             return status
     except HTTPError as exc:
-        body = exc.read(_MAX_BODY_BYTES)
         return int(exc.code)
     except (URLError, TimeoutError, OSError) as exc:
         raise CredentialRelayError(f"upstream_error:{exc.__class__.__name__}") from exc
@@ -358,6 +361,22 @@ class _RelayHandler(BaseHTTPRequestHandler):
             return
 
         try:
+            accept = self.headers.get("Accept", "")
+            if "text/event-stream" in accept:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                try:
+                    stream_sse(
+                        active,
+                        body=body,
+                        wfile=self.wfile,
+                        timeout=self.upstream_timeout,
+                    )
+                except CredentialRelayError:
+                    pass
+                return
             status, response_body, _resp_headers = forward_to_upstream(
                 active,
                 body=body,
@@ -449,6 +468,30 @@ def _validate_loopback_url(value: str) -> None:
         raise CredentialRelayError("relay_url_not_loopback")
     if not address.is_loopback:
         raise CredentialRelayError("relay_url_not_loopback")
+
+
+def _validate_upstream_url(base_url: str) -> None:
+    """Fail closed on non-loopback cleartext HTTP upstream URLs.
+
+    HTTPS is allowed for any host. HTTP is only allowed for exact loopback
+    addresses (127.0.0.1, ::1, localhost). No DNS resolution is performed;
+    the boundary is determined purely from the URL hostname.
+    """
+    parsed = urlsplit(base_url.strip())
+    if parsed.scheme == "https":
+        return
+    if parsed.scheme == "http":
+        host = (parsed.hostname or "").casefold()
+        if host == "localhost":
+            return
+        try:
+            address = ip_address(host)
+        except ValueError:
+            raise CredentialRelayError("upstream_cleartext_not_loopback")
+        if address not in {ip_address("127.0.0.1"), ip_address("::1")}:
+            raise CredentialRelayError("upstream_cleartext_not_loopback")
+        return
+    raise CredentialRelayError("upstream_url_invalid")
 
 
 def _normalize_model_id(provider: str, model_id: str) -> str:

@@ -79,6 +79,7 @@ def test_build_opencode_argv_native() -> None:
     assert argv == [
         "/usr/bin/opencode",
         "run",
+        "--pure",
         "--model",
         "sensetime/sensenova-6.7-flash-lite",
         "--dir",
@@ -151,11 +152,7 @@ class _GuardedParentEnvironment(Mapping[str, str]):
         self.read_keys: list[str] = []
         self.allowed = {
             "PATH": "C:\\safe-bin",
-            "PATHEXT": ".EXE;.CMD",
             "SystemRoot": "C:\\Windows",
-            "TEMP": "C:\\safe-temp",
-            "USERPROFILE": "C:\\Users\\safe",
-            "APPDATA": "C:\\Users\\safe\\AppData\\Roaming",
         }
 
     def get(self, key: str, default=None):
@@ -179,8 +176,11 @@ def test_binding_config_contains_only_provider_base_url_metadata() -> None:
 
     assert json.loads(content) == {
         "provider": {
-            "openai-compatible": {
-                "options": {"baseURL": "https://models.example.test/v1"}
+            "reverse-agent-relay": {
+                "name": "Reverse Agent Relay",
+                "npm": "@ai-sdk/openai-compatible",
+                "options": {"baseURL": "https://models.example.test/v1"},
+                "models": {"sense-coding-fast": {}},
             }
         }
     }
@@ -197,11 +197,12 @@ def test_binding_child_environment_uses_explicit_allowlist_without_iteration() -
 
     assert child == {
         "PATH": "C:\\safe-bin",
-        "PATHEXT": ".EXE;.CMD",
         "SystemRoot": "C:\\Windows",
-        "TEMP": "C:\\safe-temp",
-        "USERPROFILE": "C:\\Users\\safe",
-        "APPDATA": "C:\\Users\\safe\\AppData\\Roaming",
+        "OPENCODE_DISABLE_AUTOUPDATE": "true",
+        "OPENCODE_DISABLE_MODELS_FETCH": "true",
+        "OPENCODE_DISABLE_LSP_DOWNLOAD": "true",
+        "OPENCODE_DISABLE_DEFAULT_PLUGINS": "true",
+        "OPENCODE_DISABLE_CLAUDE_CODE": "true",
         "OPENCODE_CONFIG_CONTENT": content,
     }
     assert not parent.forbidden.intersection(parent.read_keys)
@@ -604,8 +605,11 @@ def test_binding_execution_passes_only_secret_free_env_and_sanitized_metadata() 
         config = json.loads(child_env["OPENCODE_CONFIG_CONTENT"])
         assert config == {
             "provider": {
-                "openai-compatible": {
-                    "options": {"baseURL": "https://models.example.test/v1"}
+                "reverse-agent-relay": {
+                    "name": "Reverse Agent Relay",
+                    "npm": "@ai-sdk/openai-compatible",
+                    "options": {"baseURL": "https://models.example.test/v1"},
+                    "models": {"sense-coding-fast": {}},
                 }
             }
         }

@@ -43,6 +43,7 @@ def _build_executor_kwargs(
     task: Mapping[str, Any],
     *,
     binding_resolver: Any | None = None,
+    lease_provider: Any | None = None,
 ) -> dict[str, Any]:
     kwargs: dict[str, Any] = {}
     executor_kind = str(_map_task_field(task, "executor_kind", ""))
@@ -60,6 +61,8 @@ def _build_executor_kwargs(
             kwargs["model_id"] = model_id
         kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
         kwargs["base_ref"] = str(_map_task_field(task, "branch", ""))
+        if lease_provider is not None:
+            kwargs["lease_provider"] = lease_provider
     return kwargs
 
 
@@ -81,10 +84,12 @@ class TaskExecutionService:
         store: TaskStore,
         router: ExecutorRouter,
         binding_resolver: Any | None = None,
+        lease_provider: Any | None = None,
     ) -> None:
         self.store = store
         self.router = router
         self.binding_resolver = binding_resolver
+        self.lease_provider = lease_provider
 
     def execute(
         self,
@@ -121,6 +126,7 @@ class TaskExecutionService:
             executor_kwargs = _build_executor_kwargs(
                 task,
                 binding_resolver=self.binding_resolver,
+                lease_provider=self.lease_provider,
             )
         except ExecutorRuntimeError as exc:
             self.store.classify_failure(

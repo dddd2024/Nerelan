@@ -27,6 +27,7 @@ from ..model_access.contracts import ExecutionSnapshot
 from ..model_access.credential_relay import (
     CredentialRelayManager,
     ExecutionLease,
+    _normalize_model_id,
 )
 from ..model_access.service import _handler_factory as _model_control_handler_factory
 from ..model_access.store import ModelProfileStore
@@ -85,25 +86,45 @@ class CombinedTrustedHost:
         return self._relay_manager
 
     def _lease_provider_factory(self) -> Any:
+        manager = self._relay_manager
+        store = self._store
+        relay_url = self.relay_url
+
         def _provider(resolution: Any) -> ExecutionLeaseHandle:
-            snapshot = self._store.resolve_execution_snapshot(resolution.binding_ref)
+            snapshot = store.resolve_execution_snapshot(resolution.binding_ref)
             if snapshot.binding_id != resolution.binding_ref:
                 raise RuntimeError("binding_id_drift_before_lease")
+            if snapshot.connection_id != resolution.connection_id:
+                raise RuntimeError("connection_id_drift_before_lease")
+            if snapshot.executor_id != resolution.executor_id:
+                raise RuntimeError("executor_id_drift_before_lease")
             if snapshot.provider != resolution.provider_id:
                 raise RuntimeError("provider_drift_before_lease")
             if snapshot.base_url != resolution.base_url:
                 raise RuntimeError("base_url_drift_before_lease")
             if snapshot.auth_method != resolution.auth_method:
                 raise RuntimeError("auth_method_drift_before_lease")
+            expected_model = _normalize_model_id(snapshot.provider, snapshot.raw_model_id)
+            if expected_model != resolution.model_id:
+                raise RuntimeError("model_drift_before_lease")
 
-            lease = self._relay_manager.create_lease(
+            lease = manager.create_lease(
                 snapshot,
-                relay_url=self.relay_url,
+                relay_url=relay_url,
             )
+            lease_id = lease.lease_id
+
+            provider_facing_model = lease.model_id
+            cli_model = f"reverse-agent-relay/{provider_facing_model}"
+
+            def _release() -> None:
+                manager.release_lease(lease_id)
+
             return ExecutionLeaseHandle(
                 lease_id=lease.lease_id,
                 relay_url=lease.relay_url,
-                model_id=lease.model_id,
+                model_id=cli_model,
+                _release_callback=_release,
             )
 
         return _provider
@@ -114,8 +135,8 @@ class CombinedTrustedHost:
         model_control_port: int | None = None,
         task_api_port: int | None = None,
     ) -> None:
-        mcp = model_control_port or self._model_control_port
-        tap = task_api_port or self._task_api_port
+        mcp = model_control_port if model_control_port is not None else self._model_control_port
+        tap = task_api_port if task_api_port is not None else self._task_api_port
 
         live_enabled = os.environ.get("REVERSE_AGENT_MODEL_CONTROL_LIVE") == "1"
         mc_handler = _model_control_handler_factory(
@@ -126,17 +147,20 @@ class CombinedTrustedHost:
         self._model_server = ThreadingHTTPServer(
             (self._model_control_host, mcp), mc_handler
         )
-        self.model_control_url = f"http://{self._model_control_host}:{mcp}"
+        actual_mc_port = self._model_server.server_address[1]
+        self.model_control_url = f"http://{self._model_control_host}:{actual_mc_port}"
 
         task_handler = _task_handler_factory(
             self._task_store,
             self._router,
             allowed_origin=self._allowed_origin,
+            lease_provider=self._lease_provider_factory(),
         )
         self._task_server = ThreadingHTTPServer(
             (self._task_api_host, tap), task_handler
         )
-        self.task_api_url = f"http://{self._task_api_host}:{tap}"
+        actual_task_port = self._task_server.server_address[1]
+        self.task_api_url = f"http://{self._task_api_host}:{actual_task_port}"
 
         from ..model_access.credential_relay import run_credential_relay_server
         relay_srv = run_credential_relay_server(
