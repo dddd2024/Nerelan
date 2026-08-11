@@ -1,8 +1,9 @@
 # OpenHands Reuse Map
 
-This document records the exact OpenHands 1.8.0 source-to-target mappings for
-the reverse-agent Frontend V1 adaptation on branch
-`agent/frontend-v1-openhands-ui`.
+This document preserves the historical OpenHands 1.8.0 source-to-target mapping
+created for the reverse-agent Frontend V1 adaptation on branch
+`agent/frontend-v1-openhands-ui`, and records the later bounded Agent Canvas
+v1.6.1 direct source fork.
 
 - **Upstream repository:** OpenHands/OpenHands
 - **Upstream tag:** 1.8.0
@@ -10,12 +11,38 @@ the reverse-agent Frontend V1 adaptation on branch
 - **Upstream license:** MIT
 - **Clone path:** `F:/reverse-agent-upstreams/OpenHands-1.8.0`
 
-reverse-agent does **not** fork OpenHands, does not copy its frontend or Agent
-Loop, and does not build a second control platform. The reuse is structural
-adaptation only — OpenHands runtime, sandbox, backend API, model, and
-credential code is not imported.
+The historical OpenHands 1.8.0 reuse below remains structural adaptation.
+Stage B1 additionally contains an explicit, bounded direct source fork of
+selected Agent Canvas v1.6.1 presentation/layout files. Neither reuse path
+imports OpenHands runtime, sandbox, backend API, model, or credential code.
 
-## Source-to-target reuse map (exact upstream paths)
+## Agent Canvas v1.6.1 pinned direct source fork
+
+- **Repository:** OpenHands/agent-canvas
+- **Tag:** v1.6.1
+- **Commit:** `43f091baf135142ed6c146f888f44a957141193f`
+- **License:** MIT
+- **Fork root:** `frontend/src/vendor/agent-canvas-v1.6.1/`
+
+| Exact upstream path | Exact local path | Reuse type | Modifications and runtime-boundary rationale |
+|---|---|---|---|
+| `src/components/features/sidebar/sidebar-layout.ts` | `frontend/src/vendor/agent-canvas-v1.6.1/sidebar-layout.ts` | pinned direct source fork | Replaced `#/utils/utils` with `@/lib/cn`; mapped active color to `bg-ra-tertiary`; retained upstream row, icon-slot, collapsed-rail, and transition helpers. No runtime dependency existed. |
+| `src/components/features/sidebar/sidebar-collapsed-icon-slot.tsx` | `frontend/src/vendor/agent-canvas-v1.6.1/sidebar-collapsed-icon-slot.tsx` | pinned direct source fork | Replaced local utility import; retained the nested background/glyph slot structure. It receives `active` and children from reverse-agent rather than OpenHands navigation state. |
+| `src/components/ui/resize-handle.tsx` | `frontend/src/vendor/agent-canvas-v1.6.1/resize-handle.tsx` | pinned direct source fork | Retained zero-width frame, 12px invisible drag target, one-pixel hover/drag line, and drag-state styling; added the existing reverse-agent keyboard slider contract and local token/imports. No external resize-hook dependency was added. |
+| `src/components/features/sidebar/sidebar.tsx` and `src/components/features/sidebar/sidebar-rail-body.tsx` | `frontend/src/vendor/agent-canvas-v1.6.1/agent-canvas-sidebar-frame.tsx` | directly derived pinned source fork | Retained 60/300px rail, collapsed empty-space expand behavior, header/action/navigation/footer layout, borders, and density. Replaced settings/config/navigation/backend health/registry/modal hooks with neutral React slots. |
+| `src/components/features/conversation/conversation-main/conversation-main.tsx` | `frontend/src/vendor/agent-canvas-v1.6.1/agent-canvas-workbench-frame.tsx` | directly derived pinned source fork | Retained the primary/secondary flex workbench, header hierarchy, right tab strip, surface/border structure, transitions, and resize boundary. Replaced ChatInterface, conversation store/API, and responsive hook dependencies with reverse-agent-neutral panes, tabs, state, and refs. |
+
+The thin reverse-agent adapters are `frontend/src/components/sidebar.tsx` and
+`frontend/src/components/task-detail.tsx`. They supply React Router links,
+Task activity/changes/evidence/authority panels, and local collapse/resize
+state to the vendored presentation frames. No fake Agent Server API, backend
+registry, OpenHands provider, or second execution-state model is present.
+
+## Historical OpenHands 1.8.0 structural map (PR #119 snapshot)
+
+The table below records the pre-PR #134 fixture-only baseline. Its fixture-only
+wording is retained as historical evidence and does not describe current runtime.
+The current runtime uses the reverse-agent Task API and OpenCode paths.
 
 | OpenHands 1.8.0 source path | Upstream component | reverse-agent target path | Reuse type | Modifications | License |
 |---|---|---|---|---|---|
@@ -59,7 +86,11 @@ credential code is not imported.
 | `src/themes/color-themes.ts` | Color theme definitions | `frontend/src/index.css` (`@theme inline`) | structurally-ported | `--cool-grey-*` → `--ra-*` tokens; `--oh-accent` → `--ra-accent`; green/red status → `--ra-status-success`/`--ra-status-error` | MIT |
 | `tailwind.config.js` | Tailwind config | `frontend/src/index.css` (`@theme inline` + `@layer base`) | structurally-ported | Color palette + typography plugin → `@theme` + `@layer` in CSS; dark mode class preserved | MIT |
 
-## Not reused (concrete incompatibilities)
+## Historical PR #119 exclusions (snapshot)
+
+These exclusions describe the historical PR #119 structural-adaptation baseline,
+not the current reverse-agent runtime. The current Task API/OpenCode data flow is
+not a fixture-only browser path.
 
 | OpenHands source | Reason not reused |
 |---|---|
