@@ -845,3 +845,35 @@ def test_bootstrap_command_plan_provenance_rejects_tampered_plan(tmp_path: Path,
         item["name"] == "command_plan_provenance" and item["status"] == "FAIL"
         for item in result["checks"]
     )
+
+
+def test_project_gate_transition_command_plan_preserves_bootstrap_collision(
+    tmp_path: Path,
+) -> None:
+    """#178 AC#2: the public project-gate generation entrypoint must
+    project a collision Decision into a PASSED plan that retains two
+    distinct colliding bootstrap commands with distinct command IDs.
+
+    This exercises ``project_gate.transition_command_plan`` directly, not
+    the lower-level build/validate pair, closing the only remaining
+    acceptance-coverage gap reported by Owner audit.
+    """
+
+    state_dir = tmp_path / "project_state"
+    cmd_a, cmd_b = _collision_commands()
+    _write_collision_decision(state_dir, commands=[cmd_a, cmd_b])
+    result = project_gate.transition_command_plan(state_dir=state_dir)
+    assert result["plan_status"] == "PASSED"
+    assert result["decision_id"] == "decision_collision"
+    bootstrap = [
+        cmd for cmd in result["commands"] if cmd.get("bootstrap_exception")
+    ]
+    assert len(bootstrap) == 2
+    bootstrap_commands = {cmd["command"] for cmd in bootstrap}
+    assert cmd_a in bootstrap_commands
+    assert cmd_b in bootstrap_commands
+    ids = [cmd["command_id"] for cmd in bootstrap]
+    assert len(ids) == 2
+    assert all(i for i in ids)
+    assert ids[0] != ids[1]
+    assert all(i.startswith("bootstrap.") for i in ids)
