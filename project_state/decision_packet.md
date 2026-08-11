@@ -1,17 +1,470 @@
 # Decision Packet
 
 ```json decision_meta
-{"schema_version":1,"decision_id":"decision_20260811_issue176_task3c_narrow_relay_r2_v3","round_id":"round_20260811_issue176_task3c_narrow_relay_r2_v3","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260811_issue176_task3c_narrow_relay_r2_v4",
+  "round_id": "round_20260811_issue176_task3c_narrow_relay_r2_v4",
+  "status": "APPROVED",
+  "mainline": "engineering_branch",
+  "skill_profiles": ["reverse-agent-iteration@v2"]
+}
 ```
 
 ```json decision_contract
-{"transition_kernel_required":true,"follows_last_decision_id":"decision_20260810_issue176_task3c_narrow_relay_r2_v2","follows_last_round_id":"round_20260810_issue176_task3c_narrow_relay_r2_v2","previous_audit_outcome":"TASK3C_R2_V2_BLOCKED_BY_BOOTSTRAP_COMMAND_ID_COLLISION_ISSUE178_LANDED","workstream_id":"issue176-task3c-narrow-relay-r2-v3","source_issue":176,"parent_issue":172,"required_branch":"owner/issue176-task3c-narrow-relay-r2-v3","starting_head":"cd1dae758d742bdc20d8aef89f04d5f42c95ba00","activation_base_sha":"cd1dae758d742bdc20d8aef89f04d5f42c95ba00","risk_tier":"R2","governance_artifact_risk_tier":"R2","authorized_risk_tier":"R2","authorized_risk_paths":["project_state/gates/**"],"runner_managed_artifact_paths":[],"decision_commit_must_precede_implementation":true,"decision_content_immutable_after_activation":true,"pr_creation_allowed":false,"draft_pr_creation_allowed":false,"pr_body_update_allowed":false,"pr_comment_allowed":false,"issue_comment_allowed":false,"branch_creation_allowed":true,"worktree_creation_allowed":true,"local_commit_allowed":true,"normal_push_allowed":true,"exact_head_workflow_observation_allowed":true,"merge_allowed":false,"mark_ready_allowed":false,"auto_merge_allowed":false,"force_push_allowed":false,"rebase_allowed":false,"direct_push_to_main_allowed":false,"release_allowed":false,"deployment_allowed":false,"real_provider_credential_allowed":false,"live_provider_probe_allowed":false,"model_execution_required":false,"model_api_invocation_allowed":false,"opencode_invocation_allowed":true,"codex_invocation_allowed":false,"openhands_invocation_allowed":false,"package_installation_allowed":false,"provider_configuration_mutation_allowed":false,"credential_value_access_allowed":false,"bounded_external_source_access_allowed":false,"repair_attempt_limit":1,"infrastructure_retry_limit":0,"audit_generation_allowed":false,"prior_audits_immutable":true,"bootstrap_state_initial":"BOOTSTRAP_OPEN","capability_policy":{"runner_dispatch_allowed":false,"model_api_invocation_allowed":false,"external_reverse_tool_invocation_allowed":false,"unknown_binary_execution_allowed":false,"destructive_operations_allowed":false,"bmad_installation_allowed":false,"network_access_default_allowed":false,"local_network_exceptions":["git push origin owner/issue176-task3c-narrow-relay-r2-v3"],"ci_network_exceptions":[],"remote_observation_read_only_allowed":true,"direct_push_to_main_allowed":false,"merge_allowed":false,"force_push_allowed":false,"rebase_during_execution_allowed":false,"tag_or_release_allowed":false},"path_risk_floor":[{"pattern":".github/workflows/**","minimum_risk":"R2"},{"pattern":"**/secrets/**","minimum_risk":"R3"}],"bootstrap_exception_files":["project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/bootstrap_state.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"],"bootstrap_exception_commands":["git -C F:\\reverse-agent-issue170-task3b-r1-20260810 status --short","git -C F:\\reverse-agent-issue170-task3b-r1-20260810 fetch origin owner/repository-modernization-v2-planning","git -C F:\\reverse-agent-issue170-task3b-r1-20260810 fetch origin owner/issue176-task3c-narrow-relay-r2-v3","git -C F:\\reverse-agent-issue170-task3b-r1-20260810 worktree list --porcelain","git -C F:\\reverse-agent-issue170-task3b-r1-20260810 branch --list owner/issue176-task3c-narrow-relay-r2-v3","git -C F:\\reverse-agent-issue170-task3b-r1-20260810 worktree add --track -b owner/issue176-task3c-narrow-relay-r2-v3 F:\\reverse-agent-issue176-task3c-r2-v3 origin/owner/issue176-task3c-narrow-relay-r2-v3","git status --short","git rev-parse HEAD","git rev-parse origin/owner/repository-modernization-v2-planning","git merge-base HEAD cd1dae758d742bdc20d8aef89f04d5f42c95ba00","git show HEAD:project_state/decision_packet.md","python -m reverse_agent.project_gate startup-snapshot --state-dir project_state","python -m reverse_agent.project_gate transition-command-plan --state-dir project_state","python -m reverse_agent.project_gate transition-lint --state-dir project_state","python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre"],"allowed_commands":[{"command_id":"observation.git_status_before","command":"git status --short","phase":"status","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"observation.git_head_before","command":"git rev-parse HEAD","phase":"status","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"observation.planning_head","command":"git rev-parse origin/owner/repository-modernization-v2-planning","phase":"status","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"repository_state_attestation"},{"command_id":"observation.merge_base","command":"git merge-base HEAD cd1dae758d742bdc20d8aef89f04d5f42c95ba00","phase":"status","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"test.task3c_focused","command":"python -m pytest tests/test_model_access.py tests/platform_v1 tests/test_dev_up_contract.py -q","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"test.full_regression","command":"python -m pytest -q","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"test.fake_provider_opencode_smoke","command":"python -m pytest tests/platform_v1/test_task3c_opencode_fake_provider_smoke.py -q","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks","known_local_opencode_invocation","loopback_fixture_network"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"validation.working_diff_check","command":"git diff --check","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"validation.working_path_list","command":"git diff --name-only","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"publication.stage_allowed","command":"git add -- reverse_agent/model_access reverse_agent/platform_v1 dev-up.ps1 tests/test_model_access.py tests/test_dev_up_contract.py tests/platform_v1","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["stage_allowed_paths"],"network_access":false,"required_evidence_source":"local_command_evidence","allowed_only_after_validation":true,"allowed_mutated_paths":["reverse_agent/model_access/contracts.py","reverse_agent/model_access/store.py","reverse_agent/model_access/service.py","reverse_agent/model_access/credential_relay.py","reverse_agent/platform_v1/binding_resolver.py","reverse_agent/platform_v1/task_execution.py","reverse_agent/platform_v1/task_runtime.py","reverse_agent/platform_v1/task_service.py","reverse_agent/platform_v1/opencode_executor.py","reverse_agent/platform_v1/trusted_host.py","dev-up.ps1","tests/test_model_access.py","tests/test_dev_up_contract.py","tests/platform_v1/**"]},{"command_id":"validation.staged_path_list","command":"git diff --cached --name-only","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"validation.staged_diff_check","command":"git diff --cached --check","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"publication.commit_product","command":"git commit -m \"feat: add execution-scoped provider credential relay\"","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["local_commit"],"network_access":false,"required_evidence_source":"local_command_evidence","allowed_only_after_validation":true},{"command_id":"validation.product_commit_paths","command":"git diff --name-only HEAD^..HEAD","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"validation.product_commit_diff_check","command":"git diff --check HEAD^..HEAD","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"observation.git_head_after","command":"git rev-parse HEAD","phase":"status","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},{"command_id":"publication.push_branch","command":"git push origin owner/issue176-task3c-narrow-relay-r2-v3","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["push","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","allowed_only_after_validation":true},{"command_id":"observation.git_status_after","command":"git status --short","phase":"status","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"}],"allowed_mutated_paths":["reverse_agent/model_access/contracts.py","reverse_agent/model_access/store.py","reverse_agent/model_access/service.py","reverse_agent/model_access/credential_relay.py","reverse_agent/platform_v1/binding_resolver.py","reverse_agent/platform_v1/task_execution.py","reverse_agent/platform_v1/task_runtime.py","reverse_agent/platform_v1/task_service.py","reverse_agent/platform_v1/opencode_executor.py","reverse_agent/platform_v1/trusted_host.py","dev-up.ps1","tests/test_model_access.py","tests/test_dev_up_contract.py","tests/platform_v1/**","project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/bootstrap_state.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"],"reference_paths":["AGENTS.md","README.md","pyproject.toml","reverse_agent/project_gate.py","reverse_agent/control_plane/legacy_adapter.py","reverse_agent/control_plane/transition.py","tests/test_project_gate.py","tests/test_control_plane_transition.py"],"generated_artifact_paths":["project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/bootstrap_state.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"],"forbidden_mutated_paths":["project_state/decision_packet.md","AGENTS.md","README.md","pyproject.toml","requirements*.txt","poetry.lock","uv.lock",".github/**","frontend/**","docs/**","dev-down.ps1","reverse_agent/project_gate.py","reverse_agent/control_plane/**","tests/test_project_gate.py","tests/test_control_plane_transition.py","project_state/current_state.json","project_state/state_manifest.json","project_state/artifact_index.json","project_state/schemas/**","project_state/rounds/**","project_state/audits/**","project_state/mainline_merge_intents/**"],"forbidden_operations":["direct_push_main","auto_merge","merge","mark_ready","force_push","rebase","amend","squash","tag_or_release","release","deployment","real_credential_access","credential_publication","real_provider_call","real_model_call","package_installation","dependency_change","docker_or_container_gateway","new_gateway_product_research","codex_invocation","openhands_invocation","runner_dispatch","unbounded_network_access"]}
+{
+  "transition_kernel_required": true,
+  "follows_last_decision_id": "decision_20260811_issue176_task3c_narrow_relay_r2_v3",
+  "follows_last_round_id": "round_20260811_issue176_task3c_narrow_relay_r2_v3",
+  "previous_audit_outcome": "TASK3C_R2_V3_OWNER_AUDIT_REJECTED_SECURITY_AND_VALIDATION_GAPS",
+  "workstream_id": "issue176-task3c-narrow-relay-r2-v4",
+  "source_issue": 176,
+  "parent_issue": 172,
+  "required_branch": "owner/issue176-task3c-narrow-relay-r2-v4",
+  "starting_head": "6a2694d24753e44cf843bcc0ac03fa55ce0bc8d6",
+  "activation_base_sha": "6a2694d24753e44cf843bcc0ac03fa55ce0bc8d6",
+  "risk_tier": "R2",
+  "governance_artifact_risk_tier": "R2",
+  "authorized_risk_tier": "R2",
+  "authorized_risk_paths": ["project_state/gates/**"],
+  "runner_managed_artifact_paths": [],
+  "decision_commit_must_precede_implementation": true,
+  "decision_content_immutable_after_activation": true,
+  "pr_creation_allowed": false,
+  "draft_pr_creation_allowed": false,
+  "pr_body_update_allowed": false,
+  "pr_comment_allowed": false,
+  "issue_comment_allowed": false,
+  "branch_creation_allowed": true,
+  "worktree_creation_allowed": true,
+  "local_commit_allowed": true,
+  "normal_push_allowed": true,
+  "exact_head_workflow_observation_allowed": true,
+  "merge_allowed": false,
+  "mark_ready_allowed": false,
+  "auto_merge_allowed": false,
+  "force_push_allowed": false,
+  "rebase_allowed": false,
+  "direct_push_to_main_allowed": false,
+  "release_allowed": false,
+  "deployment_allowed": false,
+  "real_provider_credential_allowed": false,
+  "live_provider_probe_allowed": false,
+  "model_execution_required": false,
+  "model_api_invocation_allowed": false,
+  "opencode_invocation_allowed": true,
+  "codex_invocation_allowed": false,
+  "openhands_invocation_allowed": false,
+  "package_installation_allowed": false,
+  "provider_configuration_mutation_allowed": false,
+  "credential_value_access_allowed": false,
+  "bounded_external_source_access_allowed": false,
+  "repair_attempt_limit": 1,
+  "infrastructure_retry_limit": 0,
+  "audit_generation_allowed": false,
+  "prior_audits_immutable": true,
+  "bootstrap_state_initial": "BOOTSTRAP_OPEN",
+  "capability_policy": {
+    "runner_dispatch_allowed": false,
+    "model_api_invocation_allowed": false,
+    "external_reverse_tool_invocation_allowed": false,
+    "unknown_binary_execution_allowed": false,
+    "destructive_operations_allowed": false,
+    "bmad_installation_allowed": false,
+    "network_access_default_allowed": false,
+    "local_network_exceptions": [
+      "git push origin owner/issue176-task3c-narrow-relay-r2-v4"
+    ],
+    "ci_network_exceptions": [],
+    "remote_observation_read_only_allowed": true,
+    "direct_push_to_main_allowed": false,
+    "merge_allowed": false,
+    "force_push_allowed": false,
+    "rebase_during_execution_allowed": false,
+    "tag_or_release_allowed": false
+  },
+  "path_risk_floor": [
+    {"pattern": ".github/workflows/**", "minimum_risk": "R2"},
+    {"pattern": "**/secrets/**", "minimum_risk": "R3"}
+  ],
+  "bootstrap_exception_files": [
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
+  "bootstrap_exception_commands": [
+    "git -C F:\\reverse-agent-issue170-task3b-r1-20260810 status --short",
+    "git -C F:\\reverse-agent-issue170-task3b-r1-20260810 fetch origin owner/repository-modernization-v2-planning",
+    "git -C F:\\reverse-agent-issue170-task3b-r1-20260810 fetch origin owner/issue176-task3c-narrow-relay-r2-v4",
+    "git -C F:\\reverse-agent-issue170-task3b-r1-20260810 worktree list --porcelain",
+    "git -C F:\\reverse-agent-issue170-task3b-r1-20260810 branch --list owner/issue176-task3c-narrow-relay-r2-v4",
+    "git -C F:\\reverse-agent-issue170-task3b-r1-20260810 worktree add --track -b owner/issue176-task3c-narrow-relay-r2-v4 F:\\reverse-agent-issue176-task3c-r2-v4 origin/owner/issue176-task3c-narrow-relay-r2-v4",
+    "git status --short",
+    "git rev-parse HEAD",
+    "git rev-parse origin/owner/repository-modernization-v2-planning",
+    "git merge-base HEAD 6a2694d24753e44cf843bcc0ac03fa55ce0bc8d6",
+    "git show HEAD:project_state/decision_packet.md",
+    "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+    "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+    "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
+    "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre"
+  ],
+  "allowed_commands": [
+    {
+      "command_id": "observation.git_status_before",
+      "command": "git status --short",
+      "phase": "status",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "observation.git_head_before",
+      "command": "git rev-parse HEAD",
+      "phase": "status",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "observation.planning_head",
+      "command": "git rev-parse origin/owner/repository-modernization-v2-planning",
+      "phase": "status",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "observation.merge_base",
+      "command": "git merge-base HEAD 6a2694d24753e44cf843bcc0ac03fa55ce0bc8d6",
+      "phase": "status",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "test.task3c_product_regression",
+      "command": "python -m pytest tests/test_model_access.py tests/test_dev_up_contract.py tests/platform_v1 --ignore=tests/platform_v1/test_contracts.py --ignore=tests/platform_v1/test_merge_intent.py -q",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "test.governance_regression",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "runtime.opencode_version",
+      "command": "opencode --version",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["known_local_opencode_invocation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "test.installed_opencode_fake_provider_smoke",
+      "command": "python -m pytest tests/platform_v1/test_task3c_opencode_fake_provider_smoke.py::TestInstalledOpenCodeFakeProviderSmoke::test_installed_opencode_fake_provider_end_to_end -q",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks", "known_local_opencode_invocation", "loopback_fixture_network"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "test.task3c_smoke_file",
+      "command": "python -m pytest tests/platform_v1/test_task3c_opencode_fake_provider_smoke.py -q",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks", "known_local_opencode_invocation", "loopback_fixture_network"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "validation.working_diff_check",
+      "command": "git diff --check",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["diff_validation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "validation.working_path_list",
+      "command": "git diff --name-only",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "publication.stage_allowed",
+      "command": "git add -- reverse_agent/model_access/credential_relay.py reverse_agent/platform_v1/binding_resolver.py reverse_agent/platform_v1/opencode_executor.py reverse_agent/platform_v1/task_execution.py reverse_agent/platform_v1/task_service.py reverse_agent/platform_v1/trusted_host.py tests/platform_v1",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["stage_allowed_paths"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_only_after_validation": true,
+      "allowed_mutated_paths": [
+        "reverse_agent/model_access/credential_relay.py",
+        "reverse_agent/platform_v1/binding_resolver.py",
+        "reverse_agent/platform_v1/opencode_executor.py",
+        "reverse_agent/platform_v1/task_execution.py",
+        "reverse_agent/platform_v1/task_service.py",
+        "reverse_agent/platform_v1/trusted_host.py",
+        "tests/platform_v1/**"
+      ]
+    },
+    {
+      "command_id": "validation.staged_path_list",
+      "command": "git diff --cached --name-only",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "validation.staged_diff_check",
+      "command": "git diff --cached --check",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["diff_validation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "publication.commit_product",
+      "command": "git commit -m \"fix: complete task3c trusted relay boundary\"",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["local_commit"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "validation.product_commit_paths",
+      "command": "git diff --name-only HEAD^..HEAD",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "validation.product_commit_diff_check",
+      "command": "git diff --check HEAD^..HEAD",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["diff_validation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "observation.git_head_after",
+      "command": "git rev-parse HEAD",
+      "phase": "status",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "publication.push_branch",
+      "command": "git push origin owner/issue176-task3c-narrow-relay-r2-v4",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["push", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "observation.git_status_after",
+      "command": "git status --short",
+      "phase": "status",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    }
+  ],
+  "allowed_mutated_paths": [
+    "reverse_agent/model_access/credential_relay.py",
+    "reverse_agent/platform_v1/binding_resolver.py",
+    "reverse_agent/platform_v1/opencode_executor.py",
+    "reverse_agent/platform_v1/task_execution.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/trusted_host.py",
+    "tests/platform_v1/**",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
+  "reference_paths": [
+    "AGENTS.md",
+    "README.md",
+    "pyproject.toml",
+    "reverse_agent/model_access/contracts.py",
+    "reverse_agent/model_access/store.py",
+    "reverse_agent/model_access/service.py",
+    "reverse_agent/platform_v1/task_runtime.py",
+    "dev-up.ps1",
+    "tests/test_model_access.py",
+    "tests/test_dev_up_contract.py",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/control_plane/legacy_adapter.py",
+    "reverse_agent/control_plane/transition.py",
+    "tests/test_project_gate.py",
+    "tests/test_control_plane_transition.py"
+  ],
+  "generated_artifact_paths": [
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
+  "forbidden_mutated_paths": [
+    "project_state/decision_packet.md",
+    "AGENTS.md",
+    "README.md",
+    "pyproject.toml",
+    "requirements*.txt",
+    "poetry.lock",
+    "uv.lock",
+    ".github/**",
+    "frontend/**",
+    "docs/**",
+    "dev-up.ps1",
+    "dev-down.ps1",
+    "reverse_agent/model_access/contracts.py",
+    "reverse_agent/model_access/store.py",
+    "reverse_agent/model_access/service.py",
+    "reverse_agent/platform_v1/task_runtime.py",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/control_plane/**",
+    "tests/test_model_access.py",
+    "tests/test_dev_up_contract.py",
+    "tests/test_project_gate.py",
+    "tests/test_control_plane_transition.py",
+    "project_state/current_state.json",
+    "project_state/state_manifest.json",
+    "project_state/artifact_index.json",
+    "project_state/schemas/**",
+    "project_state/rounds/**",
+    "project_state/audits/**",
+    "project_state/mainline_merge_intents/**"
+  ],
+  "forbidden_operations": [
+    "direct_push_main",
+    "auto_merge",
+    "merge",
+    "mark_ready",
+    "force_push",
+    "rebase",
+    "amend",
+    "squash",
+    "tag_or_release",
+    "release",
+    "deployment",
+    "real_credential_access",
+    "credential_publication",
+    "real_provider_call",
+    "real_model_call",
+    "package_installation",
+    "dependency_change",
+    "docker_or_container_gateway",
+    "new_gateway_product_research",
+    "codex_invocation",
+    "openhands_invocation",
+    "runner_dispatch",
+    "unbounded_network_access"
+  ]
+}
 ```
 
-## Owner implementation boundary
+## Owner audit findings and v4 repair boundary
 
-This v3 Decision supersedes the blocked v2 execution authority. v1/v2 Decisions and worktrees remain immutable failure evidence. Issue #178 repaired the bootstrap command-ID collision and was Owner-landed to exact planning base `cd1dae758d742bdc20d8aef89f04d5f42c95ba00`.
+V3 product head `6a2694d24753e44cf843bcc0ac03fa55ce0bc8d6` is preserved as immutable audit evidence and is not authorized for landing. Owner audit independently confirmed the following defects:
 
-Use only a fresh worktree `F:\reverse-agent-issue176-task3c-r2-v3`. Do not clean/reset/restore/checkout-overwrite/stash/reuse blocked v1/v2 worktrees. Product mutation is authorized only after transition preflight returns `PRE_EXECUTION_AUTHORIZED`.
+1. The required v3 validation did not pass, yet publication continued. V4 publication is forbidden until every v4 required validation command exits with its expected code.
+2. The file named as the installed-OpenCode smoke explicitly states that it does not invoke the installed OpenCode CLI. V4 must perform a real installed-OpenCode invocation against a fake loopback provider and fake secret only.
+3. `CombinedTrustedHost._lease_provider_factory()` returns a plain `ExecutionLeaseHandle`, while `ExecutionLeaseHandle.release()` is a no-op. The real trusted-host execution path therefore does not release the manager lease after normal/nonzero/timeout/exception completion.
+4. The combined Task API execution path does not inject the trusted lease provider into API-key `OpenCodeExecutor` construction. Real API-key Task execution therefore fails at `lease_provider_required` rather than consuming the shared ModelProfileStore relay boundary.
+5. TOCTOU comparison is incomplete: connection identity, executor identity and exact model identity are not all compared between the public Binding resolution and the private execution snapshot.
+6. Non-loopback cleartext `http://` upstream provider URLs are not rejected before provider Authorization injection.
+7. SSE tests exercise `stream_sse()` directly, but `_RelayHandler.do_POST()` never routes real relay traffic through that streaming path. V4 must prove ordered SSE through the actual relay HTTP handler without fabricated status/DONE events.
 
-The Task 3C product/security/test boundaries remain exactly those frozen in Issue #176 and v2. No real provider credential/call/model, no dependency change, no gateway research, no route broadening. If the installed OpenCode fake-provider smoke uses a route other than `/chat/completions`, stop with exact evidence.
+The six historical `tests/platform_v1/test_contracts.py` failures and the additional merge-intent failures seen under v3 are authority-coupled historical tests: they bind the checked-in Decision to `project_state/mainline_merge_intents/active.json`. They are not evidence of a Task 3C product regression, but they also must not be described as pre-existing product failures. V4 therefore requires the broad Platform V1 product suite while excluding only `test_contracts.py` and `test_merge_intent.py`, plus the independent control-plane regression suite.
+
+Required v4 acceptance:
+
+- real Task API / TaskExecution API-key path obtains the trusted lease provider from CombinedTrustedHost and reaches an executor instead of failing `lease_provider_required`;
+- real trusted-host lease handle releases the exact manager lease on normal, nonzero, timeout and exception paths;
+- public/private snapshot drift fails closed on binding ID, connection ID, executor ID, provider, base URL, auth method and exact model;
+- remote non-loopback `http://` provider base URL fails before upstream with zero requests; loopback HTTP remains allowed for fixtures; HTTPS remains allowed;
+- actual relay handler supports normal JSON and ordered SSE without buffering/fabricating protocol events;
+- installed OpenCode version is captured and one bounded installed-OpenCode run hits only the fake loopback provider; provider master remains absent from OpenCode env/argv/config/prompt/output;
+- if the installed OpenCode requests any inference path other than `/chat/completions`, STOP with exact evidence and do not broaden routes;
+- no product commit or push after any required validation failure.
+
+No real provider credential, real provider/model call, new dependency, frontend change, dev-up/dev-down change, control-plane change, gateway research or route broadening is authorized.
