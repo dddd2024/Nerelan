@@ -233,3 +233,7 @@ def run_combined_trusted_host() -> None:
         host._model_server.serve_forever()
     except (KeyboardInterrupt, SystemExit):
         host.stop()
+
+
+if __name__ == "__main__":
+    run_combined_trusted_host()

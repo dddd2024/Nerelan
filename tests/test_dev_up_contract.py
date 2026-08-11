@@ -417,3 +417,45 @@ def test_dev_down_output_includes_start_time_validation_fields() -> None:
         assert word in _DEV_DOWN, f"missing keyword in dev-down: {word}"
     for forbidden in ("taskkill /IM", "Get-Process | Stop-Process", "Stop-Process -Force"):
         assert forbidden not in _DEV_DOWN, f"name-wide kill still present: {forbidden}"
+
+
+# ── V8 entrypoint contract ──────────────────────────────────────────
+
+def test_combined_trusted_host_module_entrypoint_contract() -> None:
+    """V8: trusted_host.py must have an executable __main__ guard that calls run_combined_trusted_host()."""
+    import ast
+    from reverse_agent.platform_v1 import trusted_host
+
+    source = _text(Path(trusted_host.__file__))
+    tree = ast.parse(source, filename="trusted_host.py")
+
+    guard_found = False
+    for node in tree.body:
+        if not isinstance(node, ast.If):
+            continue
+        test = node.test
+        if not isinstance(test, ast.Compare):
+            continue
+        if not (isinstance(test.left, ast.Name) and test.left.id == "__name__"):
+            continue
+        if not (len(test.ops) == 1 and isinstance(test.ops[0], ast.Eq)):
+            continue
+        if not (isinstance(test.comparators[0], ast.Constant) and test.comparators[0].value == "__main__"):
+            continue
+        guard_found = True
+        assert len(node.body) >= 1, "guard body must contain at least one statement"
+        call = node.body[0]
+        assert isinstance(call, ast.Expr), "guard body first stmt must be an expression"
+        assert isinstance(call.value, ast.Call), "guard body first expr must be a Call"
+        func = call.value.func
+        assert isinstance(func, ast.Name), "call target must be a Name"
+        assert func.id == "run_combined_trusted_host", \
+            f"guard must call run_combined_trusted_host, got {func.id}"
+        assert call.value.args == [], "call must take no positional arguments"
+        assert call.value.keywords == [], "call must take no keyword arguments"
+        break
+
+    assert guard_found, (
+        "trusted_host.py is missing a conventional "
+        'if __name__ == "__main__": guard that invokes run_combined_trusted_host()'
+    )
