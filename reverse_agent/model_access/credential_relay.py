@@ -363,19 +363,7 @@ class _RelayHandler(BaseHTTPRequestHandler):
         try:
             accept = self.headers.get("Accept", "")
             if "text/event-stream" in accept:
-                self.send_response(200)
-                self.send_header("Content-Type", "text/event-stream")
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-                try:
-                    stream_sse(
-                        active,
-                        body=body,
-                        wfile=self.wfile,
-                        timeout=self.upstream_timeout,
-                    )
-                except CredentialRelayError:
-                    pass
+                self._relay_sse_fail_closed(active, body)
                 return
             status, response_body, _resp_headers = forward_to_upstream(
                 active,
@@ -441,6 +429,47 @@ class _RelayHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
+
+    def _send_sanitized_error(self, code: int) -> None:
+        body = json.dumps({"error": "upstream_error"}, separators=(",", ":")).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _relay_sse_fail_closed(self, active: _ActiveLease, body: bytes) -> None:
+        _validate_upstream_url(active.snapshot.base_url)
+        upstream_url = f"{active.snapshot.base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {active.snapshot.resolved_api_key}",
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+            "Accept": "text/event-stream",
+        }
+        req = Request(upstream_url, data=body, headers=headers, method="POST")
+        req.full_url = upstream_url
+        try:
+            with urlopen(req, timeout=self.upstream_timeout) as resp:  # noqa: S310
+                status = int(resp.status)
+                if status != 200:
+                    self._send_sanitized_error(status)
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                while True:
+                    chunk = resp.read(4096)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+        except HTTPError as exc:
+            self._send_sanitized_error(int(exc.code))
+        except (URLError, TimeoutError, OSError):
+            self._send_error(502, "upstream_error")
 
     def _send_json(self, code: int, payload: dict[str, Any]) -> None:
         body = json.dumps(payload, separators=(",", ":")).encode("utf-8")

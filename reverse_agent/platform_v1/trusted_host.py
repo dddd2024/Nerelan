@@ -150,18 +150,6 @@ class CombinedTrustedHost:
         actual_mc_port = self._model_server.server_address[1]
         self.model_control_url = f"http://{self._model_control_host}:{actual_mc_port}"
 
-        task_handler = _task_handler_factory(
-            self._task_store,
-            self._router,
-            allowed_origin=self._allowed_origin,
-            lease_provider=self._lease_provider_factory(),
-        )
-        self._task_server = ThreadingHTTPServer(
-            (self._task_api_host, tap), task_handler
-        )
-        actual_task_port = self._task_server.server_address[1]
-        self.task_api_url = f"http://{self._task_api_host}:{actual_task_port}"
-
         from ..model_access.credential_relay import run_credential_relay_server
         relay_srv = run_credential_relay_server(
             manager=self._relay_manager,
@@ -172,6 +160,21 @@ class CombinedTrustedHost:
         self._relay_server_port = relay_srv.server_address[1]
         self._relay_server_inner = relay_srv
         self.relay_url = f"http://127.0.0.1:{self._relay_server_port}"
+
+        from .binding_resolver import BindingResolver
+        binding_resolver = BindingResolver(base_url=self.model_control_url)
+        task_handler = _task_handler_factory(
+            self._task_store,
+            self._router,
+            allowed_origin=self._allowed_origin,
+            lease_provider=self._lease_provider_factory(),
+            binding_resolver=binding_resolver,
+        )
+        self._task_server = ThreadingHTTPServer(
+            (self._task_api_host, tap), task_handler
+        )
+        actual_task_port = self._task_server.server_address[1]
+        self.task_api_url = f"http://{self._task_api_host}:{actual_task_port}"
 
         for server in (self._model_server, self._task_server, relay_srv):
             t = threading.Thread(target=server.serve_forever, daemon=True)
