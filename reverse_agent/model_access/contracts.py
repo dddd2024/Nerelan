@@ -291,6 +291,29 @@ class ModelProfile:
 
 
 @dataclass(frozen=True, slots=True)
+class ExecutionSnapshot:
+    """Private trusted-host snapshot read atomically under the store lock.
+
+    This object must never be serialized through the public Model Control API.
+    It carries the exact execution-scoped identity plus the resolved provider
+    API key, all read under a single store-lock acquisition so that the
+    Binding, Connection, and secret cannot drift between reads.
+    """
+
+    binding_id: str
+    binding_enabled: bool
+    executor_id: str
+    raw_model_id: str
+    connection_id: str
+    connection_enabled: bool
+    provider: str
+    base_url: str
+    auth_method: str
+    resolved_api_key: str | None
+    external_session_status: str
+
+
+@dataclass(frozen=True, slots=True)
 class ProbeResult:
     ok: bool
     status: str

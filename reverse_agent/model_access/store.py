@@ -7,7 +7,7 @@ import os
 from threading import RLock
 from typing import Any, Mapping
 
-from .contracts import Binding, Connection, ExecutorDescriptor, ModelProfile
+from .contracts import Binding, Connection, ExecutionSnapshot, ExecutorDescriptor, ModelProfile
 
 
 @dataclass(slots=True)
@@ -84,11 +84,8 @@ class ModelProfileStore:
         connection = Connection.from_mapping(payload)
         with self._lock:
             existing = self._connections.get(connection.connection_id)
-            api_key = existing.api_key if existing else None
-            api_key_env = existing.api_key_env if existing else None
-            external_status = (
-                existing.external_session_status if existing else "not_applicable"
-            )
+
+            authority_changed = _authority_fields_changed(existing, connection)
 
             incoming_api_key = _optional_secret(payload, "api_key", "apiKey")
             incoming_api_key_env = _optional_env(payload, "api_key_env", "apiKeyEnv")
@@ -98,7 +95,19 @@ class ModelProfileStore:
                 "clearSecret"
             ) is True
 
+            existing_api_key = existing.api_key if existing else None
+            existing_api_key_env = existing.api_key_env if existing else None
+            external_status = (
+                existing.external_session_status if existing else "not_applicable"
+            )
+
             if connection.auth_method == "api_key":
+                if authority_changed:
+                    if not clear_secret and not incoming_api_key and not incoming_api_key_env:
+                        raise ValueError(
+                            "authority-bearing connection field changed; "
+                            "replacement api_key/api_key_env or clear_secret=true is required"
+                        )
                 if clear_secret:
                     api_key = None
                     api_key_env = None
@@ -108,6 +117,12 @@ class ModelProfileStore:
                 elif incoming_api_key_env:
                     api_key = None
                     api_key_env = incoming_api_key_env
+                elif existing is None:
+                    api_key = existing_api_key
+                    api_key_env = existing_api_key_env
+                else:
+                    api_key = existing_api_key
+                    api_key_env = existing_api_key_env
                 external_status = "not_applicable"
             else:
                 if incoming_api_key or incoming_api_key_env:
@@ -170,6 +185,41 @@ class ModelProfileStore:
             if stored.api_key_env:
                 return os.environ.get(stored.api_key_env)
             return None
+
+    def resolve_execution_snapshot(self, binding_id: str) -> ExecutionSnapshot:
+        """Atomic private snapshot of one Binding + its Connection + secret.
+
+        All fields are read under a single lock acquisition; the returned
+        snapshot is immutable. This method is never exposed through the
+        public Model Control API.
+        """
+        with self._lock:
+            binding = self._bindings.get(binding_id)
+            if binding is None:
+                raise KeyError(f"binding not found: {binding_id}")
+            if binding.connection_id not in self._connections:
+                raise KeyError(f"binding references unknown connection")
+            stored_conn = self._connections[binding.connection_id]
+            conn = stored_conn.connection
+            resolved_key: str | None = None
+            if conn.auth_method == "api_key":
+                if stored_conn.api_key:
+                    resolved_key = stored_conn.api_key
+                elif stored_conn.api_key_env:
+                    resolved_key = os.environ.get(stored_conn.api_key_env)
+            return ExecutionSnapshot(
+                binding_id=binding.binding_id,
+                binding_enabled=binding.enabled,
+                executor_id=binding.executor_id,
+                raw_model_id=binding.model_id,
+                connection_id=conn.connection_id,
+                connection_enabled=conn.enabled,
+                provider=conn.provider,
+                base_url=conn.base_url,
+                auth_method=conn.auth_method,
+                resolved_api_key=resolved_key,
+                external_session_status=stored_conn.external_session_status,
+            )
 
     def list_executors_public(self) -> list[dict[str, Any]]:
         with self._lock:
@@ -352,3 +402,18 @@ def _reject_raw_session_credentials(payload: Mapping[str, Any]) -> None:
     }
     if forbidden.intersection(payload):
         raise ValueError("raw session credentials are not accepted")
+
+
+def _authority_fields_changed(
+    existing: "_StoredConnection | None",
+    new_connection: Connection,
+) -> bool:
+    """Return True if any authority-bearing connection field would change."""
+    if existing is None:
+        return False
+    old = existing.connection
+    return (
+        old.provider != new_connection.provider
+        or old.base_url != new_connection.base_url
+        or old.auth_method != new_connection.auth_method
+    )

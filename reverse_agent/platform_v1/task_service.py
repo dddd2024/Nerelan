@@ -212,6 +212,8 @@ class _TaskHandler(BaseHTTPRequestHandler):
     router: ExecutorRouter
     allowed_origin: str
     live_enabled: bool
+    lease_provider: Callable | None = None
+    binding_resolver: Any | None = None
 
     server_version = "reverse-agent-task-service/1"
 
@@ -315,6 +317,8 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 execution_service = TaskExecutionService(
                     store=self.store,
                     router=self.router,
+                    lease_provider=getattr(self, "lease_provider", None),
+                    binding_resolver=getattr(self, "binding_resolver", None),
                 )
                 try:
                     outcome = execution_service.execute(
@@ -497,11 +501,24 @@ class _TaskHandler(BaseHTTPRequestHandler):
             self.send_header("Vary", "Origin")
 
 
+class _CallableWrapper:
+    """Non-descriptor wrapper so callable class attributes are not converted
+    to bound methods when accessed from handler instances.
+    """
+    def __init__(self, fn: Callable) -> None:
+        self._fn = fn
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self._fn(*args, **kwargs)
+
+
 def _handler_factory(
     store: TaskStore,
     router: ExecutorRouter,
     *,
     allowed_origin: str,
+    lease_provider: Callable | None = None,
+    binding_resolver: Any | None = None,
 ) -> type[_TaskHandler]:
     class ConfiguredHandler(_TaskHandler):
         pass
@@ -510,6 +527,10 @@ def _handler_factory(
     ConfiguredHandler.router = router
     ConfiguredHandler.allowed_origin = allowed_origin
     ConfiguredHandler.live_enabled = False
+    ConfiguredHandler.lease_provider = (
+        _CallableWrapper(lease_provider) if lease_provider else None
+    )
+    ConfiguredHandler.binding_resolver = binding_resolver
     return ConfiguredHandler
 
 

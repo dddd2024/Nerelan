@@ -201,15 +201,21 @@ def test_resolver_fails_closed_for_missing_disabled_or_mismatched_records(
         )
 
 
-def test_api_key_auth_is_rejected_without_secret_transport() -> None:
+def test_api_key_auth_resolves_with_relay_required() -> None:
     transport = _FakeTransport(
         connection=_connection(auth_method="api_key", secret_status="session")
     )
 
-    with pytest.raises(BindingResolutionError, match="auth_method_api_key_forbidden"):
-        BindingResolver(transport=transport).resolve(
-            "coding-fast", task_executor="opencode"
-        )
+    resolution = BindingResolver(transport=transport).resolve(
+        "coding-fast", task_executor="opencode"
+    )
+    assert resolution.auth_method == "api_key"
+    assert resolution.relay_required is True
+    from dataclasses import asdict
+    attrs = asdict(resolution)
+    assert "api_key" not in attrs
+    assert "secret" not in attrs
+    assert "credential" not in attrs
 
 
 @pytest.mark.parametrize("auth_method", ["external_cli_session", "account_login"])

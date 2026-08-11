@@ -16,6 +16,9 @@ Boundaries:
 - Deterministic ``git diff --check`` validation runs independently of the
   model's self-reported status.
 - CLI invocation is injectable/fakeable for unit testing.
+- For api_key bindings, the executor obtains a short-lived execution-scoped
+  lease from a trusted relay before launching OpenCode; the provider master
+  key never enters the child process.
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -45,6 +49,36 @@ from .task_runtime import (
 # ---------------------------------------------------------------------------
 # Bounded evidence limits (documented for tests)
 # ---------------------------------------------------------------------------
+
+@dataclass(slots=True)
+class ExecutionLeaseHandle:
+    """Handle returned by the trusted lease provider.
+
+    The executor uses the lease_id and relay_url to configure OpenCode,
+    then calls ``release()`` after the subprocess completes (success,
+    failure, or timeout). The release callback, when present, invokes the
+    trusted host's manager.release_lease(exact_lease_id). The callback is
+    consumed once (idempotent) and never exposes the provider master.
+    """
+
+    lease_id: str
+    relay_url: str
+    model_id: str
+    _release_callback: Callable[[], None] | None = None
+
+    def release(self) -> None:
+        callback = self._release_callback
+        if callback is None:
+            return
+        self._release_callback = None
+        try:
+            callback()
+        except Exception:
+            pass
+
+
+LeaseProvider = Callable[[OpenCodeBindingResolution], ExecutionLeaseHandle]
+
 
 MAX_EVIDENCE_ITEMS = 40
 MAX_EVIDENCE_STRING_LEN = 250
@@ -138,20 +172,7 @@ _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 
 _BINDING_CHILD_ENV_ALLOWLIST = (
     "PATH",
-    "PATHEXT",
     "SystemRoot",
-    "WINDIR",
-    "COMSPEC",
-    "TEMP",
-    "TMP",
-    "HOME",
-    "USERPROFILE",
-    "APPDATA",
-    "LOCALAPPDATA",
-    "XDG_CONFIG_HOME",
-    "XDG_DATA_HOME",
-    "XDG_STATE_HOME",
-    "XDG_CACHE_HOME",
 )
 
 
@@ -178,30 +199,103 @@ def validate_model_id(model_id: str) -> str:
     return stripped
 
 
+_TRANSIENT_PROVIDER_ID = "reverse-agent-relay"
+_TRANSIENT_PROVIDER_NPM = "@ai-sdk/openai-compatible"
+_TRANSIENT_PROVIDER_NAME = "Reverse Agent Relay"
+
+_OPENCODE_DISABLE_ENV = {
+    "OPENCODE_DISABLE_AUTOUPDATE": "true",
+    "OPENCODE_DISABLE_MODELS_FETCH": "true",
+    "OPENCODE_DISABLE_LSP_DOWNLOAD": "true",
+    "OPENCODE_DISABLE_DEFAULT_PLUGINS": "true",
+    "OPENCODE_DISABLE_CLAUDE_CODE": "true",
+}
+
+
 def build_binding_config_content(
     resolution: OpenCodeBindingResolution,
+    lease: ExecutionLeaseHandle | None = None,
 ) -> str:
-    """Build transient non-secret provider metadata for one OpenCode child."""
-    payload = {
-        "provider": {
-            resolution.provider_id: {
-                "options": {"baseURL": resolution.base_url},
+    """Build transient non-secret provider metadata for one OpenCode child.
+
+    For api_key bindings, the config contains only the relay URL and the
+    execution-scoped lease under a dedicated transient custom provider. The
+    provider master key is never present. OpenCode model IDs are of the form
+    ``provider_id/model_id``; the CLI selector therefore uses the transient
+    provider ID as its prefix so OpenCode routes inference through this
+    custom OpenAI-compatible provider.
+    For non-api_key bindings (none/external_cli_session/account_login),
+    the config contains the provider base_url.
+    The provider-facing model in the HTTP request body remains the exact
+    Binding/provider-facing model; the transient provider prefix is never
+    forwarded to the real provider.
+    """
+    if lease is not None:
+        if not lease.lease_id:
+            raise ExecutorRuntimeError("lease_id_required")
+        if not lease.relay_url:
+            raise ExecutorRuntimeError("relay_url_required")
+        provider_facing_model = _extract_provider_facing_model(lease.model_id)
+        payload = {
+            "provider": {
+                _TRANSIENT_PROVIDER_ID: {
+                    "npm": _TRANSIENT_PROVIDER_NPM,
+                    "name": _TRANSIENT_PROVIDER_NAME,
+                    "options": {
+                        "baseURL": lease.relay_url,
+                        "apiKey": lease.lease_id,
+                    },
+                    "models": {provider_facing_model: {}},
+                }
             }
         }
-    }
+    else:
+        provider_facing_model = _extract_provider_facing_model(resolution.model_id)
+        payload = {
+            "provider": {
+                _TRANSIENT_PROVIDER_ID: {
+                    "npm": _TRANSIENT_PROVIDER_NPM,
+                    "name": _TRANSIENT_PROVIDER_NAME,
+                    "options": {"baseURL": resolution.base_url},
+                    "models": {provider_facing_model: {}},
+                }
+            }
+        }
     return json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+
+
+def _extract_provider_facing_model(cli_model_id: str) -> str:
+    """Extract the provider-facing model from a CLI selector.
+
+    Given ``reverse-agent-relay/gpt-4o`` return ``gpt-4o``.
+    Given ``openai-compatible/gpt-4o`` return ``gpt-4o``.
+    Given ``gpt-4o`` return ``gpt-4o``.
+    Never strip slashes that are part of the provider-facing model itself.
+    Only the first slash separates the CLI provider prefix from the
+    provider-facing model.
+    """
+    if "/" not in cli_model_id:
+        return cli_model_id
+    return cli_model_id.split("/", 1)[1]
 
 
 def build_binding_child_env(
     parent_env: Mapping[str, str],
     config_content: str,
 ) -> dict[str, str]:
-    """Copy only explicit non-secret runtime/location keys for Binding launch."""
+    """Copy only explicit non-secret runtime/location keys for Binding launch.
+
+    Fixed executor-chosen OpenCode safety flags are injected regardless of
+    parent env. These disable unrelated network/plugin surfaces so the fake
+    loopback relay/provider is the only inference network target.
+    """
     child: dict[str, str] = {}
     for key in _BINDING_CHILD_ENV_ALLOWLIST:
         value = parent_env.get(key)
         if isinstance(value, str) and value:
             child[key] = value
+    for key, value in _OPENCODE_DISABLE_ENV.items():
+        child[key] = value
     child["OPENCODE_CONFIG_CONTENT"] = config_content
     return child
 
@@ -214,7 +308,10 @@ def resolve_opencode_cli(exe: str | None = None) -> tuple[str, bool]:
     """Resolve the OpenCode CLI path.
 
     Returns ``(path, is_cmd)`` where ``is_cmd`` indicates the executable
-    is a ``.cmd`` / ``.bat`` launcher.
+    is a ``.cmd`` / ``.bat`` launcher. On Windows, prefer the true
+    ``.exe`` if it can be deterministically resolved without installation
+    or PATH mutation; fall back to ``.cmd`` / ``.bat`` only if no ``.exe``
+    is found.
     """
     if exe:
         p = exe.strip()
@@ -222,46 +319,79 @@ def resolve_opencode_cli(exe: str | None = None) -> tuple[str, bool]:
 
     is_windows = platform.system() == "Windows"
     if is_windows:
-        try:
-            proc = subprocess.run(
-                ["where.exe", "opencode.cmd"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            if proc.returncode == 0:
-                paths = [
-                    line.strip()
-                    for line in proc.stdout.splitlines()
-                    if line.strip() and line.strip().lower().endswith((".cmd", ".bat"))
-                ]
-                if paths:
-                    return paths[0], True
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass
-        try:
-            proc = subprocess.run(
-                ["where.exe", "opencode.exe"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            if proc.returncode == 0:
-                paths = [
-                    line.strip()
-                    for line in proc.stdout.splitlines()
-                    if line.strip() and line.strip().lower().endswith(".exe")
-                ]
-                if paths:
-                    return paths[0], False
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass
+        exe_path = _resolve_windows_exe()
+        if exe_path:
+            return exe_path, False
+        cmd_path = _resolve_windows_cmd()
+        if cmd_path:
+            return cmd_path, True
     else:
         path = shutil.which("opencode")
         if path:
             return path, False
 
     raise ExecutorRuntimeError("opencode_cli_not_found")
+
+
+def _resolve_windows_exe() -> str | None:
+    """Find the true opencode.exe without PATH mutation or installation."""
+    # 1. Try `where.exe opencode.exe`
+    for candidate in ("opencode.exe", "opencode"):
+        try:
+            proc = subprocess.run(
+                ["where.exe", candidate],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if proc.returncode == 0:
+                for line in proc.stdout.splitlines():
+                    p = line.strip()
+                    if p and p.lower().endswith(".exe"):
+                        return p
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+
+    # 2. Follow npm shim: `where.exe opencode` -> parent/node_modules/opencode-ai/bin/opencode.exe
+    try:
+        proc = subprocess.run(
+            ["where.exe", "opencode"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if proc.returncode == 0:
+            for line in proc.stdout.splitlines():
+                shim = line.strip()
+                if not shim:
+                    continue
+                shim_path = Path(shim)
+                npm_bin = shim_path.parent
+                exe_candidate = npm_bin / "node_modules" / "opencode-ai" / "bin" / "opencode.exe"
+                if exe_candidate.is_file():
+                    return str(exe_candidate)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    return None
+
+
+def _resolve_windows_cmd() -> str | None:
+    """Fallback: find opencode.cmd/.bat if no .exe found."""
+    try:
+        proc = subprocess.run(
+            ["where.exe", "opencode.cmd"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if proc.returncode == 0:
+            for line in proc.stdout.splitlines():
+                p = line.strip()
+                if p and p.lower().endswith((".cmd", ".bat")):
+                    return p
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -343,10 +473,13 @@ def build_opencode_argv(
     executor-owned UTF-8 prompt file when ``prompt_file`` is provided.
     The legacy ``prompt`` kwarg is retained for backward-compatible unit
     tests; it places the task text as a positional argv element after
-    ``--``. Never ``shell=True`` in either path.
+    ``--``. Never ``shell=True`` in either path. The ``--pure`` flag
+    disables unrelated OpenCode features so only the configured transient
+    provider is used.
     """
     inner = [
         "run",
+        "--pure",
         "--model",
         model_id,
         "--dir",
@@ -387,14 +520,19 @@ class OpenCodeExecutor:
         opencode_exe: str | None = None,
         timeout: int = 300,
         use_auto: bool = True,
+        lease_provider: LeaseProvider | None = None,
     ) -> None:
         self._binding_resolution = binding_resolution
+        self._lease_provider = lease_provider
         if binding_resolution is not None:
             if binding_resolution.executor_id != "opencode":
                 raise ExecutorRuntimeError("binding_executor_mismatch")
             if binding_resolution.auth_method == "api_key":
-                raise ExecutorRuntimeError("auth_method_api_key_forbidden")
-            if binding_resolution.auth_method in {
+                if not binding_resolution.relay_required:
+                    raise ExecutorRuntimeError("api_key_requires_relay")
+                if lease_provider is None:
+                    raise ExecutorRuntimeError("lease_provider_required")
+            elif binding_resolution.auth_method in {
                 "external_cli_session",
                 "account_login",
             } and binding_resolution.external_session_status != "available":
@@ -453,49 +591,65 @@ class OpenCodeExecutor:
         prompt = build_prompt(task_title, str(worktree))
         prompt_file = _write_prompt_file(prompt)
 
-        cli_argv, _positional = build_opencode_argv(
-            cli_path,
-            is_cmd=_is_cmd,
-            model_id=self._model_id,
-            worktree=str(worktree),
-            prompt_file=str(prompt_file),
-            use_auto=self._use_auto,
-        )
-
-        _emit(event_callback, task_id, {
-            "type": "EXECUTOR_RUNNING",
-            "title": "OpenCode CLI started",
-            "description": "OpenCode child process launched",
-            "metadata": {
-                "execution_id": execution_id,
-                "executor_kind": "opencode",
-                "model": self._model_id,
-                "cli_path": cli_path,
-                "worktree": str(worktree),
-                "prompt_transport": "file",
-                **binding_metadata,
-            },
-        })
-
+        lease_handle: ExecutionLeaseHandle | None = None
         try:
-            run_kwargs: dict[str, Any] = {
-                "cwd": str(worktree),
-                "capture_output": True,
-                "text": True,
-                "encoding": "utf-8",
-                "errors": "replace",
-                "timeout": self._timeout,
-                "check": False,
-            }
-            if self._binding_resolution is not None:
-                config_content = build_binding_config_content(
-                    self._binding_resolution
-                )
-                run_kwargs["env"] = build_binding_child_env(
-                    self._parent_env,
-                    config_content,
-                )
-            proc = subprocess.run(cli_argv, **run_kwargs)
+            if self._binding_resolution is not None and self._binding_resolution.relay_required:
+                lease_handle = self._lease_provider(self._binding_resolution)
+
+            model_for_cli = self._model_id
+            if lease_handle is not None:
+                model_for_cli = lease_handle.model_id
+
+            cli_argv, _positional = build_opencode_argv(
+                cli_path,
+                is_cmd=_is_cmd,
+                model_id=model_for_cli,
+                worktree=str(worktree),
+                prompt_file=str(prompt_file),
+                use_auto=self._use_auto,
+            )
+
+            _emit(event_callback, task_id, {
+                "type": "EXECUTOR_RUNNING",
+                "title": "OpenCode CLI started",
+                "description": "OpenCode child process launched",
+                "metadata": {
+                    "execution_id": execution_id,
+                    "executor_kind": "opencode",
+                    "model": model_for_cli,
+                    "cli_path": cli_path,
+                    "worktree": str(worktree),
+                    "prompt_transport": "file",
+                    **binding_metadata,
+                },
+            })
+
+            try:
+                run_kwargs: dict[str, Any] = {
+                    "cwd": str(worktree),
+                    "capture_output": True,
+                    "text": True,
+                    "encoding": "utf-8",
+                    "errors": "replace",
+                    "timeout": self._timeout,
+                    "check": False,
+                }
+                if self._binding_resolution is not None:
+                    config_content = build_binding_config_content(
+                        self._binding_resolution,
+                        lease=lease_handle,
+                    )
+                    run_kwargs["env"] = build_binding_child_env(
+                        self._parent_env,
+                        config_content,
+                    )
+                proc = subprocess.run(cli_argv, **run_kwargs)
+            finally:
+                if lease_handle is not None:
+                    try:
+                        lease_handle.release()
+                    except Exception:
+                        pass
         except subprocess.TimeoutExpired as exc:
             _emit(event_callback, task_id, {
                 "type": "EXECUTOR_FINISHED",
