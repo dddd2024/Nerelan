@@ -56,6 +56,7 @@ class OpenCodeBindingResolution:
     base_url: str
     auth_method: str
     external_session_status: str
+    relay_required: bool = False
 
 
 class BindingResolver:
@@ -136,12 +137,15 @@ class BindingResolver:
             maximum=40,
         )
         if auth_method == "api_key":
-            raise BindingResolutionError("auth_method_api_key_forbidden")
-        if auth_method in {"external_cli_session", "account_login"}:
+            relay_required = True
+        elif auth_method in {"external_cli_session", "account_login"}:
             if external_session_status != "available":
                 raise BindingResolutionError("external_session_unavailable")
+            relay_required = False
         elif auth_method != "none":
             raise BindingResolutionError("auth_method_unsupported")
+        else:
+            relay_required = False
 
         return OpenCodeBindingResolution(
             binding_ref=binding_id,
@@ -152,6 +156,7 @@ class BindingResolver:
             base_url=base_url,
             auth_method=auth_method,
             external_session_status=external_session_status,
+            relay_required=relay_required,
         )
 
     def _get_object(self, kind: str, route: str, identifier: str) -> Mapping[str, Any]:

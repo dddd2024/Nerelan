@@ -209,7 +209,7 @@ def test_binding_resolution_failure_blocks_before_executor_or_workspace(tmp_path
 
     class _Resolver:
         def resolve(self, binding_ref: str, *, task_executor: str):
-            raise BindingResolutionError("auth_method_api_key_forbidden")
+            raise BindingResolutionError("binding_resolution_blocked")
 
     class _Router(ExecutorRouter):
         def dispatch_execute(self, **kwargs):
@@ -223,7 +223,7 @@ def test_binding_resolution_failure_blocks_before_executor_or_workspace(tmp_path
 
     assert outcome.success is False
     assert outcome.failure_classification == "blocked"
-    assert outcome.failure_detail == "auth_method_api_key_forbidden"
+    assert outcome.failure_detail == "binding_resolution_blocked"
     assert store.get_task(task.id).status == "BLOCKED"
     assert not workspace_root.exists()
 

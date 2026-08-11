@@ -116,8 +116,7 @@ def test_dev_up_only_checks_opencode_prerequisite() -> None:
 
 
 def test_dev_up_starts_only_existing_service_entrypoints() -> None:
-    assert "reverse_agent.model_access.service" in _DEV_UP
-    assert "reverse_agent.platform_v1.task_service" in _DEV_UP
+    assert "reverse_agent.platform_v1.trusted_host" in _DEV_UP
     assert (
         "npm" in _DEV_UP
         and "--prefix" in _DEV_UP

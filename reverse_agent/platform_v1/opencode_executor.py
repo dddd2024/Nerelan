@@ -16,6 +16,9 @@ Boundaries:
 - Deterministic ``git diff --check`` validation runs independently of the
   model's self-reported status.
 - CLI invocation is injectable/fakeable for unit testing.
+- For api_key bindings, the executor obtains a short-lived execution-scoped
+  lease from a trusted relay before launching OpenCode; the provider master
+  key never enters the child process.
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -45,6 +49,26 @@ from .task_runtime import (
 # ---------------------------------------------------------------------------
 # Bounded evidence limits (documented for tests)
 # ---------------------------------------------------------------------------
+
+@dataclass(frozen=True, slots=True)
+class ExecutionLeaseHandle:
+    """Handle returned by the trusted lease provider.
+
+    The executor uses the lease_id and relay_url to configure OpenCode,
+    then calls ``release()`` after the subprocess completes (success,
+    failure, or timeout).
+    """
+
+    lease_id: str
+    relay_url: str
+    model_id: str
+
+    def release(self) -> None:
+        return
+
+
+LeaseProvider = Callable[[OpenCodeBindingResolution], ExecutionLeaseHandle]
+
 
 MAX_EVIDENCE_ITEMS = 40
 MAX_EVIDENCE_STRING_LEN = 250
@@ -180,15 +204,38 @@ def validate_model_id(model_id: str) -> str:
 
 def build_binding_config_content(
     resolution: OpenCodeBindingResolution,
+    lease: ExecutionLeaseHandle | None = None,
 ) -> str:
-    """Build transient non-secret provider metadata for one OpenCode child."""
-    payload = {
-        "provider": {
-            resolution.provider_id: {
-                "options": {"baseURL": resolution.base_url},
+    """Build transient non-secret provider metadata for one OpenCode child.
+
+    For api_key bindings, the config contains only the relay URL and the
+    execution-scoped lease. The provider master key is never present.
+    For non-api_key bindings (none/external_cli_session/account_login),
+    the config contains the provider base_url as before.
+    """
+    if lease is not None:
+        if not lease.lease_id:
+            raise ExecutorRuntimeError("lease_id_required")
+        if not lease.relay_url:
+            raise ExecutorRuntimeError("relay_url_required")
+        payload = {
+            "provider": {
+                "relay": {
+                    "options": {
+                        "baseURL": lease.relay_url,
+                    },
+                    "apiKey": lease.lease_id,
+                }
             }
         }
-    }
+    else:
+        payload = {
+            "provider": {
+                resolution.provider_id: {
+                    "options": {"baseURL": resolution.base_url},
+                }
+            }
+        }
     return json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
 
 
@@ -387,14 +434,19 @@ class OpenCodeExecutor:
         opencode_exe: str | None = None,
         timeout: int = 300,
         use_auto: bool = True,
+        lease_provider: LeaseProvider | None = None,
     ) -> None:
         self._binding_resolution = binding_resolution
+        self._lease_provider = lease_provider
         if binding_resolution is not None:
             if binding_resolution.executor_id != "opencode":
                 raise ExecutorRuntimeError("binding_executor_mismatch")
             if binding_resolution.auth_method == "api_key":
-                raise ExecutorRuntimeError("auth_method_api_key_forbidden")
-            if binding_resolution.auth_method in {
+                if not binding_resolution.relay_required:
+                    raise ExecutorRuntimeError("api_key_requires_relay")
+                if lease_provider is None:
+                    raise ExecutorRuntimeError("lease_provider_required")
+            elif binding_resolution.auth_method in {
                 "external_cli_session",
                 "account_login",
             } and binding_resolution.external_session_status != "available":
@@ -453,49 +505,65 @@ class OpenCodeExecutor:
         prompt = build_prompt(task_title, str(worktree))
         prompt_file = _write_prompt_file(prompt)
 
-        cli_argv, _positional = build_opencode_argv(
-            cli_path,
-            is_cmd=_is_cmd,
-            model_id=self._model_id,
-            worktree=str(worktree),
-            prompt_file=str(prompt_file),
-            use_auto=self._use_auto,
-        )
-
-        _emit(event_callback, task_id, {
-            "type": "EXECUTOR_RUNNING",
-            "title": "OpenCode CLI started",
-            "description": "OpenCode child process launched",
-            "metadata": {
-                "execution_id": execution_id,
-                "executor_kind": "opencode",
-                "model": self._model_id,
-                "cli_path": cli_path,
-                "worktree": str(worktree),
-                "prompt_transport": "file",
-                **binding_metadata,
-            },
-        })
-
+        lease_handle: ExecutionLeaseHandle | None = None
         try:
-            run_kwargs: dict[str, Any] = {
-                "cwd": str(worktree),
-                "capture_output": True,
-                "text": True,
-                "encoding": "utf-8",
-                "errors": "replace",
-                "timeout": self._timeout,
-                "check": False,
-            }
-            if self._binding_resolution is not None:
-                config_content = build_binding_config_content(
-                    self._binding_resolution
-                )
-                run_kwargs["env"] = build_binding_child_env(
-                    self._parent_env,
-                    config_content,
-                )
-            proc = subprocess.run(cli_argv, **run_kwargs)
+            if self._binding_resolution is not None and self._binding_resolution.relay_required:
+                lease_handle = self._lease_provider(self._binding_resolution)
+
+            model_for_cli = self._model_id
+            if lease_handle is not None:
+                model_for_cli = lease_handle.model_id
+
+            cli_argv, _positional = build_opencode_argv(
+                cli_path,
+                is_cmd=_is_cmd,
+                model_id=model_for_cli,
+                worktree=str(worktree),
+                prompt_file=str(prompt_file),
+                use_auto=self._use_auto,
+            )
+
+            _emit(event_callback, task_id, {
+                "type": "EXECUTOR_RUNNING",
+                "title": "OpenCode CLI started",
+                "description": "OpenCode child process launched",
+                "metadata": {
+                    "execution_id": execution_id,
+                    "executor_kind": "opencode",
+                    "model": model_for_cli,
+                    "cli_path": cli_path,
+                    "worktree": str(worktree),
+                    "prompt_transport": "file",
+                    **binding_metadata,
+                },
+            })
+
+            try:
+                run_kwargs: dict[str, Any] = {
+                    "cwd": str(worktree),
+                    "capture_output": True,
+                    "text": True,
+                    "encoding": "utf-8",
+                    "errors": "replace",
+                    "timeout": self._timeout,
+                    "check": False,
+                }
+                if self._binding_resolution is not None:
+                    config_content = build_binding_config_content(
+                        self._binding_resolution,
+                        lease=lease_handle,
+                    )
+                    run_kwargs["env"] = build_binding_child_env(
+                        self._parent_env,
+                        config_content,
+                    )
+                proc = subprocess.run(cli_argv, **run_kwargs)
+            finally:
+                if lease_handle is not None:
+                    try:
+                        lease_handle.release()
+                    except Exception:
+                        pass
         except subprocess.TimeoutExpired as exc:
             _emit(event_callback, task_id, {
                 "type": "EXECUTOR_FINISHED",

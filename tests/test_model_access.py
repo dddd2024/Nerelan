@@ -349,3 +349,169 @@ class TestOriginGateHttpBoundary:
         assert status == 403
         response_text = data.decode("utf-8")
         assert test_secret not in response_text
+
+
+# ---------------------------------------------------------------------------
+# TASK 3C R2 V3 - Segment A: Connection secret-rotation invariant
+# ---------------------------------------------------------------------------
+
+def _connection_payload(**overrides) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "connection_id": "sense-api",
+        "name": "SenseNova API",
+        "provider": "openai-compatible",
+        "base_url": "https://models.example.test/v1",
+        "auth_method": "api_key",
+        "enabled": True,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _binding_payload(**overrides) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "binding_id": "coding-fast",
+        "name": "Fast coding",
+        "executor_id": "opencode",
+        "connection_id": "sense-api",
+        "model_id": "sense-coding-fast",
+        "enabled": True,
+    }
+    payload.update(overrides)
+    return payload
+
+
+class TestConnectionSecretRotationInvariant:
+    def test_authority_field_change_without_replacement_fail_closed(self) -> None:
+        store = ModelProfileStore()
+        store.upsert_connection(_connection_payload(api_key="old-master-key"))
+
+        # Changing provider without replacement secret must fail closed
+        with pytest.raises(ValueError, match="replacement api_key"):
+            store.upsert_connection(
+                _connection_payload(
+                    provider="different-provider",
+                    api_key=None,
+                )
+            )
+
+        old_secret = store.resolve_connection_secret("sense-api")
+        assert old_secret == "old-master-key", "old secret must still be intact (not mutated)"
+
+    def test_authority_field_change_with_replacement_secret_ok(self) -> None:
+        store = ModelProfileStore()
+        store.upsert_connection(_connection_payload(api_key="old-master-key"))
+
+        result = store.upsert_connection(
+            _connection_payload(
+                provider="openai-compatible",
+                base_url="https://new-provider.example.test/v1",
+                api_key="new-master-key",
+            )
+        )
+        assert result["secret_status"] == "session"
+        assert store.resolve_connection_secret("sense-api") == "new-master-key"
+
+    def test_authority_field_change_with_clear_secret_ok(self) -> None:
+        store = ModelProfileStore()
+        store.upsert_connection(_connection_payload(api_key="old-master-key"))
+
+        result = store.upsert_connection(
+            _connection_payload(
+                base_url="https://new-provider.example.test/v1",
+                clear_secret=True,
+            )
+        )
+        assert result["secret_status"] == "missing"
+        assert store.resolve_connection_secret("sense-api") is None
+
+    def test_name_and_enabled_change_retains_secret(self) -> None:
+        store = ModelProfileStore()
+        store.upsert_connection(_connection_payload(api_key="secret-abc"))
+
+        result = store.upsert_connection(
+            _connection_payload(
+                name="Renamed",
+                enabled=False,
+            )
+        )
+        assert result["name"] == "Renamed"
+        assert result["enabled"] is False
+        assert store.resolve_connection_secret("sense-api") == "secret-abc"
+
+    def test_new_connection_without_secret_allowed(self) -> None:
+        store = ModelProfileStore()
+        result = store.upsert_connection(_connection_payload())
+        assert result["secret_status"] == "missing"
+        assert store.resolve_connection_secret("sense-api") is None
+
+    def test_auth_method_change_requires_replacement(self) -> None:
+        store = ModelProfileStore()
+        store.upsert_connection(_connection_payload(auth_method="none"))
+
+        with pytest.raises(ValueError, match="replacement api_key"):
+            store.upsert_connection(
+                _connection_payload(auth_method="api_key")
+            )
+
+
+# ---------------------------------------------------------------------------
+# TASK 3C R2 V3 - Segment B: Atomic private execution snapshot
+# ---------------------------------------------------------------------------
+
+class TestExecutionSnapshot:
+    def test_snapshot_reads_all_fields_atomically(self) -> None:
+        store = ModelProfileStore()
+        store.upsert_connection(_connection_payload(api_key="snapshot-key"))
+        store.upsert_binding(_binding_payload())
+
+        snap = store.resolve_execution_snapshot("coding-fast")
+
+        assert snap.binding_id == "coding-fast"
+        assert snap.binding_enabled is True
+        assert snap.executor_id == "opencode"
+        assert snap.raw_model_id == "sense-coding-fast"
+        assert snap.connection_id == "sense-api"
+        assert snap.connection_enabled is True
+        assert snap.provider == "openai-compatible"
+        assert snap.base_url == "https://models.example.test/v1"
+        assert snap.auth_method == "api_key"
+        assert snap.resolved_api_key == "snapshot-key"
+        assert snap.external_session_status == "not_applicable"
+
+    def test_snapshot_not_exposed_through_public_api(self) -> None:
+        store = ModelProfileStore()
+        store.upsert_connection(_connection_payload(api_key="private-secret"))
+        store.upsert_binding(_binding_payload())
+
+        serialized_bindings = store.list_bindings_public()
+        serialized_connections = store.list_connections_public()
+        all_public = json.dumps(serialized_bindings) + json.dumps(serialized_connections)
+
+        assert "private-secret" not in all_public
+        for item in serialized_bindings:
+            assert "resolved_api_key" not in item
+            assert "api_key" not in item
+            assert "secret" not in str(item).lower()
+
+    def test_snapshot_missing_secret_returns_none(self) -> None:
+        store = ModelProfileStore()
+        store.upsert_connection(_connection_payload())
+        store.upsert_binding(_binding_payload())
+
+        snap = store.resolve_execution_snapshot("coding-fast")
+        assert snap.resolved_api_key is None
+
+    def test_snapshot_missing_binding_raises(self) -> None:
+        store = ModelProfileStore()
+        with pytest.raises(KeyError, match="binding not found"):
+            store.resolve_execution_snapshot("missing-binding")
+
+    def test_snapshot_env_secret_resolves(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("TASK3C_MODEL_KEY", "env-key-value")
+        store = ModelProfileStore()
+        store.upsert_connection(_connection_payload(api_key_env="TASK3C_MODEL_KEY"))
+        store.upsert_binding(_binding_payload())
+
+        snap = store.resolve_execution_snapshot("coding-fast")
+        assert snap.resolved_api_key == "env-key-value"
