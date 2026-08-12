@@ -11,6 +11,7 @@ import type { ActivityEvent, ActivityEventType, ChangedFile, EvidenceItem, Polic
 export interface CreateTaskInput {
   title: string;
   modelProfileId?: string;
+  bindingRef?: string;
   executorKind?: "deterministic_fixture" | "opencode";
   permissionProfile?: string;
   policy?: PolicyContract;
@@ -213,6 +214,9 @@ function _toTask(raw: Record<string, unknown> | undefined): Task {
     modelProfileId:
       (String(source.modelProfileId ?? raw.model_profile_ref ?? "") ||
         undefined) as Task["modelProfileId"],
+    bindingRef:
+      (String(source.bindingRef ?? raw.binding_ref ?? "") ||
+        undefined) as Task["bindingRef"],
     branch: String(source.branch ?? raw.branch ?? (source.id ?? raw.id ?? "")),
     activity: activity.map((e, _i) => _toActivity(e, "EXECUTOR_FINISHED")),
     changes: changes.map(_toChangedFile),
@@ -273,6 +277,7 @@ export function useCreateTask() {
         repository: input.repository ?? "dddd2024/reverse-agent",
         executor_kind: input.executorKind ?? "deterministic_fixture",
         model_profile_ref: isOpencode ? "" : (input.modelProfileId ?? ""),
+        binding_ref: isOpencode ? (input.bindingRef ?? "") : "",
         permission_profile: input.permissionProfile ?? "ASK_FOR_APPROVAL",
         branch: input.branch ?? "",
         workspace: input.workspace ?? "",
