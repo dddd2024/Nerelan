@@ -1,113 +1,147 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Settings } from "lucide-react";
-import { ModelProfileEditor } from "@/components/model-profile-editor";
+import { ConnectionBindingEditor } from "@/components/connection-binding-editor";
 import {
-  useDeleteModelProfile,
-  useModelProfiles,
-  useSetDefaultModelProfile,
-  useTestModelProfile,
-  useUpsertModelProfile,
-} from "@/hooks/use-model-profiles";
+  useBindings,
+  useConnections,
+  useDeleteBinding,
+  useDeleteConnection,
+  useExecutors,
+  useUpsertBinding,
+  useUpsertConnection,
+} from "@/hooks/use-model-access";
 import type {
-  ModelProfile,
-  ModelProfileInput,
-} from "@/schemas/model-profile";
+  Binding,
+  Connection,
+  ConnectionInput,
+} from "@/schemas/model-access";
+import type { BindingInput } from "@/schemas/model-access";
 import { cn } from "@/lib/cn";
 
-/**
- * Model configuration workspace adapted from the OpenHands settings pattern.
- * Provider secrets are submitted to the model-control service and are never
- * persisted by this browser UI.
- */
-export function SettingsPage() {
-  const profilesQuery = useModelProfiles();
-  const upsertMutation = useUpsertModelProfile();
-  const deleteMutation = useDeleteModelProfile();
-  const defaultMutation = useSetDefaultModelProfile();
-  const testMutation = useTestModelProfile();
+type EditorView = "connection" | "binding";
 
-  const profiles = useMemo(
-    () => profilesQuery.data ?? [],
-    [profilesQuery.data],
+export function SettingsPage() {
+  const connectionsQuery = useConnections();
+  const connectionsMutation = useUpsertConnection();
+  const deleteConnMutation = useDeleteConnection();
+  const executorsQuery = useExecutors();
+  const bindingsQuery = useBindings();
+  const bindingsMutation = useUpsertBinding();
+  const deleteBindingMutation = useDeleteBinding();
+
+  const connections = useMemo(
+    () => connectionsQuery.data ?? [],
+    [connectionsQuery.data],
   );
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const executors = useMemo(
+    () => executorsQuery.data ?? [],
+    [executorsQuery.data],
+  );
+  const bindings = useMemo(
+    () => bindingsQuery.data ?? [],
+    [bindingsQuery.data],
+  );
+
+  const [view, setView] = useState<EditorView>("connection");
+  const [selectedConnId, setSelectedConnId] = useState<string | null>(null);
+  const [selectedBindId, setSelectedBindId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (creating || profiles.length === 0) return;
-    if (selectedId && profiles.some((profile) => profile.id === selectedId)) {
-      return;
+    if (creating) return;
+    if (view === "connection") {
+      if (selectedConnId && connections.some((c) => c.connectionId === selectedConnId)) return;
+      setSelectedConnId(
+        connections.find((c) => c.enabled)?.connectionId ?? connections[0]?.connectionId ?? null,
+      );
+    } else {
+      if (selectedBindId && bindings.some((b) => b.bindingId === selectedBindId)) return;
+      setSelectedBindId(
+        bindings.find((b) => b.enabled)?.bindingId ?? bindings[0]?.bindingId ?? null,
+      );
     }
-    setSelectedId(
-      profiles.find((profile) => profile.isDefault)?.id ?? profiles[0].id,
-    );
-  }, [creating, profiles, selectedId]);
+  }, [view, creating, connections, bindings, selectedConnId, selectedBindId]);
 
-  const selectedProfile = useMemo<ModelProfile | null>(
-    () => profiles.find((profile) => profile.id === selectedId) ?? null,
-    [profiles, selectedId],
+  const selectedConnection = useMemo<Connection | null>(
+    () => connections.find((c) => c.connectionId === selectedConnId) ?? null,
+    [connections, selectedConnId],
+  );
+
+  const selectedBinding = useMemo<Binding | null>(
+    () => bindings.find((b) => b.bindingId === selectedBindId) ?? null,
+    [bindings, selectedBindId],
   );
 
   const busy =
-    upsertMutation.isPending ||
-    deleteMutation.isPending ||
-    defaultMutation.isPending ||
-    testMutation.isPending;
+    connectionsMutation.isPending ||
+    deleteConnMutation.isPending ||
+    bindingsMutation.isPending ||
+    deleteBindingMutation.isPending;
 
   function clearMessages() {
     setStatus(null);
     setError(null);
   }
 
-  async function handleSave(input: ModelProfileInput) {
+  async function handleConnectionSave(input: ConnectionInput) {
     clearMessages();
     try {
-      const saved = await upsertMutation.mutateAsync(input);
+      const saved = await connectionsMutation.mutateAsync(input);
       setCreating(false);
-      setSelectedId(saved.id);
-      setStatus("配置已保存");
+      setSelectedConnId(saved.connectionId);
+      setStatus("连接已保存");
     } catch (cause) {
       setError(errorMessage(cause));
     }
   }
 
-  async function handleTest(profileId: string, apiKey?: string) {
+  async function handleBindingSave(input: BindingInput) {
     clearMessages();
     try {
-      const result = await testMutation.mutateAsync({ profileId, apiKey });
-      if (result.ok) {
-        setStatus("连接成功");
-      } else {
-        setError(result.message);
-      }
-    } catch (cause) {
-      setError(errorMessage(cause));
-    }
-  }
-
-  async function handleSetDefault(profileId: string) {
-    clearMessages();
-    try {
-      await defaultMutation.mutateAsync(profileId);
-      setStatus("已设为默认配置");
-    } catch (cause) {
-      setError(errorMessage(cause));
-    }
-  }
-
-  async function handleDelete(profileId: string) {
-    clearMessages();
-    try {
-      await deleteMutation.mutateAsync(profileId);
+      const saved = await bindingsMutation.mutateAsync(input);
       setCreating(false);
-      setSelectedId(null);
-      setStatus("配置已删除");
+      setSelectedBindId(saved.bindingId);
+      setStatus("绑定已保存");
     } catch (cause) {
       setError(errorMessage(cause));
     }
   }
+
+  async function handleConnectionDelete(connectionId: string) {
+    clearMessages();
+    try {
+      await deleteConnMutation.mutateAsync(connectionId);
+      setCreating(false);
+      setSelectedConnId(null);
+      setStatus("连接已删除");
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
+  }
+
+  async function handleBindingDelete(bindingId: string) {
+    clearMessages();
+    try {
+      await deleteBindingMutation.mutateAsync(bindingId);
+      setCreating(false);
+      setSelectedBindId(null);
+      setStatus("绑定已删除");
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
+  }
+
+  function switchView(next: EditorView) {
+    clearMessages();
+    setView(next);
+    setCreating(true);
+    setSelectedConnId(null);
+    setSelectedBindId(null);
+  }
+
+  const editorBusy = busy;
 
   return (
     <div
@@ -123,35 +157,51 @@ export function SettingsPage() {
             <div className="flex items-center gap-2">
               <Settings className="h-5 w-5 text-ra-text-tertiary" />
               <h1 className="text-lg font-semibold text-ra-text-secondary">
-                模型配置
+                连接与绑定
               </h1>
             </div>
             <p className="mt-2 max-w-2xl text-sm text-ra-text-tertiary">
-              管理 OpenAI-compatible 与 LiteLLM 模型入口。Codex ACP
-              仅作为执行器选择，登录凭据继续由可信主机单独管理。
+              管理 Model Control 连接与 OpenCode 绑定。API Key 仅通过模型控制服务传输，
+              不写入浏览器存储。
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              clearMessages();
-              setCreating(true);
-              setSelectedId(null);
-            }}
-            className={cn(
-              "inline-flex items-center justify-center gap-2 rounded-md",
-              "bg-ra-accent px-3 py-2 text-sm font-medium text-ra-base",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-white",
-            )}
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            新建配置
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => switchView("connection")}
+              className={cn(
+                "inline-flex items-center justify-center gap-2 rounded-md",
+                "px-3 py-2 text-sm font-medium",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-white",
+                view === "connection"
+                  ? "bg-ra-accent text-ra-base"
+                  : "border border-ra-border text-ra-text-secondary hover:bg-ra-tertiary",
+              )}
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              新建连接
+            </button>
+            <button
+              type="button"
+              onClick={() => switchView("binding")}
+              className={cn(
+                "inline-flex items-center justify-center gap-2 rounded-md",
+                "px-3 py-2 text-sm font-medium",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-white",
+                view === "binding"
+                  ? "bg-ra-accent text-ra-base"
+                  : "border border-ra-border text-ra-text-secondary hover:bg-ra-tertiary",
+              )}
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              新建绑定
+            </button>
+          </div>
         </header>
 
         <div className="rounded-lg border border-ra-border bg-ra-secondary px-4 py-3 text-xs text-ra-text-tertiary">
           浏览器不会把 API Key 写入 localStorage、sessionStorage 或任务数据。
-          生产模式下，密钥由模型控制服务的进程内存或环境变量提供。
+          绑定只保存执行器、连接和 Model ID 引用，不包含凭据。
         </div>
 
         {status && (
@@ -165,80 +215,126 @@ export function SettingsPage() {
           </p>
         )}
 
-        {profilesQuery.isLoading ? (
-          <p className="text-sm text-ra-text-tertiary">正在加载模型配置…</p>
-        ) : profilesQuery.isError ? (
-          <p role="alert" className="text-sm text-red-300">
-            {errorMessage(profilesQuery.error)}
-          </p>
-        ) : (
-          <div className="grid min-h-0 grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-            <aside className="flex flex-col gap-2 rounded-xl border border-ra-border bg-ra-secondary p-3">
-              <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-ra-text-tertiary">
-                已保存配置
-              </h2>
-              {profiles.length === 0 ? (
-                <p className="px-1 py-3 text-sm text-ra-text-tertiary">
-                  还没有模型配置。
-                </p>
-              ) : profiles.map((profile) => (
+        <div className="grid min-h-0 grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <aside className="flex flex-col gap-2 rounded-xl border border-ra-border bg-ra-secondary p-3">
+            <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-ra-text-tertiary">
+              连接
+            </h2>
+            {(connectionsQuery.isLoading || executorsQuery.isLoading) && (
+              <p className="px-1 py-3 text-sm text-ra-text-tertiary">正在加载…</p>
+            )}
+            {connections.length === 0 && !connectionsQuery.isLoading ? (
+              <p className="px-1 py-3 text-sm text-ra-text-tertiary">
+                还没有连接。
+              </p>
+            ) : (
+              connections.map((conn) => (
                 <button
-                  key={profile.id}
+                  key={conn.connectionId}
                   type="button"
+                  data-testid={`connection-item-${conn.connectionId}`}
                   onClick={() => {
                     clearMessages();
+                    setView("connection");
                     setCreating(false);
-                    setSelectedId(profile.id);
+                    setSelectedConnId(conn.connectionId);
                   }}
                   className={cn(
                     "flex w-full flex-col gap-1 rounded-lg border px-3 py-2 text-left",
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-                    !creating && selectedId === profile.id
+                    view === "connection" && !creating && selectedConnId === conn.connectionId
                       ? "border-ra-accent bg-ra-tertiary"
                       : "border-transparent hover:border-ra-border hover:bg-ra-tertiary",
                   )}
                 >
                   <span className="flex w-full items-center gap-2">
                     <span className="truncate text-sm font-medium text-ra-text">
-                      {profile.name}
+                      {conn.name}
                     </span>
-                    {profile.isDefault && (
-                      <span className="ml-auto rounded-full bg-ra-accent/15 px-2 py-0.5 text-[10px] text-ra-accent">
-                        默认
-                      </span>
-                    )}
+                    <span className="ml-auto rounded-full bg-ra-accent/15 px-2 py-0.5 text-[10px] text-ra-accent">
+                      {conn.enabled ? "启用" : "禁用"}
+                    </span>
                   </span>
                   <span className="truncate text-xs text-ra-text-tertiary">
-                    {profile.modelId} · {profile.executor}
+                    {conn.provider} · {conn.authMethod}
                   </span>
                   <span className="text-[10px] text-ra-text-tertiary">
-                    密钥：{secretStatusLabel(profile.secretStatus)}
+                    密钥：{secretStatusLabel(conn.secretStatus)}
                   </span>
                 </button>
-              ))}
-            </aside>
+              ))
+            )}
 
-            <ModelProfileEditor
-              profile={selectedProfile}
-              creating={creating}
-              busy={busy}
-              onSave={handleSave}
-              onTest={handleTest}
-              onSetDefault={handleSetDefault}
-              onDelete={handleDelete}
-            />
-          </div>
-        )}
+            <h2 className="mt-3 px-1 text-xs font-semibold uppercase tracking-wide text-ra-text-tertiary">
+              绑定
+            </h2>
+            {bindings.length === 0 && !bindingsQuery.isLoading ? (
+              <p className="px-1 py-3 text-sm text-ra-text-tertiary">
+                还没有绑定。
+              </p>
+            ) : (
+              bindings.map((bind) => (
+                <button
+                  key={bind.bindingId}
+                  type="button"
+                  data-testid={`binding-item-${bind.bindingId}`}
+                  onClick={() => {
+                    clearMessages();
+                    setView("binding");
+                    setCreating(false);
+                    setSelectedBindId(bind.bindingId);
+                  }}
+                  className={cn(
+                    "flex w-full flex-col gap-1 rounded-lg border px-3 py-2 text-left",
+                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+                    view === "binding" && !creating && selectedBindId === bind.bindingId
+                      ? "border-ra-accent bg-ra-tertiary"
+                      : "border-transparent hover:border-ra-border hover:bg-ra-tertiary",
+                  )}
+                >
+                  <span className="flex w-full items-center gap-2">
+                    <span className="truncate text-sm font-medium text-ra-text">
+                      {bind.name}
+                    </span>
+                    <span className="ml-auto rounded-full bg-ra-accent/15 px-2 py-0.5 text-[10px] text-ra-accent">
+                      {bind.enabled ? "启用" : "禁用"}
+                    </span>
+                  </span>
+                  <span className="truncate text-xs text-ra-text-tertiary">
+                    {bind.executorId} · {bind.modelId}
+                  </span>
+                  <span className="text-[10px] text-ra-text-tertiary">
+                    连接：{bind.connectionId}
+                  </span>
+                </button>
+              ))
+            )}
+          </aside>
+
+          <ConnectionBindingEditor
+            view={view}
+            connection={selectedConnection}
+            binding={selectedBinding}
+            creating={creating}
+            connections={connections}
+            executors={executors}
+            busy={editorBusy}
+            onConnectionSave={handleConnectionSave}
+            onBindingSave={handleBindingSave}
+            onConnectionDelete={handleConnectionDelete}
+            onBindingDelete={handleBindingDelete}
+          />
+        </div>
       </div>
     </div>
   );
 }
 
 function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : "模型配置操作失败";
+  return cause instanceof Error ? cause.message : "操作失败";
 }
 
-function secretStatusLabel(status: ModelProfile["secretStatus"]): string {
+function secretStatusLabel(status: Connection["secretStatus"]): string {
   switch (status) {
     case "environment":
       return "环境变量";
@@ -246,5 +342,7 @@ function secretStatusLabel(status: ModelProfile["secretStatus"]): string {
       return "进程会话";
     case "missing":
       return "未配置";
+    case "not_applicable":
+      return "不适用";
   }
 }
