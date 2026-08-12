@@ -100,10 +100,12 @@ def _map_task_status_to_frontend_state(status: str) -> str:
 def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
     state = _map_task_status_to_frontend_state(str(_map_task_field(task, "status", "")))
     failure_class = str(_map_task_field(task, "failure_classification", "") or "")
+    validation_exit_code = _map_task_field(task, "validation_exit_code", None)
     blocker = ""
     next_action = ""
+    test_status = _derive_test_status(validation_exit_code, _map_task_field(task, "status", ""), failure_class)
     if state == "READY_FOR_HUMAN":
-        next_action = "Owner review of fixture-validated result"
+        next_action = "Owner review of validated result"
     elif failure_class:
         blocker = _map_task_field(task, "failure_detail", failure_class) or failure_class
         next_action = "Investigate failure classification"
@@ -129,12 +131,29 @@ def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
             _map_task_seq(task, "evidence_refs") or _map_task_seq(task, "evidence")
         ),
         "authorityStatus": "APPROVED",
-        "testStatus": FAILURE_CLASSIFICATION_TO_TEST_STATUS.get(failure_class, "PENDING"),
+        "testStatus": test_status,
         "workflowStatus": "PENDING",
         "executor": "fixture/provider-free"
         if _map_task_field(task, "executor_kind", "") == "deterministic_fixture"
         else _map_task_field(task, "executor_kind", ""),
     }
+
+
+def _derive_test_status(
+    validation_exit_code: Any,
+    status: str,
+    failure_class: str,
+) -> str:
+    if validation_exit_code is not None:
+        try:
+            return "PASS" if int(validation_exit_code) == 0 else "FAIL"
+        except (ValueError, TypeError):
+            pass
+    if status == "VALIDATING":
+        return "RUNNING"
+    if failure_class:
+        return FAILURE_CLASSIFICATION_TO_TEST_STATUS.get(failure_class, "PENDING")
+    return "PENDING"
 
 
 def _map_task_field(task: Mapping[str, Any], key: str, default: Any) -> Any:

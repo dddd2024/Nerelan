@@ -45,6 +45,30 @@ export interface BackendTaskEventsResponse extends Record<string, unknown> {
 const API_BASE =
   import.meta.env.VITE_TASK_API_BASE ?? "http://127.0.0.1:8766";
 
+const _VALID_TEST_STATUSES = new Set([
+  "PASS",
+  "FAIL",
+  "RUNNING",
+  "PENDING",
+] as const);
+
+function _deriveTestStatus(raw: Record<string, unknown>): string {
+  const validationExitCode = (raw as { validation_exit_code?: unknown }).validation_exit_code;
+  if (typeof validationExitCode === "number" && !Number.isNaN(validationExitCode)) {
+    return validationExitCode === 0 ? "PASS" : "FAIL";
+  }
+  const status = String((raw as { status?: string }).status ?? "");
+  if (status === "VALIDATING") {
+    return "RUNNING";
+  }
+  const ft = raw.frontend_task as Record<string, unknown> | undefined;
+  const testStatus = String((ft ?? raw).testStatus ?? "");
+  if (_VALID_TEST_STATUSES.has(testStatus as "PASS" | "FAIL" | "RUNNING" | "PENDING")) {
+    return testStatus;
+  }
+  return "PENDING";
+}
+
 function _isMock() {
   const mode = import.meta.env.MODE;
   if (mode === "mock") return true;
@@ -142,7 +166,7 @@ function _normalizeTask(raw: Record<string, unknown>) {
       rawJson: String((ev as { raw_json_digest?: string }).raw_json_digest ?? ""),
     })),
     authorityStatus: (source.authorityStatus as string) ?? "APPROVED",
-    testStatus: (source.testStatus as string) ?? "PENDING",
+    testStatus: _deriveTestStatus(raw),
     workflowStatus: (source.workflowStatus as string) ?? "PENDING",
     executor:
       (source.executor as string | undefined) ??
