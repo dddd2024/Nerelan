@@ -597,15 +597,21 @@ describe("provider-free idempotency transport", () => {
     fireEvent.change(screen.getByTestId("task-title-input"), {
       target: { value: "idempotency test" },
     });
+
+    await waitFor(() => {
+      expect((screen.getByTestId("task-opencode-binding-select") as HTMLSelectElement).value).toBe("coding-binding");
+    }, { timeout: 3000 });
+
     fireEvent.click(screen.getByTestId("submit-new-task"));
 
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1), {
       timeout: 1000,
     });
 
-    const input = mockSubmit.mock.calls[0][0] as { title?: string; idempotencyKey?: string; executorKind?: string };
+    const input = mockSubmit.mock.calls[0][0] as { title?: string; idempotencyKey?: string; executorKind?: string; bindingRef?: string };
     expect(input.title).toBe("idempotency test");
     expect(input.executorKind).toBe("opencode");
+    expect(input.bindingRef).toBe("coding-binding");
     expect(typeof input.idempotencyKey).toBe("string");
     expect(input.idempotencyKey!.length).toBeGreaterThan(0);
 

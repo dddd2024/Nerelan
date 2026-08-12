@@ -5,6 +5,7 @@ export interface BackendTaskCreatePayload {
   repository?: string;
   executor_kind?: ExecutorKind;
   model_profile_ref?: string;
+  binding_ref?: string;
   permission_profile?: string;
   policy_ref?: string;
   workspace?: string;
@@ -138,6 +139,10 @@ function _normalizeTask(raw: Record<string, unknown>) {
     modelProfileId:
       (source.modelProfileId as string | undefined) ??
       (raw.model_profile_ref as string | undefined) ??
+      undefined,
+    bindingRef:
+      (source.bindingRef as string | undefined) ??
+      (raw.binding_ref as string | undefined) ??
       undefined,
     branch: String(source.branch ?? raw.branch ?? id),
     activity: activity.map((e: Record<string, unknown>, i: number) => ({
@@ -343,6 +348,7 @@ export async function createTask(
     repository: (input as { repository?: string }).repository ?? "dddd2024/reverse-agent",
     executor_kind: executorKind,
     model_profile_ref: (input as { model_profile_ref?: string }).model_profile_ref ?? "",
+    binding_ref: (input as { binding_ref?: string }).binding_ref ?? "",
     permission_profile: (input as { permission_profile?: string }).permission_profile ?? "ASK_FOR_APPROVAL",
     policy_ref: (input as { policy_ref?: string }).policy_ref ?? "",
     workspace: (input as { workspace?: string }).workspace ?? "",
