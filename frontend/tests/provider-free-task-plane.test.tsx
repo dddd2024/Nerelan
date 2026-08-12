@@ -597,15 +597,21 @@ describe("provider-free idempotency transport", () => {
     fireEvent.change(screen.getByTestId("task-title-input"), {
       target: { value: "idempotency test" },
     });
+
+    await waitFor(() => {
+      expect((screen.getByTestId("task-opencode-binding-select") as HTMLSelectElement).value).toBe("coding-binding");
+    }, { timeout: 3000 });
+
     fireEvent.click(screen.getByTestId("submit-new-task"));
 
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1), {
       timeout: 1000,
     });
 
-    const input = mockSubmit.mock.calls[0][0] as { title?: string; idempotencyKey?: string; executorKind?: string };
+    const input = mockSubmit.mock.calls[0][0] as { title?: string; idempotencyKey?: string; executorKind?: string; bindingRef?: string };
     expect(input.title).toBe("idempotency test");
     expect(input.executorKind).toBe("opencode");
+    expect(input.bindingRef).toBe("coding-binding");
     expect(typeof input.idempotencyKey).toBe("string");
     expect(input.idempotencyKey!.length).toBeGreaterThan(0);
 
@@ -621,7 +627,7 @@ describe("provider-free idempotency transport", () => {
     expect(secondInput.idempotencyKey).not.toBe(input.idempotencyKey);
   });
 
-  it("fixture executor submission passes the model profile id through", async () => {
+  it("fixture executor submits without ModelProfile or Binding", async () => {
     resetDefaultModelControlClientForTests();
     const mockSubmit = vi.fn();
 
@@ -633,6 +639,8 @@ describe("provider-free idempotency transport", () => {
       target: { value: "fixture mode" },
     });
     fireEvent.click(screen.getByTestId("executor-option-deterministic_fixture"));
+
+    expect(screen.queryByLabelText("模型配置")).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByTestId("submit-new-task")).not.toBeDisabled();
@@ -647,39 +655,13 @@ describe("provider-free idempotency transport", () => {
     const input = mockSubmit.mock.calls[0][0] as {
       executorKind?: string;
       modelProfileId?: string;
+      bindingRef?: string;
       title?: string;
     };
     expect(input.executorKind).toBe("deterministic_fixture");
-    expect(input.modelProfileId).toBe("coding-default");
+    expect(input.modelProfileId).toBeUndefined();
+    expect(input.bindingRef).toBeUndefined();
     expect(input.title).toBe("fixture mode");
-  });
-
-  it("fixture submission is disabled when no model profile is selected", async () => {
-    resetDefaultModelControlClientForTests();
-    const mockSubmit = vi.fn();
-
-    renderWithProviders(
-      <NewTaskComposerWrapper submit={mockSubmit} />,
-    );
-
-    fireEvent.change(screen.getByTestId("task-title-input"), {
-      target: { value: "no profile" },
-    });
-    fireEvent.click(screen.getByTestId("executor-option-deterministic_fixture"));
-
-    await waitFor(() => {
-      expect(screen.getByLabelText("模型配置")).toBeInTheDocument();
-    }, { timeout: 3000 });
-
-    const select = screen.getByLabelText("模型配置") as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "" } });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("submit-new-task")).toBeDisabled();
-    }, { timeout: 1000 });
-
-    fireEvent.click(screen.getByTestId("submit-new-task"));
-    expect(mockSubmit).not.toHaveBeenCalled();
   });
 
   it("OpenCode execution failure is not silently retried as deterministic_fixture", async () => {
