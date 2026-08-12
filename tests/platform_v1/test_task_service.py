@@ -334,3 +334,50 @@ def test_task_service_validator_runs_after_executor(tmp_path) -> None:
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_frontend_task_test_status_uses_validation_exit_code() -> None:
+    from reverse_agent.platform_v1.task_service import _map_task_to_frontend
+
+    ok = _map_task_to_frontend({
+        "id": "t", "title": "t", "status": "READY_FOR_REVIEW",
+        "executor_kind": "opencode", "validation_exit_code": 0,
+        "failure_classification": "",
+    })
+    assert ok["testStatus"] == "PASS"
+
+    fail = _map_task_to_frontend({
+        "id": "t", "title": "t", "status": "FAILED",
+        "executor_kind": "opencode", "validation_exit_code": 1,
+        "failure_classification": "",
+    })
+    assert fail["testStatus"] == "FAIL"
+
+
+def test_frontend_task_test_status_is_running_while_validating() -> None:
+    from reverse_agent.platform_v1.task_service import _map_task_to_frontend
+
+    val = _map_task_to_frontend({
+        "id": "t", "title": "t", "status": "VALIDATING",
+        "executor_kind": "opencode",
+    })
+    assert val["testStatus"] == "RUNNING"
+
+    running = _map_task_to_frontend({
+        "id": "t", "title": "t", "status": "RUNNING",
+        "executor_kind": "opencode",
+    })
+    assert running["testStatus"] == "PENDING"
+
+
+def test_ready_for_human_next_action_is_executor_neutral() -> None:
+    from reverse_agent.platform_v1.task_service import _map_task_to_frontend
+
+    ok = _map_task_to_frontend({
+        "id": "t", "title": "t", "status": "READY_FOR_REVIEW",
+        "executor_kind": "opencode", "validation_exit_code": 0,
+        "failure_classification": "",
+    })
+    assert ok["state"] == "READY_FOR_HUMAN"
+    assert ok["testStatus"] == "PASS"
+    assert "fixture" not in ok["nextAction"].lower()
