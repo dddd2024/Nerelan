@@ -31,6 +31,7 @@ from ..model_access.credential_relay import (
 )
 from ..model_access.service import _handler_factory as _model_control_handler_factory
 from ..model_access.store import ModelProfileStore
+from .github_adapter import LiveGitHubAdapter
 from .opencode_executor import ExecutionLeaseHandle
 from .run_store import TaskStore
 from .task_runtime import ExecutorRouter
@@ -52,11 +53,13 @@ class CombinedTrustedHost:
         task_api_port: int = 8766,
         allowed_origin: str = "http://127.0.0.1:4173",
         task_db_path: str | None = None,
+        github_adapter: LiveGitHubAdapter | None = None,
     ) -> None:
         self._store = store or ModelProfileStore()
         self._task_store = task_store or _make_task_store(task_db_path)
         self._relay_manager = relay_manager or CredentialRelayManager()
         self._router = ExecutorRouter()
+        self._github_adapter = github_adapter
 
         self._model_control_host = model_control_host
         self._model_control_port = model_control_port
@@ -84,6 +87,10 @@ class CombinedTrustedHost:
     @property
     def relay_manager(self) -> CredentialRelayManager:
         return self._relay_manager
+
+    @property
+    def github_adapter(self) -> LiveGitHubAdapter | None:
+        return self._github_adapter
 
     def _lease_provider_factory(self) -> Any:
         manager = self._relay_manager
@@ -163,12 +170,16 @@ class CombinedTrustedHost:
 
         from .binding_resolver import BindingResolver
         binding_resolver = BindingResolver(base_url=self.model_control_url)
+        live_github = self._github_adapter
+        if live_github is None:
+            live_github = LiveGitHubAdapter()
         task_handler = _task_handler_factory(
             self._task_store,
             self._router,
             allowed_origin=self._allowed_origin,
             lease_provider=self._lease_provider_factory(),
             binding_resolver=binding_resolver,
+            github_adapter=live_github,
         )
         self._task_server = ThreadingHTTPServer(
             (self._task_api_host, tap), task_handler

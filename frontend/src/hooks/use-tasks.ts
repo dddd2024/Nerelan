@@ -274,7 +274,6 @@ export function useCreateTask() {
       const isOpencode = input.executorKind === "opencode";
       const payload: Record<string, unknown> = {
         title: input.title,
-        repository: input.repository ?? "dddd2024/reverse-agent",
         executor_kind: input.executorKind ?? "deterministic_fixture",
         model_profile_ref: isOpencode ? "" : (input.modelProfileId ?? ""),
         binding_ref: isOpencode ? (input.bindingRef ?? "") : "",
@@ -283,6 +282,9 @@ export function useCreateTask() {
         workspace: input.workspace ?? "",
         idempotency_key: input.idempotencyKey,
       };
+      if (input.repository) {
+        payload.repository = input.repository;
+      }
       const createdRaw = await createTask(payload);
       const created = _toTask(createdRaw);
       const taskId = String(created.id ?? createdRaw.id ?? "");

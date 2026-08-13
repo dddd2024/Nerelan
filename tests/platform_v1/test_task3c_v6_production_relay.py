@@ -233,6 +233,7 @@ class TestCombinedTrustedHostInstalledOpenCodeE2E:
                         "title": "Production relay E2E",
                         "executor_kind": "opencode",
                         "binding_ref": BINDING_ID,
+                        "repository": "https://github.com/dddd2024/reverse-agent",
                     }).encode("utf-8")
                     create_status, create_data = _http_json_post(
                         actual_task_url, "/api/tasks", create_body, timeout=30

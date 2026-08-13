@@ -345,7 +345,6 @@ export async function createTask(
 
   const body: Record<string, unknown> = {
     title: (input as { title?: string }).title ?? "untitled",
-    repository: (input as { repository?: string }).repository ?? "dddd2024/reverse-agent",
     executor_kind: executorKind,
     model_profile_ref: (input as { model_profile_ref?: string }).model_profile_ref ?? "",
     binding_ref: (input as { binding_ref?: string }).binding_ref ?? "",
@@ -354,6 +353,10 @@ export async function createTask(
     workspace: (input as { workspace?: string }).workspace ?? "",
     branch: (input as { branch?: string }).branch ?? "",
   };
+  const repoValue = (input as { repository?: string }).repository;
+  if (repoValue) {
+    body.repository = repoValue;
+  }
   if ((input as { idempotency_key?: string }).idempotency_key) {
     body.idempotency_key = (input as { idempotency_key?: string }).idempotency_key;
   }
