@@ -515,3 +515,219 @@ class TestExecutionSnapshot:
 
         snap = store.resolve_execution_snapshot("coding-fast")
         assert snap.resolved_api_key == "env-key-value"
+
+
+# ---------------------------------------------------------------------------
+# ISSUE183 R2 V1 - Saved Connection probe contract
+# ---------------------------------------------------------------------------
+
+from reverse_agent.model_access.service import probe_saved_connection
+
+
+class TestConnectionProbeService:
+    """Saved-Connection probe: server-side secret, no body echo, fail-closed."""
+
+    def test_stored_secret_used_and_never_serialized(self) -> None:
+        store = ModelProfileStore()
+        store.upsert_connection(_connection_payload(api_key="connection-master-key"))
+
+        calls: list[tuple[str, dict[str, str], float]] = []
+
+        def transport(
+            url: str, headers: dict[str, str], timeout: float
+        ) -> tuple[int, bytes]:
+            calls.append((url, headers, timeout))
+            return 200, b'{"data":[{"id":"probe-model"}]}'
+
+        result = probe_saved_connection(
+            store=store,
+            connection_id="sense-api",
+            payload={},
+            live_enabled=True,
+            transport=transport,
+        )
+
+        assert result.ok is True
+        assert result.status == "connected"
+        assert calls == [
+            (
+                "https://models.example.test/v1/models",
+                {
+                    "Accept": "application/json",
+                    "Authorization": "Bearer connection-master-key",
+                },
+                10.0,
+            )
+        ]
+        serialized = json.dumps(result.to_dict())
+        assert "connection-master-key" not in serialized
+        assert "Bearer" not in serialized
+        assert "Authorization" not in serialized
+
+    def test_non_empty_payload_rejected_fail_closed(self) -> None:
+        store = ModelProfileStore()
+        store.upsert_connection(_connection_payload(api_key="ignored"))
+
+        with pytest.raises(ValueError, match="configuration overrides"):
+            probe_saved_connection(
+                store=store,
+                connection_id="sense-api",
+                payload={"api_key": "injected-key"},
+                live_enabled=True,
+            )
+
+    def test_non_empty_generic_payload_rejected(self) -> None:
+        store = ModelProfileStore()
+        store.upsert_connection(_connection_payload(api_key="ignored"))
+
+        with pytest.raises(ValueError, match="empty JSON object"):
+            probe_saved_connection(
+                store=store,
+                connection_id="sense-api",
+                payload={"custom_field": "value"},
+                live_enabled=True,
+            )
+
+    def test_disabled_connection_no_transport(self) -> None:
+        store = ModelProfileStore()
+        store.upsert_connection(_connection_payload(api_key="key", enabled=False))
+
+        calls: list[tuple[str, dict[str, str], float]] = []
+
+        def transport(
+            url: str, headers: dict[str, str], timeout: float
+        ) -> tuple[int, bytes]:
+            calls.append((url, headers, timeout))
+            return 200, b'{"data":[]}'
+
+        result = probe_saved_connection(
+            store=store,
+            connection_id="sense-api",
+            payload={},
+            live_enabled=True,
+            transport=transport,
+        )
+
+        assert result.ok is False
+        assert result.status == "disabled"
+        assert calls == []
+
+    def test_missing_api_key_secret_no_transport(self) -> None:
+        store = ModelProfileStore()
+        store.upsert_connection(_connection_payload())  # no secret
+
+        calls: list[tuple[str, dict[str, str], float]] = []
+
+        def transport(
+            url: str, headers: dict[str, str], timeout: float
+        ) -> tuple[int, bytes]:
+            calls.append((url, headers, timeout))
+            return 200, b'{"data":[]}'
+
+        result = probe_saved_connection(
+            store=store,
+            connection_id="sense-api",
+            payload={},
+            live_enabled=True,
+            transport=transport,
+        )
+
+        assert result.ok is False
+        assert result.status == "credential_missing"
+        assert calls == []
+
+    @pytest.mark.parametrize(
+        "auth_method", ["account_login", "external_cli_session"]
+    )
+    def test_unsupported_auth_method_no_transport(self, auth_method: str) -> None:
+        store = ModelProfileStore()
+        store.upsert_connection(
+            _connection_payload(
+                connection_id=f"{auth_method}-conn",
+                auth_method=auth_method,
+            )
+        )
+
+        calls: list[tuple[str, dict[str, str], float]] = []
+
+        def transport(
+            url: str, headers: dict[str, str], timeout: float
+        ) -> tuple[int, bytes]:
+            calls.append((url, headers, timeout))
+            return 200, b'{"data":[]}'
+
+        result = probe_saved_connection(
+            store=store,
+            connection_id=f"{auth_method}-conn",
+            payload={},
+            live_enabled=True,
+            transport=transport,
+        )
+
+        assert result.ok is False
+        assert result.status == "unsupported_auth_method"
+        assert calls == []
+
+    def test_none_auth_method_probes_without_authorization(self) -> None:
+        store = ModelProfileStore()
+        store.upsert_connection(
+            _connection_payload(
+                connection_id="no-auth-conn",
+                auth_method="none",
+            )
+        )
+
+        calls: list[tuple[str, dict[str, str], float]] = []
+
+        def transport(
+            url: str, headers: dict[str, str], timeout: float
+        ) -> tuple[int, bytes]:
+            calls.append((url, headers, timeout))
+            return 200, b'{"data":[{"id":"m"}]}'
+
+        result = probe_saved_connection(
+            store=store,
+            connection_id="no-auth-conn",
+            payload={},
+            live_enabled=True,
+            transport=transport,
+        )
+
+        assert result.ok is True
+        assert result.status == "connected"
+        assert calls == [
+            (
+                "https://models.example.test/v1/models",
+                {"Accept": "application/json"},
+                10.0,
+            )
+        ]
+        assert "Authorization" not in calls[0][1]
+
+    def test_live_opt_in_disabled_still_fail_closed(self) -> None:
+        store = ModelProfileStore()
+        store.upsert_connection(_connection_payload(api_key="key"))
+
+        result = probe_saved_connection(
+            store=store,
+            connection_id="sense-api",
+            payload={},
+            live_enabled=False,
+        )
+
+        assert result.ok is False
+        assert result.status == "live_probe_disabled"
+        assert "key" not in json.dumps(result.to_dict())
+
+    def test_not_found_connection_returned(self) -> None:
+        store = ModelProfileStore()
+
+        result = probe_saved_connection(
+            store=store,
+            connection_id="missing-conn",
+            payload={},
+            live_enabled=True,
+        )
+
+        assert result.ok is False
+        assert result.status == "not_found"

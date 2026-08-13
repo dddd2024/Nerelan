@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  createHttpModelControlClient,
   createMockModelControlClient,
 } from "@/lib/model-control-client";
 import {
@@ -157,5 +158,105 @@ describe("model control client backward compatibility", () => {
     expect(saved.id).toBe("compat-profile");
     expect(saved.secretStatus).toBe("missing");
     expect(await client.listProfiles()).toHaveLength(1);
+  });
+});
+
+describe("connection probe client contract", () => {
+  it("mock testConnection returns deterministic sanitized result", async () => {
+    const client = createMockModelControlClient([]);
+    await client.upsertConnection({
+      connectionId: "probe-conn",
+      name: "Probe Test",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      apiKey: DUMMY_KEY,
+    });
+    const result = await client.testConnection("probe-conn");
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe("connected");
+    expect(result.latencyMs).toBe(18);
+    expect(JSON.stringify(result)).not.toContain(DUMMY_KEY);
+    expect(result).toHaveProperty("message");
+  });
+
+  it("mock testConnection disabled connection returns disabled", async () => {
+    const client = createMockModelControlClient([]);
+    await client.upsertConnection({
+      connectionId: "disabled-conn",
+      name: "Disabled",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: false,
+    });
+    const result = await client.testConnection("disabled-conn");
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe("disabled");
+    expect(result.latencyMs).toBe(null);
+  });
+
+  it("mock testConnection missing secret returns credential_missing", async () => {
+    const client = createMockModelControlClient([]);
+    await client.upsertConnection({
+      connectionId: "no-key-conn",
+      name: "No Key",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+    });
+    const result = await client.testConnection("no-key-conn");
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe("credential_missing");
+    expect(result.latencyMs).toBe(null);
+  });
+
+  it("mock testConnection not found throws", async () => {
+    const client = createMockModelControlClient([]);
+    await expect(client.testConnection("nonexistent")).rejects.toThrow();
+  });
+
+  it("http client sends POST to saved connection endpoint with empty body", async () => {
+    let capturedUrl: string | undefined;
+    let capturedBody: string | undefined;
+    let capturedMethod: string | undefined;
+
+    const mockFetch = vi.fn(async (url, opts) => {
+      capturedUrl = String(url);
+      capturedMethod = (opts as { method?: string })?.method;
+      capturedBody = String((opts as { body?: string })?.body ?? "");
+      return {
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            ok: true,
+            status: "connected",
+            message: "Connection succeeded",
+            latency_ms: 22,
+          }),
+      };
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    try {
+      const client = createHttpModelControlClient("/api");
+      await client.testConnection("my-conn");
+
+      expect(capturedMethod).toBe("POST");
+      expect(capturedUrl).toBe("/api/connections/my-conn/test");
+      expect(capturedBody).toBe("{}");
+      const parsed = JSON.parse(capturedBody!);
+      expect(parsed).not.toHaveProperty("api_key");
+      expect(parsed).not.toHaveProperty("apiKey");
+      expect(parsed).not.toHaveProperty("base_url");
+      expect(parsed).not.toHaveProperty("baseUrl");
+      expect(parsed).not.toHaveProperty("provider");
+      expect(parsed).not.toHaveProperty("auth_method");
+      expect(parsed).not.toHaveProperty("authMethod");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

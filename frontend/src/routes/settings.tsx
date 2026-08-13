@@ -7,6 +7,7 @@ import {
   useDeleteBinding,
   useDeleteConnection,
   useExecutors,
+  useTestConnection,
   useUpsertBinding,
   useUpsertConnection,
 } from "@/hooks/use-model-access";
@@ -14,6 +15,7 @@ import type {
   Binding,
   Connection,
   ConnectionInput,
+  ConnectionProbeResult,
 } from "@/schemas/model-access";
 import type { BindingInput } from "@/schemas/model-access";
 import { cn } from "@/lib/cn";
@@ -48,6 +50,9 @@ export function SettingsPage() {
   const [creating, setCreating] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [connProbeResult, setConnProbeResult] = useState<ConnectionProbeResult | null>(null);
+
+  const testConnectionMutation = useTestConnection();
 
   useEffect(() => {
     if (creating) return;
@@ -78,11 +83,13 @@ export function SettingsPage() {
     connectionsMutation.isPending ||
     deleteConnMutation.isPending ||
     bindingsMutation.isPending ||
-    deleteBindingMutation.isPending;
+    deleteBindingMutation.isPending ||
+    testConnectionMutation.isPending;
 
   function clearMessages() {
     setStatus(null);
     setError(null);
+    setConnProbeResult(null);
   }
 
   async function handleConnectionSave(input: ConnectionInput) {
@@ -92,6 +99,19 @@ export function SettingsPage() {
       setCreating(false);
       setSelectedConnId(saved.connectionId);
       setStatus("连接已保存");
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
+  }
+
+  async function handleConnectionTest(connectionId: string) {
+    clearMessages();
+    try {
+      const result = await testConnectionMutation.mutateAsync(connectionId);
+      setConnProbeResult(result);
+      if (result.ok) {
+        setStatus("连接验证成功");
+      }
     } catch (cause) {
       setError(errorMessage(cause));
     }
@@ -323,6 +343,9 @@ export function SettingsPage() {
             onBindingSave={handleBindingSave}
             onConnectionDelete={handleConnectionDelete}
             onBindingDelete={handleBindingDelete}
+            onConnectionTest={handleConnectionTest}
+            connectionProbeResult={connProbeResult}
+            connectionProbePending={testConnectionMutation.isPending}
           />
         </div>
       </div>

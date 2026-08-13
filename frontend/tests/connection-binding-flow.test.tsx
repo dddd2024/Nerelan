@@ -424,3 +424,132 @@ function NewTaskComposerWrapper({ submit }: { submit: (input: unknown) => void }
     </QueryClientProvider>
   );
 }
+
+describe("Connection verify button state", () => {
+  beforeEach(() => {
+    resetDefaultModelControlClientForTests();
+  });
+
+  it("Verify button is disabled on new connection create view", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SettingsPage />);
+
+    await user.click(screen.getByRole("button", { name: "新建连接" }));
+
+    const verifyBtn = screen.getByTestId("test-connection-button");
+    expect(verifyBtn).toBeDisabled();
+  });
+
+  it("Verify button is enabled for saved clean connection", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SettingsPage />);
+
+    await user.click(await screen.findByTestId("connection-item-coding-connection"));
+
+    const verifyBtn = screen.getByTestId("test-connection-button");
+    expect(verifyBtn).toBeEnabled();
+  });
+
+  it("Verify button is disabled after editing Base URL", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SettingsPage />);
+
+    await user.click(await screen.findByTestId("connection-item-coding-connection"));
+
+    await user.clear(screen.getByLabelText("Base URL"));
+    await user.type(screen.getByLabelText("Base URL"), "http://edited.local/v1");
+
+    const verifyBtn = screen.getByTestId("test-connection-button");
+    expect(verifyBtn).toBeDisabled();
+  });
+
+  it("Verify button is disabled after editing Provider", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SettingsPage />);
+
+    await user.click(await screen.findByTestId("connection-item-coding-connection"));
+
+    await user.selectOptions(screen.getByLabelText("Provider"), "openai-compatible");
+
+    const verifyBtn = screen.getByTestId("test-connection-button");
+    expect(verifyBtn).toBeDisabled();
+  });
+
+  it("Verify button is disabled after editing connection name", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SettingsPage />);
+
+    await user.click(await screen.findByTestId("connection-item-coding-connection"));
+
+    await user.clear(screen.getByLabelText("连接名称"));
+    await user.type(screen.getByLabelText("连接名称"), "X");
+
+    const verifyBtn = screen.getByTestId("test-connection-button");
+    expect(verifyBtn).toBeDisabled();
+  });
+
+  it("Verify button is disabled after editing enabled checkbox", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SettingsPage />);
+
+    await user.click(await screen.findByTestId("connection-item-coding-connection"));
+
+    await user.click(screen.getByLabelText("启用该连接"));
+
+    const verifyBtn = screen.getByTestId("test-connection-button");
+    expect(verifyBtn).toBeDisabled();
+  });
+
+  it("Verify button is disabled when API Key input has a value", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SettingsPage />);
+
+    await user.click(await screen.findByTestId("connection-item-coding-connection"));
+
+    await user.type(screen.getByLabelText("API Key"), "fresh-input");
+
+    const verifyBtn = screen.getByTestId("test-connection-button");
+    expect(verifyBtn).toBeDisabled();
+  });
+
+  it("Verify button re-enables after saving a dirty connection", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SettingsPage />);
+
+    await user.click(await screen.findByTestId("connection-item-coding-connection"));
+
+    await user.clear(screen.getByLabelText("连接名称"));
+    await user.type(screen.getByLabelText("连接名称"), "Updated");
+
+    expect(screen.getByTestId("test-connection-button")).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "保存连接" }));
+    expect(await screen.findByText("连接已保存")).toBeInTheDocument();
+
+    const verifyBtn = screen.getByTestId("test-connection-button");
+    expect(verifyBtn).toBeEnabled();
+  });
+
+  it("verify click shows success result with latency", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SettingsPage />);
+
+    await user.click(await screen.findByTestId("connection-item-coding-connection"));
+
+    await user.click(screen.getByTestId("test-connection-button"));
+
+    const probeResult = await screen.findByTestId("connection-probe-result");
+    expect(probeResult.textContent).toContain("验证成功");
+    expect(probeResult.textContent).toContain("连接成功");
+    expect(probeResult.textContent).toContain("ms");
+  });
+});
