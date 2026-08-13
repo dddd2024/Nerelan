@@ -18,6 +18,7 @@ Covers:
 from __future__ import annotations
 
 import inspect
+import json
 
 import pytest
 
@@ -25,6 +26,7 @@ from reverse_agent.platform_v1.github_adapter import (
     FakeGitHubAdapter,
     GitHubAdapterError,
     LiveGitHubAdapter,
+    Repository,
     WorkflowRun,
     composite_name,
     validate_workflow_observations,
@@ -487,3 +489,117 @@ class TestLiveGitHubAdapterJsonFields:
         source = inspect.getsource(LiveGitHubAdapter.get_workflow_runs)
         assert '"run"' in source and '"list"' in source
         assert "pr checks" not in source
+
+
+# ---------------------------------------------------------------------------
+# Repository data class
+# ---------------------------------------------------------------------------
+
+class TestRepositoryDataClass:
+    """Repository holds only sanitized metadata; no credential material."""
+
+    def test_repository_fields(self) -> None:
+        repo = Repository(
+            full_name="dddd2024/reverse-agent",
+            html_url="https://github.com/dddd2024/reverse-agent",
+            is_private=False,
+            default_branch="main",
+        )
+        assert repo.full_name == "dddd2024/reverse-agent"
+        assert repo.html_url == "https://github.com/dddd2024/reverse-agent"
+        assert repo.is_private is False
+        assert repo.visibility == "public"
+        assert repo.default_branch == "main"
+
+    def test_repository_visibility_private(self) -> None:
+        repo = Repository(
+            full_name="dddd2024/private-repo",
+            html_url="https://github.com/dddd2024/private-repo",
+            is_private=True,
+            default_branch="main",
+        )
+        assert repo.visibility == "private"
+
+    def test_to_dict_contains_only_sanitized_fields(self) -> None:
+        repo = Repository(
+            full_name="dddd2024/reverse-agent",
+            html_url="https://github.com/dddd2024/reverse-agent",
+            is_private=False,
+            default_branch="main",
+        )
+        d = repo.to_dict()
+        assert set(d.keys()) == {
+            "full_name", "html_url", "is_private", "visibility", "default_branch"
+        }
+
+    def test_to_dict_has_no_token_or_auth_material(self) -> None:
+        repo = Repository(
+            full_name="dddd2024/reverse-agent",
+            html_url="https://github.com/dddd2024/reverse-agent",
+            is_private=False,
+            default_branch="main",
+        )
+        d = repo.to_dict()
+        joined = json.dumps(d, ensure_ascii=False)
+        assert "token" not in joined.lower()
+        assert "auth" not in joined.lower()
+        assert "secret" not in joined.lower()
+        assert "header" not in joined.lower()
+        assert "password" not in joined.lower()
+        assert "GITHUB_TOKEN" not in joined
+
+
+# ---------------------------------------------------------------------------
+# FakeGitHubAdapter repository discovery
+# ---------------------------------------------------------------------------
+
+class TestFakeGitHubAdapterRepositories:
+    """FakeGitHubAdapter returns configured repositories or raises configured error."""
+
+    def test_returns_configured_repositories(self) -> None:
+        repos = (
+            Repository(
+                full_name="dddd2024/repo-a",
+                html_url="https://github.com/dddd2024/repo-a",
+                is_private=False,
+                default_branch="main",
+            ),
+            Repository(
+                full_name="dddd2024/repo-b",
+                html_url="https://github.com/dddd2024/repo-b",
+                is_private=True,
+                default_branch="develop",
+            ),
+        )
+        adapter = FakeGitHubAdapter(repositories=repos)
+        result = adapter.discover_repositories()
+        assert len(result) == 2
+        assert result[0].full_name == "dddd2024/repo-a"
+        assert result[0].is_private is False
+        assert result[0].visibility == "public"
+        assert result[1].full_name == "dddd2024/repo-b"
+        assert result[1].is_private is True
+        assert result[1].visibility == "private"
+
+    def test_empty_repositories_list(self) -> None:
+        adapter = FakeGitHubAdapter(repositories=())
+        result = adapter.discover_repositories()
+        assert result == ()
+
+    def test_raises_when_configured_to_fail(self) -> None:
+        adapter = FakeGitHubAdapter(
+            fail_with=GitHubAdapterError("gh_repo_list_failed", "exit=1"),
+        )
+        with pytest.raises(GitHubAdapterError) as exc_info:
+            adapter.discover_repositories()
+        assert exc_info.value.code == "gh_repo_list_failed"
+
+    def test_call_count_increments(self) -> None:
+        adapter = FakeGitHubAdapter(repositories=(
+            Repository(full_name="dddd2024/repo", html_url="https://github.com/dddd2024/repo"),
+        ))
+        assert adapter.call_count == 0
+        adapter.discover_repositories()
+        assert adapter.call_count == 1
+        adapter.get_workflow_runs("dddd2024/reverse-agent", VALID_HEAD_SHA)
+        assert adapter.call_count == 2

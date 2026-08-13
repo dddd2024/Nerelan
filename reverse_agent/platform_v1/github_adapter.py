@@ -187,6 +187,50 @@ class WorkflowRun:
         )
 
 
+class Repository:
+    """Sanitized GitHub repository metadata for display/selection.
+
+    Contains ONLY product-need fields. No token, credential, auth header,
+    environment variable, or raw ``gh auth`` output may enter this structure.
+    """
+
+    __slots__ = ("full_name", "html_url", "is_private", "default_branch")
+
+    def __init__(
+        self,
+        *,
+        full_name: str,
+        html_url: str,
+        is_private: bool = False,
+        default_branch: str = "",
+    ) -> None:
+        self.full_name = full_name
+        self.html_url = html_url
+        self.is_private = bool(is_private)
+        self.default_branch = default_branch
+
+    @property
+    def visibility(self) -> str:
+        return "private" if self.is_private else "public"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "full_name": self.full_name,
+            "html_url": self.html_url,
+            "is_private": self.is_private,
+            "visibility": self.visibility,
+            "default_branch": self.default_branch,
+        }
+
+    def __repr__(self) -> str:
+        return (
+            f"Repository(full_name={self.full_name!r}, "
+            f"html_url={self.html_url!r}, "
+            f"is_private={self.is_private!r}, "
+            f"default_branch={self.default_branch!r})"
+        )
+
+
 # Backward-compatible alias
 WorkflowCheck = WorkflowRun
 
@@ -204,6 +248,13 @@ class GitHubAdapter(Protocol):
         exact_head_sha: str,
     ) -> tuple[WorkflowRun, ...]:
         """Return workflow runs for the exact head SHA.
+
+        Raises :class:`GitHubAdapterError` on any failure.
+        """
+        ...
+
+    def discover_repositories(self) -> tuple[Repository, ...]:
+        """Return sanitized repository metadata for the authenticated user.
 
         Raises :class:`GitHubAdapterError` on any failure.
         """
@@ -296,6 +347,63 @@ class LiveGitHubAdapter:
 
         return self.get_workflow_runs(repository, expected_head_sha)
 
+    def discover_repositories(self) -> tuple[Repository, ...]:
+        """Query the authenticated user's repositories via ``gh api``.
+
+        Returns ONLY sanitized metadata: full_name, html_url, is_private,
+        and default_branch. No token, credential, auth header, environment
+        dump, or raw ``gh auth`` output is returned.
+
+        Fail-closed on non-zero exit or malformed JSON.
+        """
+
+        result = subprocess.run(
+            [
+                "gh", "api",
+                "user/repos?affiliation=owner,collaborator,organization_member"
+                "&sort=updated&per_page=20",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            raise GitHubAdapterError(
+                "gh_repo_list_failed",
+                f"exit={result.returncode}",
+            )
+        try:
+            raw_repos = json.loads(result.stdout) if result.stdout.strip() else []
+        except json.JSONDecodeError as exc:
+            raise GitHubAdapterError(
+                "gh_repo_list_json_parse_failed", str(exc)
+            )
+        if not isinstance(raw_repos, list):
+            raise GitHubAdapterError(
+                "gh_repo_list_malformed_output",
+                f"expected list, got {type(raw_repos).__name__}",
+            )
+
+        repos: list[Repository] = []
+        for raw in raw_repos:
+            if not isinstance(raw, dict):
+                continue
+            full_name = str(raw.get("full_name", "")).strip()
+            html_url = str(raw.get("html_url", "")).strip()
+            if not full_name:
+                continue
+            is_private_val = raw.get("private", False)
+            if isinstance(is_private_val, str):
+                is_private_val = is_private_val.lower() in ("true", "1", "yes")
+            default_branch = str(raw.get("default_branch", "")).strip()
+            repos.append(Repository(
+                full_name=full_name,
+                html_url=html_url,
+                is_private=bool(is_private_val),
+                default_branch=default_branch,
+            ))
+        return tuple(repos)
+
 
 # ---------------------------------------------------------------------------
 # Fake adapter for tests
@@ -309,10 +417,12 @@ class FakeGitHubAdapter:
         runs: Sequence[WorkflowRun] | None = None,
         *,
         fail_with: GitHubAdapterError | None = None,
+        repositories: Sequence[Repository] | None = None,
     ) -> None:
         self._runs = tuple(runs) if runs else ()
         self._fail_with = fail_with
         self.call_count = 0
+        self._repositories = tuple(repositories) if repositories else ()
 
     def get_workflow_runs(
         self,
@@ -333,6 +443,12 @@ class FakeGitHubAdapter:
         expected_head_sha: str,
     ) -> tuple[WorkflowRun, ...]:
         return self.get_workflow_runs(repository, expected_head_sha)
+
+    def discover_repositories(self) -> tuple[Repository, ...]:
+        self.call_count += 1
+        if self._fail_with is not None:
+            raise self._fail_with
+        return self._repositories
 
 
 # ---------------------------------------------------------------------------

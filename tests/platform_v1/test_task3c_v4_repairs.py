@@ -600,6 +600,7 @@ class TestTaskApiApiKeyWiring:
                     "title": "http-created",
                     "executor_kind": "opencode",
                     "binding_ref": "http-binding",
+                    "repository": "https://github.com/dddd2024/reverse-agent",
                 }).encode("utf-8")
                 conn = HTTPConnection("127.0.0.1", http_port, timeout=5)
                 conn.request(
