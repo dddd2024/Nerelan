@@ -102,6 +102,7 @@ export function SettingsPage() {
       setStatus("连接已保存");
     } catch (cause) {
       setError(errorMessage(cause));
+      throw cause;
     }
   }
 

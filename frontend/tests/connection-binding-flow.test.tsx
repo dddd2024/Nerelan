@@ -10,6 +10,7 @@ import type {
   ConnectionInput,
 } from "@/schemas/model-access";
 import {
+  getDefaultModelControlClient,
   resetDefaultModelControlClientForTests,
 } from "@/lib/model-control-client";
 import { renderWithProviders } from "./test-utils";
@@ -684,6 +685,47 @@ describe("Connection verify button state", () => {
 
     expect(screen.getByLabelText("API Key")).toHaveValue("fresh-key-for-failed-save");
     expect(screen.getByTestId("test-connection-button")).toBeDisabled();
+  });
+
+  it("SettingsPage: real connection save failure propagates rejection, preserves dirty draft and API Key, keeps Verify disabled", async () => {
+    resetDefaultModelControlClientForTests();
+    const client = getDefaultModelControlClient();
+    const originalUpsert = client.upsertConnection.bind(client);
+    const saveCalls: ConnectionInput[] = [];
+    (client as any).upsertConnection = async (input: ConnectionInput) => {
+      saveCalls.push(input);
+      throw new Error("远端保存失败");
+    };
+
+    const user = userEvent.setup();
+
+    renderWithProviders(<SettingsPage />);
+
+    await user.click(await screen.findByTestId("connection-item-coding-connection"));
+
+    expect(screen.getByTestId("test-connection-button")).toBeEnabled();
+
+    await user.clear(screen.getByLabelText("连接名称"));
+    await user.type(screen.getByLabelText("连接名称"), "FailSave");
+    expect(screen.getByTestId("test-connection-button")).toBeDisabled();
+
+    const apiKeyInput = screen.getByLabelText("API Key") as HTMLInputElement;
+    await user.type(apiKeyInput, "fresh-key-v5");
+    expect(screen.getByTestId("test-connection-button")).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "保存连接" }));
+
+    await waitFor(() => expect(saveCalls).toHaveLength(1));
+
+    expect(
+      await screen.findAllByText("远端保存失败"),
+    ).toHaveLength(2);
+    expect(screen.getByLabelText("连接名称")).toHaveValue("FailSave");
+    expect(screen.getByLabelText("API Key")).toHaveValue("fresh-key-v5");
+    expect(screen.getByTestId("test-connection-button")).toBeDisabled();
+    expect(screen.queryByText("连接已保存")).not.toBeInTheDocument();
+
+    (client as any).upsertConnection = originalUpsert;
   });
 
   it("prior probe result is hidden while the form is dirty", async () => {
