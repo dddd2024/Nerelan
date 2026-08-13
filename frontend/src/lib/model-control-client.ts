@@ -9,6 +9,7 @@ import {
 import {
   ConnectionInputSchema,
   ConnectionSchema,
+  ConnectionProbeResultSchema,
   ExecutorSchema,
   BindingInputSchema,
   BindingSchema,
@@ -17,6 +18,7 @@ import {
   type Executor,
   type Binding,
   type BindingInput,
+  type ConnectionProbeResult,
 } from "@/schemas/model-access";
 
 export interface ModelControlClient {
@@ -29,6 +31,7 @@ export interface ModelControlClient {
   listConnections(): Promise<Connection[]>;
   upsertConnection(input: ConnectionInput): Promise<Connection>;
   deleteConnection(connectionId: string): Promise<void>;
+  testConnection(connectionId: string): Promise<ConnectionProbeResult>;
   listExecutors(): Promise<Executor[]>;
   listBindings(): Promise<Binding[]>;
   upsertBinding(input: BindingInput): Promise<Binding>;
@@ -316,6 +319,23 @@ export function createHttpModelControlClient(
       });
     },
 
+    async testConnection(connectionId) {
+      const payload = await requestJson(
+        `${connectionsUrl}/${encodeURIComponent(connectionId)}/test`,
+        {
+          method: "POST",
+          body: JSON.stringify({}),
+        },
+      );
+      const raw = payload as Record<string, unknown>;
+      return ConnectionProbeResultSchema.parse({
+        ok: raw.ok,
+        status: raw.status,
+        message: raw.message,
+        latencyMs: raw.latencyMs ?? raw.latency_ms ?? null,
+      });
+    },
+
     async listExecutors() {
       const payload = await requestJson(executorsUrl);
       const values = Array.isArray(payload)
@@ -493,6 +513,35 @@ export function createMockModelControlClient(
         throw new Error("connection is referenced by binding");
       }
       connections = connections.filter((c) => c.connectionId !== connectionId);
+    },
+
+    async testConnection(connectionId) {
+      const connection = connections.find((c) => c.connectionId === connectionId);
+      if (!connection) {
+        throw new Error(`Connection not found: ${connectionId}`);
+      }
+      if (!connection.enabled) {
+        return {
+          ok: false,
+          status: "disabled",
+          message: "连接已禁用",
+          latencyMs: null,
+        };
+      }
+      if (connection.secretStatus === "missing") {
+        return {
+          ok: false,
+          status: "credential_missing",
+          message: "API Key 未配置",
+          latencyMs: null,
+        };
+      }
+      return {
+        ok: true,
+        status: "connected",
+        message: "连接成功",
+        latencyMs: 18,
+      };
     },
 
     async listExecutors() {

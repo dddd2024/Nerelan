@@ -1,9 +1,10 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Save, Trash2 } from "lucide-react";
 import {
   ConnectionInputSchema,
   BindingInputSchema,
   type AuthMethod,
+  type ConnectionProbeResult,
   type Binding,
   type BindingInput,
   type Connection,
@@ -27,6 +28,9 @@ interface ConnectionBindingEditorProps {
   onBindingSave: (input: BindingInput) => Promise<void>;
   onConnectionDelete: (connectionId: string) => Promise<void>;
   onBindingDelete: (bindingId: string) => Promise<void>;
+  onConnectionTest: (connectionId: string) => Promise<void>;
+  connectionProbeResult: ConnectionProbeResult | null;
+  connectionProbePending: boolean;
 }
 
 const EMPTY_CONNECTION: ConnectionInput = {
@@ -59,6 +63,9 @@ export function ConnectionBindingEditor({
   onBindingSave,
   onConnectionDelete,
   onBindingDelete,
+  onConnectionTest,
+  connectionProbeResult,
+  connectionProbePending,
 }: ConnectionBindingEditorProps) {
   const [connDraft, setConnDraft] = useState<ConnectionInput>(EMPTY_CONNECTION);
   const [connApiKey, setConnApiKey] = useState("");
@@ -66,21 +73,25 @@ export function ConnectionBindingEditor({
   const [bindDraft, setBindDraft] = useState<BindingInput>(EMPTY_BINDING);
   const [bindError, setBindError] = useState<string | null>(null);
 
+  const [connSavedDraft, setConnSavedDraft] = useState<ConnectionInput | null>(null);
+  const [connSavedApiKey, setConnSavedApiKey] = useState("");
+
   useEffect(() => {
     if (view === "connection") {
-      setConnDraft(
-        connection
-          ? {
-              connectionId: connection.connectionId,
-              name: connection.name,
-              provider: connection.provider,
-              baseUrl: connection.baseUrl,
-              authMethod: connection.authMethod,
-              enabled: connection.enabled,
-            }
-          : EMPTY_CONNECTION,
-      );
+      const draft: ConnectionInput = connection
+        ? {
+            connectionId: connection.connectionId,
+            name: connection.name,
+            provider: connection.provider,
+            baseUrl: connection.baseUrl,
+            authMethod: connection.authMethod,
+            enabled: connection.enabled,
+          }
+        : EMPTY_CONNECTION;
+      setConnDraft(draft);
       setConnApiKey("");
+      setConnSavedDraft(structuredClone(draft));
+      setConnSavedApiKey("");
       setConnError(null);
     } else {
       setBindDraft(
@@ -99,6 +110,19 @@ export function ConnectionBindingEditor({
     }
   }, [view, connection, binding, creating]);
 
+  const connDirty = useMemo(() => {
+    if (connSavedDraft === null) return false;
+    if (connApiKey !== connSavedApiKey) return true;
+    return (
+      connDraft.connectionId !== connSavedDraft.connectionId ||
+      connDraft.name !== connSavedDraft.name ||
+      connDraft.provider !== connSavedDraft.provider ||
+      connDraft.baseUrl !== connSavedDraft.baseUrl ||
+      connDraft.authMethod !== connSavedDraft.authMethod ||
+      connDraft.enabled !== connSavedDraft.enabled
+    );
+  }, [connDraft, connApiKey, connSavedDraft, connSavedApiKey]);
+
   async function handleConnectionSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const parsed = ConnectionInputSchema.safeParse({
@@ -110,8 +134,17 @@ export function ConnectionBindingEditor({
       return;
     }
     setConnError(null);
-    await onConnectionSave(parsed.data);
+    try {
+      await onConnectionSave(parsed.data);
+    } catch (cause) {
+      setConnError(
+        cause instanceof Error ? cause.message : "保存连接失败",
+      );
+      return;
+    }
     setConnApiKey("");
+    setConnSavedDraft(structuredClone(connDraft));
+    setConnSavedApiKey("");
   }
 
   async function handleBindingSubmit(event: FormEvent<HTMLFormElement>) {
@@ -125,8 +158,20 @@ export function ConnectionBindingEditor({
     await onBindingSave(parsed.data);
   }
 
+  async function handleTestConnection() {
+    const savedId = connSavedId;
+    if (!savedId) return;
+    await onConnectionTest(savedId);
+  }
+
   const connSavedId = creating && view === "connection" ? null : connection?.connectionId ?? null;
   const bindSavedId = creating && view === "binding" ? null : binding?.bindingId ?? null;
+  const canVerifyConnection =
+    view === "connection" &&
+    !!connSavedId &&
+    !connDirty &&
+    !connectionProbePending &&
+    !busy;
 
   return (
     <div data-testid="connection-binding-editor">
@@ -251,10 +296,43 @@ export function ConnectionBindingEditor({
             </p>
           )}
 
+          {connectionProbeResult && !connDirty && (
+            <p
+              role="status"
+              data-testid="connection-probe-result"
+              className={`text-sm ${connectionProbeResult.ok ? "text-green-300" : "text-red-300"}`}
+            >
+              {connectionProbeResult.ok ? "验证成功" : "验证失败"}：
+              {connectionProbeResult.message}
+              {connectionProbeResult.latencyMs !== null && (
+                <span>（{connectionProbeResult.latencyMs} ms）</span>
+              )}
+            </p>
+          )}
+
           <div className="flex flex-wrap items-center gap-2 border-t border-ra-border pt-3">
             <button type="submit" disabled={busy} className={primaryButtonClass}>
               <Save className="h-4 w-4" aria-hidden="true" />
               保存连接
+            </button>
+            <button
+              type="button"
+              disabled={!canVerifyConnection}
+              onClick={handleTestConnection}
+              data-testid="test-connection-button"
+              title={
+                !connSavedId
+                  ? "新建连接需先保存"
+                  : connDirty
+                    ? "当前有未保存的修改，请先保存"
+                    : "验证连接"
+              }
+              className={cn(
+                secondaryButtonClass,
+                connectionProbePending && "opacity-60",
+              )}
+            >
+              {connectionProbePending ? "验证中…" : "验证连接"}
             </button>
             <button
               type="button"

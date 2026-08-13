@@ -9,6 +9,7 @@ import type {
   Binding,
   Connection,
   ConnectionInput,
+  ConnectionProbeResult,
   Executor,
 } from "@/schemas/model-access";
 import type { BindingInput } from "@/schemas/model-access";
@@ -102,5 +103,12 @@ export function useDeleteBinding() {
     onSuccess: async () => {
       replaceBindings(queryClient, await client.listBindings());
     },
+  });
+}
+
+export function useTestConnection() {
+  const client = getDefaultModelControlClient();
+  return useMutation<ConnectionProbeResult, Error, string>({
+    mutationFn: (connectionId) => client.testConnection(connectionId),
   });
 }

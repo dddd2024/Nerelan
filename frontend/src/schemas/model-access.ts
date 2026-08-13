@@ -93,3 +93,12 @@ export type ConnectionInput = z.infer<typeof ConnectionInputSchema>;
 export type Executor = z.infer<typeof ExecutorSchema>;
 export type Binding = z.infer<typeof BindingSchema>;
 export type BindingInput = z.infer<typeof BindingInputSchema>;
+
+export const ConnectionProbeResultSchema = z.object({
+  ok: z.boolean(),
+  status: z.string(),
+  message: z.string(),
+  latencyMs: z.number().nullable(),
+});
+
+export type ConnectionProbeResult = z.infer<typeof ConnectionProbeResultSchema>;

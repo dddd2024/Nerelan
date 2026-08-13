@@ -365,3 +365,114 @@ def test_legacy_model_profile_http_contract_remains_compatible(
     status, listed = api_request(port, "GET", "/api/model-profiles")
     assert status == 200
     assert listed == [created]
+
+
+# ---------------------------------------------------------------------------
+# ISSUE183 R2 V1 - Saved Connection probe HTTP contract
+# ---------------------------------------------------------------------------
+
+def test_connection_test_endpoint_rejects_non_empty_body(
+    connection_service: tuple[int, ModelProfileStore],
+) -> None:
+    port, store = connection_service
+    store.upsert_connection(connection_payload(api_key="http-test-key"))
+
+    status, error = api_request(
+        port,
+        "POST",
+        "/api/connections/sense-api/test",
+        {"api_key": "injected-api-key"},
+    )
+    assert status == 400
+    assert "configuration overrides" in error["error"]
+
+
+def test_connection_test_endpoint_rejects_generic_non_empty_body(
+    connection_service: tuple[int, ModelProfileStore],
+) -> None:
+    port, store = connection_service
+    store.upsert_connection(connection_payload(api_key="http-test-key"))
+
+    status, error = api_request(
+        port,
+        "POST",
+        "/api/connections/sense-api/test",
+        {"custom": "value"},
+    )
+    assert status == 400
+    assert "empty JSON object" in error["error"]
+
+
+def test_connection_test_endpoint_disabled_no_probe_body(
+    connection_service: tuple[int, ModelProfileStore],
+) -> None:
+    port, store = connection_service
+    store.upsert_connection(connection_payload(api_key="http-test-key", enabled=False))
+
+    status, result = api_request(
+        port,
+        "POST",
+        "/api/connections/sense-api/test",
+        None,
+    )
+    assert status == 200
+    assert result["ok"] is False
+    assert result["status"] == "disabled"
+    assert "http-test-key" not in json.dumps(result)
+
+
+def test_connection_test_endpoint_missing_secret_no_probe(
+    connection_service: tuple[int, ModelProfileStore],
+) -> None:
+    port, store = connection_service
+    store.upsert_connection(connection_payload())
+
+    status, result = api_request(
+        port,
+        "POST",
+        "/api/connections/sense-api/test",
+        None,
+    )
+    assert status == 200
+    assert result["ok"] is False
+    assert result["status"] == "credential_missing"
+
+
+def test_connection_test_endpoint_live_disabled_fails_closed(
+    connection_service: tuple[int, ModelProfileStore],
+) -> None:
+    port, store = connection_service
+    store.upsert_connection(connection_payload(api_key="http-test-key"))
+
+    status, result = api_request(
+        port,
+        "POST",
+        "/api/connections/sense-api/test",
+        None,
+    )
+    assert status == 200
+    assert result["ok"] is False
+    assert result["status"] == "live_probe_disabled"
+    assert "http-test-key" not in json.dumps(result)
+
+
+def test_connection_test_endpoint_unsupported_auth_no_probe(
+    connection_service: tuple[int, ModelProfileStore],
+) -> None:
+    port, store = connection_service
+    store.upsert_connection(
+        connection_payload(
+            connection_id="account-login-conn",
+            auth_method="account_login",
+        )
+    )
+
+    status, result = api_request(
+        port,
+        "POST",
+        "/api/connections/account-login-conn/test",
+        None,
+    )
+    assert status == 200
+    assert result["ok"] is False
+    assert result["status"] == "unsupported_auth_method"
