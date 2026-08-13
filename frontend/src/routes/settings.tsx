@@ -93,7 +93,8 @@ export function SettingsPage() {
   }
 
   async function handleConnectionSave(input: ConnectionInput) {
-    clearMessages();
+    setStatus(null);
+    setError(null);
     try {
       const saved = await connectionsMutation.mutateAsync(input);
       setCreating(false);
@@ -105,7 +106,9 @@ export function SettingsPage() {
   }
 
   async function handleConnectionTest(connectionId: string) {
-    clearMessages();
+    setStatus(null);
+    setError(null);
+    setConnProbeResult(null);
     try {
       const result = await testConnectionMutation.mutateAsync(connectionId);
       setConnProbeResult(result);

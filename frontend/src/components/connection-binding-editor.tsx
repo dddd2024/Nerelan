@@ -134,7 +134,14 @@ export function ConnectionBindingEditor({
       return;
     }
     setConnError(null);
-    await onConnectionSave(parsed.data);
+    try {
+      await onConnectionSave(parsed.data);
+    } catch (cause) {
+      setConnError(
+        cause instanceof Error ? cause.message : "保存连接失败",
+      );
+      return;
+    }
     setConnApiKey("");
     setConnSavedDraft(structuredClone(connDraft));
     setConnSavedApiKey("");
@@ -289,7 +296,7 @@ export function ConnectionBindingEditor({
             </p>
           )}
 
-          {connectionProbeResult && (
+          {connectionProbeResult && !connDirty && (
             <p
               role="status"
               data-testid="connection-probe-result"

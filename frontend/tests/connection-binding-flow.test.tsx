@@ -4,6 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SettingsPage } from "@/routes/settings";
 import { NewTaskComposer } from "@/components/new-task-composer";
+import { ConnectionBindingEditor } from "@/components/connection-binding-editor";
+import type {
+  Connection,
+  ConnectionInput,
+} from "@/schemas/model-access";
 import {
   resetDefaultModelControlClientForTests,
 } from "@/lib/model-control-client";
@@ -551,5 +556,152 @@ describe("Connection verify button state", () => {
     expect(probeResult.textContent).toContain("验证成功");
     expect(probeResult.textContent).toContain("连接成功");
     expect(probeResult.textContent).toContain("ms");
+  });
+
+  it("failed save preserves dirty state, shows error, and keeps Verify disabled", async () => {
+    const conn: Connection = {
+      connectionId: "coding-connection",
+      name: "默认代码连接",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      secretStatus: "environment",
+      externalSessionStatus: "not_applicable",
+    };
+    const connections = [conn];
+    const executors = [{
+      executorId: "opencode",
+      name: "OpenCode",
+      operational: true,
+      capabilities: [],
+    }];
+
+    const saveCalls: ConnectionInput[] = [];
+    async function onConnectionSave(input: ConnectionInput): Promise<void> {
+      saveCalls.push(input);
+      await Promise.resolve();
+      throw new Error("远端保存失败");
+    }
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <ConnectionBindingEditor
+        view="connection"
+        connection={conn}
+        binding={null}
+        creating={false}
+        connections={connections}
+        executors={executors}
+        busy={false}
+        onConnectionSave={onConnectionSave}
+        onBindingSave={async () => undefined}
+        onConnectionDelete={async () => undefined}
+        onBindingDelete={async () => undefined}
+        onConnectionTest={async () => undefined}
+        connectionProbeResult={null}
+        connectionProbePending={false}
+      />,
+    );
+
+    expect(screen.getByTestId("test-connection-button")).toBeEnabled();
+
+    await user.clear(screen.getByLabelText("连接名称"));
+    await user.type(screen.getByLabelText("连接名称"), "FailSave");
+    expect(screen.getByTestId("test-connection-button")).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "保存连接" }));
+
+    await waitFor(() => expect(saveCalls).toHaveLength(1));
+
+    expect(
+      await screen.findByText("远端保存失败"),
+    ).toBeInTheDocument();
+
+    expect(screen.getByTestId("test-connection-button")).toBeDisabled();
+    expect(screen.getByLabelText("连接名称")).toHaveValue("FailSave");
+  });
+
+  it("failed save does not clear the unsaved API Key as though persisted", async () => {
+    const conn: Connection = {
+      connectionId: "coding-connection",
+      name: "默认代码连接",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      secretStatus: "environment",
+      externalSessionStatus: "not_applicable",
+    };
+    const connections = [conn];
+    const executors = [{
+      executorId: "opencode",
+      name: "OpenCode",
+      operational: true,
+      capabilities: [],
+    }];
+
+    const saveCalls: ConnectionInput[] = [];
+    function onConnectionSave(input: ConnectionInput): Promise<void> {
+      saveCalls.push(input);
+      return Promise.reject(new Error("远端保存失败"));
+    }
+
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <ConnectionBindingEditor
+        view="connection"
+        connection={conn}
+        binding={null}
+        creating={false}
+        connections={connections}
+        executors={executors}
+        busy={false}
+        onConnectionSave={onConnectionSave}
+        onBindingSave={async () => undefined}
+        onConnectionDelete={async () => undefined}
+        onBindingDelete={async () => undefined}
+        onConnectionTest={async () => undefined}
+        connectionProbeResult={null}
+        connectionProbePending={false}
+      />,
+    );
+
+    const apiKeyInput = screen.getByLabelText("API Key") as HTMLInputElement;
+    expect(apiKeyInput.value).toBe("");
+
+    await user.type(apiKeyInput, "fresh-key-for-failed-save");
+    expect(screen.getByTestId("test-connection-button")).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "保存连接" }));
+
+    await waitFor(() => expect(saveCalls).toHaveLength(1));
+
+    expect(
+      await screen.findByText("远端保存失败"),
+    ).toBeInTheDocument();
+
+    expect(screen.getByLabelText("API Key")).toHaveValue("fresh-key-for-failed-save");
+    expect(screen.getByTestId("test-connection-button")).toBeDisabled();
+  });
+
+  it("prior probe result is hidden while the form is dirty", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SettingsPage />);
+
+    await user.click(await screen.findByTestId("connection-item-coding-connection"));
+
+    await user.click(screen.getByTestId("test-connection-button"));
+    expect(
+      await screen.findByTestId("connection-probe-result"),
+    ).toHaveTextContent(/验证成功/);
+
+    await user.clear(screen.getByLabelText("Base URL"));
+    await user.type(screen.getByLabelText("Base URL"), "http://dirty.local/v1");
+
+    expect(screen.queryByTestId("connection-probe-result")).not.toBeInTheDocument();
+    expect(screen.getByTestId("test-connection-button")).toBeDisabled();
   });
 });
