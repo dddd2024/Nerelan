@@ -74,6 +74,7 @@ def test_task_api_round_trips_explicit_binding_ref(task_server) -> None:
         {
             "title": "bound task",
             "executor_kind": "opencode",
+            "repository": "https://github.com/dddd2024/reverse-agent",
             "binding_ref": "coding-fast",
             "model_profile_ref": "legacy-profile",
         },
@@ -96,6 +97,7 @@ def test_task_api_keeps_legacy_empty_binding_compatible(task_server) -> None:
         {
             "title": "legacy opencode",
             "executor_kind": "opencode",
+            "repository": "https://github.com/dddd2024/reverse-agent",
             "model_profile_ref": "provider/model",
         },
     )
@@ -381,3 +383,256 @@ def test_ready_for_human_next_action_is_executor_neutral() -> None:
     assert ok["state"] == "READY_FOR_HUMAN"
     assert ok["testStatus"] == "PASS"
     assert "fixture" not in ok["nextAction"].lower()
+
+
+# ---------------------------------------------------------------------------
+# Repository selection / discovery
+# ---------------------------------------------------------------------------
+
+class _TestRepoAdapter:
+    """Minimal fake GitHub adapter returning configured repositories."""
+
+    def __init__(self, repos=None, fail_with=None):
+        from reverse_agent.platform_v1.github_adapter import (
+            GitHubAdapterError, Repository,
+        )
+        self._repos = tuple(repos) if repos else ()
+        self._fail_with = fail_with
+        self.call_count = 0
+
+    def get_workflow_runs(self, repository, exact_head_sha):
+        return ()
+
+    def discover_repositories(self):
+        from reverse_agent.platform_v1.github_adapter import GitHubAdapterError
+        self.call_count += 1
+        if self._fail_with is not None:
+            raise self._fail_with
+        return self._repos
+
+
+@pytest.fixture()
+def task_server_with_github(tmp_path):
+    """Task server with an injected fake GitHub adapter."""
+    from reverse_agent.platform_v1.github_adapter import Repository
+    from reverse_agent.platform_v1.task_service import _handler_factory
+
+    db_path = str(tmp_path / "tasks.sqlite3")
+    store = TaskStore(db_path=db_path)
+    router = ExecutorRouter()
+    repos = (
+        Repository(
+            full_name="dddd2024/reverse-agent",
+            html_url="https://github.com/dddd2024/reverse-agent",
+            is_private=False,
+            default_branch="main",
+        ),
+        Repository(
+            full_name="dddd2024/another-repo",
+            html_url="https://github.com/dddd2024/another-repo",
+            is_private=True,
+            default_branch="develop",
+        ),
+    )
+    adapter = _TestRepoAdapter(repos=repos)
+    handler_cls = _handler_factory(
+        store, router,
+        allowed_origin="http://localhost:5173",
+        github_adapter=adapter,
+    )
+    from http.server import ThreadingHTTPServer
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield "http://127.0.0.1:%d" % port, server, adapter
+    server.shutdown()
+    server.server_close()
+
+
+def test_opencode_task_without_repository_rejected(task_server) -> None:
+    """R2 v2: opencode executor requires an explicit repository; missing -> 409."""
+    base_url, server = task_server
+    status, body = _req(base_url, "POST", "/api/tasks", {
+        "title": "real opencode task",
+        "executor_kind": "opencode",
+        "idempotency_key": "repo-test-1",
+    })
+    assert status == 409
+    assert "repository_required" in body["error"]
+
+
+def test_fixture_task_without_repository_still_works(task_server) -> None:
+    """deterministic_fixture remains provider-free; no repository required."""
+    base_url, server = task_server
+    status, _ = _req(base_url, "POST", "/api/tasks", {
+        "title": "fixture task",
+        "executor_kind": "deterministic_fixture",
+        "idempotency_key": "repo-test-2",
+    })
+    assert status == 201
+
+
+def test_opencode_task_with_repository_accepted(task_server) -> None:
+    """opencode with explicit repository creates successfully."""
+    base_url, server = task_server
+    status, body = _req(base_url, "POST", "/api/tasks", {
+        "title": "real opencode task",
+        "executor_kind": "opencode",
+        "repository": "https://github.com/dddd2024/reverse-agent",
+        "idempotency_key": "repo-test-3",
+    })
+    assert status == 201
+    assert body["repository"] == "https://github.com/dddd2024/reverse-agent"
+    assert body["executor_kind"] == "opencode"
+
+
+def test_repository_catalog_endpoint_success(task_server_with_github) -> None:
+    """GET /api/repositories returns sanitized metadata from injected adapter."""
+    base_url, server, adapter = task_server_with_github
+    status, body = _req(base_url, "GET", "/api/repositories")
+    assert status == 200
+    repos = body["repositories"]
+    assert len(repos) == 2
+    assert repos[0]["full_name"] == "dddd2024/reverse-agent"
+    assert repos[0]["html_url"] == "https://github.com/dddd2024/reverse-agent"
+    assert repos[0]["is_private"] is False
+    assert repos[0]["visibility"] == "public"
+    assert repos[1]["full_name"] == "dddd2024/another-repo"
+    assert repos[1]["is_private"] is True
+    assert repos[1]["visibility"] == "private"
+    assert body["total"] == 2
+    assert adapter.call_count == 1
+
+
+def test_repository_catalog_endpoint_adapter_unavailable(task_server) -> None:
+    """GET /api/repositories without injected adapter -> 503."""
+    base_url, server = task_server
+    status, body = _req(base_url, "GET", "/api/repositories")
+    assert status == 503
+    assert body["error"] == "github_adapter_unavailable"
+
+
+def test_repository_catalog_endpoint_adapter_error_sanitized(task_server_with_github) -> None:
+    """GET /api/repositories with failing adapter -> 500 sanitized error."""
+    from reverse_agent.platform_v1.github_adapter import GitHubAdapterError
+    from reverse_agent.platform_v1.task_service import _handler_factory
+
+    # Re-create server with failing adapter
+    base_url, _, _ = task_server_with_github
+    server_used, _ = task_server_with_github[:2]
+    # We'll just use the adapter that was already created but force it to fail
+    # by creating a new server
+    import tempfile
+    tmp = tempfile.mkdtemp()
+    from reverse_agent.platform_v1.run_store import TaskStore as TS
+    store2 = TS(db_path=str(tmp + "/t.db"))
+    failing_adapter = _TestRepoAdapter(fail_with=GitHubAdapterError("gh_repo_list_failed", "exit=1"))
+    handler_cls2 = _handler_factory(
+        store2, ExecutorRouter(),
+        allowed_origin="http://localhost:5173",
+        github_adapter=failing_adapter,
+    )
+    from http.server import ThreadingHTTPServer
+    s2 = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls2)
+    port2 = s2.server_address[1]
+    t2 = threading.Thread(target=s2.serve_forever, daemon=True)
+    t2.start()
+    try:
+        status, body = _req(
+            "http://127.0.0.1:%d" % port2, "GET", "/api/repositories"
+        )
+        assert status == 500
+        assert body["error"] == "repository_discovery_failed"
+    finally:
+        s2.shutdown()
+        s2.server_close()
+
+
+def test_repository_preserved_in_task_create_readback(task_server) -> None:
+    """Selected repository is preserved through create and readback."""
+    base_url, server = task_server
+    repo_url = "https://github.com/dddd2024/reverse-agent"
+    status, body = _req(base_url, "POST", "/api/tasks", {
+        "title": "repo-preserved",
+        "executor_kind": "opencode",
+        "repository": repo_url,
+        "idempotency_key": "repo-preserved-1",
+    })
+    assert status == 201
+    task_id = body["id"]
+    status2, body2 = _req(base_url, "GET", f"/api/tasks/{task_id}")
+    assert status2 == 200
+    assert body2["repository"] == repo_url
+
+
+# ---------------------------------------------------------------------------
+# Regression: CombinedTrustedHost production wiring supplies LiveGitHubAdapter
+# ---------------------------------------------------------------------------
+
+def test_combined_trusted_host_wires_live_github_adapter(tmp_path) -> None:
+    """CombinedTrustedHost start() creates a LiveGitHubAdapter and passes it
+    to the Task API handler, so GET /api/repositories never returns 503 in
+    production when no explicit adapter was injected.
+    """
+    from reverse_agent.platform_v1.github_adapter import LiveGitHubAdapter
+    from reverse_agent.platform_v1.task_service import _handler_factory
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+
+    host = CombinedTrustedHost()
+    assert host.github_adapter is None
+
+    db_path = str(tmp_path / "ctw.db")
+    host = CombinedTrustedHost(
+        task_db_path=db_path,
+        model_control_port=0,
+        task_api_port=0,
+        allowed_origin="http://localhost:5173",
+    )
+    host.start()
+    try:
+        base = host.task_api_url
+        assert base.startswith("http://127.0.0.1:")
+        status, body = _req(base, "GET", "/api/repositories")
+        assert status in (200, 500), (
+            f"CombinedTrustedHost must not return 503 github_adapter_unavailable; got {status}: {body}"
+        )
+    finally:
+        host.stop()
+
+
+def test_combined_trusted_host_allows_fake_adapter_injection(tmp_path) -> None:
+    """CombinedTrustedHost still accepts an injected fake adapter for tests."""
+    from reverse_agent.platform_v1.github_adapter import (
+        FakeGitHubAdapter, Repository,
+    )
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+
+    fake = FakeGitHubAdapter(
+        repositories=(
+            Repository(
+                full_name="test/repo",
+                html_url="https://github.com/test/repo",
+                is_private=False,
+                default_branch="main",
+            ),
+        )
+    )
+    db_path = str(tmp_path / "ctw2.db")
+    host = CombinedTrustedHost(
+        task_db_path=db_path,
+        model_control_port=0,
+        task_api_port=0,
+        allowed_origin="http://localhost:5173",
+        github_adapter=fake,
+    )
+    assert host.github_adapter is fake
+    host.start()
+    try:
+        base = host.task_api_url
+        status, body = _req(base, "GET", "/api/repositories")
+        assert status == 200, body
+        assert len(body["repositories"]) == 1
+        assert body["repositories"][0]["full_name"] == "test/repo"
+    finally:
+        host.stop()

@@ -11,6 +11,16 @@ import { renderWithProviders } from "./test-utils";
 
 const DUMMY_SECRET = "issue181-dummy-secret-value";
 
+const FAKE_REPOS = [
+  {
+    full_name: "dddd2024/reverse-agent",
+    html_url: "https://github.com/dddd2024/reverse-agent",
+    is_private: false,
+    visibility: "public",
+    default_branch: "main",
+  },
+];
+
 describe("settings Connection + Binding flow", () => {
   beforeEach(() => {
     resetDefaultModelControlClientForTests();
@@ -402,7 +412,15 @@ describe("Task HTTP JSON contains binding_ref and readback preserves bindingRef"
 });
 
 function NewTaskComposerWrapper({ submit }: { submit: (input: unknown) => void }) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0, staleTime: Infinity },
+    },
+  });
+  queryClient.setQueryData(["repositories"], FAKE_REPOS);
   return (
-    <NewTaskComposer open={true} onClose={() => undefined} onSubmit={submit} />
+    <QueryClientProvider client={queryClient}>
+      <NewTaskComposer open={true} onClose={() => undefined} onSubmit={submit} />
+    </QueryClientProvider>
   );
 }
