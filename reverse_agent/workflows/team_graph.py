@@ -210,3 +210,133 @@ def build_worker_adapter(
             )
 
     return _adapt
+
+
+_SEQUENTIAL_ROLES = ("planner", "coder", "reviewer")
+
+
+def build_sequential_team_graph(
+    *,
+    worker: Callable[[WorkerAssignment], WorkerExecutionResult],
+    verifier: (
+        Callable[[tuple[WorkerExecutionResult, ...]], TeamExecutionResult] | None
+    ) = None,
+) -> StateGraph:
+    """Build a compiled LangGraph subgraph that enforces a strict
+    ``planner -> coder -> reviewer`` role sequence in ONE assignment.
+
+    Unlike ``build_team_graph`` (parallel ``Send`` fan-out), this graph
+    runs three LangGraph nodes in series. All three receive the SAME
+    assignment, carrying the SAME ``task_id`` and ``workspace_root``.
+    The downstream node always receives the previous node's result in
+    state, so the role identity can be verified by the downstream node.
+
+    Fail-closed semantics:
+    - planner failure -> coder/reviewer never called, team rejected;
+    - invalid planner handoff (role != "planner" or success=False)
+      -> coder/reviewer never called, team rejected;
+    - coder failure -> reviewer never called, team rejected;
+    - invalid coder handoff -> reviewer never called, team rejected;
+    - reviewer failure -> team rejected;
+    - all three success -> verifier runs and produces aggregate result.
+    """
+    default_ver = verifier or _default_verifier
+
+    def _planner_node(state: TeamWorkflowState) -> dict[str, Any]:
+        base_assignment = state.get("assignment", {})
+        role_assignment = dict(base_assignment)
+        role_assignment["role"] = "planner"
+        wa = WorkerAssignment.from_mapping(role_assignment)
+        result = worker(wa)
+        if not (result.success and result.worker_id and result.task_id == wa.task_id):
+            raise TeamGraphError("planner_failed")
+        return {"worker_results": [result.to_dict()]}
+
+    def _coder_node(state: TeamWorkflowState) -> dict[str, Any]:
+        base_assignment = state.get("assignment", {})
+        role_assignment = dict(base_assignment)
+        role_assignment["role"] = "coder"
+        wa = WorkerAssignment.from_mapping(role_assignment)
+        worker_results = list(state.get("worker_results") or [])
+        if not worker_results:
+            raise TeamGraphError("missing_planner_handoff")
+        planner_result_raw = worker_results[-1]
+        planner_result = WorkerExecutionResult(
+            worker_id=planner_result_raw.get("worker_id", ""),
+            task_id=planner_result_raw.get("task_id", ""),
+            execution_id=planner_result_raw.get("execution_id", ""),
+            success=bool(planner_result_raw.get("success", False)),
+            validation_exit_code=int(planner_result_raw.get("validation_exit_code", -1)),
+            evidence_ids=tuple(planner_result_raw.get("evidence_ids", ())),
+            failure_classification=planner_result_raw.get("failure_classification", ""),
+            failure_detail=planner_result_raw.get("failure_detail", ""),
+            reasons=tuple(planner_result_raw.get("reasons", ())),
+        )
+        if not planner_result.success or planner_result.task_id != wa.task_id:
+            raise TeamGraphError("invalid_planner_handoff")
+        result = worker(wa)
+        if not (result.success and result.worker_id and result.task_id == wa.task_id):
+            raise TeamGraphError("coder_failed")
+        return {"worker_results": [result.to_dict()]}
+
+    def _reviewer_node(state: TeamWorkflowState) -> dict[str, Any]:
+        base_assignment = state.get("assignment", {})
+        role_assignment = dict(base_assignment)
+        role_assignment["role"] = "reviewer"
+        wa = WorkerAssignment.from_mapping(role_assignment)
+        worker_results = list(state.get("worker_results") or [])
+        if len(worker_results) < 2:
+            raise TeamGraphError("missing_role_handoff")
+        planner_result_raw = worker_results[0]
+        planner_result = WorkerExecutionResult(
+            worker_id=planner_result_raw.get("worker_id", ""),
+            task_id=planner_result_raw.get("task_id", ""),
+            execution_id=planner_result_raw.get("execution_id", ""),
+            success=bool(planner_result_raw.get("success", False)),
+            validation_exit_code=int(planner_result_raw.get("validation_exit_code", -1)),
+            evidence_ids=tuple(planner_result_raw.get("evidence_ids", ())),
+            failure_classification=planner_result_raw.get("failure_classification", ""),
+            failure_detail=planner_result_raw.get("failure_detail", ""),
+            reasons=tuple(planner_result_raw.get("reasons", ())),
+        )
+        if not planner_result.success:
+            raise TeamGraphError("invalid_planner_handoff")
+        result = worker(wa)
+        if not (result.success and result.worker_id and result.task_id == wa.task_id):
+            raise TeamGraphError("reviewer_failed")
+        return {"worker_results": [result.to_dict()]}
+
+    def _verifier_node_sequential(state: TeamWorkflowState) -> dict[str, Any]:
+        raw_results = list(state.get("worker_results") or [])
+        worker_results: list[WorkerExecutionResult] = []
+        for raw in raw_results:
+            worker_results.append(WorkerExecutionResult(
+                worker_id=raw.get("worker_id", ""),
+                task_id=raw.get("task_id", ""),
+                execution_id=raw.get("execution_id", ""),
+                success=bool(raw.get("success", False)),
+                validation_exit_code=int(raw.get("validation_exit_code", -1)),
+                evidence_ids=tuple(raw.get("evidence_ids", ())),
+                failure_classification=raw.get("failure_classification", ""),
+                failure_detail=raw.get("failure_detail", ""),
+                reasons=tuple(raw.get("reasons", ())),
+            ))
+        team = default_ver(tuple(worker_results))
+        return {"team_execution_result": team.to_dict()}
+
+    class SequentialState(TeamWorkflowState):
+        pass
+
+    builder = StateGraph(SequentialState)
+    builder.add_node("dispatch_sequential", lambda s: {"assignment": (s.get("assignments") or [{}])[0]})
+    builder.add_node("planner", _planner_node)
+    builder.add_node("coder", _coder_node)
+    builder.add_node("reviewer", _reviewer_node)
+    builder.add_node("verifier", _verifier_node_sequential)
+    builder.add_edge(START, "dispatch_sequential")
+    builder.add_edge("dispatch_sequential", "planner")
+    builder.add_edge("planner", "coder")
+    builder.add_edge("coder", "reviewer")
+    builder.add_edge("reviewer", "verifier")
+    builder.add_edge("verifier", END)
+    return builder.compile()

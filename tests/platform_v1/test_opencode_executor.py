@@ -20,6 +20,7 @@ from reverse_agent.platform_v1.opencode_executor import (
     build_binding_config_content,
     build_opencode_argv,
     build_prompt,
+    build_role_prompt,
     redact_event,
     redact_secrets,
     resolve_opencode_cli,
@@ -225,6 +226,61 @@ def test_binding_constructor_does_not_require_legacy_model_id() -> None:
 def test_build_prompt_contains_task() -> None:
     prompt = build_prompt("create alpha-ok file", "/tmp/ws")
     assert "create alpha-ok file" in prompt
+
+
+def test_build_role_prompt_planner_contains_role_instructions() -> None:
+    from reverse_agent.platform_v1.opencode_executor import RoleContext
+
+    ctx = RoleContext(
+        role="planner",
+        task_id="task-1",
+        workspace=Path("/tmp/ws"),
+        role_order_index=0,
+    )
+    prompt = build_role_prompt("bounded task", "/tmp/ws", role_context=ctx)
+
+    assert "AUTHORITY CONSTRAINTS" in prompt
+    assert "ROLE INSTRUCTIONS" in prompt
+    assert "planner" in prompt
+    assert "MUST NOT commit" in prompt
+    assert "bounded task" in prompt
+
+
+def test_build_role_prompt_coder_and_reviewer_include_shared_workspace_hint() -> None:
+    from reverse_agent.platform_v1.opencode_executor import RoleContext
+
+    for role in ("coder", "reviewer"):
+        ctx = RoleContext(
+            role=role,
+            task_id="task-1",
+            workspace=Path("/tmp/ws"),
+            role_order_index=1 if role == "coder" else 2,
+        )
+        prompt = build_role_prompt("bounded task", "/tmp/ws", role_context=ctx)
+        assert role in prompt
+        assert "planner handoff" in prompt or role != "planner"
+
+
+def test_build_role_prompt_unknown_role_falls_back_to_base() -> None:
+    from reverse_agent.platform_v1.opencode_executor import RoleContext
+
+    ctx = RoleContext(
+        role="executor",
+        task_id="task-1",
+        workspace=Path("/tmp/ws"),
+        role_order_index=0,
+    )
+    prompt = build_role_prompt("bounded task", "/tmp/ws", role_context=ctx)
+
+    assert "bounded task" in prompt
+    assert "AUTHORITY CONSTRAINTS" in prompt
+    assert "ROLE INSTRUCTIONS" not in prompt
+
+
+def test_build_role_prompt_without_context_equals_build_prompt() -> None:
+    prompt = build_role_prompt("bounded task", "/tmp/ws")
+    base = build_prompt("bounded task", "/tmp/ws")
+    assert prompt == base
 
 
 # ---------------------------------------------------------------------------
@@ -1169,3 +1225,162 @@ def test_executor_real_path_uses_prompt_file_not_positional_task() -> None:
             content = Path(prompt_file).read_text(encoding="utf-8", errors="replace")
             assert "echo $(whoami) & dir" in content
             assert "AUTHORITY CONSTRAINTS" in content
+
+
+# ---------------------------------------------------------------------------
+# ISSUE184 R2 V2 handoff validation regressions
+# ---------------------------------------------------------------------------
+
+
+def test_validate_plan_handoff_valid(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        _validate_plan_handoff,
+        handoff_dir,
+    )
+    worktree = tmp_path / "ws"
+    worktree.mkdir(parents=True)
+    h = handoff_dir(worktree)
+    h.mkdir(parents=True)
+    plan = h / "plan.md"
+    plan.write_text("plan content\n", encoding="utf-8")
+    assert _validate_plan_handoff(plan) == ""
+
+
+def test_validate_plan_handoff_missing(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        _validate_plan_handoff,
+        handoff_dir,
+    )
+    worktree = tmp_path / "ws"
+    worktree.mkdir(parents=True)
+    h = handoff_dir(worktree)
+    h.mkdir(parents=True)
+    assert "plan_missing" == _validate_plan_handoff(h / "plan.md")
+
+
+def test_validate_plan_handoff_empty(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        _validate_plan_handoff,
+        handoff_dir,
+    )
+    worktree = tmp_path / "ws"
+    worktree.mkdir(parents=True)
+    h = handoff_dir(worktree)
+    h.mkdir(parents=True)
+    plan = h / "plan.md"
+    plan.write_text("", encoding="utf-8")
+    assert _validate_plan_handoff(plan) == "plan_empty"
+
+
+def test_validate_plan_handoff_oversized(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        _validate_plan_handoff,
+        handoff_dir,
+    )
+    worktree = tmp_path / "ws"
+    worktree.mkdir(parents=True)
+    h = handoff_dir(worktree)
+    h.mkdir(parents=True)
+    plan = h / "plan.md"
+    plan.write_text("x" * (128 * 1024 + 1), encoding="utf-8")
+    assert "plan_oversized" in _validate_plan_handoff(plan)
+
+
+def test_validate_plan_handoff_symlink(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        _validate_plan_handoff,
+        handoff_dir,
+    )
+    import os
+    worktree = tmp_path / "ws"
+    worktree.mkdir(parents=True)
+    h = handoff_dir(worktree)
+    h.mkdir(parents=True)
+    real = worktree / "real_plan.md"
+    real.write_text("plan\n", encoding="utf-8")
+    link = h / "plan.md"
+    try:
+        os.symlink(str(real), str(link))
+    except OSError:
+        pytest.skip("symlinks not supported on this platform")
+    reason = _validate_plan_handoff(link)
+    assert reason == "plan_symlink"
+
+
+def test_validate_review_handoff_valid(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        _validate_review_handoff,
+        handoff_dir,
+    )
+    worktree = tmp_path / "ws"
+    worktree.mkdir(parents=True)
+    h = handoff_dir(worktree)
+    h.mkdir(parents=True)
+    review = h / "review.md"
+    review.write_text("review content\n", encoding="utf-8")
+    assert _validate_review_handoff(review) == ""
+
+
+def test_validate_review_handoff_missing(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        _validate_review_handoff,
+        handoff_dir,
+    )
+    worktree = tmp_path / "ws"
+    worktree.mkdir(parents=True)
+    h = handoff_dir(worktree)
+    h.mkdir(parents=True)
+    assert "review_missing" == _validate_review_handoff(h / "review.md")
+
+
+def test_validate_review_handoff_empty(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        _validate_review_handoff,
+        handoff_dir,
+    )
+    worktree = tmp_path / "ws"
+    worktree.mkdir(parents=True)
+    h = handoff_dir(worktree)
+    h.mkdir(parents=True)
+    review = h / "review.md"
+    review.write_text("", encoding="utf-8")
+    assert _validate_review_handoff(review) == "review_empty"
+
+
+def test_validate_review_handoff_oversized(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        _validate_review_handoff,
+        handoff_dir,
+    )
+    worktree = tmp_path / "ws"
+    worktree.mkdir(parents=True)
+    h = handoff_dir(worktree)
+    h.mkdir(parents=True)
+    review = h / "review.md"
+    review.write_text("x" * (128 * 1024 + 1), encoding="utf-8")
+    assert "review_oversized" in _validate_review_handoff(review)
+
+
+def test_validate_review_handoff_workspace_escape(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        _validate_review_handoff,
+        handoff_dir,
+    )
+    worktree = tmp_path / "ws"
+    worktree.mkdir(parents=True)
+    h = handoff_dir(worktree)
+    h.mkdir(parents=True)
+    outside = tmp_path / "outside.md"
+    outside.write_text("escape\n", encoding="utf-8")
+    assert "review_workspace_escape" == _validate_review_handoff(outside)
+
+
+def test_handoff_file_size_ok_bounds(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        _handoff_file_size_ok,
+    )
+    f = tmp_path / "f.txt"
+    f.write_text("", encoding="utf-8")
+    assert _handoff_file_size_ok(f) == (False, "handoff_empty")
+    f.write_text("ok\n", encoding="utf-8")
+    assert _handoff_file_size_ok(f) == (True, "")

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -709,3 +710,967 @@ def _team_fake_worker(wa: WorkerAssignment) -> WorkerExecutionResult:
         success=True,
         validation_exit_code=0,
     )
+
+
+# ---------------------------------------------------------------------------
+# Sequential planner -> coder -> reviewer team graph
+# ---------------------------------------------------------------------------
+
+
+def test_sequential_team_graph_exact_order_and_shared_context(tmp_path) -> None:
+    from reverse_agent.workflows.team_graph import build_sequential_team_graph
+
+    calls: list[WorkerAssignment] = []
+    ws = tmp_path / "ws"
+
+    def fake_worker(wa: WorkerAssignment) -> WorkerExecutionResult:
+        calls.append(wa)
+        return WorkerExecutionResult(
+            worker_id=wa.worker_id,
+            task_id=wa.task_id,
+            execution_id="fake-exec",
+            success=True,
+            validation_exit_code=0,
+        )
+
+    team_graph = build_sequential_team_graph(worker=fake_worker)
+    assignment = WorkerAssignment(
+        worker_id="w-1", role="planner", task_id="task-1", workspace_root=str(ws)
+    )
+    result = team_graph.invoke({"assignments": [assignment.to_dict()]})
+
+    assert len(calls) == 3
+    assert [c.task_id for c in calls] == ["task-1"] * 3
+    assert [c.workspace_root for c in calls] == [str(ws)] * 3
+
+    team = result["team_execution_result"]
+    assert team["accepted"] is True
+    assert len(team["worker_results"]) == 3
+    assert all(wr["task_id"] == "task-1" for wr in team["worker_results"])
+    assert all(wr["success"] is True for wr in team["worker_results"])
+
+
+def test_sequential_team_graph_planner_failure_stops_coder_and_reviewer(tmp_path) -> None:
+    from reverse_agent.workflows.team_graph import build_sequential_team_graph
+
+    calls: list[WorkerAssignment] = []
+
+    def failing_planner(wa: WorkerAssignment) -> WorkerExecutionResult:
+        calls.append(wa)
+        return WorkerExecutionResult(
+            worker_id=wa.worker_id,
+            task_id=wa.task_id,
+            execution_id="fake-exec",
+            success=False,
+            validation_exit_code=1,
+            failure_classification="planner_failed",
+            failure_detail="planner failed",
+            reasons=("planner_failed",),
+        )
+
+    team_graph = build_sequential_team_graph(worker=failing_planner)
+    assignment = WorkerAssignment(
+        worker_id="w-1", role="planner", task_id="task-1", workspace_root="/ws"
+    )
+    with pytest.raises(TeamGraphError):
+        team_graph.invoke({"assignments": [assignment.to_dict()]})
+
+    assert len(calls) == 1
+    assert calls[0].role == "planner"
+
+
+def test_sequential_team_graph_coder_failure_stops_reviewer(tmp_path) -> None:
+    from reverse_agent.workflows.team_graph import build_sequential_team_graph
+
+    calls: list[WorkerAssignment] = []
+    invoke_index = [0]
+
+    def role_worker(wa: WorkerAssignment) -> WorkerExecutionResult:
+        calls.append(wa)
+        invoke_index[0] += 1
+        if invoke_index[0] == 2:
+            return WorkerExecutionResult(
+                worker_id=wa.worker_id,
+                task_id=wa.task_id,
+                execution_id="fake-exec",
+                success=False,
+                validation_exit_code=2,
+                failure_classification="coder_failed",
+                failure_detail="coder failed",
+                reasons=("coder_failed",),
+            )
+        return WorkerExecutionResult(
+            worker_id=wa.worker_id,
+            task_id=wa.task_id,
+            execution_id="fake-exec",
+            success=True,
+            validation_exit_code=0,
+        )
+
+    team_graph = build_sequential_team_graph(worker=role_worker)
+    assignment = WorkerAssignment(
+        worker_id="w-1", role="planner", task_id="task-1", workspace_root="/ws"
+    )
+    with pytest.raises(TeamGraphError):
+        team_graph.invoke({"assignments": [assignment.to_dict()]})
+
+    assert len(calls) == 2
+
+
+def test_sequential_team_graph_verifier_can_reject_accepted_team(tmp_path) -> None:
+    from reverse_agent.workflows.team_graph import build_sequential_team_graph
+
+    def fake_worker(wa: WorkerAssignment) -> WorkerExecutionResult:
+        return WorkerExecutionResult(
+            worker_id=wa.worker_id,
+            task_id=wa.task_id,
+            execution_id="fake-exec",
+            success=True,
+            validation_exit_code=0,
+        )
+
+    def rejecting_verifier(
+        worker_results: tuple[WorkerExecutionResult, ...],
+    ) -> TeamExecutionResult:
+        return TeamExecutionResult(
+            accepted=False,
+            worker_results=worker_results,
+            reasons=("verifier_rejected:sequential",),
+        )
+
+    team_graph = build_sequential_team_graph(
+        worker=fake_worker, verifier=rejecting_verifier
+    )
+    assignment = WorkerAssignment(
+        worker_id="w-1", role="planner", task_id="task-1", workspace_root="/ws"
+    )
+    result = team_graph.invoke({"assignments": [assignment.to_dict()]})
+
+    team = result["team_execution_result"]
+    assert team["accepted"] is False
+    assert any("verifier_rejected" in str(r) for r in team["reasons"])
+    assert len(team["worker_results"]) == 3
+
+
+def test_sequential_team_graph_empty_assignments_fails_closed(tmp_path) -> None:
+    from reverse_agent.workflows.team_graph import build_sequential_team_graph
+
+    def fake_worker(wa: WorkerAssignment) -> WorkerExecutionResult:
+        return WorkerExecutionResult(
+            worker_id=wa.worker_id,
+            task_id=wa.task_id,
+            execution_id="fake-exec",
+            success=True,
+            validation_exit_code=0,
+        )
+
+    team_graph = build_sequential_team_graph(worker=fake_worker)
+    with pytest.raises((TeamGraphError, ValueError)):
+        team_graph.invoke({"assignments": []})
+
+
+# ---------------------------------------------------------------------------
+# Sequential team integration via TaskExecutionService
+# ---------------------------------------------------------------------------
+
+
+def test_sequential_team_integration_single_task_three_roles(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        OpenCodeExecutor,
+        RoleContext,
+    )
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+
+    calls: list[dict] = []
+    ws_dir = tmp_path / "shared-ws"
+
+    class _SequentialRouter(ExecutorRouter):
+        def dispatch_execute(self, **kwargs):
+            raise AssertionError("dispatch_execute must not be called for sequential team")
+
+        def create_executor(self, *, executor_kind: str, **kwargs):
+            calls.append({"kind": executor_kind, "kw": kwargs})
+            return _FakeSequentialExecutor()
+
+    class _FakeSequentialExecutor:
+        worktree_prepared = False
+
+        def prepare_worktree_once(self, task_id, root_path, event_callback):
+            self.worktree = root_path / task_id
+            self.worktree.mkdir(parents=True, exist_ok=True)
+            import subprocess as _sp
+            _sp.run(["git", "init", "-q"], cwd=self.worktree, check=True)
+            _sp.run(["git", "config", "user.email", "t@t"], cwd=self.worktree, check=True)
+            _sp.run(["git", "config", "user.name", "T"], cwd=self.worktree, check=True)
+            (self.worktree / "init.txt").write_text("init\n", encoding="utf-8")
+            _sp.run(["git", "add", "."], cwd=self.worktree, check=True)
+            _sp.run(["git", "commit", "-q", "-m", "init"], cwd=self.worktree, check=True)
+            from reverse_agent.platform_v1.opencode_executor import (
+                PreparedWorkspaceContext,
+                handoff_dir,
+            )
+            handoff_dir(self.worktree).mkdir(parents=True, exist_ok=True)
+            if event_callback:
+                event_callback(task_id, {
+                    "type": "WORKSPACE_READY",
+                    "title": "Workspace ready",
+                    "description": "Shared worktree prepared",
+                    "metadata": {"workspace": str(self.worktree)},
+                })
+            return PreparedWorkspaceContext(
+                worktree=self.worktree,
+                base_sha="deadbeef",
+                execution_id="exec-%s" % task_id,
+                cli_path="/fake/opencode",
+                is_cmd=False,
+                opencode_exe="/fake/opencode",
+            )
+
+        def execute_role_prepared(
+            self,
+            prepared,
+            store,
+            *,
+            role_context: RoleContext,
+            event_callback=None,
+        ):
+            from reverse_agent.platform_v1.opencode_executor import (
+                _collect_changed_files,
+                ExecutorResult,
+            )
+            calls.append({"role": role_context.role, "task_id": role_context.task_id, "workspace": str(prepared.worktree)})
+            role = role_context.role
+            if role == "planner":
+                (prepared.worktree / ".reverse-agent-handoff" / "plan.md").write_text("plan content\n", encoding="utf-8")
+            elif role == "coder":
+                (prepared.worktree / "product.py").write_text("print(1)\n", encoding="utf-8")
+            elif role == "reviewer":
+                (prepared.worktree / ".reverse-agent-handoff" / "review.md").write_text("looks good\n", encoding="utf-8")
+            return ExecutorResult(
+                success=True,
+                validation_exit_code=0,
+                validation_command_id="git_diff_check",
+                validation_output_digest="",
+                validation_output_summary="",
+                changed_files=_collect_changed_files(prepared.worktree),
+                workspace=str(prepared.worktree),
+                execution_id="exec-role",
+            )
+
+    store = TaskStore(db_path=str(tmp_path / "seq.sqlite3"))
+    router = _SequentialRouter()
+    service = TaskExecutionService(store=store, router=router)
+    task = store.create_task(
+        title="seq-team", executor_kind="opencode", idempotency_key="seq-team"
+    )
+
+    outcome = service.execute_sequential_team(
+        task.id, workspace_root=str(tmp_path / "root")
+    )
+    final = store.get_task(task.id)
+
+    assert outcome.success is True
+    assert outcome.execution_id == final.execution_id
+    assert outcome.validation_exit_code == 0
+    assert final.status == "READY_FOR_REVIEW"
+    assert final.changed_files
+    assert final.executor_kind == "opencode"
+
+    role_calls = [c for c in calls if "role" in c]
+    assert [c["role"] for c in role_calls] == ["planner", "coder", "reviewer"]
+    assert len({c["task_id"] for c in role_calls}) == 1
+    assert role_calls[0]["task_id"] == task.id
+    assert len({c["workspace"] for c in role_calls}) == 1
+
+    router_calls = [c for c in calls if c.get("kind")]
+    assert router_calls and router_calls[0]["kind"] == "opencode"
+    changed_paths = [f.get("path", "") for f in final.changed_files]
+    assert not any(p.startswith(".reverse-agent-handoff") for p in changed_paths)
+
+    for ev in final.evidence_refs:
+        if ev.get("label") == "sequential_roles":
+            assert ev.get("value") == "planner,coder,reviewer"
+            break
+    else:
+        assert False, "sequential_roles evidence missing"
+
+
+def test_sequential_team_integration_planner_failure_stops_team(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        OpenCodeExecutor,
+        RoleContext,
+        _collect_changed_files,
+        ExecutorResult,
+        PreparedWorkspaceContext,
+        handoff_dir,
+    )
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+
+    calls: list[str] = []
+
+    class _SequentialRouter(ExecutorRouter):
+        def dispatch_execute(self, **kwargs):
+            raise AssertionError("dispatch_execute must not be called for sequential team")
+
+        def create_executor(self, *, executor_kind: str, **kwargs):
+            return _FakeFailingSequentialExecutor()
+
+    class _FakeFailingSequentialExecutor:
+        def prepare_worktree_once(self, task_id, root_path, event_callback):
+            import subprocess as _sp
+            self.worktree = root_path / task_id
+            self.worktree.mkdir(parents=True, exist_ok=True)
+            _sp.run(["git", "init", "-q"], cwd=self.worktree, check=True)
+            _sp.run(["git", "config", "user.email", "t@t"], cwd=self.worktree, check=True)
+            _sp.run(["git", "config", "user.name", "T"], cwd=self.worktree, check=True)
+            (self.worktree / "init.txt").write_text("init\n", encoding="utf-8")
+            _sp.run(["git", "add", "."], cwd=self.worktree, check=True)
+            _sp.run(["git", "commit", "-q", "-m", "init"], cwd=self.worktree, check=True)
+            handoff_dir(self.worktree).mkdir(parents=True, exist_ok=True)
+            return PreparedWorkspaceContext(
+                worktree=self.worktree,
+                base_sha="deadbeef",
+                execution_id="exec-%s" % task_id,
+                cli_path="/fake/opencode",
+                is_cmd=False,
+                opencode_exe="/fake/opencode",
+            )
+
+        def execute_role_prepared(self, prepared, store, *, role_context: RoleContext, event_callback=None):
+            calls.append(role_context.role)
+            if role_context.role == "planner":
+                return ExecutorResult(
+                    success=False,
+                    validation_exit_code=1,
+                    validation_command_id="",
+                    validation_output_digest="",
+                    validation_output_summary="",
+                    changed_files=[],
+                    error="planner failed",
+                    workspace=str(prepared.worktree),
+                    execution_id="exec-role",
+                    failure_classification="planner_failed",
+                )
+            return ExecutorResult(
+                success=True,
+                validation_exit_code=0,
+                validation_command_id="git_diff_check",
+                validation_output_digest="",
+                validation_output_summary="",
+                changed_files=_collect_changed_files(prepared.worktree),
+                workspace=str(prepared.worktree),
+                execution_id="exec-role",
+            )
+
+    store = TaskStore(db_path=str(tmp_path / "fail.sqlite3"))
+    service = TaskExecutionService(store=store, router=_SequentialRouter())
+    task = store.create_task(
+        title="seq-fail", executor_kind="opencode", idempotency_key="seq-fail"
+    )
+    outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
+
+    assert calls == ["planner"]
+    assert outcome.success is False
+    assert store.get_task(task.id).status == "FAILED"
+
+
+def test_executor_router_create_executor_returns_open_code_executor() -> None:
+    from reverse_agent.platform_v1.opencode_executor import OpenCodeExecutor
+
+    router = ExecutorRouter()
+    executor = router.create_executor(
+        executor_kind="opencode",
+        model_id="sensetime/sensenova-6.7-flash-lite",
+        opencode_exe="/fake/opencode",
+    )
+    assert isinstance(executor, OpenCodeExecutor)
+    assert executor._model_id == "sensetime/sensenova-6.7-flash-lite"
+
+
+# ---------------------------------------------------------------------------
+# ISSUE184 R2 V2 sequential multi-agent invariant recovery regressions
+# ---------------------------------------------------------------------------
+
+
+def _make_seq_store(tmp_path):
+    return TaskStore(db_path=str(tmp_path / "seq.sqlite3"))
+
+
+def _init_worktree(worktree):
+    import subprocess as _sp
+    worktree.mkdir(parents=True, exist_ok=True)
+    _sp.run(["git", "init", "-q"], cwd=worktree, check=True)
+    _sp.run(["git", "config", "user.email", "t@t"], cwd=worktree, check=True)
+    _sp.run(["git", "config", "user.name", "T"], cwd=worktree, check=True)
+    (worktree / "init.txt").write_text("init\n", encoding="utf-8")
+    _sp.run(["git", "add", "."], cwd=worktree, check=True)
+    _sp.run(["git", "commit", "-q", "-m", "init"], cwd=worktree, check=True)
+
+
+def _make_fake_seq_executor_factory(mutation_fn=None, raise_on_prepare=False):
+    """Build an ExecutorRouter instance that returns a fake sequential executor.
+
+    ``mutation_fn(role, worktree)`` is called before the fake executor returns
+    success, letting tests inject product or handoff mutations.
+
+    Returns ``(router, executor_instance)`` so tests can inspect ``executor_instance.calls``.
+    """
+    from reverse_agent.platform_v1.opencode_executor import (
+        ExecutorResult,
+        PreparedWorkspaceContext,
+        RoleContext,
+        handoff_dir,
+        _collect_changed_files,
+    )
+
+    class _FakeSeqExecutor:
+        def __init__(self):
+            self.calls: list[dict] = []
+
+        def prepare_worktree_once(self, task_id, root_path, event_callback):
+            if raise_on_prepare:
+                from reverse_agent.platform_v1.task_runtime import ExecutorRuntimeError
+                raise ExecutorRuntimeError("fake_prepare_worktree_failed")
+            self.worktree = root_path / task_id
+            _init_worktree(self.worktree)
+            handoff_dir(self.worktree).mkdir(parents=True, exist_ok=True)
+            return PreparedWorkspaceContext(
+                worktree=self.worktree,
+                base_sha="deadbeef",
+                execution_id="exec-%s" % task_id,
+                cli_path="/fake/opencode",
+                is_cmd=False,
+                opencode_exe="/fake/opencode",
+            )
+
+        def execute_role_prepared(
+            self,
+            prepared,
+            store,
+            *,
+            role_context: RoleContext,
+            event_callback=None,
+        ):
+            self.calls.append({
+                "role": role_context.role,
+                "task_id": role_context.task_id,
+                "workspace": str(prepared.worktree),
+            })
+            if mutation_fn:
+                mutation_fn(role_context.role, prepared.worktree)
+            return ExecutorResult(
+                success=True,
+                validation_exit_code=0,
+                validation_command_id="git_diff_check",
+                validation_output_digest="",
+                validation_output_summary="",
+                changed_files=_collect_changed_files(prepared.worktree),
+                workspace=str(prepared.worktree),
+                execution_id="exec-role",
+            )
+
+    fake_executor = _FakeSeqExecutor()
+
+    class _FakeRouter(ExecutorRouter):
+        def dispatch_execute(self, **kwargs):
+            raise AssertionError("dispatch_execute must not be called for sequential team")
+
+        def create_executor(self, *, executor_kind: str, **kwargs):
+            assert executor_kind == "opencode"
+            return fake_executor
+
+    return fake_executor, _FakeRouter()
+
+
+def test_v2_reviewer_mutates_product_rejected(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import handoff_dir
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+
+    def _mutate(role, worktree):
+        h = handoff_dir(worktree)
+        if role == "planner":
+            (h / "plan.md").write_text("plan\n", encoding="utf-8")
+        elif role == "coder":
+            (worktree / "product.py").write_text("print(1)\n", encoding="utf-8")
+        elif role == "reviewer":
+            (h / "review.md").write_text("ok\n", encoding="utf-8")
+            (worktree / "product.py").write_text("print(2)\n", encoding="utf-8")
+
+    fake_exe, router = _make_fake_seq_executor_factory(_mutate)
+    store = _make_seq_store(tmp_path)
+    service = TaskExecutionService(store=store, router=router)
+    task = store.create_task(title="rev-mut", executor_kind="opencode", idempotency_key="rev-mut")
+    outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
+    final = store.get_task(task.id)
+
+    assert outcome.success is False
+    assert final.status == "FAILED"
+    assert final.status != "READY_FOR_REVIEW"
+    assert "reviewer_product_mutation" in final.failure_classification
+    role_calls = [c for c in fake_exe.calls if "role" in c]
+    assert len(role_calls) == 3
+    assert [c["role"] for c in role_calls] == ["planner", "coder", "reviewer"]
+
+
+def test_v2_reviewer_missing_review_handoff_rejected(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import handoff_dir
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+
+    def _mutate(role, worktree):
+        h = handoff_dir(worktree)
+        if role == "planner":
+            (h / "plan.md").write_text("plan\n", encoding="utf-8")
+        elif role == "coder":
+            (worktree / "product.py").write_text("print(1)\n", encoding="utf-8")
+        elif role == "reviewer":
+            pass
+
+    _, router = _make_fake_seq_executor_factory(_mutate)
+    store = _make_seq_store(tmp_path)
+    service = TaskExecutionService(store=store, router=router)
+    task = store.create_task(title="no-review", executor_kind="opencode", idempotency_key="no-review")
+    outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
+    final = store.get_task(task.id)
+
+    assert outcome.success is False
+    assert final.status == "FAILED"
+    assert final.status != "READY_FOR_REVIEW"
+    assert "review" in final.failure_detail or "review" in final.failure_classification
+
+
+def test_v2_reviewer_empty_review_handoff_rejected(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import handoff_dir
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+
+    def _mutate(role, worktree):
+        h = handoff_dir(worktree)
+        if role == "planner":
+            (h / "plan.md").write_text("plan\n", encoding="utf-8")
+        elif role == "coder":
+            (worktree / "product.py").write_text("print(1)\n", encoding="utf-8")
+        elif role == "reviewer":
+            (h / "review.md").write_text("", encoding="utf-8")
+
+    _, router = _make_fake_seq_executor_factory(_mutate)
+    store = _make_seq_store(tmp_path)
+    service = TaskExecutionService(store=store, router=router)
+    task = store.create_task(title="empty-review", executor_kind="opencode", idempotency_key="empty-review")
+    outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
+    final = store.get_task(task.id)
+
+    assert outcome.success is False
+    assert final.status == "FAILED"
+    assert final.status != "READY_FOR_REVIEW"
+
+
+def test_v2_reviewer_oversized_review_handoff_rejected(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import handoff_dir
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+
+    def _mutate(role, worktree):
+        h = handoff_dir(worktree)
+        if role == "planner":
+            (h / "plan.md").write_text("plan\n", encoding="utf-8")
+        elif role == "coder":
+            (worktree / "product.py").write_text("print(1)\n", encoding="utf-8")
+        elif role == "reviewer":
+            (h / "review.md").write_text("x" * (128 * 1024 + 1), encoding="utf-8")
+
+    store = _make_seq_store(tmp_path)
+    service = TaskExecutionService(store=store, router=_make_fake_seq_executor_factory(_mutate)[1])
+    task = store.create_task(title="big-review", executor_kind="opencode", idempotency_key="big-review")
+    outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
+    final = store.get_task(task.id)
+
+    assert outcome.success is False
+    assert final.status == "FAILED"
+    assert final.status != "READY_FOR_REVIEW"
+
+
+def test_v2_plan_symlink_handoff_rejected(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import handoff_dir
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+    import os
+
+    def _mutate(role, worktree):
+        h = handoff_dir(worktree)
+        if role == "planner":
+            real = worktree / "real_plan.md"
+            real.write_text("plan\n", encoding="utf-8")
+            link = h / "plan.md"
+            if os.name == "nt":
+                try:
+                    os.symlink(str(real), str(link))
+                except OSError:
+                    (h / "plan.md").write_text("plan\n", encoding="utf-8")
+            else:
+                os.symlink(str(real), str(link))
+        elif role == "coder":
+            (worktree / "product.py").write_text("print(1)\n", encoding="utf-8")
+        elif role == "reviewer":
+            (h / "review.md").write_text("ok\n", encoding="utf-8")
+
+    fake_exe, router = _make_fake_seq_executor_factory(_mutate)
+    store = _make_seq_store(tmp_path)
+    service = TaskExecutionService(store=store, router=router)
+    task = store.create_task(title="plan-sym", executor_kind="opencode", idempotency_key="plan-sym")
+    outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
+    final = store.get_task(task.id)
+
+    plan_path = handoff_dir(fake_exe.worktree) / "plan.md"
+    if plan_path.is_symlink():
+        assert outcome.success is False
+        assert final.status == "FAILED"
+        assert "plan" in final.failure_detail.lower() or "plan" in final.failure_classification
+
+
+def test_v2_reviewer_symlink_handoff_rejected(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import handoff_dir
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+    import os
+
+    def _mutate(role, worktree):
+        h = handoff_dir(worktree)
+        if role == "planner":
+            (h / "plan.md").write_text("plan\n", encoding="utf-8")
+        elif role == "coder":
+            (worktree / "product.py").write_text("print(1)\n", encoding="utf-8")
+        elif role == "reviewer":
+            real = worktree / "real_review.md"
+            real.write_text("review\n", encoding="utf-8")
+            link = h / "review.md"
+            try:
+                os.symlink(str(real), str(link))
+            except OSError:
+                (h / "review.md").write_text("review\n", encoding="utf-8")
+
+    fake_exe, router = _make_fake_seq_executor_factory(_mutate)
+    store = _make_seq_store(tmp_path)
+    service = TaskExecutionService(store=store, router=router)
+    task = store.create_task(title="review-sym", executor_kind="opencode", idempotency_key="review-sym")
+    outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
+    final = store.get_task(task.id)
+
+    review_path = handoff_dir(fake_exe.worktree) / "review.md"
+    if review_path.is_symlink():
+        assert outcome.success is False
+        assert final.status == "FAILED"
+        assert "review" in final.failure_detail.lower() or "review" in final.failure_classification
+
+
+def test_v2_sequential_roles_are_explicit_and_shared_context(tmp_path) -> None:
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+
+    def _mutate(role, worktree):
+        from reverse_agent.platform_v1.opencode_executor import handoff_dir
+        h = handoff_dir(worktree)
+        if role == "planner":
+            (h / "plan.md").write_text("plan\n", encoding="utf-8")
+        elif role == "coder":
+            (worktree / "product.py").write_text("print(1)\n", encoding="utf-8")
+        elif role == "reviewer":
+            (h / "review.md").write_text("ok\n", encoding="utf-8")
+
+    fake_exe, router = _make_fake_seq_executor_factory(_mutate)
+    store = _make_seq_store(tmp_path)
+    service = TaskExecutionService(store=store, router=router)
+    task = store.create_task(title="roles", executor_kind="opencode", idempotency_key="roles")
+    outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
+
+    assert outcome.success is True
+    role_calls = [c for c in fake_exe.calls if "role" in c]
+    assert [c["role"] for c in role_calls] == ["planner", "coder", "reviewer"]
+    assert len({c["task_id"] for c in role_calls}) == 1
+    assert role_calls[0]["task_id"] == task.id
+    assert len({c["workspace"] for c in role_calls}) == 1
+
+
+def test_v2_no_manual_role_loop_uses_langgraph(tmp_path) -> None:
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+    from reverse_agent.workflows.team_graph import build_sequential_team_graph
+
+    def _mutate(role, worktree):
+        from reverse_agent.platform_v1.opencode_executor import handoff_dir
+        h = handoff_dir(worktree)
+        if role == "planner":
+            (h / "plan.md").write_text("plan\n", encoding="utf-8")
+        elif role == "coder":
+            (worktree / "product.py").write_text("print(1)\n", encoding="utf-8")
+        elif role == "reviewer":
+            (h / "review.md").write_text("ok\n", encoding="utf-8")
+
+    fake_exe, router = _make_fake_seq_executor_factory(_mutate)
+    store = _make_seq_store(tmp_path)
+    service = TaskExecutionService(store=store, router=router)
+    task = store.create_task(title="langgraph-path", executor_kind="opencode", idempotency_key="langgraph-path")
+
+    import inspect
+    source = inspect.getsource(service.execute_sequential_team)
+    assert "build_sequential_team_graph" in source
+    assert "seq_graph.invoke" in source
+    assert "for idx, role" not in source
+    assert "enumerate(roles)" not in source
+
+    outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
+    assert outcome.success is True
+
+
+def test_v2_empty_workspace_root_fails_before_workspace_use(tmp_path) -> None:
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionError, TaskExecutionService
+
+    store = _make_seq_store(tmp_path)
+    service = TaskExecutionService(store=store, router=_make_fake_seq_executor_factory()[1])
+    task = store.create_task(title="empty-ws", executor_kind="opencode", idempotency_key="empty-ws")
+    ws_dir = tmp_path / "empty-ws-root"
+
+    with pytest.raises(TaskExecutionError, match="workspace_root_invalid"):
+        service.execute_sequential_team(task.id, workspace_root="")
+
+    assert not ws_dir.exists()
+    final = store.get_task(task.id)
+    assert final.status == "QUEUED"
+
+
+def test_v2_workspace_root_non_string_fails(tmp_path) -> None:
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionError, TaskExecutionService
+
+    store = _make_seq_store(tmp_path)
+    service = TaskExecutionService(store=store, router=_make_fake_seq_executor_factory()[1])
+    task = store.create_task(title="nonstr-ws", executor_kind="opencode", idempotency_key="nonstr-ws")
+
+    with pytest.raises(TaskExecutionError, match="workspace_root_invalid"):
+        service.execute_sequential_team(task.id, workspace_root=42)
+
+    final = store.get_task(task.id)
+    assert final.status == "QUEUED"
+
+
+def test_v2_prepare_worktree_failure_durably_classified(tmp_path) -> None:
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+
+    store = _make_seq_store(tmp_path)
+    service = TaskExecutionService(
+        store=store,
+        router=_make_fake_seq_executor_factory(raise_on_prepare=True)[1],
+    )
+    task = store.create_task(title="prep-fail", executor_kind="opencode", idempotency_key="prep-fail")
+    outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
+    final = store.get_task(task.id)
+
+    assert outcome.success is False
+    assert final.status == "BLOCKED"
+    assert final.status != "PREPARING_WORKSPACE"
+    assert final.status != "RUNNING"
+    assert "worktree_preparation_failed" in final.failure_detail
+    assert "fake_prepare_worktree_failed" in final.failure_detail
+
+
+def test_v2_reviewer_observes_coder_diff(tmp_path) -> None:
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+    from reverse_agent.platform_v1.opencode_executor import handoff_dir, _collect_product_diff
+
+    observed_at_reviewer: list[tuple[str, tuple]] = []
+
+    def _mutate(role, worktree):
+        h = handoff_dir(worktree)
+        if role == "planner":
+            (h / "plan.md").write_text("plan\n", encoding="utf-8")
+        elif role == "coder":
+            (worktree / "product.py").write_text("print(1)\n", encoding="utf-8")
+        elif role == "reviewer":
+            diff = _collect_product_diff(worktree)
+            observed_at_reviewer.append((role, diff))
+            (h / "review.md").write_text("ok\n", encoding="utf-8")
+
+    store = _make_seq_store(tmp_path)
+    service = TaskExecutionService(store=store, router=_make_fake_seq_executor_factory(_mutate)[1])
+    task = store.create_task(title="rev-obs", executor_kind="opencode", idempotency_key="rev-obs")
+    outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
+
+    assert outcome.success is True
+    assert len(observed_at_reviewer) == 1
+    role_label, diff = observed_at_reviewer[0]
+    assert role_label == "reviewer"
+    paths = [f["path"] for f in diff]
+    assert "product.py" in paths
+
+
+def test_v2_handoff_absent_from_final_changed_files(tmp_path) -> None:
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+
+    def _mutate(role, worktree):
+        from reverse_agent.platform_v1.opencode_executor import handoff_dir
+        h = handoff_dir(worktree)
+        if role == "planner":
+            (h / "plan.md").write_text("plan\n", encoding="utf-8")
+        elif role == "coder":
+            (worktree / "product.py").write_text("print(1)\n", encoding="utf-8")
+        elif role == "reviewer":
+            (h / "review.md").write_text("ok\n", encoding="utf-8")
+
+    store = _make_seq_store(tmp_path)
+    service = TaskExecutionService(store=store, router=_make_fake_seq_executor_factory(_mutate)[1])
+    task = store.create_task(title="handoff-clean", executor_kind="opencode", idempotency_key="handoff-clean")
+    outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
+    final = store.get_task(task.id)
+
+    assert outcome.success is True
+    assert final.status == "READY_FOR_REVIEW"
+    changed_paths = [f.get("path", "") for f in final.changed_files]
+    assert not any(p.startswith(".reverse-agent-handoff") for p in changed_paths)
+    assert "product.py" in changed_paths
+
+
+def test_v2_sequential_graph_exact_roles_same_task_workspace(tmp_path) -> None:
+    from reverse_agent.workflows.team_graph import build_sequential_team_graph
+    from reverse_agent.architecture.contracts import WorkerAssignment, WorkerExecutionResult
+
+    calls: list[WorkerAssignment] = []
+
+    def fake_worker(wa: WorkerAssignment) -> WorkerExecutionResult:
+        calls.append(wa)
+        return WorkerExecutionResult(
+            worker_id=wa.worker_id,
+            task_id=wa.task_id,
+            execution_id="exec",
+            success=True,
+            validation_exit_code=0,
+        )
+
+    graph = build_sequential_team_graph(worker=fake_worker)
+    assignment = WorkerAssignment(
+        worker_id="w-1", role="planner", task_id="task-1", workspace_root=str(tmp_path / "ws")
+    )
+    result = graph.invoke({"assignments": [assignment.to_dict()]})
+
+    assert len(calls) == 3
+    assert [c.role for c in calls] == ["planner", "coder", "reviewer"]
+    assert [c.task_id for c in calls] == ["task-1"] * 3
+    assert [c.workspace_root for c in calls] == [str(tmp_path / "ws")] * 3
+    assert result["team_execution_result"]["accepted"] is True
+
+
+def test_v2_parallel_graph_unchanged(tmp_path) -> None:
+    from reverse_agent.workflows.team_graph import build_team_graph
+    from reverse_agent.architecture.contracts import WorkerAssignment, WorkerExecutionResult
+    import threading
+
+    barrier = threading.Barrier(2, timeout=5)
+
+    def fake_worker(wa: WorkerAssignment) -> WorkerExecutionResult:
+        barrier.wait(5)
+        return WorkerExecutionResult(
+            worker_id=wa.worker_id,
+            task_id=wa.task_id,
+            execution_id="exec",
+            success=True,
+            validation_exit_code=0,
+        )
+
+    graph = build_team_graph(worker=fake_worker)
+    assignments = [
+        WorkerAssignment(worker_id="w-a", role="a", task_id="t1", workspace_root="/ws1").to_dict(),
+        WorkerAssignment(worker_id="w-b", role="b", task_id="t2", workspace_root="/ws2").to_dict(),
+    ]
+    result = graph.invoke({"assignments": assignments})
+    assert result["team_execution_result"]["accepted"] is True
+
+
+def test_v2_no_multi_agent_executor_kind(tmp_path) -> None:
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+
+    router = ExecutorRouter()
+    assert "multi_agent" not in router._registry
+    assert "opencode" in router._registry
+    assert "deterministic_fixture" in router._registry
+
+
+def test_v2_planner_failure_stops_coder_reviewer_durable(tmp_path) -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        ExecutorResult,
+        PreparedWorkspaceContext,
+        RoleContext,
+        handoff_dir,
+        _collect_changed_files,
+    )
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+
+    calls: list[str] = []
+
+    class _FailPlannerRouter(ExecutorRouter):
+        def dispatch_execute(self, **kwargs):
+            raise AssertionError("must not call dispatch_execute")
+
+        def create_executor(self, *, executor_kind: str, **kwargs):
+            return _FailPlannerExecutor()
+
+    class _FailPlannerExecutor:
+        calls: list[str] = []
+
+        def prepare_worktree_once(self, task_id, root_path, event_callback):
+            self.worktree = root_path / task_id
+            _init_worktree(self.worktree)
+            handoff_dir(self.worktree).mkdir(parents=True, exist_ok=True)
+            return PreparedWorkspaceContext(
+                worktree=self.worktree,
+                base_sha="deadbeef",
+                execution_id="exec-%s" % task_id,
+                cli_path="/fake/opencode",
+                is_cmd=False,
+                opencode_exe="/fake/opencode",
+            )
+
+        def execute_role_prepared(self, prepared, store, *, role_context: RoleContext, event_callback=None):
+            calls.append(role_context.role)
+            if role_context.role == "planner":
+                return ExecutorResult(
+                    success=False,
+                    validation_exit_code=1,
+                    validation_command_id="",
+                    validation_output_digest="",
+                    validation_output_summary="",
+                    changed_files=[],
+                    error="planner failed",
+                    workspace=str(prepared.worktree),
+                    execution_id="exec-role",
+                    failure_classification="planner_failed",
+                )
+            return ExecutorResult(
+                success=True,
+                validation_exit_code=0,
+                validation_command_id="git_diff_check",
+                validation_output_digest="",
+                validation_output_summary="",
+                changed_files=_collect_changed_files(prepared.worktree),
+                workspace=str(prepared.worktree),
+                execution_id="exec-role",
+            )
+
+    store = _make_seq_store(tmp_path)
+    service = TaskExecutionService(store=store, router=_FailPlannerRouter())
+    task = store.create_task(title="plan-fail", executor_kind="opencode", idempotency_key="plan-fail")
+    outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
+    final = store.get_task(task.id)
+
+    assert calls == ["planner"]
+    assert outcome.success is False
+    assert final.status == "FAILED"
+    assert final.status not in ("PREPARING_WORKSPACE", "RUNNING", "VALIDATING", "READY_FOR_REVIEW")
