@@ -608,10 +608,11 @@ describe("provider-free idempotency transport", () => {
       timeout: 1000,
     });
 
-    const input = mockSubmit.mock.calls[0][0] as { title?: string; idempotencyKey?: string; executorKind?: string; bindingRef?: string };
+    const input = mockSubmit.mock.calls[0][0] as { title?: string; idempotencyKey?: string; executorKind?: string; bindingRef?: string; repository?: string };
     expect(input.title).toBe("idempotency test");
     expect(input.executorKind).toBe("opencode");
     expect(input.bindingRef).toBe("coding-binding");
+    expect(input.repository).toBe("https://github.com/dddd2024/reverse-agent");
     expect(typeof input.idempotencyKey).toBe("string");
     expect(input.idempotencyKey!.length).toBeGreaterThan(0);
 
@@ -792,7 +793,23 @@ describe("provider-free idempotency transport", () => {
 });
 
 function NewTaskComposerWrapper({ submit }: { submit: (input: unknown) => void }) {
+  const qc = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0, staleTime: Infinity },
+    },
+  });
+  qc.setQueryData(["repositories"], [
+    {
+      full_name: "dddd2024/reverse-agent",
+      html_url: "https://github.com/dddd2024/reverse-agent",
+      is_private: false,
+      visibility: "public",
+      default_branch: "main",
+    },
+  ]);
   return (
-    <NewTaskComposer open={true} onClose={() => undefined} onSubmit={submit} />
+    <QueryClientProvider client={qc}>
+      <NewTaskComposer open={true} onClose={() => undefined} onSubmit={submit} />
+    </QueryClientProvider>
   );
 }

@@ -233,6 +233,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
     live_enabled: bool
     lease_provider: Callable | None = None
     binding_resolver: Any | None = None
+    github_adapter: Any | None = None
 
     server_version = "reverse-agent-task-service/1"
 
@@ -295,6 +296,36 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
                     return
                 self._send_json(HTTPStatus.OK, self._task_response(task))
+                return
+            if len(segments) == 2 and segments == ["api", "repositories"]:
+                adapter = getattr(self, "github_adapter", None)
+                if adapter is None:
+                    self._send_json(
+                        HTTPStatus.SERVICE_UNAVAILABLE,
+                        {"error": "github_adapter_unavailable"},
+                    )
+                    return
+                try:
+                    repos = adapter.discover_repositories()
+                except Exception as exc:
+                    self._send_json(
+                        HTTPStatus.INTERNAL_SERVER_ERROR,
+                        {"error": "repository_discovery_failed"},
+                    )
+                    return
+                repo_list = []
+                for repo in repos:
+                    if hasattr(repo, "to_dict"):
+                        repo_list.append(repo.to_dict())
+                    elif isinstance(repo, Mapping):
+                        repo_list.append({
+                            "full_name": str(repo.get("full_name", "")),
+                            "html_url": str(repo.get("html_url", "")),
+                            "is_private": bool(repo.get("is_private", False)),
+                            "visibility": str(repo.get("visibility", "")),
+                            "default_branch": str(repo.get("default_branch", "")),
+                        })
+                self._send_json(HTTPStatus.OK, {"repositories": repo_list, "total": len(repo_list)})
                 return
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "route not found"})
         except Exception:
@@ -378,9 +409,14 @@ class _TaskHandler(BaseHTTPRequestHandler):
         executor_kind = str(payload.get("executor_kind", "deterministic_fixture"))
         if executor_kind not in ("deterministic_fixture", "opencode"):
             raise TaskStoreError(f"unsupported_executor_kind:{executor_kind}")
+        repository = str(payload.get("repository", "")).strip()
+        if executor_kind == "opencode" and not repository:
+            raise TaskStoreError("repository_required_for_opencode")
+        if not repository:
+            repository = "dddd2024/reverse-agent"
         return self.store.create_task(
             title=title,
-            repository=str(payload.get("repository", "dddd2024/reverse-agent")),
+            repository=repository,
             executor_kind=executor_kind,
             model_profile_ref=str(payload.get("model_profile_ref", "")),
             binding_ref=str(payload.get("binding_ref", "")),
@@ -538,6 +574,7 @@ def _handler_factory(
     allowed_origin: str,
     lease_provider: Callable | None = None,
     binding_resolver: Any | None = None,
+    github_adapter: Any | None = None,
 ) -> type[_TaskHandler]:
     class ConfiguredHandler(_TaskHandler):
         pass
@@ -550,6 +587,7 @@ def _handler_factory(
         _CallableWrapper(lease_provider) if lease_provider else None
     )
     ConfiguredHandler.binding_resolver = binding_resolver
+    ConfiguredHandler.github_adapter = github_adapter
     return ConfiguredHandler
 
 
@@ -593,6 +631,7 @@ class TaskService:
         store: TaskStore | None = None,
         router: ExecutorRouter | None = None,
         allowed_origin: str = "http://localhost:4173",
+        github_adapter: Any | None = None,
     ) -> None:
         if store is not None:
             self.store = store
@@ -601,6 +640,7 @@ class TaskService:
             self.store = TaskStore(db_path=db_path)
         self.router = router or ExecutorRouter()
         self.allowed_origin = allowed_origin
+        self.github_adapter = github_adapter
 
     def start(
         self,
@@ -618,6 +658,7 @@ class TaskService:
                 self.store,
                 self.router,
                 allowed_origin=self.allowed_origin,
+                github_adapter=self.github_adapter,
             ),
         )
         thread = Thread(target=server.serve_forever, daemon=True)
@@ -631,6 +672,7 @@ def run_task_service(
     port: int | None = None,
     store: TaskStore | None = None,
     allowed_origin: str | None = None,
+    github_adapter: Any | None = None,
 ) -> None:
     bind_host = validate_bind_host(
         host or os.environ.get("REVERSE_AGENT_TASK_SERVICE_HOST", "127.0.0.1")
@@ -650,6 +692,7 @@ def run_task_service(
             svc_store,
             ExecutorRouter(),
             allowed_origin=origin,
+            github_adapter=github_adapter,
         ),
     )
     server.serve_forever()
