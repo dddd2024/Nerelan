@@ -299,3 +299,50 @@ def test_execute_sequential_team_rejects_non_opencode_executor_kind(tmp_path) ->
         service.execute_sequential_team(
             task.id, workspace_root=str(tmp_path / "root")
         )
+
+
+# ---------------------------------------------------------------------------
+# ISSUE184 R2 V2 workspace_root safety regressions
+# ---------------------------------------------------------------------------
+
+
+def test_execute_sequential_team_empty_workspace_root_fails(tmp_path) -> None:
+    store = TaskStore(db_path=str(tmp_path / "ws-root.sqlite3"))
+    service = TaskExecutionService(store=store, router=ExecutorRouter())
+    task = store.create_task(
+        title="empty-ws",
+        executor_kind="opencode",
+        idempotency_key="empty-ws",
+    )
+    with pytest.raises(TaskExecutionError, match="workspace_root_invalid"):
+        service.execute_sequential_team(task.id, workspace_root="")
+    final = store.get_task(task.id)
+    assert final.status == "QUEUED"
+
+
+def test_execute_sequential_team_non_string_workspace_root_fails(tmp_path) -> None:
+    store = TaskStore(db_path=str(tmp_path / "nonstr-ws.sqlite3"))
+    service = TaskExecutionService(store=store, router=ExecutorRouter())
+    task = store.create_task(
+        title="nonstr-ws",
+        executor_kind="opencode",
+        idempotency_key="nonstr-ws",
+    )
+    with pytest.raises(TaskExecutionError, match="workspace_root_invalid"):
+        service.execute_sequential_team(task.id, workspace_root=42)
+    final = store.get_task(task.id)
+    assert final.status == "QUEUED"
+
+
+def test_execute_sequential_team_whitespace_workspace_root_fails(tmp_path) -> None:
+    store = TaskStore(db_path=str(tmp_path / "ws-ws.sqlite3"))
+    service = TaskExecutionService(store=store, router=ExecutorRouter())
+    task = store.create_task(
+        title="ws-ws",
+        executor_kind="opencode",
+        idempotency_key="ws-ws",
+    )
+    with pytest.raises(TaskExecutionError, match="workspace_root_invalid"):
+        service.execute_sequential_team(task.id, workspace_root="   ")
+    final = store.get_task(task.id)
+    assert final.status == "QUEUED"

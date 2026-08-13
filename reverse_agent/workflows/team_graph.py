@@ -243,16 +243,20 @@ def build_sequential_team_graph(
     default_ver = verifier or _default_verifier
 
     def _planner_node(state: TeamWorkflowState) -> dict[str, Any]:
-        assignment = state.get("assignment", {})
-        wa = WorkerAssignment.from_mapping(assignment)
+        base_assignment = state.get("assignment", {})
+        role_assignment = dict(base_assignment)
+        role_assignment["role"] = "planner"
+        wa = WorkerAssignment.from_mapping(role_assignment)
         result = worker(wa)
         if not (result.success and result.worker_id and result.task_id == wa.task_id):
             raise TeamGraphError("planner_failed")
         return {"worker_results": [result.to_dict()]}
 
     def _coder_node(state: TeamWorkflowState) -> dict[str, Any]:
-        assignment = state.get("assignment", {})
-        wa = WorkerAssignment.from_mapping(assignment)
+        base_assignment = state.get("assignment", {})
+        role_assignment = dict(base_assignment)
+        role_assignment["role"] = "coder"
+        wa = WorkerAssignment.from_mapping(role_assignment)
         worker_results = list(state.get("worker_results") or [])
         if not worker_results:
             raise TeamGraphError("missing_planner_handoff")
@@ -276,8 +280,10 @@ def build_sequential_team_graph(
         return {"worker_results": [result.to_dict()]}
 
     def _reviewer_node(state: TeamWorkflowState) -> dict[str, Any]:
-        assignment = state.get("assignment", {})
-        wa = WorkerAssignment.from_mapping(assignment)
+        base_assignment = state.get("assignment", {})
+        role_assignment = dict(base_assignment)
+        role_assignment["role"] = "reviewer"
+        wa = WorkerAssignment.from_mapping(role_assignment)
         worker_results = list(state.get("worker_results") or [])
         if len(worker_results) < 2:
             raise TeamGraphError("missing_role_handoff")

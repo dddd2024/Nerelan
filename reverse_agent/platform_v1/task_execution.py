@@ -11,9 +11,8 @@ from __future__ import annotations
 import os
 import tempfile
 from dataclasses import dataclass, field
-from typing import Any, Mapping
-
 from pathlib import Path
+from typing import Any, Mapping
 
 from .binding_resolver import BindingResolver
 from .opencode_executor import (
@@ -23,6 +22,7 @@ from .opencode_executor import (
     _handoff_digest,
     _remove_handoff,
     _validate_plan_handoff,
+    _validate_review_handoff,
     handoff_dir,
 )
 from .run_store import (
@@ -260,18 +260,23 @@ class TaskExecutionService:
         sequentially inside a single shared worktree.
 
         The method:
-        1. loads the existing Task;
-        2. requires status == QUEUED and executor_kind == opencode;
-        3. reuses the existing Binding/model resolution path;
-        4. obtains the configured OpenCode executor through ExecutorRouter.create_executor;
-        5. prepares exactly ONE linked worktree;
-        6. executes planner -> coder -> reviewer in that workspace, fail-closing on any
-           role failure, handoff invalidity, or role product-mutation violation;
-        7. records role-order and shared-workspace evidence;
-        8. cleans up runtime handoff artifacts;
-        9. persists final product changed_files only;
-        10. reaches the existing review/failed terminal semantics.
+        1. validates workspace_root before any path use;
+        2. loads the existing Task;
+        3. requires status == QUEUED and executor_kind == opencode;
+        4. reuses the existing Binding/model resolution path;
+        5. obtains the configured OpenCode executor through ExecutorRouter.create_executor;
+        6. prepares exactly ONE linked worktree;
+        7. delegates planner->coder->reviewer ordering to build_sequential_team_graph();
+        8. uses a role worker adapter closure for executor calls, handoff validation,
+           and workspace/product invariants;
+        9. durably classifies any role failure or invariant violation;
+        10. cleans up runtime handoff artifacts;
+        11. persists final product changed_files only;
+        12. reaches the existing review/failed terminal semantics.
         """
+        if not isinstance(workspace_root, str) or not workspace_root.strip():
+            raise TaskExecutionError("workspace_root_invalid")
+
         try:
             task = self.store.get_task(task_id)
         except TaskStoreError:
@@ -320,9 +325,28 @@ class TaskExecutionService:
             )
 
         self.store.transition_to(task_id, "PREPARING_WORKSPACE")
-        prepared = executor.prepare_worktree_once(
-            task_id, Path(workspace_root), self._store_event_callback
-        )
+        try:
+            prepared = executor.prepare_worktree_once(
+                task_id, Path(workspace_root), self._store_event_callback
+            )
+        except ExecutorRuntimeError as exc:
+            self.store.classify_failure(
+                task_id,
+                classification="blocked",
+                detail=f"worktree_preparation_failed:{exc}",
+            )
+            final = self.store.get_task(task_id)
+            after_evidence = tuple(ev.get("id", "") for ev in final.evidence_refs)
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=final.execution_id,
+                success=False,
+                validation_command_id="",
+                validation_exit_code=-1,
+                evidence_ids=tuple(after_evidence[len(before_evidence):]),
+                failure_classification=final.failure_classification,
+                failure_detail=final.failure_detail,
+            )
         handoff = handoff_dir(prepared.worktree)
         self.store.transition_to(task_id, "RUNNING")
         self.store.add_event(
@@ -341,221 +365,335 @@ class TaskExecutionService:
         baseline_product = _collect_product_diff(prepared.worktree)
         self.store.set_changed_files(task_id, baseline_product)
 
-        roles = ("planner", "coder", "reviewer")
-        roles_executed: list[str] = []
-        role_results: list[dict[str, Any]] = []
+        from reverse_agent.workflows.team_graph import (
+            TeamGraphError,
+            WorkerAssignment,
+            WorkerExecutionResult,
+            build_sequential_team_graph,
+        )
+
         plan_digest = ""
+        review_digest = ""
+        coder_product_snapshot: tuple[dict[str, Any], ...] = ()
+        _seq_worker_results: list[dict[str, Any]] = []
+        _seq_roles_executed: list[str] = []
 
-        for idx, role in enumerate(roles):
-            pre_role_product = _collect_product_diff(prepared.worktree)
-            plan_path = handoff / "plan.md"
-            role_context = RoleContext(
-                role=role,
-                task_id=task_id,
-                workspace=prepared.worktree,
-                plan_path=plan_path,
-                plan_digest=plan_digest,
-                role_order_index=idx,
-            )
-            if role == "planner":
-                handoff.mkdir(parents=True, exist_ok=True)
+        def _make_role_worker(
+            prepared_ctx: Any,
+            handoff_dir_path: Path,
+            baseline: tuple[dict[str, Any], ...],
+        ):
+            nonlocal plan_digest, review_digest, coder_product_snapshot
 
-            result = executor.execute_role_prepared(
-                prepared,
-                self.store,
-                role_context=role_context,
-                event_callback=self._store_event_callback,
-            )
-            role_results.append({
-                "role": role,
-                "success": result.success,
-                "validation_exit_code": result.validation_exit_code,
-                "execution_id": result.execution_id,
-                "workspace": result.workspace,
-                "changed_files": result.changed_files,
-            })
-            roles_executed.append(role)
+            def _role_worker(wa: "WorkerAssignment") -> "WorkerExecutionResult":
+                nonlocal plan_digest, review_digest, coder_product_snapshot
 
-            if not result.success:
-                reasons = (f"{role}_failed", result.failure_classification or "role_failed")
-                classification = result.failure_classification or "failed"
-                self._complete_sequential_team_failure(
-                    task_id,
-                    result,
-                    roles_executed,
-                    role_results,
-                    baseline_product,
+                role = wa.role
+                role_context = RoleContext(
+                    role=role,
+                    task_id=wa.task_id,
+                    workspace=prepared_ctx.worktree,
+                    plan_path=handoff_dir_path / "plan.md",
                     plan_digest=plan_digest,
-                    classification=classification,
-                    reasons=reasons,
                 )
-                return self._build_sequential_team_outcome(
-                    task_id,
-                    success=False,
+
+                if role == "planner":
+                    handoff_dir_path.mkdir(parents=True, exist_ok=True)
+
+                try:
+                    result = executor.execute_role_prepared(
+                        prepared_ctx,
+                        self.store,
+                        role_context=role_context,
+                        event_callback=self._store_event_callback,
+                    )
+                except Exception as exc:
+                    _seq_roles_executed.append(role)
+                    _seq_worker_results.append({
+                        "role": role,
+                        "worker_id": wa.worker_id,
+                        "task_id": wa.task_id,
+                        "execution_id": "",
+                        "success": False,
+                        "validation_exit_code": -1,
+                        "failure_classification": "executor_error",
+                        "failure_detail": f"{exc.__class__.__name__}:{exc}",
+                        "reasons": [f"executor_exception:{exc.__class__.__name__}"],
+                    })
+                    return WorkerExecutionResult(
+                        worker_id=wa.worker_id,
+                        task_id=wa.task_id,
+                        execution_id="",
+                        success=False,
+                        validation_exit_code=-1,
+                        failure_classification="executor_error",
+                        failure_detail=f"{exc.__class__.__name__}:{exc}",
+                        reasons=(f"executor_exception:{exc.__class__.__name__}",),
+                    )
+
+                if not result.success:
+                    _seq_roles_executed.append(role)
+                    _seq_worker_results.append({
+                        "role": role,
+                        "worker_id": wa.worker_id,
+                        "task_id": wa.task_id,
+                        "execution_id": getattr(result, "execution_id", ""),
+                        "success": False,
+                        "validation_exit_code": result.validation_exit_code,
+                        "failure_classification": result.failure_classification,
+                        "failure_detail": result.error,
+                        "reasons": [result.failure_classification or "role_failed"],
+                    })
+                    return WorkerExecutionResult(
+                        worker_id=wa.worker_id,
+                        task_id=wa.task_id,
+                        execution_id=getattr(result, "execution_id", ""),
+                        success=False,
+                        validation_exit_code=result.validation_exit_code,
+                        evidence_ids=(),
+                        failure_classification=result.failure_classification,
+                        failure_detail=result.error,
+                        reasons=(result.failure_classification or "role_failed",),
+                    )
+
+                if role == "planner":
+                    invalid = _validate_plan_handoff(handoff_dir_path / "plan.md")
+                    if invalid:
+                        _seq_roles_executed.append(role)
+                        _seq_worker_results.append({
+                            "role": role,
+                            "worker_id": wa.worker_id,
+                            "task_id": wa.task_id,
+                            "execution_id": result.execution_id,
+                            "success": False,
+                            "validation_exit_code": -1,
+                            "failure_classification": "invalid_plan_handoff",
+                            "failure_detail": invalid,
+                            "reasons": ["invalid_plan_handoff"],
+                        })
+                        return WorkerExecutionResult(
+                            worker_id=wa.worker_id,
+                            task_id=wa.task_id,
+                            execution_id=result.execution_id,
+                            success=False,
+                            validation_exit_code=-1,
+                            failure_classification="invalid_plan_handoff",
+                            failure_detail=invalid,
+                            reasons=("invalid_plan_handoff",),
+                        )
+                    plan_digest = _handoff_digest(handoff_dir_path / "plan.md")
+                    planner_post = _collect_product_diff(prepared_ctx.worktree)
+                    if planner_post != baseline:
+                        _seq_roles_executed.append(role)
+                        _seq_worker_results.append({
+                            "role": role,
+                            "worker_id": wa.worker_id,
+                            "task_id": wa.task_id,
+                            "execution_id": result.execution_id,
+                            "success": False,
+                            "validation_exit_code": -1,
+                            "failure_classification": "planner_product_mutation",
+                            "failure_detail": "planner mutated product files",
+                            "reasons": ["planner_product_mutation"],
+                        })
+                        return WorkerExecutionResult(
+                            worker_id=wa.worker_id,
+                            task_id=wa.task_id,
+                            execution_id=result.execution_id,
+                            success=False,
+                            validation_exit_code=-1,
+                            failure_classification="planner_product_mutation",
+                            failure_detail="planner mutated product files",
+                            reasons=("planner_product_mutation",),
+                        )
+                elif role == "coder":
+                    if not (handoff_dir_path / "plan.md").is_file():
+                        _seq_roles_executed.append(role)
+                        _seq_worker_results.append({
+                            "role": role,
+                            "worker_id": wa.worker_id,
+                            "task_id": wa.task_id,
+                            "execution_id": result.execution_id,
+                            "success": False,
+                            "validation_exit_code": -1,
+                            "failure_classification": "missing_plan_handoff",
+                            "failure_detail": "plan handoff missing when coder started",
+                            "reasons": ["missing_plan_handoff"],
+                        })
+                        return WorkerExecutionResult(
+                            worker_id=wa.worker_id,
+                            task_id=wa.task_id,
+                            execution_id=result.execution_id,
+                            success=False,
+                            validation_exit_code=-1,
+                            failure_classification="missing_plan_handoff",
+                            failure_detail="plan handoff missing when coder started",
+                            reasons=("missing_plan_handoff",),
+                        )
+                    coder_product_snapshot = _collect_product_diff(
+                        prepared_ctx.worktree
+                    )
+                    if not coder_product_snapshot:
+                        _seq_roles_executed.append(role)
+                        _seq_worker_results.append({
+                            "role": role,
+                            "worker_id": wa.worker_id,
+                            "task_id": wa.task_id,
+                            "execution_id": result.execution_id,
+                            "success": False,
+                            "validation_exit_code": -1,
+                            "failure_classification": "no_coder_product_diff",
+                            "failure_detail": "coder did not produce a product diff",
+                            "reasons": ["no_coder_product_diff"],
+                        })
+                        return WorkerExecutionResult(
+                            worker_id=wa.worker_id,
+                            task_id=wa.task_id,
+                            execution_id=result.execution_id,
+                            success=False,
+                            validation_exit_code=-1,
+                            failure_classification="no_coder_product_diff",
+                            failure_detail="coder did not produce a product diff",
+                            reasons=("no_coder_product_diff",),
+                        )
+                elif role == "reviewer":
+                    invalid_review = _validate_review_handoff(
+                        handoff_dir_path / "review.md"
+                    )
+                    if invalid_review:
+                        _seq_roles_executed.append(role)
+                        _seq_worker_results.append({
+                            "role": role,
+                            "worker_id": wa.worker_id,
+                            "task_id": wa.task_id,
+                            "execution_id": result.execution_id,
+                            "success": False,
+                            "validation_exit_code": -1,
+                            "failure_classification": "invalid_review_handoff",
+                            "failure_detail": invalid_review,
+                            "reasons": ["invalid_review_handoff"],
+                        })
+                        return WorkerExecutionResult(
+                            worker_id=wa.worker_id,
+                            task_id=wa.task_id,
+                            execution_id=result.execution_id,
+                            success=False,
+                            validation_exit_code=-1,
+                            failure_classification="invalid_review_handoff",
+                            failure_detail=invalid_review,
+                            reasons=("invalid_review_handoff",),
+                        )
+                    review_digest = _handoff_digest(handoff_dir_path / "review.md")
+                    reviewer_post = _collect_product_diff(prepared_ctx.worktree)
+                    if reviewer_post != coder_product_snapshot:
+                        _seq_roles_executed.append(role)
+                        _seq_worker_results.append({
+                            "role": role,
+                            "worker_id": wa.worker_id,
+                            "task_id": wa.task_id,
+                            "execution_id": result.execution_id,
+                            "success": False,
+                            "validation_exit_code": -1,
+                            "failure_classification": "reviewer_product_mutation",
+                            "failure_detail": "reviewer mutated coder product diff",
+                            "reasons": ["reviewer_product_mutation"],
+                        })
+                        return WorkerExecutionResult(
+                            worker_id=wa.worker_id,
+                            task_id=wa.task_id,
+                            execution_id=result.execution_id,
+                            success=False,
+                            validation_exit_code=-1,
+                            failure_classification="reviewer_product_mutation",
+                            failure_detail="reviewer mutated coder product diff",
+                            reasons=("reviewer_product_mutation",),
+                        )
+
+                _seq_roles_executed.append(role)
+                _seq_worker_results.append({
+                    "role": role,
+                    "worker_id": wa.worker_id,
+                    "task_id": wa.task_id,
+                    "execution_id": result.execution_id,
+                    "success": True,
+                    "validation_exit_code": result.validation_exit_code,
+                    "failure_classification": "",
+                    "failure_detail": "",
+                    "reasons": [],
+                })
+                return WorkerExecutionResult(
+                    worker_id=wa.worker_id,
+                    task_id=wa.task_id,
+                    execution_id=result.execution_id,
+                    success=True,
                     validation_exit_code=result.validation_exit_code,
-                    validation_command_id=result.validation_command_id,
-                    changed_files=result.changed_files,
-                    roles_executed=roles_executed,
-                    role_results=role_results,
-                    plan_digest=plan_digest,
-                    baseline_product=baseline_product,
-                    before_evidence=before_evidence,
-                    failure_classification=classification,
-                    failure_detail=result.error,
-                    reasons=reasons,
+                    evidence_ids=(),
+                    failure_classification="",
+                    failure_detail="",
                 )
 
-            if role == "planner":
-                invalid = _validate_plan_handoff(handoff / "plan.md")
-                if invalid:
-                    reasons = ("invalid_plan_handoff",)
-                    classification = "failed"
-                    self._complete_sequential_team_failure(
-                        task_id,
-                        result,
-                        roles_executed,
-                        role_results,
-                        baseline_product,
-                        plan_digest="",
-                        classification=classification,
-                        reasons=reasons,
-                    )
-                    return self._build_sequential_team_outcome(
-                        task_id,
-                        success=False,
-                        validation_exit_code=-1,
-                        validation_command_id="",
-                        changed_files=result.changed_files,
-                        roles_executed=roles_executed,
-                        role_results=role_results,
-                        plan_digest="",
-                        baseline_product=baseline_product,
-                        before_evidence=before_evidence,
-                        failure_classification=classification,
-                        failure_detail=invalid,
-                        reasons=reasons,
-                    )
-                plan_digest = _handoff_digest(handoff / "plan.md")
+            return _role_worker
 
-                planner_post = _collect_product_diff(prepared.worktree)
-                if planner_post != baseline_product:
-                    reasons = ("planner_product_mutation",)
-                    classification = "failed"
-                    self._complete_sequential_team_failure(
-                        task_id,
-                        result,
-                        roles_executed,
-                        role_results,
-                        baseline_product,
-                        plan_digest=plan_digest,
-                        classification=classification,
-                        reasons=reasons,
-                    )
-                    return self._build_sequential_team_outcome(
-                        task_id,
-                        success=False,
-                        validation_exit_code=-1,
-                        validation_command_id="",
-                        changed_files=planner_post,
-                        roles_executed=roles_executed,
-                        role_results=role_results,
-                        plan_digest=plan_digest,
-                        baseline_product=baseline_product,
-                        before_evidence=before_evidence,
-                        failure_classification=classification,
-                        failure_detail="planner mutated product files",
-                        reasons=reasons,
-                    )
+        role_worker = _make_role_worker(prepared, handoff, baseline_product)
+        seq_graph = build_sequential_team_graph(worker=role_worker)
+        base_assignment = WorkerAssignment(
+            worker_id="sequential",
+            role="planner",
+            task_id=task_id,
+            workspace_root=str(prepared.worktree),
+        )
 
-            if role == "coder":
-                if not (handoff / "plan.md").is_file():
-                    reasons = ("missing_plan_handoff",)
-                    classification = "failed"
-                    self._complete_sequential_team_failure(
-                        task_id,
-                        result,
-                        roles_executed,
-                        role_results,
-                        baseline_product,
-                        plan_digest=plan_digest,
-                        classification=classification,
-                        reasons=reasons,
-                    )
-                    return self._build_sequential_team_outcome(
-                        task_id,
-                        success=False,
-                        validation_exit_code=-1,
-                        validation_command_id="",
-                        changed_files=result.changed_files,
-                        roles_executed=roles_executed,
-                        role_results=role_results,
-                        plan_digest=plan_digest,
-                        baseline_product=baseline_product,
-                        before_evidence=before_evidence,
-                        failure_classification=classification,
-                        failure_detail="plan handoff missing when coder started",
-                        reasons=reasons,
-                    )
-                if not _collect_product_diff(prepared.worktree):
-                    reasons = ("no_coder_product_diff",)
-                    classification = "failed"
-                    self._complete_sequential_team_failure(
-                        task_id,
-                        result,
-                        roles_executed,
-                        role_results,
-                        baseline_product,
-                        plan_digest=plan_digest,
-                        classification=classification,
-                        reasons=reasons,
-                    )
-                    return self._build_sequential_team_outcome(
-                        task_id,
-                        success=False,
-                        validation_exit_code=-1,
-                        validation_command_id="",
-                        changed_files=result.changed_files,
-                        roles_executed=roles_executed,
-                        role_results=role_results,
-                        plan_digest=plan_digest,
-                        baseline_product=baseline_product,
-                        before_evidence=before_evidence,
-                        failure_classification=classification,
-                        failure_detail="coder did not produce a product diff",
-                        reasons=reasons,
-                    )
+        try:
+            graph_result = seq_graph.invoke({
+                "assignments": [base_assignment.to_dict()],
+            })
+        except TeamGraphError as exc:
+            failure_reason = str(exc)
+            worker_results_raw = list(_seq_worker_results)
+            roles_executed = list(_seq_roles_executed)
+            last_failure_raw = None
+            for wr in reversed(worker_results_raw):
+                if not wr.get("success", True):
+                    last_failure_raw = wr
+                    break
+            if last_failure_raw:
+                classification = last_failure_raw.get(
+                    "failure_classification", "failed"
+                ) or "failed"
+                failure_detail = last_failure_raw.get("failure_detail", failure_reason)
+            else:
+                classification = "failed"
+                failure_detail = failure_reason
 
-            if role == "reviewer":
-                reviewer_pre = _collect_product_diff(prepared.worktree)
-                reviewer_post = _collect_product_diff(prepared.worktree)
-                if reviewer_post != reviewer_pre:
-                    reasons = ("reviewer_product_mutation",)
-                    classification = "failed"
-                    self._complete_sequential_team_failure(
-                        task_id,
-                        result,
-                        roles_executed,
-                        role_results,
-                        baseline_product,
-                        plan_digest=plan_digest,
-                        classification=classification,
-                        reasons=reasons,
-                    )
-                    return self._build_sequential_team_outcome(
-                        task_id,
-                        success=False,
-                        validation_exit_code=-1,
-                        validation_command_id="",
-                        changed_files=reviewer_post,
-                        roles_executed=roles_executed,
-                        role_results=role_results,
-                        plan_digest=plan_digest,
-                        baseline_product=baseline_product,
-                        before_evidence=before_evidence,
-                        failure_classification=classification,
-                        failure_detail="reviewer mutated coder product diff",
-                        reasons=reasons,
-                    )
+            self._complete_sequential_team_failure(
+                task_id,
+                None,
+                roles_executed,
+                worker_results_raw,
+                baseline_product,
+                plan_digest=plan_digest,
+                classification=classification,
+                reasons=(failure_reason, classification),
+            )
+            return self._build_sequential_team_outcome(
+                task_id,
+                success=False,
+                validation_exit_code=-1,
+                validation_command_id="",
+                changed_files=baseline_product,
+                roles_executed=roles_executed,
+                role_results=worker_results_raw,
+                plan_digest=plan_digest,
+                baseline_product=baseline_product,
+                before_evidence=before_evidence,
+                failure_classification=classification,
+                failure_detail=failure_detail,
+                reasons=(failure_reason, classification),
+            )
+
+        team_result = graph_result.get("team_execution_result", {})
+        worker_results_raw = list(team_result.get("worker_results", []))
+        roles_executed = ["planner", "coder", "reviewer"]
 
         _remove_handoff(handoff)
         final_changed = _collect_final_product_files(prepared.worktree)
@@ -583,6 +721,7 @@ class TaskExecutionService:
                     "validation_exit_code": val_exit,
                     "validation_command_id": "git_diff_check",
                     "plan_digest": plan_digest,
+                    "review_digest": review_digest,
                     "roles_executed": roles_executed,
                 },
             )
@@ -623,8 +762,9 @@ class TaskExecutionService:
             val_exit,
             val_digest,
             roles_executed,
-            role_results,
+            worker_results_raw,
             plan_digest,
+            review_digest,
             final_changed,
             baseline_product,
             classification,
@@ -638,7 +778,7 @@ class TaskExecutionService:
             validation_command_id="git_diff_check",
             changed_files=final_changed,
             roles_executed=roles_executed,
-            role_results=role_results,
+            role_results=worker_results_raw,
             plan_digest=plan_digest,
             baseline_product=baseline_product,
             before_evidence=before_evidence,
@@ -661,10 +801,11 @@ class TaskExecutionService:
     ) -> None:
         self.store.set_changed_files(task_id, baseline_product)
         try:
+            last_role = roles_executed[-1] if roles_executed else "none"
             self.store.classify_failure(
                 task_id,
                 classification=classification,
-                detail="sequential team failed at role=%s" % roles_executed[-1],
+                detail="sequential team failed at role=%s" % last_role,
             )
         except TaskStoreError:
             pass
@@ -672,7 +813,7 @@ class TaskExecutionService:
             task_id,
             event_type="EXECUTOR_FINISHED",
             title="Sequential team failed",
-            description=f"roles={','.join(roles_executed)}",
+            description=f"roles={','.join(roles_executed) if roles_executed else 'none'}",
             metadata={
                 "roles_executed": roles_executed,
                 "classification": classification,
@@ -690,6 +831,7 @@ class TaskExecutionService:
         roles_executed: list[str],
         role_results: list[dict[str, Any]],
         plan_digest: str,
+        review_digest: str,
         final_changed: list[dict[str, Any]],
         baseline_product: tuple[dict[str, Any], ...],
         classification: str,
@@ -726,8 +868,8 @@ class TaskExecutionService:
             value=",".join(roles_executed),
             status="pass" if success else "fail",
             detail=(
-                "plan_digest=%s validation_exit=%d changed_files=%d"
-                % (plan_digest[:12], val_exit, len(final_changed))
+                "plan_digest=%s review_digest=%s validation_exit=%d changed_files=%d"
+                % (plan_digest[:12], review_digest[:12], val_exit, len(final_changed))
             ),
             raw_json_digest="",
         )

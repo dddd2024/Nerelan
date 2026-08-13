@@ -1293,18 +1293,87 @@ def _is_handoff_path(path: str) -> bool:
     return path.startswith(_HANDOFF_DIR + "/") or path == _HANDOFF_DIR
 
 
-def _validate_plan_handoff(plan_path: Path) -> str:
-    """Return '' on valid handoff, else a short failure reason."""
-    if not plan_path.exists():
-        return "plan_missing"
-    if not plan_path.is_file():
-        return "plan_not_regular_file"
-    size = plan_path.stat().st_size
+def _handoff_file_under_worktree(file_path: Path, worktree: Path) -> bool:
+    """Return True iff file_path resolves to a real file strictly under worktree
+    and under the executor-owned handoff directory, with no symlink traversal."""
+    try:
+        if file_path.is_symlink():
+            return False
+        real = file_path.resolve(strict=True)
+        worktree_real = worktree.resolve()
+        handoff_real = (worktree_real / _HANDOFF_DIR).resolve()
+        try:
+            real.relative_to(handoff_real)
+        except ValueError:
+            return False
+        try:
+            real.relative_to(worktree_real)
+        except ValueError:
+            return False
+    except (OSError, RuntimeError):
+        return False
+    return True
+
+
+def _handoff_file_size_ok(file_path: Path) -> tuple[bool, str]:
+    if not file_path.exists():
+        return False, "handoff_missing"
+    if not file_path.is_file():
+        return False, "handoff_not_regular_file"
+    try:
+        size = file_path.stat().st_size
+    except OSError:
+        return False, "handoff_stat_failed"
     if size == 0:
-        return "plan_empty"
+        return False, "handoff_empty"
     if size > _MAX_HANDOFF_BYTES:
-        return f"plan_oversized:{size}"
+        return False, f"handoff_oversized:{size}"
+    return True, ""
+
+
+def _validate_handoff_file(
+    file_path: Path,
+    worktree: Path,
+    *,
+    label: str,
+) -> str:
+    """Validate a bounded handoff file (plan.md or review.md).
+
+    Checks (all must pass):
+    - exists
+    - not a symlink/junction
+    - resolves under the executor-owned handoff directory
+    - resolves under the shared worktree
+    - regular file
+    - non-empty
+    - <= 128 KiB
+
+    Returns '' on valid handoff, else a short failure reason prefixed with
+    the ``label`` (e.g. ``plan_missing``, ``review_oversized``).
+    """
+    if not file_path.exists():
+        return f"{label}_missing"
+    if file_path.is_symlink():
+        return f"{label}_symlink"
+    if not _handoff_file_under_worktree(file_path, worktree):
+        return f"{label}_workspace_escape"
+    ok, reason = _handoff_file_size_ok(file_path)
+    if not ok:
+        safe = reason.replace("handoff_", f"{label}_")
+        return safe
     return ""
+
+
+def _validate_plan_handoff(plan_path: Path) -> str:
+    """Return '' on valid plan handoff, else a short failure reason."""
+    worktree = plan_path.parent.parent if plan_path.parent.name == _HANDOFF_DIR else plan_path.parent
+    return _validate_handoff_file(plan_path, worktree, label="plan")
+
+
+def _validate_review_handoff(review_path: Path) -> str:
+    """Return '' on valid review handoff, else a short failure reason."""
+    worktree = review_path.parent.parent if review_path.parent.name == _HANDOFF_DIR else review_path.parent
+    return _validate_handoff_file(review_path, worktree, label="review")
 
 
 def _handoff_digest(handoff_path: Path) -> str:
@@ -1502,12 +1571,22 @@ def _collect_changed_files(worktree: Path) -> list[dict[str, Any]]:
         if len(parts) < 3:
             continue
         added, deleted, path = parts[0], parts[1], parts[2]
+        fpath = worktree / path
+        content_digest = ""
+        try:
+            if fpath.exists() and fpath.is_file() and not fpath.is_symlink():
+                content_digest = hashlib.sha256(
+                    fpath.read_bytes()
+                ).hexdigest()
+        except (OSError, UnicodeDecodeError):
+            content_digest = ""
         files.append({
             "path": path,
             "status": "added" if added != "-" and deleted == "0" else "modified",
             "additions": 0 if added == "-" else int(added),
             "deletions": 0 if deleted == "-" else int(deleted),
             "diff_digest": "",
+            "content_digest": content_digest,
         })
         seen_paths.add(path)
 
@@ -1526,12 +1605,21 @@ def _collect_changed_files(worktree: Path) -> list[dict[str, Any]]:
                 continue
             fpath = worktree / path
             adds, dels = _count_untracked_lines(fpath)
+            content_digest = ""
+            try:
+                if fpath.exists() and fpath.is_file() and not fpath.is_symlink():
+                    content_digest = hashlib.sha256(
+                        fpath.read_bytes()
+                    ).hexdigest()
+            except (OSError, UnicodeDecodeError):
+                content_digest = ""
             files.append({
                 "path": path,
                 "status": "added",
                 "additions": adds,
                 "deletions": dels,
                 "diff_digest": "",
+                "content_digest": content_digest,
             })
             seen_paths.add(path)
     except (FileNotFoundError, subprocess.TimeoutExpired):
