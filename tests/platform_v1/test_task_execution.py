@@ -286,3 +286,16 @@ def test_legacy_opencode_task_keeps_environment_model_fallback(
     assert outcome.success is True
     assert captured[0]["model_id"] == "legacy-env/model"
     assert "binding_resolution" not in captured[0]
+
+
+def test_execute_sequential_team_rejects_non_opencode_executor_kind(tmp_path) -> None:
+    store, router, service = _service(tmp_path)
+    task = store.create_task(
+        title="not-opencode",
+        executor_kind="deterministic_fixture",
+        idempotency_key="not-opencode",
+    )
+    with pytest.raises(TaskExecutionError, match="task_not_opencode"):
+        service.execute_sequential_team(
+            task.id, workspace_root=str(tmp_path / "root")
+        )

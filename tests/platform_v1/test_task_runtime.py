@@ -33,6 +33,19 @@ def test_router_dispatches_fixture_executor() -> None:
         assert result.execution_id == "exec-task-r1"
 
 
+def test_executor_router_create_executor_opencode_returns_open_code_executor() -> None:
+    from reverse_agent.platform_v1.opencode_executor import OpenCodeExecutor
+
+    router = ExecutorRouter()
+    executor = router.create_executor(
+        executor_kind="opencode",
+        model_id="sensetime/sensenova-6.7-flash-lite",
+        opencode_exe="/fake/opencode",
+    )
+    assert isinstance(executor, OpenCodeExecutor)
+    assert executor._model_id == "sensetime/sensenova-6.7-flash-lite"
+
+
 def test_router_rejects_unknown_executor_kind() -> None:
     with tempfile.TemporaryDirectory() as td:
         store = TaskStore(":memory:")

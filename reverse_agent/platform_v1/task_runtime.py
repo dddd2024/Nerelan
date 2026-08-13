@@ -390,3 +390,20 @@ class ExecutorRouter:
             workspace_root=workspace_root,
             event_callback=event_callback,
         )
+
+    def create_executor(
+        self,
+        *,
+        executor_kind: str,
+        **executor_kwargs: Any,
+    ) -> Executor:
+        """Instantiate the registered executor without dispatching execute().
+
+        Used by TaskExecutionService to obtain the configured OpenCode
+        executor and call its bounded prepare/execute-role methods for the
+        shared-workspace sequential planner->coder->reviewer flow.
+        """
+        factory = self._registry.get(executor_kind)
+        if factory is None:
+            raise ExecutorRuntimeError(f"unknown_executor_kind:{executor_kind}")
+        return factory(**executor_kwargs)

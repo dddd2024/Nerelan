@@ -20,6 +20,7 @@ from reverse_agent.platform_v1.opencode_executor import (
     build_binding_config_content,
     build_opencode_argv,
     build_prompt,
+    build_role_prompt,
     redact_event,
     redact_secrets,
     resolve_opencode_cli,
@@ -225,6 +226,61 @@ def test_binding_constructor_does_not_require_legacy_model_id() -> None:
 def test_build_prompt_contains_task() -> None:
     prompt = build_prompt("create alpha-ok file", "/tmp/ws")
     assert "create alpha-ok file" in prompt
+
+
+def test_build_role_prompt_planner_contains_role_instructions() -> None:
+    from reverse_agent.platform_v1.opencode_executor import RoleContext
+
+    ctx = RoleContext(
+        role="planner",
+        task_id="task-1",
+        workspace=Path("/tmp/ws"),
+        role_order_index=0,
+    )
+    prompt = build_role_prompt("bounded task", "/tmp/ws", role_context=ctx)
+
+    assert "AUTHORITY CONSTRAINTS" in prompt
+    assert "ROLE INSTRUCTIONS" in prompt
+    assert "planner" in prompt
+    assert "MUST NOT commit" in prompt
+    assert "bounded task" in prompt
+
+
+def test_build_role_prompt_coder_and_reviewer_include_shared_workspace_hint() -> None:
+    from reverse_agent.platform_v1.opencode_executor import RoleContext
+
+    for role in ("coder", "reviewer"):
+        ctx = RoleContext(
+            role=role,
+            task_id="task-1",
+            workspace=Path("/tmp/ws"),
+            role_order_index=1 if role == "coder" else 2,
+        )
+        prompt = build_role_prompt("bounded task", "/tmp/ws", role_context=ctx)
+        assert role in prompt
+        assert "planner handoff" in prompt or role != "planner"
+
+
+def test_build_role_prompt_unknown_role_falls_back_to_base() -> None:
+    from reverse_agent.platform_v1.opencode_executor import RoleContext
+
+    ctx = RoleContext(
+        role="executor",
+        task_id="task-1",
+        workspace=Path("/tmp/ws"),
+        role_order_index=0,
+    )
+    prompt = build_role_prompt("bounded task", "/tmp/ws", role_context=ctx)
+
+    assert "bounded task" in prompt
+    assert "AUTHORITY CONSTRAINTS" in prompt
+    assert "ROLE INSTRUCTIONS" not in prompt
+
+
+def test_build_role_prompt_without_context_equals_build_prompt() -> None:
+    prompt = build_role_prompt("bounded task", "/tmp/ws")
+    base = build_prompt("bounded task", "/tmp/ws")
+    assert prompt == base
 
 
 # ---------------------------------------------------------------------------

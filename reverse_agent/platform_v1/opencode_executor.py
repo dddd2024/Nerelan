@@ -31,7 +31,7 @@ import re
 import shutil
 import subprocess
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -80,10 +80,57 @@ class ExecutionLeaseHandle:
 LeaseProvider = Callable[[OpenCodeBindingResolution], ExecutionLeaseHandle]
 
 
+@dataclass
+class PreparedWorkspaceContext:
+    """Bounded metadata returned by prepare_worktree_once().
+
+    Passed into execute_role_prepared() so all three sequential roles
+    planner->coder->reviewer run inside the SAME already-prepared linked
+    worktree without re-running CLI resolution, binding setup, or
+    worktree creation.
+    """
+    worktree: Path
+    base_sha: str
+    execution_id: str
+    cli_path: str
+    is_cmd: bool
+    opencode_exe: str | None
+
+
+@dataclass
+class RoleContext:
+    """Bounded instruction payload for one bounded role execution.
+
+    ``role`` is one of ``planner``, ``coder``, ``reviewer``.
+    ``task_id`` and ``workspace`` MUST equal the single durable Task's
+    task_id and the shared worktree path for every role in the sequence.
+    ``plan_path`` points to the planner's runtime handoff (``.reverse-agent-handoff/plan.md``)
+    and is required by both ``coder`` (as input) and ``reviewer`` (as input).
+    ``plan_digest`` is the SHA-256 of the planner handoff captured by the
+    caller before the role runs; it is recorded into the result so the
+    TaskExecutionService can prove role-order/shared-workspace evidence.
+    """
+    role: str
+    task_id: str
+    workspace: Path
+    plan_path: Path | None = None
+    plan_digest: str = ""
+    role_order_index: int = 0
+
+
 MAX_EVIDENCE_ITEMS = 40
 MAX_EVIDENCE_STRING_LEN = 250
 MAX_EVIDENCE_DEPTH = 6
 MAX_EVIDENCE_TOTAL_BYTES = 64 * 1024
+
+# Runtime handoff directory shared between sequential planner/coder/reviewer
+# roles inside one executor-owned linked worktree. Files in this directory
+# are runtime communication, never product changes.
+_HANDOFF_DIR = ".reverse-agent-handoff"
+_PLAN_HANDOFF = "plan.md"
+_REVIEW_HANDOFF = "review.md"
+_MAX_HANDOFF_BYTES = 128 * 1024  # 128 KiB
+_SEQUENTIAL_ROLES = ("planner", "coder", "reviewer")
 
 
 # ---------------------------------------------------------------------------
@@ -434,6 +481,63 @@ def build_prompt(task_title: str, worktree: str) -> str:
     )
 
 
+_ROLE_PLANNER_INSTRUCTIONS = (
+    "\n\n"
+    "ROLE: planner (shared-workspace sequential planner)\n"
+    "You are the planner. Produce ONLY a bounded runtime plan in\n"
+    "```.reverse-agent-handoff/plan.md```. Do NOT modify tracked product files.\n"
+    "The plan must describe the bounded implementation strategy, required\n"
+    "edits, and acceptance criteria. After writing the plan, stop.\n"
+)
+
+_ROLE_CODER_INSTRUCTIONS = (
+    "\n\n"
+    "ROLE: coder (shared-workspace sequential coder)\n"
+    "You are the coder. First read the planner handoff at\n"
+    "```.reverse-agent-handoff/plan.md```. Then implement the bounded\n"
+    "task inside this SAME worktree. Do NOT delete or rewrite the plan.\n"
+    "Your modifications become the product diff observed by the reviewer.\n"
+)
+
+_ROLE_REVIEWER_INSTRUCTIONS = (
+    "\n\n"
+    "ROLE: reviewer (shared-workspace sequential reviewer)\n"
+    "You are the reviewer. Observe: (1) the planner handoff at\n"
+    "```.reverse-agent-handoff/plan.md```, and (2) the current uncommitted\n"
+    "git diff (``git diff HEAD``) — that is the coder's product diff.\n"
+    "Write your bounded review ONLY to\n"
+    "```.reverse-agent-handoff/review.md```. Do NOT rewrite, amend, or\n"
+    "repair any product file in this slice.\n"
+)
+
+_ROLE_INSTRUCTIONS: dict[str, str] = {
+    "planner": _ROLE_PLANNER_INSTRUCTIONS,
+    "coder": _ROLE_CODER_INSTRUCTIONS,
+    "reviewer": _ROLE_REVIEWER_INSTRUCTIONS,
+}
+
+
+def build_role_prompt(
+    task_title: str,
+    worktree: str,
+    role_context: RoleContext | None = None,
+) -> str:
+    """Build an authority envelope with an optional bounded role instruction."""
+    base = build_prompt(task_title, worktree)
+    if role_context is None:
+        return base
+    role = role_context.role
+    instructions = _ROLE_INSTRUCTIONS.get(role)
+    if instructions is None:
+        return base
+    return (
+        f"{base}\n"
+        f"ROLE INSTRUCTIONS\n"
+        f"{instructions}\n"
+        f"END ROLE INSTRUCTIONS"
+    )
+
+
 def _write_prompt_file(content: str) -> Path:
     fd, path = tempfile.mkstemp(
         prefix="opencode_prompt_", suffix=".txt", dir=tempfile.gettempdir()
@@ -455,6 +559,34 @@ def _write_prompt_file(content: str) -> Path:
 # ---------------------------------------------------------------------------
 
 _CLI_POSITIONAL_MESSAGE = "execute bounded task from attached prompt file"
+
+
+def handoff_dir(workspace: Path) -> Path:
+    return workspace / _HANDOFF_DIR
+
+
+def _iter_handoff_files(handoff: Path) -> list[Path]:
+    if not handoff.is_dir():
+        return []
+    return sorted(p for p in handoff.iterdir() if p.is_file())
+
+
+def _has_handoff_files(handoff: Path) -> bool:
+    return any(True for _ in _iter_handoff_files(handoff))
+
+
+def _remove_handoff(handoff: Path) -> bool:
+    """Remove the handoff directory recursively if it exists and contains files.
+
+    Returns True iff the directory existed and had at least one file (i.e.
+    there was something to clean up).
+    """
+    if not handoff.is_dir():
+        return False
+    if not _has_handoff_files(handoff):
+        return False
+    shutil.rmtree(handoff, ignore_errors=True)
+    return not handoff.exists()
 
 
 def build_opencode_argv(
@@ -565,31 +697,54 @@ class OpenCodeExecutor:
 
         root_path = Path(workspace_root)
         root_path.mkdir(parents=True, exist_ok=True)
-        worktree, base_sha = self._prepare_linked_worktree(
+        prepared = self.prepare_worktree_once(
             task_id, root_path, event_callback
         )
-        execution_id = "exec-%s" % task_id
-        binding_metadata = self._binding_event_metadata()
+        role_context = RoleContext(
+            role="executor",
+            task_id=task_id,
+            workspace=prepared.worktree,
+            role_order_index=0,
+        )
+        return self.execute_role_prepared(
+            prepared,
+            store,
+            role_context=role_context,
+            event_callback=event_callback,
+        )
 
-        _emit(event_callback, task_id, {
-            "type": "WORKSPACE_READY",
-            "title": "Workspace ready",
-            "description": "Linked worktree bound to %s" % base_sha,
-            "metadata": {
-                "workspace": str(worktree),
-                "execution_id": execution_id,
-                "executor_kind": "opencode",
-                "model": self._model_id,
-                "base_sha": base_sha,
-                "repo_dir": str(self._repo_dir),
-                **binding_metadata,
-            },
-        })
+    def _run_executor_core(
+        self,
+        *,
+        task_id: str,
+        store: Any,
+        worktree: Path,
+        base_sha: str,
+        execution_id: str,
+        cli_path: str,
+        is_cmd: bool,
+        event_callback: ExecutorCallback | None,
+        role_context: RoleContext,
+    ) -> ExecutorResult:
+        """Run the bounded OpenCode role subprocess inside an already-prepared
+        worktree and return a normalised ``ExecutorResult``.
 
-        cli_path, _is_cmd = resolve_opencode_cli(self._opencode_exe)
+        All three sequential roles planner->coder->reviewer reuse the same
+        CLI resolution, binding config, child environment isolation, lease
+        acquisition, prompt-file transport, subprocess runner, secret
+        redaction, evidence parsing/persistence, and ``git diff --check``
+        validation. ``role_context`` carries the role-specific instruction
+        that is merged into the authority envelope.
+        """
         task_title = self._task_title(store, task_id)
-        prompt = build_prompt(task_title, str(worktree))
+        prompt = build_role_prompt(
+            task_title,
+            str(worktree),
+            role_context,
+        )
         prompt_file = _write_prompt_file(prompt)
+
+        binding_metadata = self._binding_event_metadata()
 
         lease_handle: ExecutionLeaseHandle | None = None
         try:
@@ -602,7 +757,7 @@ class OpenCodeExecutor:
 
             cli_argv, _positional = build_opencode_argv(
                 cli_path,
-                is_cmd=_is_cmd,
+                is_cmd=is_cmd,
                 model_id=model_for_cli,
                 worktree=str(worktree),
                 prompt_file=str(prompt_file),
@@ -616,6 +771,7 @@ class OpenCodeExecutor:
                 "metadata": {
                     "execution_id": execution_id,
                     "executor_kind": "opencode",
+                    "role": role_context.role,
                     "model": model_for_cli,
                     "cli_path": cli_path,
                     "worktree": str(worktree),
@@ -659,6 +815,7 @@ class OpenCodeExecutor:
                     "execution_id": execution_id,
                     "timeout": self._timeout,
                     "failure_classification": "timeout",
+                    "role": role_context.role,
                 },
             })
             changed_files = _collect_changed_files(worktree)
@@ -715,6 +872,7 @@ class OpenCodeExecutor:
                     "exit_code": exit_code,
                     "failure_classification": fail_class,
                     "stderr_summary": stderr_redacted[:512],
+                    "role": role_context.role,
                 },
             })
             changed_files = _collect_changed_files(worktree)
@@ -743,6 +901,7 @@ class OpenCodeExecutor:
                 "exit_code": exit_code,
                 "changed_file_count": len(changed_files),
                 "model": self._model_id,
+                "role": role_context.role,
             },
         })
 
@@ -764,6 +923,7 @@ class OpenCodeExecutor:
                 "execution_id": execution_id,
                 "validation_command_id": "git_diff_check",
                 "validation_exit_code": val_exit,
+                "role": role_context.role,
             },
         })
 
@@ -788,6 +948,7 @@ class OpenCodeExecutor:
                 "execution_id": execution_id,
                 "validation_exit_code": val_exit,
                 "failure_classification": "deterministic_validation_failure",
+                "role": role_context.role,
             },
         })
         return ExecutorResult(
@@ -801,6 +962,79 @@ class OpenCodeExecutor:
             execution_id=execution_id,
             process_exit_code=exit_code,
             failure_classification="deterministic_validation_failure",
+        )
+
+    def prepare_worktree_once(
+        self,
+        task_id: str,
+        root_path: Path,
+        event_callback: ExecutorCallback | None,
+    ) -> PreparedWorkspaceContext:
+        """Prepare exactly one linked worktree for shared sequential use.
+
+        Called ONCE by TaskExecutionService.execute_sequential_team() before
+        any role executes. Returns a ``PreparedWorkspaceContext`` that is
+        passed into ``execute_role_prepared`` for planner, coder, and
+        reviewer so all three roles reuse the same CLI resolution and
+        binding setup.
+        """
+        worktree, base_sha = self._prepare_linked_worktree(
+            task_id, root_path, event_callback
+        )
+        execution_id = "exec-%s" % task_id
+        cli_path, is_cmd = resolve_opencode_cli(self._opencode_exe)
+
+        _emit(event_callback, task_id, {
+            "type": "WORKSPACE_READY",
+            "title": "Workspace ready",
+            "description": "Linked worktree bound to %s" % base_sha,
+            "metadata": {
+                "workspace": str(worktree),
+                "execution_id": execution_id,
+                "executor_kind": "opencode",
+                "model": self._model_id,
+                "base_sha": base_sha,
+                "repo_dir": str(self._repo_dir),
+                **self._binding_event_metadata(),
+            },
+        })
+
+        return PreparedWorkspaceContext(
+            worktree=worktree,
+            base_sha=base_sha,
+            execution_id=execution_id,
+            cli_path=cli_path,
+            is_cmd=is_cmd,
+            opencode_exe=self._opencode_exe,
+        )
+
+    def execute_role_prepared(
+        self,
+        prepared: PreparedWorkspaceContext,
+        store: Any,
+        *,
+        role_context: RoleContext,
+        event_callback: ExecutorCallback | None = None,
+    ) -> ExecutorResult:
+        """Run a single bounded role inside an already-prepared worktree.
+
+        Reuses the same CLI resolution, binding configuration, prompt
+        envelope, environment isolation, lease semantics, subprocess
+        runner, secret redaction, event/evidence parsing, and
+        ``git diff --check`` validation as ``execute()``. The caller
+        (TaskExecutionService.execute_sequential_team) is responsible
+        for preparing the worktree once and sequencing the roles.
+        """
+        return self._run_executor_core(
+            task_id=role_context.task_id,
+            store=store,
+            worktree=prepared.worktree,
+            base_sha=prepared.base_sha,
+            execution_id=prepared.execution_id,
+            cli_path=prepared.cli_path,
+            is_cmd=prepared.is_cmd,
+            event_callback=event_callback,
+            role_context=role_context,
         )
 
     def _task_title(self, store: Any, task_id: str) -> str:
@@ -1045,6 +1279,67 @@ def _is_path_contained(path: Path, parent: Path) -> bool:
         return True
     except ValueError:
         return False
+
+
+def _handoff_path(path: str) -> bool:
+    try:
+        Path(path).resolve().relative_to(Path(_HANDOFF_DIR).resolve())
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+def _is_handoff_path(path: str) -> bool:
+    return path.startswith(_HANDOFF_DIR + "/") or path == _HANDOFF_DIR
+
+
+def _validate_plan_handoff(plan_path: Path) -> str:
+    """Return '' on valid handoff, else a short failure reason."""
+    if not plan_path.exists():
+        return "plan_missing"
+    if not plan_path.is_file():
+        return "plan_not_regular_file"
+    size = plan_path.stat().st_size
+    if size == 0:
+        return "plan_empty"
+    if size > _MAX_HANDOFF_BYTES:
+        return f"plan_oversized:{size}"
+    return ""
+
+
+def _handoff_digest(handoff_path: Path) -> str:
+    if not handoff_path.is_file():
+        return ""
+    return hashlib.sha256(handoff_path.read_bytes()).hexdigest()
+
+
+def _collect_product_diff(worktree: Path) -> tuple[dict[str, Any], ...]:
+    """Collect tracked/untracked product changes inside ``worktree``,
+    excluding the runtime handoff directory.
+
+    Used by TaskExecutionService to snapshot the product diff before and
+    after each role. A role that changes only ``.reverse-agent-handoff/**``
+    will not affect the returned tuple; a role that changes any tracked or
+    untracked non-handoff file will appear here.
+    """
+    return tuple(
+        f
+        for f in _collect_changed_files(worktree)
+        if f.get("path") and not _is_handoff_path(f["path"])
+    )
+
+
+def _collect_final_product_files(worktree: Path) -> list[dict[str, Any]]:
+    """Collect product changed files after handoff cleanup.
+
+    The handoff directory has already been removed at this point, so this
+    is a thin wrapper that preserves the API shape used by TaskExecutionService.
+    """
+    return [
+        f
+        for f in _collect_changed_files(worktree)
+        if f.get("path") and not _is_handoff_path(f["path"])
+    ]
 
 
 # ---------------------------------------------------------------------------
