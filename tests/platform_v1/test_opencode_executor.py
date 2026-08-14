@@ -1490,85 +1490,148 @@ def test_coder_retains_implementation_role() -> None:
     assert "review.md" in prompt
 
 
+def test_planner_permission_schema_is_v1_shape() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("planner")
+    config = json.loads(config_str)
+    assert "permission" in config
+    assert "permissions" not in config
+    assert isinstance(config["permission"], dict)
+
+
 def test_planner_runtime_permission_product_edit_denied() -> None:
     from reverse_agent.platform_v1.opencode_executor import (
         build_role_permission_config,
     )
-    import json
     config_str = build_role_permission_config("planner")
-    assert config_str is not None
     config = json.loads(config_str)
-    edit_perm = config["permissions"]["edit"]
-    assert "*" in edit_perm["deny"]
-    assert "calculator.py" not in edit_perm.get("allow", [])
+    edit_perm = config["permission"]["edit"]
+    assert edit_perm["*"] == "deny"
+    assert edit_perm.get("calculator.py") != "allow"
 
 
 def test_planner_runtime_permission_exact_plan_allowed() -> None:
     from reverse_agent.platform_v1.opencode_executor import (
         build_role_permission_config,
     )
-    import json
     config_str = build_role_permission_config("planner")
     config = json.loads(config_str)
-    edit_perm = config["permissions"]["edit"]
-    assert ".reverse-agent-handoff/plan.md" in edit_perm["allow"]
+    edit_perm = config["permission"]["edit"]
+    assert edit_perm[".reverse-agent-handoff/plan.md"] == "allow"
+
+
+def test_planner_runtime_permission_broad_deny_before_specific_allow() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("planner")
+    config = json.loads(config_str)
+    edit_keys = list(config["permission"]["edit"].keys())
+    assert edit_keys[0] == "*"
+    assert edit_keys[1] == ".reverse-agent-handoff/plan.md"
 
 
 def test_planner_shell_denied() -> None:
     from reverse_agent.platform_v1.opencode_executor import (
         build_role_permission_config,
     )
-    import json
     config_str = build_role_permission_config("planner")
     config = json.loads(config_str)
-    bash_perm = config["permissions"]["bash"]
-    assert "*" in bash_perm["deny"]
+    bash_perm = config["permission"]["bash"]
+    assert bash_perm["*"] == "deny"
     assert "allow" not in bash_perm
+
+
+def test_planner_v1_action_names_present() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("planner")
+    config = json.loads(config_str)
+    actions = set(config["permission"].keys())
+    for action in ("edit", "bash", "external_directory", "task", "web"):
+        assert action in actions, action
+    for old_action in ("webfetch", "websearch"):
+        assert old_action not in actions, old_action
+
+
+def test_planner_no_v1_list_shape() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("planner")
+    config = json.loads(config_str)
+    for action_name, rules in config["permission"].items():
+        assert "allow" not in rules, action_name
+        assert "deny" not in rules, action_name
+        for pattern, effect in rules.items():
+            assert isinstance(effect, str), action_name
+            assert effect in ("allow", "deny", "ask"), (action_name, pattern, effect)
+
+
+def test_reviewer_permission_schema_is_v1_shape() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("reviewer")
+    config = json.loads(config_str)
+    assert "permission" in config
+    assert "permissions" not in config
 
 
 def test_reviewer_runtime_permission_product_edit_denied() -> None:
     from reverse_agent.platform_v1.opencode_executor import (
         build_role_permission_config,
     )
-    import json
     config_str = build_role_permission_config("reviewer")
     config = json.loads(config_str)
-    edit_perm = config["permissions"]["edit"]
-    assert "*" in edit_perm["deny"]
-    assert "calculator.py" not in edit_perm.get("allow", [])
+    edit_perm = config["permission"]["edit"]
+    assert edit_perm["*"] == "deny"
+    assert edit_perm.get("calculator.py") != "allow"
 
 
 def test_reviewer_runtime_permission_exact_review_allowed() -> None:
     from reverse_agent.platform_v1.opencode_executor import (
         build_role_permission_config,
     )
-    import json
     config_str = build_role_permission_config("reviewer")
     config = json.loads(config_str)
-    edit_perm = config["permissions"]["edit"]
-    assert ".reverse-agent-handoff/review.md" in edit_perm["allow"]
+    edit_perm = config["permission"]["edit"]
+    assert edit_perm[".reverse-agent-handoff/review.md"] == "allow"
+
+
+def test_reviewer_runtime_permission_broad_deny_before_specific_allow() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("reviewer")
+    config = json.loads(config_str)
+    edit_keys = list(config["permission"]["edit"].keys())
+    assert edit_keys[0] == "*"
+    assert edit_keys[1] == ".reverse-agent-handoff/review.md"
 
 
 def test_reviewer_read_only_git_shell_allowed() -> None:
     from reverse_agent.platform_v1.opencode_executor import (
         build_role_permission_config,
     )
-    import json
     config_str = build_role_permission_config("reviewer")
     config = json.loads(config_str)
-    bash_perm = config["permissions"]["bash"]
-    assert "git diff*" in bash_perm["allow"]
-    assert "git status*" in bash_perm["allow"]
+    bash_perm = config["permission"]["bash"]
+    assert bash_perm["*"] == "deny"
+    assert bash_perm["git diff*"] == "allow"
+    assert bash_perm["git status*"] == "allow"
 
 
 def test_reviewer_mutation_commands_not_allowed() -> None:
     from reverse_agent.platform_v1.opencode_executor import (
         build_role_permission_config,
     )
-    import json
     config_str = build_role_permission_config("reviewer")
     config = json.loads(config_str)
-    bash_perm = config["permissions"]["bash"]
+    bash_perm = config["permission"]["bash"]
     mutation_patterns = [
         "git add",
         "git checkout",
@@ -1584,24 +1647,43 @@ def test_reviewer_mutation_commands_not_allowed() -> None:
         "python ",
     ]
     for pat in mutation_patterns:
-        assert pat not in bash_perm.get("allow", []), pat
+        assert bash_perm.get(pat) != "allow", pat
+
+
+def test_coder_permission_schema_is_v1_shape() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("coder")
+    config = json.loads(config_str)
+    assert "permission" in config
+    assert "permissions" not in config
 
 
 def test_coder_not_subject_to_wildcard_edit_deny() -> None:
     from reverse_agent.platform_v1.opencode_executor import (
         build_role_permission_config,
     )
-    import json
     config_str = build_role_permission_config("coder")
-    assert config_str is not None
     config = json.loads(config_str)
-    assert "edit" not in config["permissions"]
-    bash_perm = config["permissions"]["bash"]
-    assert "git commit*" in bash_perm["deny"]
-    assert "git push*" in bash_perm["deny"]
-    assert "git merge*" in bash_perm["deny"]
-    assert "git tag*" in bash_perm["deny"]
-    assert "*" not in bash_perm["deny"]
+    assert "edit" not in config["permission"]
+    bash_perm = config["permission"]["bash"]
+    assert bash_perm.get("git commit*") == "deny"
+    assert bash_perm.get("git push*") == "deny"
+    assert bash_perm.get("git merge*") == "deny"
+    assert bash_perm.get("git tag*") == "deny"
+    assert "*" not in bash_perm
+
+
+def test_coder_dangerous_bash_patterns_denied() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("coder")
+    config = json.loads(config_str)
+    bash_perm = config["permission"]["bash"]
+    for dangerous in ("git commit*", "git push*", "git merge*", "git tag*"):
+        assert bash_perm.get(dangerous) == "deny", dangerous
 
 
 def test_coder_retains_bounded_implementation_capability() -> None:
@@ -1617,19 +1699,17 @@ def test_coder_retains_bounded_implementation_capability() -> None:
     from reverse_agent.platform_v1.opencode_executor import (
         build_role_permission_config,
     )
-    import json
     config_str = build_role_permission_config("coder")
     config = json.loads(config_str)
-    assert "edit" not in config["permissions"]
+    assert "edit" not in config["permission"]
 
 
-def test_binding_relay_runtime_config_contains_provider_and_permissions() -> None:
+def test_binding_relay_runtime_config_contains_provider_and_permission() -> None:
     from reverse_agent.platform_v1.opencode_executor import (
         build_binding_config_content,
         build_role_child_env,
         build_role_permission_config,
     )
-    import json
     from reverse_agent.platform_v1.binding_resolver import OpenCodeBindingResolution
     resolution = OpenCodeBindingResolution(
         binding_ref="test-ref",
@@ -1660,16 +1740,14 @@ def test_binding_relay_runtime_config_contains_provider_and_permissions() -> Non
     child_env = build_role_child_env(_SimpleParentEnv(), provider_config, "planner")
     merged_config = json.loads(child_env["OPENCODE_CONFIG_CONTENT"])
     assert "provider" in merged_config
-    assert "permissions" in merged_config
-    assert merged_config["permissions"]["edit"]["allow"] == [
-        ".reverse-agent-handoff/plan.md"
-    ]
-    assert "*" in merged_config["permissions"]["edit"]["deny"]
+    assert "permission" in merged_config
+    assert "permissions" not in merged_config
+    assert merged_config["permission"]["edit"]["*"] == "deny"
+    assert merged_config["permission"]["edit"][".reverse-agent-handoff/plan.md"] == "allow"
 
 
 def test_direct_authenticated_session_env_preserves_parent_markers() -> None:
     from reverse_agent.platform_v1.opencode_executor import build_role_child_env
-    import json
 
     parent_env = {
         "PATH": "/usr/bin:/usr/local/bin",
@@ -1684,7 +1762,8 @@ def test_direct_authenticated_session_env_preserves_parent_markers() -> None:
     assert child["PATH"] == "/usr/bin:/usr/local/bin"
     assert child["OPENCODE_CONFIG_CONTENT"]
     config = json.loads(child["OPENCODE_CONFIG_CONTENT"])
-    assert "permissions" in config
+    assert "permission" in config
+    assert "permissions" not in config
 
 
 def test_no_secret_value_persisted_in_event_or_evidence() -> None:
@@ -1789,75 +1868,67 @@ def test_role_permission_config_unknown_role_returns_none() -> None:
     assert build_role_permission_config("unknown") is None
 
 
-def test_reviewer_role_permission_config_exact_shape() -> None:
+def test_reviewer_role_permission_config_exact_v1_shape() -> None:
     from reverse_agent.platform_v1.opencode_executor import (
         build_role_permission_config,
     )
-    import json
     config_str = build_role_permission_config("reviewer")
-    assert config_str is not None
     config = json.loads(config_str)
-    assert sorted(config.keys()) == ["permissions"]
-    assert sorted(config["permissions"].keys()) == [
+    assert sorted(config.keys()) == ["permission"]
+    assert sorted(config["permission"].keys()) == [
         "bash",
-        "directory",
         "edit",
-        "subagent",
+        "external_directory",
+        "task",
         "web",
     ]
-    assert config["permissions"]["edit"]["allow"] == [
-        ".reverse-agent-handoff/review.md"
-    ]
-    assert config["permissions"]["edit"]["deny"] == ["*"]
-    assert config["permissions"]["bash"]["allow"] == ["git diff*", "git status*"]
-    assert config["permissions"]["bash"]["deny"] == ["*"]
-    assert config["permissions"]["directory"]["deny"] == ["*"]
-    assert config["permissions"]["subagent"]["deny"] == ["*"]
-    assert config["permissions"]["web"]["deny"] == ["*"]
+    assert config["permission"]["edit"]["*"] == "deny"
+    assert config["permission"]["edit"][".reverse-agent-handoff/review.md"] == "allow"
+    assert config["permission"]["bash"]["*"] == "deny"
+    assert config["permission"]["bash"]["git diff*"] == "allow"
+    assert config["permission"]["bash"]["git status*"] == "allow"
+    assert config["permission"]["external_directory"]["*"] == "deny"
+    assert config["permission"]["task"]["*"] == "deny"
+    assert config["permission"]["web"]["*"] == "deny"
 
 
-def test_planner_role_permission_config_exact_shape() -> None:
+def test_planner_role_permission_config_exact_v1_shape() -> None:
     from reverse_agent.platform_v1.opencode_executor import (
         build_role_permission_config,
     )
-    import json
     config_str = build_role_permission_config("planner")
-    assert config_str is not None
     config = json.loads(config_str)
-    assert sorted(config["permissions"].keys()) == [
+    assert sorted(config.keys()) == ["permission"]
+    assert sorted(config["permission"].keys()) == [
         "bash",
-        "directory",
         "edit",
-        "subagent",
+        "external_directory",
+        "task",
         "web",
     ]
-    assert config["permissions"]["edit"]["allow"] == [
-        ".reverse-agent-handoff/plan.md"
-    ]
-    assert config["permissions"]["edit"]["deny"] == ["*"]
-    assert config["permissions"]["bash"]["deny"] == ["*"]
-    assert "allow" not in config["permissions"]["bash"]
-    assert config["permissions"]["directory"]["deny"] == ["*"]
-    assert config["permissions"]["subagent"]["deny"] == ["*"]
-    assert config["permissions"]["web"]["deny"] == ["*"]
+    assert config["permission"]["edit"]["*"] == "deny"
+    assert config["permission"]["edit"][".reverse-agent-handoff/plan.md"] == "allow"
+    assert config["permission"]["bash"]["*"] == "deny"
+    assert "allow" not in config["permission"]["bash"]
+    assert config["permission"]["external_directory"]["*"] == "deny"
+    assert config["permission"]["task"]["*"] == "deny"
+    assert config["permission"]["web"]["*"] == "deny"
 
 
-def test_coder_role_permission_config_exact_shape() -> None:
+def test_coder_role_permission_config_exact_v1_shape() -> None:
     from reverse_agent.platform_v1.opencode_executor import (
         build_role_permission_config,
     )
-    import json
     config_str = build_role_permission_config("coder")
-    assert config_str is not None
     config = json.loads(config_str)
-    assert sorted(config["permissions"].keys()) == ["bash"]
-    assert config["permissions"]["bash"]["deny"] == [
-        "git commit*",
-        "git push*",
-        "git merge*",
-        "git tag*",
-    ]
-    assert "allow" not in config["permissions"]["bash"]
+    assert sorted(config.keys()) == ["permission"]
+    assert sorted(config["permission"].keys()) == ["bash"]
+    assert config["permission"]["bash"]["git commit*"] == "deny"
+    assert config["permission"]["bash"]["git push*"] == "deny"
+    assert config["permission"]["bash"]["git merge*"] == "deny"
+    assert config["permission"]["bash"]["git tag*"] == "deny"
+    assert "*" not in config["permission"]["bash"]
+    assert "allow" not in config["permission"]["bash"]
 
 
 def test_role_prompt_unknown_role_uses_base_prompt() -> None:

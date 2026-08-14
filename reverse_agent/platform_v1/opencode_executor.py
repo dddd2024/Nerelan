@@ -317,50 +317,40 @@ def build_binding_config_content(
 
 _ROLE_PERMISSION_CONFIGS: dict[str, dict[str, Any]] = {
     "planner": {
-        "permissions": {
+        "permission": {
             "edit": {
-                "allow": [".reverse-agent-handoff/plan.md"],
-                "deny": ["*"],
+                "*": "deny",
+                ".reverse-agent-handoff/plan.md": "allow",
             },
-            "bash": {
-                "deny": ["*"],
-            },
-            "directory": {
-                "deny": ["*"],
-            },
-            "subagent": {
-                "deny": ["*"],
-            },
-            "web": {
-                "deny": ["*"],
-            },
+            "bash": {"*": "deny"},
+            "external_directory": {"*": "deny"},
+            "task": {"*": "deny"},
+            "web": {"*": "deny"},
         }
     },
     "reviewer": {
-        "permissions": {
+        "permission": {
             "edit": {
-                "allow": [".reverse-agent-handoff/review.md"],
-                "deny": ["*"],
+                "*": "deny",
+                ".reverse-agent-handoff/review.md": "allow",
             },
             "bash": {
-                "allow": ["git diff*", "git status*"],
-                "deny": ["*"],
+                "*": "deny",
+                "git diff*": "allow",
+                "git status*": "allow",
             },
-            "directory": {
-                "deny": ["*"],
-            },
-            "subagent": {
-                "deny": ["*"],
-            },
-            "web": {
-                "deny": ["*"],
-            },
+            "external_directory": {"*": "deny"},
+            "task": {"*": "deny"},
+            "web": {"*": "deny"},
         }
     },
     "coder": {
-        "permissions": {
+        "permission": {
             "bash": {
-                "deny": ["git commit*", "git push*", "git merge*", "git tag*"],
+                "git commit*": "deny",
+                "git push*": "deny",
+                "git merge*": "deny",
+                "git tag*": "deny",
             },
         }
     },
@@ -387,7 +377,7 @@ def _merge_opencode_config(existing: str | None, role_config: str | None) -> str
 
     If neither is provided, return None. If only one is provided,
     return that one as JSON. If both are provided, merge them into a
-    single JSON object preserving both ``provider`` and ``permissions``
+    single JSON object preserving both ``provider`` and ``permission``
     keys.
     """
     merged: dict[str, Any] = {}
