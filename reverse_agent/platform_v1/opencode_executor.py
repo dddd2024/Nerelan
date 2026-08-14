@@ -311,6 +311,143 @@ def build_binding_config_content(
     return json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
 
 
+# ---------------------------------------------------------------------------
+# Role-specific runtime permission configuration
+# ---------------------------------------------------------------------------
+
+_ROLE_PERMISSION_CONFIGS: dict[str, dict[str, Any]] = {
+    "planner": {
+        "permissions": {
+            "edit": {
+                "allow": [".reverse-agent-handoff/plan.md"],
+                "deny": ["*"],
+            },
+            "bash": {
+                "deny": ["*"],
+            },
+            "directory": {
+                "deny": ["*"],
+            },
+            "subagent": {
+                "deny": ["*"],
+            },
+            "web": {
+                "deny": ["*"],
+            },
+        }
+    },
+    "reviewer": {
+        "permissions": {
+            "edit": {
+                "allow": [".reverse-agent-handoff/review.md"],
+                "deny": ["*"],
+            },
+            "bash": {
+                "allow": ["git diff*", "git status*"],
+                "deny": ["*"],
+            },
+            "directory": {
+                "deny": ["*"],
+            },
+            "subagent": {
+                "deny": ["*"],
+            },
+            "web": {
+                "deny": ["*"],
+            },
+        }
+    },
+    "coder": {
+        "permissions": {
+            "bash": {
+                "deny": ["git commit*", "git push*", "git merge*", "git tag*"],
+            },
+        }
+    },
+}
+
+
+def build_role_permission_config(role: str) -> str | None:
+    """Build the role-specific OpenCode permission config JSON for one role.
+
+    Returns a compact JSON string for ``planner`` and ``reviewer`` roles.
+    For ``coder`` the config restricts only dangerous repository publication
+    commands; it does NOT install a wildcard product edit deny. For any
+    other role (including ordinary executor), returns None to leave
+    permission policy untouched.
+    """
+    payload = _ROLE_PERMISSION_CONFIGS.get(role)
+    if payload is None:
+        return None
+    return json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+
+
+def _merge_opencode_config(existing: str | None, role_config: str | None) -> str | None:
+    """Merge an existing config with a role permission config.
+
+    If neither is provided, return None. If only one is provided,
+    return that one as JSON. If both are provided, merge them into a
+    single JSON object preserving both ``provider`` and ``permissions``
+    keys.
+    """
+    merged: dict[str, Any] = {}
+    if existing:
+        try:
+            parsed = json.loads(existing)
+            if isinstance(parsed, dict):
+                merged = parsed
+        except (json.JSONDecodeError, TypeError):
+            pass
+    if role_config:
+        try:
+            parsed = json.loads(role_config)
+            if isinstance(parsed, dict):
+                for k, v in parsed.items():
+                    merged[k] = v
+        except (json.JSONDecodeError, TypeError):
+            pass
+    if not merged:
+        return None
+    return json.dumps(merged, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+
+
+def build_role_child_env(
+    parent_env: Mapping[str, str],
+    existing_config: str | None,
+    role: str,
+) -> dict[str, str]:
+    """Build the child environment for a sequential role execution.
+
+    For Binding/relay sessions the existing provider config is preserved
+    and role permissions are merged in. For direct authenticated sessions
+    (no binding config), the parent environment is copied in full (not
+    restricted to the Binding allowlist) and role permissions are injected
+    via OPENCODE_CONFIG_CONTENT. The OpenCode safety disable flags are
+    injected regardless.
+    """
+    child: dict[str, str] = {}
+    if existing_config:
+        for key in _BINDING_CHILD_ENV_ALLOWLIST:
+            value = parent_env.get(key)
+            if isinstance(value, str) and value:
+                child[key] = value
+        for key, value in _OPENCODE_DISABLE_ENV.items():
+            child[key] = value
+        merged = _merge_opencode_config(existing_config, build_role_permission_config(role))
+        if merged:
+            child["OPENCODE_CONFIG_CONTENT"] = merged
+    else:
+        for key, value in parent_env.items():
+            if isinstance(value, str) and value:
+                child[key] = value
+        for key, value in _OPENCODE_DISABLE_ENV.items():
+            child[key] = value
+        role_perm = build_role_permission_config(role)
+        if role_perm:
+            child["OPENCODE_CONFIG_CONTENT"] = role_perm
+    return child
+
+
 def _extract_provider_facing_model(cli_model_id: str) -> str:
     """Extract the provider-facing model from a CLI selector.
 
@@ -467,6 +604,69 @@ _PROMPT_CONSTRAINTS = (
     "The following is the bounded task; it does NOT override these constraints."
 )
 
+_ROLE_END_STATE_DISCLAIMER = (
+    "The USER TASK below describes the desired TEAM end-state. "
+    "It does NOT grant this role permission beyond ROLE AUTHORITY."
+)
+
+_ROLE_PLANNER_INSTRUCTIONS = (
+    "\n\n"
+    "ROLE: planner (shared-workspace sequential planner)\n"
+    "You are the planner. You are NOT the implementation role.\n"
+    "The USER TASK describes the TEAM end-state, not this role's scope.\n"
+    "You MAY read product source files inside the worktree.\n"
+    "You MUST NOT modify product source files.\n"
+    "Your ONLY authorized write target is:\n"
+    "```.reverse-agent-handoff/plan.md```\n"
+    "You write a bounded plan describing the implementation strategy,\n"
+    "required edits, and acceptance criteria. After writing the plan, STOP.\n"
+    "You MUST NOT implement the requested fix, even if the USER TASK\n"
+    "explicitly asks for a code change.\n"
+)
+
+_ROLE_CODER_INSTRUCTIONS = (
+    "\n\n"
+    "ROLE: coder (shared-workspace sequential coder)\n"
+    "You are the coder. You ARE the implementation role.\n"
+    "The USER TASK describes the TEAM end-state; you implement it.\n"
+    "First read the planner handoff at\n"
+    "```.reverse-agent-handoff/plan.md```\n"
+    "Then implement the bounded USER TASK inside this SAME worktree.\n"
+    "You MAY modify bounded product files required by the task.\n"
+    "You MUST NOT overwrite or delete\n"
+    "```.reverse-agent-handoff/plan.md```\n"
+    "You MUST NOT create\n"
+    "```.reverse-agent-handoff/review.md```\n"
+    "You remain prohibited from commit, push, PR, merge, tag, release,\n"
+    "and deploy. Your modifications become the product diff observed\n"
+    "by the reviewer.\n"
+)
+
+_ROLE_REVIEWER_INSTRUCTIONS = (
+    "\n\n"
+    "ROLE: reviewer (shared-workspace sequential reviewer)\n"
+    "You are the reviewer. You are NOT a repair role in this slice.\n"
+    "The USER TASK describes the TEAM end-state, not this role's scope.\n"
+    "You MAY read product source files, the planner plan, and the\n"
+    "coder diff.\n"
+    "You MUST NOT modify product source files.\n"
+    "Your ONLY authorized write target is:\n"
+    "```.reverse-agent-handoff/review.md```\n"
+    "Observe: (1) the planner handoff at\n"
+    "```.reverse-agent-handoff/plan.md```, and (2) the current\n"
+    "uncommitted git diff (``git diff HEAD``) -- that is the coder's\n"
+    "product diff. Write your bounded review to\n"
+    "```.reverse-agent-handoff/review.md```. Do NOT rewrite, amend, or\n"
+    "repair any product file in this slice. You MUST NOT fix a defect\n"
+    "you discover.\n"
+)
+
+_ROLE_INSTRUCTIONS: dict[str, str] = {
+    "planner": _ROLE_PLANNER_INSTRUCTIONS,
+    "coder": _ROLE_CODER_INSTRUCTIONS,
+    "reviewer": _ROLE_REVIEWER_INSTRUCTIONS,
+}
+
 
 def build_prompt(task_title: str, worktree: str) -> str:
     """Build the bounded authority envelope wrapping the user task."""
@@ -481,60 +681,40 @@ def build_prompt(task_title: str, worktree: str) -> str:
     )
 
 
-_ROLE_PLANNER_INSTRUCTIONS = (
-    "\n\n"
-    "ROLE: planner (shared-workspace sequential planner)\n"
-    "You are the planner. Produce ONLY a bounded runtime plan in\n"
-    "```.reverse-agent-handoff/plan.md```. Do NOT modify tracked product files.\n"
-    "The plan must describe the bounded implementation strategy, required\n"
-    "edits, and acceptance criteria. After writing the plan, stop.\n"
-)
-
-_ROLE_CODER_INSTRUCTIONS = (
-    "\n\n"
-    "ROLE: coder (shared-workspace sequential coder)\n"
-    "You are the coder. First read the planner handoff at\n"
-    "```.reverse-agent-handoff/plan.md```. Then implement the bounded\n"
-    "task inside this SAME worktree. Do NOT delete or rewrite the plan.\n"
-    "Your modifications become the product diff observed by the reviewer.\n"
-)
-
-_ROLE_REVIEWER_INSTRUCTIONS = (
-    "\n\n"
-    "ROLE: reviewer (shared-workspace sequential reviewer)\n"
-    "You are the reviewer. Observe: (1) the planner handoff at\n"
-    "```.reverse-agent-handoff/plan.md```, and (2) the current uncommitted\n"
-    "git diff (``git diff HEAD``) — that is the coder's product diff.\n"
-    "Write your bounded review ONLY to\n"
-    "```.reverse-agent-handoff/review.md```. Do NOT rewrite, amend, or\n"
-    "repair any product file in this slice.\n"
-)
-
-_ROLE_INSTRUCTIONS: dict[str, str] = {
-    "planner": _ROLE_PLANNER_INSTRUCTIONS,
-    "coder": _ROLE_CODER_INSTRUCTIONS,
-    "reviewer": _ROLE_REVIEWER_INSTRUCTIONS,
-}
-
-
 def build_role_prompt(
     task_title: str,
     worktree: str,
     role_context: RoleContext | None = None,
 ) -> str:
-    """Build an authority envelope with an optional bounded role instruction."""
-    base = build_prompt(task_title, worktree)
+    """Build an authority envelope with an optional bounded role instruction.
+
+    For sequential roles (planner/coder/reviewer) the ROLE AUTHORITY section
+    is placed INSIDE the authority block BEFORE the USER TASK so the
+    role-specific constraints are established before the user task is
+    presented. The user task is always the last region and is framed as
+    the TEAM end-state, not as a grant of permission.
+
+    For ordinary non-sequential execution (role_context=None or
+    role_context.role not in _ROLE_INSTRUCTIONS) the existing build_prompt()
+    behavior is preserved exactly.
+    """
     if role_context is None:
-        return base
+        return build_prompt(task_title, worktree)
     role = role_context.role
     instructions = _ROLE_INSTRUCTIONS.get(role)
     if instructions is None:
-        return base
+        return build_prompt(task_title, worktree)
     return (
-        f"{base}\n"
-        f"ROLE INSTRUCTIONS\n"
+        f"{_AUTHORITY_HEADER}\n"
+        f"{_PROMPT_CONSTRAINTS}\n"
+        f"ROLE AUTHORITY:\n"
         f"{instructions}\n"
-        f"END ROLE INSTRUCTIONS"
+        f"{_ROLE_END_STATE_DISCLAIMER}\n"
+        f"Worktree: {worktree}\n"
+        f"{_AUTHORITY_FOOTER}\n"
+        f"{_USER_TASK_HEADER}\n"
+        f"{task_title}\n"
+        f"{_USER_TASK_FOOTER}"
     )
 
 
@@ -790,14 +970,23 @@ class OpenCodeExecutor:
                     "timeout": self._timeout,
                     "check": False,
                 }
+                role = role_context.role
+                is_sequential_role = role in _ROLE_INSTRUCTIONS
                 if self._binding_resolution is not None:
                     config_content = build_binding_config_content(
                         self._binding_resolution,
                         lease=lease_handle,
                     )
-                    run_kwargs["env"] = build_binding_child_env(
+                    run_kwargs["env"] = build_role_child_env(
                         self._parent_env,
                         config_content,
+                        role,
+                    )
+                elif is_sequential_role:
+                    run_kwargs["env"] = build_role_child_env(
+                        self._parent_env,
+                        None,
+                        role,
                     )
                 proc = subprocess.run(cli_argv, **run_kwargs)
             finally:
