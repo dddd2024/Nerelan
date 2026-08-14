@@ -1550,11 +1550,10 @@ def test_planner_v1_action_names_present() -> None:
     )
     config_str = build_role_permission_config("planner")
     config = json.loads(config_str)
-    actions = set(config["permission"].keys())
-    for action in ("edit", "bash", "external_directory", "task", "web"):
-        assert action in actions, action
-    for old_action in ("webfetch", "websearch"):
-        assert old_action not in actions, old_action
+    perm = config["permission"]
+    for action in ("edit", "bash", "external_directory", "task", "webfetch", "websearch"):
+        assert action in perm, action
+    assert "web" not in perm, perm
 
 
 def test_planner_no_v1_list_shape() -> None:
@@ -1564,6 +1563,9 @@ def test_planner_no_v1_list_shape() -> None:
     config_str = build_role_permission_config("planner")
     config = json.loads(config_str)
     for action_name, rules in config["permission"].items():
+        if action_name in ("webfetch", "websearch"):
+            assert rules == "deny", action_name
+            continue
         assert "allow" not in rules, action_name
         assert "deny" not in rules, action_name
         for pattern, effect in rules.items():
@@ -1880,7 +1882,8 @@ def test_reviewer_role_permission_config_exact_v1_shape() -> None:
         "edit",
         "external_directory",
         "task",
-        "web",
+        "webfetch",
+        "websearch",
     ]
     assert config["permission"]["edit"]["*"] == "deny"
     assert config["permission"]["edit"][".reverse-agent-handoff/review.md"] == "allow"
@@ -1889,7 +1892,9 @@ def test_reviewer_role_permission_config_exact_v1_shape() -> None:
     assert config["permission"]["bash"]["git status*"] == "allow"
     assert config["permission"]["external_directory"]["*"] == "deny"
     assert config["permission"]["task"]["*"] == "deny"
-    assert config["permission"]["web"]["*"] == "deny"
+    assert config["permission"]["webfetch"] == "deny"
+    assert config["permission"]["websearch"] == "deny"
+    assert "web" not in config["permission"]
 
 
 def test_planner_role_permission_config_exact_v1_shape() -> None:
@@ -1904,7 +1909,8 @@ def test_planner_role_permission_config_exact_v1_shape() -> None:
         "edit",
         "external_directory",
         "task",
-        "web",
+        "webfetch",
+        "websearch",
     ]
     assert config["permission"]["edit"]["*"] == "deny"
     assert config["permission"]["edit"][".reverse-agent-handoff/plan.md"] == "allow"
@@ -1912,7 +1918,9 @@ def test_planner_role_permission_config_exact_v1_shape() -> None:
     assert "allow" not in config["permission"]["bash"]
     assert config["permission"]["external_directory"]["*"] == "deny"
     assert config["permission"]["task"]["*"] == "deny"
-    assert config["permission"]["web"]["*"] == "deny"
+    assert config["permission"]["webfetch"] == "deny"
+    assert config["permission"]["websearch"] == "deny"
+    assert "web" not in config["permission"]
 
 
 def test_coder_role_permission_config_exact_v1_shape() -> None:
@@ -1947,3 +1955,47 @@ def test_role_prompt_unknown_role_uses_base_prompt() -> None:
 def test_role_prompt_no_context_uses_base_prompt() -> None:
     prompt = build_role_prompt("task", "/tmp/ws")
     assert prompt == build_prompt("task", "/tmp/ws")
+
+
+# ---------------------------------------------------------------------------
+# ISSUE185 R2 V3 OpenCode v1 web permission recovery
+# ---------------------------------------------------------------------------
+
+def test_planner_webfetch_websearch_deny_action_values() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("planner")
+    config = json.loads(config_str)
+    perm = config["permission"]
+    assert perm["webfetch"] == "deny"
+    assert perm["websearch"] == "deny"
+
+
+def test_reviewer_webfetch_websearch_deny_action_values() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("reviewer")
+    config = json.loads(config_str)
+    perm = config["permission"]
+    assert perm["webfetch"] == "deny"
+    assert perm["websearch"] == "deny"
+
+
+def test_planner_permission_has_no_web_key() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("planner")
+    config = json.loads(config_str)
+    assert "web" not in config["permission"]
+
+
+def test_reviewer_permission_has_no_web_key() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("reviewer")
+    config = json.loads(config_str)
+    assert "web" not in config["permission"]

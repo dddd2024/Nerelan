@@ -325,7 +325,8 @@ _ROLE_PERMISSION_CONFIGS: dict[str, dict[str, Any]] = {
             "bash": {"*": "deny"},
             "external_directory": {"*": "deny"},
             "task": {"*": "deny"},
-            "web": {"*": "deny"},
+            "webfetch": "deny",
+            "websearch": "deny",
         }
     },
     "reviewer": {
@@ -341,7 +342,8 @@ _ROLE_PERMISSION_CONFIGS: dict[str, dict[str, Any]] = {
             },
             "external_directory": {"*": "deny"},
             "task": {"*": "deny"},
-            "web": {"*": "deny"},
+            "webfetch": "deny",
+            "websearch": "deny",
         }
     },
     "coder": {
