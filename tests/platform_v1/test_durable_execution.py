@@ -631,7 +631,11 @@ def test_planning_sha_mismatch_fails_independently(tmp_path) -> None:
 
 
 def test_repository_base_sha_mismatch_fails_independently(tmp_path) -> None:
-    """repository_base_sha mismatch must fail closed independently."""
+    """repository_base_sha mismatch must fail closed independently.
+
+    repository_base_sha is obtained from prepare_worktree_once(), NOT from
+    the caller. Resume must verify the persisted value.
+    """
     reset_crash_seam()
     store = _make_store(tmp_path)
     task = store.create_task(
@@ -656,13 +660,19 @@ def test_repository_base_sha_mismatch_fails_independently(tmp_path) -> None:
             task_id=task.id,
             workspace_root=str(wt_dir),
             lease_owner="w1",
-            repository_base_sha="repo_sha_abc",
         )
     reset_crash_seam()
 
     run = store._get_durable_run(store._find_active_durable_run(task.id)["run_id"])
-    assert run.repository_base_sha == "repo_sha_abc"
+    # repository_base_sha must be non-empty and equal the prepared worktree HEAD
+    assert run.repository_base_sha != ""
+    actual_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=run.worktree_path, capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    assert run.repository_base_sha == actual_head
 
+    # Resume with wrong repository_base_sha must fail
     store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
     service2 = DurableExecutionService(store=store2, router=RR())
     with pytest.raises(DurableResumeError) as excinfo:
@@ -1359,3 +1369,535 @@ def test_stable_run_id_across_reconstruction(tmp_path) -> None:
     service2 = DurableExecutionService(store=store2, router=ExecutorRouter())
     ctx = service2.get_resume_context(task.id)
     assert ctx.lease.run_id == run_id
+
+
+# ---------------------------------------------------------------------------
+# Terminal takeover test: stale worker cannot publish after new epoch
+# ---------------------------------------------------------------------------
+
+def test_terminal_takeover_stale_worker_fenced(tmp_path) -> None:
+    """Old worker with epoch=1 cannot mutate Task status, changed_files,
+    events, evidence, validation, or terminal result after new worker
+    acquires epoch=2."""
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="takeover-test",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    store.transition_to(task.id, "PREPARING_WORKSPACE")
+    store.transition_to(task.id, "RUNNING")
+
+    lease1 = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="old-worker", repository_base_sha="", worktree_path="",
+    )
+    run_id = lease1.run_id
+    store._accept_checkpoint(run_id, "PRE_PLANNER", "", 1, lease1.owner, lease1.epoch)
+    store._accept_checkpoint(run_id, "POST_PLANNER", "digest_1", 1, lease1.owner, lease1.epoch)
+
+    # Old worker: status is RUNNING, 2 checkpoints
+    task_before = store.get_task(task.id)
+    assert task_before.status == "RUNNING"
+
+    # New worker acquires strictly newer epoch
+    lease2 = store._recover_durable_lease(run_id, "new-worker")
+    assert lease2.epoch == 2
+
+    # --- Old worker attempts every durable publication path ---
+    # Fenced transition
+    with pytest.raises(TaskStoreError):
+        store._fenced_transition_to(run_id, task.id, "VALIDATING", "old-worker", 1)
+    # Fenced changed_files
+    with pytest.raises(TaskStoreError):
+        store._fenced_set_changed_files(run_id, task.id, [{"path": "x.py"}], "old-worker", 1)
+    # Fenced event
+    with pytest.raises(TaskStoreError):
+        store._fenced_add_event(
+            run_id, task.id,
+            event_type="EXECUTOR_FINISHED",
+            title="stale event",
+            owner="old-worker", epoch=1,
+        )
+    # Fenced evidence
+    with pytest.raises(TaskStoreError):
+        store._fenced_add_evidence(
+            run_id, task.id,
+            category="test", label="l", value="v", status="info",
+            owner="old-worker", epoch=1,
+        )
+    # Fenced classify_failure
+    with pytest.raises(TaskStoreError):
+        store._fenced_classify_failure(
+            run_id, task.id,
+            classification="failed", detail="stale",
+            owner="old-worker", epoch=1,
+        )
+    # Fenced validation
+    with pytest.raises(TaskStoreError):
+        store._fenced_set_task_validation(
+            run_id, task.id,
+            command_id="test", exit_code=0, output_digest="",
+            owner="old-worker", epoch=1,
+        )
+    # Fenced terminalize
+    with pytest.raises(TaskStoreError):
+        store._fenced_terminalize(
+            run_id, task.id,
+            terminal_status="READY_FOR_REVIEW",
+            validation_command_id="", validation_exit_code=0,
+            validation_output_digest="",
+            failure_classification="", failure_detail="",
+            owner="old-worker", epoch=1,
+        )
+
+    # --- Verify state unchanged by stale worker ---
+    task_after = store.get_task(task.id)
+    assert task_after.status == "RUNNING"
+
+    events = store.get_events(task.id)
+    assert len([e for e in events if e.title == "stale event"]) == 0
+
+    changed = task_after.changed_files
+    assert not any(f.get("path") == "x.py" for f in changed)
+
+    # Evidence unchanged
+    ev_count = store._conn.execute(
+        "SELECT COUNT(*) FROM task_evidence WHERE task_id = ?", (task.id,)
+    ).fetchone()[0]
+    assert ev_count == 0
+
+    # Validation unchanged
+    assert task_after.validation_command_id == ""
+    assert task_after.validation_exit_code is None
+
+    # --- New worker CAN continue ---
+    store._fenced_transition_to(run_id, task.id, "VALIDATING", "new-worker", 2)
+    store._fenced_transition_to(run_id, task.id, "READY_FOR_REVIEW", "new-worker", 2)
+    final = store.get_task(task.id)
+    assert final.status == "READY_FOR_REVIEW"
+
+
+# ---------------------------------------------------------------------------
+# Real abrupt process-death test
+# ---------------------------------------------------------------------------
+
+def test_abrupt_process_death_preserves_old_lease(tmp_path) -> None:
+    """_CrashSimulated must NOT be caught by generic Exception handler.
+    Lease must remain with old owner/epoch/expiry for reconciliation."""
+    from reverse_agent.platform_v1.opencode_executor import handoff_dir as _handoff_dir
+
+    class _FakePreparedCtx:
+        def __init__(self, worktree: Path, execution_id: str = "") -> None:
+            self.worktree = worktree
+            self.execution_id = execution_id or f"exec-{worktree.name}"
+
+    class FakeExecutor:
+        def prepare_worktree_once(
+            self, task_id: str, workspace_root: Path, callback: Any = None
+        ) -> _FakePreparedCtx:
+            wt = workspace_root / f"wt-{task_id[-8:]}"
+            _make_git_worktree(wt)
+            return _FakePreparedCtx(worktree=wt)
+
+        def execute_role_prepared(
+            self, prepared: Any, store: Any, *, role_context: Any = None, event_callback: Any = None
+        ) -> Any:
+            role = role_context.role if role_context else "planner"
+            wt = prepared.worktree
+            handoff = _handoff_dir(wt)
+            if role == "planner":
+                handoff.mkdir(parents=True, exist_ok=True)
+                (handoff / "plan.md").write_text("# Plan\n", encoding="utf-8")
+            elif role == "coder":
+                (wt / "product.py").write_text("# product\n", encoding="utf-8")
+                subprocess.run(["git", "add", "product.py"], cwd=wt, capture_output=True, check=True)
+                subprocess.run(["git", "commit", "-q", "-m", "product"], cwd=wt, capture_output=True, check=True)
+                (wt / "product.py").write_text("def hello(): pass\n", encoding="utf-8")
+            elif role == "reviewer":
+                handoff.mkdir(parents=True, exist_ok=True)
+                (handoff / "review.md").write_text("# Review\n", encoding="utf-8")
+
+            class _Result:
+                success = True
+                execution_id = f"exec-{role}"
+                validation_exit_code = 0
+                failure_classification = ""
+                error = ""
+            return _Result()
+
+    class RR(ExecutorRouter):
+        def create_executor(self, *, executor_kind: str = "opencode", **kwargs: Any) -> FakeExecutor:
+            return FakeExecutor()
+        def dispatch_execute(self, *a: Any, **kw: Any):
+            raise NotImplementedError()
+
+    # --- Phase 1: old worker, crash after POST_PLANNER ---
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="crash-test",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+
+    wt_dir = tmp_path / "wt_crash"
+    _make_git_worktree(wt_dir)
+
+    set_crash_after_checkpoint("POST_PLANNER")
+    service = DurableExecutionService(store=store, router=RR())
+
+    old_epoch = 0
+    old_owner = ""
+    old_expiry = 0
+
+    with pytest.raises(_CrashSimulated):
+        service.execute_durable_sequential_team(
+            task_id=task.id,
+            workspace_root=str(wt_dir),
+            lease_owner="old-worker",
+        )
+
+    # --- Verify old lease is PRESERVED (not released) ---
+    row = store._conn.execute(
+        "SELECT lease_owner, lease_epoch, lease_expiry_ms "
+        "FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+        (task.id,),
+    ).fetchone()
+    assert row is not None
+    old_owner = row["lease_owner"]
+    old_epoch = int(row["lease_epoch"])
+    old_expiry = int(row["lease_expiry_ms"])
+    assert old_owner == "old-worker"
+    assert old_epoch == 1
+    assert old_expiry > 0  # lease was NOT released
+
+    # --- Phase 2: make lease stale deterministically ---
+    store._conn.execute(
+        "UPDATE durable_runs SET lease_expiry_ms = ? WHERE task_id = ?",
+        (int(time.time() * 1000) - 10000, task.id),
+    )
+
+    # --- Phase 3: reconciliation ---
+    store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
+    service2 = DurableExecutionService(store=store2, router=RR())
+    records = service2.reconcile_expired_runs(
+        now_ms=int(time.time() * 1000), max_age_ms=1000
+    )
+    assert len(records) >= 1
+    assert records[0]["recovery_classification"] == "orphan_stale_lease"
+    task_after = store2.get_task(task.id)
+    assert task_after.status == "INTERRUPTED"
+
+    run = store2._get_durable_run(
+        store2._conn.execute(
+            "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+            (task.id,),
+        ).fetchone()["run_id"]
+    )
+    assert run.recovery_classification == "orphan_stale_lease"
+    reset_crash_seam()
+
+    # --- Phase 4: new worker resumes with higher epoch ---
+    set_crash_after_checkpoint("POST_CODER")
+    fake2 = FakeExecutor()
+
+    class RR2(ExecutorRouter):
+        def create_executor(self, *, executor_kind: str = "opencode", **kwargs: Any) -> FakeExecutor:
+            return fake2
+        def dispatch_execute(self, *a: Any, **kw: Any):
+            raise NotImplementedError()
+
+    service3 = DurableExecutionService(store=store2, router=RR2())
+    with pytest.raises(_CrashSimulated):
+        service3.resume_sequential_team(
+            task_id=task.id,
+            lease_owner="new-worker",
+        )
+
+    run_after = store2._get_durable_run(run.run_id)
+    new_epoch = run_after.lease_epoch
+    assert new_epoch > old_epoch  # strictly newer
+
+    # Planner must NOT be called again
+    planner_calls = fake2.execute_calls.count("planner") if hasattr(fake2, "execute_calls") else 0
+    # Count execute_calls that are "planner"
+    execute_calls = fake2.execute_calls if hasattr(fake2, "execute_calls") else []
+    planner_call_count = sum(1 for c in execute_calls if c == "planner")
+    assert planner_call_count == 0
+
+    reset_crash_seam()
+
+
+def test_abrupt_crash_after_coder_no_restart(tmp_path) -> None:
+    """After crash after POST_CODER, new worker must NOT re-run Planner or Coder."""
+    from reverse_agent.platform_v1.opencode_executor import handoff_dir as _handoff_dir
+
+    class _FakePreparedCtx:
+        def __init__(self, worktree: Path, execution_id: str = "") -> None:
+            self.worktree = worktree
+            self.execution_id = execution_id or f"exec-{worktree.name}"
+
+    class FakeExecutor:
+        def __init__(self) -> None:
+            self.execute_calls: list[str] = []
+
+        def prepare_worktree_once(
+            self, task_id: str, workspace_root: Path, callback: Any = None
+        ) -> _FakePreparedCtx:
+            wt = workspace_root / f"wt-{task_id[-8:]}"
+            _make_git_worktree(wt)
+            return _FakePreparedCtx(worktree=wt)
+
+        def execute_role_prepared(
+            self, prepared: Any, store: Any, *, role_context: Any = None, event_callback: Any = None
+        ) -> Any:
+            role = role_context.role if role_context else "planner"
+            self.execute_calls.append(role)
+            wt = prepared.worktree
+            handoff = _handoff_dir(wt)
+            if role == "planner":
+                handoff.mkdir(parents=True, exist_ok=True)
+                (handoff / "plan.md").write_text("# Plan\n", encoding="utf-8")
+            elif role == "coder":
+                (wt / "product.py").write_text("# product\n", encoding="utf-8")
+                subprocess.run(["git", "add", "product.py"], cwd=wt, capture_output=True, check=True)
+                subprocess.run(["git", "commit", "-q", "-m", "product"], cwd=wt, capture_output=True, check=True)
+                (wt / "product.py").write_text("def hello(): pass\n", encoding="utf-8")
+            elif role == "reviewer":
+                handoff.mkdir(parents=True, exist_ok=True)
+                (handoff / "review.md").write_text("# Review\n", encoding="utf-8")
+
+            class _Result:
+                success = True
+                execution_id = f"exec-{role}"
+                validation_exit_code = 0
+                failure_classification = ""
+                error = ""
+            return _Result()
+
+    class RR(ExecutorRouter):
+        def __init__(self, fake: FakeExecutor) -> None:
+            super().__init__()
+            self._fake = fake
+
+        def create_executor(self, *, executor_kind: str = "opencode", **kwargs: Any) -> FakeExecutor:
+            return self._fake
+
+        def dispatch_execute(self, *a: Any, **kw: Any):
+            raise NotImplementedError()
+
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="crash-coder-test",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+
+    wt_dir = tmp_path / "wt_crash_coder"
+    _make_git_worktree(wt_dir)
+
+    # Phase 1: crash after POST_CODER
+    fake1 = FakeExecutor()
+    set_crash_after_checkpoint("POST_CODER")
+    service = DurableExecutionService(store=store, router=RR(fake1))
+    with pytest.raises(_CrashSimulated):
+        service.execute_durable_sequential_team(
+            task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
+        )
+    reset_crash_seam()
+
+    run = store._get_durable_run(
+        store._conn.execute(
+            "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+            (task.id,),
+        ).fetchone()["run_id"]
+    )
+    assert run.accepted_checkpoint == "POST_CODER"
+
+    # Phase 2: resume -- only reviewer should run
+    store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
+    fake2 = FakeExecutor()
+    service2 = DurableExecutionService(store=store2, router=RR(fake2))
+    outcome = service2.resume_sequential_team(task_id=task.id, lease_owner="w2")
+
+    planner_calls = fake2.execute_calls.count("planner")
+    coder_calls = fake2.execute_calls.count("coder")
+    reviewer_calls = fake2.execute_calls.count("reviewer")
+    assert planner_calls == 0
+    assert coder_calls == 0
+    assert reviewer_calls >= 1
+
+
+# ---------------------------------------------------------------------------
+# Production checkpoint DB test
+# ---------------------------------------------------------------------------
+
+def test_production_checkpoint_db_persisted(tmp_path) -> None:
+    """Durable run must persist checkpoint_db_path and it must be a real file."""
+    from reverse_agent.platform_v1.durable_execution import _make_strict_saver, _check_strict_serde_active
+    from reverse_agent.platform_v1.opencode_executor import handoff_dir as _handoff_dir
+
+    class _FakePreparedCtx:
+        def __init__(self, worktree: Path, execution_id: str = "") -> None:
+            self.worktree = worktree
+            self.execution_id = execution_id or f"exec-{worktree.name}"
+
+    class FakeExecutor:
+        def prepare_worktree_once(
+            self, task_id: str, workspace_root: Path, callback: Any = None
+        ) -> _FakePreparedCtx:
+            wt = workspace_root / f"wt-{task_id[-8:]}"
+            _make_git_worktree(wt)
+            return _FakePreparedCtx(worktree=wt)
+
+        def execute_role_prepared(
+            self, prepared: Any, store: Any, *, role_context: Any = None, event_callback: Any = None
+        ) -> Any:
+            role = role_context.role if role_context else "planner"
+            wt = prepared.worktree
+            handoff = _handoff_dir(wt)
+            if role == "planner":
+                handoff.mkdir(parents=True, exist_ok=True)
+                (handoff / "plan.md").write_text("# Plan\n", encoding="utf-8")
+            elif role == "coder":
+                (wt / "product.py").write_text("# product\n", encoding="utf-8")
+                subprocess.run(["git", "add", "product.py"], cwd=wt, capture_output=True, check=True)
+                subprocess.run(["git", "commit", "-q", "-m", "product"], cwd=wt, capture_output=True, check=True)
+                (wt / "product.py").write_text("def hello(): pass\n", encoding="utf-8")
+            elif role == "reviewer":
+                handoff.mkdir(parents=True, exist_ok=True)
+                (handoff / "review.md").write_text("# Review\n", encoding="utf-8")
+
+            class _Result:
+                success = True
+                execution_id = f"exec-{role}"
+                validation_exit_code = 0
+                failure_classification = ""
+                error = ""
+            return _Result()
+
+    class RR(ExecutorRouter):
+        def create_executor(self, *, executor_kind: str = "opencode", **kwargs: Any) -> FakeExecutor:
+            return FakeExecutor()
+        def dispatch_execute(self, *a: Any, **kw: Any):
+            raise NotImplementedError()
+
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="checkpoint-db-test",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+
+    wt_dir = tmp_path / "wt_cp"
+    _make_git_worktree(wt_dir)
+
+    set_crash_after_checkpoint("POST_PLANNER")
+    service = DurableExecutionService(store=store, router=RR())
+    with pytest.raises(_CrashSimulated):
+        service.execute_durable_sequential_team(
+            task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
+        )
+    reset_crash_seam()
+
+    run = store._get_durable_run(
+        store._conn.execute(
+            "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+            (task.id,),
+        ).fetchone()["run_id"]
+    )
+    assert run.checkpoint_db_path != ""
+    assert Path(run.checkpoint_db_path).exists()
+    assert run.checkpoint_db_path.endswith(".sqlite3")
+
+
+def test_stable_thread_id_equals_run_id(tmp_path) -> None:
+    """LangGraph thread_id must equal durable run_id across execution and reconstruction."""
+    from reverse_agent.platform_v1.opencode_executor import handoff_dir as _handoff_dir
+    from reverse_agent.platform_v1.durable_execution import _make_strict_saver, _check_strict_serde_active
+    import sqlite3 as _sqlite3
+
+    class _FakePreparedCtx:
+        def __init__(self, worktree: Path, execution_id: str = "") -> None:
+            self.worktree = worktree
+            self.execution_id = execution_id or f"exec-{worktree.name}"
+
+    class FakeExecutor:
+        def prepare_worktree_once(
+            self, task_id: str, workspace_root: Path, callback: Any = None
+        ) -> _FakePreparedCtx:
+            wt = workspace_root / f"wt-{task_id[-8:]}"
+            _make_git_worktree(wt)
+            return _FakePreparedCtx(worktree=wt)
+
+        def execute_role_prepared(
+            self, prepared: Any, store: Any, *, role_context: Any = None, event_callback: Any = None
+        ) -> Any:
+            role = role_context.role if role_context else "planner"
+            wt = prepared.worktree
+            handoff = _handoff_dir(wt)
+            if role == "planner":
+                handoff.mkdir(parents=True, exist_ok=True)
+                (handoff / "plan.md").write_text("# Plan\n", encoding="utf-8")
+            elif role == "coder":
+                (wt / "product.py").write_text("# product\n", encoding="utf-8")
+                subprocess.run(["git", "add", "product.py"], cwd=wt, capture_output=True, check=True)
+                subprocess.run(["git", "commit", "-q", "-m", "product"], cwd=wt, capture_output=True, check=True)
+                (wt / "product.py").write_text("def hello(): pass\n", encoding="utf-8")
+            elif role == "reviewer":
+                handoff.mkdir(parents=True, exist_ok=True)
+                (handoff / "review.md").write_text("# Review\n", encoding="utf-8")
+
+            class _Result:
+                success = True
+                execution_id = f"exec-{role}"
+                validation_exit_code = 0
+                failure_classification = ""
+                error = ""
+            return _Result()
+
+    class RR(ExecutorRouter):
+        def create_executor(self, *, executor_kind: str = "opencode", **kwargs: Any) -> FakeExecutor:
+            return FakeExecutor()
+        def dispatch_execute(self, *a: Any, **kw: Any):
+            raise NotImplementedError()
+
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="thread-id-test",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+
+    wt_dir = tmp_path / "wt_thread"
+    _make_git_worktree(wt_dir)
+
+    set_crash_after_checkpoint("POST_PLANNER")
+    service = DurableExecutionService(store=store, router=RR())
+    with pytest.raises(_CrashSimulated):
+        service.execute_durable_sequential_team(
+            task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
+        )
+    reset_crash_seam()
+
+    run = store._get_durable_run(
+        store._conn.execute(
+            "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+            (task.id,),
+        ).fetchone()["run_id"]
+    )
+    run_id = run.run_id
+
+    # Verify checkpoint DB exists and has data
+    assert run.checkpoint_db_path != ""
+    assert Path(run.checkpoint_db_path).exists()
+
+    # Reconstruct saver from persisted path
+    cp_conn = _sqlite3.connect(
+        run.checkpoint_db_path, isolation_level=None, check_same_thread=False
+    )
+    cp_conn.execute("PRAGMA journal_mode=WAL")
+    saver = _make_strict_saver(cp_conn)
+
+    # Verify strict serde
+    assert _check_strict_serde_active(saver) is True

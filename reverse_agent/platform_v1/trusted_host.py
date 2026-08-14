@@ -55,12 +55,16 @@ class CombinedTrustedHost:
         allowed_origin: str = "http://127.0.0.1:4173",
         task_db_path: str | None = None,
         github_adapter: LiveGitHubAdapter | None = None,
+        execution_authority_sha: str = "",
+        planning_sha: str = "",
     ) -> None:
         self._store = store or ModelProfileStore()
         self._task_store = task_store or _make_task_store(task_db_path)
         self._relay_manager = relay_manager or CredentialRelayManager()
         self._router = ExecutorRouter()
         self._github_adapter = github_adapter
+        self._execution_authority_sha = execution_authority_sha
+        self._planning_sha = planning_sha
 
         self._model_control_host = model_control_host
         self._model_control_port = model_control_port
@@ -193,6 +197,8 @@ class CombinedTrustedHost:
             lease_provider=self._lease_provider_factory(),
             binding_resolver=binding_resolver,
             github_adapter=live_github,
+            execution_authority_sha=self._execution_authority_sha,
+            planning_sha=self._planning_sha,
         )
         self._task_server = ThreadingHTTPServer(
             (self._task_api_host, tap), task_handler

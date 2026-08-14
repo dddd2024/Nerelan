@@ -8,6 +8,11 @@ crash or server restart and still reconstruct its full history.
 Idempotency keys are enforced at the store layer: creating a task with an
 idempotency key that already exists returns the existing task instead of
 creating a duplicate.
+
+Durable-path mutations MUST be fenced: owner+epoch validation and the
+actual mutation occur under the SAME TaskStore lock boundary. Public
+non-durable APIs (transition_to, set_changed_files, add_event, etc.)
+remain backward-compatible for single/normal execution paths.
 """
 
 from __future__ import annotations
@@ -325,6 +330,7 @@ class TaskStore:
                 lease_epoch INTEGER NOT NULL DEFAULT 0,
                 heartbeat_at_ms INTEGER NOT NULL DEFAULT 0,
                 lease_expiry_ms INTEGER NOT NULL DEFAULT 0,
+                checkpoint_db_path TEXT NOT NULL DEFAULT '',
                 recovery_classification TEXT NOT NULL DEFAULT 'normal',
                 interrupted_at TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
@@ -373,6 +379,7 @@ class TaskStore:
             ("worktree_head_sha", "TEXT NOT NULL DEFAULT ''"),
             ("worktree_prepared_at", "TEXT NOT NULL DEFAULT ''"),
             ("partial_coder_diff_digest", "TEXT NOT NULL DEFAULT ''"),
+            ("checkpoint_db_path", "TEXT NOT NULL DEFAULT ''"),
         ]:
             if col not in run_columns:
                 self._conn.execute(f"ALTER TABLE durable_runs ADD COLUMN {col} {dtype}")
@@ -826,6 +833,7 @@ class TaskStore:
         lease_owner: str,
         repository_base_sha: str = "",
         worktree_path: str = "",
+        checkpoint_db_path: str = "",
     ) -> Any:
         """Acquire a new durable lease with epoch=1.
 
@@ -851,12 +859,14 @@ class TaskStore:
                 "partial_coder_diff_digest, "
                 "validation_command_id, validation_exit_code, validation_output_digest, "
                 "lease_owner, lease_epoch, heartbeat_at_ms, lease_expiry_ms, "
+                "checkpoint_db_path, "
                 "recovery_classification, interrupted_at, created_at, updated_at) "
-                "VALUES (?, ?, ?, '', '', ?, ?, '', '', ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    run_id, task_id, execution_id, repository_base_sha, worktree_path,
-                    "", 1, "", "", "", "",
-                    "", None, "", lease_owner, 1, now_ms, now_ms + 300000,
+                    run_id, task_id, execution_id, "", "", repository_base_sha,
+                    worktree_path, "", "", "", 1, "", "", "", "", "", "",
+                    None, "", lease_owner, 1, now_ms, now_ms + 300000,
+                    checkpoint_db_path,
                     "normal", "", now, now,
                 ),
             )
@@ -1303,6 +1313,7 @@ class TaskStore:
             return tuple(records)
 
     def _lease_handle_from_row(self, row: sqlite3.Row) -> Any:
+        cols = set(row.keys())
         return LeaseHandle(
             run_id=row["run_id"],
             task_id=row["task_id"],
@@ -1312,6 +1323,7 @@ class TaskStore:
             expiry_ms=int(row["lease_expiry_ms"]),
             worktree_path=row["worktree_path"],
             repository_base_sha=row["repository_base_sha"],
+            checkpoint_db_path=row["checkpoint_db_path"] if "checkpoint_db_path" in cols else "",
         )
 
     def _set_worktree_identity(
@@ -1352,12 +1364,303 @@ class TaskStore:
                 (digest, _utc_now(), run_id),
             )
 
+    # ------------------------------------------------------------------
+    # Fenced durable-path Task/business mutations
+    # ------------------------------------------------------------------
+
+    def _fenced_transition_to(
+        self,
+        run_id: str,
+        task_id: str,
+        status: str,
+        owner: str,
+        epoch: int,
+    ) -> Task:
+        """Validate lease owner+epoch AND perform status transition under the
+        SAME TaskStore lock. No TOCTOU window."""
+        with self._lock:
+            lease_row = self._conn.execute(
+                "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+            if lease_row is None:
+                raise TaskStoreError(f"durable_run_not_found:{run_id}")
+            if int(lease_row["lease_epoch"]) != epoch or lease_row["lease_owner"] != owner:
+                raise TaskStoreError(
+                    f"lease_fenced:{run_id}:owner={owner}:epoch={epoch} "
+                    f"current_owner={lease_row['lease_owner']}:"
+                    f"current_epoch={lease_row['lease_epoch']}"
+                )
+            if status not in TASK_STATUS_ORDER:
+                raise TaskStoreError(f"invalid_status:{status}")
+            current = self.get_task(task_id)
+            if current.status == status:
+                return current
+            allowed = TRANSITION_RULES.get(current.status, ())
+            if status not in allowed:
+                raise InvalidTransitionError(
+                    f"invalid_transition:{current.status}->{status} allowed={allowed}"
+                )
+            if current.status in TERMINAL_STATUSES:
+                raise InvalidTransitionError(f"terminal_status:{current.status}")
+            self._update_task_fields(task_id, {"status": status})
+            return self.get_task(task_id)
+
+    def _fenced_set_changed_files(
+        self,
+        run_id: str,
+        task_id: str,
+        files: Sequence[Mapping[str, Any]],
+        owner: str,
+        epoch: int,
+    ) -> Task:
+        """Fenced version of set_changed_files for durable path."""
+        with self._lock:
+            lease_row = self._conn.execute(
+                "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+            if lease_row is None:
+                raise TaskStoreError(f"durable_run_not_found:{run_id}")
+            if int(lease_row["lease_epoch"]) != epoch or lease_row["lease_owner"] != owner:
+                raise TaskStoreError(
+                    f"lease_fenced:{run_id}:owner={owner}:epoch={epoch}"
+                )
+            self.get_task(task_id)
+            self._conn.execute(
+                "DELETE FROM task_changed_files WHERE task_id = ?", (task_id,)
+            )
+            for f in files:
+                self._conn.execute(
+                    "INSERT INTO task_changed_files "
+                    "(task_id, path, status, additions, deletions, diff_digest) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        task_id,
+                        str(f.get("path", "")),
+                        str(f.get("status", "modified")),
+                        int(f.get("additions", 0)),
+                        int(f.get("deletions", 0)),
+                        str(f.get("diff_digest", "")),
+                    ),
+                )
+            self._update_task_fields(task_id, {"updated_at": _utc_now()})
+            return self.get_task(task_id)
+
+    def _fenced_add_event(
+        self,
+        run_id: str,
+        task_id: str,
+        *,
+        event_type: str,
+        title: str,
+        description: str = "",
+        raw_log: str = "",
+        metadata: Mapping[str, Any] | None = None,
+        owner: str,
+        epoch: int,
+    ) -> TaskEvent:
+        """Fenced version of add_event for durable path."""
+        with self._lock:
+            lease_row = self._conn.execute(
+                "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+            if lease_row is None:
+                raise TaskStoreError(f"durable_run_not_found:{run_id}")
+            if int(lease_row["lease_epoch"]) != epoch or lease_row["lease_owner"] != owner:
+                raise TaskStoreError(
+                    f"lease_fenced:{run_id}:owner={owner}:epoch={epoch}"
+                )
+            self.get_task(task_id)
+            return self._append_event(
+                task_id=task_id,
+                event_type=event_type,
+                title=title,
+                description=description,
+                raw_log=raw_log,
+                metadata=metadata,
+            )
+
+    def _fenced_add_evidence(
+        self,
+        run_id: str,
+        task_id: str,
+        *,
+        category: str,
+        label: str,
+        value: str,
+        status: str,
+        detail: str = "",
+        raw_json_digest: str = "",
+        owner: str,
+        epoch: int,
+    ) -> Task:
+        """Fenced version of add_evidence for durable path."""
+        with self._lock:
+            lease_row = self._conn.execute(
+                "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+            if lease_row is None:
+                raise TaskStoreError(f"durable_run_not_found:{run_id}")
+            if int(lease_row["lease_epoch"]) != epoch or lease_row["lease_owner"] != owner:
+                raise TaskStoreError(
+                    f"lease_fenced:{run_id}:owner={owner}:epoch={epoch}"
+                )
+            self.get_task(task_id)
+            ev_id = f"ev-{task_id}-{_short_uuid()}"
+            self._conn.execute(
+                "INSERT INTO task_evidence "
+                "(id, task_id, category, label, value, status, detail, raw_json_digest) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (ev_id, task_id, category, label, value, status, detail, raw_json_digest),
+            )
+            self._update_task_fields(task_id, {"updated_at": _utc_now()})
+            return self.get_task(task_id)
+
+    def _fenced_classify_failure(
+        self,
+        run_id: str,
+        task_id: str,
+        *,
+        classification: str,
+        detail: str = "",
+        owner: str,
+        epoch: int,
+    ) -> Task:
+        """Fenced version of classify_failure for durable path."""
+        with self._lock:
+            lease_row = self._conn.execute(
+                "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+            if lease_row is None:
+                raise TaskStoreError(f"durable_run_not_found:{run_id}")
+            if int(lease_row["lease_epoch"]) != epoch or lease_row["lease_owner"] != owner:
+                raise TaskStoreError(
+                    f"lease_fenced:{run_id}:owner={owner}:epoch={epoch}"
+                )
+            task = self.get_task(task_id)
+            if task.status in TERMINAL_STATUSES:
+                raise TaskStoreError(f"terminal_status:{task.status}")
+            self._update_task_fields(
+                task_id,
+                {"failure_classification": classification, "failure_detail": detail},
+            )
+            target = "BLOCKED" if classification == "blocked" else "FAILED"
+            if task.status != target:
+                self._update_task_fields(task_id, {"status": target})
+            self._append_event(
+                task_id=task_id,
+                event_type="EXECUTOR_FINISHED",
+                title="Executor failed",
+                description=f"failure_classification={classification}",
+                metadata={"failure_classification": classification, "detail": detail},
+            )
+            return self.get_task(task_id)
+
+    def _fenced_set_task_validation(
+        self,
+        run_id: str,
+        task_id: str,
+        *,
+        command_id: str,
+        exit_code: int,
+        output_digest: str,
+        owner: str,
+        epoch: int,
+    ) -> Task:
+        """Fenced version of set_validation_result for durable path."""
+        with self._lock:
+            lease_row = self._conn.execute(
+                "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+            if lease_row is None:
+                raise TaskStoreError(f"durable_run_not_found:{run_id}")
+            if int(lease_row["lease_epoch"]) != epoch or lease_row["lease_owner"] != owner:
+                raise TaskStoreError(
+                    f"lease_fenced:{run_id}:owner={owner}:epoch={epoch}"
+                )
+            self.get_task(task_id)
+            self._update_task_fields(
+                task_id,
+                {
+                    "validation_command_id": command_id,
+                    "validation_exit_code": exit_code,
+                    "validation_output_digest": output_digest,
+                },
+            )
+            return self.get_task(task_id)
+
+    def _fenced_terminalize(
+        self,
+        run_id: str,
+        task_id: str,
+        *,
+        terminal_status: str,
+        validation_command_id: str,
+        validation_exit_code: int,
+        validation_output_digest: str,
+        failure_classification: str,
+        failure_detail: str,
+        owner: str,
+        epoch: int,
+    ) -> Task:
+        """Fenced terminal publication for durable path.
+
+        Performs validation result persistence + status transition to a
+        terminal status under the same lock boundary.
+        """
+        with self._lock:
+            lease_row = self._conn.execute(
+                "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+            if lease_row is None:
+                raise TaskStoreError(f"durable_run_not_found:{run_id}")
+            if int(lease_row["lease_epoch"]) != epoch or lease_row["lease_owner"] != owner:
+                raise TaskStoreError(
+                    f"lease_fenced:{run_id}:owner={owner}:epoch={epoch}"
+                )
+            task = self.get_task(task_id)
+            if task.status in TERMINAL_STATUSES:
+                return task
+            if terminal_status not in TERMINAL_STATUSES:
+                raise TaskStoreError(f"invalid_terminal_status:{terminal_status}")
+            self._update_task_fields(
+                task_id,
+                {
+                    "validation_command_id": validation_command_id,
+                    "validation_exit_code": validation_exit_code,
+                    "validation_output_digest": validation_output_digest,
+                    "failure_classification": failure_classification,
+                    "failure_detail": failure_detail,
+                    "status": terminal_status,
+                },
+            )
+            return self.get_task(task_id)
+
+    def _set_checkpoint_db_path(
+        self, run_id: str, checkpoint_db_path: str,
+        owner: str, epoch: int,
+    ) -> None:
+        self._validate_durable_lease(run_id, owner, epoch)
+        with self._lock:
+            self._conn.execute(
+                "UPDATE durable_runs SET checkpoint_db_path = ?, "
+                "updated_at = ? WHERE run_id = ?",
+                (checkpoint_db_path, _utc_now(), run_id),
+            )
+
 
 class LeaseHandle:
     """Immutable lease handle returned by durable lease operations."""
     __slots__ = (
         "run_id", "task_id", "execution_id", "owner", "epoch",
         "expiry_ms", "worktree_path", "repository_base_sha",
+        "checkpoint_db_path",
     )
     def __init__(
         self,
@@ -1370,6 +1673,7 @@ class LeaseHandle:
         expiry_ms: int,
         worktree_path: str,
         repository_base_sha: str,
+        checkpoint_db_path: str = "",
     ) -> None:
         self.run_id = run_id
         self.task_id = task_id
@@ -1379,6 +1683,7 @@ class LeaseHandle:
         self.expiry_ms = expiry_ms
         self.worktree_path = worktree_path
         self.repository_base_sha = repository_base_sha
+        self.checkpoint_db_path = checkpoint_db_path
 
 
 class DurableCheckpoint:
@@ -1457,6 +1762,7 @@ def _row_to_durable_run(row: sqlite3.Row) -> Any:
         lease_epoch: int
         heartbeat_at_ms: int
         lease_expiry_ms: int
+        checkpoint_db_path: str
         recovery_classification: str
         interrupted_at: str
         created_at: str
@@ -1485,6 +1791,7 @@ def _row_to_durable_run(row: sqlite3.Row) -> Any:
         lease_epoch=int(row["lease_epoch"]),
         heartbeat_at_ms=int(row["heartbeat_at_ms"]),
         lease_expiry_ms=int(row["lease_expiry_ms"]),
+        checkpoint_db_path=row["checkpoint_db_path"] if "checkpoint_db_path" in cols else "",
         recovery_classification=row["recovery_classification"],
         interrupted_at=row["interrupted_at"],
         created_at=row["created_at"],

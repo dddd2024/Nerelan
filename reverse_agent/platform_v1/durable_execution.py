@@ -123,6 +123,7 @@ class DurableRun:
     lease_epoch: int
     heartbeat_at_ms: int
     lease_expiry_ms: int
+    checkpoint_db_path: str
     recovery_classification: str
     interrupted_at: str
     created_at: str
@@ -162,6 +163,7 @@ class LeaseHandle:
     expiry_ms: int
     worktree_path: str
     repository_base_sha: str
+    checkpoint_db_path: str = ""
 
 
 @dataclass(frozen=True)
@@ -216,11 +218,14 @@ def _json_payload(obj: Any) -> str:
 _CRASH_SEAM: str | None = None
 
 
-class _CrashSimulated(RuntimeError):
-    """Simulated process crash for deterministic test-only fault injection.
+class _CrashSimulated(BaseException):
+    """Simulated abrupt process death for deterministic test-only fault injection.
 
-    This is NOT exposed as user-controlled HTTP input. Only tests may set
-    ``_CRASH_SEAM`` via module attribute assignment.
+    Inherits from BaseException (not Exception) so that generic except Exception
+    handlers -- including graceful lease release -- DO NOT catch it. This models
+    a real OS-level process kill: no chance for cleanup, lease persistence, or
+    resource release. The persisted durable run retains the old owner/epoch/expiry
+    exactly as it was at the moment of death, requiring stale-lease reconciliation.
     """
 
 
@@ -349,12 +354,12 @@ class DurableExecutionService:
     ) -> TaskExecutionOutcome:
         """Execute a new durable sequential-team run with lease acquisition.
 
-        This is the first-execution path: the task must be QUEUED, and
-        a fresh durable run + lease are created. On success the task
-        reaches READY_FOR_REVIEW with POST_VALIDATION accepted.
+        repository_base_sha is intentionally IGNORED from the caller. The
+        actual repository execution base is obtained from prepare_worktree_once()
+        and persisted deterministically. This prevents HTTP payload override.
         """
         lease = self._acquire_or_find_lease(
-            task_id, lease_owner, repository_base_sha, workspace_root
+            task_id, lease_owner, "", workspace_root
         )
         try:
             return self._execute_with_lease(
@@ -363,6 +368,10 @@ class DurableExecutionService:
                 lease,
                 checkpointer=checkpointer,
             )
+        except _CrashSimulated:
+            # Abrupt process-death seam: do NOT release lease.
+            # Persisted state retains old owner/epoch/expiry for reconciliation.
+            raise
         except Exception:
             self.store._release_durable_lease(lease.run_id)
             raise
@@ -439,15 +448,20 @@ class DurableExecutionService:
             )
 
         task = self.store.get_task(task_id)
-        self.store.transition_to(task_id, "RUNNING")
+        self.store._fenced_transition_to(
+            lease.run_id, task_id, "RUNNING",
+            lease.owner, lease.epoch,
+        )
         executor_kwargs = self._build_executor_kwargs(task)
         try:
             executor = self.router.create_executor(
                 executor_kind="opencode", **executor_kwargs
             )
         except Exception as exc:
-            self.store.classify_failure(
-                task_id, classification="blocked", detail=str(exc)
+            self.store._fenced_classify_failure(
+                lease.run_id, task_id,
+                classification="blocked", detail=str(exc),
+                owner=lease.owner, epoch=lease.epoch,
             )
             final = self.store.get_task(task_id)
             return TaskExecutionOutcome(
@@ -465,9 +479,11 @@ class DurableExecutionService:
                 self._execution_service._store_event_callback
             )
         except Exception as exc:
-            self.store.classify_failure(
-                task_id, classification="blocked",
-                detail=f"worktree_preparation_failed:{exc}"
+            self.store._fenced_classify_failure(
+                lease.run_id, task_id,
+                classification="blocked",
+                detail=f"worktree_preparation_failed:{exc}",
+                owner=lease.owner, epoch=lease.epoch,
             )
             final = self.store.get_task(task_id)
             return TaskExecutionOutcome(
@@ -481,7 +497,7 @@ class DurableExecutionService:
 
         wt_path = str(prepared.worktree)
         wt_head_sha = self._git_rev_parse_head(wt_path)
-        repo_base_sha = self._git_rev_parse_head(wt_path)
+        repo_base_sha = wt_head_sha
 
         self.store._set_worktree_identity(
             lease.run_id, wt_path, wt_head_sha,
@@ -494,16 +510,48 @@ class DurableExecutionService:
             lease.owner, lease.epoch,
         )
 
+        # Persist repository_base_sha from actual prepared worktree HEAD.
+        self.store._conn.execute(
+            "UPDATE durable_runs SET repository_base_sha = ?, "
+            "updated_at = ? WHERE run_id = ?",
+            (repo_base_sha, _utc_now(), lease.run_id),
+        )
+
+        # Compute deterministic checkpoint DB path from task DB directory.
+        task_db_path = self.store.db_path
+        task_db_dir = os.path.dirname(os.path.abspath(task_db_path)) or "."
+        checkpoint_dir = os.path.join(task_db_dir, "durable_checkpoints")
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        checkpoint_db_path = os.path.join(
+            checkpoint_dir, f"{lease.run_id}.sqlite3"
+        )
+        self.store._set_checkpoint_db_path(
+            lease.run_id, checkpoint_db_path,
+            lease.owner, lease.epoch,
+        )
+
+        # Production filesystem SQLite checkpointer with strict serde.
+        import sqlite3 as _sqlite3
+        _cp_conn = _sqlite3.connect(
+            checkpoint_db_path,
+            isolation_level=None,
+            check_same_thread=False,
+        )
+        _cp_conn.execute("PRAGMA journal_mode=WAL")
+        _production_saver = _make_strict_saver(_cp_conn)
+        _production_saver.setup()
+
         # PRE_PLANNER is accepted ONLY after worktree identity + authority
-        # identity are durably persisted.
+        # identity + repository base + checkpoint DB are durably persisted.
         self.store._accept_checkpoint(
             lease.run_id, "PRE_PLANNER", "", 1, lease.owner, lease.epoch
         )
         _check_crash_seam("PRE_PLANNER")
 
         handoff = handoff_dir(prepared.worktree)
-        self.store.add_event(
-            task_id, event_type="EXECUTOR_RUNNING",
+        self.store._fenced_add_event(
+            lease.run_id, task_id,
+            event_type="EXECUTOR_RUNNING",
             title="Durable sequential team execution",
             description="planner->coder->reviewer with per-role checkpoint acceptance",
             metadata={
@@ -511,15 +559,24 @@ class DurableExecutionService:
                 "run_id": lease.run_id,
                 "worktree_path": wt_path,
                 "worktree_head_sha": wt_head_sha,
+                "repository_base_sha": repo_base_sha,
+                "checkpoint_db_path": checkpoint_db_path,
             },
+            owner=lease.owner, epoch=lease.epoch,
         )
         baseline_product = _collect_product_diff(prepared.worktree)
-        self.store.set_changed_files(task_id, baseline_product)
+        self.store._fenced_set_changed_files(
+            lease.run_id, task_id, baseline_product,
+            lease.owner, lease.epoch,
+        )
 
         plan_digest = ""
         review_digest = ""
         coder_product_snapshot: tuple[dict[str, Any], ...] = ()
         run_role_attempt = run.role_attempt
+        _graph_config = {
+            "configurable": {"thread_id": lease.run_id}
+        }
 
         for role in ("planner", "coder", "reviewer"):
             checkpoint_name = _checkpoint_name_for_role(role)
@@ -536,6 +593,8 @@ class DurableExecutionService:
                 plan_digest=plan_digest,
                 role_attempt=run_role_attempt,
                 coder_product_snapshot=coder_product_snapshot,
+                checkpointer=_production_saver,
+                graph_config=_graph_config,
             )
 
             if not result["success"]:
@@ -615,13 +674,23 @@ class DurableExecutionService:
 
         _remove_handoff(handoff)
         final_changed = _collect_final_product_files(prepared.worktree)
-        self.store.set_changed_files(task_id, final_changed)
+        self.store._fenced_set_changed_files(
+            lease.run_id, task_id, final_changed,
+            lease.owner, lease.epoch,
+        )
 
-        self.store.transition_to(task_id, "VALIDATING")
+        self.store._fenced_transition_to(
+            lease.run_id, task_id, "VALIDATING",
+            lease.owner, lease.epoch,
+        )
         if val_exit == 0:
-            self.store.transition_to(task_id, "READY_FOR_REVIEW")
-            self.store.add_event(
-                task_id, event_type="VALIDATED",
+            self.store._fenced_transition_to(
+                lease.run_id, task_id, "READY_FOR_REVIEW",
+                lease.owner, lease.epoch,
+            )
+            self.store._fenced_add_event(
+                lease.run_id, task_id,
+                event_type="VALIDATED",
                 title="Durable sequential team validated",
                 description="per-role checkpoint acceptance completed",
                 metadata={
@@ -631,6 +700,7 @@ class DurableExecutionService:
                     "review_digest": review_digest,
                     "run_id": lease.run_id,
                 },
+                owner=lease.owner, epoch=lease.epoch,
             )
             return TaskExecutionOutcome(
                 task_id=task_id,
@@ -640,11 +710,16 @@ class DurableExecutionService:
                 validation_exit_code=val_exit,
             )
 
-        self.store.set_validation_result(
-            task_id, command_id="git_diff_check",
-            exit_code=val_exit, output_digest=val_digest,
+        self.store._fenced_terminalize(
+            lease.run_id, task_id,
+            terminal_status="FAILED",
+            validation_command_id="git_diff_check",
+            validation_exit_code=val_exit,
+            validation_output_digest=val_digest,
+            failure_classification="deterministic_validation_failure",
+            failure_detail=f"git_diff_check exit={val_exit}",
+            owner=lease.owner, epoch=lease.epoch,
         )
-        self.store.transition_to(task_id, "FAILED")
         return TaskExecutionOutcome(
             task_id=task_id,
             execution_id=run.execution_id,
@@ -697,6 +772,8 @@ class DurableExecutionService:
         plan_digest: str,
         role_attempt: int,
         coder_product_snapshot: tuple[dict[str, Any], ...] | None = None,
+        checkpointer: Any | None = None,
+        graph_config: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         from .opencode_executor import (
             RoleContext,
@@ -888,9 +965,13 @@ class DurableExecutionService:
         graph = build_sequential_team_graph(
             worker=_role_worker,
             skip_roles=set(("planner", "coder", "reviewer")) - {role},
+            checkpointer=checkpointer,
         )
         try:
-            graph.invoke({"assignments": [base_assignment.to_dict()]})
+            graph.invoke(
+                {"assignments": [base_assignment.to_dict()]},
+                config=graph_config or {},
+            )
         except TeamGraphError as exc:
             last = role_results[-1] if role_results else {}
             return {
@@ -925,25 +1006,35 @@ class DurableExecutionService:
         roles_executed: list[str], role_results: list[dict[str, Any]],
         classification: str, failure_detail: str,
     ) -> None:
-        self.store.set_changed_files(task_id, baseline)
+        self.store._fenced_set_changed_files(
+            lease.run_id, task_id, baseline,
+            lease.owner, lease.epoch,
+        )
         try:
-            self.store.classify_failure(
-                task_id, classification=classification,
-                detail=f"durable sequential team failed:{failure_detail}"
+            self.store._fenced_classify_failure(
+                lease.run_id, task_id,
+                classification=classification,
+                detail=f"durable sequential team failed:{failure_detail}",
+                owner=lease.owner, epoch=lease.epoch,
             )
         except TaskStoreError:
             pass
-        self.store.add_event(
-            task_id, event_type="EXECUTOR_FINISHED",
-            title="Durable sequential team failed",
-            description=failure_detail,
-            metadata={
-                "classification": classification,
-                "roles": roles_executed,
-                "run_id": lease.run_id,
-                "plan_digest": plan_digest,
-            },
-        )
+        try:
+            self.store._fenced_add_event(
+                lease.run_id, task_id,
+                event_type="EXECUTOR_FINISHED",
+                title="Durable sequential team failed",
+                description=failure_detail,
+                metadata={
+                    "classification": classification,
+                    "roles": roles_executed,
+                    "run_id": lease.run_id,
+                    "plan_digest": plan_digest,
+                },
+                owner=lease.owner, epoch=lease.epoch,
+            )
+        except TaskStoreError:
+            pass
 
     # ---------------------------------------------------------------
     # Resume
@@ -1140,8 +1231,10 @@ class DurableExecutionService:
                     executor_kind="opencode", **self._build_executor_kwargs(task)
                 )
             except Exception as exc:
-                self.store.classify_failure(
-                    task_id, classification="blocked", detail=str(exc)
+                self.store._fenced_classify_failure(
+                    lease.run_id, task_id,
+                    classification="blocked", detail=str(exc),
+                    owner=lease.owner, epoch=lease.epoch,
                 )
                 final = self.store.get_task(task_id)
                 return TaskExecutionOutcome(
@@ -1158,11 +1251,28 @@ class DurableExecutionService:
         handoff = handoff_dir(prepared_path) if prepared_path.exists() else None
 
         baseline_product = _collect_product_diff(prepared_path) if prepared_path.exists() else ()
-        self.store.set_changed_files(task_id, baseline_product)
+        self.store._fenced_set_changed_files(
+            lease.run_id, task_id, baseline_product,
+            lease.owner, lease.epoch,
+        )
 
         plan_digest = run.planner_handoff_digest
         review_digest = run.reviewer_handoff_digest
         coder_product_snapshot: tuple[dict[str, Any], ...] = ()
+
+        _graph_config = {"configurable": {"thread_id": lease.run_id}}
+
+        # Resolve production checkpointer from persisted checkpoint_db_path
+        _resume_saver = checkpointer
+        if _resume_saver is None and run.checkpoint_db_path:
+            cp_path = run.checkpoint_db_path
+            if Path(cp_path).exists():
+                import sqlite3 as _sq3
+                _cp_conn = _sq3.connect(
+                    cp_path, isolation_level=None, check_same_thread=False
+                )
+                _cp_conn.execute("PRAGMA journal_mode=WAL")
+                _resume_saver = _make_strict_saver(_cp_conn)
 
         remaining_roles = [
             r for r, cp in [
@@ -1198,6 +1308,8 @@ class DurableExecutionService:
                 plan_digest=plan_digest,
                 role_attempt=role_attempt,
                 coder_product_snapshot=coder_product_snapshot,
+                checkpointer=_resume_saver,
+                graph_config=_graph_config,
             )
 
             if not result["success"]:
@@ -1263,13 +1375,23 @@ class DurableExecutionService:
         if handoff:
             _remove_handoff(handoff)
         final_changed = _collect_final_product_files(prepared_path)
-        self.store.set_changed_files(task_id, final_changed)
+        self.store._fenced_set_changed_files(
+            lease.run_id, task_id, final_changed,
+            lease.owner, lease.epoch,
+        )
 
-        self.store.transition_to(task_id, "VALIDATING")
+        self.store._fenced_transition_to(
+            lease.run_id, task_id, "VALIDATING",
+            lease.owner, lease.epoch,
+        )
         if val_exit == 0:
-            self.store.transition_to(task_id, "READY_FOR_REVIEW")
-            self.store.add_event(
-                task_id, event_type="VALIDATED",
+            self.store._fenced_transition_to(
+                lease.run_id, task_id, "READY_FOR_REVIEW",
+                lease.owner, lease.epoch,
+            )
+            self.store._fenced_add_event(
+                lease.run_id, task_id,
+                event_type="VALIDATED",
                 title="Durable sequential team validated (resume)",
                 description="resume per-role checkpoint acceptance completed",
                 metadata={
@@ -1279,6 +1401,7 @@ class DurableExecutionService:
                     "review_digest": review_digest,
                     "run_id": lease.run_id,
                 },
+                owner=lease.owner, epoch=lease.epoch,
             )
             return TaskExecutionOutcome(
                 task_id=task_id,
@@ -1288,11 +1411,16 @@ class DurableExecutionService:
                 validation_exit_code=val_exit,
             )
 
-        self.store.set_validation_result(
-            task_id, command_id="git_diff_check",
-            exit_code=val_exit, output_digest=val_digest,
+        self.store._fenced_terminalize(
+            lease.run_id, task_id,
+            terminal_status="FAILED",
+            validation_command_id="git_diff_check",
+            validation_exit_code=val_exit,
+            validation_output_digest=val_digest,
+            failure_classification="deterministic_validation_failure",
+            failure_detail=f"git_diff_check exit={val_exit}",
+            owner=lease.owner, epoch=lease.epoch,
         )
-        self.store.transition_to(task_id, "FAILED")
         return TaskExecutionOutcome(
             task_id=task_id,
             execution_id=run.execution_id,
@@ -1329,14 +1457,22 @@ class DurableExecutionService:
         except ExecutorRuntimeError:
             val_exit, val_output, val_digest = -1, "", ""
 
-        self.store.transition_to(task_id, "VALIDATING")
+        self.store._fenced_transition_to(
+            lease.run_id, task_id, "VALIDATING",
+            lease.owner, lease.epoch,
+        )
         if val_exit == 0:
-            self.store.transition_to(task_id, "READY_FOR_REVIEW")
-            self.store.add_event(
-                task_id, event_type="VALIDATED",
+            self.store._fenced_transition_to(
+                lease.run_id, task_id, "READY_FOR_REVIEW",
+                lease.owner, lease.epoch,
+            )
+            self.store._fenced_add_event(
+                lease.run_id, task_id,
+                event_type="VALIDATED",
                 title="Sequential team validated (resume from POST_REVIEWER)",
                 description="post-reviewer validation passed",
                 metadata={"validation_exit_code": val_exit},
+                owner=lease.owner, epoch=lease.epoch,
             )
             self.store._set_validation_result(
                 lease.run_id,
@@ -1356,11 +1492,16 @@ class DurableExecutionService:
                 validation_command_id="git_diff_check",
                 validation_exit_code=val_exit,
             )
-        self.store.set_validation_result(
-            task_id, command_id="git_diff_check",
-            exit_code=val_exit, output_digest=val_digest,
+        self.store._fenced_terminalize(
+            lease.run_id, task_id,
+            terminal_status="FAILED",
+            validation_command_id="git_diff_check",
+            validation_exit_code=val_exit,
+            validation_output_digest=val_digest,
+            failure_classification="deterministic_validation_failure",
+            failure_detail=f"git_diff_check exit={val_exit}",
+            owner=lease.owner, epoch=lease.epoch,
         )
-        self.store.transition_to(task_id, "FAILED")
         return TaskExecutionOutcome(
             task_id=task_id,
             execution_id=run.execution_id,
