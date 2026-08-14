@@ -117,6 +117,7 @@ class FakeExecutor:
         subprocess.run(["git", "config", "user.email", "test@local"], cwd=wt, capture_output=True, check=True)
         subprocess.run(["git", "config", "user.name", "Test"], cwd=wt, capture_output=True, check=True)
         (wt / "README.md").write_text("hello\n", encoding="utf-8")
+        (wt / "product.py").write_text("# product\n", encoding="utf-8")
         subprocess.run(["git", "add", "."], cwd=wt, capture_output=True, check=True)
         subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=wt, capture_output=True, check=True)
         return _FakePreparedCtx(worktree=wt)
@@ -138,13 +139,9 @@ class FakeExecutor:
         elif role == "coder":
             if not (handoff / "plan.md").exists():
                 raise RuntimeError("missing plan")
-            # Track the file first so _collect_product_diff sees it as modified
-            (wt / "product.py").write_text("# product\n", encoding="utf-8")
-            subprocess.run(["git", "add", "product.py"], cwd=wt, capture_output=True, check=True)
-            subprocess.run(["git", "commit", "-q", "-m", "product"], cwd=wt, capture_output=True, check=True)
             (wt / "product.py").write_text("def hello(): pass\n", encoding="utf-8")
             if self.coder_no_diff:
-                (wt / "product.py").unlink()
+                (wt / "product.py").write_text("# product\n", encoding="utf-8")
         elif role == "reviewer":
             handoff.mkdir(parents=True, exist_ok=True)
             (handoff / "review.md").write_text("# Review\nLooks good\n", encoding="utf-8")
@@ -164,6 +161,7 @@ def _make_git_worktree(path: Path) -> None:
     subprocess.run(["git", "config", "user.email", "test@local"], cwd=path, capture_output=True, check=True)
     subprocess.run(["git", "config", "user.name", "Test"], cwd=path, capture_output=True, check=True)
     (path / "README.md").write_text("hello\n", encoding="utf-8")
+    (path / "product.py").write_text("# product\n", encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=path, capture_output=True, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=path, capture_output=True, check=True)
 
@@ -177,6 +175,24 @@ def _init_git_worktree(tmp_path: Path, name: str = "wt") -> Path:
     wt = tmp_path / name
     _make_git_worktree(wt)
     return wt
+
+
+def _expire_and_reconcile(store: TaskStore, task_id: str) -> None:
+    """Expire the durable run lease and reconcile to INTERRUPTED."""
+    import time as _time
+    now_ms = int(_time.time() * 1000)
+    run_row = store._conn.execute(
+        "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+        (task_id,),
+    ).fetchone()
+    if run_row is None:
+        return
+    store._conn.execute(
+        "UPDATE durable_runs SET lease_expiry_ms = ? WHERE run_id = ?",
+        (now_ms - 10000, run_row["run_id"]),
+    )
+    svc = DurableExecutionService(store=store, router=ExecutorRouter())
+    svc.reconcile_expired_runs(now_ms=now_ms, max_age_ms=1000)
 
 
 # ---------------------------------------------------------------------------
@@ -238,6 +254,8 @@ def test_crash_after_planner_uses_real_durable_path(tmp_path) -> None:
 
     service3 = DurableExecutionService(store=store2, router=RecordingRouter2())
 
+    _expire_and_reconcile(store2, task.id)
+
     outcome = service3.resume_sequential_team(
         task_id=task.id,
         lease_owner="worker-2",
@@ -293,6 +311,7 @@ def test_crash_after_coder_uses_real_durable_path(tmp_path) -> None:
             raise NotImplementedError()
 
     service2 = DurableExecutionService(store=store2, router=RR2())
+    _expire_and_reconcile(store2, task.id)
     outcome = service2.resume_sequential_team(
         task_id=task.id, lease_owner="worker-2",
     )
@@ -343,6 +362,7 @@ def test_second_crash_during_recovery(tmp_path) -> None:
             raise NotImplementedError()
 
     service2 = DurableExecutionService(store=store2, router=RR2())
+    _expire_and_reconcile(store2, task.id)
     with pytest.raises(_CrashSimulated):
         service2.resume_sequential_team(task_id=task.id, lease_owner="worker-2")
     reset_crash_seam()
@@ -361,6 +381,7 @@ def test_second_crash_during_recovery(tmp_path) -> None:
             raise NotImplementedError()
 
     service3 = DurableExecutionService(store=store3, router=RR3())
+    _expire_and_reconcile(store3, task.id)
     outcome = service3.resume_sequential_team(task_id=task.id, lease_owner="worker-3")
     assert fake3.call_count.get("planner", 0) == 0
 
@@ -484,6 +505,7 @@ def test_interrupted_coder_partial_diff_survives(tmp_path) -> None:
             raise NotImplementedError()
 
     service2 = DurableExecutionService(store=store2, router=RR2())
+    _expire_and_reconcile(store2, task.id)
     outcome = service2.resume_sequential_team(task_id=task.id, lease_owner="w2")
 
     run_after = store2._get_durable_run(run.run_id)
@@ -532,6 +554,7 @@ def test_coder_recovery_attempt_increments(tmp_path) -> None:
             raise NotImplementedError()
 
     service2 = DurableExecutionService(store=store2, router=RR2())
+    _expire_and_reconcile(store2, task.id)
     service2.resume_sequential_team(task_id=task.id, lease_owner="w2")
 
     run_after = store2._get_durable_run(run.run_id)
@@ -675,6 +698,7 @@ def test_repository_base_sha_mismatch_fails_independently(tmp_path) -> None:
     # Resume with wrong repository_base_sha must fail
     store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
     service2 = DurableExecutionService(store=store2, router=RR())
+    _expire_and_reconcile(store2, task.id)
     with pytest.raises(DurableResumeError) as excinfo:
         service2.resume_sequential_team(
             task_id=task.id, lease_owner="w2",
@@ -713,6 +737,8 @@ def test_worktree_path_head_mismatch_fails_independently(tmp_path) -> None:
     run = store._get_durable_run(store._find_active_durable_run(task.id)["run_id"])
     assert run.worktree_head_sha != ""
 
+    _expire_and_reconcile(store, task.id)
+
     # Simulate HEAD change
     subprocess.run(
         ["git", "commit", "--allow-empty", "-q", "-m", "extra"],
@@ -723,7 +749,7 @@ def test_worktree_path_head_mismatch_fails_independently(tmp_path) -> None:
     service2 = DurableExecutionService(store=store2, router=RR())
     with pytest.raises(DurableResumeError) as excinfo:
         service2.resume_sequential_team(task_id=task.id, lease_owner="w2")
-    assert "worktree_head_mismatch" in str(excinfo.value)
+    assert "repository_base_head_mismatch" in str(excinfo.value)
 
 
 # ---------------------------------------------------------------------------
@@ -870,9 +896,13 @@ def test_normal_execute_uses_durable_path(tmp_path) -> None:
     handler_cls = _handler_factory(
         store, RR(),
         allowed_origin="http://localhost:4173",
+        execution_authority_sha="test_authority_sha",
+        planning_sha="test_planning_sha",
     )
     handler_cls.store = store
     handler_cls.router = RR()
+    handler_cls.execution_authority_sha = "test_authority_sha"
+    handler_cls.planning_sha = "test_planning_sha"
 
     reset_crash_seam()
     run = store._find_active_durable_run(task.id)
@@ -887,6 +917,8 @@ def test_normal_execute_uses_durable_path(tmp_path) -> None:
             raise NotImplementedError()
 
     handler_cls.router = RR2()
+    handler_cls.execution_authority_sha = "test_authority_sha"
+    handler_cls.planning_sha = "test_planning_sha"
 
     from http.server import ThreadingHTTPServer
     import threading
@@ -942,9 +974,15 @@ def test_resume_api_uses_same_run(tmp_path) -> None:
             raise NotImplementedError()
 
     set_crash_after_checkpoint("POST_PLANNER")
-    handler_cls = _handler_factory(store, RR(), allowed_origin="http://localhost:4173")
+    handler_cls = _handler_factory(
+        store, RR(), allowed_origin="http://localhost:4173",
+        execution_authority_sha="test_authority_sha",
+        planning_sha="test_planning_sha",
+    )
     handler_cls.store = store
     handler_cls.router = RR()
+    handler_cls.execution_authority_sha = "test_authority_sha"
+    handler_cls.planning_sha = "test_planning_sha"
 
     from http.server import ThreadingHTTPServer
     import threading
@@ -985,14 +1023,22 @@ def test_resume_api_uses_same_run(tmp_path) -> None:
         def dispatch_execute(self, *a, **kw):
             raise NotImplementedError()
 
-    handler_cls2 = _handler_factory(store, RR2(), allowed_origin="http://localhost:4173")
+    handler_cls2 = _handler_factory(
+        store, RR2(), allowed_origin="http://localhost:4173",
+        execution_authority_sha="test_authority_sha",
+        planning_sha="test_planning_sha",
+    )
     handler_cls2.store = store
     handler_cls2.router = RR2()
+    handler_cls2.execution_authority_sha = "test_authority_sha"
+    handler_cls2.planning_sha = "test_planning_sha"
 
     server2 = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls2)
     port2 = server2.server_address[1]
     t2 = threading.Thread(target=server2.serve_forever, daemon=True)
     t2.start()
+
+    _expire_and_reconcile(store, task.id)
 
     req2 = urllib.request.Request(
         f"http://127.0.0.1:{port2}/api/tasks/{task.id}/resume",
@@ -1510,9 +1556,6 @@ def test_abrupt_process_death_preserves_old_lease(tmp_path) -> None:
                 handoff.mkdir(parents=True, exist_ok=True)
                 (handoff / "plan.md").write_text("# Plan\n", encoding="utf-8")
             elif role == "coder":
-                (wt / "product.py").write_text("# product\n", encoding="utf-8")
-                subprocess.run(["git", "add", "product.py"], cwd=wt, capture_output=True, check=True)
-                subprocess.run(["git", "commit", "-q", "-m", "product"], cwd=wt, capture_output=True, check=True)
                 (wt / "product.py").write_text("def hello(): pass\n", encoding="utf-8")
             elif role == "reviewer":
                 handoff.mkdir(parents=True, exist_ok=True)
@@ -1659,9 +1702,6 @@ def test_abrupt_crash_after_coder_no_restart(tmp_path) -> None:
                 handoff.mkdir(parents=True, exist_ok=True)
                 (handoff / "plan.md").write_text("# Plan\n", encoding="utf-8")
             elif role == "coder":
-                (wt / "product.py").write_text("# product\n", encoding="utf-8")
-                subprocess.run(["git", "add", "product.py"], cwd=wt, capture_output=True, check=True)
-                subprocess.run(["git", "commit", "-q", "-m", "product"], cwd=wt, capture_output=True, check=True)
                 (wt / "product.py").write_text("def hello(): pass\n", encoding="utf-8")
             elif role == "reviewer":
                 handoff.mkdir(parents=True, exist_ok=True)
@@ -1718,6 +1758,7 @@ def test_abrupt_crash_after_coder_no_restart(tmp_path) -> None:
     store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
     fake2 = FakeExecutor()
     service2 = DurableExecutionService(store=store2, router=RR(fake2))
+    _expire_and_reconcile(store2, task.id)
     outcome = service2.resume_sequential_team(task_id=task.id, lease_owner="w2")
 
     planner_calls = fake2.execute_calls.count("planner")
@@ -1760,9 +1801,6 @@ def test_production_checkpoint_db_persisted(tmp_path) -> None:
                 handoff.mkdir(parents=True, exist_ok=True)
                 (handoff / "plan.md").write_text("# Plan\n", encoding="utf-8")
             elif role == "coder":
-                (wt / "product.py").write_text("# product\n", encoding="utf-8")
-                subprocess.run(["git", "add", "product.py"], cwd=wt, capture_output=True, check=True)
-                subprocess.run(["git", "commit", "-q", "-m", "product"], cwd=wt, capture_output=True, check=True)
                 (wt / "product.py").write_text("def hello(): pass\n", encoding="utf-8")
             elif role == "reviewer":
                 handoff.mkdir(parents=True, exist_ok=True)
@@ -1840,9 +1878,6 @@ def test_stable_thread_id_equals_run_id(tmp_path) -> None:
                 handoff.mkdir(parents=True, exist_ok=True)
                 (handoff / "plan.md").write_text("# Plan\n", encoding="utf-8")
             elif role == "coder":
-                (wt / "product.py").write_text("# product\n", encoding="utf-8")
-                subprocess.run(["git", "add", "product.py"], cwd=wt, capture_output=True, check=True)
-                subprocess.run(["git", "commit", "-q", "-m", "product"], cwd=wt, capture_output=True, check=True)
                 (wt / "product.py").write_text("def hello(): pass\n", encoding="utf-8")
             elif role == "reviewer":
                 handoff.mkdir(parents=True, exist_ok=True)

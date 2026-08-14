@@ -901,36 +901,62 @@ class TaskStore:
                 raise TaskStoreError(f"durable_run_not_found:{run_id}")
             return _row_to_durable_run(row)
 
-    def _recover_durable_lease(
-        self, run_id: str, lease_owner: str
-    ) -> Any:
-        """Recover a durable lease with a strictly larger epoch.
+    def _atomic_fenced_update(
+        self,
+        run_id: str,
+        owner: str,
+        epoch: int,
+        mutation_sql: str,
+        mutation_params: tuple,
+        *,
+        allow_not_found: bool = False,
+    ) -> int:
+        """Atomically validate owner/epoch at SQLite level and apply mutation.
 
-        Every recovery creates a strictly newer epoch, even if the owner
-        label matches the previous owner. Owner-label equality is NOT proof
-        that the worker is the same instance. Epoch is the fencing token.
+        Uses BEGIN IMMEDIATE to obtain a RESERVED write lock on the SQLite
+        database. This guarantees that no other TaskStore instance pointing
+        to the SAME SQLite file can modify the durable_runs row between our
+        validation read and our mutation write. Two distinct TaskStore
+        instances opening the same file are serialized at the SQLite level.
+
+        Returns the rowcount of the mutation UPDATE.
         """
-        with self._lock:
-            row = self._conn.execute(
-                "SELECT * FROM durable_runs WHERE run_id = ?", (run_id,),
+        cur = self._conn.cursor()
+        try:
+            cur.execute("BEGIN IMMEDIATE")
+            row = cur.execute(
+                "SELECT lease_owner, lease_epoch FROM durable_runs "
+                "WHERE run_id = ?",
+                (run_id,),
             ).fetchone()
             if row is None:
+                cur.execute("ROLLBACK")
+                if allow_not_found:
+                    return 0
                 raise TaskStoreError(f"durable_run_not_found:{run_id}")
-            existing_epoch = int(row["lease_epoch"])
-            new_epoch = existing_epoch + 1
-            now_ms = _utc_now_ms()
-            self._conn.execute(
-                "UPDATE durable_runs SET "
-                "lease_owner = ?, lease_epoch = ?, heartbeat_at_ms = ?, "
-                "lease_expiry_ms = ?, updated_at = ? "
-                "WHERE run_id = ?",
-                (lease_owner, new_epoch, now_ms, now_ms + 300000, _utc_now(), run_id),
-            )
-            return self._lease_handle_from_row(
-                self._conn.execute(
-                    "SELECT * FROM durable_runs WHERE run_id = ?", (run_id,),
-                ).fetchone()
-            )
+            current_epoch = int(row["lease_epoch"])
+            current_owner = row["lease_owner"]
+            if current_epoch != epoch or current_owner != owner:
+                cur.execute("ROLLBACK")
+                raise TaskStoreError(
+                    f"lease_fenced:{run_id}:owner={owner}:epoch={epoch} "
+                    f"current_owner={current_owner}:"
+                    f"current_epoch={current_epoch}"
+                )
+            cur.execute(mutation_sql, mutation_params)
+            rowcount = cur.rowcount
+            cur.execute("COMMIT")
+            return rowcount
+        except TaskStoreError:
+            raise
+        except Exception as exc:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise TaskStoreError(
+                f"atomic_durable_mutation_failed:{exc}"
+            ) from exc
 
     def _validate_durable_lease(
         self, run_id: str, owner: str, epoch: int
@@ -957,29 +983,120 @@ class TaskStore:
     def _heartbeat_durable_lease(
         self, run_id: str, owner: str, epoch: int
     ) -> None:
-        self._validate_durable_lease(run_id, owner, epoch)
         with self._lock:
             now_ms = _utc_now_ms()
-            self._conn.execute(
+            self._atomic_fenced_update(
+                run_id, owner, epoch,
                 "UPDATE durable_runs SET heartbeat_at_ms = ?, "
-                "lease_expiry_ms = ?, updated_at = ? "
-                "WHERE run_id = ?",
+                "lease_expiry_ms = ?, updated_at = ? WHERE run_id = ?",
                 (now_ms, now_ms + 300000, _utc_now(), run_id),
             )
 
-    def _release_durable_lease(self, run_id: str) -> None:
-        """Release active ownership. MUST NOT reset or decrease epoch.
+    def _release_durable_lease(
+        self, run_id: str, owner: str, epoch: int
+    ) -> None:
+        """Release active ownership with fenced semantics.
 
-        The highest epoch for a durable run is monotonic for the run's
-        lifetime. Release only clears active ownership; the epoch remains
-        so that any late-arriving old worker is fenced.
+        Requires run_id, owner, and epoch. Release succeeds only when the
+        supplied owner+epoch still equals the current active lease. A stale
+        release (after another worker has taken over) MUST NOT clear the
+        new worker's owner, expiry, or epoch.
         """
         with self._lock:
-            self._conn.execute(
-                "UPDATE durable_runs SET lease_owner = '', "
-                "lease_expiry_ms = 0, updated_at = ? WHERE run_id = ?",
-                (_utc_now(), run_id),
-            )
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                row = cur.execute(
+                    "SELECT lease_owner, lease_epoch FROM durable_runs "
+                    "WHERE run_id = ?",
+                    (run_id,),
+                ).fetchone()
+                if row is None:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(f"durable_run_not_found:{run_id}")
+                current_epoch = int(row["lease_epoch"])
+                current_owner = row["lease_owner"]
+                if current_epoch != epoch or current_owner != owner:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(
+                        f"lease_fenced_release:{run_id}:"
+                        f"owner={owner}:epoch={epoch} "
+                        f"current_owner={current_owner}:"
+                        f"current_epoch={current_epoch}"
+                    )
+                cur.execute(
+                    "UPDATE durable_runs SET lease_owner = '', "
+                    "lease_expiry_ms = 0, updated_at = ? "
+                    "WHERE run_id = ? AND lease_owner = ? AND lease_epoch = ?",
+                    (_utc_now(), run_id, owner, epoch),
+                )
+                if cur.rowcount == 0:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(
+                        f"lease_release_failed:{run_id}:"
+                        "lease_changed_during_release"
+                    )
+                cur.execute("COMMIT")
+            except TaskStoreError:
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError(
+                    f"lease_release_error:{exc}"
+                ) from exc
+
+    def _set_repository_base_sha(
+        self, run_id: str, base_sha: str,
+        owner: str, epoch: int,
+    ) -> None:
+        """Persist repository_base_sha exactly once, fenced and immutable.
+
+        The repository base SHA must be empty before this call; if already
+        set, the mutation is rejected. This guarantees repository_base_sha
+        remains immutable for the run's lifetime.
+        """
+        with self._lock:
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                row = cur.execute(
+                    "SELECT lease_owner, lease_epoch, repository_base_sha "
+                    "FROM durable_runs WHERE run_id = ?",
+                    (run_id,),
+                ).fetchone()
+                if row is None:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(f"durable_run_not_found:{run_id}")
+                if int(row["lease_epoch"]) != epoch or row["lease_owner"] != owner:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(
+                        f"lease_fenced:{run_id}:owner={owner}:epoch={epoch}"
+                    )
+                if row["repository_base_sha"] and row["repository_base_sha"] != "":
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(
+                        f"repository_base_immutable:{run_id}:"
+                        f"already_set={row['repository_base_sha']}"
+                    )
+                cur.execute(
+                    "UPDATE durable_runs SET repository_base_sha = ?, "
+                    "updated_at = ? WHERE run_id = ?",
+                    (base_sha, _utc_now(), run_id),
+                )
+                cur.execute("COMMIT")
+            except TaskStoreError:
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError(
+                    f"set_repository_base_failed:{exc}"
+                ) from exc
 
     def _accept_checkpoint(
         self,
@@ -996,79 +1113,105 @@ class TaskStore:
         the same accepted state, return the existing record without inserting
         a duplicate. Backward checkpoints always fail. Forward progression
         always inserts a new record.
-        """
-        self._validate_durable_lease(run_id, owner, epoch)
-        with self._lock:
-            run_row = self._conn.execute(
-                "SELECT * FROM durable_runs WHERE run_id = ?", (run_id,),
-            ).fetchone()
-            if run_row is None:
-                raise TaskStoreError(f"durable_run_not_found:{run_id}")
-            current_accepted = run_row["accepted_checkpoint"]
-            current_rank = _CHECKPOINT_INDEX.get(current_accepted, -1)
-            new_rank = _CHECKPOINT_INDEX.get(checkpoint_name, -1)
-            if new_rank < 0:
-                raise TaskStoreError(f"invalid_checkpoint_name:{checkpoint_name}")
-            if new_rank < current_rank:
-                raise TaskStoreError(
-                    f"checkpoint_sequence_regression:"
-                    f"{current_accepted}->{checkpoint_name}"
-                )
-            if new_rank > current_rank + 1 and current_rank >= 0:
-                raise TaskStoreError(
-                    f"checkpoint_sequence_jump:"
-                    f"{current_accepted}->{checkpoint_name}"
-                )
 
-            # Idempotency: if already accepted at this rank, return existing record
-            if new_rank == current_rank:
-                existing = self._conn.execute(
-                    "SELECT * FROM durable_checkpoint_history "
-                    "WHERE run_id = ? AND checkpoint_name = ? "
-                    "ORDER BY seq DESC LIMIT 1",
-                    (run_id, checkpoint_name),
+        The owner+epoch validation and the checkpoint mutation are performed
+        atomically at the SQLite level using BEGIN IMMEDIATE, so two
+        TaskStore instances on the same file cannot race.
+        """
+        with self._lock:
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                run_row = cur.execute(
+                    "SELECT * FROM durable_runs WHERE run_id = ?", (run_id,),
                 ).fetchone()
-                if existing is not None:
-                    return DurableCheckpoint(
-                        checkpoint_id=existing["checkpoint_id"],
-                        run_id=existing["run_id"],
-                        checkpoint_name=existing["checkpoint_name"],
-                        artifact_digest=existing["artifact_digest"],
-                        role_attempt=int(existing["role_attempt"]),
-                        created_at=existing["created_at"],
+                if run_row is None:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(f"durable_run_not_found:{run_id}")
+                if int(run_row["lease_epoch"]) != epoch or run_row["lease_owner"] != owner:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(
+                        f"lease_fenced:{run_id}:owner={owner}:epoch={epoch} "
+                        f"current_owner={run_row['lease_owner']}:"
+                        f"current_epoch={run_row['lease_epoch']}"
+                    )
+                current_accepted = run_row["accepted_checkpoint"]
+                current_rank = _CHECKPOINT_INDEX.get(current_accepted, -1)
+                new_rank = _CHECKPOINT_INDEX.get(checkpoint_name, -1)
+                if new_rank < 0:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(f"invalid_checkpoint_name:{checkpoint_name}")
+                if new_rank < current_rank:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(
+                        f"checkpoint_sequence_regression:"
+                        f"{current_accepted}->{checkpoint_name}"
+                    )
+                if new_rank > current_rank + 1 and current_rank >= 0:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(
+                        f"checkpoint_sequence_jump:"
+                        f"{current_accepted}->{checkpoint_name}"
                     )
 
-            cp_id = f"cp-{run_id}-{_short_uuid()}"
-            self._conn.execute(
-                "INSERT INTO durable_checkpoint_history "
-                "(checkpoint_id, run_id, checkpoint_name, artifact_digest, "
-                "role_attempt, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (cp_id, run_id, checkpoint_name, artifact_digest, role_attempt, _utc_now()),
-            )
+                if new_rank == current_rank:
+                    existing = cur.execute(
+                        "SELECT * FROM durable_checkpoint_history "
+                        "WHERE run_id = ? AND checkpoint_name = ? "
+                        "ORDER BY seq DESC LIMIT 1",
+                        (run_id, checkpoint_name),
+                    ).fetchone()
+                    if existing is not None:
+                        cur.execute("COMMIT")
+                        return DurableCheckpoint(
+                            checkpoint_id=existing["checkpoint_id"],
+                            run_id=existing["run_id"],
+                            checkpoint_name=existing["checkpoint_name"],
+                            artifact_digest=existing["artifact_digest"],
+                            role_attempt=int(existing["role_attempt"]),
+                            created_at=existing["created_at"],
+                        )
 
-            self._conn.execute(
-                "UPDATE durable_runs SET "
-                "accepted_checkpoint = ?, "
-                "current_role = ?, "
-                "updated_at = ? "
-                "WHERE run_id = ?",
-                (
-                    checkpoint_name,
-                    _checkpoint_to_role(checkpoint_name),
-                    _utc_now(),
-                    run_id,
-                ),
-            )
-
-            return DurableCheckpoint(
-                checkpoint_id=cp_id,
-                run_id=run_id,
-                checkpoint_name=checkpoint_name,
-                artifact_digest=artifact_digest,
-                role_attempt=role_attempt,
-                created_at=_utc_now(),
-            )
+                cp_id = f"cp-{run_id}-{_short_uuid()}"
+                cur.execute(
+                    "INSERT INTO durable_checkpoint_history "
+                    "(checkpoint_id, run_id, checkpoint_name, artifact_digest, "
+                    "role_attempt, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (cp_id, run_id, checkpoint_name, artifact_digest, role_attempt, _utc_now()),
+                )
+                cur.execute(
+                    "UPDATE durable_runs SET "
+                    "accepted_checkpoint = ?, "
+                    "current_role = ?, "
+                    "updated_at = ? "
+                    "WHERE run_id = ?",
+                    (
+                        checkpoint_name,
+                        _checkpoint_to_role(checkpoint_name),
+                        _utc_now(),
+                        run_id,
+                    ),
+                )
+                cur.execute("COMMIT")
+                return DurableCheckpoint(
+                    checkpoint_id=cp_id,
+                    run_id=run_id,
+                    checkpoint_name=checkpoint_name,
+                    artifact_digest=artifact_digest,
+                    role_attempt=role_attempt,
+                    created_at=_utc_now(),
+                )
+            except TaskStoreError:
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError(
+                    f"accept_checkpoint_failed:{exc}"
+                ) from exc
 
     def _get_durable_checkpoints(self, run_id: str) -> tuple[Any, ...]:
         with self._lock:
@@ -1092,9 +1235,9 @@ class TaskStore:
     def _set_planner_handoff_digest(
         self, run_id: str, digest: str, owner: str, epoch: int
     ) -> None:
-        self._validate_durable_lease(run_id, owner, epoch)
         with self._lock:
-            self._conn.execute(
+            self._atomic_fenced_update(
+                run_id, owner, epoch,
                 "UPDATE durable_runs SET planner_handoff_digest = ?, "
                 "updated_at = ? WHERE run_id = ?",
                 (digest, _utc_now(), run_id),
@@ -1103,9 +1246,9 @@ class TaskStore:
     def _set_coder_product_diff_digest(
         self, run_id: str, digest: str, owner: str, epoch: int
     ) -> None:
-        self._validate_durable_lease(run_id, owner, epoch)
         with self._lock:
-            self._conn.execute(
+            self._atomic_fenced_update(
+                run_id, owner, epoch,
                 "UPDATE durable_runs SET coder_product_diff_digest = ?, "
                 "updated_at = ? WHERE run_id = ?",
                 (digest, _utc_now(), run_id),
@@ -1114,9 +1257,9 @@ class TaskStore:
     def _set_reviewer_handoff_digest(
         self, run_id: str, digest: str, owner: str, epoch: int
     ) -> None:
-        self._validate_durable_lease(run_id, owner, epoch)
         with self._lock:
-            self._conn.execute(
+            self._atomic_fenced_update(
+                run_id, owner, epoch,
                 "UPDATE durable_runs SET reviewer_handoff_digest = ?, "
                 "updated_at = ? WHERE run_id = ?",
                 (digest, _utc_now(), run_id),
@@ -1126,9 +1269,9 @@ class TaskStore:
         self, run_id: str, role: str, attempt: int,
         owner: str, epoch: int,
     ) -> None:
-        self._validate_durable_lease(run_id, owner, epoch)
         with self._lock:
-            self._conn.execute(
+            self._atomic_fenced_update(
+                run_id, owner, epoch,
                 "UPDATE durable_runs SET current_role = ?, role_attempt = ?, "
                 "updated_at = ? WHERE run_id = ?",
                 (role, attempt, _utc_now(), run_id),
@@ -1137,9 +1280,9 @@ class TaskStore:
     def _set_recovery_classification(
         self, run_id: str, classification: str, owner: str, epoch: int
     ) -> None:
-        self._validate_durable_lease(run_id, owner, epoch)
         with self._lock:
-            self._conn.execute(
+            self._atomic_fenced_update(
+                run_id, owner, epoch,
                 "UPDATE durable_runs SET recovery_classification = ?, "
                 "updated_at = ? WHERE run_id = ?",
                 (classification, _utc_now(), run_id),
@@ -1155,9 +1298,9 @@ class TaskStore:
         owner: str,
         epoch: int,
     ) -> None:
-        self._validate_durable_lease(run_id, owner, epoch)
         with self._lock:
-            self._conn.execute(
+            self._atomic_fenced_update(
+                run_id, owner, epoch,
                 "UPDATE durable_runs SET "
                 "validation_command_id = ?, validation_exit_code = ?, "
                 "validation_output_digest = ?, updated_at = ? "
@@ -1165,6 +1308,106 @@ class TaskStore:
                 (command_id, exit_code, output_digest, _utc_now(), run_id),
             )
 
+    def _set_worktree_identity(
+        self, run_id: str, worktree_path: str, worktree_head_sha: str,
+        owner: str, epoch: int,
+    ) -> None:
+        with self._lock:
+            self._atomic_fenced_update(
+                run_id, owner, epoch,
+                "UPDATE durable_runs SET "
+                "worktree_path = ?, worktree_head_sha = ?, "
+                "worktree_prepared_at = ?, updated_at = ? "
+                "WHERE run_id = ?",
+                (worktree_path, worktree_head_sha, _utc_now(), _utc_now(), run_id),
+            )
+
+    def _set_authority_identity(
+        self, run_id: str, execution_authority_sha: str,
+        planning_sha: str, owner: str, epoch: int,
+    ) -> None:
+        with self._lock:
+            self._atomic_fenced_update(
+                run_id, owner, epoch,
+                "UPDATE durable_runs SET "
+                "execution_authority_sha = ?, planning_sha = ?, "
+                "updated_at = ? WHERE run_id = ?",
+                (execution_authority_sha, planning_sha, _utc_now(), run_id),
+            )
+
+    def _set_partial_coder_diff_digest(
+        self, run_id: str, digest: str, owner: str, epoch: int,
+    ) -> None:
+        with self._lock:
+            self._atomic_fenced_update(
+                run_id, owner, epoch,
+                "UPDATE durable_runs SET partial_coder_diff_digest = ?, "
+                "updated_at = ? WHERE run_id = ?",
+                (digest, _utc_now(), run_id),
+            )
+
+    def _set_checkpoint_db_path(
+        self, run_id: str, checkpoint_db_path: str,
+        owner: str, epoch: int,
+    ) -> None:
+        with self._lock:
+            self._atomic_fenced_update(
+                run_id, owner, epoch,
+                "UPDATE durable_runs SET checkpoint_db_path = ?, "
+                "updated_at = ? WHERE run_id = ?",
+                (checkpoint_db_path, _utc_now(), run_id),
+            )
+
+    def _recover_durable_lease(
+        self, run_id: str, lease_owner: str
+    ) -> Any:
+        """Recover a durable lease with a strictly larger epoch.
+
+        Every recovery creates a strictly newer epoch, even if the owner
+        label matches the previous owner. Owner-label equality is NOT proof
+        that the worker is the same instance. Epoch is the fencing token.
+
+        The epoch increment is performed atomically at the SQLite level so
+        that two TaskStore instances cannot produce the same epoch.
+        """
+        with self._lock:
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                row = cur.execute(
+                    "SELECT * FROM durable_runs WHERE run_id = ?", (run_id,),
+                ).fetchone()
+                if row is None:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(f"durable_run_not_found:{run_id}")
+                existing_epoch = int(row["lease_epoch"])
+                new_epoch = existing_epoch + 1
+                now_ms = _utc_now_ms()
+                cur.execute(
+                    "UPDATE durable_runs SET "
+                    "lease_owner = ?, lease_epoch = ?, heartbeat_at_ms = ?, "
+                    "lease_expiry_ms = ?, updated_at = ? "
+                    "WHERE run_id = ?",
+                    (lease_owner, new_epoch, now_ms, now_ms + 300000, _utc_now(), run_id),
+                )
+                if cur.rowcount == 0:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(f"durable_run_update_failed:{run_id}")
+                cur.execute("COMMIT")
+                row2 = cur.execute(
+                    "SELECT * FROM durable_runs WHERE run_id = ?", (run_id,),
+                ).fetchone()
+                return self._lease_handle_from_row(row2)
+            except TaskStoreError:
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError(
+                    f"recover_durable_lease_failed:{exc}"
+                ) from exc
     def _external_operation_prevents_dispatch(
         self, idempotency_key: str, request_digest: str
     ) -> bool:
@@ -1325,44 +1568,6 @@ class TaskStore:
             repository_base_sha=row["repository_base_sha"],
             checkpoint_db_path=row["checkpoint_db_path"] if "checkpoint_db_path" in cols else "",
         )
-
-    def _set_worktree_identity(
-        self, run_id: str, worktree_path: str, worktree_head_sha: str,
-        owner: str, epoch: int,
-    ) -> None:
-        self._validate_durable_lease(run_id, owner, epoch)
-        with self._lock:
-            self._conn.execute(
-                "UPDATE durable_runs SET "
-                "worktree_path = ?, worktree_head_sha = ?, "
-                "worktree_prepared_at = ?, updated_at = ? "
-                "WHERE run_id = ?",
-                (worktree_path, worktree_head_sha, _utc_now(), _utc_now(), run_id),
-            )
-
-    def _set_authority_identity(
-        self, run_id: str, execution_authority_sha: str,
-        planning_sha: str, owner: str, epoch: int,
-    ) -> None:
-        self._validate_durable_lease(run_id, owner, epoch)
-        with self._lock:
-            self._conn.execute(
-                "UPDATE durable_runs SET "
-                "execution_authority_sha = ?, planning_sha = ?, "
-                "updated_at = ? WHERE run_id = ?",
-                (execution_authority_sha, planning_sha, _utc_now(), run_id),
-            )
-
-    def _set_partial_coder_diff_digest(
-        self, run_id: str, digest: str, owner: str, epoch: int,
-    ) -> None:
-        self._validate_durable_lease(run_id, owner, epoch)
-        with self._lock:
-            self._conn.execute(
-                "UPDATE durable_runs SET partial_coder_diff_digest = ?, "
-                "updated_at = ? WHERE run_id = ?",
-                (digest, _utc_now(), run_id),
-            )
 
     # ------------------------------------------------------------------
     # Fenced durable-path Task/business mutations
@@ -1641,19 +1846,6 @@ class TaskStore:
                 },
             )
             return self.get_task(task_id)
-
-    def _set_checkpoint_db_path(
-        self, run_id: str, checkpoint_db_path: str,
-        owner: str, epoch: int,
-    ) -> None:
-        self._validate_durable_lease(run_id, owner, epoch)
-        with self._lock:
-            self._conn.execute(
-                "UPDATE durable_runs SET checkpoint_db_path = ?, "
-                "updated_at = ? WHERE run_id = ?",
-                (checkpoint_db_path, _utc_now(), run_id),
-            )
-
 
 class LeaseHandle:
     """Immutable lease handle returned by durable lease operations."""

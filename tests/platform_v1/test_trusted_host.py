@@ -121,9 +121,6 @@ def test_request_cannot_override_trusted_identity(tmp_path) -> None:
                 handoff.mkdir(parents=True, exist_ok=True)
                 (handoff / "plan.md").write_text("# Plan\n", encoding="utf-8")
             elif role == "coder":
-                (wt / "product.py").write_text("# product\n", encoding="utf-8")
-                subprocess.run(["git", "add", "product.py"], cwd=wt, capture_output=True, check=True)
-                subprocess.run(["git", "commit", "-q", "-m", "product"], cwd=wt, capture_output=True, check=True)
                 (wt / "product.py").write_text("def hello(): pass\n", encoding="utf-8")
             elif role == "reviewer":
                 handoff.mkdir(parents=True, exist_ok=True)
@@ -361,9 +358,6 @@ def test_durable_run_has_non_empty_authority_and_planning(tmp_path) -> None:
                 handoff.mkdir(parents=True, exist_ok=True)
                 (handoff / "plan.md").write_text("# Plan\n", encoding="utf-8")
             elif role == "coder":
-                (wt / "product.py").write_text("# product\n", encoding="utf-8")
-                subprocess.run(["git", "add", "product.py"], cwd=wt, capture_output=True, check=True)
-                subprocess.run(["git", "commit", "-q", "-m", "product"], cwd=wt, capture_output=True, check=True)
                 (wt / "product.py").write_text("def hello(): pass\n", encoding="utf-8")
             elif role == "reviewer":
                 handoff.mkdir(parents=True, exist_ok=True)
@@ -449,9 +443,6 @@ def test_no_raw_credential_persistence(tmp_path) -> None:
                 handoff.mkdir(parents=True, exist_ok=True)
                 (handoff / "plan.md").write_text("# Plan\n", encoding="utf-8")
             elif role == "coder":
-                (wt / "product.py").write_text("# product\n", encoding="utf-8")
-                subprocess.run(["git", "add", "product.py"], cwd=wt, capture_output=True, check=True)
-                subprocess.run(["git", "commit", "-q", "-m", "product"], cwd=wt, capture_output=True, check=True)
                 (wt / "product.py").write_text("def hello(): pass\n", encoding="utf-8")
             elif role == "reviewer":
                 handoff.mkdir(parents=True, exist_ok=True)

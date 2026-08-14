@@ -321,8 +321,8 @@ class DurableExecutionService:
         lease_provider: Any | None = None,
         expiry_ms: int = LEASE_DEFAULT_EXPIRY_MS,
         heartbeat_window_ms: int = LEASE_HEARTBEAT_WINDOW_MS,
-        execution_authority_sha: str = "",
-        planning_sha: str = "",
+        execution_authority_sha: str | None = None,
+        planning_sha: str | None = None,
     ) -> None:
         self.store = store
         self.router = router
@@ -357,7 +357,18 @@ class DurableExecutionService:
         repository_base_sha is intentionally IGNORED from the caller. The
         actual repository execution base is obtained from prepare_worktree_once()
         and persisted deterministically. This prevents HTTP payload override.
+
+        Trusted identity (execution_authority_sha, planning_sha) MUST be
+        non-empty. If either is empty, fail closed BEFORE durable run
+        creation. HTTP request bodies MUST NOT supply these values; they
+        come from trusted runtime configuration.
         """
+        if self._execution_authority_sha == "" or self._planning_sha == "":
+            raise TaskExecutionError(
+                f"durable_trusted_identity_missing:"
+                f"authority={bool(self._execution_authority_sha)}:"
+                f"planning={bool(self._planning_sha)}"
+            )
         lease = self._acquire_or_find_lease(
             task_id, lease_owner, "", workspace_root
         )
@@ -373,7 +384,7 @@ class DurableExecutionService:
             # Persisted state retains old owner/epoch/expiry for reconciliation.
             raise
         except Exception:
-            self.store._release_durable_lease(lease.run_id)
+            self.store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
             raise
 
     def _acquire_or_find_lease(
@@ -505,16 +516,14 @@ class DurableExecutionService:
         )
         self.store._set_authority_identity(
             lease.run_id,
-            self._execution_authority_sha,
-            self._planning_sha,
+            self._execution_authority_sha or "",
+            self._planning_sha or "",
             lease.owner, lease.epoch,
         )
 
-        # Persist repository_base_sha from actual prepared worktree HEAD.
-        self.store._conn.execute(
-            "UPDATE durable_runs SET repository_base_sha = ?, "
-            "updated_at = ? WHERE run_id = ?",
-            (repo_base_sha, _utc_now(), lease.run_id),
+        self.store._set_repository_base_sha(
+            lease.run_id, repo_base_sha,
+            lease.owner, lease.epoch,
         )
 
         # Compute deterministic checkpoint DB path from task DB directory.
@@ -629,15 +638,37 @@ class DurableExecutionService:
                     lease.run_id, coder_digest, lease.owner, lease.epoch
                 )
                 plan_digest = result.get("plan_digest", plan_digest)
-                current_head = self._git_rev_parse_head(wt_path)
-                self.store._set_worktree_identity(
-                    lease.run_id, wt_path, current_head,
-                    lease.owner, lease.epoch,
-                )
+
             elif role == "reviewer":
                 review_digest = result["digest"]
                 self.store._set_reviewer_handoff_digest(
                     lease.run_id, review_digest, lease.owner, lease.epoch
+                )
+
+            head_sha = self._git_rev_parse_head(wt_path)
+            repo_base = self.store._get_durable_run(lease.run_id).repository_base_sha
+            if repo_base and head_sha != repo_base:
+                self._complete_durable_failure(
+                    task_id, run, lease, baseline_product, plan_digest,
+                    roles_executed=result.get("roles_executed", []),
+                    role_results=result.get("role_results", []),
+                    classification="head_moved",
+                    failure_detail=(
+                        f"HEAD moved during {role}: "
+                        f"expected={repo_base} actual={head_sha}"
+                    ),
+                )
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=run.execution_id,
+                    success=False,
+                    validation_command_id="",
+                    validation_exit_code=-1,
+                    failure_classification="head_moved",
+                    failure_detail=(
+                        f"HEAD moved during {role}: "
+                        f"expected={repo_base} actual={head_sha}"
+                    ),
                 )
 
             self.store._accept_checkpoint(
@@ -1059,6 +1090,14 @@ class DurableExecutionService:
 
         auth_sha = execution_authority_sha if execution_authority_sha is not None else self._execution_authority_sha
         plan_sha = planning_sha if planning_sha is not None else self._planning_sha
+        if auth_sha == "":
+            raise DurableResumeError(
+                "trusted_authority_sha_missing:cannot_resume_without_trusted_identity"
+            )
+        if plan_sha == "":
+            raise DurableResumeError(
+                "trusted_planning_sha_missing:cannot_resume_without_trusted_identity"
+            )
         if repository_base_sha:
             repo_sha = repository_base_sha
         else:
@@ -1071,6 +1110,12 @@ class DurableExecutionService:
         run_obj = self.store._get_durable_run(run["run_id"])
 
         stored_task = self.store.get_task(task_id)
+
+        now_ms = _utc_now_ms()
+        lease_expiry_ms = int(getattr(run_obj, "lease_expiry_ms", 0) or 0)
+        lease_owner = getattr(run_obj, "lease_owner", "") or ""
+        lease_epoch = int(getattr(run_obj, "lease_epoch", 0) or 0)
+
         if stored_task.status in ("READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"):
             return TaskExecutionOutcome(
                 task_id=task_id,
@@ -1102,6 +1147,34 @@ class DurableExecutionService:
                 f"base_sha_mismatch:{run_obj.repository_base_sha}!={repo_sha}"
             )
 
+        live_statuses = frozenset({
+            "PREPARING_WORKSPACE", "RUNNING", "RUNNING_FIXTURE", "VALIDATING",
+        })
+        if (
+            stored_task.status in live_statuses
+            and lease_expiry_ms > now_ms
+            and lease_owner
+            and lease_epoch > 0
+        ):
+            raise DurableResumeError(
+                f"durable_run_lease_live:{task_id}:"
+                f"status={stored_task.status}:epoch={lease_epoch}:"
+                f"owner={lease_owner}"
+            )
+
+        recovery_class = getattr(run_obj, "recovery_classification", "") or ""
+        if stored_task.status != "INTERRUPTED":
+            if stored_task.status not in ("BLOCKED", "FAILED", "CANCELLED"):
+                raise DurableResumeError(
+                    f"invalid_resume_status:{stored_task.status}"
+                )
+
+        if stored_task.status == "INTERRUPTED":
+            if recovery_class not in ("orphan_stale_lease", "interrupted", "recovering"):
+                raise DurableResumeError(
+                    f"invalid_recovery_classification:{recovery_class}"
+                )
+
         wt_path = run_obj.worktree_path
         if not wt_path:
             wt_path = workspace_root
@@ -1114,9 +1187,15 @@ class DurableExecutionService:
             raise DurableResumeError(f"worktree_not_found:{wt_path}")
 
         actual_head = self._git_rev_parse_head(wt_path)
-        if run_obj.worktree_head_sha and actual_head != run_obj.worktree_head_sha:
+        stored_base = getattr(run_obj, "repository_base_sha", "") or ""
+        if stored_base and actual_head != stored_base:
             raise DurableResumeError(
-                f"worktree_head_mismatch:{run_obj.worktree_head_sha}!={actual_head}"
+                f"repository_base_head_mismatch:{stored_base}!={actual_head}"
+            )
+        stored_wt_head = getattr(run_obj, "worktree_head_sha", "") or ""
+        if stored_wt_head and actual_head != stored_wt_head:
+            raise DurableResumeError(
+                f"worktree_head_mismatch:{stored_wt_head}!={actual_head}"
             )
 
         lease = self.store._recover_durable_lease(run_obj.run_id, lease_owner)
@@ -1211,6 +1290,13 @@ class DurableExecutionService:
         from reverse_agent.workflows.team_graph import TeamGraphError
 
         self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
+
+        stored = self.store.get_task(task_id)
+        if stored.status == "INTERRUPTED":
+            self.store._fenced_transition_to(
+                lease.run_id, task_id, "RUNNING",
+                lease.owner, lease.epoch,
+            )
 
         if accepted == "POST_REVIEWER":
             return self._resume_from_post_reviewer(task_id, run, lease, role_attempt)

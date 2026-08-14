@@ -20,6 +20,7 @@ from __future__ import annotations
 from http.server import ThreadingHTTPServer
 import json
 import os
+import subprocess
 import threading
 from typing import Any
 
@@ -237,13 +238,78 @@ def _make_task_store(db_path: str | None) -> TaskStore:
     )
 
 
+def _resolve_trusted_authority_sha() -> str:
+    """Resolve trusted execution authority SHA from trusted runtime config.
+
+    HTTP request bodies MUST NOT supply this value. Resolution order:
+    1. REVERSE_AGENT_EXECUTION_AUTHORITY_SHA env var (explicit trusted config)
+    2. REVERSE_AGENT_PLANNING_SHA env var fallback
+    3. Repository git HEAD SHA from REVERSE_AGENT_REPO_DIR
+    4. Empty string if none available (causes fail-closed on durable /execute)
+    """
+    explicit = os.environ.get("REVERSE_AGENT_EXECUTION_AUTHORITY_SHA", "").strip()
+    if explicit:
+        return explicit
+    planning_fallback = os.environ.get("REVERSE_AGENT_PLANNING_SHA", "").strip()
+    if planning_fallback:
+        return planning_fallback
+    repo_dir = os.environ.get("REVERSE_AGENT_REPO_DIR", "").strip()
+    if repo_dir:
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=repo_dir, capture_output=True, text=True, check=True,
+                timeout=10,
+            )
+            sha = result.stdout.strip()
+            if sha:
+                return sha
+        except Exception:
+            pass
+    return ""
+
+
+def _resolve_trusted_planning_sha() -> str:
+    """Resolve trusted planning SHA from trusted runtime config.
+
+    HTTP request bodies MUST NOT supply this value. Resolution order:
+    1. REVERSE_AGENT_PLANNING_SHA env var (explicit trusted config)
+    2. Repository git HEAD SHA from REVERSE_AGENT_REPO_DIR
+    3. Empty string if none available (causes fail-closed on durable /execute)
+    """
+    explicit = os.environ.get("REVERSE_AGENT_PLANNING_SHA", "").strip()
+    if explicit:
+        return explicit
+    repo_dir = os.environ.get("REVERSE_AGENT_REPO_DIR", "").strip()
+    if repo_dir:
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=repo_dir, capture_output=True, text=True, check=True,
+                timeout=10,
+            )
+            sha = result.stdout.strip()
+            if sha:
+                return sha
+        except Exception:
+            pass
+    return ""
+
+
 def run_combined_trusted_host() -> None:
-    host = CombinedTrustedHost()
+    auth_sha = _resolve_trusted_authority_sha()
+    planning_sha = _resolve_trusted_planning_sha()
+    host = CombinedTrustedHost(
+        execution_authority_sha=auth_sha,
+        planning_sha=planning_sha,
+    )
     host.start()
     metadata = {
         "model_control_url": host.model_control_url,
         "task_api_url": host.task_api_url,
         "relay_url": host.relay_url,
+        "execution_authority_sha": auth_sha,
+        "planning_sha": planning_sha,
     }
     runtime_dir = os.environ.get(
         "REVERSE_AGENT_TASK_DB_DIR",
@@ -254,10 +320,12 @@ def run_combined_trusted_host() -> None:
     with open(meta_path, "w", encoding="utf-8") as fh:
         json.dump(metadata, fh, indent=2)
 
-    print(f"Combined Trusted Host started")
+    print("Combined Trusted Host started")
     print(f"  Model Control: {host.model_control_url}")
     print(f"  Task API:      {host.task_api_url}")
     print(f"  Relay:         {host.relay_url}")
+    print(f"  Authority SHA: {auth_sha or '(empty - durable execute will fail closed)'}")
+    print(f"  Planning SHA:  {planning_sha or '(empty - durable execute will fail closed)'}")
 
     try:
         host._model_server.serve_forever()
