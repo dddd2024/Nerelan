@@ -364,6 +364,11 @@ class _TaskHandler(BaseHTTPRequestHandler):
                             tempfile.gettempdir(), "issue151_task_workspaces"
                         )
                     os.makedirs(workspace_root, exist_ok=True)
+                try:
+                    task = self.store.get_task(segments[2])
+                except TaskStoreError:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
+                    return
                 execution_service = TaskExecutionService(
                     store=self.store,
                     router=self.router,
@@ -371,11 +376,17 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     binding_resolver=getattr(self, "binding_resolver", None),
                 )
                 try:
-                    outcome = execution_service.execute(
-                        task_id=segments[2],
-                        workspace_root=workspace_root,
-                        validation_command_id=command_id or "git_diff_check",
-                    )
+                    if task.orchestration_mode == "sequential_team":
+                        outcome = execution_service.execute_sequential_team(
+                            task_id=segments[2],
+                            workspace_root=workspace_root,
+                        )
+                    else:
+                        outcome = execution_service.execute(
+                            task_id=segments[2],
+                            workspace_root=workspace_root,
+                            validation_command_id=command_id or "git_diff_check",
+                        )
                 except TaskExecutionError as exc:
                     if "task_not_found" in str(exc):
                         self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
@@ -414,6 +425,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
             raise TaskStoreError("repository_required_for_opencode")
         if not repository:
             repository = "dddd2024/reverse-agent"
+        orchestration_mode = str(payload.get("orchestration_mode", "single"))
         return self.store.create_task(
             title=title,
             repository=repository,
@@ -425,6 +437,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
             workspace=str(payload.get("workspace", "")),
             branch=str(payload.get("branch", "")),
             idempotency_key=str(payload.get("idempotency_key", "")),
+            orchestration_mode=orchestration_mode,
         )
 
     def _list_tasks_response(self) -> dict[str, Any]:
@@ -460,6 +473,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
             "policy_ref": task.policy_ref,
             "workspace": task.workspace,
             "branch": task.branch,
+            "orchestration_mode": task.orchestration_mode,
             "created_at": task.created_at,
             "updated_at": task.updated_at,
             "failure_classification": task.failure_classification,

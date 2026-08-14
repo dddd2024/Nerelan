@@ -120,6 +120,7 @@ class Task:
     branch: str
     created_at: str
     updated_at: str
+    orchestration_mode: str = "single"
     failure_classification: str = ""
     failure_detail: str = ""
     validation_command_id: str = ""
@@ -188,6 +189,7 @@ def _row_to_task(conn: sqlite3.Connection, row: sqlite3.Row) -> Task:
         policy_ref=row["policy_ref"],
         workspace=row["workspace"],
         branch=row["branch"],
+        orchestration_mode=row["orchestration_mode"] or "single",
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         failure_classification=row["failure_classification"] or "",
@@ -238,6 +240,7 @@ class TaskStore:
                 policy_ref TEXT NOT NULL,
                 workspace TEXT NOT NULL,
                 branch TEXT NOT NULL,
+                orchestration_mode TEXT NOT NULL DEFAULT 'single',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 failure_classification TEXT NOT NULL,
@@ -295,6 +298,10 @@ class TaskStore:
             self._conn.execute(
                 "ALTER TABLE tasks ADD COLUMN binding_ref TEXT NOT NULL DEFAULT ''"
             )
+        if "orchestration_mode" not in task_columns:
+            self._conn.execute(
+                "ALTER TABLE tasks ADD COLUMN orchestration_mode TEXT NOT NULL DEFAULT 'single'"
+            )
 
     @property
     def db_path(self) -> str:
@@ -317,6 +324,7 @@ class TaskStore:
         workspace: str = "",
         branch: str = "",
         idempotency_key: str = "",
+        orchestration_mode: str = "single",
     ) -> Task:
         with self._lock:
             return self._create_task_impl(
@@ -330,6 +338,7 @@ class TaskStore:
                 workspace=workspace,
                 branch=branch,
                 idempotency_key=idempotency_key,
+                orchestration_mode=orchestration_mode,
             )
 
     def _create_task_impl(
@@ -345,13 +354,21 @@ class TaskStore:
         workspace: str,
         branch: str,
         idempotency_key: str,
+        orchestration_mode: str = "single",
     ) -> Task:
+        if orchestration_mode not in ("single", "sequential_team"):
+            raise TaskStoreError(f"unsupported_orchestration_mode:{orchestration_mode}")
+        if orchestration_mode == "sequential_team" and executor_kind != "opencode":
+            raise TaskStoreError(
+                "sequential_team_requires_opencode_executor"
+            )
         if binding_ref and executor_kind != "opencode":
             raise TaskStoreError("binding_ref_requires_opencode_executor")
         if idempotency_key:
             existing = self._conn.execute(
                 "SELECT keys_table.task_id, keys_table.title, keys_table.repository, "
-                "keys_table.executor_kind, tasks.binding_ref FROM idempotency_keys "
+                "keys_table.executor_kind, tasks.binding_ref, tasks.orchestration_mode "
+                "FROM idempotency_keys "
                 "AS keys_table JOIN tasks ON tasks.id = keys_table.task_id "
                 "WHERE keys_table.key = ? LIMIT 1",
                 (idempotency_key,),
@@ -362,6 +379,7 @@ class TaskStore:
                     and existing["repository"] == repository
                     and existing["executor_kind"] == executor_kind
                     and existing["binding_ref"] == binding_ref
+                    and existing["orchestration_mode"] == orchestration_mode
                 ):
                     return self.get_task(existing["task_id"])
                 raise DuplicateTaskError(
@@ -377,10 +395,10 @@ class TaskStore:
             INSERT INTO tasks (
                 id, title, repository, status, executor_kind, execution_id,
                 model_profile_ref, binding_ref, permission_profile, policy_ref, workspace,
-                branch, created_at, updated_at, failure_classification,
+                branch, orchestration_mode, created_at, updated_at, failure_classification,
                 failure_detail, validation_command_id, validation_exit_code,
                 validation_output_digest, idempotency_key
-            ) VALUES (?, ?, ?, 'QUEUED', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', '', NULL, '', ?)
+            ) VALUES (?, ?, ?, 'QUEUED', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', '', NULL, '', ?)
             """,
             (
                 task_id,
@@ -394,6 +412,7 @@ class TaskStore:
                 policy_ref,
                 workspace,
                 branch,
+                orchestration_mode,
                 now,
                 now,
                 idempotency_key,
