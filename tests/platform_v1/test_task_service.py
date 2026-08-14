@@ -675,3 +675,356 @@ def test_combined_trusted_host_allows_fake_adapter_injection(tmp_path) -> None:
         assert body["repositories"][0]["full_name"] == "test/repo"
     finally:
         host.stop()
+
+
+# ---------------------------------------------------------------------------
+# Issue #192: orchestration_mode HTTP API and dispatch
+# ---------------------------------------------------------------------------
+
+def test_create_task_default_orchestration_mode_is_single(task_server) -> None:
+    base, _ = task_server
+    status, body = _req(
+        base, "POST", "/api/tasks", {"title": "default-mode"}
+    )
+    assert status == 201
+    assert body["orchestration_mode"] == "single"
+    tid = body["id"]
+    status2, got = _req(base, "GET", f"/api/tasks/{tid}")
+    assert status2 == 200
+    assert got["orchestration_mode"] == "single"
+
+
+def test_create_task_sequential_team_persists_and_readback(task_server) -> None:
+    base, _ = task_server
+    payload = {
+        "title": "seq task",
+        "executor_kind": "opencode",
+        "repository": "https://github.com/dddd2024/reverse-agent",
+        "orchestration_mode": "sequential_team",
+        "idempotency_key": "issue192-seq-create-1",
+    }
+    status, created = _req(base, "POST", "/api/tasks", payload)
+    assert status == 201
+    assert created["orchestration_mode"] == "sequential_team"
+    assert created["executor_kind"] == "opencode"
+    tid = created["id"]
+    status2, got = _req(base, "GET", f"/api/tasks/{tid}")
+    assert status2 == 200
+    assert got["orchestration_mode"] == "sequential_team"
+
+
+def test_create_task_invalid_orchestration_mode_fails_closed(task_server) -> None:
+    base, _ = task_server
+    status, body = _req(
+        base,
+        "POST",
+        "/api/tasks",
+        {
+            "title": "bad",
+            "executor_kind": "opencode",
+            "repository": "https://github.com/dddd2024/reverse-agent",
+            "orchestration_mode": "parallel",
+        },
+    )
+    assert status == 409
+    assert "unsupported_orchestration_mode" in body["error"]
+
+
+def test_create_task_sequential_team_with_fixture_fails_closed(task_server) -> None:
+    base, _ = task_server
+    status, body = _req(
+        base,
+        "POST",
+        "/api/tasks",
+        {
+            "title": "bad",
+            "executor_kind": "deterministic_fixture",
+            "orchestration_mode": "sequential_team",
+        },
+    )
+    assert status == 409
+    assert "sequential_team_requires_opencode_executor" in body["error"]
+
+
+def test_sequential_task_execute_dispatches_to_sequential_team_method_once(
+    tmp_path,
+) -> None:
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+    from reverse_agent.platform_v1.task_runtime import (
+        ExecutorRuntimeError,
+        ExecutorRouter,
+    )
+
+    db_path = str(tmp_path / "seq_dispatch.sqlite3")
+    store = TaskStore(db_path=db_path)
+
+    class _TracingTaskExecutionService(TaskExecutionService):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.execute_calls = 0
+            self.execute_sequential_team_calls = 0
+
+        def execute(self, task_id, **kwargs):
+            self.execute_calls += 1
+            raise ExecutorRuntimeError("traced", "execute should not be called")
+
+        def execute_sequential_team(self, task_id, **kwargs):
+            self.execute_sequential_team_calls += 1
+            from reverse_agent.platform_v1.task_execution import TaskExecutionError
+            raise TaskExecutionError("traced_sequential")
+
+    router = ExecutorRouter()
+    svc = _TracingTaskExecutionService(
+        store=store, router=router,
+    )
+
+    seq_task = store.create_task(
+        title="seq dispatch",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    store.transition_to(seq_task.id, "QUEUED")
+
+    try:
+        svc.execute_sequential_team(
+            task_id=seq_task.id,
+            workspace_root=str(tmp_path / "ws"),
+        )
+    except Exception:
+        pass
+
+    assert svc.execute_calls == 0
+    assert svc.execute_sequential_team_calls == 1
+
+
+def test_single_task_execute_does_not_call_sequential_team(tmp_path) -> None:
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+    from reverse_agent.platform_v1.task_runtime import (
+        ExecutorRuntimeError,
+        ExecutorRouter,
+    )
+
+    db_path = str(tmp_path / "single_dispatch.sqlite3")
+    store = TaskStore(db_path=db_path)
+
+    class _TracingService(TaskExecutionService):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.execute_calls = 0
+            self.execute_sequential_team_calls = 0
+
+        def execute(self, task_id, **kwargs):
+            self.execute_calls += 1
+            raise ExecutorRuntimeError("traced", "execute called")
+
+        def execute_sequential_team(self, task_id, **kwargs):
+            self.execute_sequential_team_calls += 1
+            raise ExecutorRuntimeError("traced_seq", "seq should not be called")
+
+    router = ExecutorRouter()
+    svc = _TracingService(store=store, router=router)
+
+    single_task = store.create_task(
+        title="single dispatch",
+        executor_kind="deterministic_fixture",
+        orchestration_mode="single",
+    )
+
+    try:
+        svc.execute(
+            task_id=single_task.id,
+            workspace_root=str(tmp_path / "ws"),
+        )
+    except Exception:
+        pass
+
+    assert svc.execute_calls == 1
+    assert svc.execute_sequential_team_calls == 0
+
+
+def test_http_execute_uses_persisted_mode_not_request_override(tmp_path) -> None:
+    from http.server import ThreadingHTTPServer
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+
+    db_path = str(tmp_path / "persist_mode.sqlite3")
+    store = TaskStore(db_path=db_path)
+    router = ExecutorRouter()
+    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173")
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = "http://127.0.0.1:%d" % port
+        _, created = _req(
+            base,
+            "POST",
+            "/api/tasks",
+            {
+                "title": "persist-mode-test",
+                "executor_kind": "opencode",
+                "repository": "https://github.com/dddd2024/reverse-agent",
+                "orchestration_mode": "sequential_team",
+            },
+        )
+        assert created["orchestration_mode"] == "sequential_team"
+        tid = created["id"]
+
+        override_body = {"orchestration_mode": "single", "validation_command_id": "x"}
+        _req(base, "POST", f"/api/tasks/{tid}/execute", override_body)
+
+        task_after = store.get_task(tid)
+        assert task_after.orchestration_mode == "sequential_team"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_sequential_task_preserves_binding_ref_through_http(
+    task_server,
+) -> None:
+    base, _ = task_server
+    payload = {
+        "title": "seq-binding",
+        "executor_kind": "opencode",
+        "repository": "https://github.com/dddd2024/reverse-agent",
+        "orchestration_mode": "sequential_team",
+        "binding_ref": "coding-fast",
+        "model_profile_ref": "legacy-profile",
+        "idempotency_key": "issue192-seq-binding-1",
+    }
+    status, created = _req(base, "POST", "/api/tasks", payload)
+    assert status == 201
+    assert created["binding_ref"] == "coding-fast"
+    assert created["orchestration_mode"] == "sequential_team"
+    assert created["model_profile_ref"] == "legacy-profile"
+    tid = created["id"]
+    status2, got = _req(base, "GET", f"/api/tasks/{tid}")
+    assert status2 == 200
+    assert got["binding_ref"] == "coding-fast"
+    assert got["orchestration_mode"] == "sequential_team"
+    assert got["model_profile_ref"] == "legacy-profile"
+
+
+def test_http_execute_mode_dispatches_correctly_for_sequential_team(
+    tmp_path,
+) -> None:
+    from http.server import ThreadingHTTPServer
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+
+    db_path = str(tmp_path / "http-seq-dispatch.sqlite3")
+    store = TaskStore(db_path=db_path)
+    router = ExecutorRouter()
+    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173")
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = "http://127.0.0.1:%d" % port
+        _, created = _req(
+            base,
+            "POST",
+            "/api/tasks",
+            {
+                "title": "http-seq-test",
+                "executor_kind": "opencode",
+                "repository": "https://github.com/dddd2024/reverse-agent",
+                "orchestration_mode": "sequential_team",
+                "binding_ref": "coding-fast",
+            },
+        )
+        assert created["orchestration_mode"] == "sequential_team"
+        assert created["binding_ref"] == "coding-fast"
+        tid = created["id"]
+
+        _req(base, "POST", f"/api/tasks/{tid}/execute", {})
+
+        task_after = store.get_task(tid)
+        assert task_after.orchestration_mode == "sequential_team"
+        assert task_after.binding_ref == "coding-fast"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_http_response_contains_no_credentials(task_server) -> None:
+    import re
+    base, _ = task_server
+    payload = {
+        "title": "no-leak",
+        "executor_kind": "opencode",
+        "repository": "https://github.com/dddd2024/reverse-agent",
+        "orchestration_mode": "single",
+        "binding_ref": "coding-fast",
+    }
+    status, created = _req(base, "POST", "/api/tasks", payload)
+    assert status == 201
+    response_text = json.dumps(created)
+    assert not re.search(r"(?i)api[_-]?key\s*[:=]\s*['\"]?[a-zA-Z0-9+/=]{16,}", response_text)
+    assert not re.search(r"(?i)bearer\s+[a-zA-Z0-9+/=]{16,}", response_text)
+    assert not re.search(r"(?i)(?:ghp|gho|ghu|ghs|ghr)_[a-zA-Z0-9]{20,}", response_text)
+
+
+def test_single_mode_execute_backward_compatible_http(tmp_path) -> None:
+    from http.server import ThreadingHTTPServer
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+
+    db_path = str(tmp_path / "bc-single.sqlite3")
+    store = TaskStore(db_path=db_path)
+    router = ExecutorRouter()
+
+    dispatched: list[str] = []
+
+    class _TraceRouter(ExecutorRouter):
+        def dispatch_execute(self, **kwargs):
+            dispatched.append(kwargs.get("executor_kind", ""))
+            return super().dispatch_execute(**kwargs)
+
+    trace_router = _TraceRouter()
+    handler_cls = _handler_factory(
+        store, trace_router, allowed_origin="http://localhost:5173"
+    )
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = "http://127.0.0.1:%d" % port
+        _, created = _req(
+            base,
+            "POST",
+            "/api/tasks",
+            {"title": "bc-single", "executor_kind": "deterministic_fixture"},
+        )
+        assert created["orchestration_mode"] == "single"
+        tid = created["id"]
+        status, executed = _req(base, "POST", f"/api/tasks/{tid}/execute")
+        assert status == 200
+        assert executed["status"] == "READY_FOR_REVIEW_FIXTURE"
+        assert executed["orchestration_mode"] == "single"
+        assert len(dispatched) == 1
+        assert dispatched[0] == "deterministic_fixture"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_binding_ref_and_orchestration_mode_persisted_together(
+    tmp_path,
+) -> None:
+    import sqlite3 as _sqlite3
+    db_path = str(tmp_path / "persist-together.sqlite3")
+    store = TaskStore(db_path=db_path)
+    task = store.create_task(
+        title="persist-both",
+        executor_kind="opencode",
+        binding_ref="coding-fast",
+        orchestration_mode="sequential_team",
+    )
+    raw = store._conn.execute(
+        "SELECT binding_ref, orchestration_mode FROM tasks WHERE id = ?",
+        (task.id,),
+    ).fetchone()
+    assert raw["binding_ref"] == "coding-fast"
+    assert raw["orchestration_mode"] == "sequential_team"

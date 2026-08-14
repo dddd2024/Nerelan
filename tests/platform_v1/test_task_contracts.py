@@ -408,3 +408,173 @@ def test_create_task_and_execute_does_not_hold_store_lock_across_runner() -> Non
 
     assert completed_before_release, "TaskStore read blocked behind executor runtime"
     assert not execution_errors
+
+
+# ---------------------------------------------------------------------------
+# Issue #192: orchestration_mode durable Task truth
+# ---------------------------------------------------------------------------
+
+def test_fresh_taskstore_default_orchestration_mode_is_single() -> None:
+    store = TaskStore(":memory:")
+    task = store.create_task(title="default mode")
+    assert task.orchestration_mode == "single"
+    assert store.get_task(task.id).orchestration_mode == "single"
+
+
+def test_orchestration_mode_schema_fresh_database() -> None:
+    store = TaskStore(":memory:")
+    columns = {
+        row["name"]: row
+        for row in store._conn.execute("PRAGMA table_info(tasks)").fetchall()
+    }
+    assert "orchestration_mode" in columns
+    assert columns["orchestration_mode"]["notnull"] == 1
+    assert columns["orchestration_mode"]["dflt_value"] == "'single'"
+
+
+def _create_legacy_task_database_without_orchestration_mode(path: str) -> str:
+    task_id = "task-legacy-no-orchestration-mode"
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            """
+            CREATE TABLE tasks (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                repository TEXT NOT NULL,
+                status TEXT NOT NULL,
+                executor_kind TEXT NOT NULL,
+                execution_id TEXT NOT NULL,
+                model_profile_ref TEXT NOT NULL,
+                binding_ref TEXT NOT NULL DEFAULT '',
+                permission_profile TEXT NOT NULL,
+                policy_ref TEXT NOT NULL,
+                workspace TEXT NOT NULL,
+                branch TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                failure_classification TEXT NOT NULL,
+                failure_detail TEXT NOT NULL,
+                validation_command_id TEXT NOT NULL,
+                validation_exit_code INTEGER,
+                validation_output_digest TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO tasks VALUES (
+                ?, 'legacy pre-mode row', 'dddd2024/reverse-agent', 'QUEUED',
+                'deterministic_fixture', ?, 'model/prof', '', 'ASK_FOR_APPROVAL', '',
+                '', '', '2026-08-10T00:00:00Z', '2026-08-10T00:00:00Z', '',
+                '', '', NULL, '', ''
+            )
+            """,
+            (task_id, f"exec-{task_id}"),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    return task_id
+
+
+def test_legacy_database_migrates_orchestration_mode_without_losing_rows(
+    tmp_path,
+) -> None:
+    db_path = str(tmp_path / "legacy-no-mode.sqlite3")
+    task_id = _create_legacy_task_database_without_orchestration_mode(db_path)
+    store = TaskStore(db_path)
+    try:
+        migrated = store.get_task(task_id)
+        assert migrated.title == "legacy pre-mode row"
+        assert migrated.orchestration_mode == "single"
+        assert store.count_tasks() == 1
+    finally:
+        store._conn.close()
+
+
+def test_legacy_database_orchestration_mode_migration_idempotent(tmp_path) -> None:
+    db_path = str(tmp_path / "legacy-mode-twice.sqlite3")
+    task_id = _create_legacy_task_database_without_orchestration_mode(db_path)
+    first = TaskStore(db_path)
+    first._conn.close()
+    second = TaskStore(db_path)
+    try:
+        columns = [
+            row["name"]
+            for row in second._conn.execute("PRAGMA table_info(tasks)").fetchall()
+        ]
+        assert columns.count("orchestration_mode") == 1
+        assert second.get_task(task_id).orchestration_mode == "single"
+    finally:
+        second._conn.close()
+
+
+def test_create_readback_sequential_team_persists() -> None:
+    store = TaskStore(":memory:")
+    task = store.create_task(
+        title="seq task",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    assert task.orchestration_mode == "sequential_team"
+    read = store.get_task(task.id)
+    assert read.orchestration_mode == "sequential_team"
+
+
+def test_invalid_orchestration_mode_fails_closed() -> None:
+    store = TaskStore(":memory:")
+    with pytest.raises(TaskStoreError, match="unsupported_orchestration_mode"):
+        store.create_task(
+            title="bad",
+            executor_kind="opencode",
+            orchestration_mode="parallel",
+        )
+
+
+def test_sequential_team_requires_opencode_executor() -> None:
+    store = TaskStore(":memory:")
+    with pytest.raises(
+        TaskStoreError, match="sequential_team_requires_opencode_executor"
+    ):
+        store.create_task(
+            title="bad",
+            executor_kind="deterministic_fixture",
+            orchestration_mode="sequential_team",
+        )
+
+
+def test_idempotency_same_key_same_orchestration_mode_returns_same_task() -> None:
+    store = TaskStore(":memory:")
+    t1 = store.create_task(
+        title="seq",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+        idempotency_key="mode-key-1",
+    )
+    t2 = store.create_task(
+        title="seq",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+        idempotency_key="mode-key-1",
+    )
+    assert t2.id == t1.id
+    assert store.count_tasks() == 1
+
+
+def test_idempotency_same_key_different_orchestration_mode_raises() -> None:
+    store = TaskStore(":memory:")
+    store.create_task(
+        title="t",
+        executor_kind="opencode",
+        orchestration_mode="single",
+        idempotency_key="mode-key-2",
+    )
+    with pytest.raises(DuplicateTaskError, match="different_request"):
+        store.create_task(
+            title="t",
+            executor_kind="opencode",
+            orchestration_mode="sequential_team",
+            idempotency_key="mode-key-2",
+        )
