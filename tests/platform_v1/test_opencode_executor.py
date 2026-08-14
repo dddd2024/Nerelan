@@ -20,6 +20,8 @@ from reverse_agent.platform_v1.opencode_executor import (
     build_binding_config_content,
     build_opencode_argv,
     build_prompt,
+    build_role_child_env,
+    build_role_permission_config,
     build_role_prompt,
     redact_event,
     redact_secrets,
@@ -240,7 +242,7 @@ def test_build_role_prompt_planner_contains_role_instructions() -> None:
     prompt = build_role_prompt("bounded task", "/tmp/ws", role_context=ctx)
 
     assert "AUTHORITY CONSTRAINTS" in prompt
-    assert "ROLE INSTRUCTIONS" in prompt
+    assert "ROLE AUTHORITY" in prompt
     assert "planner" in prompt
     assert "MUST NOT commit" in prompt
     assert "bounded task" in prompt
@@ -274,7 +276,7 @@ def test_build_role_prompt_unknown_role_falls_back_to_base() -> None:
 
     assert "bounded task" in prompt
     assert "AUTHORITY CONSTRAINTS" in prompt
-    assert "ROLE INSTRUCTIONS" not in prompt
+    assert "ROLE AUTHORITY" not in prompt
 
 
 def test_build_role_prompt_without_context_equals_build_prompt() -> None:
@@ -1384,3 +1386,616 @@ def test_handoff_file_size_ok_bounds(tmp_path) -> None:
     assert _handoff_file_size_ok(f) == (False, "handoff_empty")
     f.write_text("ok\n", encoding="utf-8")
     assert _handoff_file_size_ok(f) == (True, "")
+
+
+# ---------------------------------------------------------------------------
+# ISSUE185 R2 V1 role authority ordering and runtime permissions
+# ---------------------------------------------------------------------------
+
+
+def test_planner_role_authority_before_user_task() -> None:
+    from reverse_agent.platform_v1.opencode_executor import RoleContext
+    ctx = RoleContext(
+        role="planner",
+        task_id="t-1",
+        workspace=Path("/tmp/ws"),
+        role_order_index=0,
+    )
+    prompt = build_role_prompt("fix calculator.py", "/tmp/ws", role_context=ctx)
+    auth_header = prompt.index("AUTHORITY CONSTRAINTS")
+    auth_footer = prompt.index("END AUTHORITY CONSTRAINTS")
+    role_marker = prompt.index("ROLE AUTHORITY:")
+    user_header = prompt.index("\nUSER TASK\n")
+    user_footer = prompt.index("\nEND USER TASK")
+    assert auth_header < auth_footer < user_header < user_footer
+    assert auth_header < role_marker < auth_footer
+    assert role_marker < user_header
+
+
+def test_reviewer_role_authority_before_user_task() -> None:
+    from reverse_agent.platform_v1.opencode_executor import RoleContext
+    ctx = RoleContext(
+        role="reviewer",
+        task_id="t-1",
+        workspace=Path("/tmp/ws"),
+        role_order_index=2,
+    )
+    prompt = build_role_prompt("fix calculator.py", "/tmp/ws", role_context=ctx)
+    auth_header = prompt.index("AUTHORITY CONSTRAINTS")
+    auth_footer = prompt.index("END AUTHORITY CONSTRAINTS")
+    role_marker = prompt.index("ROLE AUTHORITY:")
+    user_header = prompt.index("\nUSER TASK\n")
+    user_footer = prompt.index("\nEND USER TASK")
+    assert auth_header < auth_footer < user_header < user_footer
+    assert auth_header < role_marker < auth_footer
+    assert role_marker < user_header
+
+
+def test_planner_end_state_not_write_authority() -> None:
+    from reverse_agent.platform_v1.opencode_executor import RoleContext
+    ctx = RoleContext(
+        role="planner",
+        task_id="t-1",
+        workspace=Path("/tmp/ws"),
+        role_order_index=0,
+    )
+    prompt = build_role_prompt(
+        "fix the calculator to handle division by zero",
+        "/tmp/ws",
+        role_context=ctx,
+    )
+    assert "TEAM end-state" in prompt
+    assert "does NOT grant this role permission beyond ROLE AUTHORITY" in prompt
+    assert "NOT the implementation role" in prompt
+    assert "MUST NOT modify product source" in prompt
+    assert ".reverse-agent-handoff/plan.md" in prompt
+    assert "MUST NOT implement" in prompt
+
+
+def test_reviewer_end_state_not_write_authority() -> None:
+    from reverse_agent.platform_v1.opencode_executor import RoleContext
+    ctx = RoleContext(
+        role="reviewer",
+        task_id="t-1",
+        workspace=Path("/tmp/ws"),
+        role_order_index=2,
+    )
+    prompt = build_role_prompt(
+        "fix the calculator to handle division by zero",
+        "/tmp/ws",
+        role_context=ctx,
+    )
+    assert "TEAM end-state" in prompt
+    assert "does NOT grant this role permission beyond ROLE AUTHORITY" in prompt
+    assert "NOT a repair role" in prompt
+    assert "MUST NOT modify product source" in prompt
+    assert ".reverse-agent-handoff/review.md" in prompt
+    assert "MUST NOT fix a defect" in prompt
+
+
+def test_coder_retains_implementation_role() -> None:
+    from reverse_agent.platform_v1.opencode_executor import RoleContext
+    ctx = RoleContext(
+        role="coder",
+        task_id="t-1",
+        workspace=Path("/tmp/ws"),
+        role_order_index=1,
+    )
+    prompt = build_role_prompt("fix calculator.py", "/tmp/ws", role_context=ctx)
+    assert "ARE the implementation role" in prompt
+    assert "MAY modify bounded product files" in prompt
+    assert "plan.md" in prompt
+    assert "MUST NOT overwrite" in prompt
+    assert "MUST NOT create" in prompt
+    assert "review.md" in prompt
+
+
+def test_planner_permission_schema_is_v1_shape() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("planner")
+    config = json.loads(config_str)
+    assert "permission" in config
+    assert "permissions" not in config
+    assert isinstance(config["permission"], dict)
+
+
+def test_planner_runtime_permission_product_edit_denied() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("planner")
+    config = json.loads(config_str)
+    edit_perm = config["permission"]["edit"]
+    assert edit_perm["*"] == "deny"
+    assert edit_perm.get("calculator.py") != "allow"
+
+
+def test_planner_runtime_permission_exact_plan_allowed() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("planner")
+    config = json.loads(config_str)
+    edit_perm = config["permission"]["edit"]
+    assert edit_perm[".reverse-agent-handoff/plan.md"] == "allow"
+
+
+def test_planner_runtime_permission_broad_deny_before_specific_allow() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("planner")
+    config = json.loads(config_str)
+    edit_keys = list(config["permission"]["edit"].keys())
+    assert edit_keys[0] == "*"
+    assert edit_keys[1] == ".reverse-agent-handoff/plan.md"
+
+
+def test_planner_shell_denied() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("planner")
+    config = json.loads(config_str)
+    bash_perm = config["permission"]["bash"]
+    assert bash_perm["*"] == "deny"
+    assert "allow" not in bash_perm
+
+
+def test_planner_v1_action_names_present() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("planner")
+    config = json.loads(config_str)
+    perm = config["permission"]
+    for action in ("edit", "bash", "external_directory", "task", "webfetch", "websearch"):
+        assert action in perm, action
+    assert "web" not in perm, perm
+
+
+def test_planner_no_v1_list_shape() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("planner")
+    config = json.loads(config_str)
+    for action_name, rules in config["permission"].items():
+        if action_name in ("webfetch", "websearch"):
+            assert rules == "deny", action_name
+            continue
+        assert "allow" not in rules, action_name
+        assert "deny" not in rules, action_name
+        for pattern, effect in rules.items():
+            assert isinstance(effect, str), action_name
+            assert effect in ("allow", "deny", "ask"), (action_name, pattern, effect)
+
+
+def test_reviewer_permission_schema_is_v1_shape() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("reviewer")
+    config = json.loads(config_str)
+    assert "permission" in config
+    assert "permissions" not in config
+
+
+def test_reviewer_runtime_permission_product_edit_denied() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("reviewer")
+    config = json.loads(config_str)
+    edit_perm = config["permission"]["edit"]
+    assert edit_perm["*"] == "deny"
+    assert edit_perm.get("calculator.py") != "allow"
+
+
+def test_reviewer_runtime_permission_exact_review_allowed() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("reviewer")
+    config = json.loads(config_str)
+    edit_perm = config["permission"]["edit"]
+    assert edit_perm[".reverse-agent-handoff/review.md"] == "allow"
+
+
+def test_reviewer_runtime_permission_broad_deny_before_specific_allow() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("reviewer")
+    config = json.loads(config_str)
+    edit_keys = list(config["permission"]["edit"].keys())
+    assert edit_keys[0] == "*"
+    assert edit_keys[1] == ".reverse-agent-handoff/review.md"
+
+
+def test_reviewer_read_only_git_shell_allowed() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("reviewer")
+    config = json.loads(config_str)
+    bash_perm = config["permission"]["bash"]
+    assert bash_perm["*"] == "deny"
+    assert bash_perm["git diff*"] == "allow"
+    assert bash_perm["git status*"] == "allow"
+
+
+def test_reviewer_mutation_commands_not_allowed() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("reviewer")
+    config = json.loads(config_str)
+    bash_perm = config["permission"]["bash"]
+    mutation_patterns = [
+        "git add",
+        "git checkout",
+        "git restore",
+        "git commit",
+        "git merge",
+        "git rebase",
+        "git reset",
+        "git clean",
+        "git apply",
+        "sed ",
+        "perl ",
+        "python ",
+    ]
+    for pat in mutation_patterns:
+        assert bash_perm.get(pat) != "allow", pat
+
+
+def test_coder_permission_schema_is_v1_shape() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("coder")
+    config = json.loads(config_str)
+    assert "permission" in config
+    assert "permissions" not in config
+
+
+def test_coder_not_subject_to_wildcard_edit_deny() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("coder")
+    config = json.loads(config_str)
+    assert "edit" not in config["permission"]
+    bash_perm = config["permission"]["bash"]
+    assert bash_perm.get("git commit*") == "deny"
+    assert bash_perm.get("git push*") == "deny"
+    assert bash_perm.get("git merge*") == "deny"
+    assert bash_perm.get("git tag*") == "deny"
+    assert "*" not in bash_perm
+
+
+def test_coder_dangerous_bash_patterns_denied() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("coder")
+    config = json.loads(config_str)
+    bash_perm = config["permission"]["bash"]
+    for dangerous in ("git commit*", "git push*", "git merge*", "git tag*"):
+        assert bash_perm.get(dangerous) == "deny", dangerous
+
+
+def test_coder_retains_bounded_implementation_capability() -> None:
+    from reverse_agent.platform_v1.opencode_executor import RoleContext
+    ctx = RoleContext(
+        role="coder",
+        task_id="t-1",
+        workspace=Path("/tmp/ws"),
+        role_order_index=1,
+    )
+    prompt = build_role_prompt("fix calculator.py", "/tmp/ws", role_context=ctx)
+    assert "MAY modify bounded product files" in prompt
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("coder")
+    config = json.loads(config_str)
+    assert "edit" not in config["permission"]
+
+
+def test_binding_relay_runtime_config_contains_provider_and_permission() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_binding_config_content,
+        build_role_child_env,
+        build_role_permission_config,
+    )
+    from reverse_agent.platform_v1.binding_resolver import OpenCodeBindingResolution
+    resolution = OpenCodeBindingResolution(
+        binding_ref="test-ref",
+        connection_id="test-conn",
+        executor_id="opencode",
+        provider_id="openai-compatible",
+        model_id="openai-compatible/test-model",
+        base_url="https://models.test/v1",
+        auth_method="external_cli_session",
+        external_session_status="available",
+    )
+    provider_config = build_binding_config_content(resolution)
+    provider_json = json.loads(provider_config)
+    assert "provider" in provider_json
+
+    class _SimpleParentEnv(Mapping[str, str]):
+        def __init__(self):
+            self._d = {"PATH": "/safe", "SystemRoot": "C:\\Windows"}
+        def __getitem__(self, k):
+            return self._d[k]
+        def __iter__(self):
+            raise AssertionError("iteration forbidden")
+        def __len__(self):
+            raise AssertionError("len forbidden")
+        def get(self, k, default=None):
+            return self._d.get(k, default)
+
+    child_env = build_role_child_env(_SimpleParentEnv(), provider_config, "planner")
+    merged_config = json.loads(child_env["OPENCODE_CONFIG_CONTENT"])
+    assert "provider" in merged_config
+    assert "permission" in merged_config
+    assert "permissions" not in merged_config
+    assert merged_config["permission"]["edit"]["*"] == "deny"
+    assert merged_config["permission"]["edit"][".reverse-agent-handoff/plan.md"] == "allow"
+
+
+def test_direct_authenticated_session_env_preserves_parent_markers() -> None:
+    from reverse_agent.platform_v1.opencode_executor import build_role_child_env
+
+    parent_env = {
+        "PATH": "/usr/bin:/usr/local/bin",
+        "SystemRoot": "C:\\Windows",
+        "OPENCODE_TEST_MARKER": "keep-me",
+        "FAKE_API_KEY_NOT_SECRET": "fake-marker-value",
+    }
+
+    child = build_role_child_env(parent_env, None, "planner")
+    assert child["OPENCODE_TEST_MARKER"] == "keep-me"
+    assert child["FAKE_API_KEY_NOT_SECRET"] == "fake-marker-value"
+    assert child["PATH"] == "/usr/bin:/usr/local/bin"
+    assert child["OPENCODE_CONFIG_CONTENT"]
+    config = json.loads(child["OPENCODE_CONFIG_CONTENT"])
+    assert "permission" in config
+    assert "permissions" not in config
+
+
+def test_no_secret_value_persisted_in_event_or_evidence() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        redact_event,
+        redact_secrets,
+    )
+    secret_value = "ghp_abcdefghijklmnopqrstuvwxyz123456"
+    raw_event = {
+        "type": "tool_call",
+        "action": "write_file",
+        "path": "calculator.py",
+        "token": secret_value,
+        "secret": "not-real-value-12345",
+        "api_key": "sk-not-a-real-key-abcdef",
+    }
+    redacted = redact_event(raw_event)
+    assert secret_value not in json.dumps(redacted)
+    assert "not-real-value-12345" not in json.dumps(redacted)
+    assert "sk-not-a-real-key-abcdef" not in json.dumps(redacted)
+    for v in redacted.values():
+        s = json.dumps(v) if not isinstance(v, str) else v
+        assert secret_value not in s
+        assert "not-real-value-12345" not in s
+        assert "sk-not-a-real-key-abcdef" not in s
+
+
+def test_ordinary_executor_regression_backward_compatible() -> None:
+    from reverse_agent.platform_v1.opencode_executor import RoleContext
+    ctx = RoleContext(
+        role="executor",
+        task_id="t-1",
+        workspace=Path("/tmp/ws"),
+        role_order_index=0,
+    )
+    prompt = build_role_prompt("fix calculator.py", "/tmp/ws", role_context=ctx)
+    assert prompt == build_prompt("fix calculator.py", "/tmp/ws")
+    assert "ROLE AUTHORITY" not in prompt
+    assert "TEAM end-state" not in prompt
+
+
+def test_prompt_file_transport_still_compatible() -> None:
+    prompt = build_role_prompt(
+        "fix calculator.py",
+        "/tmp/ws",
+        role_context=None,
+    )
+    import tempfile as _tf
+    fd, path = _tf.mkstemp(suffix=".txt")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(prompt)
+        prompt_file = _write_prompt_file(prompt)
+        try:
+            disk = prompt_file.read_text(encoding="utf-8")
+            assert "fix calculator.py" in disk
+            assert "AUTHORITY CONSTRAINTS" in disk
+            assert "USER TASK" in disk
+            argv, positional = build_opencode_argv(
+                "/usr/bin/opencode",
+                is_cmd=False,
+                model_id="m",
+                worktree="/tmp/ws",
+                prompt_file=str(prompt_file),
+            )
+            assert "--file" in argv
+            assert positional == "execute bounded task from attached prompt file"
+        finally:
+            try:
+                os.unlink(prompt_file)
+            except OSError:
+                pass
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
+def test_binding_child_env_still_uses_allowlist() -> None:
+    parent = _GuardedParentEnvironment()
+    content = build_binding_config_content(_binding_resolution())
+    child = build_binding_child_env(parent, content)
+    assert child == {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "OPENCODE_DISABLE_AUTOUPDATE": "true",
+        "OPENCODE_DISABLE_MODELS_FETCH": "true",
+        "OPENCODE_DISABLE_LSP_DOWNLOAD": "true",
+        "OPENCODE_DISABLE_DEFAULT_PLUGINS": "true",
+        "OPENCODE_DISABLE_CLAUDE_CODE": "true",
+        "OPENCODE_CONFIG_CONTENT": content,
+    }
+    assert not parent.forbidden.intersection(parent.read_keys)
+
+
+def test_role_permission_config_unknown_role_returns_none() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    assert build_role_permission_config("executor") is None
+    assert build_role_permission_config("unknown") is None
+
+
+def test_reviewer_role_permission_config_exact_v1_shape() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("reviewer")
+    config = json.loads(config_str)
+    assert sorted(config.keys()) == ["permission"]
+    assert sorted(config["permission"].keys()) == [
+        "bash",
+        "edit",
+        "external_directory",
+        "task",
+        "webfetch",
+        "websearch",
+    ]
+    assert config["permission"]["edit"]["*"] == "deny"
+    assert config["permission"]["edit"][".reverse-agent-handoff/review.md"] == "allow"
+    assert config["permission"]["bash"]["*"] == "deny"
+    assert config["permission"]["bash"]["git diff*"] == "allow"
+    assert config["permission"]["bash"]["git status*"] == "allow"
+    assert config["permission"]["external_directory"]["*"] == "deny"
+    assert config["permission"]["task"]["*"] == "deny"
+    assert config["permission"]["webfetch"] == "deny"
+    assert config["permission"]["websearch"] == "deny"
+    assert "web" not in config["permission"]
+
+
+def test_planner_role_permission_config_exact_v1_shape() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("planner")
+    config = json.loads(config_str)
+    assert sorted(config.keys()) == ["permission"]
+    assert sorted(config["permission"].keys()) == [
+        "bash",
+        "edit",
+        "external_directory",
+        "task",
+        "webfetch",
+        "websearch",
+    ]
+    assert config["permission"]["edit"]["*"] == "deny"
+    assert config["permission"]["edit"][".reverse-agent-handoff/plan.md"] == "allow"
+    assert config["permission"]["bash"]["*"] == "deny"
+    assert "allow" not in config["permission"]["bash"]
+    assert config["permission"]["external_directory"]["*"] == "deny"
+    assert config["permission"]["task"]["*"] == "deny"
+    assert config["permission"]["webfetch"] == "deny"
+    assert config["permission"]["websearch"] == "deny"
+    assert "web" not in config["permission"]
+
+
+def test_coder_role_permission_config_exact_v1_shape() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("coder")
+    config = json.loads(config_str)
+    assert sorted(config.keys()) == ["permission"]
+    assert sorted(config["permission"].keys()) == ["bash"]
+    assert config["permission"]["bash"]["git commit*"] == "deny"
+    assert config["permission"]["bash"]["git push*"] == "deny"
+    assert config["permission"]["bash"]["git merge*"] == "deny"
+    assert config["permission"]["bash"]["git tag*"] == "deny"
+    assert "*" not in config["permission"]["bash"]
+    assert "allow" not in config["permission"]["bash"]
+
+
+def test_role_prompt_unknown_role_uses_base_prompt() -> None:
+    from reverse_agent.platform_v1.opencode_executor import RoleContext
+    ctx = RoleContext(
+        role="unknown_role",
+        task_id="t-1",
+        workspace=Path("/tmp/ws"),
+        role_order_index=0,
+    )
+    prompt = build_role_prompt("task", "/tmp/ws", role_context=ctx)
+    assert prompt == build_prompt("task", "/tmp/ws")
+    assert "ROLE AUTHORITY" not in prompt
+
+
+def test_role_prompt_no_context_uses_base_prompt() -> None:
+    prompt = build_role_prompt("task", "/tmp/ws")
+    assert prompt == build_prompt("task", "/tmp/ws")
+
+
+# ---------------------------------------------------------------------------
+# ISSUE185 R2 V3 OpenCode v1 web permission recovery
+# ---------------------------------------------------------------------------
+
+def test_planner_webfetch_websearch_deny_action_values() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("planner")
+    config = json.loads(config_str)
+    perm = config["permission"]
+    assert perm["webfetch"] == "deny"
+    assert perm["websearch"] == "deny"
+
+
+def test_reviewer_webfetch_websearch_deny_action_values() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("reviewer")
+    config = json.loads(config_str)
+    perm = config["permission"]
+    assert perm["webfetch"] == "deny"
+    assert perm["websearch"] == "deny"
+
+
+def test_planner_permission_has_no_web_key() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("planner")
+    config = json.loads(config_str)
+    assert "web" not in config["permission"]
+
+
+def test_reviewer_permission_has_no_web_key() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        build_role_permission_config,
+    )
+    config_str = build_role_permission_config("reviewer")
+    config = json.loads(config_str)
+    assert "web" not in config["permission"]
