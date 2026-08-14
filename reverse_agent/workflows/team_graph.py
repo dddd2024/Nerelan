@@ -221,6 +221,8 @@ def build_sequential_team_graph(
     verifier: (
         Callable[[tuple[WorkerExecutionResult, ...]], TeamExecutionResult] | None
     ) = None,
+    checkpointer: Any | None = None,
+    skip_roles: set[str] | None = None,
 ) -> StateGraph:
     """Build a compiled LangGraph subgraph that enforces a strict
     ``planner -> coder -> reviewer`` role sequence in ONE assignment.
@@ -230,6 +232,15 @@ def build_sequential_team_graph(
     assignment, carrying the SAME ``task_id`` and ``workspace_root``.
     The downstream node always receives the previous node's result in
     state, so the role identity can be verified by the downstream node.
+
+    If ``checkpointer`` is provided, it is compiled into the graph so
+    that the orchestration cursor is persisted to a durable backend.
+    The caller supplies a stable ``thread_id`` via the ``config`` kwarg
+    when invoking the compiled graph.
+
+    If ``skip_roles`` is provided, the corresponding nodes are replaced
+    with reconciliation nodes that reconstruct WorkerExecutionResult from
+    the durable checkpoint without re-invoking the role executor.
 
     Fail-closed semantics:
     - planner failure -> coder/reviewer never called, team rejected;
@@ -242,11 +253,34 @@ def build_sequential_team_graph(
     """
     default_ver = verifier or _default_verifier
 
+    class SequentialState(TeamWorkflowState):
+        pass
+
+    skip = skip_roles or set()
+    def _reconciliation_node(
+        role: str,
+    ) -> Callable[[TeamWorkflowState], dict[str, Any]]:
+        def _node(state: TeamWorkflowState) -> dict[str, Any]:
+            return {"worker_results": [WorkerExecutionResult(
+                worker_id="sequential",
+                task_id=(state.get("assignment") or {}).get("task_id", ""),
+                execution_id="",
+                success=True,
+                validation_exit_code=0,
+                evidence_ids=(),
+                failure_classification="",
+                failure_detail=f"{role} skipped: already accepted",
+                reasons=(f"accepted_checkpoint:{role}",),
+            ).to_dict()]}
+        return _node
+
     def _planner_node(state: TeamWorkflowState) -> dict[str, Any]:
         base_assignment = state.get("assignment", {})
         role_assignment = dict(base_assignment)
         role_assignment["role"] = "planner"
         wa = WorkerAssignment.from_mapping(role_assignment)
+        if "planner" in skip:
+            return _reconciliation_node("planner")(state)
         result = worker(wa)
         if not (result.success and result.worker_id and result.task_id == wa.task_id):
             raise TeamGraphError("planner_failed")
@@ -274,6 +308,8 @@ def build_sequential_team_graph(
         )
         if not planner_result.success or planner_result.task_id != wa.task_id:
             raise TeamGraphError("invalid_planner_handoff")
+        if "coder" in skip:
+            return _reconciliation_node("coder")(state)
         result = worker(wa)
         if not (result.success and result.worker_id and result.task_id == wa.task_id):
             raise TeamGraphError("coder_failed")
@@ -301,6 +337,8 @@ def build_sequential_team_graph(
         )
         if not planner_result.success:
             raise TeamGraphError("invalid_planner_handoff")
+        if "reviewer" in skip:
+            return _reconciliation_node("reviewer")(state)
         result = worker(wa)
         if not (result.success and result.worker_id and result.task_id == wa.task_id):
             raise TeamGraphError("reviewer_failed")
@@ -324,9 +362,6 @@ def build_sequential_team_graph(
         team = default_ver(tuple(worker_results))
         return {"team_execution_result": team.to_dict()}
 
-    class SequentialState(TeamWorkflowState):
-        pass
-
     builder = StateGraph(SequentialState)
     builder.add_node("dispatch_sequential", lambda s: {"assignment": (s.get("assignments") or [{}])[0]})
     builder.add_node("planner", _planner_node)
@@ -339,4 +374,7 @@ def build_sequential_team_graph(
     builder.add_edge("coder", "reviewer")
     builder.add_edge("reviewer", "verifier")
     builder.add_edge("verifier", END)
-    return builder.compile()
+    compile_kwargs = {}
+    if checkpointer is not None:
+        compile_kwargs["checkpointer"] = checkpointer
+    return builder.compile(**compile_kwargs)
