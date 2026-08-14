@@ -36,6 +36,7 @@ from .opencode_executor import ExecutionLeaseHandle
 from .run_store import TaskStore
 from .task_runtime import ExecutorRouter
 from .task_service import _handler_factory as _task_handler_factory
+from .durable_execution import DurableExecutionService
 
 
 class CombinedTrustedHost:
@@ -142,6 +143,18 @@ class CombinedTrustedHost:
         model_control_port: int | None = None,
         task_api_port: int | None = None,
     ) -> None:
+        # Startup reconciliation: find expired durable runs, mark stale
+        # tasks INTERRUPTED with orphan_stale_lease classification.
+        # Does NOT call any model/provider; reconciliation only.
+        dur_svc = DurableExecutionService(
+            store=self._task_store,
+            router=self._router,
+        )
+        try:
+            dur_svc.reconcile_expired_runs()
+        except Exception:
+            pass
+
         mcp = model_control_port if model_control_port is not None else self._model_control_port
         tap = task_api_port if task_api_port is not None else self._task_api_port
 

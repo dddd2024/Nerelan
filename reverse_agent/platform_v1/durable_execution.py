@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import subprocess
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -102,14 +103,19 @@ class DurableRun:
     run_id: str
     task_id: str
     execution_id: str
+    execution_authority_sha: str
+    planning_sha: str
     repository_base_sha: str
     worktree_path: str
+    worktree_head_sha: str
+    worktree_prepared_at: str
     current_role: str
     role_attempt: int
     accepted_checkpoint: str
     planner_handoff_digest: str
     coder_product_diff_digest: str
     reviewer_handoff_digest: str
+    partial_coder_diff_digest: str
     validation_command_id: str
     validation_exit_code: int | None
     validation_output_digest: str
@@ -203,6 +209,89 @@ def _json_payload(obj: Any) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Test-only fault injection seam (NOT user-controllable HTTP input)
+# ---------------------------------------------------------------------------
+# Set to a checkpoint name to raise _CrashSimulated immediately AFTER
+# that checkpoint is accepted and BEFORE the next role starts.
+_CRASH_SEAM: str | None = None
+
+
+class _CrashSimulated(RuntimeError):
+    """Simulated process crash for deterministic test-only fault injection.
+
+    This is NOT exposed as user-controlled HTTP input. Only tests may set
+    ``_CRASH_SEAM`` via module attribute assignment.
+    """
+
+
+def reset_crash_seam() -> None:
+    """Clear the crash injection seam. Call between tests."""
+    global _CRASH_SEAM
+    _CRASH_SEAM = None
+
+
+def set_crash_after_checkpoint(checkpoint_name: str) -> None:
+    """Arm a crash seam after a given checkpoint acceptance. Test-only."""
+    global _CRASH_SEAM
+    _CRASH_SEAM = checkpoint_name
+
+
+def _check_crash_seam(checkpoint_name: str = "") -> None:
+    global _CRASH_SEAM
+    if _CRASH_SEAM is not None and checkpoint_name == _CRASH_SEAM:
+        raise _CrashSimulated(f"simulated_crash_after:{_CRASH_SEAM}")
+
+
+def _checkpoint_name_for_role(role: str) -> str:
+    return {
+        "planner": "POST_PLANNER",
+        "coder": "POST_CODER",
+        "reviewer": "POST_REVIEWER",
+    }.get(role, "")
+
+
+class _FakePreparedCtx:
+    """Minimal prepared context for resume path where only a Path is available."""
+    def __init__(self, worktree: Any) -> None:
+        self.worktree = Path(worktree) if not isinstance(worktree, Path) else worktree
+        self.execution_id = ""
+
+
+# ---------------------------------------------------------------------------
+# Strict checkpoint serialization helper
+# ---------------------------------------------------------------------------
+
+def _make_strict_saver(conn: Any) -> Any:
+    """Create a SqliteSaver with explicit restricted serialization.
+
+    Uses JsonPlusSerializer with allowed_msgpack_modules=None so that only
+    the built-in safe msgpack types are accepted. Any attempt to revive an
+    arbitrary Python object via msgpack extension types is refused.
+    """
+    from langgraph.checkpoint.sqlite import SqliteSaver
+    from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+    serde = JsonPlusSerializer(allowed_msgpack_modules=None)
+    return SqliteSaver(conn=conn, serde=serde)
+
+
+def _check_strict_serde_active(saver: Any) -> bool:
+    """Verify the saver has strict serialization configured.
+
+    Strict means _allowed_msgpack_modules is None (only safe built-in types
+    allowed) or an empty tuple/set (no additional user modules allowed).
+    """
+    serde = getattr(saver, "serde", None)
+    if serde is None:
+        return False
+    allowed = getattr(serde, "_allowed_msgpack_modules", True)
+    if allowed is None:
+        return True
+    if isinstance(allowed, (tuple, set, frozenset)) and len(allowed) == 0:
+        return True
+    return False
+
+
+# ---------------------------------------------------------------------------
 # Durable Execution Service
 # ---------------------------------------------------------------------------
 
@@ -227,6 +316,8 @@ class DurableExecutionService:
         lease_provider: Any | None = None,
         expiry_ms: int = LEASE_DEFAULT_EXPIRY_MS,
         heartbeat_window_ms: int = LEASE_HEARTBEAT_WINDOW_MS,
+        execution_authority_sha: str = "",
+        planning_sha: str = "",
     ) -> None:
         self.store = store
         self.router = router
@@ -234,6 +325,8 @@ class DurableExecutionService:
         self.lease_provider = lease_provider
         self.expiry_ms = expiry_ms
         self.heartbeat_window_ms = heartbeat_window_ms
+        self._execution_authority_sha = execution_authority_sha
+        self._planning_sha = planning_sha
         self._execution_service = TaskExecutionService(
             store=store,
             router=router,
@@ -283,15 +376,9 @@ class DurableExecutionService:
     ) -> LeaseHandle:
         existing = self.store._find_active_durable_run(task_id)
         if existing is not None:
-            current = self.store.get_task(task_id)
-            if current.status in ("READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"):
-                raise TaskExecutionError(
-                    f"durable_run_already_completed:{task_id}"
-                )
-            lease = self.store._recover_durable_lease(
-                existing.run_id, lease_owner
+            raise TaskExecutionError(
+                f"durable_run_already_active:{task_id}"
             )
-            return lease
         return self.store._acquire_durable_lease(
             task_id=task_id,
             execution_id=self.store.get_task(task_id).execution_id,
@@ -307,14 +394,39 @@ class DurableExecutionService:
         lease: LeaseHandle,
         *,
         checkpointer: Any | None = None,
-    ) -> TaskExecutionOutcome:
+    ) -> Any:
+        """Execute durable sequential team with per-role immediate checkpoint acceptance.
+
+        The durable first-run path owns the role loop directly. After each
+        successful role:
+        1. existing role-specific invariants are validated;
+        2. artifact/diff digest is persisted;
+        3. the POST_<ROLE> checkpoint is accepted IMMEDIATELY in TaskStore;
+        4. only then may the next role start.
+
+        This ensures that a crash after any role's acceptance leaves the
+        durable state consistent and resumable from the next role.
+        """
+        from .task_execution import TaskExecutionOutcome
+        from .task_runtime import LocalValidationRunner
+        from .opencode_executor import (
+            RoleContext,
+            _collect_product_diff,
+            _collect_final_product_files,
+            _handoff_digest,
+            _remove_handoff,
+            _validate_plan_handoff,
+            _validate_review_handoff,
+            handoff_dir,
+        )
+        from reverse_agent.workflows.team_graph import TeamGraphError
+
         self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
         run = self.store._get_durable_run(lease.run_id)
 
         if run.accepted_checkpoint == "POST_VALIDATION":
             stored = self.store.get_task(task_id)
             if stored.status == "READY_FOR_REVIEW":
-                from .task_execution import TaskExecutionOutcome
                 return TaskExecutionOutcome(
                     task_id=task_id,
                     execution_id=run.execution_id,
@@ -326,165 +438,14 @@ class DurableExecutionService:
                 f"durable_post_validation_without_ready:{task_id}"
             )
 
-        self.store._accept_checkpoint(
-            lease.run_id, "PRE_PLANNER", "", 1, lease.owner, lease.epoch
-        )
-
-        outcome = self._execution_service.execute_sequential_team(
-            task_id=task_id,
-            workspace_root=workspace_root,
-        )
-
-        if not outcome.success:
-            return outcome
-
-        self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
-        run = self.store._get_durable_run(lease.run_id)
-
-        if run.accepted_checkpoint in ("POST_PLANNER",):
-            self.store._accept_checkpoint(
-                lease.run_id, "POST_PLANNER",
-                run.planner_handoff_digest, run.role_attempt,
-                lease.owner, lease.epoch,
-            )
-        elif run.accepted_checkpoint in ("POST_CODER",):
-            self.store._accept_checkpoint(
-                lease.run_id, "POST_CODER",
-                run.coder_product_diff_digest, run.role_attempt,
-                lease.owner, lease.epoch,
-            )
-        elif run.accepted_checkpoint in ("POST_REVIEWER",):
-            self.store._accept_checkpoint(
-                lease.run_id, "POST_REVIEWER",
-                run.reviewer_handoff_digest, run.role_attempt,
-                lease.owner, lease.epoch,
-            )
-
-        self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
-        self.store._set_validation_result(
-            lease.run_id,
-            command_id=outcome.validation_command_id or "git_diff_check",
-            exit_code=outcome.validation_exit_code,
-            output_digest="",
-        )
-        self.store._accept_checkpoint(
-            lease.run_id, "POST_VALIDATION", "", run.role_attempt,
-            lease.owner, lease.epoch,
-        )
-        return outcome
-
-    # ---------------------------------------------------------------
-    # Resume
-    # ---------------------------------------------------------------
-
-    def resume_sequential_team(
-        self,
-        task_id: str,
-        *,
-        workspace_root: str,
-        lease_owner: str = "local",
-        repository_base_sha: str = "",
-        checkpointer: Any | None = None,
-    ) -> TaskExecutionOutcome:
-        """Resume a durable sequential-team run from the last accepted checkpoint.
-
-        Validates all identity invariants fail-closed. TaskStore-accepted
-        roles are never re-invoked.
-        """
-        run = self.store._find_active_durable_run(task_id)
-        if run is None:
-            raise DurableResumeError(f"no_active_durable_run:{task_id}")
-
-        stored_task = self.store.get_task(task_id)
-        if stored_task.status in ("READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"):
-            return TaskExecutionOutcome(
-                task_id=task_id,
-                execution_id=run.execution_id,
-                success=True,
-                validation_command_id=run.validation_command_id or "git_diff_check",
-                validation_exit_code=run.validation_exit_code or 0,
-            )
-
-        if stored_task.orchestration_mode != "sequential_team":
-            raise DurableResumeError(
-                f"invalid_orchestration_mode:{stored_task.orchestration_mode}"
-            )
-        if stored_task.executor_kind != "opencode":
-            raise DurableResumeError(
-                f"invalid_executor_kind:{stored_task.executor_kind}"
-            )
-
-        if repository_base_sha and run.repository_base_sha != repository_base_sha:
-            raise DurableResumeError(
-                f"base_sha_mismatch:{run.repository_base_sha}!={repository_base_sha}"
-            )
-        if workspace_root and run.worktree_path != workspace_root:
-            raise DurableResumeError(
-                f"workspace_mismatch:{run.worktree_path}!={workspace_root}"
-            )
-
-        if not Path(run.worktree_path).exists():
-            raise DurableResumeError(f"worktree_not_found:{run.worktree_path}")
-
-        lease = self.store._recover_durable_lease(run.run_id, lease_owner)
-
-        return self._resume_with_lease(
-            task_id, workspace_root, run, lease, checkpointer=checkpointer
-        )
-
-    def _resume_with_lease(
-        self,
-        task_id: str,
-        workspace_root: str,
-        run: DurableRun,
-        lease: LeaseHandle,
-        *,
-        checkpointer: Any | None = None,
-    ) -> TaskExecutionOutcome:
-        accepted = run.accepted_checkpoint
-        current_role = run.current_role
-        role_attempt = run.role_attempt
-
-        if accepted == "POST_VALIDATION":
-            stored = self.store.get_task(task_id)
-            if stored.status == "READY_FOR_REVIEW":
-                return TaskExecutionOutcome(
-                    task_id=task_id,
-                    execution_id=run.execution_id,
-                    success=True,
-                    validation_command_id=run.validation_command_id or "git_diff_check",
-                    validation_exit_code=run.validation_exit_code or 0,
-                )
-
-        from .task_execution import TaskExecutionOutcome
-        from reverse_agent.workflows.team_graph import (
-            TeamGraphError,
-            WorkerAssignment,
-            WorkerExecutionResult,
-            build_sequential_team_graph,
-        )
-        from .opencode_executor import (
-            RoleContext,
-            _collect_product_diff,
-            _collect_final_product_files,
-            _handoff_digest,
-            _remove_handoff,
-            _validate_plan_handoff,
-            _validate_review_handoff,
-            handoff_dir,
-        )
-        from .task_runtime import LocalValidationRunner
-
-        executor_kwargs = _build_resume_executor_kwargs(
-            stored_task=self.store.get_task(task_id),
-            binding_resolver=self.binding_resolver,
-            lease_provider=self.lease_provider,
-        )
+        task = self.store.get_task(task_id)
+        self.store.transition_to(task_id, "RUNNING")
+        executor_kwargs = self._build_executor_kwargs(task)
         try:
             executor = self.router.create_executor(
                 executor_kind="opencode", **executor_kwargs
             )
-        except ExecutorRuntimeError as exc:
+        except Exception as exc:
             self.store.classify_failure(
                 task_id, classification="blocked", detail=str(exc)
             )
@@ -492,310 +453,18 @@ class DurableExecutionService:
             return TaskExecutionOutcome(
                 task_id=task_id,
                 execution_id=final.execution_id,
-                success=False,
-                validation_command_id="",
+                success=False, validation_command_id="",
                 validation_exit_code=-1,
                 failure_classification=final.failure_classification,
                 failure_detail=final.failure_detail,
             )
-
-        return self._resume_roles(
-            task_id=task_id,
-            workspace_root=workspace_root,
-            run=run,
-            lease=lease,
-            executor=executor,
-            accepted=accepted,
-            current_role=current_role,
-            role_attempt=role_attempt,
-            checkpointer=checkpointer,
-        )
-
-    def _resume_roles(
-        self,
-        *,
-        task_id: str,
-        workspace_root: str,
-        run: DurableRun,
-        lease: LeaseHandle,
-        executor: Any,
-        accepted: str,
-        current_role: str,
-        role_attempt: int,
-        checkpointer: Any | None = None,
-    ) -> TaskExecutionOutcome:
-        from reverse_agent.workflows.team_graph import (
-            TeamGraphError,
-            WorkerAssignment,
-            WorkerExecutionResult,
-            build_sequential_team_graph,
-        )
-        from .opencode_executor import (
-            RoleContext,
-            _collect_product_diff,
-            _collect_final_product_files,
-            _handoff_digest,
-            _remove_handoff,
-            _validate_plan_handoff,
-            _validate_review_handoff,
-            handoff_dir,
-        )
-        from .task_execution import TaskExecutionOutcome
-        from .task_runtime import LocalValidationRunner
-
-        self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
-
-        if accepted == "POST_REVIEWER":
-            return self._resume_from_post_reviewer(
-                task_id, run, lease, role_attempt
-            )
-        if accepted == "POST_VALIDATION":
-            stored = self.store.get_task(task_id)
-            return TaskExecutionOutcome(
-                task_id=task_id,
-                execution_id=run.execution_id,
-                success=True,
-                validation_command_id=run.validation_command_id or "git_diff_check",
-                validation_exit_code=run.validation_exit_code or 0,
-            )
-
-        new_role_attempt = role_attempt + 1 if current_role == "coder" and accepted in (
-            "PRE_PLANNER", "POST_PLANNER"
-        ) else role_attempt
-
-        baseline_product = _collect_product_diff(Path(workspace_root))
-        self.store.set_changed_files(task_id, baseline_product)
-
-        seq_worker_calls: list[str] = []
-        plan_digest = run.planner_handoff_digest
-        review_digest = run.reviewer_handoff_digest
-        coder_product_snapshot: tuple[dict[str, Any], ...] = ()
-        _seq_worker_results: list[dict[str, Any]] = []
-        _seq_roles_executed: list[str] = []
-
-        def _make_resume_role_worker(prepared_ctx: Any, handoff_dir_path: Path):
-            def _role_worker(wa: "WorkerAssignment") -> "WorkerExecutionResult":
-                nonlocal plan_digest, review_digest, coder_product_snapshot
-                role = wa.role
-                seq_worker_calls.append(role)
-                role_context = RoleContext(
-                    role=role,
-                    task_id=wa.task_id,
-                    workspace=Path(workspace_root),
-                    plan_path=handoff_dir_path / "plan.md",
-                    plan_digest=plan_digest,
-                )
-                if role == "planner":
-                    handoff_dir_path.mkdir(parents=True, exist_ok=True)
-                try:
-                    result = executor.execute_role_prepared(
-                        prepared_ctx,
-                        self.store,
-                        role_context=role_context,
-                        event_callback=self._execution_service._store_event_callback,
-                    )
-                except Exception as exc:
-                    _seq_roles_executed.append(role)
-                    _seq_worker_results.append({
-                        "role": role, "worker_id": wa.worker_id,
-                        "task_id": wa.task_id, "execution_id": "",
-                        "success": False, "validation_exit_code": -1,
-                        "failure_classification": "executor_error",
-                        "failure_detail": f"{exc.__class__.__name__}:{exc}",
-                        "reasons": [f"executor_exception:{exc.__class__.__name__}"],
-                    })
-                    return WorkerExecutionResult(
-                        worker_id=wa.worker_id, task_id=wa.task_id,
-                        execution_id="", success=False,
-                        validation_exit_code=-1,
-                        failure_classification="executor_error",
-                        failure_detail=f"{exc.__class__.__name__}:{exc}",
-                        reasons=(f"executor_exception:{exc.__class__.__name__}",),
-                    )
-
-                if not result.success:
-                    _seq_roles_executed.append(role)
-                    _seq_worker_results.append({
-                        "role": role, "worker_id": wa.worker_id,
-                        "task_id": wa.task_id,
-                        "execution_id": getattr(result, "execution_id", ""),
-                        "success": False,
-                        "validation_exit_code": result.validation_exit_code,
-                        "failure_classification": result.failure_classification,
-                        "failure_detail": result.error,
-                        "reasons": [result.failure_classification or "role_failed"],
-                    })
-                    return WorkerExecutionResult(
-                        worker_id=wa.worker_id,
-                        task_id=wa.task_id,
-                        execution_id=getattr(result, "execution_id", ""),
-                        success=False,
-                        validation_exit_code=result.validation_exit_code,
-                        failure_classification=result.failure_classification,
-                        failure_detail=result.error,
-                        reasons=(result.failure_classification or "role_failed",),
-                    )
-
-                if role == "planner":
-                    invalid = _validate_plan_handoff(handoff_dir_path / "plan.md")
-                    if invalid:
-                        _seq_roles_executed.append(role)
-                        _seq_worker_results.append({
-                            "role": role, "worker_id": wa.worker_id,
-                            "task_id": wa.task_id,
-                            "execution_id": result.execution_id,
-                            "success": False, "validation_exit_code": -1,
-                            "failure_classification": "invalid_plan_handoff",
-                            "failure_detail": invalid,
-                            "reasons": ["invalid_plan_handoff"],
-                        })
-                        return WorkerExecutionResult(
-                            worker_id=wa.worker_id,
-                            task_id=wa.task_id,
-                            execution_id=result.execution_id,
-                            success=False, validation_exit_code=-1,
-                            failure_classification="invalid_plan_handoff",
-                            failure_detail=invalid,
-                            reasons=("invalid_plan_handoff",),
-                        )
-                    plan_digest = _handoff_digest(handoff_dir_path / "plan.md")
-                    planner_post = _collect_product_diff(Path(workspace_root))
-                    if planner_post != baseline_product:
-                        _seq_roles_executed.append(role)
-                        _seq_worker_results.append({
-                            "role": role, "worker_id": wa.worker_id,
-                            "task_id": wa.task_id,
-                            "execution_id": result.execution_id,
-                            "success": False, "validation_exit_code": -1,
-                            "failure_classification": "planner_product_mutation",
-                            "failure_detail": "planner mutated product files",
-                            "reasons": ["planner_product_mutation"],
-                        })
-                        return WorkerExecutionResult(
-                            worker_id=wa.worker_id,
-                            task_id=wa.task_id,
-                            execution_id=result.execution_id,
-                            success=False, validation_exit_code=-1,
-                            failure_classification="planner_product_mutation",
-                            failure_detail="planner mutated product files",
-                            reasons=("planner_product_mutation",),
-                        )
-                elif role == "coder":
-                    if not (handoff_dir_path / "plan.md").is_file():
-                        _seq_roles_executed.append(role)
-                        _seq_worker_results.append({
-                            "role": role, "worker_id": wa.worker_id,
-                            "task_id": wa.task_id,
-                            "execution_id": result.execution_id,
-                            "success": False, "validation_exit_code": -1,
-                            "failure_classification": "missing_plan_handoff",
-                            "failure_detail": "plan handoff missing when coder started",
-                            "reasons": ["missing_plan_handoff"],
-                        })
-                        return WorkerExecutionResult(
-                            worker_id=wa.worker_id,
-                            task_id=wa.task_id,
-                            execution_id=result.execution_id,
-                            success=False, validation_exit_code=-1,
-                            failure_classification="missing_plan_handoff",
-                            failure_detail="plan handoff missing when coder started",
-                            reasons=("missing_plan_handoff",),
-                        )
-                    coder_product_snapshot = _collect_product_diff(
-                        Path(workspace_root)
-                    )
-                    if not coder_product_snapshot:
-                        _seq_roles_executed.append(role)
-                        _seq_worker_results.append({
-                            "role": role, "worker_id": wa.worker_id,
-                            "task_id": wa.task_id,
-                            "execution_id": result.execution_id,
-                            "success": False, "validation_exit_code": -1,
-                            "failure_classification": "no_coder_product_diff",
-                            "failure_detail": "coder did not produce a product diff",
-                            "reasons": ["no_coder_product_diff"],
-                        })
-                        return WorkerExecutionResult(
-                            worker_id=wa.worker_id,
-                            task_id=wa.task_id,
-                            execution_id=result.execution_id,
-                            success=False, validation_exit_code=-1,
-                            failure_classification="no_coder_product_diff",
-                            failure_detail="coder did not produce a product diff",
-                            reasons=("no_coder_product_diff",),
-                        )
-                elif role == "reviewer":
-                    invalid_review = _validate_review_handoff(
-                        handoff_dir_path / "review.md"
-                    )
-                    if invalid_review:
-                        _seq_roles_executed.append(role)
-                        _seq_worker_results.append({
-                            "role": role, "worker_id": wa.worker_id,
-                            "task_id": wa.task_id,
-                            "execution_id": result.execution_id,
-                            "success": False, "validation_exit_code": -1,
-                            "failure_classification": "invalid_review_handoff",
-                            "failure_detail": invalid_review,
-                            "reasons": ["invalid_review_handoff"],
-                        })
-                        return WorkerExecutionResult(
-                            worker_id=wa.worker_id,
-                            task_id=wa.task_id,
-                            execution_id=result.execution_id,
-                            success=False, validation_exit_code=-1,
-                            failure_classification="invalid_review_handoff",
-                            failure_detail=invalid_review,
-                            reasons=("invalid_review_handoff",),
-                        )
-                    review_digest = _handoff_digest(handoff_dir_path / "review.md")
-                    reviewer_post = _collect_product_diff(Path(workspace_root))
-                    if reviewer_post != coder_product_snapshot:
-                        _seq_roles_executed.append(role)
-                        _seq_worker_results.append({
-                            "role": role, "worker_id": wa.worker_id,
-                            "task_id": wa.task_id,
-                            "execution_id": result.execution_id,
-                            "success": False, "validation_exit_code": -1,
-                            "failure_classification": "reviewer_product_mutation",
-                            "failure_detail": "reviewer mutated coder product diff",
-                            "reasons": ["reviewer_product_mutation"],
-                        })
-                        return WorkerExecutionResult(
-                            worker_id=wa.worker_id,
-                            task_id=wa.task_id,
-                            execution_id=result.execution_id,
-                            success=False, validation_exit_code=-1,
-                            failure_classification="reviewer_product_mutation",
-                            failure_detail="reviewer mutated coder product diff",
-                            reasons=("reviewer_product_mutation",),
-                        )
-
-                _seq_roles_executed.append(role)
-                _seq_worker_results.append({
-                    "role": role, "worker_id": wa.worker_id,
-                    "task_id": wa.task_id,
-                    "execution_id": result.execution_id,
-                    "success": True, "validation_exit_code": result.validation_exit_code,
-                    "failure_classification": "", "failure_detail": "", "reasons": [],
-                })
-                return WorkerExecutionResult(
-                    worker_id=wa.worker_id,
-                    task_id=wa.task_id,
-                    execution_id=result.execution_id,
-                    success=True,
-                    validation_exit_code=result.validation_exit_code,
-                    failure_classification="", failure_detail="",
-                )
-
-            return _role_worker
 
         try:
             prepared = executor.prepare_worktree_once(
                 task_id, Path(workspace_root),
                 self._execution_service._store_event_callback
             )
-        except ExecutorRuntimeError as exc:
+        except Exception as exc:
             self.store.classify_failure(
                 task_id, classification="blocked",
                 detail=f"worktree_preparation_failed:{exc}"
@@ -810,150 +479,828 @@ class DurableExecutionService:
                 failure_detail=final.failure_detail,
             )
 
+        wt_path = str(prepared.worktree)
+        wt_head_sha = self._git_rev_parse_head(wt_path)
+        repo_base_sha = self._git_rev_parse_head(wt_path)
+
+        self.store._set_worktree_identity(
+            lease.run_id, wt_path, wt_head_sha,
+            lease.owner, lease.epoch,
+        )
+        self.store._set_authority_identity(
+            lease.run_id,
+            self._execution_authority_sha,
+            self._planning_sha,
+            lease.owner, lease.epoch,
+        )
+
+        # PRE_PLANNER is accepted ONLY after worktree identity + authority
+        # identity are durably persisted.
+        self.store._accept_checkpoint(
+            lease.run_id, "PRE_PLANNER", "", 1, lease.owner, lease.epoch
+        )
+        _check_crash_seam("PRE_PLANNER")
+
         handoff = handoff_dir(prepared.worktree)
-
-        if current_role == "coder" and accepted in ("PRE_PLANNER", "POST_PLANNER"):
-            self.store._set_role_attempt(
-                lease.run_id, "coder", new_role_attempt, lease.owner, lease.epoch
-            )
-            self.store._set_recovery_classification(
-                lease.run_id, "interrupted", lease.owner, lease.epoch
-            )
-
-        skip_roles: set[str] = set()
-        if accepted == "POST_PLANNER":
-            skip_roles.add("planner")
-        if accepted == "POST_CODER":
-            skip_roles.add("planner")
-            skip_roles.add("coder")
-
-        start_role = None
-        if accepted == "PRE_PLANNER" or accepted == "":
-            start_role = "planner"
-        elif accepted == "POST_PLANNER":
-            start_role = "coder"
-        elif accepted == "POST_CODER":
-            start_role = "reviewer"
-        elif accepted == "POST_REVIEWER":
-            return self._resume_from_post_reviewer(
-                task_id, run, lease, new_role_attempt
-            )
-
-        base_assignment = WorkerAssignment(
-            worker_id="sequential",
-            role=start_role or "planner",
-            task_id=task_id,
-            workspace_root=workspace_root,
+        self.store.add_event(
+            task_id, event_type="EXECUTOR_RUNNING",
+            title="Durable sequential team execution",
+            description="planner->coder->reviewer with per-role checkpoint acceptance",
+            metadata={
+                "execution_id": run.execution_id,
+                "run_id": lease.run_id,
+                "worktree_path": wt_path,
+                "worktree_head_sha": wt_head_sha,
+            },
         )
+        baseline_product = _collect_product_diff(prepared.worktree)
+        self.store.set_changed_files(task_id, baseline_product)
 
-        role_worker = _make_resume_role_worker(prepared, handoff)
-        seq_graph = build_sequential_team_graph(
-            worker=role_worker,
-            checkpointer=checkpointer,
-            skip_roles=skip_roles,
-        )
+        plan_digest = ""
+        review_digest = ""
+        coder_product_snapshot: tuple[dict[str, Any], ...] = ()
+        run_role_attempt = run.role_attempt
 
-        try:
-            graph_result = seq_graph.invoke({
-                "assignments": [base_assignment.to_dict()],
-            })
-        except TeamGraphError as exc:
-            self._complete_sequential_team_failure(
-                task_id, run, lease, _seq_roles_executed,
-                _seq_worker_results, baseline_product, plan_digest,
-                classification="executor_error",
-                failure_detail=str(exc),
-            )
-            return TaskExecutionOutcome(
+        for role in ("planner", "coder", "reviewer"):
+            checkpoint_name = _checkpoint_name_for_role(role)
+            if not checkpoint_name:
+                continue
+
+            result = self._execute_single_role(
+                role=role,
                 task_id=task_id,
-                execution_id=run.execution_id,
-                success=False,
-                validation_command_id="",
-                validation_exit_code=-1,
-                failure_classification="executor_error",
-                failure_detail=str(exc),
+                prepared=prepared,
+                handoff=handoff,
+                executor=executor,
+                baseline=baseline_product,
+                plan_digest=plan_digest,
+                role_attempt=run_role_attempt,
+                coder_product_snapshot=coder_product_snapshot,
             )
 
-        _remove_handoff(handoff)
-        final_changed = _collect_final_product_files(prepared.worktree)
-        self.store.set_changed_files(task_id, final_changed)
+            if not result["success"]:
+                self._complete_durable_failure(
+                    task_id, run, lease,
+                    baseline_product, plan_digest,
+                    roles_executed=result.get("roles_executed", []),
+                    role_results=result.get("role_results", []),
+                    classification=result.get("classification", "failed"),
+                    failure_detail=result.get("detail", "role failed"),
+                )
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=run.execution_id,
+                    success=False,
+                    validation_command_id="",
+                    validation_exit_code=result.get("val_exit", -1),
+                    failure_classification=result.get("classification", "failed"),
+                    failure_detail=result.get("detail", "role failed"),
+                )
 
+            # --- Persist digest and accept checkpoint IMMEDIATELY ---
+            if role == "planner":
+                plan_digest = result["digest"]
+                self.store._set_planner_handoff_digest(
+                    lease.run_id, plan_digest, lease.owner, lease.epoch
+                )
+            elif role == "coder":
+                coder_product_snapshot = result["snapshot"]
+                coder_digest = _digest(_json_payload(list(coder_product_snapshot)))
+                self.store._set_coder_product_diff_digest(
+                    lease.run_id, coder_digest, lease.owner, lease.epoch
+                )
+                plan_digest = result.get("plan_digest", plan_digest)
+                current_head = self._git_rev_parse_head(wt_path)
+                self.store._set_worktree_identity(
+                    lease.run_id, wt_path, current_head,
+                    lease.owner, lease.epoch,
+                )
+            elif role == "reviewer":
+                review_digest = result["digest"]
+                self.store._set_reviewer_handoff_digest(
+                    lease.run_id, review_digest, lease.owner, lease.epoch
+                )
+
+            self.store._accept_checkpoint(
+                lease.run_id, checkpoint_name,
+                result.get("digest", ""),
+                run_role_attempt, lease.owner, lease.epoch,
+            )
+
+            # --- Crash injection seam AFTER checkpoint acceptance ---
+            _check_crash_seam(checkpoint_name)
+
+        # --- Validation ---
         val_runner = LocalValidationRunner()
         try:
             val_exit, val_output, val_digest = val_runner.run(
                 task_id=task_id,
                 command_id="git_diff_check",
-                cwd=workspace_root,
+                cwd=wt_path,
             )
-        except ExecutorRuntimeError:
+        except Exception:
             val_exit, val_output, val_digest = -1, "", ""
+
+        self.store._set_validation_result(
+            lease.run_id,
+            command_id="git_diff_check",
+            exit_code=val_exit,
+            output_digest=val_digest,
+            owner=lease.owner, epoch=lease.epoch,
+        )
+        self.store._accept_checkpoint(
+            lease.run_id, "POST_VALIDATION", "",
+            run_role_attempt, lease.owner, lease.epoch,
+        )
+
+        _remove_handoff(handoff)
+        final_changed = _collect_final_product_files(prepared.worktree)
+        self.store.set_changed_files(task_id, final_changed)
 
         self.store.transition_to(task_id, "VALIDATING")
         if val_exit == 0:
             self.store.transition_to(task_id, "READY_FOR_REVIEW")
             self.store.add_event(
                 task_id, event_type="VALIDATED",
-                title="Sequential team validated (resume)",
-                description="resume completed validation",
+                title="Durable sequential team validated",
+                description="per-role checkpoint acceptance completed",
                 metadata={
                     "validation_exit_code": val_exit,
                     "validation_command_id": "git_diff_check",
                     "plan_digest": plan_digest,
                     "review_digest": review_digest,
+                    "run_id": lease.run_id,
                 },
             )
-            success = True
-        else:
-            self.store.set_validation_result(
-                task_id, command_id="git_diff_check",
-                exit_code=val_exit, output_digest=val_digest,
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=run.execution_id,
+                success=True,
+                validation_command_id="git_diff_check",
+                validation_exit_code=val_exit,
             )
-            self.store.transition_to(task_id, "FAILED")
-            success = False
+
+        self.store.set_validation_result(
+            task_id, command_id="git_diff_check",
+            exit_code=val_exit, output_digest=val_digest,
+        )
+        self.store.transition_to(task_id, "FAILED")
+        return TaskExecutionOutcome(
+            task_id=task_id,
+            execution_id=run.execution_id,
+            success=False,
+            validation_command_id="git_diff_check",
+            validation_exit_code=val_exit,
+            failure_classification="deterministic_validation_failure",
+            failure_detail=f"git_diff_check exit={val_exit}",
+        )
+
+    def _build_executor_kwargs(self, task: Any) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {}
+        if getattr(task, "executor_kind", "") == "opencode":
+            binding_ref = getattr(task, "binding_ref", "") or ""
+            if binding_ref and self.binding_resolver is not None:
+                kwargs["binding_resolution"] = self.binding_resolver.resolve(
+                    binding_ref, task_executor="opencode"
+                )
+            else:
+                model_id = (
+                    getattr(task, "model_profile_ref", "") or ""
+                ) or os.environ.get("REVERSE_AGENT_OPENCODE_MODEL", "")
+                kwargs["model_id"] = model_id
+            kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
+            kwargs["base_ref"] = getattr(task, "branch", "") or ""
+            if self.lease_provider is not None:
+                kwargs["lease_provider"] = self.lease_provider
+        return kwargs
+
+    @staticmethod
+    def _git_rev_parse_head(wt_path: str) -> str:
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=wt_path, capture_output=True, text=True, check=True,
+            )
+            return result.stdout.strip()
+        except Exception:
+            return ""
+
+    def _execute_single_role(
+        self,
+        *,
+        role: str,
+        task_id: str,
+        prepared: Any,
+        handoff: Path,
+        executor: Any,
+        baseline: tuple[dict[str, Any], ...],
+        plan_digest: str,
+        role_attempt: int,
+        coder_product_snapshot: tuple[dict[str, Any], ...] | None = None,
+    ) -> dict[str, Any]:
+        from .opencode_executor import (
+            RoleContext,
+            _collect_product_diff,
+            _handoff_digest,
+            _validate_plan_handoff,
+            _validate_review_handoff,
+        )
+        from reverse_agent.workflows.team_graph import (
+            TeamGraphError,
+            WorkerAssignment,
+            WorkerExecutionResult,
+            build_sequential_team_graph,
+        )
+
+        handoff_path = handoff
+        if hasattr(prepared, "worktree"):
+            wt = prepared.worktree
+            prep_for_executor = prepared
+        else:
+            wt = prepared
+            prep_for_executor = _FakePreparedCtx(worktree=prepared)
+        if isinstance(wt, Path):
+            wt_str = str(wt)
+        else:
+            wt_str = str(wt)
+        _coder_snap: tuple[dict[str, Any], ...] = coder_product_snapshot or ()
+        result_digest = ""
+        roles_executed: list[str] = []
+        role_results: list[dict[str, Any]] = []
+
+        def _role_worker(wa: "WorkerAssignment") -> "WorkerExecutionResult":
+            nonlocal plan_digest, result_digest, _coder_snap
+            r = wa.role
+            roles_executed.append(r)
+            role_context = RoleContext(
+                role=r, task_id=wa.task_id,
+                workspace=Path(wt_str),
+                plan_path=handoff_path / "plan.md",
+                plan_digest=plan_digest,
+            )
+            if r == "planner":
+                handoff_path.mkdir(parents=True, exist_ok=True)
+            try:
+                result = executor.execute_role_prepared(
+                    prep_for_executor, self.store,
+                    role_context=role_context,
+                    event_callback=self._execution_service._store_event_callback,
+                )
+            except Exception as exc:
+                role_results.append({
+                    "role": r, "success": False, "validation_exit_code": -1,
+                    "classification": "executor_error",
+                    "detail": f"{exc.__class__.__name__}:{exc}",
+                })
+                return WorkerExecutionResult(
+                    worker_id=wa.worker_id, task_id=wa.task_id,
+                    execution_id="", success=False, validation_exit_code=-1,
+                    failure_classification="executor_error",
+                    failure_detail=f"{exc.__class__.__name__}:{exc}",
+                    reasons=(f"executor_exception:{exc.__class__.__name__}",),
+                )
+
+            if not result.success:
+                role_results.append({
+                    "role": r, "success": False,
+                    "validation_exit_code": result.validation_exit_code,
+                    "classification": result.failure_classification or "role_failed",
+                    "detail": result.error,
+                })
+                return WorkerExecutionResult(
+                    worker_id=wa.worker_id, task_id=wa.task_id,
+                    execution_id=getattr(result, "execution_id", ""),
+                    success=False, validation_exit_code=result.validation_exit_code,
+                    failure_classification=result.failure_classification,
+                    failure_detail=result.error,
+                    reasons=(result.failure_classification or "role_failed",),
+                )
+
+            if r == "planner":
+                invalid = _validate_plan_handoff(handoff_path / "plan.md")
+                if invalid:
+                    role_results.append({
+                        "role": r, "success": False, "validation_exit_code": -1,
+                        "classification": "invalid_plan_handoff", "detail": invalid,
+                    })
+                    return WorkerExecutionResult(
+                        worker_id=wa.worker_id, task_id=wa.task_id,
+                        execution_id=result.execution_id,
+                        success=False, validation_exit_code=-1,
+                        failure_classification="invalid_plan_handoff",
+                        failure_detail=invalid, reasons=("invalid_plan_handoff",),
+                    )
+                result_digest = _handoff_digest(handoff_path / "plan.md")
+                planner_post = _collect_product_diff(Path(wt_str))
+                if planner_post != baseline:
+                    role_results.append({
+                        "role": r, "success": False, "validation_exit_code": -1,
+                        "classification": "planner_product_mutation",
+                        "detail": "planner mutated product files",
+                    })
+                    return WorkerExecutionResult(
+                        worker_id=wa.worker_id, task_id=wa.task_id,
+                        execution_id=result.execution_id,
+                        success=False, validation_exit_code=-1,
+                        failure_classification="planner_product_mutation",
+                        failure_detail="planner mutated product files",
+                        reasons=("planner_product_mutation",),
+                    )
+            elif r == "coder":
+                if not (handoff_path / "plan.md").is_file():
+                    role_results.append({
+                        "role": r, "success": False, "validation_exit_code": -1,
+                        "classification": "missing_plan_handoff",
+                        "detail": "plan handoff missing",
+                    })
+                    return WorkerExecutionResult(
+                        worker_id=wa.worker_id, task_id=wa.task_id,
+                        execution_id=result.execution_id,
+                        success=False, validation_exit_code=-1,
+                        failure_classification="missing_plan_handoff",
+                        failure_detail="plan handoff missing",
+                        reasons=("missing_plan_handoff",),
+                    )
+                _coder_snap = _collect_product_diff(Path(wt_str))
+                if not _coder_snap:
+                    role_results.append({
+                        "role": r, "success": False, "validation_exit_code": -1,
+                        "classification": "no_coder_product_diff",
+                        "detail": "coder produced no product diff",
+                    })
+                    return WorkerExecutionResult(
+                        worker_id=wa.worker_id, task_id=wa.task_id,
+                        execution_id=result.execution_id,
+                        success=False, validation_exit_code=-1,
+                        failure_classification="no_coder_product_diff",
+                        failure_detail="coder produced no product diff",
+                        reasons=("no_coder_product_diff",),
+                    )
+            elif r == "reviewer":
+                invalid_rev = _validate_review_handoff(handoff_path / "review.md")
+                if invalid_rev:
+                    role_results.append({
+                        "role": r, "success": False, "validation_exit_code": -1,
+                        "classification": "invalid_review_handoff", "detail": invalid_rev,
+                    })
+                    return WorkerExecutionResult(
+                        worker_id=wa.worker_id, task_id=wa.task_id,
+                        execution_id=result.execution_id,
+                        success=False, validation_exit_code=-1,
+                        failure_classification="invalid_review_handoff",
+                        failure_detail=invalid_rev, reasons=("invalid_review_handoff",),
+                    )
+                result_digest = _handoff_digest(handoff_path / "review.md")
+                reviewer_post = _collect_product_diff(Path(wt_str))
+                if reviewer_post != _coder_snap:
+                    role_results.append({
+                        "role": r, "success": False, "validation_exit_code": -1,
+                        "classification": "reviewer_product_mutation",
+                        "detail": "reviewer mutated product",
+                    })
+                    return WorkerExecutionResult(
+                        worker_id=wa.worker_id, task_id=wa.task_id,
+                        execution_id=result.execution_id,
+                        success=False, validation_exit_code=-1,
+                        failure_classification="reviewer_product_mutation",
+                        failure_detail="reviewer mutated product",
+                        reasons=("reviewer_product_mutation",),
+                    )
+
+            role_results.append({
+                "role": r, "success": True,
+                "validation_exit_code": result.validation_exit_code,
+            })
+            return WorkerExecutionResult(
+                worker_id=wa.worker_id, task_id=wa.task_id,
+                execution_id=result.execution_id,
+                success=True, validation_exit_code=result.validation_exit_code,
+                failure_classification="", failure_detail="",
+            )
+
+        base_assignment = WorkerAssignment(
+            worker_id="durable_sequential",
+            role=role,
+            task_id=task_id,
+            workspace_root=str(wt_str),
+        )
+
+        graph = build_sequential_team_graph(
+            worker=_role_worker,
+            skip_roles=set(("planner", "coder", "reviewer")) - {role},
+        )
+        try:
+            graph.invoke({"assignments": [base_assignment.to_dict()]})
+        except TeamGraphError as exc:
+            last = role_results[-1] if role_results else {}
+            return {
+                "success": False,
+                "val_exit": -1,
+                "classification": last.get("classification", "failed"),
+                "detail": str(exc),
+                "roles_executed": roles_executed,
+                "role_results": role_results,
+                "digest": "",
+                "snapshot": (),
+                "plan_digest": plan_digest,
+            }
+
+        last = role_results[-1] if role_results else {}
+        snapshot_val = _coder_snap if role == "coder" else ()
+        return {
+            "success": True,
+            "val_exit": 0,
+            "classification": "",
+            "detail": "",
+            "roles_executed": roles_executed,
+            "role_results": role_results,
+            "digest": result_digest,
+            "snapshot": snapshot_val,
+            "plan_digest": plan_digest,
+        }
+
+    def _complete_durable_failure(
+        self, task_id: str, run: Any, lease: Any,
+        baseline: tuple[dict[str, Any], ...], plan_digest: str,
+        roles_executed: list[str], role_results: list[dict[str, Any]],
+        classification: str, failure_detail: str,
+    ) -> None:
+        self.store.set_changed_files(task_id, baseline)
+        try:
+            self.store.classify_failure(
+                task_id, classification=classification,
+                detail=f"durable sequential team failed:{failure_detail}"
+            )
+        except TaskStoreError:
+            pass
+        self.store.add_event(
+            task_id, event_type="EXECUTOR_FINISHED",
+            title="Durable sequential team failed",
+            description=failure_detail,
+            metadata={
+                "classification": classification,
+                "roles": roles_executed,
+                "run_id": lease.run_id,
+                "plan_digest": plan_digest,
+            },
+        )
+
+    # ---------------------------------------------------------------
+    # Resume
+    # ---------------------------------------------------------------
+
+    def resume_sequential_team(
+        self,
+        task_id: str,
+        *,
+        workspace_root: str = "",
+        lease_owner: str = "local",
+        repository_base_sha: str = "",
+        execution_authority_sha: str | None = None,
+        planning_sha: str | None = None,
+        checkpointer: Any | None = None,
+    ) -> TaskExecutionOutcome:
+        """Resume a durable sequential-team run from the last accepted checkpoint.
+
+        Validates ALL identity invariants fail-closed.
+        """
+        from .task_execution import TaskExecutionOutcome
+
+        auth_sha = execution_authority_sha if execution_authority_sha is not None else self._execution_authority_sha
+        plan_sha = planning_sha if planning_sha is not None else self._planning_sha
+        if repository_base_sha:
+            repo_sha = repository_base_sha
+        else:
+            repo_sha = ""
+
+        run = self.store._find_active_durable_run(task_id)
+        if run is None:
+            raise DurableResumeError(f"no_active_durable_run:{task_id}")
+
+        run_obj = self.store._get_durable_run(run["run_id"])
+
+        stored_task = self.store.get_task(task_id)
+        if stored_task.status in ("READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"):
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=run_obj.execution_id,
+                success=True,
+                validation_command_id=run_obj.validation_command_id or "git_diff_check",
+                validation_exit_code=run_obj.validation_exit_code or 0,
+            )
+
+        if stored_task.orchestration_mode != "sequential_team":
+            raise DurableResumeError(
+                f"invalid_orchestration_mode:{stored_task.orchestration_mode}"
+            )
+        if stored_task.executor_kind != "opencode":
+            raise DurableResumeError(
+                f"invalid_executor_kind:{stored_task.executor_kind}"
+            )
+
+        if auth_sha and run_obj.execution_authority_sha != auth_sha:
+            raise DurableResumeError(
+                f"authority_sha_mismatch:{run_obj.execution_authority_sha}!={auth_sha}"
+            )
+        if plan_sha and run_obj.planning_sha != plan_sha:
+            raise DurableResumeError(
+                f"planning_sha_mismatch:{run_obj.planning_sha}!={plan_sha}"
+            )
+        if repo_sha and run_obj.repository_base_sha != repo_sha:
+            raise DurableResumeError(
+                f"base_sha_mismatch:{run_obj.repository_base_sha}!={repo_sha}"
+            )
+
+        wt_path = run_obj.worktree_path
+        if not wt_path:
+            wt_path = workspace_root
+        if workspace_root and run_obj.worktree_path != workspace_root:
+            raise DurableResumeError(
+                f"workspace_mismatch:{run_obj.worktree_path}!={workspace_root}"
+            )
+
+        if not Path(wt_path).exists():
+            raise DurableResumeError(f"worktree_not_found:{wt_path}")
+
+        actual_head = self._git_rev_parse_head(wt_path)
+        if run_obj.worktree_head_sha and actual_head != run_obj.worktree_head_sha:
+            raise DurableResumeError(
+                f"worktree_head_mismatch:{run_obj.worktree_head_sha}!={actual_head}"
+            )
+
+        lease = self.store._recover_durable_lease(run_obj.run_id, lease_owner)
+        return self._resume_with_lease(
+            task_id, wt_path, run_obj, lease,
+            checkpointer=checkpointer,
+        )
+
+    def _resume_with_lease(
+        self,
+        task_id: str,
+        workspace_root: str,
+        run: Any,
+        lease: LeaseHandle,
+        *,
+        checkpointer: Any | None = None,
+    ) -> TaskExecutionOutcome:
+        from .task_execution import TaskExecutionOutcome
+        from .opencode_executor import _collect_product_diff
+
+        if run.accepted_checkpoint == "POST_VALIDATION":
+            stored = self.store.get_task(task_id)
+            if stored.status == "READY_FOR_REVIEW":
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=run.execution_id,
+                    success=True,
+                    validation_command_id=run.validation_command_id or "git_diff_check",
+                    validation_exit_code=run.validation_exit_code or 0,
+                )
+
+        if run.accepted_checkpoint == "POST_REVIEWER":
+            return self._resume_from_post_reviewer(task_id, run, lease, run.role_attempt)
+
+        run_role_attempt = run.role_attempt
+
+        # Interrupted Coder handling: if Coder started but POST_CODER was not accepted,
+        # preserve partial diff, persist bounded digest, increment attempt.
+        if run.accepted_checkpoint in ("PRE_PLANNER", "POST_PLANNER") and run.current_role == "coder":
+            wt_path = run.worktree_path or workspace_root
+            partial = _collect_product_diff(Path(wt_path)) if Path(wt_path).exists() else ()
+            if partial:
+                partial_digest = _digest(_json_payload(list(partial)))
+                self.store._set_partial_coder_diff_digest(
+                    lease.run_id, partial_digest, lease.owner, lease.epoch
+                )
+                self.store._set_coder_product_diff_digest(
+                    lease.run_id, partial_digest, lease.owner, lease.epoch
+                )
+            run_role_attempt = run_role_attempt + 1
+            self.store._set_role_attempt(
+                lease.run_id, "coder", run_role_attempt, lease.owner, lease.epoch
+            )
+            self.store._set_recovery_classification(
+                lease.run_id, "interrupted", lease.owner, lease.epoch
+            )
+
+        return self._resume_roles(
+            task_id=task_id,
+            workspace_root=workspace_root,
+            run=run,
+            lease=lease,
+            executor=None,
+            accepted=run.accepted_checkpoint,
+            current_role=run.current_role,
+            role_attempt=run_role_attempt,
+            checkpointer=checkpointer,
+        )
+
+    def _resume_roles(
+        self,
+        *,
+        task_id: str,
+        workspace_root: str,
+        run: Any,
+        lease: LeaseHandle,
+        executor: Any,
+        accepted: str,
+        current_role: str,
+        role_attempt: int,
+        checkpointer: Any | None = None,
+    ) -> TaskExecutionOutcome:
+        from .task_execution import TaskExecutionOutcome
+        from .task_runtime import LocalValidationRunner
+        from .opencode_executor import (
+            _collect_product_diff,
+            _collect_final_product_files,
+            _handoff_digest,
+            _remove_handoff,
+            handoff_dir,
+        )
+        from reverse_agent.workflows.team_graph import TeamGraphError
 
         self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
-        if success:
-            if "planner" not in skip_roles and plan_digest:
-                self.store._accept_checkpoint(
-                    lease.run_id, "POST_PLANNER", plan_digest,
-                    new_role_attempt, lease.owner, lease.epoch,
+
+        if accepted == "POST_REVIEWER":
+            return self._resume_from_post_reviewer(task_id, run, lease, role_attempt)
+        if accepted == "POST_VALIDATION":
+            stored = self.store.get_task(task_id)
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=run.execution_id,
+                success=True,
+                validation_command_id=run.validation_command_id or "git_diff_check",
+                validation_exit_code=run.validation_exit_code or 0,
+            )
+
+        if executor is None:
+            task = self.store.get_task(task_id)
+            try:
+                executor = self.router.create_executor(
+                    executor_kind="opencode", **self._build_executor_kwargs(task)
                 )
-            if "coder" not in skip_roles and coder_product_snapshot:
+            except Exception as exc:
+                self.store.classify_failure(
+                    task_id, classification="blocked", detail=str(exc)
+                )
+                final = self.store.get_task(task_id)
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=final.execution_id,
+                    success=False, validation_command_id="",
+                    validation_exit_code=-1,
+                    failure_classification=final.failure_classification,
+                    failure_detail=final.failure_detail,
+                )
+
+        wt_path = run.worktree_path or workspace_root
+        prepared_path = Path(wt_path)
+        handoff = handoff_dir(prepared_path) if prepared_path.exists() else None
+
+        baseline_product = _collect_product_diff(prepared_path) if prepared_path.exists() else ()
+        self.store.set_changed_files(task_id, baseline_product)
+
+        plan_digest = run.planner_handoff_digest
+        review_digest = run.reviewer_handoff_digest
+        coder_product_snapshot: tuple[dict[str, Any], ...] = ()
+
+        remaining_roles = [
+            r for r, cp in [
+                ("planner", "POST_PLANNER"),
+                ("coder", "POST_CODER"),
+                ("reviewer", "POST_REVIEWER"),
+            ]
+            if cp not in ("POST_PLANNER",) or accepted != "POST_PLANNER"
+            if cp not in ("POST_PLANNER", "POST_CODER") or accepted != "POST_CODER"
+        ]
+
+        if accepted == "PRE_PLANNER":
+            remaining_roles = ["planner", "coder", "reviewer"]
+        elif accepted == "POST_PLANNER":
+            remaining_roles = ["coder", "reviewer"]
+        elif accepted == "POST_CODER":
+            remaining_roles = ["reviewer"]
+        elif accepted == "POST_REVIEWER":
+            return self._resume_from_post_reviewer(task_id, run, lease, role_attempt)
+
+        for role in remaining_roles:
+            cp_name = _checkpoint_name_for_role(role)
+            if not cp_name:
+                continue
+
+            result = self._execute_single_role(
+                role=role,
+                task_id=task_id,
+                prepared=prepared_path,
+                handoff=handoff or Path(wt_path) / ".handoff",
+                executor=executor,
+                baseline=baseline_product,
+                plan_digest=plan_digest,
+                role_attempt=role_attempt,
+                coder_product_snapshot=coder_product_snapshot,
+            )
+
+            if not result["success"]:
+                self._complete_durable_failure(
+                    task_id, run, lease, baseline_product, plan_digest,
+                    roles_executed=result.get("roles_executed", []),
+                    role_results=result.get("role_results", []),
+                    classification=result.get("classification", "failed"),
+                    failure_detail=result.get("detail", "role failed"),
+                )
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=run.execution_id,
+                    success=False, validation_command_id="",
+                    validation_exit_code=result.get("val_exit", -1),
+                    failure_classification=result.get("classification", "failed"),
+                    failure_detail=result.get("detail", "role failed"),
+                )
+
+            if role == "planner":
+                plan_digest = result["digest"]
+                self.store._set_planner_handoff_digest(
+                    lease.run_id, plan_digest, lease.owner, lease.epoch
+                )
+            elif role == "coder":
+                coder_product_snapshot = result["snapshot"]
                 coder_digest = _digest(_json_payload(list(coder_product_snapshot)))
                 self.store._set_coder_product_diff_digest(
                     lease.run_id, coder_digest, lease.owner, lease.epoch
                 )
-                self.store._accept_checkpoint(
-                    lease.run_id, "POST_CODER", coder_digest,
-                    new_role_attempt, lease.owner, lease.epoch,
-                )
-            if "reviewer" not in skip_roles and review_digest:
+                plan_digest = result.get("plan_digest", plan_digest)
+            elif role == "reviewer":
+                review_digest = result["digest"]
                 self.store._set_reviewer_handoff_digest(
                     lease.run_id, review_digest, lease.owner, lease.epoch
                 )
-                self.store._accept_checkpoint(
-                    lease.run_id, "POST_REVIEWER", review_digest,
-                    new_role_attempt, lease.owner, lease.epoch,
-                )
-            self.store._set_validation_result(
-                lease.run_id,
-                command_id="git_diff_check",
-                exit_code=val_exit,
-                output_digest=val_digest,
-            )
+
             self.store._accept_checkpoint(
-                lease.run_id, "POST_VALIDATION", "",
-                new_role_attempt, lease.owner, lease.epoch,
+                lease.run_id, cp_name,
+                result.get("digest", ""),
+                role_attempt, lease.owner, lease.epoch,
+            )
+            _check_crash_seam(cp_name)
+
+        val_runner = LocalValidationRunner()
+        try:
+            val_exit, val_output, val_digest = val_runner.run(
+                task_id=task_id, command_id="git_diff_check", cwd=wt_path,
+            )
+        except Exception:
+            val_exit, val_output, val_digest = -1, "", ""
+
+        self.store._set_validation_result(
+            lease.run_id, command_id="git_diff_check",
+            exit_code=val_exit, output_digest=val_digest,
+            owner=lease.owner, epoch=lease.epoch,
+        )
+        self.store._accept_checkpoint(
+            lease.run_id, "POST_VALIDATION", "",
+            role_attempt, lease.owner, lease.epoch,
+        )
+
+        if handoff:
+            _remove_handoff(handoff)
+        final_changed = _collect_final_product_files(prepared_path)
+        self.store.set_changed_files(task_id, final_changed)
+
+        self.store.transition_to(task_id, "VALIDATING")
+        if val_exit == 0:
+            self.store.transition_to(task_id, "READY_FOR_REVIEW")
+            self.store.add_event(
+                task_id, event_type="VALIDATED",
+                title="Durable sequential team validated (resume)",
+                description="resume per-role checkpoint acceptance completed",
+                metadata={
+                    "validation_exit_code": val_exit,
+                    "validation_command_id": "git_diff_check",
+                    "plan_digest": plan_digest,
+                    "review_digest": review_digest,
+                    "run_id": lease.run_id,
+                },
+            )
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=run.execution_id,
+                success=True,
+                validation_command_id="git_diff_check",
+                validation_exit_code=val_exit,
             )
 
+        self.store.set_validation_result(
+            task_id, command_id="git_diff_check",
+            exit_code=val_exit, output_digest=val_digest,
+        )
+        self.store.transition_to(task_id, "FAILED")
         return TaskExecutionOutcome(
             task_id=task_id,
             execution_id=run.execution_id,
-            success=success,
+            success=False,
             validation_command_id="git_diff_check",
             validation_exit_code=val_exit,
-            failure_classification="" if success else "deterministic_validation_failure",
-            failure_detail="" if success else f"git_diff_check exit={val_exit}",
+            failure_classification="deterministic_validation_failure",
+            failure_detail=f"git_diff_check exit={val_exit}",
         )
 
     def _resume_from_post_reviewer(
@@ -996,6 +1343,7 @@ class DurableExecutionService:
                 command_id="git_diff_check",
                 exit_code=val_exit,
                 output_digest=val_digest,
+                owner=lease.owner, epoch=lease.epoch,
             )
             self.store._accept_checkpoint(
                 lease.run_id, "POST_VALIDATION", "",
@@ -1021,27 +1369,6 @@ class DurableExecutionService:
             validation_exit_code=val_exit,
             failure_classification="deterministic_validation_failure",
             failure_detail=f"git_diff_check exit={val_exit}",
-        )
-
-    def _complete_sequential_team_failure(
-        self, task_id: str, run: DurableRun, lease: LeaseHandle,
-        roles_executed: list[str], role_results: list[dict[str, Any]],
-        baseline_product: tuple[dict[str, Any], ...], plan_digest: str,
-        *, classification: str, failure_detail: str,
-    ) -> None:
-        self.store.set_changed_files(task_id, baseline_product)
-        try:
-            self.store.classify_failure(
-                task_id, classification=classification,
-                detail=f"sequential team resume failed:{failure_detail}"
-            )
-        except TaskStoreError:
-            pass
-        self.store.add_event(
-            task_id, event_type="EXECUTOR_FINISHED",
-            title="Sequential team resume failed",
-            description=failure_detail,
-            metadata={"classification": classification, "roles": roles_executed},
         )
 
     # ---------------------------------------------------------------

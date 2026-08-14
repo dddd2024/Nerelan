@@ -305,14 +305,19 @@ class TaskStore:
                 run_id TEXT PRIMARY KEY,
                 task_id TEXT NOT NULL REFERENCES tasks(id),
                 execution_id TEXT NOT NULL,
+                execution_authority_sha TEXT NOT NULL DEFAULT '',
+                planning_sha TEXT NOT NULL DEFAULT '',
                 repository_base_sha TEXT NOT NULL DEFAULT '',
                 worktree_path TEXT NOT NULL,
+                worktree_head_sha TEXT NOT NULL DEFAULT '',
+                worktree_prepared_at TEXT NOT NULL DEFAULT '',
                 current_role TEXT NOT NULL DEFAULT '',
                 role_attempt INTEGER NOT NULL DEFAULT 1,
-                accepted_checkpoint TEXT NOT NULL DEFAULT 'PRE_PLANNER',
+                accepted_checkpoint TEXT NOT NULL DEFAULT '',
                 planner_handoff_digest TEXT NOT NULL DEFAULT '',
                 coder_product_diff_digest TEXT NOT NULL DEFAULT '',
                 reviewer_handoff_digest TEXT NOT NULL DEFAULT '',
+                partial_coder_diff_digest TEXT NOT NULL DEFAULT '',
                 validation_command_id TEXT NOT NULL DEFAULT '',
                 validation_exit_code INTEGER,
                 validation_output_digest TEXT NOT NULL DEFAULT '',
@@ -358,6 +363,19 @@ class TaskStore:
             self._conn.execute(
                 "ALTER TABLE tasks ADD COLUMN orchestration_mode TEXT NOT NULL DEFAULT 'single'"
             )
+
+        run_columns = {
+            row["name"] for row in self._conn.execute("PRAGMA table_info(durable_runs)")
+        }
+        for col, dtype in [
+            ("execution_authority_sha", "TEXT NOT NULL DEFAULT ''"),
+            ("planning_sha", "TEXT NOT NULL DEFAULT ''"),
+            ("worktree_head_sha", "TEXT NOT NULL DEFAULT ''"),
+            ("worktree_prepared_at", "TEXT NOT NULL DEFAULT ''"),
+            ("partial_coder_diff_digest", "TEXT NOT NULL DEFAULT ''"),
+        ]:
+            if col not in run_columns:
+                self._conn.execute(f"ALTER TABLE durable_runs ADD COLUMN {col} {dtype}")
 
     @property
     def db_path(self) -> str:
@@ -812,32 +830,32 @@ class TaskStore:
         """Acquire a new durable lease with epoch=1.
 
         Creates the durable_run record and returns a LeaseHandle-like dict.
-        Raises if an active run already exists for the task.
+        Fails closed if an active run already exists for the task.
         """
         with self._lock:
             task = self.get_task(task_id)
             existing = self._find_active_durable_run(task_id)
             if existing is not None:
-                if existing["status"] in ("READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"):
-                    raise TaskStoreError(
-                        f"durable_run_already_completed:{task_id}"
-                    )
-                return self._recover_durable_lease(existing["run_id"], lease_owner)
+                raise TaskStoreError(
+                    f"durable_run_already_active:{task_id}"
+                )
             now = _utc_now()
             now_ms = _utc_now_ms()
             run_id = f"run-{task_id}-{_short_uuid()}"
             self._conn.execute(
                 "INSERT INTO durable_runs "
-                "(run_id, task_id, execution_id, repository_base_sha, worktree_path, "
+                "(run_id, task_id, execution_id, execution_authority_sha, planning_sha, "
+                "repository_base_sha, worktree_path, worktree_head_sha, worktree_prepared_at, "
                 "current_role, role_attempt, accepted_checkpoint, "
                 "planner_handoff_digest, coder_product_diff_digest, reviewer_handoff_digest, "
+                "partial_coder_diff_digest, "
                 "validation_command_id, validation_exit_code, validation_output_digest, "
                 "lease_owner, lease_epoch, heartbeat_at_ms, lease_expiry_ms, "
                 "recovery_classification, interrupted_at, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "VALUES (?, ?, ?, '', '', ?, ?, '', '', ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     run_id, task_id, execution_id, repository_base_sha, worktree_path,
-                    "", 1, "PRE_PLANNER", "", "", "",
+                    "", 1, "", "", "", "",
                     "", None, "", lease_owner, 1, now_ms, now_ms + 300000,
                     "normal", "", now, now,
                 ),
@@ -878,9 +896,9 @@ class TaskStore:
     ) -> Any:
         """Recover a durable lease with a strictly larger epoch.
 
-        If the existing lease is stale (owner mismatch or epoch is the
-        same), create a new epoch = existing_epoch + 1. If the existing
-        owner/epoch is still valid (same owner, epoch unchanged), return it.
+        Every recovery creates a strictly newer epoch, even if the owner
+        label matches the previous owner. Owner-label equality is NOT proof
+        that the worker is the same instance. Epoch is the fencing token.
         """
         with self._lock:
             row = self._conn.execute(
@@ -889,9 +907,6 @@ class TaskStore:
             if row is None:
                 raise TaskStoreError(f"durable_run_not_found:{run_id}")
             existing_epoch = int(row["lease_epoch"])
-            existing_owner = row["lease_owner"]
-            if existing_owner == lease_owner:
-                return self._lease_handle_from_row(row)
             new_epoch = existing_epoch + 1
             now_ms = _utc_now_ms()
             self._conn.execute(
@@ -943,10 +958,16 @@ class TaskStore:
             )
 
     def _release_durable_lease(self, run_id: str) -> None:
+        """Release active ownership. MUST NOT reset or decrease epoch.
+
+        The highest epoch for a durable run is monotonic for the run's
+        lifetime. Release only clears active ownership; the epoch remains
+        so that any late-arriving old worker is fenced.
+        """
         with self._lock:
             self._conn.execute(
                 "UPDATE durable_runs SET lease_owner = '', "
-                "lease_epoch = 0, updated_at = ? WHERE run_id = ?",
+                "lease_expiry_ms = 0, updated_at = ? WHERE run_id = ?",
                 (_utc_now(), run_id),
             )
 
@@ -959,7 +980,13 @@ class TaskStore:
         owner: str,
         epoch: int,
     ) -> Any:
-        """Accept a checkpoint (append-only). Never overwrite a completed checkpoint."""
+        """Accept a checkpoint (append-only, idempotent). Never overwrite a completed checkpoint.
+
+        Idempotency: if the same checkpoint already exists in history with
+        the same accepted state, return the existing record without inserting
+        a duplicate. Backward checkpoints always fail. Forward progression
+        always inserts a new record.
+        """
         self._validate_durable_lease(run_id, owner, epoch)
         with self._lock:
             run_row = self._conn.execute(
@@ -977,16 +1004,29 @@ class TaskStore:
                     f"checkpoint_sequence_regression:"
                     f"{current_accepted}->{checkpoint_name}"
                 )
-            if new_rank <= current_rank:
-                pass
+            if new_rank > current_rank + 1 and current_rank >= 0:
+                raise TaskStoreError(
+                    f"checkpoint_sequence_jump:"
+                    f"{current_accepted}->{checkpoint_name}"
+                )
 
-            existing_cps = [r for r in self._conn.execute(
-                "SELECT checkpoint_name FROM durable_checkpoint_history "
-                "WHERE run_id = ? ORDER BY seq ASC", (run_id,),
-            )]
-            existing_names = [r["checkpoint_name"] for r in existing_cps]
-            if checkpoint_name in existing_names:
-                pass
+            # Idempotency: if already accepted at this rank, return existing record
+            if new_rank == current_rank:
+                existing = self._conn.execute(
+                    "SELECT * FROM durable_checkpoint_history "
+                    "WHERE run_id = ? AND checkpoint_name = ? "
+                    "ORDER BY seq DESC LIMIT 1",
+                    (run_id, checkpoint_name),
+                ).fetchone()
+                if existing is not None:
+                    return DurableCheckpoint(
+                        checkpoint_id=existing["checkpoint_id"],
+                        run_id=existing["run_id"],
+                        checkpoint_name=existing["checkpoint_name"],
+                        artifact_digest=existing["artifact_digest"],
+                        role_attempt=int(existing["role_attempt"]),
+                        created_at=existing["created_at"],
+                    )
 
             cp_id = f"cp-{run_id}-{_short_uuid()}"
             self._conn.execute(
@@ -1102,7 +1142,10 @@ class TaskStore:
         command_id: str,
         exit_code: int,
         output_digest: str,
+        owner: str,
+        epoch: int,
     ) -> None:
+        self._validate_durable_lease(run_id, owner, epoch)
         with self._lock:
             self._conn.execute(
                 "UPDATE durable_runs SET "
@@ -1271,6 +1314,44 @@ class TaskStore:
             repository_base_sha=row["repository_base_sha"],
         )
 
+    def _set_worktree_identity(
+        self, run_id: str, worktree_path: str, worktree_head_sha: str,
+        owner: str, epoch: int,
+    ) -> None:
+        self._validate_durable_lease(run_id, owner, epoch)
+        with self._lock:
+            self._conn.execute(
+                "UPDATE durable_runs SET "
+                "worktree_path = ?, worktree_head_sha = ?, "
+                "worktree_prepared_at = ?, updated_at = ? "
+                "WHERE run_id = ?",
+                (worktree_path, worktree_head_sha, _utc_now(), _utc_now(), run_id),
+            )
+
+    def _set_authority_identity(
+        self, run_id: str, execution_authority_sha: str,
+        planning_sha: str, owner: str, epoch: int,
+    ) -> None:
+        self._validate_durable_lease(run_id, owner, epoch)
+        with self._lock:
+            self._conn.execute(
+                "UPDATE durable_runs SET "
+                "execution_authority_sha = ?, planning_sha = ?, "
+                "updated_at = ? WHERE run_id = ?",
+                (execution_authority_sha, planning_sha, _utc_now(), run_id),
+            )
+
+    def _set_partial_coder_diff_digest(
+        self, run_id: str, digest: str, owner: str, epoch: int,
+    ) -> None:
+        self._validate_durable_lease(run_id, owner, epoch)
+        with self._lock:
+            self._conn.execute(
+                "UPDATE durable_runs SET partial_coder_diff_digest = ?, "
+                "updated_at = ? WHERE run_id = ?",
+                (digest, _utc_now(), run_id),
+            )
+
 
 class LeaseHandle:
     """Immutable lease handle returned by durable lease operations."""
@@ -1350,19 +1431,25 @@ def _checkpoint_to_role(checkpoint_name: str) -> str:
 
 def _row_to_durable_run(row: sqlite3.Row) -> Any:
     from dataclasses import dataclass
+    cols = set(row.keys())
     @dataclass(frozen=True)
     class DurableRun:
         run_id: str
         task_id: str
         execution_id: str
+        execution_authority_sha: str
+        planning_sha: str
         repository_base_sha: str
         worktree_path: str
+        worktree_head_sha: str
+        worktree_prepared_at: str
         current_role: str
         role_attempt: int
         accepted_checkpoint: str
         planner_handoff_digest: str
         coder_product_diff_digest: str
         reviewer_handoff_digest: str
+        partial_coder_diff_digest: str
         validation_command_id: str
         validation_exit_code: int | None
         validation_output_digest: str
@@ -1378,14 +1465,19 @@ def _row_to_durable_run(row: sqlite3.Row) -> Any:
         run_id=row["run_id"],
         task_id=row["task_id"],
         execution_id=row["execution_id"],
+        execution_authority_sha=row["execution_authority_sha"] if "execution_authority_sha" in cols else "",
+        planning_sha=row["planning_sha"] if "planning_sha" in cols else "",
         repository_base_sha=row["repository_base_sha"],
         worktree_path=row["worktree_path"],
+        worktree_head_sha=row["worktree_head_sha"] if "worktree_head_sha" in cols else "",
+        worktree_prepared_at=row["worktree_prepared_at"] if "worktree_prepared_at" in cols else "",
         current_role=row["current_role"],
         role_attempt=int(row["role_attempt"]),
         accepted_checkpoint=row["accepted_checkpoint"],
         planner_handoff_digest=row["planner_handoff_digest"],
         coder_product_diff_digest=row["coder_product_diff_digest"],
         reviewer_handoff_digest=row["reviewer_handoff_digest"],
+        partial_coder_diff_digest=row["partial_coder_diff_digest"] if "partial_coder_diff_digest" in cols else "",
         validation_command_id=row["validation_command_id"],
         validation_exit_code=row["validation_exit_code"],
         validation_output_digest=row["validation_output_digest"],
