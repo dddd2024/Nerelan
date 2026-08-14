@@ -191,7 +191,7 @@ def _expire_and_reconcile(store: TaskStore, task_id: str) -> None:
         "UPDATE durable_runs SET lease_expiry_ms = ? WHERE run_id = ?",
         (now_ms - 10000, run_row["run_id"]),
     )
-    svc = DurableExecutionService(store=store, router=ExecutorRouter())
+    svc = DurableExecutionService(store=store, router=ExecutorRouter(), execution_authority_sha="test_authority", planning_sha="test_planning")
     svc.reconcile_expired_runs(now_ms=now_ms, max_age_ms=1000)
 
 
@@ -204,7 +204,7 @@ def test_crash_after_planner_uses_real_durable_path(tmp_path) -> None:
     reset_crash_seam()
     store = _make_store(tmp_path)
     router = ExecutorRouter()
-    service = DurableExecutionService(store=store, router=router)
+    service = DurableExecutionService(store=store, router=router, execution_authority_sha="test_authority", planning_sha="test_planning")
 
     task = store.create_task(
         title="crash-planner-test",
@@ -223,7 +223,7 @@ def test_crash_after_planner_uses_real_durable_path(tmp_path) -> None:
             raise NotImplementedError()
 
     router2 = RecordingRouter()
-    service2 = DurableExecutionService(store=store, router=router2)
+    service2 = DurableExecutionService(store=store, router=router2, execution_authority_sha="test_authority", planning_sha="test_planning")
 
     with pytest.raises(_CrashSimulated):
         service2.execute_durable_sequential_team(
@@ -243,7 +243,7 @@ def test_crash_after_planner_uses_real_durable_path(tmp_path) -> None:
     assert planner_calls_before >= 1
 
     store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
-    service3 = DurableExecutionService(store=store2, router=RecordingRouter())
+    service3 = DurableExecutionService(store=store2, router=RecordingRouter(), execution_authority_sha="test_authority", planning_sha="test_planning")
     fake2 = FakeExecutor()
 
     class RecordingRouter2(ExecutorRouter):
@@ -252,7 +252,7 @@ def test_crash_after_planner_uses_real_durable_path(tmp_path) -> None:
         def dispatch_execute(self, *a, **kw):
             raise NotImplementedError()
 
-    service3 = DurableExecutionService(store=store2, router=RecordingRouter2())
+    service3 = DurableExecutionService(store=store2, router=RecordingRouter2(), execution_authority_sha="test_authority", planning_sha="test_planning")
 
     _expire_and_reconcile(store2, task.id)
 
@@ -288,7 +288,7 @@ def test_crash_after_coder_uses_real_durable_path(tmp_path) -> None:
         def dispatch_execute(self, *a: Any, **kw: Any):
             raise NotImplementedError()
 
-    service = DurableExecutionService(store=store, router=RR())
+    service = DurableExecutionService(store=store, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
     with pytest.raises(_CrashSimulated):
         service.execute_durable_sequential_team(
             task_id=task.id,
@@ -310,7 +310,7 @@ def test_crash_after_coder_uses_real_durable_path(tmp_path) -> None:
         def dispatch_execute(self, *a, **kw):
             raise NotImplementedError()
 
-    service2 = DurableExecutionService(store=store2, router=RR2())
+    service2 = DurableExecutionService(store=store2, router=RR2(), execution_authority_sha="test_authority", planning_sha="test_planning")
     _expire_and_reconcile(store2, task.id)
     outcome = service2.resume_sequential_team(
         task_id=task.id, lease_owner="worker-2",
@@ -343,7 +343,7 @@ def test_second_crash_during_recovery(tmp_path) -> None:
 
     # First run: crash BEFORE any checkpoint
     set_crash_after_checkpoint("PRE_PLANNER")
-    service = DurableExecutionService(store=store, router=RR())
+    service = DurableExecutionService(store=store, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
     with pytest.raises(_CrashSimulated):
         service.execute_durable_sequential_team(
             task_id=task.id, workspace_root=str(wt_dir), lease_owner="worker-1",
@@ -361,7 +361,7 @@ def test_second_crash_during_recovery(tmp_path) -> None:
         def dispatch_execute(self, *a, **kw):
             raise NotImplementedError()
 
-    service2 = DurableExecutionService(store=store2, router=RR2())
+    service2 = DurableExecutionService(store=store2, router=RR2(), execution_authority_sha="test_authority", planning_sha="test_planning")
     _expire_and_reconcile(store2, task.id)
     with pytest.raises(_CrashSimulated):
         service2.resume_sequential_team(task_id=task.id, lease_owner="worker-2")
@@ -380,7 +380,7 @@ def test_second_crash_during_recovery(tmp_path) -> None:
         def dispatch_execute(self, *a, **kw):
             raise NotImplementedError()
 
-    service3 = DurableExecutionService(store=store3, router=RR3())
+    service3 = DurableExecutionService(store=store3, router=RR3(), execution_authority_sha="test_authority", planning_sha="test_planning")
     _expire_and_reconcile(store3, task.id)
     outcome = service3.resume_sequential_team(task_id=task.id, lease_owner="worker-3")
     assert fake3.call_count.get("planner", 0) == 0
@@ -410,7 +410,7 @@ def test_exact_prepared_worktree_persisted(tmp_path) -> None:
             raise NotImplementedError()
 
     set_crash_after_checkpoint("POST_PLANNER")
-    service = DurableExecutionService(store=store, router=RR())
+    service = DurableExecutionService(store=store, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
     with pytest.raises(_CrashSimulated):
         service.execute_durable_sequential_team(
             task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
@@ -443,7 +443,7 @@ def test_worktree_head_identity_survives(tmp_path) -> None:
             raise NotImplementedError()
 
     set_crash_after_checkpoint("POST_PLANNER")
-    service = DurableExecutionService(store=store, router=RR())
+    service = DurableExecutionService(store=store, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
     with pytest.raises(_CrashSimulated):
         service.execute_durable_sequential_team(
             task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
@@ -483,7 +483,7 @@ def test_interrupted_coder_partial_diff_survives(tmp_path) -> None:
             raise NotImplementedError()
 
     set_crash_after_checkpoint("POST_PLANNER")
-    service = DurableExecutionService(store=store, router=RR())
+    service = DurableExecutionService(store=store, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
     with pytest.raises(_CrashSimulated):
         service.execute_durable_sequential_team(
             task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
@@ -495,7 +495,7 @@ def test_interrupted_coder_partial_diff_survives(tmp_path) -> None:
     assert run.current_role == "coder"
 
     store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
-    service2 = DurableExecutionService(store=store2, router=RR())
+    service2 = DurableExecutionService(store=store2, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
     fake2 = FakeExecutor()
 
     class RR2(ExecutorRouter):
@@ -504,7 +504,7 @@ def test_interrupted_coder_partial_diff_survives(tmp_path) -> None:
         def dispatch_execute(self, *a, **kw):
             raise NotImplementedError()
 
-    service2 = DurableExecutionService(store=store2, router=RR2())
+    service2 = DurableExecutionService(store=store2, router=RR2(), execution_authority_sha="test_authority", planning_sha="test_planning")
     _expire_and_reconcile(store2, task.id)
     outcome = service2.resume_sequential_team(task_id=task.id, lease_owner="w2")
 
@@ -533,7 +533,7 @@ def test_coder_recovery_attempt_increments(tmp_path) -> None:
             raise NotImplementedError()
 
     set_crash_after_checkpoint("POST_PLANNER")
-    service = DurableExecutionService(store=store, router=RR())
+    service = DurableExecutionService(store=store, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
     with pytest.raises(_CrashSimulated):
         service.execute_durable_sequential_team(
             task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
@@ -544,7 +544,7 @@ def test_coder_recovery_attempt_increments(tmp_path) -> None:
     assert run.role_attempt == 1
 
     store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
-    service2 = DurableExecutionService(store=store2, router=RR())
+    service2 = DurableExecutionService(store=store2, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
     fake2 = FakeExecutor()
 
     class RR2(ExecutorRouter):
@@ -553,7 +553,7 @@ def test_coder_recovery_attempt_increments(tmp_path) -> None:
         def dispatch_execute(self, *a, **kw):
             raise NotImplementedError()
 
-    service2 = DurableExecutionService(store=store2, router=RR2())
+    service2 = DurableExecutionService(store=store2, router=RR2(), execution_authority_sha="test_authority", planning_sha="test_planning")
     _expire_and_reconcile(store2, task.id)
     service2.resume_sequential_team(task_id=task.id, lease_owner="w2")
 
@@ -677,7 +677,7 @@ def test_repository_base_sha_mismatch_fails_independently(tmp_path) -> None:
             raise NotImplementedError()
 
     set_crash_after_checkpoint("POST_PLANNER")
-    service = DurableExecutionService(store=store, router=RR())
+    service = DurableExecutionService(store=store, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
     with pytest.raises(_CrashSimulated):
         service.execute_durable_sequential_team(
             task_id=task.id,
@@ -697,7 +697,7 @@ def test_repository_base_sha_mismatch_fails_independently(tmp_path) -> None:
 
     # Resume with wrong repository_base_sha must fail
     store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
-    service2 = DurableExecutionService(store=store2, router=RR())
+    service2 = DurableExecutionService(store=store2, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
     _expire_and_reconcile(store2, task.id)
     with pytest.raises(DurableResumeError) as excinfo:
         service2.resume_sequential_team(
@@ -727,7 +727,7 @@ def test_worktree_path_head_mismatch_fails_independently(tmp_path) -> None:
             raise NotImplementedError()
 
     set_crash_after_checkpoint("POST_PLANNER")
-    service = DurableExecutionService(store=store, router=RR())
+    service = DurableExecutionService(store=store, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
     with pytest.raises(_CrashSimulated):
         service.execute_durable_sequential_team(
             task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
@@ -746,7 +746,7 @@ def test_worktree_path_head_mismatch_fails_independently(tmp_path) -> None:
     )
 
     store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
-    service2 = DurableExecutionService(store=store2, router=RR())
+    service2 = DurableExecutionService(store=store2, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
     with pytest.raises(DurableResumeError) as excinfo:
         service2.resume_sequential_team(task_id=task.id, lease_owner="w2")
     assert "repository_base_head_mismatch" in str(excinfo.value)
@@ -775,7 +775,7 @@ def test_checkpoint_sequence_exactly_once(tmp_path) -> None:
         def dispatch_execute(self, *a: Any, **kw: Any):
             raise NotImplementedError()
 
-    service = DurableExecutionService(store=store, router=RR())
+    service = DurableExecutionService(store=store, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
     outcome = service.execute_durable_sequential_team(
         task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
     )
@@ -1118,7 +1118,7 @@ def test_startup_reconciliation_no_model_calls(tmp_path) -> None:
         (int(time.time() * 1000) - 10000, run_id),
     )
 
-    service = DurableExecutionService(store=store, router=ExecutorRouter())
+    service = DurableExecutionService(store=store, router=ExecutorRouter(), execution_authority_sha="test_authority", planning_sha="test_planning")
     records = service.reconcile_expired_runs(
         now_ms=int(time.time() * 1000), max_age_ms=1000
     )
@@ -1165,7 +1165,7 @@ def test_stale_epoch_production_path_fencing(tmp_path) -> None:
     with pytest.raises(TaskStoreError):
         store._set_recovery_classification(run_id, "x", "w1", 1)
     with pytest.raises(TaskStoreError):
-        store._heartbeat_durable_lease(run_id, "w1", 1)
+        store._heartbeat_durable_lease(run_id, "w1", 1, expiry_ms=300000)
 
 
 # ---------------------------------------------------------------------------
@@ -1191,7 +1191,7 @@ def test_successful_durable_ends_ready_for_review_once(tmp_path) -> None:
         def dispatch_execute(self, *a: Any, **kw: Any):
             raise NotImplementedError()
 
-    service = DurableExecutionService(store=store, router=RR())
+    service = DurableExecutionService(store=store, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
     outcome = service.execute_durable_sequential_team(
         task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
     )
@@ -1234,7 +1234,7 @@ def test_single_execution_backward_compatible(tmp_path) -> None:
 def test_crash_after_planner_accepted_restarts_from_coder(tmp_path) -> None:
     """Existing test: Planner accepted, crash, restart skips Planner."""
     store = _make_store(tmp_path)
-    service = DurableExecutionService(store=store, router=ExecutorRouter())
+    service = DurableExecutionService(store=store, router=ExecutorRouter(), execution_authority_sha="test_authority", planning_sha="test_planning")
 
     task = store.create_task(
         title="durable-test",
@@ -1259,7 +1259,7 @@ def test_crash_after_planner_accepted_restarts_from_coder(tmp_path) -> None:
     store._set_planner_handoff_digest(run_id, "plan_digest_abc123", lease.owner, lease.epoch)
 
     store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
-    service2 = DurableExecutionService(store=store2, router=ExecutorRouter())
+    service2 = DurableExecutionService(store=store2, router=ExecutorRouter(), execution_authority_sha="test_authority", planning_sha="test_planning")
     run = store2._find_active_durable_run(task.id)
     assert run is not None
     assert run["accepted_checkpoint"] == "POST_PLANNER"
@@ -1271,7 +1271,7 @@ def test_crash_after_planner_accepted_restarts_from_coder(tmp_path) -> None:
 def test_external_operation_reconciliation(tmp_path) -> None:
     """Existing test: external operation idempotency."""
     store = _make_store(tmp_path)
-    service = DurableExecutionService(store=store, router=ExecutorRouter())
+    service = DurableExecutionService(store=store, router=ExecutorRouter(), execution_authority_sha="test_authority", planning_sha="test_planning")
 
     op1 = service.record_external_operation(
         operation_key="deploy_v1",
@@ -1294,7 +1294,7 @@ def test_external_operation_reconciliation(tmp_path) -> None:
 def test_checkpoint_ordering_cannot_move_backwards(tmp_path) -> None:
     """Existing test: checkpoint sequence cannot move backwards."""
     store = _make_store(tmp_path)
-    service = DurableExecutionService(store=store, router=ExecutorRouter())
+    service = DurableExecutionService(store=store, router=ExecutorRouter(), execution_authority_sha="test_authority", planning_sha="test_planning")
 
     task = store.create_task(
         title="order-test",
@@ -1321,7 +1321,7 @@ def test_checkpoint_ordering_cannot_move_backwards(tmp_path) -> None:
 def test_stale_running_lease_reconciled_to_interrupted(tmp_path) -> None:
     """Existing test: expired RUNNING lease -> INTERRUPTED."""
     store = _make_store(tmp_path)
-    service = DurableExecutionService(store=store, router=ExecutorRouter())
+    service = DurableExecutionService(store=store, router=ExecutorRouter(), execution_authority_sha="test_authority", planning_sha="test_planning")
 
     task = store.create_task(
         title="stale-lease-test",
@@ -1352,7 +1352,7 @@ def test_stale_running_lease_reconciled_to_interrupted(tmp_path) -> None:
 def test_new_worker_higher_epoch_fences_old(tmp_path) -> None:
     """Existing test: monotonic epoch fencing."""
     store = _make_store(tmp_path)
-    service = DurableExecutionService(store=store, router=ExecutorRouter())
+    service = DurableExecutionService(store=store, router=ExecutorRouter(), execution_authority_sha="test_authority", planning_sha="test_planning")
 
     task = store.create_task(
         title="epoch-test",
@@ -1398,7 +1398,7 @@ def test_interrupted_is_recoverable_not_terminal(tmp_path) -> None:
 def test_stable_run_id_across_reconstruction(tmp_path) -> None:
     """Existing test: run_id is stable across service reconstruction."""
     store = _make_store(tmp_path)
-    service = DurableExecutionService(store=store, router=ExecutorRouter())
+    service = DurableExecutionService(store=store, router=ExecutorRouter(), execution_authority_sha="test_authority", planning_sha="test_planning")
 
     task = store.create_task(
         title="stable-run",
@@ -1412,7 +1412,7 @@ def test_stable_run_id_across_reconstruction(tmp_path) -> None:
     run_id = lease.run_id
 
     store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
-    service2 = DurableExecutionService(store=store2, router=ExecutorRouter())
+    service2 = DurableExecutionService(store=store2, router=ExecutorRouter(), execution_authority_sha="test_authority", planning_sha="test_planning")
     ctx = service2.get_resume_context(task.id)
     assert ctx.lease.run_id == run_id
 
@@ -1442,9 +1442,9 @@ def test_terminal_takeover_stale_worker_fenced(tmp_path) -> None:
     store._accept_checkpoint(run_id, "PRE_PLANNER", "", 1, lease1.owner, lease1.epoch)
     store._accept_checkpoint(run_id, "POST_PLANNER", "digest_1", 1, lease1.owner, lease1.epoch)
 
-    # Old worker: status is RUNNING, 2 checkpoints
+    # Old worker: status is PREPARING_WORKSPACE after claim, 2 checkpoints
     task_before = store.get_task(task.id)
-    assert task_before.status == "RUNNING"
+    assert task_before.status == "PREPARING_WORKSPACE"
 
     # New worker acquires strictly newer epoch
     lease2 = store._recover_durable_lease(run_id, "new-worker")
@@ -1499,7 +1499,7 @@ def test_terminal_takeover_stale_worker_fenced(tmp_path) -> None:
 
     # --- Verify state unchanged by stale worker ---
     task_after = store.get_task(task.id)
-    assert task_after.status == "RUNNING"
+    assert task_after.status == "PREPARING_WORKSPACE"
 
     events = store.get_events(task.id)
     assert len([e for e in events if e.title == "stale event"]) == 0
@@ -1518,6 +1518,7 @@ def test_terminal_takeover_stale_worker_fenced(tmp_path) -> None:
     assert task_after.validation_exit_code is None
 
     # --- New worker CAN continue ---
+    store._fenced_transition_to(run_id, task.id, "RUNNING", "new-worker", 2)
     store._fenced_transition_to(run_id, task.id, "VALIDATING", "new-worker", 2)
     store._fenced_transition_to(run_id, task.id, "READY_FOR_REVIEW", "new-worker", 2)
     final = store.get_task(task.id)
@@ -1587,7 +1588,7 @@ def test_abrupt_process_death_preserves_old_lease(tmp_path) -> None:
     _make_git_worktree(wt_dir)
 
     set_crash_after_checkpoint("POST_PLANNER")
-    service = DurableExecutionService(store=store, router=RR())
+    service = DurableExecutionService(store=store, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
 
     old_epoch = 0
     old_owner = ""
@@ -1622,7 +1623,7 @@ def test_abrupt_process_death_preserves_old_lease(tmp_path) -> None:
 
     # --- Phase 3: reconciliation ---
     store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
-    service2 = DurableExecutionService(store=store2, router=RR())
+    service2 = DurableExecutionService(store=store2, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
     records = service2.reconcile_expired_runs(
         now_ms=int(time.time() * 1000), max_age_ms=1000
     )
@@ -1650,7 +1651,7 @@ def test_abrupt_process_death_preserves_old_lease(tmp_path) -> None:
         def dispatch_execute(self, *a: Any, **kw: Any):
             raise NotImplementedError()
 
-    service3 = DurableExecutionService(store=store2, router=RR2())
+    service3 = DurableExecutionService(store=store2, router=RR2(), execution_authority_sha="test_authority", planning_sha="test_planning")
     with pytest.raises(_CrashSimulated):
         service3.resume_sequential_team(
             task_id=task.id,
@@ -1739,7 +1740,7 @@ def test_abrupt_crash_after_coder_no_restart(tmp_path) -> None:
     # Phase 1: crash after POST_CODER
     fake1 = FakeExecutor()
     set_crash_after_checkpoint("POST_CODER")
-    service = DurableExecutionService(store=store, router=RR(fake1))
+    service = DurableExecutionService(store=store, router=RR(fake1), execution_authority_sha="test_authority", planning_sha="test_planning")
     with pytest.raises(_CrashSimulated):
         service.execute_durable_sequential_team(
             task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
@@ -1757,7 +1758,7 @@ def test_abrupt_crash_after_coder_no_restart(tmp_path) -> None:
     # Phase 2: resume -- only reviewer should run
     store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
     fake2 = FakeExecutor()
-    service2 = DurableExecutionService(store=store2, router=RR(fake2))
+    service2 = DurableExecutionService(store=store2, router=RR(fake2), execution_authority_sha="test_authority", planning_sha="test_planning")
     _expire_and_reconcile(store2, task.id)
     outcome = service2.resume_sequential_team(task_id=task.id, lease_owner="w2")
 
@@ -1831,7 +1832,7 @@ def test_production_checkpoint_db_persisted(tmp_path) -> None:
     _make_git_worktree(wt_dir)
 
     set_crash_after_checkpoint("POST_PLANNER")
-    service = DurableExecutionService(store=store, router=RR())
+    service = DurableExecutionService(store=store, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
     with pytest.raises(_CrashSimulated):
         service.execute_durable_sequential_team(
             task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
@@ -1908,7 +1909,7 @@ def test_stable_thread_id_equals_run_id(tmp_path) -> None:
     _make_git_worktree(wt_dir)
 
     set_crash_after_checkpoint("POST_PLANNER")
-    service = DurableExecutionService(store=store, router=RR())
+    service = DurableExecutionService(store=store, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
     with pytest.raises(_CrashSimulated):
         service.execute_durable_sequential_team(
             task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
@@ -1936,3 +1937,304 @@ def test_stable_thread_id_equals_run_id(tmp_path) -> None:
 
     # Verify strict serde
     assert _check_strict_serde_active(saver) is True
+
+
+# ---------------------------------------------------------------------------
+# Addendum: one-run-per-Task SQLite UNIQUE invariant
+# ---------------------------------------------------------------------------
+
+def test_one_run_per_task_unique_constraint(tmp_path) -> None:
+    """Only one durable run may exist per task_id; enforced by SQLite UNIQUE."""
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="unique-test", executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    lease1 = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="w1", task_status="QUEUED",
+    )
+    assert lease1.run_id
+    task_after = store.get_task(task.id)
+    assert task_after.status == "PREPARING_WORKSPACE"
+    with pytest.raises(TaskStoreError) as ei:
+        store._acquire_durable_lease(
+            task_id=task.id, execution_id=task.execution_id,
+            lease_owner="w2", task_status=None,
+        )
+    assert "durable_run_already_active" in str(ei.value)
+    count = store._conn.execute(
+        "SELECT COUNT(*) FROM durable_runs WHERE task_id = ?",
+        (task.id,),
+    ).fetchone()[0]
+    assert count == 1
+
+
+def test_historical_duplicate_migration_fails_closed(tmp_path) -> None:
+    """Pre-existing duplicate durable_runs rows fail closed at schema init."""
+    import sqlite3 as _sqlite3
+    raw = tmp_path / "dup.sqlite3"
+    conn = _sqlite3.connect(str(raw), isolation_level=None)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.executescript(
+        "CREATE TABLE tasks (id TEXT PRIMARY KEY, title TEXT NOT NULL, "
+        "repository TEXT NOT NULL, status TEXT NOT NULL, executor_kind TEXT NOT NULL, "
+        "execution_id TEXT NOT NULL, model_profile_ref TEXT NOT NULL, "
+        "binding_ref TEXT NOT NULL DEFAULT '', permission_profile TEXT NOT NULL, "
+        "policy_ref TEXT NOT NULL, workspace TEXT NOT NULL, branch TEXT NOT NULL, "
+        "orchestration_mode TEXT NOT NULL DEFAULT 'single', created_at TEXT NOT NULL, "
+        "updated_at TEXT NOT NULL, failure_classification TEXT NOT NULL, "
+        "failure_detail TEXT NOT NULL, validation_command_id TEXT NOT NULL, "
+        "validation_exit_code INTEGER, validation_output_digest TEXT NOT NULL, "
+        "idempotency_key TEXT NOT NULL);"
+        "CREATE TABLE durable_runs (run_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, "
+        "execution_id TEXT NOT NULL);"
+    )
+    conn.execute(
+        "INSERT INTO tasks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            "t1", "x", "r", "QUEUED",
+            "opencode", "e1",
+            "", "", "", "",
+            "", "", "seq", "now", "now",
+            "", "", "",
+            None, "", "",
+        ),
+    )
+    conn.execute("INSERT INTO durable_runs VALUES ('r1','t1','e1'),('r2','t1','e1')")
+    conn.commit()
+    with pytest.raises(TaskStoreError) as ei:
+        TaskStore(db_path=str(raw))
+    assert "durable_run_task_uniqueness_violation" in str(ei.value)
+
+
+# ---------------------------------------------------------------------------
+# Addendum: trusted lease config validation
+# ---------------------------------------------------------------------------
+
+def test_trusted_lease_config_validation(tmp_path) -> None:
+    """expiry_ms<=0, cadence<=0, cadence>=expiry must all fail closed."""
+    store = _make_store(tmp_path)
+    with pytest.raises(TaskExecutionError) as ei:
+        DurableExecutionService(store=store, router=object(),
+                                expiry_ms=0, heartbeat_window_ms=60000)
+    assert "expiry_ms_non_positive" in str(ei.value)
+    with pytest.raises(TaskExecutionError) as ei:
+        DurableExecutionService(store=store, router=object(),
+                                expiry_ms=-1, heartbeat_window_ms=60000)
+    assert "expiry_ms_non_positive" in str(ei.value)
+    with pytest.raises(TaskExecutionError) as ei:
+        DurableExecutionService(store=store, router=object(),
+                                expiry_ms=300000, heartbeat_window_ms=0)
+    assert "heartbeat_window_ms_non_positive" in str(ei.value)
+    with pytest.raises(TaskExecutionError) as ei:
+        DurableExecutionService(store=store, router=object(),
+                                expiry_ms=300000, heartbeat_window_ms=300000)
+    assert "cannot_renew_before_expiry" in str(ei.value)
+    with pytest.raises(TaskExecutionError) as ei:
+        DurableExecutionService(store=store, router=object(),
+                                expiry_ms=100, heartbeat_window_ms=200)
+    assert "cannot_renew_before_expiry" in str(ei.value)
+
+
+# ---------------------------------------------------------------------------
+# Addendum: falsy authority/planning fail closed BEFORE durable run claim
+# ---------------------------------------------------------------------------
+
+def test_falsy_authority_fails_before_claim(tmp_path) -> None:
+    """None, '', whitespace authority must fail before durable run is created."""
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="falsy-auth", executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    for bad_val in [None, "", "   ", "\t\n"]:
+        service = DurableExecutionService(
+            store=store, router=object(),
+            execution_authority_sha=bad_val,
+            planning_sha="valid-plan",
+        )
+        with pytest.raises((TaskExecutionError, DurableResumeError)):
+            service.execute_durable_sequential_team(
+                task_id=task.id, workspace_root=str(tmp_path),
+            )
+        run_count = store._conn.execute(
+            "SELECT COUNT(*) FROM durable_runs WHERE task_id = ?",
+            (task.id,),
+        ).fetchone()[0]
+        assert run_count == 0
+
+
+def test_falsy_planning_fails_before_claim(tmp_path) -> None:
+    """None, '', whitespace planning must fail before durable run is created."""
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="falsy-plan", executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    for bad_val in [None, "", "   ", "\t\n"]:
+        service = DurableExecutionService(
+            store=store, router=object(),
+            execution_authority_sha="valid-auth",
+            planning_sha=bad_val,
+        )
+        with pytest.raises((TaskExecutionError, DurableResumeError)):
+            service.execute_durable_sequential_team(
+                task_id=task.id, workspace_root=str(tmp_path),
+            )
+        run_count = store._conn.execute(
+            "SELECT COUNT(*) FROM durable_runs WHERE task_id = ?",
+            (task.id,),
+        ).fetchone()[0]
+        assert run_count == 0
+
+
+def test_planning_only_authority_impersonation_rejected(tmp_path) -> None:
+    """REVERSE_AGENT_PLANNING_SHA must NOT satisfy execution_authority_sha."""
+    import os
+    os.environ["REVERSE_AGENT_PLANNING_SHA"] = "some-planning-sha"
+    os.environ.pop("REVERSE_AGENT_EXECUTION_AUTHORITY_SHA", None)
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="impersonation", executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    service = DurableExecutionService(
+        store=store, router=object(),
+        execution_authority_sha=None,
+        planning_sha="some-planning-sha",
+    )
+    with pytest.raises((TaskExecutionError, DurableResumeError)):
+        service.execute_durable_sequential_team(
+            task_id=task.id, workspace_root=str(tmp_path),
+        )
+    run_count = store._conn.execute(
+        "SELECT COUNT(*) FROM durable_runs WHERE task_id = ?",
+        (task.id,),
+    ).fetchone()[0]
+    assert run_count == 0
+    os.environ.pop("REVERSE_AGENT_PLANNING_SHA", None)
+
+
+# ---------------------------------------------------------------------------
+# Addendum: pre-PRE_PLANNER crash recovery fails closed
+# ---------------------------------------------------------------------------
+
+def test_pre_pre_planner_crash_resume_fails_closed(tmp_path) -> None:
+    """Resume with accepted_checkpoint='' and no worktree identity must fail closed."""
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="pre-crash", executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    lease = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="w1", task_status="QUEUED",
+        execution_authority_sha="auth",
+        planning_sha="plan",
+    )
+    run_id = lease.run_id
+    store._conn.execute(
+        "UPDATE durable_runs SET recovery_classification = 'orphan_stale_lease', "
+        "interrupted_at = 'now' WHERE run_id = ?",
+        (run_id,),
+    )
+    store._conn.execute(
+        "UPDATE tasks SET status = 'INTERRUPTED' WHERE id = ?",
+        (task.id,),
+    )
+    service = DurableExecutionService(
+        store=store, router=object(),
+        execution_authority_sha="auth", planning_sha="plan",
+    )
+    with pytest.raises(DurableResumeError) as ei:
+        service.resume_sequential_team(task_id=task.id, lease_owner="w2")
+    assert "pre_pre_planner" in str(ei.value)
+
+
+# ---------------------------------------------------------------------------
+# Addendum: conflicting checkpoint duplicate rejection
+# ---------------------------------------------------------------------------
+
+def test_conflicting_digest_duplicate_rejected(tmp_path) -> None:
+    """Same checkpoint+attempt with different digest raises conflicting_checkpoint."""
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="conflict-digest", executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    lease = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="w1", task_status="QUEUED",
+    )
+    run_id = lease.run_id
+    store._accept_checkpoint(run_id, "PRE_PLANNER", "", 1, "w1", 1)
+    store._accept_checkpoint(run_id, "POST_PLANNER", "D1", 1, "w1", 1)
+    with pytest.raises(TaskStoreError) as ei:
+        store._accept_checkpoint(run_id, "POST_PLANNER", "D2", 1, "w1", 1)
+    assert "conflicting_checkpoint_acceptance" in str(ei.value)
+
+
+def test_conflicting_attempt_duplicate_rejected(tmp_path) -> None:
+    """Same checkpoint with different attempt raises conflicting_checkpoint."""
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="conflict-attempt", executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    lease = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="w1", task_status="QUEUED",
+    )
+    run_id = lease.run_id
+    store._accept_checkpoint(run_id, "PRE_PLANNER", "", 1, "w1", 1)
+    store._accept_checkpoint(run_id, "POST_PLANNER", "D1", 1, "w1", 1)
+    with pytest.raises(TaskStoreError) as ei:
+        store._accept_checkpoint(run_id, "POST_PLANNER", "D1", 2, "w1", 1)
+    assert "conflicting_checkpoint_acceptance" in str(ei.value)
+
+
+# ---------------------------------------------------------------------------
+# Addendum: first checkpoint must be PRE_PLANNER
+# ---------------------------------------------------------------------------
+
+def test_first_checkpoint_must_be_pre_planner(tmp_path) -> None:
+    """Direct POST_PLANNER/POST_CODER/POST_REVIEWER/POST_VALIDATION must fail closed."""
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="first-cp", executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    lease = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="w1", task_status="QUEUED",
+    )
+    run_id = lease.run_id
+    for cp in ("POST_PLANNER", "POST_CODER", "POST_REVIEWER", "POST_VALIDATION"):
+        with pytest.raises(TaskStoreError) as ei:
+            store._accept_checkpoint(run_id, cp, "x", 1, "w1", 1)
+        assert "first_must_be_pre_planner" in str(ei.value)
+
+
+# ---------------------------------------------------------------------------
+# Addendum: role-created HEAD movement rejected
+# ---------------------------------------------------------------------------
+
+def test_role_created_head_movement_rejected(tmp_path) -> None:
+    """If HEAD differs from repository_base_sha after role, fail closed."""
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="head-move", executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    lease = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="w1", task_status="QUEUED",
+    )
+    run_id = lease.run_id
+    store._accept_checkpoint(run_id, "PRE_PLANNER", "", 1, "w1", 1)
+    store._accept_checkpoint(run_id, "POST_PLANNER", "digest_1", 1, "w1", 1)
+    store._set_repository_base_sha(run_id, "base_sha_original", "w1", 1)
+    with pytest.raises(TaskStoreError) as ei:
+        store._set_repository_base_sha(run_id, "different_sha", "w1", 1)
+    assert "repository_base_immutable" in str(ei.value)

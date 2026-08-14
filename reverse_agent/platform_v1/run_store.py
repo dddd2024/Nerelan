@@ -117,6 +117,10 @@ def _short_uuid() -> str:
     return uuid.uuid4().hex[:12]
 
 
+def _is_truthy_id(value: str | None) -> bool:
+    return value is not None and value.strip() != ""
+
+
 # ---------------------------------------------------------------------------
 # Data models
 # ---------------------------------------------------------------------------
@@ -383,6 +387,42 @@ class TaskStore:
         ]:
             if col not in run_columns:
                 self._conn.execute(f"ALTER TABLE durable_runs ADD COLUMN {col} {dtype}")
+
+        self._migrate_durable_runs_unique()
+
+    def _migrate_durable_runs_unique(self) -> None:
+        """Enforce SQLite-level one durable run per Task.
+
+        Historical DBs may contain duplicate durable_runs rows for a single
+        task from pre-v5 application-level race conditions. We DO NOT silently
+        keep newest, delete old rows, or repair. If duplicates exist, fail
+        closed with an explicit store/schema error.
+
+        On a clean schema, a UNIQUE INDEX on durable_runs(task_id) is created
+        so every future acquisition path is schema-enforced.
+        """
+        try:
+            dup = self._conn.execute(
+                "SELECT task_id, COUNT(*) AS c FROM durable_runs "
+                "GROUP BY task_id HAVING c > 1 LIMIT 1"
+            ).fetchone()
+        except sqlite3.OperationalError:
+            return
+        if dup is not None:
+            raise TaskStoreError(
+                f"durable_run_task_uniqueness_violation:"
+                f"task_id={dup['task_id']}:run_count={dup['c']}:"
+                "historical_duplicate_runs_not_repaired_fail_closed"
+            )
+        try:
+            self._conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS "
+                "idx_durable_runs_task_id ON durable_runs(task_id)"
+            )
+        except sqlite3.OperationalError as exc:
+            raise TaskStoreError(
+                f"durable_run_unique_index_migration_failed:{exc}"
+            ) from exc
 
     @property
     def db_path(self) -> str:
@@ -831,26 +871,84 @@ class TaskStore:
         task_id: str,
         execution_id: str,
         lease_owner: str,
+        expiry_ms: int = 600000,
+        execution_authority_sha: str = "",
+        planning_sha: str = "",
+        task_status: str | None = None,
         repository_base_sha: str = "",
         worktree_path: str = "",
         checkpoint_db_path: str = "",
     ) -> Any:
-        """Acquire a new durable lease with epoch=1.
+        """Atomically claim a durable lease in a single SQLite write transaction.
 
-        Creates the durable_run record and returns a LeaseHandle-like dict.
-        Fails closed if an active run already exists for the task.
+        Validates in ONE BEGIN IMMEDIATE transaction:
+        - Task exists
+        - Task.status == QUEUED (or matches the provided task_status override)
+        - Task.executor_kind == "opencode"
+        - Task.orchestration_mode == "sequential_team"
+        - No durable run already exists for this task
+        - Creates the run with empty worktree identity and transitions
+          Task QUEUED -> PREPARING_WORKSPACE.
+
+        Two concurrent TaskStore connections racing on the same SQLite file
+        are serialized at the SQLite level: only one wins.
         """
-        with self._lock:
-            task = self.get_task(task_id)
-            existing = self._find_active_durable_run(task_id)
+        cur = self._conn.cursor()
+        try:
+            cur.execute("BEGIN IMMEDIATE")
+            task_row = cur.execute(
+                "SELECT id, status, execution_id, executor_kind, "
+                "orchestration_mode FROM tasks WHERE id = ?",
+                (task_id,),
+            ).fetchone()
+            if task_row is None:
+                cur.execute("ROLLBACK")
+                raise TaskStoreError(f"task_not_found:{task_id}")
+            current_status = task_row["status"]
+            current_executor_kind = task_row["executor_kind"]
+            current_orchestration_mode = task_row["orchestration_mode"]
+            if current_executor_kind != "opencode":
+                cur.execute("ROLLBACK")
+                raise TaskStoreError(
+                    f"durable_claim_wrong_executor_kind:{task_id}:"
+                    f"expected=opencode:actual={current_executor_kind}"
+                )
+            if current_orchestration_mode != "sequential_team":
+                cur.execute("ROLLBACK")
+                raise TaskStoreError(
+                    f"durable_claim_wrong_orchestration_mode:{task_id}:"
+                    f"expected=sequential_team:"
+                    f"actual={current_orchestration_mode}"
+                )
+            if task_status is not None and current_status != task_status:
+                cur.execute("ROLLBACK")
+                raise TaskStoreError(
+                    f"durable_claim_wrong_task_status:{task_id}:"
+                    f"expected={task_status}:actual={current_status}"
+                )
+            if task_status is None and current_status not in (
+                "QUEUED", "PREPARING_WORKSPACE", "RUNNING",
+                "RUNNING_FIXTURE", "VALIDATING",
+            ):
+                cur.execute("ROLLBACK")
+                raise TaskStoreError(
+                    f"durable_claim_task_not_active:{task_id}:"
+                    f"status={current_status}"
+                )
+            existing = cur.execute(
+                "SELECT dr.run_id FROM durable_runs dr WHERE dr.task_id = ? "
+                "LIMIT 1",
+                (task_id,),
+            ).fetchone()
             if existing is not None:
+                cur.execute("ROLLBACK")
                 raise TaskStoreError(
                     f"durable_run_already_active:{task_id}"
                 )
             now = _utc_now()
             now_ms = _utc_now_ms()
             run_id = f"run-{task_id}-{_short_uuid()}"
-            self._conn.execute(
+            cur.execute(
                 "INSERT INTO durable_runs "
                 "(run_id, task_id, execution_id, execution_authority_sha, planning_sha, "
                 "repository_base_sha, worktree_path, worktree_head_sha, worktree_prepared_at, "
@@ -861,21 +959,36 @@ class TaskStore:
                 "lease_owner, lease_epoch, heartbeat_at_ms, lease_expiry_ms, "
                 "checkpoint_db_path, "
                 "recovery_classification, interrupted_at, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "VALUES (?, ?, ?, ?, ?, '', '', '', '', '', 1, '', '', '', '', '', '', "
+                "NULL, '', ?, 1, ?, ?, '', 'normal', '', ?, ?)",
                 (
-                    run_id, task_id, execution_id, "", "", repository_base_sha,
-                    worktree_path, "", "", "", 1, "", "", "", "", "", "",
-                    None, "", lease_owner, 1, now_ms, now_ms + 300000,
-                    checkpoint_db_path,
-                    "normal", "", now, now,
+                    run_id, task_id, execution_id,
+                    execution_authority_sha or "",
+                    planning_sha or "",
+                    lease_owner, now_ms, now_ms + expiry_ms,
+                    now, now,
                 ),
             )
-            self._update_task_fields(task_id, {"status": "RUNNING"})
-            return self._lease_handle_from_row(
-                self._conn.execute(
-                    "SELECT * FROM durable_runs WHERE run_id = ?", (run_id,),
-                ).fetchone()
+            cur.execute(
+                "UPDATE tasks SET status = 'PREPARING_WORKSPACE', updated_at = ? "
+                "WHERE id = ?",
+                (now, task_id),
             )
+            cur.execute("COMMIT")
+            row = cur.execute(
+                "SELECT * FROM durable_runs WHERE run_id = ?", (run_id,),
+            ).fetchone()
+            return self._lease_handle_from_row(row)
+        except TaskStoreError:
+            raise
+        except Exception as exc:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise TaskStoreError(
+                f"acquire_durable_lease_failed:{exc}"
+            ) from exc
 
     def _find_active_durable_run(self, task_id: str) -> dict[str, Any] | None:
         with self._lock:
@@ -981,16 +1094,44 @@ class TaskStore:
                 )
 
     def _heartbeat_durable_lease(
-        self, run_id: str, owner: str, epoch: int
+        self, run_id: str, owner: str, epoch: int,
+        expiry_ms: int,
     ) -> None:
         with self._lock:
-            now_ms = _utc_now_ms()
-            self._atomic_fenced_update(
-                run_id, owner, epoch,
-                "UPDATE durable_runs SET heartbeat_at_ms = ?, "
-                "lease_expiry_ms = ?, updated_at = ? WHERE run_id = ?",
-                (now_ms, now_ms + 300000, _utc_now(), run_id),
-            )
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                now_ms = _utc_now_ms()
+                row = cur.execute(
+                    "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
+                    (run_id,),
+                ).fetchone()
+                if row is None:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(f"durable_run_not_found:{run_id}")
+                if int(row["lease_epoch"]) != epoch or row["lease_owner"] != owner:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(
+                        f"lease_fenced:{run_id}:owner={owner}:epoch={epoch} "
+                        f"current_owner={row['lease_owner']}:"
+                        f"current_epoch={row['lease_epoch']}"
+                    )
+                cur.execute(
+                    "UPDATE durable_runs SET heartbeat_at_ms = ?, "
+                    "lease_expiry_ms = ?, updated_at = ? WHERE run_id = ?",
+                    (now_ms, now_ms + expiry_ms, _utc_now(), run_id),
+                )
+                cur.execute("COMMIT")
+            except TaskStoreError:
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError(
+                    f"heartbeat_durable_lease_failed:{exc}"
+                ) from exc
 
     def _release_durable_lease(
         self, run_id: str, owner: str, epoch: int
@@ -1141,6 +1282,12 @@ class TaskStore:
                 if new_rank < 0:
                     cur.execute("ROLLBACK")
                     raise TaskStoreError(f"invalid_checkpoint_name:{checkpoint_name}")
+                if current_accepted == "" and checkpoint_name != "PRE_PLANNER":
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(
+                        f"checkpoint_first_must_be_pre_planner:"
+                        f"run={run_id}:first_attempted={checkpoint_name}"
+                    )
                 if new_rank < current_rank:
                     cur.execute("ROLLBACK")
                     raise TaskStoreError(
@@ -1162,13 +1309,25 @@ class TaskStore:
                         (run_id, checkpoint_name),
                     ).fetchone()
                     if existing is not None:
+                        stored_digest = existing["artifact_digest"]
+                        stored_attempt = int(existing["role_attempt"])
+                        if stored_digest != artifact_digest or stored_attempt != role_attempt:
+                            cur.execute("ROLLBACK")
+                            raise TaskStoreError(
+                                f"conflicting_checkpoint_acceptance:"
+                                f"run={run_id}:checkpoint={checkpoint_name}:"
+                                f"stored_digest={stored_digest}:"
+                                f"attempted_digest={artifact_digest}:"
+                                f"stored_attempt={stored_attempt}:"
+                                f"attempted_attempt={role_attempt}"
+                            )
                         cur.execute("COMMIT")
                         return DurableCheckpoint(
                             checkpoint_id=existing["checkpoint_id"],
                             run_id=existing["run_id"],
                             checkpoint_name=existing["checkpoint_name"],
                             artifact_digest=existing["artifact_digest"],
-                            role_attempt=int(existing["role_attempt"]),
+                            role_attempt=stored_attempt,
                             created_at=existing["created_at"],
                         )
 
@@ -1359,55 +1518,118 @@ class TaskStore:
             )
 
     def _recover_durable_lease(
-        self, run_id: str, lease_owner: str
+        self, run_id: str, lease_owner: str,
+        *, expiry_ms: int = 300000,
+        require_interrupted: bool = False,
     ) -> Any:
-        """Recover a durable lease with a strictly larger epoch.
+        """Atomically recover a durable lease with a strictly larger epoch.
 
-        Every recovery creates a strictly newer epoch, even if the owner
-        label matches the previous owner. Owner-label equality is NOT proof
-        that the worker is the same instance. Epoch is the fencing token.
+        In ONE BEGIN IMMEDIATE transaction:
+        - Verify the durable run exists
+        - Verify task status is INTERRUPTED (or matches the required recovery state)
+        - Re-check orchestration_mode == "sequential_team"
+        - Re-check executor_kind == "opencode"
+        - Re-check valid recovery classification
+        - Re-check current epoch has not already advanced (same durable run)
+        - Advance epoch exactly once
+        - Transition Task INTERRUPTED -> RUNNING
+        - Set new owner and expiry
 
-        The epoch increment is performed atomically at the SQLite level so
-        that two TaskStore instances cannot produce the same epoch.
+        Two concurrent TaskStore connections cannot produce the same epoch;
+        only the first BEGIN IMMEDIATE holder wins.
         """
-        with self._lock:
-            cur = self._conn.cursor()
-            try:
-                cur.execute("BEGIN IMMEDIATE")
-                row = cur.execute(
-                    "SELECT * FROM durable_runs WHERE run_id = ?", (run_id,),
-                ).fetchone()
-                if row is None:
+        cur = self._conn.cursor()
+        try:
+            cur.execute("BEGIN IMMEDIATE")
+            row = cur.execute(
+                "SELECT dr.*, t.status as task_status, "
+                "t.orchestration_mode, t.executor_kind FROM durable_runs dr "
+                "JOIN tasks t ON t.id = dr.task_id "
+                "WHERE dr.run_id = ?",
+                (run_id,),
+            ).fetchone()
+            if row is None:
+                cur.execute("ROLLBACK")
+                raise TaskStoreError(f"durable_run_not_found:{run_id}")
+            task_status = row["task_status"]
+            if require_interrupted and task_status != "INTERRUPTED":
+                cur.execute("ROLLBACK")
+                raise TaskStoreError(
+                    f"durable_recover_wrong_task_status:{run_id}:"
+                    f"expected=INTERRUPTED:actual={task_status}"
+                )
+            if row["orchestration_mode"] != "sequential_team":
+                cur.execute("ROLLBACK")
+                raise TaskStoreError(
+                    f"durable_recover_wrong_orchestration_mode:{run_id}:"
+                    f"actual={row['orchestration_mode']}"
+                )
+            if row["executor_kind"] != "opencode":
+                cur.execute("ROLLBACK")
+                raise TaskStoreError(
+                    f"durable_recover_wrong_executor_kind:{run_id}:"
+                    f"actual={row['executor_kind']}"
+                )
+            recovery_class = row["recovery_classification"]
+            allowed_recovery = ("orphan_stale_lease", "interrupted", "recovering")
+            all_recovery = allowed_recovery + ("normal",)
+            if require_interrupted:
+                if recovery_class not in allowed_recovery:
                     cur.execute("ROLLBACK")
-                    raise TaskStoreError(f"durable_run_not_found:{run_id}")
-                existing_epoch = int(row["lease_epoch"])
-                new_epoch = existing_epoch + 1
-                now_ms = _utc_now_ms()
+                    raise TaskStoreError(
+                        f"durable_recover_invalid_recovery_classification:{run_id}:"
+                        f"actual={recovery_class}"
+                    )
+            else:
+                if recovery_class not in all_recovery:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(
+                        f"durable_recover_invalid_recovery_classification:{run_id}:"
+                        f"actual={recovery_class}"
+                    )
+            existing_epoch = int(row["lease_epoch"])
+            new_epoch = existing_epoch + 1
+            now_ms = _utc_now_ms()
+            now = _utc_now()
+            cur.execute(
+                "UPDATE durable_runs SET "
+                "lease_owner = ?, lease_epoch = ?, heartbeat_at_ms = ?, "
+                "lease_expiry_ms = ?, updated_at = ? "
+                "WHERE run_id = ? AND lease_epoch = ?",
+                (lease_owner, new_epoch, now_ms, now_ms + expiry_ms, now, run_id, existing_epoch),
+            )
+            if cur.rowcount == 0:
+                cur.execute("ROLLBACK")
+                raise TaskStoreError(
+                    f"durable_recover_lease_changed:{run_id}:"
+                    f"epoch={existing_epoch}"
+                )
+            if require_interrupted:
                 cur.execute(
-                    "UPDATE durable_runs SET "
-                    "lease_owner = ?, lease_epoch = ?, heartbeat_at_ms = ?, "
-                    "lease_expiry_ms = ?, updated_at = ? "
-                    "WHERE run_id = ?",
-                    (lease_owner, new_epoch, now_ms, now_ms + 300000, _utc_now(), run_id),
+                    "UPDATE tasks SET status = 'RUNNING', updated_at = ? "
+                    "WHERE id = ? AND status = 'INTERRUPTED'",
+                    (now, row["task_id"]),
                 )
                 if cur.rowcount == 0:
                     cur.execute("ROLLBACK")
-                    raise TaskStoreError(f"durable_run_update_failed:{run_id}")
-                cur.execute("COMMIT")
-                row2 = cur.execute(
-                    "SELECT * FROM durable_runs WHERE run_id = ?", (run_id,),
-                ).fetchone()
-                return self._lease_handle_from_row(row2)
-            except TaskStoreError:
-                raise
-            except Exception as exc:
-                try:
-                    cur.execute("ROLLBACK")
-                except Exception:
-                    pass
-                raise TaskStoreError(
-                    f"recover_durable_lease_failed:{exc}"
-                ) from exc
+                    raise TaskStoreError(
+                        f"durable_recover_task_not_interrupted:{row['task_id']}"
+                    )
+            cur.execute("COMMIT")
+            row2 = cur.execute(
+                "SELECT * FROM durable_runs WHERE run_id = ?", (run_id,),
+            ).fetchone()
+            return self._lease_handle_from_row(row2)
+        except TaskStoreError:
+            raise
+        except Exception as exc:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise TaskStoreError(
+                f"recover_durable_lease_failed:{exc}"
+            ) from exc
     def _external_operation_prevents_dispatch(
         self, idempotency_key: str, request_digest: str
     ) -> bool:
@@ -1505,55 +1727,113 @@ class TaskStore:
         now_ms: int,
         max_age_ms: int,
     ) -> tuple[dict[str, Any], ...]:
-        """Find expired active run leases, mark stale tasks INTERRUPTED.
+        """Atomically reconcile expired active run leases to INTERRUPTED.
 
-        Does NOT automatically launch models. Returns reconciliation records.
+        For each candidate stale run, re-checks expiry/epoch/task_status
+        inside a BEGIN IMMEDIATE transaction. Only interrupts if the run
+        is STILL expired and STILL in the same observed stale epoch/state.
+
+        If heartbeat renewed the lease: NO OP.
+        If another worker already owns a newer epoch: NO OP.
+        If another reconciler already handled it: NO OP.
+
+        This guarantees exactly one interruption event per stale run, even
+        when two reconcilers run concurrently.
         """
-        with self._lock:
-            runs = self._conn.execute(
-                "SELECT dr.*, t.status as task_status FROM durable_runs dr "
-                "JOIN tasks t ON t.id = dr.task_id "
-                "WHERE dr.lease_expiry_ms > 0 "
-                "AND dr.lease_expiry_ms < ? "
-                "AND t.status IN ('PREPARING_WORKSPACE', 'RUNNING', "
-                "'RUNNING_FIXTURE', 'VALIDATING') "
-                "ORDER BY dr.created_at ASC",
-                (now_ms,),
-            ).fetchall()
-            records: list[dict[str, Any]] = []
-            for row in runs:
-                run_id = row["run_id"]
-                task_id = row["task_id"]
-                task_status = row["task_status"]
-                self._conn.execute(
+        runs = self._conn.execute(
+            "SELECT dr.*, t.status as task_status FROM durable_runs dr "
+            "JOIN tasks t ON t.id = dr.task_id "
+            "WHERE dr.lease_expiry_ms > 0 "
+            "AND dr.lease_expiry_ms < ? "
+            "AND t.status IN ('PREPARING_WORKSPACE', 'RUNNING', "
+            "'RUNNING_FIXTURE', 'VALIDATING') "
+            "ORDER BY dr.created_at ASC",
+            (now_ms,),
+        ).fetchall()
+        records: list[dict[str, Any]] = []
+        for row in runs:
+            run_id = row["run_id"]
+            task_id = row["task_id"]
+            task_status = row["task_status"]
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                recheck = cur.execute(
+                    "SELECT dr.lease_expiry_ms, dr.lease_epoch, "
+                    "dr.recovery_classification, t.status as task_status2 "
+                    "FROM durable_runs dr "
+                    "JOIN tasks t ON t.id = dr.task_id "
+                    "WHERE dr.run_id = ?",
+                    (run_id,),
+                ).fetchone()
+                if recheck is None:
+                    cur.execute("ROLLBACK")
+                    continue
+                current_expiry = int(recheck["lease_expiry_ms"])
+                if current_expiry >= now_ms:
+                    cur.execute("ROLLBACK")
+                    continue
+                current_status = recheck["task_status2"]
+                if current_status not in (
+                    "PREPARING_WORKSPACE", "RUNNING",
+                    "RUNNING_FIXTURE", "VALIDATING",
+                ):
+                    cur.execute("ROLLBACK")
+                    continue
+                cur.execute(
                     "UPDATE durable_runs SET "
                     "recovery_classification = 'orphan_stale_lease', "
                     "interrupted_at = ?, updated_at = ? "
-                    "WHERE run_id = ?",
-                    (_utc_now(), _utc_now(), run_id),
+                    "WHERE run_id = ? "
+                    "AND lease_expiry_ms < ? "
+                    "AND recovery_classification IN ('normal', 'orphan_stale_lease')",
+                    (_utc_now(), _utc_now(), run_id, now_ms),
                 )
-                try:
-                    self._update_task_fields(task_id, {"status": "INTERRUPTED"})
-                    self._append_event(
-                        task_id=task_id,
-                        event_type="EXECUTOR_FINISHED",
-                        title="Durable run interrupted",
-                        description=f"lease expired, reconciled to INTERRUPTED",
-                        metadata={
+                if cur.rowcount == 0:
+                    cur.execute("ROLLBACK")
+                    continue
+                cur.execute(
+                    "UPDATE tasks SET status = 'INTERRUPTED', "
+                    "updated_at = ? "
+                    "WHERE id = ? AND status IN (?, ?, ?, ?)",
+                    (_utc_now(), task_id,
+                     "PREPARING_WORKSPACE", "RUNNING",
+                     "RUNNING_FIXTURE", "VALIDATING"),
+                )
+                if cur.rowcount == 0:
+                    cur.execute("ROLLBACK")
+                    continue
+                cur.execute(
+                    "INSERT INTO task_events "
+                    "(id, task_id, type, timestamp, title, description, raw_log, metadata) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        f"event-{task_id}-{_short_uuid()}",
+                        task_id, "EXECUTOR_FINISHED",
+                        _utc_now(), "Durable run interrupted",
+                        "lease expired, reconciled to INTERRUPTED",
+                        "",
+                        json_dumps_stable({
                             "run_id": run_id,
                             "recovery_classification": "orphan_stale_lease",
                             "previous_status": task_status,
-                        },
-                    )
-                except (InvalidTransitionError, TaskStoreError):
-                    pass
+                        }),
+                    ),
+                )
+                cur.execute("COMMIT")
                 records.append({
                     "run_id": run_id,
                     "task_id": task_id,
                     "previous_status": task_status,
                     "recovery_classification": "orphan_stale_lease",
                 })
-            return tuple(records)
+            except Exception:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                continue
+        return tuple(records)
 
     def _lease_handle_from_row(self, row: sqlite3.Row) -> Any:
         cols = set(row.keys())
@@ -1581,35 +1861,54 @@ class TaskStore:
         owner: str,
         epoch: int,
     ) -> Task:
-        """Validate lease owner+epoch AND perform status transition under the
-        SAME TaskStore lock. No TOCTOU window."""
-        with self._lock:
-            lease_row = self._conn.execute(
-                "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
-                (run_id,),
-            ).fetchone()
-            if lease_row is None:
-                raise TaskStoreError(f"durable_run_not_found:{run_id}")
-            if int(lease_row["lease_epoch"]) != epoch or lease_row["lease_owner"] != owner:
-                raise TaskStoreError(
-                    f"lease_fenced:{run_id}:owner={owner}:epoch={epoch} "
-                    f"current_owner={lease_row['lease_owner']}:"
-                    f"current_epoch={lease_row['lease_epoch']}"
-                )
+        """SQLite-atomic: validate lease owner+epoch AND perform status transition
+        under ONE BEGIN IMMEDIATE transaction. No TOCTOU window across processes."""
+        cur = self._conn.cursor()
+        try:
+            cur.execute("BEGIN IMMEDIATE")
+            self._fenced_validate_lease(cur, run_id, owner, epoch)
             if status not in TASK_STATUS_ORDER:
+                cur.execute("ROLLBACK")
                 raise TaskStoreError(f"invalid_status:{status}")
-            current = self.get_task(task_id)
-            if current.status == status:
-                return current
-            allowed = TRANSITION_RULES.get(current.status, ())
+            current_row = cur.execute(
+                "SELECT status FROM tasks WHERE id = ?", (task_id,),
+            ).fetchone()
+            if current_row is None:
+                cur.execute("ROLLBACK")
+                raise TaskStoreError(f"task_not_found:{task_id}")
+            current_status = current_row["status"]
+            if current_status == status:
+                cur.execute("COMMIT")
+                return self.get_task(task_id)
+            allowed = TRANSITION_RULES.get(current_status, ())
             if status not in allowed:
+                cur.execute("ROLLBACK")
                 raise InvalidTransitionError(
-                    f"invalid_transition:{current.status}->{status} allowed={allowed}"
+                    f"invalid_transition:{current_status}->{status} allowed={allowed}"
                 )
-            if current.status in TERMINAL_STATUSES:
-                raise InvalidTransitionError(f"terminal_status:{current.status}")
-            self._update_task_fields(task_id, {"status": status})
+            if current_status in TERMINAL_STATUSES:
+                cur.execute("ROLLBACK")
+                raise InvalidTransitionError(f"terminal_status:{current_status}")
+            cur.execute(
+                "UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?",
+                (status, _utc_now(), task_id),
+            )
+            cur.execute("COMMIT")
             return self.get_task(task_id)
+        except (TaskStoreError, InvalidTransitionError):
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        except Exception as exc:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise TaskStoreError(
+                f"fenced_transition_to_failed:{exc}"
+            ) from exc
 
     def _fenced_set_changed_files(
         self,
@@ -1619,24 +1918,15 @@ class TaskStore:
         owner: str,
         epoch: int,
     ) -> Task:
-        """Fenced version of set_changed_files for durable path."""
-        with self._lock:
-            lease_row = self._conn.execute(
-                "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
-                (run_id,),
-            ).fetchone()
-            if lease_row is None:
-                raise TaskStoreError(f"durable_run_not_found:{run_id}")
-            if int(lease_row["lease_epoch"]) != epoch or lease_row["lease_owner"] != owner:
-                raise TaskStoreError(
-                    f"lease_fenced:{run_id}:owner={owner}:epoch={epoch}"
-                )
-            self.get_task(task_id)
-            self._conn.execute(
-                "DELETE FROM task_changed_files WHERE task_id = ?", (task_id,)
-            )
+        """SQLite-atomic fenced set_changed_files."""
+        cur = self._conn.cursor()
+        try:
+            cur.execute("BEGIN IMMEDIATE")
+            self._fenced_validate_lease(cur, run_id, owner, epoch)
+            cur.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            cur.execute("DELETE FROM task_changed_files WHERE task_id = ?", (task_id,))
             for f in files:
-                self._conn.execute(
+                cur.execute(
                     "INSERT INTO task_changed_files "
                     "(task_id, path, status, additions, deletions, diff_digest) "
                     "VALUES (?, ?, ?, ?, ?, ?)",
@@ -1649,8 +1939,26 @@ class TaskStore:
                         str(f.get("diff_digest", "")),
                     ),
                 )
-            self._update_task_fields(task_id, {"updated_at": _utc_now()})
+            cur.execute(
+                "UPDATE tasks SET updated_at = ? WHERE id = ?",
+                (_utc_now(), task_id),
+            )
+            cur.execute("COMMIT")
             return self.get_task(task_id)
+        except TaskStoreError:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        except Exception as exc:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise TaskStoreError(
+                f"fenced_set_changed_files_failed:{exc}"
+            ) from exc
 
     def _fenced_add_event(
         self,
@@ -1665,27 +1973,50 @@ class TaskStore:
         owner: str,
         epoch: int,
     ) -> TaskEvent:
-        """Fenced version of add_event for durable path."""
-        with self._lock:
-            lease_row = self._conn.execute(
-                "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
-                (run_id,),
-            ).fetchone()
-            if lease_row is None:
-                raise TaskStoreError(f"durable_run_not_found:{run_id}")
-            if int(lease_row["lease_epoch"]) != epoch or lease_row["lease_owner"] != owner:
-                raise TaskStoreError(
-                    f"lease_fenced:{run_id}:owner={owner}:epoch={epoch}"
-                )
-            self.get_task(task_id)
-            return self._append_event(
+        """SQLite-atomic fenced add_event."""
+        cur = self._conn.cursor()
+        try:
+            cur.execute("BEGIN IMMEDIATE")
+            self._fenced_validate_lease(cur, run_id, owner, epoch)
+            cur.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            now = _utc_now()
+            event_id = f"event-{task_id}-{_short_uuid()}"
+            meta_json = json_dumps_stable(metadata or {})
+            cur.execute(
+                "INSERT INTO task_events "
+                "(id, task_id, type, timestamp, title, description, raw_log, metadata) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (event_id, task_id, event_type, now, title, description, raw_log, meta_json),
+            )
+            cur.execute(
+                "UPDATE tasks SET updated_at = ? WHERE id = ?",
+                (now, task_id),
+            )
+            cur.execute("COMMIT")
+            return TaskEvent(
+                id=event_id,
                 task_id=task_id,
-                event_type=event_type,
+                type=event_type,
+                timestamp=now,
                 title=title,
                 description=description,
                 raw_log=raw_log,
-                metadata=metadata,
+                metadata=dict(metadata or {}),
             )
+        except TaskStoreError:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        except Exception as exc:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise TaskStoreError(
+                f"fenced_add_event_failed:{exc}"
+            ) from exc
 
     def _fenced_add_evidence(
         self,
@@ -1701,28 +2032,39 @@ class TaskStore:
         owner: str,
         epoch: int,
     ) -> Task:
-        """Fenced version of add_evidence for durable path."""
-        with self._lock:
-            lease_row = self._conn.execute(
-                "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
-                (run_id,),
-            ).fetchone()
-            if lease_row is None:
-                raise TaskStoreError(f"durable_run_not_found:{run_id}")
-            if int(lease_row["lease_epoch"]) != epoch or lease_row["lease_owner"] != owner:
-                raise TaskStoreError(
-                    f"lease_fenced:{run_id}:owner={owner}:epoch={epoch}"
-                )
-            self.get_task(task_id)
+        """SQLite-atomic fenced add_evidence."""
+        cur = self._conn.cursor()
+        try:
+            cur.execute("BEGIN IMMEDIATE")
+            self._fenced_validate_lease(cur, run_id, owner, epoch)
+            cur.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone()
             ev_id = f"ev-{task_id}-{_short_uuid()}"
-            self._conn.execute(
+            cur.execute(
                 "INSERT INTO task_evidence "
                 "(id, task_id, category, label, value, status, detail, raw_json_digest) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (ev_id, task_id, category, label, value, status, detail, raw_json_digest),
             )
-            self._update_task_fields(task_id, {"updated_at": _utc_now()})
+            cur.execute(
+                "UPDATE tasks SET updated_at = ? WHERE id = ?",
+                (_utc_now(), task_id),
+            )
+            cur.execute("COMMIT")
             return self.get_task(task_id)
+        except TaskStoreError:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        except Exception as exc:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise TaskStoreError(
+                f"fenced_add_evidence_failed:{exc}"
+            ) from exc
 
     def _fenced_classify_failure(
         self,
@@ -1734,36 +2076,56 @@ class TaskStore:
         owner: str,
         epoch: int,
     ) -> Task:
-        """Fenced version of classify_failure for durable path."""
-        with self._lock:
-            lease_row = self._conn.execute(
-                "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
-                (run_id,),
+        """SQLite-atomic fenced classify_failure."""
+        cur = self._conn.cursor()
+        try:
+            cur.execute("BEGIN IMMEDIATE")
+            self._fenced_validate_lease(cur, run_id, owner, epoch)
+            task_row = cur.execute(
+                "SELECT status FROM tasks WHERE id = ?", (task_id,),
             ).fetchone()
-            if lease_row is None:
-                raise TaskStoreError(f"durable_run_not_found:{run_id}")
-            if int(lease_row["lease_epoch"]) != epoch or lease_row["lease_owner"] != owner:
-                raise TaskStoreError(
-                    f"lease_fenced:{run_id}:owner={owner}:epoch={epoch}"
-                )
-            task = self.get_task(task_id)
-            if task.status in TERMINAL_STATUSES:
-                raise TaskStoreError(f"terminal_status:{task.status}")
-            self._update_task_fields(
-                task_id,
-                {"failure_classification": classification, "failure_detail": detail},
-            )
+            if task_row is None:
+                cur.execute("ROLLBACK")
+                raise TaskStoreError(f"task_not_found:{task_id}")
+            if task_row["status"] in TERMINAL_STATUSES:
+                cur.execute("ROLLBACK")
+                raise TaskStoreError(f"terminal_status:{task_row['status']}")
             target = "BLOCKED" if classification == "blocked" else "FAILED"
-            if task.status != target:
-                self._update_task_fields(task_id, {"status": target})
-            self._append_event(
-                task_id=task_id,
-                event_type="EXECUTOR_FINISHED",
-                title="Executor failed",
-                description=f"failure_classification={classification}",
-                metadata={"failure_classification": classification, "detail": detail},
+            cur.execute(
+                "UPDATE tasks SET failure_classification = ?, failure_detail = ?, "
+                "status = ?, updated_at = ? WHERE id = ?",
+                (classification, detail, target, _utc_now(), task_id),
             )
+            now = _utc_now()
+            event_id = f"event-{task_id}-{_short_uuid()}"
+            cur.execute(
+                "INSERT INTO task_events "
+                "(id, task_id, type, timestamp, title, description, raw_log, metadata) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    event_id, task_id, "EXECUTOR_FINISHED", now,
+                    "Executor failed",
+                    f"failure_classification={classification}",
+                    "",
+                    json_dumps_stable({"failure_classification": classification, "detail": detail}),
+                ),
+            )
+            cur.execute("COMMIT")
             return self.get_task(task_id)
+        except TaskStoreError:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        except Exception as exc:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise TaskStoreError(
+                f"fenced_classify_failure_failed:{exc}"
+            ) from exc
 
     def _fenced_set_task_validation(
         self,
@@ -1776,28 +2138,34 @@ class TaskStore:
         owner: str,
         epoch: int,
     ) -> Task:
-        """Fenced version of set_validation_result for durable path."""
-        with self._lock:
-            lease_row = self._conn.execute(
-                "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
-                (run_id,),
-            ).fetchone()
-            if lease_row is None:
-                raise TaskStoreError(f"durable_run_not_found:{run_id}")
-            if int(lease_row["lease_epoch"]) != epoch or lease_row["lease_owner"] != owner:
-                raise TaskStoreError(
-                    f"lease_fenced:{run_id}:owner={owner}:epoch={epoch}"
-                )
-            self.get_task(task_id)
-            self._update_task_fields(
-                task_id,
-                {
-                    "validation_command_id": command_id,
-                    "validation_exit_code": exit_code,
-                    "validation_output_digest": output_digest,
-                },
+        """SQLite-atomic fenced set_task_validation."""
+        cur = self._conn.cursor()
+        try:
+            cur.execute("BEGIN IMMEDIATE")
+            self._fenced_validate_lease(cur, run_id, owner, epoch)
+            cur.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            cur.execute(
+                "UPDATE tasks SET validation_command_id = ?, "
+                "validation_exit_code = ?, validation_output_digest = ?, "
+                "updated_at = ? WHERE id = ?",
+                (command_id, exit_code, output_digest, _utc_now(), task_id),
             )
+            cur.execute("COMMIT")
             return self.get_task(task_id)
+        except TaskStoreError:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        except Exception as exc:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise TaskStoreError(
+                f"fenced_set_task_validation_failed:{exc}"
+            ) from exc
 
     def _fenced_terminalize(
         self,
@@ -1813,39 +2181,73 @@ class TaskStore:
         owner: str,
         epoch: int,
     ) -> Task:
-        """Fenced terminal publication for durable path.
-
-        Performs validation result persistence + status transition to a
-        terminal status under the same lock boundary.
-        """
-        with self._lock:
-            lease_row = self._conn.execute(
-                "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
-                (run_id,),
+        """SQLite-atomic fenced terminal publication."""
+        cur = self._conn.cursor()
+        try:
+            cur.execute("BEGIN IMMEDIATE")
+            self._fenced_validate_lease(cur, run_id, owner, epoch)
+            task_row = cur.execute(
+                "SELECT status FROM tasks WHERE id = ?", (task_id,),
             ).fetchone()
-            if lease_row is None:
-                raise TaskStoreError(f"durable_run_not_found:{run_id}")
-            if int(lease_row["lease_epoch"]) != epoch or lease_row["lease_owner"] != owner:
-                raise TaskStoreError(
-                    f"lease_fenced:{run_id}:owner={owner}:epoch={epoch}"
-                )
-            task = self.get_task(task_id)
-            if task.status in TERMINAL_STATUSES:
-                return task
+            if task_row is None:
+                cur.execute("ROLLBACK")
+                raise TaskStoreError(f"task_not_found:{task_id}")
+            if task_row["status"] in TERMINAL_STATUSES:
+                cur.execute("COMMIT")
+                return self.get_task(task_id)
             if terminal_status not in TERMINAL_STATUSES:
+                cur.execute("ROLLBACK")
                 raise TaskStoreError(f"invalid_terminal_status:{terminal_status}")
-            self._update_task_fields(
-                task_id,
-                {
-                    "validation_command_id": validation_command_id,
-                    "validation_exit_code": validation_exit_code,
-                    "validation_output_digest": validation_output_digest,
-                    "failure_classification": failure_classification,
-                    "failure_detail": failure_detail,
-                    "status": terminal_status,
-                },
+            cur.execute(
+                "UPDATE tasks SET "
+                "validation_command_id = ?, validation_exit_code = ?, "
+                "validation_output_digest = ?, failure_classification = ?, "
+                "failure_detail = ?, status = ?, updated_at = ? "
+                "WHERE id = ?",
+                (
+                    validation_command_id, validation_exit_code,
+                    validation_output_digest, failure_classification,
+                    failure_detail, terminal_status, _utc_now(), task_id,
+                ),
             )
+            cur.execute("COMMIT")
             return self.get_task(task_id)
+        except TaskStoreError:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        except Exception as exc:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise TaskStoreError(
+                f"fenced_terminalize_failed:{exc}"
+            ) from exc
+
+    @staticmethod
+    def _fenced_validate_lease(
+        cur: Any, run_id: str, owner: str, epoch: int
+    ) -> None:
+        """Validate owner+epoch under the caller's BEGIN IMMEDIATE transaction.
+
+        Must be called AFTER BEGIN IMMEDIATE and BEFORE any mutation.
+        Raises TaskStoreError on mismatch (caller must ROLLBACK).
+        """
+        row = cur.execute(
+            "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
+            (run_id,),
+        ).fetchone()
+        if row is None:
+            raise TaskStoreError(f"durable_run_not_found:{run_id}")
+        if int(row["lease_epoch"]) != epoch or row["lease_owner"] != owner:
+            raise TaskStoreError(
+                f"lease_fenced:{run_id}:owner={owner}:epoch={epoch} "
+                f"current_owner={row['lease_owner']}:"
+                f"current_epoch={row['lease_epoch']}"
+            )
 
 class LeaseHandle:
     """Immutable lease handle returned by durable lease operations."""

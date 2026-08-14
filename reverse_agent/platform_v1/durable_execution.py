@@ -21,6 +21,7 @@ import json
 import os
 import subprocess
 import time
+import threading
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -76,8 +77,6 @@ EXTERNAL_OP_STATES = frozenset({
 
 LEASE_DEFAULT_EXPIRY_MS = 300_000
 LEASE_HEARTBEAT_WINDOW_MS = 60_000
-
-
 # ---------------------------------------------------------------------------
 # Exceptions
 # ---------------------------------------------------------------------------
@@ -297,6 +296,76 @@ def _check_strict_serde_active(saver: Any) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Heartbeat lifecycle
+# ---------------------------------------------------------------------------
+
+class _HeartbeatContext:
+    """Bounded background heartbeat thread for a durable lease.
+
+    Runs heartbeat updates at the configured interval while a role is
+    executing. Stops automatically when the wrapped callable returns.
+    Does NOT stop on _CrashSimulated (BaseException), modeling abrupt
+    process death where the heartbeat disappears and the lease expires.
+    """
+
+    def __init__(
+        self,
+        *,
+        store: TaskStore,
+        run_id: str,
+        owner: str,
+        epoch: int,
+        expiry_ms: int,
+        heartbeat_window_ms: int,
+    ) -> None:
+        self.store = store
+        self.run_id = run_id
+        self.owner = owner
+        self.epoch = epoch
+        self.expiry_ms = expiry_ms
+        self.heartbeat_window_ms = heartbeat_window_ms
+        self._stop_event: Any = None
+        self._thread: Any = None
+        self._active = False
+
+    def heartbeat_during(self, fn: Callable[[], Any]) -> Any:
+        self._stop_event = threading.Event()
+        self._active = True
+        self._thread = threading.Thread(
+            target=self._heartbeat_loop, daemon=True, name="durable-hb"
+        )
+        self._thread.start()
+        try:
+            return fn()
+        finally:
+            self._stop()
+
+    def _heartbeat_loop(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                self.store._heartbeat_durable_lease(
+                    self.run_id, self.owner, self.epoch, self.expiry_ms,
+                )
+            except TaskStoreError:
+                break
+            self._stop_event.wait(
+                timeout=max(1.0, self.heartbeat_window_ms / 1000.0 * 0.6)
+            )
+        self._active = False
+
+    def _stop(self) -> None:
+        if self._stop_event is not None:
+            self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join(timeout=5.0)
+        self._active = False
+
+    @property
+    def active(self) -> bool:
+        return self._active
+
+
+# ---------------------------------------------------------------------------
 # Durable Execution Service
 # ---------------------------------------------------------------------------
 
@@ -332,12 +401,82 @@ class DurableExecutionService:
         self.heartbeat_window_ms = heartbeat_window_ms
         self._execution_authority_sha = execution_authority_sha
         self._planning_sha = planning_sha
+        self._validate_trusted_lease_config()
         self._execution_service = TaskExecutionService(
             store=store,
             router=router,
             binding_resolver=binding_resolver,
             lease_provider=lease_provider,
         )
+
+    def _validate_trusted_lease_config(self) -> None:
+        if self.expiry_ms <= 0:
+            raise TaskExecutionError(
+                f"durable_trusted_expiry_ms_non_positive:{self.expiry_ms}"
+            )
+        if self.heartbeat_window_ms <= 0:
+            raise TaskExecutionError(
+                f"durable_trusted_heartbeat_window_ms_non_positive:"
+                f"{self.heartbeat_window_ms}"
+            )
+        if self.heartbeat_window_ms >= self.expiry_ms:
+            raise TaskExecutionError(
+                f"durable_trusted_heartbeat_cannot_renew_before_expiry:"
+                f"heartbeat_window_ms={self.heartbeat_window_ms}:"
+                f"expiry_ms={self.expiry_ms}"
+            )
+
+    @staticmethod
+    def _normalize_identity(value: str | None) -> str:
+        if value is None:
+            return ""
+        return value.strip()
+
+    def _trusted_authority_sha(self) -> str:
+        return self._normalize_identity(self._execution_authority_sha)
+
+    def _trusted_planning_sha(self) -> str:
+        return self._normalize_identity(self._planning_sha)
+
+    def _assert_trusted_identity_for_execute(self) -> None:
+        auth = self._trusted_authority_sha()
+        plan = self._trusted_planning_sha()
+        if not auth:
+            raise TaskExecutionError(
+                "durable_trusted_identity_missing:"
+                "execution_authority_sha is empty/whitespace/None"
+            )
+        if not plan:
+            raise TaskExecutionError(
+                "durable_trusted_identity_missing:"
+                "planning_sha is empty/whitespace/None"
+            )
+
+    def _assert_trusted_identity_for_resume(
+        self,
+        *,
+        execution_authority_sha: str | None = None,
+        planning_sha: str | None = None,
+    ) -> tuple[str, str]:
+        auth = execution_authority_sha
+        if auth is None:
+            auth = self._execution_authority_sha
+        plan = planning_sha
+        if plan is None:
+            plan = self._planning_sha
+        auth_norm = self._normalize_identity(auth)
+        plan_norm = self._normalize_identity(plan)
+        if not auth_norm:
+            raise DurableResumeError(
+                "trusted_authority_sha_missing:"
+                "execution_authority_sha is empty/whitespace/None"
+            )
+        if not plan_norm:
+            raise DurableResumeError(
+                "trusted_planning_sha_missing:"
+                "planning_sha is empty/whitespace/None"
+            )
+        return auth_norm, plan_norm
 
     # ---------------------------------------------------------------
     # First execution (non-resume)
@@ -352,36 +491,34 @@ class DurableExecutionService:
         repository_base_sha: str = "",
         checkpointer: Any | None = None,
     ) -> TaskExecutionOutcome:
-        """Execute a new durable sequential-team run with lease acquisition.
-
-        repository_base_sha is intentionally IGNORED from the caller. The
-        actual repository execution base is obtained from prepare_worktree_once()
-        and persisted deterministically. This prevents HTTP payload override.
+        """Execute a new durable sequential-team run with atomic lease acquisition.
 
         Trusted identity (execution_authority_sha, planning_sha) MUST be
-        non-empty. If either is empty, fail closed BEFORE durable run
-        creation. HTTP request bodies MUST NOT supply these values; they
-        come from trusted runtime configuration.
+        non-empty. None, empty, or whitespace-only values all fail closed
+        BEFORE durable run creation.
         """
-        if self._execution_authority_sha == "" or self._planning_sha == "":
-            raise TaskExecutionError(
-                f"durable_trusted_identity_missing:"
-                f"authority={bool(self._execution_authority_sha)}:"
-                f"planning={bool(self._planning_sha)}"
-            )
+        self._assert_trusted_identity_for_execute()
         lease = self._acquire_or_find_lease(
             task_id, lease_owner, "", workspace_root
         )
+        _hb = _HeartbeatContext(
+            store=self.store,
+            run_id=lease.run_id,
+            owner=lease.owner,
+            epoch=lease.epoch,
+            expiry_ms=self.expiry_ms,
+            heartbeat_window_ms=self.heartbeat_window_ms,
+        )
         try:
-            return self._execute_with_lease(
-                task_id,
-                workspace_root,
-                lease,
-                checkpointer=checkpointer,
+            return _hb.heartbeat_during(
+                lambda: self._execute_with_lease(
+                    task_id,
+                    workspace_root,
+                    lease,
+                    checkpointer=checkpointer,
+                )
             )
         except _CrashSimulated:
-            # Abrupt process-death seam: do NOT release lease.
-            # Persisted state retains old owner/epoch/expiry for reconciliation.
             raise
         except Exception:
             self.store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
@@ -394,17 +531,18 @@ class DurableExecutionService:
         repository_base_sha: str,
         workspace_root: str,
     ) -> LeaseHandle:
-        existing = self.store._find_active_durable_run(task_id)
-        if existing is not None:
-            raise TaskExecutionError(
-                f"durable_run_already_active:{task_id}"
-            )
+        task = self.store.get_task(task_id)
+        task_status = None
+        if task.status == "QUEUED":
+            task_status = "QUEUED"
         return self.store._acquire_durable_lease(
             task_id=task_id,
-            execution_id=self.store.get_task(task_id).execution_id,
+            execution_id=task.execution_id,
             lease_owner=lease_owner,
-            repository_base_sha=repository_base_sha,
-            worktree_path=workspace_root,
+            expiry_ms=self.expiry_ms,
+            execution_authority_sha=self._trusted_authority_sha(),
+            planning_sha=self._trusted_planning_sha(),
+            task_status=task_status,
         )
 
     def _execute_with_lease(
@@ -516,8 +654,8 @@ class DurableExecutionService:
         )
         self.store._set_authority_identity(
             lease.run_id,
-            self._execution_authority_sha or "",
-            self._planning_sha or "",
+            self._trusted_authority_sha(),
+            self._trusted_planning_sha(),
             lease.owner, lease.epoch,
         )
 
@@ -1084,20 +1222,16 @@ class DurableExecutionService:
     ) -> TaskExecutionOutcome:
         """Resume a durable sequential-team run from the last accepted checkpoint.
 
-        Validates ALL identity invariants fail-closed.
+        Validates ALL identity invariants fail-closed. None/empty/whitespace
+        authority or planning SHA fail before any recovery claim or epoch
+        increment.
         """
         from .task_execution import TaskExecutionOutcome
 
-        auth_sha = execution_authority_sha if execution_authority_sha is not None else self._execution_authority_sha
-        plan_sha = planning_sha if planning_sha is not None else self._planning_sha
-        if auth_sha == "":
-            raise DurableResumeError(
-                "trusted_authority_sha_missing:cannot_resume_without_trusted_identity"
-            )
-        if plan_sha == "":
-            raise DurableResumeError(
-                "trusted_planning_sha_missing:cannot_resume_without_trusted_identity"
-            )
+        auth_sha, plan_sha = self._assert_trusted_identity_for_resume(
+            execution_authority_sha=execution_authority_sha,
+            planning_sha=planning_sha,
+        )
         if repository_base_sha:
             repo_sha = repository_base_sha
         else:
@@ -1113,8 +1247,8 @@ class DurableExecutionService:
 
         now_ms = _utc_now_ms()
         lease_expiry_ms = int(getattr(run_obj, "lease_expiry_ms", 0) or 0)
-        lease_owner = getattr(run_obj, "lease_owner", "") or ""
-        lease_epoch = int(getattr(run_obj, "lease_epoch", 0) or 0)
+        existing_owner = getattr(run_obj, "lease_owner", "") or ""
+        existing_epoch = int(getattr(run_obj, "lease_epoch", 0) or 0)
 
         if stored_task.status in ("READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"):
             return TaskExecutionOutcome(
@@ -1153,13 +1287,13 @@ class DurableExecutionService:
         if (
             stored_task.status in live_statuses
             and lease_expiry_ms > now_ms
-            and lease_owner
-            and lease_epoch > 0
+            and existing_owner
+            and existing_epoch > 0
         ):
             raise DurableResumeError(
                 f"durable_run_lease_live:{task_id}:"
-                f"status={stored_task.status}:epoch={lease_epoch}:"
-                f"owner={lease_owner}"
+                f"status={stored_task.status}:epoch={existing_epoch}:"
+                f"owner={existing_owner}"
             )
 
         recovery_class = getattr(run_obj, "recovery_classification", "") or ""
@@ -1198,11 +1332,33 @@ class DurableExecutionService:
                 f"worktree_head_mismatch:{stored_wt_head}!={actual_head}"
             )
 
-        lease = self.store._recover_durable_lease(run_obj.run_id, lease_owner)
-        return self._resume_with_lease(
-            task_id, wt_path, run_obj, lease,
-            checkpointer=checkpointer,
+        resume_owner = lease_owner or existing_owner or "task-api-resume"
+        require_interrupted = stored_task.status == "INTERRUPTED"
+        lease = self.store._recover_durable_lease(
+            run_obj.run_id, resume_owner,
+            expiry_ms=self.expiry_ms,
+            require_interrupted=require_interrupted,
         )
+        _hb = _HeartbeatContext(
+            store=self.store,
+            run_id=lease.run_id,
+            owner=lease.owner,
+            epoch=lease.epoch,
+            expiry_ms=self.expiry_ms,
+            heartbeat_window_ms=self.heartbeat_window_ms,
+        )
+        try:
+            return _hb.heartbeat_during(
+                lambda: self._resume_with_lease(
+                    task_id, wt_path, run_obj, lease,
+                    checkpointer=checkpointer,
+                )
+            )
+        except _CrashSimulated:
+            raise
+        except Exception:
+            self.store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
+            raise
 
     def _resume_with_lease(
         self,
@@ -1225,6 +1381,25 @@ class DurableExecutionService:
                     success=True,
                     validation_command_id=run.validation_command_id or "git_diff_check",
                     validation_exit_code=run.validation_exit_code or 0,
+                )
+
+        if run.accepted_checkpoint == "":
+            if not run.worktree_path:
+                raise DurableResumeError(
+                    f"pre_pre_planner_crash_no_prepared_worktree:{task_id}:"
+                    f"cannot_dispatch_roles_from_workspace_root_fail_closed"
+                )
+            actual_head = self._git_rev_parse_head(run.worktree_path)
+            stored_wt_head = getattr(run, "worktree_head_sha", "") or ""
+            if stored_wt_head and actual_head != stored_wt_head:
+                raise DurableResumeError(
+                    f"pre_pre_planner_worktree_head_mismatch:{task_id}:"
+                    f"stored={stored_wt_head}:actual={actual_head}"
+                )
+            if not stored_wt_head:
+                raise DurableResumeError(
+                    f"pre_pre_planner_no_worktree_identity:{task_id}:"
+                    f"cannot_prove_prepared_worktree_fail_closed"
                 )
 
         if run.accepted_checkpoint == "POST_REVIEWER":
@@ -1615,12 +1790,13 @@ class DurableExecutionService:
             task_id=task_id,
             execution_id=task.execution_id,
             lease_owner=lease_owner,
-            repository_base_sha=repository_base_sha,
-            worktree_path=worktree_path,
+            expiry_ms=self.expiry_ms,
+            execution_authority_sha=self._trusted_authority_sha(),
+            planning_sha=self._trusted_planning_sha(),
         )
 
     def heartbeat_lease(self, run_id: str, owner: str, epoch: int) -> None:
-        self.store._heartbeat_durable_lease(run_id, owner, epoch)
+        self.store._heartbeat_durable_lease(run_id, owner, epoch, self.expiry_ms)
 
     def recover_lease(
         self, task_id: str, lease_owner: str
@@ -1632,7 +1808,10 @@ class DurableExecutionService:
             run_id = run_raw["run_id"]
         else:
             run_id = run_raw.run_id
-        return self.store._recover_durable_lease(run_id, lease_owner)
+        return self.store._recover_durable_lease(
+            run_id, lease_owner, expiry_ms=self.expiry_ms,
+            require_interrupted=False,
+        )
 
     # ---------------------------------------------------------------
     # Checkpoint
