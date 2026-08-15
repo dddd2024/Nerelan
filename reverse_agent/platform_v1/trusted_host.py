@@ -243,16 +243,15 @@ def _resolve_trusted_authority_sha() -> str:
 
     HTTP request bodies MUST NOT supply this value. Resolution order:
     1. REVERSE_AGENT_EXECUTION_AUTHORITY_SHA env var (explicit trusted config)
-    2. REVERSE_AGENT_PLANNING_SHA env var fallback
-    3. Repository git HEAD SHA from REVERSE_AGENT_REPO_DIR
-    4. Empty string if none available (causes fail-closed on durable /execute)
+    2. Repository git HEAD SHA from REVERSE_AGENT_REPO_DIR
+    3. Empty string if none available (causes fail-closed on durable /execute)
+
+    REVERSE_AGENT_PLANNING_SHA is NOT a valid execution authority source.
+    Authority and planning SHA are independent dimensions.
     """
     explicit = os.environ.get("REVERSE_AGENT_EXECUTION_AUTHORITY_SHA", "").strip()
     if explicit:
         return explicit
-    planning_fallback = os.environ.get("REVERSE_AGENT_PLANNING_SHA", "").strip()
-    if planning_fallback:
-        return planning_fallback
     repo_dir = os.environ.get("REVERSE_AGENT_REPO_DIR", "").strip()
     if repo_dir:
         try:

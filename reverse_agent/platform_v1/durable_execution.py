@@ -349,7 +349,7 @@ class _HeartbeatContext:
             except TaskStoreError:
                 break
             self._stop_event.wait(
-                timeout=max(1.0, self.heartbeat_window_ms / 1000.0 * 0.6)
+                timeout=self.heartbeat_window_ms / 1000.0 * 0.6
             )
         self._active = False
 
@@ -597,10 +597,7 @@ class DurableExecutionService:
             )
 
         task = self.store.get_task(task_id)
-        self.store._fenced_transition_to(
-            lease.run_id, task_id, "RUNNING",
-            lease.owner, lease.epoch,
-        )
+
         executor_kwargs = self._build_executor_kwargs(task)
         try:
             executor = self.router.create_executor(
@@ -645,7 +642,43 @@ class DurableExecutionService:
             )
 
         wt_path = str(prepared.worktree)
+
+        # Require prepared path to exist and git rev-parse HEAD to be non-empty.
+        if not Path(wt_path).exists():
+            self.store._fenced_classify_failure(
+                lease.run_id, task_id,
+                classification="blocked",
+                detail=f"prepared_worktree_missing:{wt_path}",
+                owner=lease.owner, epoch=lease.epoch,
+            )
+            final = self.store.get_task(task_id)
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=final.execution_id,
+                success=False, validation_command_id="",
+                validation_exit_code=-1,
+                failure_classification=final.failure_classification,
+                failure_detail=final.failure_detail,
+            )
+
         wt_head_sha = self._git_rev_parse_head(wt_path)
+        if not wt_head_sha:
+            self.store._fenced_classify_failure(
+                lease.run_id, task_id,
+                classification="blocked",
+                detail=f"prepared_worktree_empty_HEAD:{wt_path}",
+                owner=lease.owner, epoch=lease.epoch,
+            )
+            final = self.store.get_task(task_id)
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=final.execution_id,
+                success=False, validation_command_id="",
+                validation_exit_code=-1,
+                failure_classification=final.failure_classification,
+                failure_detail=final.failure_detail,
+            )
+
         repo_base_sha = wt_head_sha
 
         self.store._set_worktree_identity(
@@ -714,6 +747,14 @@ class DurableExecutionService:
         baseline_product = _collect_product_diff(prepared.worktree)
         self.store._fenced_set_changed_files(
             lease.run_id, task_id, baseline_product,
+            lease.owner, lease.epoch,
+        )
+
+        # Task remains PREPARING_WORKSPACE through executor creation,
+        # worktree preparation, and identity persistence. Only after
+        # PRE_PLANNER is accepted does the task become RUNNING.
+        self.store._fenced_transition_to(
+            lease.run_id, task_id, "RUNNING",
             lease.owner, lease.epoch,
         )
 
@@ -1330,6 +1371,13 @@ class DurableExecutionService:
         if stored_wt_head and actual_head != stored_wt_head:
             raise DurableResumeError(
                 f"worktree_head_mismatch:{stored_wt_head}!={actual_head}"
+            )
+
+        accepted_cp = getattr(run_obj, "accepted_checkpoint", "") or ""
+        if accepted_cp == "":
+            raise DurableResumeError(
+                f"pre_pre_planner_no_reconstruction_path:{task_id}:"
+                f"accepted_checkpoint_empty_fail_closed"
             )
 
         resume_owner = lease_owner or existing_owner or "task-api-resume"

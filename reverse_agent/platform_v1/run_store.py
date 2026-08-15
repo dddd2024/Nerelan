@@ -1783,6 +1783,7 @@ class TaskStore:
                 cur.execute(
                     "UPDATE durable_runs SET "
                     "recovery_classification = 'orphan_stale_lease', "
+                    "lease_owner = '', "
                     "interrupted_at = ?, updated_at = ? "
                     "WHERE run_id = ? "
                     "AND lease_expiry_ms < ? "

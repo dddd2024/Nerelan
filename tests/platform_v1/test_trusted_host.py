@@ -513,3 +513,64 @@ def test_no_raw_credential_persistence(tmp_path) -> None:
             assert pattern not in meta_str.lower(), (
                 f"secret pattern '{pattern}' found in event metadata"
             )
+
+
+# ===================================================================
+# V6 Gap 7: Real trusted-host authority resolver keeps
+# authority/planning independent
+# ===================================================================
+
+def test_real_resolver_planning_only_yields_empty_authority(tmp_path) -> None:
+    """When only REVERSE_AGENT_PLANNING_SHA is set (no execution authority),
+    the real _resolve_trusted_authority_sha() must return ''.
+    Durable execute must fail closed before run creation (run count = 0)."""
+    from reverse_agent.platform_v1.trusted_host import (
+        _resolve_trusted_authority_sha,
+        _resolve_trusted_planning_sha,
+    )
+    from reverse_agent.platform_v1.durable_execution import DurableExecutionService, DurableResumeError
+    from reverse_agent.platform_v1.task_execution import TaskExecutionError
+
+    old_auth = os.environ.pop("REVERSE_AGENT_EXECUTION_AUTHORITY_SHA", None)
+    old_plan = os.environ.get("REVERSE_AGENT_PLANNING_SHA")
+    old_repo = os.environ.pop("REVERSE_AGENT_REPO_DIR", None)
+
+    try:
+        os.environ["REVERSE_AGENT_PLANNING_SHA"] = "some-planning-sha-v6"
+        os.environ.pop("REVERSE_AGENT_EXECUTION_AUTHORITY_SHA", None)
+        os.environ.pop("REVERSE_AGENT_REPO_DIR", None)
+
+        auth = _resolve_trusted_authority_sha()
+        plan = _resolve_trusted_planning_sha()
+        assert auth == ""
+        assert plan == "some-planning-sha-v6"
+
+        store = _make_store(tmp_path)
+        task = store.create_task(
+            title="planning-only-v6",
+            executor_kind="opencode",
+            orchestration_mode="sequential_team",
+        )
+        svc = DurableExecutionService(
+            store=store, router=object(),
+            execution_authority_sha=None,
+            planning_sha="some-planning-sha-v6",
+        )
+        with pytest.raises((TaskExecutionError, DurableResumeError)):
+            svc.execute_durable_sequential_team(
+                task_id=task.id, workspace_root=str(tmp_path),
+            )
+        run_count = store._conn.execute(
+            "SELECT COUNT(*) FROM durable_runs WHERE task_id = ?",
+            (task.id,),
+        ).fetchone()[0]
+        assert run_count == 0
+    finally:
+        if old_auth is not None:
+            os.environ["REVERSE_AGENT_EXECUTION_AUTHORITY_SHA"] = old_auth
+        if old_plan is not None:
+            os.environ["REVERSE_AGENT_PLANNING_SHA"] = old_plan
+        elif "REVERSE_AGENT_PLANNING_SHA" in os.environ:
+            os.environ.pop("REVERSE_AGENT_PLANNING_SHA", None)
+        if old_repo is not None:
+            os.environ["REVERSE_AGENT_REPO_DIR"] = old_repo

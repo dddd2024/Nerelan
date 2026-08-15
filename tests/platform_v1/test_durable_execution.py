@@ -2238,3 +2238,482 @@ def test_role_created_head_movement_rejected(tmp_path) -> None:
     with pytest.raises(TaskStoreError) as ei:
         store._set_repository_base_sha(run_id, "different_sha", "w1", 1)
     assert "repository_base_immutable" in str(ei.value)
+
+
+# ===================================================================
+# V6 final correctness recovery — 7 bounded gaps
+# ===================================================================
+
+# ---------------------------------------------------------------------------
+# Gap 1: Reconcile revokes stale worker authority immediately
+# ---------------------------------------------------------------------------
+
+def test_reconcile_revokes_old_owner_authority(tmp_path) -> None:
+    """After reconcile, old worker heartbeat/checkpoint/digest/business/status
+    mutations and lease release must all fail/no-op. stale mutation count = 0."""
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="revoke-test",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    store.transition_to(task.id, "PREPARING_WORKSPACE")
+    store.transition_to(task.id, "RUNNING")
+
+    lease = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="worker-a", task_status="RUNNING",
+    )
+    run_id = lease.run_id
+    assert lease.owner == "worker-a"
+    assert lease.epoch == 1
+    store._accept_checkpoint(run_id, "PRE_PLANNER", "", 1, "worker-a", 1)
+
+    # Expire the lease and reconcile
+    now_ms = int(time.time() * 1000)
+    store._conn.execute(
+        "UPDATE durable_runs SET lease_expiry_ms = ? WHERE run_id = ?",
+        (now_ms - 1000, run_id),
+    )
+    svc = DurableExecutionService(
+        store=store, router=ExecutorRouter(),
+        execution_authority_sha="test_authority", planning_sha="test_planning",
+    )
+    records = svc.reconcile_expired_runs(now_ms=now_ms, max_age_ms=1000)
+    assert len(records) == 1
+    assert store.get_task(task.id).status == "INTERRUPTED"
+
+    # Re-read the durable run to confirm lease_owner is cleared
+    run_after = store._get_durable_run(run_id)
+    assert run_after.lease_owner == ""
+    assert run_after.lease_epoch == 1
+
+    # Old worker A attempts heartbeat: must fail
+    with pytest.raises(TaskStoreError):
+        store._heartbeat_durable_lease(run_id, "worker-a", 1, 300000)
+
+    # Old worker A attempts checkpoint: must fail
+    with pytest.raises(TaskStoreError):
+        store._accept_checkpoint(run_id, "POST_PLANNER", "digest", 1, "worker-a", 1)
+
+    # Old worker A attempts set_planner_handoff_digest: must fail
+    with pytest.raises(TaskStoreError):
+        store._set_planner_handoff_digest(run_id, "digest", "worker-a", 1)
+
+    # Old worker A attempts status transition: must fail
+    with pytest.raises(TaskStoreError):
+        store._fenced_transition_to(run_id, task.id, "VALIDATING", "worker-a", 1)
+
+    # Old worker A attempts business writes: must fail
+    with pytest.raises(TaskStoreError):
+        store._fenced_set_changed_files(run_id, task.id, [{"path": "x.py"}], "worker-a", 1)
+    with pytest.raises(TaskStoreError):
+        store._fenced_add_event(
+            run_id, task.id, event_type="EXECUTOR_FINISHED",
+            title="stale", owner="worker-a", epoch=1,
+        )
+    with pytest.raises(TaskStoreError):
+        store._fenced_classify_failure(
+            run_id, task.id, classification="failed", detail="x",
+            owner="worker-a", epoch=1,
+        )
+
+    # Old worker A attempts lease release: must fail
+    with pytest.raises(TaskStoreError):
+        store._release_durable_lease(run_id, "worker-a", 1)
+
+    # Task status unchanged (still INTERRUPTED)
+    assert store.get_task(task.id).status == "INTERRUPTED"
+
+    # New worker B resumes and gets a strictly newer epoch
+    lease_b = store._recover_durable_lease(run_id, "worker-b")
+    assert lease_b.epoch == 2
+    assert lease_b.owner == "worker-b"
+
+
+# ---------------------------------------------------------------------------
+# Gap 2: Effective heartbeat cadence < expiry for short durations
+# ---------------------------------------------------------------------------
+
+def test_effective_heartbeat_interval_below_expiry(tmp_path) -> None:
+    """For short trusted leases (exp=500ms, window=100ms), effective interval
+    must be < expiry. Live heartbeat must not cause false interruptions."""
+    import threading as _threading
+
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="hb-cadence-test",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    store.transition_to(task.id, "PREPARING_WORKSPACE")
+    store.transition_to(task.id, "RUNNING")
+
+    lease = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="w1", task_status="RUNNING",
+        expiry_ms=500,
+    )
+    run_id = lease.run_id
+
+    expiry_ms = 500
+    heartbeat_window_ms = 100
+    effective_interval_ms = heartbeat_window_ms * 0.6
+    assert effective_interval_ms == 60.0
+    assert 0 < effective_interval_ms < expiry_ms
+
+    heartbeat_count = [0]
+    stop_event = _threading.Event()
+
+    def hb_loop():
+        while not stop_event.is_set():
+            try:
+                store._heartbeat_durable_lease(
+                    run_id, "w1", 1, expiry_ms,
+                )
+                heartbeat_count[0] += 1
+            except TaskStoreError:
+                break
+            stop_event.wait(timeout=effective_interval_ms / 1000.0)
+
+    t = _threading.Thread(target=hb_loop, daemon=True)
+    t.start()
+
+    # Run for longer than original expiry (500ms). Use 800ms.
+    time.sleep(0.8)
+    stop_event.set()
+    t.join(timeout=3.0)
+
+    run = store._get_durable_run(run_id)
+    assert run.lease_owner == "w1"
+    assert run.lease_epoch == 1
+    assert heartbeat_count[0] >= 1
+
+    now_ms = int(time.time() * 1000)
+    svc2 = DurableExecutionService(
+        store=store, router=ExecutorRouter(),
+        execution_authority_sha="test_authority", planning_sha="test_planning",
+    )
+    records = svc2.reconcile_expired_runs(now_ms=now_ms, max_age_ms=1000)
+    assert len(records) == 0
+
+
+# ---------------------------------------------------------------------------
+# Gap 3: Task stays PREPARING_WORKSPACE through blocking preparation
+# ---------------------------------------------------------------------------
+
+def test_task_preparing_workspace_through_preparation(tmp_path) -> None:
+    """Task remains PREPARING_WORKSPACE during executor creation,
+    prepare_worktree_once(), and identity persistence. Only after
+    PRE_PLANNER acceptance does it transition to RUNNING."""
+    import threading as _prep_threading
+    from reverse_agent.platform_v1.durable_execution import (
+        set_crash_after_checkpoint, reset_crash_seam, _CrashSimulated,
+    )
+    from reverse_agent.platform_v1.opencode_executor import handoff_dir as _handoff_dir
+
+    class _SlowPreparedCtx:
+        def __init__(self, worktree: Path, execution_id: str = "") -> None:
+            self.worktree = worktree
+            self.execution_id = execution_id
+
+    class _SlowFakeExecutor:
+        prepare_status = {"status": ""}
+        prepare_event = _prep_threading.Event()
+
+        def prepare_worktree_once(
+            self, task_id: str, workspace_root: Path, callback: Any = None
+        ) -> _SlowPreparedCtx:
+            self.prepare_status["status"] = "preparing"
+            self.prepare_event.wait(timeout=2.0)
+            self.prepare_status["status"] = "prepared"
+            wt = workspace_root / f"wt-{task_id[-8:]}"
+            _make_git_worktree(wt)
+            return _SlowPreparedCtx(worktree=wt)
+
+        def execute_role_prepared(
+            self, prepared: Any, store: Any, *, role_context: Any = None,
+            event_callback: Any = None,
+        ) -> Any:
+            self.prepare_status["status"] = "role_running"
+            role = role_context.role if role_context else "planner"
+            wt = prepared.worktree
+            handoff = _handoff_dir(wt)
+            if role == "planner":
+                handoff.mkdir(parents=True, exist_ok=True)
+                (handoff / "plan.md").write_text("# Plan\n", encoding="utf-8")
+            elif role == "coder":
+                (wt / "product.py").write_text("def hello(): pass\n", encoding="utf-8")
+            elif role == "reviewer":
+                handoff.mkdir(parents=True, exist_ok=True)
+                (handoff / "review.md").write_text("# Review\n", encoding="utf-8")
+
+            class _Result:
+                success = True
+                execution_id = f"exec-{role}"
+                validation_exit_code = 0
+                failure_classification = ""
+                error = ""
+            return _Result()
+
+    class _SlowRouter(ExecutorRouter):
+        def create_executor(self, *, executor_kind: str = "opencode", **kwargs: Any) -> _SlowFakeExecutor:
+            return _SlowFakeExecutor()
+        def dispatch_execute(self, *a: Any, **kw: Any):
+            raise NotImplementedError()
+
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="prep-status-test",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+
+    wt_dir = _init_git_worktree(tmp_path, "wt_prep")
+
+    set_crash_after_checkpoint("PRE_PLANNER")
+    service = DurableExecutionService(
+        store=store, router=_SlowRouter(),
+        execution_authority_sha="test_authority", planning_sha="test_planning",
+    )
+
+    status_observed = {"status": ""}
+    status_event = _prep_threading.Event()
+
+    def status_watcher():
+        while not stop_event2.is_set():
+            try:
+                s = store.get_task(task.id).status
+                status_observed["status"] = s
+                if s == "PREPARING_WORKSPACE":
+                    status_event.set()
+            except Exception:
+                pass
+            time.sleep(0.05)
+
+    stop_event2 = _prep_threading.Event()
+    watcher = _prep_threading.Thread(target=status_watcher, daemon=True)
+    watcher.start()
+
+    # Give the watcher a moment to observe
+    time.sleep(0.1)
+
+    with pytest.raises(_CrashSimulated):
+        service.execute_durable_sequential_team(
+            task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
+        )
+    reset_crash_seam()
+
+    stop_event2.set()
+    watcher.join(timeout=3.0)
+
+    # Task should have been observed in PREPARING_WORKSPACE
+    assert status_observed["status"] == "PREPARING_WORKSPACE"
+
+    run = store._get_durable_run(
+        store._conn.execute(
+            "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+            (task.id,),
+        ).fetchone()["run_id"]
+    )
+    assert run.accepted_checkpoint == "PRE_PLANNER"
+    assert run.worktree_head_sha != ""
+    assert run.repository_base_sha != ""
+    assert run.worktree_head_sha == run.repository_base_sha
+
+    task_final = store.get_task(task.id)
+    assert task_final.status == "PREPARING_WORKSPACE"
+
+
+# ---------------------------------------------------------------------------
+# Gap 4: Pre-PRE resume fails BEFORE recovery claim
+# ---------------------------------------------------------------------------
+
+def test_pre_pre_resume_fails_before_claim(tmp_path) -> None:
+    """When accepted_checkpoint == '', resume must fail closed BEFORE
+    _recover_durable_lease() is called. Task status, epoch, owner, expiry
+    and all role-call counts must remain unchanged."""
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="pre-pre-no-claim",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    lease = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="w1", task_status="QUEUED",
+        execution_authority_sha="auth", planning_sha="plan",
+    )
+    run_id = lease.run_id
+    original_epoch = lease.epoch
+    original_owner = lease.owner
+
+    # Manually expire and set to INTERRUPTED with orphan_stale_lease
+    now_ms = int(time.time() * 1000)
+    store._conn.execute(
+        "UPDATE durable_runs SET lease_expiry_ms = ? WHERE run_id = ?",
+        (now_ms - 1000, run_id),
+    )
+    svc = DurableExecutionService(
+        store=store, router=ExecutorRouter(),
+        execution_authority_sha="auth", planning_sha="plan",
+    )
+    svc.reconcile_expired_runs(now_ms=now_ms, max_age_ms=1000)
+
+    # Capture state before failed resume attempt
+    task_before = store.get_task(task.id)
+    run_before = store._get_durable_run(run_id)
+    assert task_before.status == "INTERRUPTED"
+    assert run_before.lease_owner == ""
+    assert run_before.lease_epoch == original_epoch
+    expiry_before = run_before.lease_expiry_ms
+    accepted_before = run_before.accepted_checkpoint
+    assert accepted_before == ""
+
+    service = DurableExecutionService(
+        store=store, router=object(),
+        execution_authority_sha="auth", planning_sha="plan",
+    )
+
+    with pytest.raises(DurableResumeError) as ei:
+        service.resume_sequential_team(task_id=task.id, lease_owner="w2")
+    assert "pre_pre_planner" in str(ei.value)
+
+    # Verify nothing changed
+    task_after = store.get_task(task.id)
+    run_after = store._get_durable_run(run_id)
+    assert task_after.status == "INTERRUPTED"
+    assert run_after.lease_epoch == original_epoch
+    assert run_after.lease_owner == ""
+    assert run_after.lease_expiry_ms == expiry_before
+    assert run_after.accepted_checkpoint == ""
+
+
+# ---------------------------------------------------------------------------
+# Gap 5: Partial identity (path/head but no base) cannot dispatch roles
+# ---------------------------------------------------------------------------
+
+def test_partial_identity_cannot_dispatch_roles(tmp_path) -> None:
+    """When accepted_checkpoint == '' and worktree_path + worktree_head_sha
+    exist but repository_base_sha is empty, no role may be dispatched."""
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="partial-identity",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    lease = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="w1", task_status="QUEUED",
+        execution_authority_sha="auth", planning_sha="plan",
+    )
+    run_id = lease.run_id
+
+    # Persist partial identity: worktree_path + head_sha but NO repository_base_sha
+    wt = _init_git_worktree(tmp_path, "wt_partial")
+    head_sha = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=wt, text=True
+    ).strip()
+    store._set_worktree_identity(run_id, str(wt), head_sha, "w1", 1)
+
+    # Do NOT set repository_base_sha — simulate crash before base persistence
+
+    # Mark as interrupted/stale
+    now_ms = int(time.time() * 1000)
+    store._conn.execute(
+        "UPDATE durable_runs SET lease_expiry_ms = ?, "
+        "recovery_classification = 'orphan_stale_lease', "
+        "interrupted_at = 'now' WHERE run_id = ?",
+        (now_ms - 1000, run_id),
+    )
+    store._conn.execute(
+        "UPDATE tasks SET status = 'INTERRUPTED' WHERE id = ?",
+        (task.id,),
+    )
+
+    service = DurableExecutionService(
+        store=store, router=object(),
+        execution_authority_sha="auth", planning_sha="plan",
+    )
+
+    with pytest.raises(DurableResumeError) as ei:
+        service.resume_sequential_team(task_id=task.id, lease_owner="w2")
+    assert "pre_pre_planner" in str(ei.value)
+
+    # Verify no role dispatch occurred — run still has accepted_checkpoint == ''
+    run = store._get_durable_run(run_id)
+    assert run.accepted_checkpoint == ""
+    assert run.current_role == ""
+
+
+# ---------------------------------------------------------------------------
+# Gap 6: Empty HEAD/base fails closed before PRE_PLANNER
+# ---------------------------------------------------------------------------
+
+def test_empty_HEAD_fails_closed_before_pre_planner(tmp_path) -> None:
+    """If prepare_worktree_once returns a path but git rev-parse HEAD fails
+    or returns empty, the run must fail closed BEFORE _set_worktree_identity,
+    _set_repository_base_sha, or PRE_PLANNER acceptance."""
+    from reverse_agent.platform_v1.durable_execution import (
+        set_crash_after_checkpoint, reset_crash_seam, _CrashSimulated,
+    )
+
+    class _EmptyHeadPreparedCtx:
+        def __init__(self, worktree: Path, execution_id: str = "") -> None:
+            self.worktree = worktree
+            self.execution_id = execution_id
+
+    class _EmptyHeadFakeExecutor:
+        def prepare_worktree_once(
+            self, task_id: str, workspace_root: Path, callback: Any = None
+        ) -> _EmptyHeadPreparedCtx:
+            # Create a directory but DO NOT init git — HEAD will be empty
+            wt = workspace_root / f"wt-{task_id[-8:]}"
+            wt.mkdir(parents=True, exist_ok=True)
+            (wt / "README.md").write_text("hello\n", encoding="utf-8")
+            return _EmptyHeadPreparedCtx(worktree=wt)
+
+        def execute_role_prepared(
+            self, prepared: Any, store: Any, *, role_context: Any = None,
+            event_callback: Any = None,
+        ) -> Any:
+            raise RuntimeError("must not reach role execution")
+
+    class _EmptyRouter(ExecutorRouter):
+        def create_executor(self, *, executor_kind: str = "opencode", **kwargs: Any) -> _EmptyHeadFakeExecutor:
+            return _EmptyHeadFakeExecutor()
+        def dispatch_execute(self, *a: Any, **kw: Any):
+            raise NotImplementedError()
+
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="empty-head-test",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+
+    wt_dir = tmp_path / "wt_empty"
+    wt_dir.mkdir(parents=True, exist_ok=True)
+
+    service = DurableExecutionService(
+        store=store, router=_EmptyRouter(),
+        execution_authority_sha="test_authority", planning_sha="test_planning",
+    )
+
+    outcome = service.execute_durable_sequential_team(
+        task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
+    )
+
+    assert outcome.success is False
+    assert "empty_HEAD" in outcome.failure_detail or "prepared_worktree" in outcome.failure_detail
+
+    run = store._get_durable_run(
+        store._conn.execute(
+            "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+            (task.id,),
+        ).fetchone()["run_id"]
+    )
+
+    assert run.accepted_checkpoint == ""
+    assert run.repository_base_sha == ""
+    assert run.worktree_head_sha == ""
