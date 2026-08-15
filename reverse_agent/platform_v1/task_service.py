@@ -33,6 +33,7 @@ from .run_store import (
 )
 from .task_execution import TaskExecutionError, TaskExecutionService
 from .task_runtime import ExecutorRuntimeError, ExecutorRouter
+from .durable_execution import DurableExecutionService, DurableResumeError
 
 _MAX_BODY_BYTES = 256 * 1024
 _TASKS_LIMIT = 100
@@ -234,6 +235,8 @@ class _TaskHandler(BaseHTTPRequestHandler):
     lease_provider: Callable | None = None
     binding_resolver: Any | None = None
     github_adapter: Any | None = None
+    execution_authority_sha: str = ""
+    planning_sha: str = ""
 
     server_version = "reverse-agent-task-service/1"
 
@@ -369,35 +372,105 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 except TaskStoreError:
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
                     return
-                execution_service = TaskExecutionService(
-                    store=self.store,
-                    router=self.router,
-                    lease_provider=getattr(self, "lease_provider", None),
-                    binding_resolver=getattr(self, "binding_resolver", None),
-                )
-                try:
-                    if task.orchestration_mode == "sequential_team":
-                        outcome = execution_service.execute_sequential_team(
+                if task.orchestration_mode == "sequential_team":
+                    dur_svc = DurableExecutionService(
+                        store=self.store,
+                        router=self.router,
+                        lease_provider=getattr(self, "lease_provider", None),
+                        binding_resolver=getattr(self, "binding_resolver", None),
+                        execution_authority_sha=getattr(
+                            self, "execution_authority_sha", ""
+                        ),
+                        planning_sha=getattr(
+                            self, "planning_sha", ""
+                        ),
+                    )
+                    try:
+                        outcome = dur_svc.execute_durable_sequential_team(
                             task_id=segments[2],
                             workspace_root=workspace_root,
+                            lease_owner="task-api",
                         )
-                    else:
+                    except TaskExecutionError as exc:
+                        if "task_not_found" in str(exc):
+                            self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
+                            return
+                        self._send_json(HTTPStatus.CONFLICT, {"error": str(exc)})
+                        return
+                    except ExecutorRuntimeError as exc:
+                        self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                        return
+                    task = self.store.get_task(segments[2])
+                    self._send_json(HTTPStatus.OK, self._task_response(task))
+                    return
+                else:
+                    execution_service = TaskExecutionService(
+                        store=self.store,
+                        router=self.router,
+                        lease_provider=getattr(self, "lease_provider", None),
+                        binding_resolver=getattr(self, "binding_resolver", None),
+                    )
+                    try:
                         outcome = execution_service.execute(
                             task_id=segments[2],
                             workspace_root=workspace_root,
                             validation_command_id=command_id or "git_diff_check",
                         )
-                except TaskExecutionError as exc:
-                    if "task_not_found" in str(exc):
-                        self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
+                    except TaskExecutionError as exc:
+                        if "task_not_found" in str(exc):
+                            self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
+                            return
+                        self._send_json(HTTPStatus.CONFLICT, {"error": str(exc)})
                         return
-                    self._send_json(
-                        HTTPStatus.CONFLICT,
-                        {"error": str(exc)},
-                    )
+                    except ExecutorRuntimeError as exc:
+                        self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                        return
+                    task = self.store.get_task(segments[2])
+                    self._send_json(HTTPStatus.OK, self._task_response(task))
                     return
-                except ExecutorRuntimeError as exc:
-                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            if (
+                len(segments) == 4
+                and segments[:2] == ["api", "tasks"]
+                and segments[3] == "resume"
+            ):
+                try:
+                    task = self.store.get_task(segments[2])
+                except TaskStoreError:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
+                    return
+                if task.orchestration_mode != "sequential_team":
+                    self._send_json(HTTPStatus.CONFLICT, {
+                        "error": f"not_sequential_team:{task.orchestration_mode}"
+                    })
+                    return
+                run = self.store._find_active_durable_run(segments[2])
+                if run is None:
+                    self._send_json(HTTPStatus.CONFLICT, {
+                        "error": "no_active_durable_run_to_resume"
+                    })
+                    return
+                dur_svc = DurableExecutionService(
+                    store=self.store,
+                    router=self.router,
+                    lease_provider=getattr(self, "lease_provider", None),
+                    binding_resolver=getattr(self, "binding_resolver", None),
+                    execution_authority_sha=getattr(
+                        self, "execution_authority_sha", ""
+                    ),
+                    planning_sha=getattr(
+                        self, "planning_sha", ""
+                    ),
+                )
+                try:
+                    outcome = dur_svc.resume_sequential_team(
+                        task_id=segments[2],
+                        lease_owner="task-api-resume",
+                    )
+                except DurableResumeError as exc:
+                    self._send_json(HTTPStatus.CONFLICT, {"error": str(exc)})
+                    return
+                except TaskExecutionError as exc:
+                    self._send_json(HTTPStatus.CONFLICT, {"error": str(exc)})
                     return
                 task = self.store.get_task(segments[2])
                 self._send_json(HTTPStatus.OK, self._task_response(task))
@@ -589,6 +662,8 @@ def _handler_factory(
     lease_provider: Callable | None = None,
     binding_resolver: Any | None = None,
     github_adapter: Any | None = None,
+    execution_authority_sha: str = "",
+    planning_sha: str = "",
 ) -> type[_TaskHandler]:
     class ConfiguredHandler(_TaskHandler):
         pass
@@ -602,6 +677,8 @@ def _handler_factory(
     )
     ConfiguredHandler.binding_resolver = binding_resolver
     ConfiguredHandler.github_adapter = github_adapter
+    ConfiguredHandler.execution_authority_sha = execution_authority_sha
+    ConfiguredHandler.planning_sha = planning_sha
     return ConfiguredHandler
 
 
@@ -646,6 +723,8 @@ class TaskService:
         router: ExecutorRouter | None = None,
         allowed_origin: str = "http://localhost:4173",
         github_adapter: Any | None = None,
+        execution_authority_sha: str = "",
+        planning_sha: str = "",
     ) -> None:
         if store is not None:
             self.store = store
@@ -655,6 +734,8 @@ class TaskService:
         self.router = router or ExecutorRouter()
         self.allowed_origin = allowed_origin
         self.github_adapter = github_adapter
+        self.execution_authority_sha = execution_authority_sha
+        self.planning_sha = planning_sha
 
     def start(
         self,
@@ -673,6 +754,8 @@ class TaskService:
                 self.router,
                 allowed_origin=self.allowed_origin,
                 github_adapter=self.github_adapter,
+                execution_authority_sha=self.execution_authority_sha,
+                planning_sha=self.planning_sha,
             ),
         )
         thread = Thread(target=server.serve_forever, daemon=True)

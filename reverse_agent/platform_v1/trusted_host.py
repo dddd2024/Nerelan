@@ -20,6 +20,7 @@ from __future__ import annotations
 from http.server import ThreadingHTTPServer
 import json
 import os
+import subprocess
 import threading
 from typing import Any
 
@@ -36,6 +37,7 @@ from .opencode_executor import ExecutionLeaseHandle
 from .run_store import TaskStore
 from .task_runtime import ExecutorRouter
 from .task_service import _handler_factory as _task_handler_factory
+from .durable_execution import DurableExecutionService
 
 
 class CombinedTrustedHost:
@@ -54,12 +56,16 @@ class CombinedTrustedHost:
         allowed_origin: str = "http://127.0.0.1:4173",
         task_db_path: str | None = None,
         github_adapter: LiveGitHubAdapter | None = None,
+        execution_authority_sha: str = "",
+        planning_sha: str = "",
     ) -> None:
         self._store = store or ModelProfileStore()
         self._task_store = task_store or _make_task_store(task_db_path)
         self._relay_manager = relay_manager or CredentialRelayManager()
         self._router = ExecutorRouter()
         self._github_adapter = github_adapter
+        self._execution_authority_sha = execution_authority_sha
+        self._planning_sha = planning_sha
 
         self._model_control_host = model_control_host
         self._model_control_port = model_control_port
@@ -142,6 +148,18 @@ class CombinedTrustedHost:
         model_control_port: int | None = None,
         task_api_port: int | None = None,
     ) -> None:
+        # Startup reconciliation: find expired durable runs, mark stale
+        # tasks INTERRUPTED with orphan_stale_lease classification.
+        # Does NOT call any model/provider; reconciliation only.
+        dur_svc = DurableExecutionService(
+            store=self._task_store,
+            router=self._router,
+        )
+        try:
+            dur_svc.reconcile_expired_runs()
+        except Exception:
+            pass
+
         mcp = model_control_port if model_control_port is not None else self._model_control_port
         tap = task_api_port if task_api_port is not None else self._task_api_port
 
@@ -180,6 +198,8 @@ class CombinedTrustedHost:
             lease_provider=self._lease_provider_factory(),
             binding_resolver=binding_resolver,
             github_adapter=live_github,
+            execution_authority_sha=self._execution_authority_sha,
+            planning_sha=self._planning_sha,
         )
         self._task_server = ThreadingHTTPServer(
             (self._task_api_host, tap), task_handler
@@ -218,13 +238,77 @@ def _make_task_store(db_path: str | None) -> TaskStore:
     )
 
 
+def _resolve_trusted_authority_sha() -> str:
+    """Resolve trusted execution authority SHA from trusted runtime config.
+
+    HTTP request bodies MUST NOT supply this value. Resolution order:
+    1. REVERSE_AGENT_EXECUTION_AUTHORITY_SHA env var (explicit trusted config)
+    2. Repository git HEAD SHA from REVERSE_AGENT_REPO_DIR
+    3. Empty string if none available (causes fail-closed on durable /execute)
+
+    REVERSE_AGENT_PLANNING_SHA is NOT a valid execution authority source.
+    Authority and planning SHA are independent dimensions.
+    """
+    explicit = os.environ.get("REVERSE_AGENT_EXECUTION_AUTHORITY_SHA", "").strip()
+    if explicit:
+        return explicit
+    repo_dir = os.environ.get("REVERSE_AGENT_REPO_DIR", "").strip()
+    if repo_dir:
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=repo_dir, capture_output=True, text=True, check=True,
+                timeout=10,
+            )
+            sha = result.stdout.strip()
+            if sha:
+                return sha
+        except Exception:
+            pass
+    return ""
+
+
+def _resolve_trusted_planning_sha() -> str:
+    """Resolve trusted planning SHA from trusted runtime config.
+
+    HTTP request bodies MUST NOT supply this value. Resolution order:
+    1. REVERSE_AGENT_PLANNING_SHA env var (explicit trusted config)
+    2. Repository git HEAD SHA from REVERSE_AGENT_REPO_DIR
+    3. Empty string if none available (causes fail-closed on durable /execute)
+    """
+    explicit = os.environ.get("REVERSE_AGENT_PLANNING_SHA", "").strip()
+    if explicit:
+        return explicit
+    repo_dir = os.environ.get("REVERSE_AGENT_REPO_DIR", "").strip()
+    if repo_dir:
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=repo_dir, capture_output=True, text=True, check=True,
+                timeout=10,
+            )
+            sha = result.stdout.strip()
+            if sha:
+                return sha
+        except Exception:
+            pass
+    return ""
+
+
 def run_combined_trusted_host() -> None:
-    host = CombinedTrustedHost()
+    auth_sha = _resolve_trusted_authority_sha()
+    planning_sha = _resolve_trusted_planning_sha()
+    host = CombinedTrustedHost(
+        execution_authority_sha=auth_sha,
+        planning_sha=planning_sha,
+    )
     host.start()
     metadata = {
         "model_control_url": host.model_control_url,
         "task_api_url": host.task_api_url,
         "relay_url": host.relay_url,
+        "execution_authority_sha": auth_sha,
+        "planning_sha": planning_sha,
     }
     runtime_dir = os.environ.get(
         "REVERSE_AGENT_TASK_DB_DIR",
@@ -235,10 +319,12 @@ def run_combined_trusted_host() -> None:
     with open(meta_path, "w", encoding="utf-8") as fh:
         json.dump(metadata, fh, indent=2)
 
-    print(f"Combined Trusted Host started")
+    print("Combined Trusted Host started")
     print(f"  Model Control: {host.model_control_url}")
     print(f"  Task API:      {host.task_api_url}")
     print(f"  Relay:         {host.relay_url}")
+    print(f"  Authority SHA: {auth_sha or '(empty - durable execute will fail closed)'}")
+    print(f"  Planning SHA:  {planning_sha or '(empty - durable execute will fail closed)'}")
 
     try:
         host._model_server.serve_forever()
