@@ -905,3 +905,101 @@ def test_host_skips_auth_probe_when_no_external_session_connections(tmp_path) ->
     host.stop()
 
     assert probe_calls["count"] == 0
+
+
+# ===================================================================
+# ISSUE216 R2 V5 — Auth probe recovery regressions (A, B)
+# ===================================================================
+
+def test_external_session_available_rejected_when_probe_returns_empty(tmp_path) -> None:
+    """Regression A: a store whose external session is already 'available'
+    must become 'missing' after _refresh_external_session_auth() runs
+    with a probe that returns an empty mapping.  The in-memory 'available'
+    value must not survive a later empty probe."""
+    store = _make_store(tmp_path)
+    host = CombinedTrustedHost(
+        task_store=store,
+        execution_authority_sha="auth_v5",
+        planning_sha="plan_v5",
+        auth_list_probe=lambda: {"sensetime": "api"},
+    )
+    host.store.upsert_connection({
+        "connection_id": "sensetime-ext",
+        "name": "SenseTime Ext",
+        "provider": "sensetime",
+        "base_url": "https://api.sensenova.cn/v1",
+        "auth_method": "external_cli_session",
+        "enabled": True,
+    })
+    try:
+        host.start(model_control_port=0, task_api_port=0)
+    except Exception:
+        pass
+    host.stop()
+    assert host.store.get_connection_public("sensetime-ext")[
+        "external_session_status"
+    ] == "available"
+
+    probe_switched = {"return_value": {}}
+    host2 = CombinedTrustedHost(
+        task_store=TaskStore(db_path=str(tmp_path / "tasks.sqlite3")),
+        execution_authority_sha="auth_v5",
+        planning_sha="plan_v5",
+        auth_list_probe=lambda: probe_switched["return_value"],
+    )
+    try:
+        host2.start(model_control_port=0, task_api_port=0)
+    except Exception:
+        pass
+    host2.stop()
+    assert host2.store.get_connection_public("sensetime-ext")[
+        "external_session_status"
+    ] == "missing"
+
+
+def test_external_session_available_rejected_when_probe_raises(tmp_path) -> None:
+    """Regression B: a store whose external session is already 'available'
+    must become 'missing' after _refresh_external_session_auth() runs
+    with a probe that raises.  The host must remain startable."""
+
+    def failing_probe():
+        raise RuntimeError("opencode_cli_unavailable")
+
+    store = _make_store(tmp_path)
+    host = CombinedTrustedHost(
+        task_store=store,
+        execution_authority_sha="auth_v5",
+        planning_sha="plan_v5",
+        auth_list_probe=lambda: {"sensetime": "api"},
+    )
+    host.store.upsert_connection({
+        "connection_id": "sensetime-ext",
+        "name": "SenseTime Ext",
+        "provider": "sensetime",
+        "base_url": "https://api.sensenova.cn/v1",
+        "auth_method": "external_cli_session",
+        "enabled": True,
+    })
+    try:
+        host.start(model_control_port=0, task_api_port=0)
+    except Exception:
+        pass
+    host.stop()
+    assert host.store.get_connection_public("sensetime-ext")[
+        "external_session_status"
+    ] == "available"
+
+    host2 = CombinedTrustedHost(
+        task_store=TaskStore(db_path=str(tmp_path / "tasks.sqlite3")),
+        execution_authority_sha="auth_v5",
+        planning_sha="plan_v5",
+        auth_list_probe=failing_probe,
+    )
+    try:
+        host2.start(model_control_port=0, task_api_port=0)
+    except Exception:
+        pytest.fail("host startup must not crash when auth probe raises")
+    host2.stop()
+    assert host2.store.get_connection_public("sensetime-ext")[
+        "external_session_status"
+    ] == "missing"

@@ -577,6 +577,12 @@ def _resolve_windows_cmd() -> str | None:
 # accepted; display labels ("GitHub Copilot") must not be auto-mapped to an ID.
 _SAFE_PROVIDER_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,127}$")
 
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+_TERMINAL_GLYPHS_RE = re.compile(
+    r"[●◆▪▸►■□▪▫├└┴┬┼│─┌┐┘└├┤┬┴┼░▒▓█]"
+)
+_AUTH_TYPE_TOKEN_STRIP_RE = re.compile(r"[^A-Za-z0-9_]+$")
+
 _ALLOWED_AUTH_TYPES = frozenset({
     "api",
     "oauth",
@@ -601,26 +607,43 @@ def parse_opencode_auth_list(stdout: str) -> dict[str, str]:
     credential-file path, header, or auth.json path ever appears in the
     returned metadata.
 
-    Accepted input shapes:
+    Accepted input shapes (in order of attempt):
       - JSON object: {"providers": [{"id": "sensetime", "authType": "api"}, ...]}
       - JSON array:  [{"id": "sensetime", "authType": "api"}, ...]
       - JSON object with top-level list-valued keys whose values look like
         provider records: {"sensetime": [{"authType": "api"}]}
+      - Human-readable terminal list (OpenCode 1.18.x default):
+            Credentials <path>
+            ● sensetime api
+            ● GitHub Copilot oauth
+            2 credentials
 
     A provider ID is accepted only when it matches the safe identifier
     grammar. Display labels like "GitHub Copilot" do not match and are
     silently ignored rather than auto-mapped to "github-copilot".
+
+    Malformed or unrecognized output returns an empty mapping.
     """
-    result: dict[str, str] = {}
     if not stdout:
-        return result
+        return {}
     text = stdout.strip()
     if not text:
+        return {}
+    result = _try_json_auth_list_parse(text)
+    if result is not None:
         return result
+    return _parse_opencode_auth_list_text(stdout)
+
+
+def _try_json_auth_list_parse(text: str) -> dict[str, str] | None:
+    """Try to parse JSON-shaped auth list output. Returns None on JSON failure
+    so the caller can fall through to text parsing."""
     try:
         parsed = json.loads(text)
     except (json.JSONDecodeError, ValueError):
-        return result
+        return None
+    result: dict[str, str] = {}
+    records: list[Any]
     if isinstance(parsed, list):
         records = parsed
     elif isinstance(parsed, dict):
@@ -630,9 +653,9 @@ def parse_opencode_auth_list(stdout: str) -> dict[str, str]:
         else:
             records = _dict_values_to_records(parsed)
     else:
-        return result
+        return {}
     if not isinstance(records, list):
-        return result
+        return {}
     for entry in records:
         if not isinstance(entry, dict):
             continue
@@ -654,6 +677,58 @@ def parse_opencode_auth_list(stdout: str) -> dict[str, str]:
         if auth_type.lower() not in _ALLOWED_AUTH_TYPES:
             continue
         result[pid] = auth_type
+    return result
+
+
+def _parse_opencode_auth_list_text(stdout: str) -> dict[str, str]:
+    """Parse human-readable OpenCode ``auth list`` terminal output.
+
+    Expected real CLI shape (OpenCode 1.18.x):
+        Credentials /home/user/.config/opencode/credentials.json
+        ● sensetime api
+        ● GitHub Copilot oauth
+        2 credentials
+
+    Rules:
+      - ANSI escape sequences are stripped before any parsing.
+      - Terminal glyphs (bullets, box-drawing characters) are stripped.
+      - Each non-empty line is split on whitespace into tokens.
+      - The last token is the candidate auth type; it must be an
+        exact member of _ALLOWED_AUTH_TYPES (case-insensitive match,
+        stored lowercase).
+      - All preceding tokens joined by a single space form the candidate
+        provider label; it must exactly match the safe identifier regex
+        _SAFE_PROVIDER_ID_RE. No slugification, no case guessing, no
+        space-to-hyphen replacement, no fuzzy matching.
+      - Headers ("Credentials ..."), file paths, total-count lines,
+        environment sections, empty lines, and unrecognized lines are
+        silently ignored.
+      - No raw stdout, credential path, or CLI decoration is persisted
+        or returned.
+    """
+    result: dict[str, str] = {}
+    cleaned = _ANSI_ESCAPE_RE.sub("", stdout)
+    for raw_line in cleaned.splitlines():
+        line = _TERMINAL_GLYPHS_RE.sub("", raw_line).strip()
+        if not line:
+            continue
+        tokens = line.split()
+        if len(tokens) < 2:
+            continue
+        raw_auth_type = tokens[-1]
+        auth_type = _AUTH_TYPE_TOKEN_STRIP_RE.sub("", raw_auth_type).lower()
+        if not auth_type:
+            continue
+        if auth_type not in _ALLOWED_AUTH_TYPES:
+            continue
+        provider_label = " ".join(tokens[:-1]).strip()
+        if not provider_label:
+            continue
+        if not _SAFE_PROVIDER_ID_RE.match(provider_label):
+            continue
+        if provider_label in result:
+            continue
+        result[provider_label] = auth_type
     return result
 
 

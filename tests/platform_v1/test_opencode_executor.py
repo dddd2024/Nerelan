@@ -2252,3 +2252,122 @@ def test_auth_list_probe_uses_restricted_non_secret_child_env(monkeypatch) -> No
                     "OPENCODE_DISABLE_DEFAULT_PLUGINS",
                     "OPENCODE_DISABLE_CLAUDE_CODE"):
         assert allowed in env
+
+
+# ===================================================================
+# ISSUE216 R2 V5 — Real-shaped text parser regressions (C–H)
+# ===================================================================
+
+def test_auth_list_parser_real_text_shape_extracts_sensetime_api() -> None:
+    """Regression C: parse the exact OpenCode 1.18.x human-readable output
+    shape and extract {'sensetime': 'api'}."""
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+
+    stdout = (
+        "Credentials /home/user/.config/opencode/credentials.json\n"
+        "● sensetime api\n"
+        "● GitHub Copilot oauth\n"
+        "2 credentials\n"
+    )
+    parsed = parse_opencode_auth_list(stdout)
+    assert parsed == {"sensetime": "api"}
+
+
+def test_auth_list_parser_real_text_rejects_display_labels_with_spaces() -> None:
+    """Regression D: provider labels containing spaces (e.g. 'GitHub Copilot')
+    must be rejected.  No slugification, no case guessing, no hyphenation."""
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+
+    stdout = (
+        "Credentials /home/user/.config/opencode/credentials.json\n"
+        "● sensetime api\n"
+        "● GitHub Copilot oauth\n"
+        "● OpenCode Zen api\n"
+        "3 credentials\n"
+    )
+    parsed = parse_opencode_auth_list(stdout)
+    assert parsed == {"sensetime": "api"}
+    assert "github copilot" not in parsed
+    assert "github-copilot" not in parsed
+    assert "opencode zen" not in parsed
+    assert "opencode-zen" not in parsed
+
+
+def test_auth_list_parser_real_text_ansi_tree_bullet_decoration_ignored() -> None:
+    """Regression E: ANSI escape sequences, box-drawing characters, and
+    bullet glyphs must not break safe parsing."""
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+
+    stdout = (
+        "\x1b[32mCredentials\x1b[0m /home/user/.config/opencode/credentials.json\n"
+        "\x1b[36m├──\x1b[0m \x1b[33m●\x1b[0m sensetime api\n"
+        "\x1b[36m└──\x1b[0m \x1b[33m●\x1b[0m GitHub Copilot oauth\n"
+        "\x1b[1m2 credentials\x1b[0m\n"
+    )
+    parsed = parse_opencode_auth_list(stdout)
+    assert parsed == {"sensetime": "api"}
+
+
+def test_auth_list_parser_malformed_text_returns_empty() -> None:
+    """Regression F: truly malformed or unrecognized text output returns {}."""
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+
+    for bad in (
+        "",
+        "   \n  \n  ",
+        "just one token per line\nand another\n",
+        "no auth type here at all\n",
+        "● completely unparseable gibberish\n",
+        "\x1b[1;31merror\x1b[0m could not read credentials\n",
+        "some random text\nthat has nothing\nto do with providers\n",
+    ):
+        result = parse_opencode_auth_list(bad)
+        assert result == {}, f"unexpected result for: {bad!r}"
+
+
+def test_auth_list_parser_credential_path_not_in_result() -> None:
+    """Regression G: the credential-file path from the 'Credentials' header
+    must never appear in the parser result."""
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+
+    stdout = (
+        "Credentials /home/user/.config/opencode/credentials.json\n"
+        "● sensetime api\n"
+        "2 credentials\n"
+    )
+    parsed = parse_opencode_auth_list(stdout)
+    assert parsed == {"sensetime": "api"}
+    serialized = json.dumps(parsed)
+    assert "credentials.json" not in serialized
+    assert "/home/user" not in serialized
+    assert ".config" not in serialized
+    assert "Credentials" not in serialized
+
+
+def test_auth_list_parser_json_compatibility_still_passes() -> None:
+    """Regression H: existing JSON-shaped inputs must continue to parse
+    correctly alongside the new text parser."""
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+
+    # JSON providers array
+    json_stdout = json.dumps({
+        "providers": [
+            {"id": "sensetime", "name": "SenseTime",
+             "authType": "api", "status": "authenticated"},
+            {"id": "github-copilot", "name": "GitHub Copilot",
+             "authType": "oauth", "status": "authenticated"},
+        ]
+    })
+    parsed = parse_opencode_auth_list(json_stdout)
+    assert parsed == {"sensetime": "api", "github-copilot": "oauth"}
+
+    # JSON array
+    json_array = json.dumps([
+        {"id": "sensetime", "authType": "api"},
+    ])
+    parsed2 = parse_opencode_auth_list(json_array)
+    assert parsed2 == {"sensetime": "api"}
+
+    # Empty JSON
+    assert parse_opencode_auth_list("{}") == {}
+    assert parse_opencode_auth_list("[]") == {}

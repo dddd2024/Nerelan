@@ -102,12 +102,14 @@ class CombinedTrustedHost:
             return
         if not self._has_external_session_connections():
             return
+        provider_metadata: dict[str, str] = {}
         try:
-            provider_metadata = probe()
-            if provider_metadata:
-                self._store.refresh_external_session_status(provider_metadata)
+            result = probe()
+            if isinstance(result, dict):
+                provider_metadata = result
         except Exception:
-            pass
+            provider_metadata = {}
+        self._store.refresh_external_session_status(provider_metadata)
 
     def _has_external_session_connections(self) -> bool:
         return self._store.has_external_session_connections()
