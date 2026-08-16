@@ -476,3 +476,289 @@ def test_connection_test_endpoint_unsupported_auth_no_probe(
     assert status == 200
     assert result["ok"] is False
     assert result["status"] == "unsupported_auth_method"
+
+
+# ===================================================================
+# ISSUE210 R2 V1 — Durable sanitized product setup persistence
+# ===================================================================
+
+import json as _json_mod
+import os as _os_mod
+from pathlib import Path as _Path
+
+from reverse_agent.model_access.store import StoreError as _StoreError
+
+
+def _state_path(tmp_path: _Path, name: str = "state.json") -> str:
+    return str(tmp_path / name)
+
+
+def test_persistence_restores_connection_and_binding_metadata(tmp_path) -> None:
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(connection_payload())
+    store.upsert_binding(binding_payload())
+
+    fresh = ModelProfileStore(state_path=sp)
+    listed = fresh.list_connections_public()
+    assert len(listed) == 1
+    conn = listed[0]
+    assert conn["connection_id"] == "sense-api"
+    assert conn["provider"] == "openai-compatible"
+    assert conn["base_url"] == "https://models.example.test/v1"
+    assert conn["auth_method"] == "api_key"
+    assert conn["enabled"] is True
+
+    bindings = fresh.list_bindings_public()
+    assert len(bindings) == 1
+    b = bindings[0]
+    assert b["binding_id"] == "coding-fast"
+    assert b["executor_id"] == "opencode"
+    assert b["connection_id"] == "sense-api"
+    assert b["model_id"] == "sense-coding-fast"
+    assert b["enabled"] is True
+
+
+def test_raw_api_key_never_persisted_and_missing_after_restart(tmp_path) -> None:
+    sp = _state_path(tmp_path)
+    raw_secret = "RAW-SENTINEL-SECRET-DO-NOT-LEAK"
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(connection_payload(api_key=raw_secret))
+
+    raw_bytes = _Path(sp).read_bytes()
+    assert raw_secret.encode("utf-8") not in raw_bytes
+    assert b"RAW-SENTINEL" not in raw_bytes
+
+    fresh = ModelProfileStore(state_path=sp)
+    listed = fresh.list_connections_public()
+    assert listed[0]["secret_status"] == "missing"
+    assert fresh.resolve_connection_secret("sense-api") is None
+
+
+def test_api_key_env_only_persists_name_never_value(tmp_path, monkeypatch) -> None:
+    sp = _state_path(tmp_path)
+    env_name = "TEST_ISSUE210_ENV_KEY"
+    env_value = "ENV-SENTINEL-SECRET-VALUE"
+    monkeypatch.setenv(env_name, env_value)
+
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(connection_payload(api_key_env=env_name))
+
+    raw_bytes = _Path(sp).read_bytes()
+    assert env_name.encode("utf-8") in raw_bytes
+    assert env_value.encode("utf-8") not in raw_bytes
+    assert b"ENV-SENTINEL" not in raw_bytes
+
+    monkeypatch.setenv(env_name, "FRESH-ENV-VALUE")
+    fresh = ModelProfileStore(state_path=sp)
+    assert fresh.list_connections_public()[0]["secret_status"] == "environment"
+    assert fresh.resolve_connection_secret("sense-api") == "FRESH-ENV-VALUE"
+
+    monkeypatch.delenv(env_name)
+    fresh2 = ModelProfileStore(state_path=sp)
+    assert fresh2.list_connections_public()[0]["secret_status"] == "missing"
+    assert fresh2.resolve_connection_secret("sense-api") is None
+
+
+def test_binding_metadata_fully_restored_after_restart(tmp_path) -> None:
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(connection_payload())
+    store.upsert_binding(binding_payload(binding_id="my-binding",
+                                          name="My Binding",
+                                          model_id="gpt-5",
+                                          enabled=False))
+
+    fresh = ModelProfileStore(state_path=sp)
+    bindings = fresh.list_bindings_public()
+    assert len(bindings) == 1
+    b = bindings[0]
+    assert b["binding_id"] == "my-binding"
+    assert b["name"] == "My Binding"
+    assert b["executor_id"] == "opencode"
+    assert b["connection_id"] == "sense-api"
+    assert b["model_id"] == "gpt-5"
+    assert b["enabled"] is False
+
+
+def test_persistence_fails_closed_on_dangling_binding(tmp_path) -> None:
+    doc = {
+        "schema_version": 1,
+        "connections": [],
+        "bindings": [
+            {
+                "binding_id": "orphan",
+                "name": "Orphan",
+                "executor_id": "opencode",
+                "connection_id": "no-such-conn",
+                "model_id": "model-x",
+                "enabled": True,
+            }
+        ],
+    }
+    sp = _state_path(tmp_path)
+    _Path(sp).write_text(_json_mod.dumps(doc), encoding="utf-8")
+
+    with pytest.raises(_StoreError, match="dangling"):
+        ModelProfileStore(state_path=sp)
+
+
+def test_persistence_fails_closed_on_duplicate_ids(tmp_path) -> None:
+    doc = {
+        "schema_version": 1,
+        "connections": [
+            {
+                "connection_id": "dup",
+                "name": "Dup1",
+                "provider": "openai-compatible",
+                "base_url": "https://a.example.test/v1",
+                "auth_method": "none",
+                "enabled": True,
+            },
+            {
+                "connection_id": "dup",
+                "name": "Dup2",
+                "provider": "openai-compatible",
+                "base_url": "https://b.example.test/v1",
+                "auth_method": "none",
+                "enabled": True,
+            },
+        ],
+        "bindings": [],
+    }
+    sp = _state_path(tmp_path)
+    _Path(sp).write_text(_json_mod.dumps(doc), encoding="utf-8")
+
+    with pytest.raises(_StoreError, match="duplicate"):
+        ModelProfileStore(state_path=sp)
+
+
+def test_persistence_fails_closed_on_unknown_schema_version(tmp_path) -> None:
+    doc = {
+        "schema_version": 999,
+        "connections": [],
+        "bindings": [],
+    }
+    sp = _state_path(tmp_path)
+    _Path(sp).write_text(_json_mod.dumps(doc), encoding="utf-8")
+
+    with pytest.raises(_StoreError, match="schema_version"):
+        ModelProfileStore(state_path=sp)
+
+
+def test_persistence_fails_closed_on_corrupt_json(tmp_path) -> None:
+    sp = _state_path(tmp_path)
+    _Path(sp).write_bytes(b"{not valid json at all!!!")
+
+    with pytest.raises(_StoreError):
+        ModelProfileStore(state_path=sp)
+
+
+def test_persistence_fails_closed_on_forbidden_fields_in_file(tmp_path) -> None:
+    doc = {
+        "schema_version": 1,
+        "connections": [
+            {
+                "connection_id": "sense-api",
+                "name": "Leaky",
+                "provider": "openai-compatible",
+                "base_url": "https://a.example.test/v1",
+                "auth_method": "api_key",
+                "enabled": True,
+                "api_key": "NEVER-PERSIST-THIS",
+            }
+        ],
+        "bindings": [],
+    }
+    sp = _state_path(tmp_path)
+    _Path(sp).write_text(_json_mod.dumps(doc), encoding="utf-8")
+
+    with pytest.raises(_StoreError, match="forbidden"):
+        ModelProfileStore(state_path=sp)
+
+
+def test_atomic_write_interruption_preserves_last_valid_state(tmp_path, monkeypatch) -> None:
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(connection_payload())
+    store.upsert_binding(binding_payload())
+
+    first_content = _Path(sp).read_bytes()
+    assert len(first_content) > 0
+
+    call_count = {"fsync": 0}
+    original_fsync = _os_mod.fsync
+
+    def _fsync_interrupt(fd):
+        call_count["fsync"] += 1
+        raise OSError("simulated disk failure")
+
+    monkeypatch.setattr(_os_mod, "fsync", _fsync_interrupt)
+
+    with pytest.raises(_StoreError, match="persistence"):
+        store.upsert_connection(
+            connection_payload(connection_id="new-conn", name="New Conn")
+        )
+
+    restored = _Path(sp).read_bytes()
+    assert restored == first_content
+
+    fresh = ModelProfileStore(state_path=sp)
+    listed = fresh.list_connections_public()
+    assert len(listed) == 1
+    assert listed[0]["connection_id"] == "sense-api"
+    assert "new-conn" not in [c["connection_id"] for c in listed]
+
+    monkeypatch.setattr(_os_mod, "fsync", original_fsync)
+
+
+def test_persistence_failure_rolls_back_memory_mutation(tmp_path, monkeypatch) -> None:
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(connection_payload())
+    store.upsert_binding(binding_payload())
+
+    before_connections = store.list_connections_public()
+    before_bindings = store.list_bindings_public()
+    assert len(before_connections) == 1
+    assert len(before_bindings) == 1
+
+    call_count = {"replace": 0}
+    original_replace = _os_mod.replace
+
+    def _replace_interrupt(src, dst):
+        call_count["replace"] += 1
+        raise OSError("simulated rename failure")
+
+    monkeypatch.setattr(_os_mod, "replace", _replace_interrupt)
+
+    with pytest.raises(_StoreError, match="persistence"):
+        store.upsert_connection(
+            connection_payload(connection_id="another-conn", name="Another")
+        )
+
+    after_connections = store.list_connections_public()
+    after_bindings = store.list_bindings_public()
+    assert after_connections == before_connections
+    assert after_bindings == before_bindings
+    assert len(after_connections) == 1
+    assert after_connections[0]["connection_id"] == "sense-api"
+    assert len(after_bindings) == 1
+    assert after_bindings[0]["binding_id"] == "coding-fast"
+
+    monkeypatch.setattr(_os_mod, "replace", original_replace)
+
+
+def test_process_local_store_still_works_without_state_path(tmp_path) -> None:
+    store = ModelProfileStore()
+    store.upsert_connection(connection_payload(api_key="local-only-key"))
+    store.upsert_binding(binding_payload())
+
+    public = store.list_connections_public()
+    assert public[0]["secret_status"] == "session"
+    assert store.resolve_connection_secret("sense-api") == "local-only-key"
+
+    bindings = store.list_bindings_public()
+    assert len(bindings) == 1
+
+    assert not _Path(str(tmp_path / "state.json")).exists()
