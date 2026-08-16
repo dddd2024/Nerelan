@@ -59,8 +59,13 @@ class CombinedTrustedHost:
         execution_authority_sha: str = "",
         planning_sha: str = "",
     ) -> None:
-        self._store = store or ModelProfileStore()
-        self._task_store = task_store or _make_task_store(task_db_path)
+        task_store = task_store or _make_task_store(task_db_path)
+        if store is not None:
+            self._store = store
+        else:
+            state_path = _resolve_store_state_path(task_store)
+            self._store = ModelProfileStore(state_path=state_path)
+        self._task_store = task_store
         self._relay_manager = relay_manager or CredentialRelayManager()
         self._router = ExecutorRouter()
         self._github_adapter = github_adapter
@@ -236,6 +241,20 @@ def _make_task_store(db_path: str | None) -> TaskStore:
     return TaskStore(
         db_path=os.path.join(runtime_dir, "tasks.sqlite3")
     )
+
+
+def _resolve_store_state_path(task_store: TaskStore) -> str:
+    db_path = task_store.db_path
+    if not db_path or db_path == ":memory:":
+        runtime_dir = os.environ.get(
+            "REVERSE_AGENT_TASK_DB_DIR",
+            os.path.join(os.getcwd(), ".platform_v1_runtime"),
+        )
+        os.makedirs(runtime_dir, exist_ok=True)
+        return os.path.join(runtime_dir, "model_setup_state.json")
+    parent = os.path.dirname(os.path.abspath(db_path)) or "."
+    os.makedirs(parent, exist_ok=True)
+    return os.path.join(parent, "model_setup_state.json")
 
 
 def _resolve_trusted_authority_sha() -> str:

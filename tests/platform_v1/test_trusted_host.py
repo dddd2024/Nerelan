@@ -574,3 +574,169 @@ def test_real_resolver_planning_only_yields_empty_authority(tmp_path) -> None:
             os.environ.pop("REVERSE_AGENT_PLANNING_SHA", None)
         if old_repo is not None:
             os.environ["REVERSE_AGENT_REPO_DIR"] = old_repo
+
+
+# ===================================================================
+# ISSUE210 R2 V1 — CombinedTrustedHost restart restores sanitized metadata
+# ===================================================================
+
+def test_combined_trusted_host_restart_restores_sanitized_metadata(tmp_path) -> None:
+    """A fresh CombinedTrustedHost using the same runtime path must automatically
+    restore Connection and Binding metadata persisted by a previous host.
+    No raw credential must be exposed through the public API or persisted state.
+    """
+    from reverse_agent.platform_v1.trusted_host import _resolve_store_state_path
+    from reverse_agent.model_access.store import StoreError
+
+    db_path = str(tmp_path / "tasks.sqlite3")
+    store = _make_store(tmp_path)
+
+    host1 = CombinedTrustedHost(
+        task_store=store,
+        execution_authority_sha="auth_host1",
+        planning_sha="plan_host1",
+    )
+
+    raw_secret = "HOST1-RAW-SECRET-NEVER-PERSIST"
+    host1.store.upsert_connection({
+        "connection_id": "restored-conn",
+        "name": "Restored Connection",
+        "provider": "openai-compatible",
+        "base_url": "https://restored.example.test/v1",
+        "auth_method": "api_key",
+        "enabled": True,
+        "api_key": raw_secret,
+    })
+    host1.store.upsert_binding({
+        "binding_id": "restored-binding",
+        "name": "Restored Binding",
+        "executor_id": "opencode",
+        "connection_id": "restored-conn",
+        "model_id": "restored-model-v1",
+        "enabled": True,
+    })
+
+    conn1_public = host1.store.list_connections_public()
+    assert conn1_public[0]["connection_id"] == "restored-conn"
+    assert conn1_public[0]["secret_status"] == "session"
+    assert raw_secret not in json.dumps(conn1_public)
+
+    state_path = _resolve_store_state_path(store)
+    raw_bytes = Path(state_path).read_bytes()
+    assert raw_secret.encode("utf-8") not in raw_bytes
+    assert b"HOST1-RAW" not in raw_bytes
+
+    host1.stop()
+    del host1
+
+    host2 = CombinedTrustedHost(
+        task_store=store,
+        execution_authority_sha="auth_host2",
+        planning_sha="plan_host2",
+    )
+
+    conn2_public = host2.store.list_connections_public()
+    assert len(conn2_public) == 1
+    c2 = conn2_public[0]
+    assert c2["connection_id"] == "restored-conn"
+    assert c2["name"] == "Restored Connection"
+    assert c2["provider"] == "openai-compatible"
+    assert c2["base_url"] == "https://restored.example.test/v1"
+    assert c2["auth_method"] == "api_key"
+    assert c2["enabled"] is True
+    assert c2["secret_status"] == "missing"
+    assert raw_secret not in json.dumps(conn2_public)
+
+    binding2_public = host2.store.list_bindings_public()
+    assert len(binding2_public) == 1
+    b2 = binding2_public[0]
+    assert b2["binding_id"] == "restored-binding"
+    assert b2["executor_id"] == "opencode"
+    assert b2["connection_id"] == "restored-conn"
+    assert b2["model_id"] == "restored-model-v1"
+    assert b2["enabled"] is True
+
+    assert host2.store.resolve_connection_secret("restored-conn") is None
+
+    new_raw = "HOST2-NEW-SECRET"
+    host2.store.upsert_connection({
+        "connection_id": "restored-conn",
+        "name": "Restored Connection",
+        "provider": "openai-compatible",
+        "base_url": "https://restored.example.test/v1",
+        "auth_method": "api_key",
+        "enabled": True,
+        "api_key": new_raw,
+    })
+    assert host2.store.resolve_connection_secret("restored-conn") == new_raw
+    raw_bytes2 = Path(state_path).read_bytes()
+    assert new_raw.encode("utf-8") not in raw_bytes2
+    assert b"HOST2-NEW" not in raw_bytes2
+
+    host2.stop()
+
+    del host2
+
+    host3 = CombinedTrustedHost(
+        task_store=store,
+        execution_authority_sha="auth_host3",
+        planning_sha="plan_host3",
+    )
+    conn3_public = host3.store.list_connections_public()
+    assert conn3_public[0]["secret_status"] == "missing"
+    assert host3.store.resolve_connection_secret("restored-conn") is None
+
+    assert host3.store.get_connection_public("restored-conn")["connection_id"] == "restored-conn"
+    assert host3.store.get_binding_public("restored-binding")["binding_id"] == "restored-binding"
+
+    try:
+        host3.store.upsert_binding({
+            "binding_id": "new-binding",
+            "name": "New Binding",
+            "executor_id": "opencode",
+            "connection_id": "nonexistent-conn",
+            "model_id": "model-x",
+            "enabled": True,
+        })
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("dangling binding must fail closed")
+
+    raw_bytes3 = Path(state_path).read_bytes()
+    assert raw_secret.encode("utf-8") not in raw_bytes3
+    assert new_raw.encode("utf-8") not in raw_bytes3
+    assert b"HOST1-RAW" not in raw_bytes3
+    assert b"HOST2-NEW" not in raw_bytes3
+
+    host3.stop()
+
+
+def test_explicit_injected_store_bypasses_auto_persistence(tmp_path) -> None:
+    """When a caller explicitly injects a store, CombinedTrustedHost must not
+    auto-create a persisted store.  The injected store remains authoritative."""
+    from reverse_agent.model_access.store import ModelProfileStore
+
+    db_path = str(tmp_path / "tasks.sqlite3")
+    store = _make_store(tmp_path)
+    injected = ModelProfileStore()
+
+    host = CombinedTrustedHost(
+        task_store=store,
+        store=injected,
+        execution_authority_sha="auth_v",
+        planning_sha="plan_v",
+    )
+
+    host.store.upsert_connection({
+        "connection_id": "injected-conn",
+        "name": "Injected",
+        "provider": "openai-compatible",
+        "base_url": "https://injected.example.test/v1",
+        "auth_method": "none",
+        "enabled": True,
+    })
+
+    assert host.store is injected
+    listed = host.store.list_connections_public()
+    assert listed[0]["connection_id"] == "injected-conn"
