@@ -762,3 +762,81 @@ def test_process_local_store_still_works_without_state_path(tmp_path) -> None:
     assert len(bindings) == 1
 
     assert not _Path(str(tmp_path / "state.json")).exists()
+
+
+# ===================================================================
+# ISSUE216 OPENCODE_CREDENTIAL_REUSE_ADAPTER_V3 REGRESSIONS
+# ===================================================================
+
+def test_external_session_becomes_available_from_sanitized_auth_metadata() -> None:
+    store = ModelProfileStore()
+    store.upsert_connection(
+        connection_payload(
+            connection_id="external-cli-conn",
+            auth_method="external_cli_session",
+            provider="sensetime",
+        ),
+    )
+    assert store.get_connection_public("external-cli-conn")["external_session_status"] == "missing"
+    refreshed = store.refresh_external_session_status({"sensetime": "api"})
+    assert refreshed == 1
+    assert store.get_connection_public("external-cli-conn")["external_session_status"] == "available"
+
+
+def test_external_session_missing_when_provider_not_in_auth_metadata() -> None:
+    store = ModelProfileStore()
+    store.upsert_connection(
+        connection_payload(
+            connection_id="external-cli-conn",
+            auth_method="external_cli_session",
+            provider="sensetime",
+        ),
+    )
+    store.refresh_external_session_status({"other-provider": "api"})
+    assert store.get_connection_public("external-cli-conn")["external_session_status"] == "missing"
+
+
+def test_external_session_stays_missing_after_restart_without_persisted_status(tmp_path) -> None:
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(
+        connection_payload(
+            connection_id="persisted-external-conn",
+            auth_method="external_cli_session",
+            provider="sensetime",
+            external_session_status="available",
+        ),
+    )
+    assert store.get_connection_public("persisted-external-conn")["external_session_status"] == "available"
+
+    raw_bytes = _Path(sp).read_bytes()
+    assert b"external_session_status" not in raw_bytes
+    assert b"available" not in raw_bytes
+
+    fresh = ModelProfileStore(state_path=sp)
+    listed = fresh.list_connections_public()
+    assert listed[0]["external_session_status"] == "missing"
+
+    fresh.refresh_external_session_status({"sensetime": "api"})
+    assert fresh.get_connection_public("persisted-external-conn")["external_session_status"] == "available"
+
+    fresh_second = ModelProfileStore(state_path=sp)
+    assert fresh_second.get_connection_public("persisted-external-conn")["external_session_status"] == "missing"
+
+    fresh_second.refresh_external_session_status({})
+    assert fresh_second.get_connection_public("persisted-external-conn")["external_session_status"] == "missing"
+
+
+def test_refresh_external_session_status_does_not_mutate_api_key_status(tmp_path) -> None:
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(connection_payload(api_key="fresh-in-memory-key"))
+
+    store.refresh_external_session_status({"sensetime": "api"})
+    conn = store.get_connection_public("sense-api")
+    assert conn["external_session_status"] == "not_applicable"
+    assert conn["secret_status"] == "session"
+    assert store.resolve_connection_secret("sense-api") == "fresh-in-memory-key"
+
+    raw_bytes = _Path(sp).read_bytes()
+    assert b"external_session_status" not in raw_bytes

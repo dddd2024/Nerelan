@@ -33,6 +33,8 @@ from reverse_agent.model_access.contracts import ExecutionSnapshot
 from reverse_agent.platform_v1.opencode_executor import (
     build_binding_child_env,
     build_binding_config_content,
+    ExecutionLeaseHandle,
+    ExecutorRuntimeError,
     resolve_opencode_cli,
     validate_model_id,
 )
@@ -168,7 +170,12 @@ class TestTransientProviderConfig:
 
     def test_config_provider_id_matches_cli_selector_prefix(self) -> None:
         resolution = _make_binding_resolution("https://models.example.test/v1")
-        config_content = build_binding_config_content(resolution)
+        lease = ExecutionLeaseHandle(
+            lease_id="sk-" + secrets.token_urlsafe(24),
+            relay_url="http://127.0.0.1:9000",
+            model_id=CLI_SELECTOR,
+        )
+        config_content = build_binding_config_content(resolution, lease=lease)
         config = json.loads(config_content)
 
         providers = list(config["provider"].keys())
@@ -178,13 +185,19 @@ class TestTransientProviderConfig:
 
     def test_config_has_required_openai_compatible_fields(self) -> None:
         resolution = _make_binding_resolution("https://models.example.test/v1")
-        config_content = build_binding_config_content(resolution)
+        lease = ExecutionLeaseHandle(
+            lease_id="sk-" + secrets.token_urlsafe(24),
+            relay_url="http://127.0.0.1:9000",
+            model_id=CLI_SELECTOR,
+        )
+        config_content = build_binding_config_content(resolution, lease=lease)
         config = json.loads(config_content)
 
         provider = config["provider"][PROVIDER_ID]
         assert provider["npm"] == PROVIDER_NPM
         assert provider["name"] == PROVIDER_NAME
-        assert "baseURL" in provider["options"]
+        assert provider["options"]["baseURL"] == lease.relay_url
+        assert provider["options"]["apiKey"] == lease.lease_id
         assert PROVIDER_FACING_MODEL in provider["models"]
         assert provider["models"][PROVIDER_FACING_MODEL] == {}
 
@@ -206,8 +219,6 @@ class TestTransientProviderConfig:
         assert PROVIDER_FACING_MODEL in provider["models"]
 
     def test_config_does_not_contain_provider_master(self) -> None:
-        from reverse_agent.platform_v1.opencode_executor import ExecutionLeaseHandle
-
         FAKE_MASTER = "provider-master-key-xyz-789"
         resolution = _make_binding_resolution("https://models.example.test/v1")
         lease = ExecutionLeaseHandle(
@@ -218,6 +229,12 @@ class TestTransientProviderConfig:
         config_content = build_binding_config_content(resolution, lease=lease)
         assert FAKE_MASTER not in config_content
         assert "master" not in config_content.lower()
+
+    def test_config_api_key_without_lease_fails_closed(self) -> None:
+        resolution = _make_binding_resolution("https://models.example.test/v1")
+        with pytest.raises(ExecutorRuntimeError) as exc_info:
+            build_binding_config_content(resolution)
+        assert str(exc_info.value) == "api_key_lease_required"
 
 
 # ---------------------------------------------------------------------------
