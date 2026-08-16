@@ -1569,6 +1569,43 @@ class DurableExecutionService:
         review_digest = run.reviewer_handoff_digest
         coder_product_snapshot: tuple[dict[str, Any], ...] = ()
 
+        if accepted == "POST_CODER":
+            persisted_coder_digest = run.coder_product_diff_digest
+            if persisted_coder_digest == "":
+                self.store._fenced_classify_failure(
+                    lease.run_id, task_id,
+                    classification="coder_snapshot_missing",
+                    detail="persistent Coder snapshot digest is empty; refusing to resume Reviewer",
+                    owner=lease.owner, epoch=lease.epoch,
+                )
+                final = self.store.get_task(task_id)
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=final.execution_id,
+                    success=False, validation_command_id="",
+                    validation_exit_code=-1,
+                    failure_classification="coder_snapshot_missing",
+                    failure_detail="persistent Coder snapshot digest is empty; refusing to resume Reviewer",
+                )
+            reconstructed_digest = _digest(_json_payload(list(baseline_product)))
+            if reconstructed_digest != persisted_coder_digest:
+                self.store._fenced_classify_failure(
+                    lease.run_id, task_id,
+                    classification="coder_snapshot_mismatch",
+                    detail=f"persisted Coder snapshot digest {persisted_coder_digest} does not match reconstructed worktree digest {reconstructed_digest}; refusing to resume Reviewer",
+                    owner=lease.owner, epoch=lease.epoch,
+                )
+                final = self.store.get_task(task_id)
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=final.execution_id,
+                    success=False, validation_command_id="",
+                    validation_exit_code=-1,
+                    failure_classification="coder_snapshot_mismatch",
+                    failure_detail=f"persisted Coder snapshot digest {persisted_coder_digest} does not match reconstructed worktree digest {reconstructed_digest}; refusing to resume Reviewer",
+                )
+            coder_product_snapshot = baseline_product
+
         _graph_config = {"configurable": {"thread_id": lease.run_id}}
 
         # Resolve production checkpointer from persisted checkpoint_db_path
