@@ -290,13 +290,13 @@ def build_binding_config_content(
             "baseURL": lease.relay_url,
             "apiKey": lease.lease_id,
         }
+        provider_facing_model = _extract_provider_facing_model(lease.model_id)
     else:
+        if resolution.auth_method == "api_key":
+            raise ExecutorRuntimeError("api_key_lease_required")
         provider_key = resolution.provider_id or _TRANSIENT_PROVIDER_ID
-        if resolution.auth_method != "api_key" and resolution.provider_id:
-            options = {"baseURL": resolution.base_url}
-        else:
-            options = {"baseURL": resolution.base_url}
-    provider_facing_model = _extract_provider_facing_model(resolution.model_id)
+        options = {"baseURL": resolution.base_url}
+        provider_facing_model = _extract_provider_facing_model(resolution.model_id)
     payload = {
         "provider": {
             provider_key: {
