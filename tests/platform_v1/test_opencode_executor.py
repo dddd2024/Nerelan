@@ -179,7 +179,7 @@ def test_binding_config_contains_only_provider_base_url_metadata() -> None:
 
     assert json.loads(content) == {
         "provider": {
-            "reverse-agent-relay": {
+            "openai-compatible": {
                 "name": "Reverse Agent Relay",
                 "npm": "@ai-sdk/openai-compatible",
                 "options": {"baseURL": "https://models.example.test/v1"},
@@ -663,7 +663,7 @@ def test_binding_execution_passes_only_secret_free_env_and_sanitized_metadata() 
         config = json.loads(child_env["OPENCODE_CONFIG_CONTENT"])
         assert config == {
             "provider": {
-                "reverse-agent-relay": {
+                "openai-compatible": {
                     "name": "Reverse Agent Relay",
                     "npm": "@ai-sdk/openai-compatible",
                     "options": {"baseURL": "https://models.example.test/v1"},
@@ -1999,3 +1999,375 @@ def test_reviewer_permission_has_no_web_key() -> None:
     config_str = build_role_permission_config("reviewer")
     config = json.loads(config_str)
     assert "web" not in config["permission"]
+
+
+# ===================================================================
+# ISSUE216 OPENCODE_CREDENTIAL_REUSE_ADAPTER_V3 REGRESSIONS
+# ===================================================================
+
+def test_build_binding_config_uses_resolution_provider_key_for_external_session() -> None:
+    from reverse_agent.platform_v1.opencode_executor import build_binding_config_content
+    from reverse_agent.platform_v1.binding_resolver import OpenCodeBindingResolution
+    resolution = OpenCodeBindingResolution(
+        binding_ref="issue216-external-binding",
+        connection_id="sensetime-conn",
+        executor_id="opencode",
+        provider_id="sensetime",
+        model_id="sensetime/sensenova-6.7-flash-lite",
+        base_url="https://api.sensenova.cn/v1",
+        auth_method="external_cli_session",
+        external_session_status="available",
+    )
+    content = build_binding_config_content(resolution)
+    parsed = json.loads(content)
+    providers = parsed.get("provider", {})
+    assert "sensetime" in providers
+    assert "reverse-agent-relay" not in providers
+    sense = providers["sensetime"]
+    assert sense["npm"] == "@ai-sdk/openai-compatible"
+    assert sense["options"]["baseURL"] == "https://api.sensenova.cn/v1"
+    assert "apiKey" not in sense["options"]
+    assert "token" not in sense["options"]
+    assert "cookie" not in sense["options"]
+    assert sense["models"] == {"sensenova-6.7-flash-lite": {}}
+    lowered = content.lower()
+    for forbidden in ("apikey", "token", "authorization", "cookie",
+                      "password", "credential", "secret"):
+        assert forbidden not in lowered
+
+
+def test_build_binding_config_keeps_relay_for_api_key_lease() -> None:
+    from reverse_agent.platform_v1.binding_resolver import OpenCodeBindingResolution
+    from reverse_agent.platform_v1.opencode_executor import (
+        ExecutionLeaseHandle,
+        build_binding_config_content,
+    )
+
+    class _NoopRelease:
+        def release(self) -> None:
+            return
+
+    resolution = OpenCodeBindingResolution(
+        binding_ref="api-key-binding",
+        connection_id="api-key-conn",
+        executor_id="opencode",
+        provider_id="reverse-agent-relay",
+        model_id="reverse-agent-relay/provider-model",
+        base_url="https://api.example.test/v1",
+        auth_method="api_key",
+        external_session_status="not_applicable",
+        relay_required=True,
+    )
+    lease = ExecutionLeaseHandle(
+        lease_id="lease-abc123",
+        relay_url="http://127.0.0.1:5000",
+        model_id="reverse-agent-relay/provider-model",
+        _release_callback=_NoopRelease().release,
+    )
+    content = build_binding_config_content(resolution, lease=lease)
+    parsed = json.loads(content)
+    providers = parsed.get("provider", {})
+    assert "reverse-agent-relay" in providers
+    relay = providers["reverse-agent-relay"]
+    assert relay["options"]["baseURL"] == "http://127.0.0.1:5000"
+    assert relay["options"]["apiKey"] == "lease-abc123"
+
+
+def test_auth_list_parser_recognizes_sensetime_api() -> None:
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+    stdout = json.dumps({
+        "providers": [
+            {"id": "sensetime", "name": "SenseTime",
+             "authType": "api", "status": "authenticated"},
+            {"id": "github-copilot", "name": "GitHub Copilot",
+             "authType": "oauth", "status": "authenticated"},
+        ]
+    })
+    parsed = parse_opencode_auth_list(stdout)
+    assert parsed == {"sensetime": "api", "github-copilot": "oauth"}
+    assert "sensetime" in parsed
+    assert parsed["sensetime"] == "api"
+    lowered = json.dumps(parsed).lower()
+    for forbidden in ("apikey", "token", "authorization", "cookie",
+                      "password", "credential", "secret"):
+        assert forbidden not in lowered
+    assert "credentials.json" not in lowered
+
+
+def test_auth_list_parser_ignores_display_label_only_entries() -> None:
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+    stdout = json.dumps({
+        "providers": [
+            {"name": "GitHub Copilot", "authType": "oauth", "status": "authenticated"},
+        ]
+    })
+    parsed = parse_opencode_auth_list(stdout)
+    assert parsed == {}
+    assert "github-copilot" not in parsed
+    assert "github copilot" not in parsed
+
+
+def test_auth_list_parser_rejects_unsafe_provider_ids() -> None:
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+    stdout = json.dumps({
+        "providers": [
+            {"id": "inject;drop-db", "authType": "api"},
+            {"id": "../etc/shadow", "authType": "api"},
+            {"id": "", "authType": "api"},
+            {"id": "sensetime", "authType": "api"},
+            {"id": "123start", "authType": "api"},
+            {"id": "ok-id_1", "authType": "oauth"},
+        ]
+    })
+    parsed = parse_opencode_auth_list(stdout)
+    assert "sensetime" in parsed
+    assert "ok-id_1" in parsed
+    assert "inject;drop-db" not in parsed
+    assert "../etc/shadow" not in parsed
+    assert "" not in parsed
+    assert "123start" not in parsed
+
+
+def test_auth_list_parser_ignores_unexpected_auth_types() -> None:
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+    stdout = json.dumps({
+        "providers": [
+            {"id": "sensetime", "authType": "api"},
+            {"id": "weird", "authType": "not-a-real-auth-type"},
+        ]
+    })
+    parsed = parse_opencode_auth_list(stdout)
+    assert parsed == {"sensetime": "api"}
+
+
+def test_auth_list_parser_returns_empty_on_malformed_output() -> None:
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+    for bad in ("not json", "", "{}", "[]", "{not-json}", ""):
+        assert parse_opencode_auth_list(bad) == {}
+
+
+def test_auth_list_probe_fails_closed_when_cli_missing(monkeypatch) -> None:
+    from reverse_agent.platform_v1.opencode_executor import execute_opencode_auth_list_probe
+    original = subprocess.run
+
+    def fake_where(argv, **kwargs):
+        if argv and argv[0].startswith("where"):
+            return subprocess.CompletedProcess(
+                args=argv, returncode=1, stdout="", stderr=""
+            )
+        raise FileNotFoundError("opencode not installed")
+
+    monkeypatch.setattr(subprocess, "run", fake_where)
+    try:
+        assert execute_opencode_auth_list_probe() == {}
+    finally:
+        monkeypatch.setattr(subprocess, "run", original)
+
+
+def test_auth_list_probe_fails_closed_when_exit_nonzero() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        execute_opencode_auth_list_probe,
+    )
+
+    def fake_run(argv, **kwargs):
+        return subprocess.CompletedProcess(
+            args=argv, returncode=1, stdout="", stderr="not authenticated"
+        )
+
+    assert execute_opencode_auth_list_probe(subprocess_run=fake_run) == {}
+
+
+def test_auth_list_probe_fails_closed_when_output_malformed() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        execute_opencode_auth_list_probe,
+    )
+
+    def fake_run(argv, **kwargs):
+        return subprocess.CompletedProcess(
+            args=argv, returncode=0, stdout="{not json output", stderr=""
+        )
+
+    assert execute_opencode_auth_list_probe(subprocess_run=fake_run) == {}
+
+
+def test_auth_list_probe_returns_sanitized_metadata_when_success() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        execute_opencode_auth_list_probe,
+    )
+    raw_stdout = json.dumps({
+        "providers": [
+            {"id": "sensetime", "authType": "api"},
+        ]
+    })
+
+    def fake_run(argv, **kwargs):
+        return subprocess.CompletedProcess(
+            args=argv, returncode=0, stdout=raw_stdout, stderr=""
+        )
+
+    meta = execute_opencode_auth_list_probe(subprocess_run=fake_run)
+    assert meta == {"sensetime": "api"}
+    lowered = json.dumps(meta).lower()
+    for forbidden in ("apikey", "token", "authorization", "cookie",
+                      "password", "credential", "secret"):
+        assert forbidden not in lowered
+
+
+def test_auth_list_probe_uses_restricted_non_secret_child_env(monkeypatch) -> None:
+    from reverse_agent.platform_v1 import opencode_executor as _exec_mod
+    raw_stdout = json.dumps({"providers": [{"id": "sensetime", "authType": "api"}]})
+
+    class _EnvRecorder:
+        def __init__(self):
+            self.env = None
+        def __call__(self, argv, **kwargs):
+            if isinstance(argv, (list, tuple)) and len(argv) >= 3 and argv[1] == "auth":
+                self.env = dict(kwargs.get("env") or {})
+            return subprocess.CompletedProcess(
+                args=argv, returncode=0, stdout=raw_stdout, stderr=""
+            )
+
+    recorder = _EnvRecorder()
+    original_run = _exec_mod.subprocess.run
+    monkeypatch.setattr(_exec_mod.subprocess, "run", recorder)
+    monkeypatch.setenv("SENSITIVE_TOKEN_VALUE", "should-not-appear")
+    monkeypatch.setenv("SENSITIVE_API_KEY", "should-not-appear")
+    monkeypatch.setenv("PATH", "/usr/bin")
+    monkeypatch.setenv("SystemRoot", "C:\\Windows")
+
+    meta = _exec_mod.execute_opencode_auth_list_probe(
+        opencode_exe="/fake/opencode",
+    )
+    monkeypatch.setattr(_exec_mod.subprocess, "run", original_run)
+
+    assert meta == {"sensetime": "api"}
+    env = recorder.env
+    assert env is not None
+    assert "SENSITIVE_TOKEN_VALUE" not in env
+    assert "SENSITIVE_API_KEY" not in env
+    for allowed in ("PATH", "SystemRoot",
+                    "OPENCODE_DISABLE_AUTOUPDATE",
+                    "OPENCODE_DISABLE_MODELS_FETCH",
+                    "OPENCODE_DISABLE_LSP_DOWNLOAD",
+                    "OPENCODE_DISABLE_DEFAULT_PLUGINS",
+                    "OPENCODE_DISABLE_CLAUDE_CODE"):
+        assert allowed in env
+
+
+# ===================================================================
+# ISSUE216 R2 V5 — Real-shaped text parser regressions (C–H)
+# ===================================================================
+
+def test_auth_list_parser_real_text_shape_extracts_sensetime_api() -> None:
+    """Regression C: parse the exact OpenCode 1.18.x human-readable output
+    shape and extract {'sensetime': 'api'}."""
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+
+    stdout = (
+        "Credentials /home/user/.config/opencode/credentials.json\n"
+        "● sensetime api\n"
+        "● GitHub Copilot oauth\n"
+        "2 credentials\n"
+    )
+    parsed = parse_opencode_auth_list(stdout)
+    assert parsed == {"sensetime": "api"}
+
+
+def test_auth_list_parser_real_text_rejects_display_labels_with_spaces() -> None:
+    """Regression D: provider labels containing spaces (e.g. 'GitHub Copilot')
+    must be rejected.  No slugification, no case guessing, no hyphenation."""
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+
+    stdout = (
+        "Credentials /home/user/.config/opencode/credentials.json\n"
+        "● sensetime api\n"
+        "● GitHub Copilot oauth\n"
+        "● OpenCode Zen api\n"
+        "3 credentials\n"
+    )
+    parsed = parse_opencode_auth_list(stdout)
+    assert parsed == {"sensetime": "api"}
+    assert "github copilot" not in parsed
+    assert "github-copilot" not in parsed
+    assert "opencode zen" not in parsed
+    assert "opencode-zen" not in parsed
+
+
+def test_auth_list_parser_real_text_ansi_tree_bullet_decoration_ignored() -> None:
+    """Regression E: ANSI escape sequences, box-drawing characters, and
+    bullet glyphs must not break safe parsing."""
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+
+    stdout = (
+        "\x1b[32mCredentials\x1b[0m /home/user/.config/opencode/credentials.json\n"
+        "\x1b[36m├──\x1b[0m \x1b[33m●\x1b[0m sensetime api\n"
+        "\x1b[36m└──\x1b[0m \x1b[33m●\x1b[0m GitHub Copilot oauth\n"
+        "\x1b[1m2 credentials\x1b[0m\n"
+    )
+    parsed = parse_opencode_auth_list(stdout)
+    assert parsed == {"sensetime": "api"}
+
+
+def test_auth_list_parser_malformed_text_returns_empty() -> None:
+    """Regression F: truly malformed or unrecognized text output returns {}."""
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+
+    for bad in (
+        "",
+        "   \n  \n  ",
+        "just one token per line\nand another\n",
+        "no auth type here at all\n",
+        "● completely unparseable gibberish\n",
+        "\x1b[1;31merror\x1b[0m could not read credentials\n",
+        "some random text\nthat has nothing\nto do with providers\n",
+    ):
+        result = parse_opencode_auth_list(bad)
+        assert result == {}, f"unexpected result for: {bad!r}"
+
+
+def test_auth_list_parser_credential_path_not_in_result() -> None:
+    """Regression G: the credential-file path from the 'Credentials' header
+    must never appear in the parser result."""
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+
+    stdout = (
+        "Credentials /home/user/.config/opencode/credentials.json\n"
+        "● sensetime api\n"
+        "2 credentials\n"
+    )
+    parsed = parse_opencode_auth_list(stdout)
+    assert parsed == {"sensetime": "api"}
+    serialized = json.dumps(parsed)
+    assert "credentials.json" not in serialized
+    assert "/home/user" not in serialized
+    assert ".config" not in serialized
+    assert "Credentials" not in serialized
+
+
+def test_auth_list_parser_json_compatibility_still_passes() -> None:
+    """Regression H: existing JSON-shaped inputs must continue to parse
+    correctly alongside the new text parser."""
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+
+    # JSON providers array
+    json_stdout = json.dumps({
+        "providers": [
+            {"id": "sensetime", "name": "SenseTime",
+             "authType": "api", "status": "authenticated"},
+            {"id": "github-copilot", "name": "GitHub Copilot",
+             "authType": "oauth", "status": "authenticated"},
+        ]
+    })
+    parsed = parse_opencode_auth_list(json_stdout)
+    assert parsed == {"sensetime": "api", "github-copilot": "oauth"}
+
+    # JSON array
+    json_array = json.dumps([
+        {"id": "sensetime", "authType": "api"},
+    ])
+    parsed2 = parse_opencode_auth_list(json_array)
+    assert parsed2 == {"sensetime": "api"}
+
+    # Empty JSON
+    assert parse_opencode_auth_list("{}") == {}
+    assert parse_opencode_auth_list("[]") == {}
