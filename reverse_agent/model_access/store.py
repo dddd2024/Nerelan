@@ -2,12 +2,116 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
+import json
 import os
 from threading import RLock
 from typing import Any, Mapping
+import tempfile
 
 from .contracts import Binding, Connection, ExecutionSnapshot, ExecutorDescriptor, ModelProfile
+
+
+# Schema version for persisted sanitized product setup state.
+_STATE_SCHEMA_VERSION = 1
+
+# Field names that are strictly forbidden in persisted state files.
+_FORBIDDEN_PERSISTED_FIELDS = frozenset({
+    "api_key",
+    "apiKey",
+    "key",
+    "secret",
+    "password",
+    "token",
+    "access_token",
+    "accessToken",
+    "refresh_token",
+    "refreshToken",
+    "client_secret",
+    "clientSecret",
+    "session_credential",
+    "sessionCredential",
+    "authorization",
+    "bearer",
+    "cookie",
+    "private_key",
+    "account_token",
+    "external_session_status",
+})
+
+# Sanitized connection fields that are safe to persist.
+_CONNECTION_SAFE_FIELDS = frozenset({
+    "connection_id",
+    "name",
+    "provider",
+    "base_url",
+    "auth_method",
+    "enabled",
+    "api_key_env",
+})
+
+# Binding fields that are safe to persist.
+_BINDING_SAFE_FIELDS = frozenset({
+    "binding_id",
+    "name",
+    "executor_id",
+    "connection_id",
+    "model_id",
+    "enabled",
+})
+
+
+class StoreError(RuntimeError):
+    """Bounded error raised when persistence or load validation fails."""
+
+
+def _sanitize_env_name(value: str | None) -> str | None:
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str):
+        raise ValueError("api_key_env must be a string or absent")
+    normalized = value.strip()
+    if not normalized or not normalized.replace("_", "A").isalnum() or not (
+        normalized[0].isalpha() or normalized[0] == "_"
+    ):
+        raise ValueError("api_key_env is not a valid environment variable name")
+    if normalized.upper() != normalized:
+        raise ValueError("api_key_env must use uppercase characters")
+    return normalized
+
+
+def _write_atomic(data: bytes, target: Path) -> None:
+    parent = target.parent
+    os.makedirs(parent, exist_ok=True)
+    fd = None
+    tmp_path = None
+    try:
+        fd = tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=str(parent),
+            delete=False,
+            prefix=".model_setup_",
+            suffix=".tmp",
+        )
+        tmp_path = Path(fd.name)
+        fd.write(data)
+        fd.flush()
+        os.fsync(fd.fileno())
+        fd.close()
+        fd = None
+        os.replace(str(tmp_path), str(target))
+    finally:
+        if fd is not None:
+            try:
+                fd.close()
+            except Exception:
+                pass
+        if tmp_path is not None:
+            try:
+                os.unlink(str(tmp_path))
+            except Exception:
+                pass
 
 
 @dataclass(slots=True)
@@ -41,7 +145,7 @@ class _StoredConnection:
             return "not_applicable"
         if self.api_key:
             return "session"
-        if self.api_key_env:
+        if self.api_key_env and os.environ.get(self.api_key_env) is not None:
             return "environment"
         return "missing"
 
@@ -51,11 +155,53 @@ class _StoredConnection:
             external_session_status=self.external_session_status,
         )
 
+    def sanitized_dict(self) -> dict[str, Any]:
+        entry: dict[str, Any] = {
+            "connection_id": self.connection.connection_id,
+            "name": self.connection.name,
+            "provider": self.connection.provider,
+            "base_url": self.connection.base_url,
+            "auth_method": self.connection.auth_method,
+            "enabled": self.connection.enabled,
+        }
+        if self.api_key_env:
+            entry["api_key_env"] = self.api_key_env
+        return entry
+
+    @classmethod
+    def from_sanitized_dict(cls, data: Mapping[str, Any]) -> "_StoredConnection":
+        if not isinstance(data, dict):
+            raise ValueError("invalid connection record: not an object")
+        extra = set(data.keys()) - _CONNECTION_SAFE_FIELDS
+        if extra:
+            raise ValueError(
+                f"forbidden field(s) in persisted connection: {sorted(extra)}"
+            )
+        api_key_env = _sanitize_env_name(data.get("api_key_env"))
+        conn = Connection.from_mapping(dict(data))
+        return cls(
+            connection=conn,
+            api_key=None,
+            api_key_env=api_key_env,
+            external_session_status="not_applicable",
+        )
+
 
 class ModelProfileStore:
-    """Process-local profile store that never serializes secret values."""
+    """Profile store with optional durable sanitized metadata persistence.
 
-    def __init__(self) -> None:
+    When ``state_path`` is None (default) the store is purely process-local
+    and backward compatible with all existing callers.  When a path is
+    provided the store persists a schema-versioned JSON document containing
+    only sanitized Connection/Binding metadata.  Raw secrets, credentials,
+    and session tokens are never written.
+    """
+
+    def __init__(self, state_path: str | Path | None = None) -> None:
+        self._state_path: Path | None = None
+        if state_path is not None:
+            self._state_path = Path(state_path).resolve()
+
         self._profiles: dict[str, _StoredProfile] = {}
         self._connections: dict[str, _StoredConnection] = {}
         self._executors = {
@@ -68,6 +214,9 @@ class ModelProfileStore:
         }
         self._bindings: dict[str, Binding] = {}
         self._lock = RLock()
+
+        if self._state_path is not None:
+            self._load_from_disk()
 
     def list_connections_public(self) -> list[dict[str, Any]]:
         with self._lock:
@@ -151,6 +300,9 @@ class ModelProfileStore:
                 else:
                     external_status = "not_applicable"
 
+            old_stored = self._connections.get(connection.connection_id)
+            snap_conns = dict(self._connections)
+            snap_bindings = dict(self._bindings)
             stored = _StoredConnection(
                 connection=connection,
                 api_key=api_key,
@@ -158,7 +310,13 @@ class ModelProfileStore:
                 external_session_status=external_status,
             )
             self._connections[connection.connection_id] = stored
-            return stored.public()
+            result = stored.public()
+            if self._state_path is not None:
+                self._persist_with_rollback(
+                    snap_conns, snap_bindings,
+                    lambda: self._rollback_conn_binding(snap_conns, snap_bindings),
+                )
+            return result
 
     def delete_connection(self, connection_id: str) -> None:
         with self._lock:
@@ -173,7 +331,14 @@ class ModelProfileStore:
                 raise ValueError(
                     f"connection is referenced by binding: {referenced_by[0]}"
                 )
+            snap_conns = dict(self._connections)
+            snap_bindings = dict(self._bindings)
             del self._connections[connection_id]
+            if self._state_path is not None:
+                self._persist_with_rollback(
+                    snap_conns, snap_bindings,
+                    lambda: self._rollback_conn_binding(snap_conns, snap_bindings),
+                )
 
     def resolve_connection_secret(self, connection_id: str) -> str | None:
         with self._lock:
@@ -250,14 +415,29 @@ class ModelProfileStore:
                 raise ValueError(f"unknown connection_id: {binding.connection_id}")
             if binding.executor_id not in self._executors:
                 raise ValueError(f"unknown executor_id: {binding.executor_id}")
+            snap_conns = dict(self._connections)
+            snap_bindings = dict(self._bindings)
             self._bindings[binding.binding_id] = binding
-            return binding.to_public_dict()
+            result = binding.to_public_dict()
+            if self._state_path is not None:
+                self._persist_with_rollback(
+                    snap_conns, snap_bindings,
+                    lambda: self._rollback_conn_binding(snap_conns, snap_bindings),
+                )
+            return result
 
     def delete_binding(self, binding_id: str) -> None:
         with self._lock:
             if binding_id not in self._bindings:
                 raise KeyError(f"binding not found: {binding_id}")
+            snap_conns = dict(self._connections)
+            snap_bindings = dict(self._bindings)
             del self._bindings[binding_id]
+            if self._state_path is not None:
+                self._persist_with_rollback(
+                    snap_conns, snap_bindings,
+                    lambda: self._rollback_conn_binding(snap_conns, snap_bindings),
+                )
 
     def list_public(self) -> list[dict[str, Any]]:
         with self._lock:
@@ -338,6 +518,166 @@ class ModelProfileStore:
 
     def _has_default_locked(self) -> bool:
         return any(stored.profile.is_default for stored in self._profiles.values())
+
+    # ------------------------------------------------------------------
+    # Persistence internals.  Called only under self._lock when
+    # self._state_path is not None.
+    # ------------------------------------------------------------------
+
+    def _load_from_disk(self) -> None:
+        if self._state_path is None:
+            return
+        if not self._state_path.exists():
+            return
+        try:
+            raw = self._state_path.read_bytes()
+        except OSError as exc:
+            raise StoreError(f"cannot read state file: {exc}") from exc
+
+        data = self._parse_state_doc(raw)
+
+        conn_by_id: dict[str, _StoredConnection] = {}
+        for entry in data["connections"]:
+            stored = _StoredConnection.from_sanitized_dict(entry)
+            cid = stored.connection.connection_id
+            if cid in conn_by_id:
+                raise StoreError(f"duplicate connection_id in state: {cid}")
+            conn_by_id[cid] = stored
+            self._connections[cid] = stored
+
+        seen_bindings: set[str] = set()
+        for entry in data["bindings"]:
+            if not isinstance(entry, dict):
+                raise StoreError("invalid binding record: not an object")
+            extra = set(entry.keys()) - _BINDING_SAFE_FIELDS
+            if extra:
+                forbidden_hits = extra & _FORBIDDEN_PERSISTED_FIELDS
+                if forbidden_hits:
+                    raise StoreError(
+                        f"forbidden field(s) in persisted binding: "
+                        f"{sorted(forbidden_hits)}"
+                    )
+                raise StoreError(
+                    f"unknown field(s) in persisted binding: {sorted(extra)}"
+                )
+            binding = Binding.from_mapping(dict(entry))
+            if binding.binding_id in seen_bindings:
+                raise StoreError(
+                    f"duplicate binding_id in state: {binding.binding_id}"
+                )
+            seen_bindings.add(binding.binding_id)
+            if binding.connection_id not in conn_by_id:
+                raise StoreError(
+                    f"dangling binding references unknown connection: "
+                    f"{binding.binding_id} -> {binding.connection_id}"
+                )
+            if binding.executor_id not in self._executors:
+                raise StoreError(
+                    f"binding references unknown executor: {binding.executor_id}"
+                )
+            self._bindings[binding.binding_id] = binding
+
+    def _parse_state_doc(self, raw: bytes) -> dict[str, Any]:
+        try:
+            data = json.loads(raw.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise StoreError(f"invalid JSON in state file: {exc}") from exc
+        if not isinstance(data, dict):
+            raise StoreError("state file root must be an object")
+        if data.get("schema_version") != _STATE_SCHEMA_VERSION:
+            raise StoreError(
+                f"unsupported schema_version: {data.get('schema_version')}"
+            )
+        connections = data.get("connections", [])
+        bindings = data.get("bindings", [])
+        if not isinstance(connections, list):
+            raise StoreError("connections must be an array")
+        if not isinstance(bindings, list):
+            raise StoreError("bindings must be an array")
+        for item in connections:
+            if not isinstance(item, dict):
+                raise StoreError("each connection entry must be an object")
+            extra = set(item.keys()) - _CONNECTION_SAFE_FIELDS
+            forbidden_hits = extra & _FORBIDDEN_PERSISTED_FIELDS
+            if forbidden_hits:
+                raise StoreError(
+                    f"forbidden field(s) in persisted connection: "
+                    f"{sorted(forbidden_hits)}"
+                )
+            if extra - forbidden_hits:
+                raise StoreError(
+                    f"unknown field(s) in persisted connection: "
+                    f"{sorted(extra - forbidden_hits)}"
+                )
+            for fld in ("connection_id", "name", "provider",
+                        "base_url", "auth_method"):
+                if fld not in item:
+                    raise StoreError(f"missing required connection field: {fld}")
+            enabled = item.get("enabled", True)
+            if not isinstance(enabled, bool):
+                raise StoreError("connection.enabled must be a boolean")
+        for item in bindings:
+            if not isinstance(item, dict):
+                raise StoreError("each binding entry must be an object")
+            extra = set(item.keys()) - _BINDING_SAFE_FIELDS
+            forbidden_hits = extra & _FORBIDDEN_PERSISTED_FIELDS
+            if forbidden_hits:
+                raise StoreError(
+                    f"forbidden field(s) in persisted binding: "
+                    f"{sorted(forbidden_hits)}"
+                )
+            if extra - forbidden_hits:
+                raise StoreError(
+                    f"unknown field(s) in persisted binding: "
+                    f"{sorted(extra - forbidden_hits)}"
+                )
+            for fld in ("binding_id", "name", "executor_id",
+                        "connection_id", "model_id"):
+                if fld not in item:
+                    raise StoreError(f"missing required binding field: {fld}")
+            enabled = item.get("enabled", True)
+            if not isinstance(enabled, bool):
+                raise StoreError("binding.enabled must be a boolean")
+        return data
+
+    def _build_state_doc(self) -> bytes:
+        connections = [
+            stored.sanitized_dict() for stored in self._connections.values()
+        ]
+        bindings = [b.to_public_dict() for b in self._bindings.values()]
+        doc = {
+            "schema_version": _STATE_SCHEMA_VERSION,
+            "connections": connections,
+            "bindings": bindings,
+        }
+        return json.dumps(doc, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+
+    def _persist_with_rollback(
+        self,
+        snap_conns: dict[str, _StoredConnection],
+        snap_bindings: dict[str, Binding],
+        rollback_fn,
+    ) -> None:
+        try:
+            data = self._build_state_doc()
+            _write_atomic(data, self._state_path)
+        except Exception as exc:
+            rollback_fn()
+            if isinstance(exc, StoreError):
+                raise
+            raise StoreError(f"persistence failed: {exc}") from exc
+
+    def _rollback_conn_binding(
+        self,
+        snap_conns: dict[str, _StoredConnection],
+        snap_bindings: dict[str, Binding],
+    ) -> None:
+        self._connections.clear()
+        self._connections.update(snap_conns)
+        self._bindings.clear()
+        self._bindings.update(snap_bindings)
 
     def _unset_default_locked(self, except_id: str) -> None:
         for profile_id, stored in self._profiles.items():
