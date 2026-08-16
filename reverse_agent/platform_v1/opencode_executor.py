@@ -265,49 +265,48 @@ def build_binding_config_content(
 ) -> str:
     """Build transient non-secret provider metadata for one OpenCode child.
 
-    For api_key bindings, the config contains only the relay URL and the
-    execution-scoped lease under a dedicated transient custom provider. The
-    provider master key is never present. OpenCode model IDs are of the form
-    ``provider_id/model_id``; the CLI selector therefore uses the transient
-    provider ID as its prefix so OpenCode routes inference through this
-    custom OpenAI-compatible provider.
-    For non-api_key bindings (none/external_cli_session/account_login),
-    the config contains the provider base_url.
-    The provider-facing model in the HTTP request body remains the exact
-    Binding/provider-facing model; the transient provider prefix is never
-    forwarded to the real provider.
+    For api_key bindings (lease is provided), the config contains only the
+    relay URL and the execution-scoped lease under a dedicated transient
+    custom provider. The provider master key is never present. OpenCode model
+    IDs are of the form ``provider_id/model_id``; the CLI selector therefore
+    uses the transient provider ID as its prefix so OpenCode routes inference
+    through this custom OpenAI-compatible provider.
+
+    For non-api_key bindings (none/external_cli_session/account_login), the
+    config keys providers under the actual Connection provider ID
+    (``resolution.provider_id``) rather than ``reverse-agent-relay``. The
+    adapter remains ``@ai-sdk/openai-compatible``, the ``baseURL`` comes from
+    the Connection, and no ``apiKey``/token/cookie/credential material is
+    ever written. OpenCode resolves credentials itself via persisted provider
+    auth by provider ID.
     """
     if lease is not None:
         if not lease.lease_id:
             raise ExecutorRuntimeError("lease_id_required")
         if not lease.relay_url:
             raise ExecutorRuntimeError("relay_url_required")
-        provider_facing_model = _extract_provider_facing_model(lease.model_id)
-        payload = {
-            "provider": {
-                _TRANSIENT_PROVIDER_ID: {
-                    "npm": _TRANSIENT_PROVIDER_NPM,
-                    "name": _TRANSIENT_PROVIDER_NAME,
-                    "options": {
-                        "baseURL": lease.relay_url,
-                        "apiKey": lease.lease_id,
-                    },
-                    "models": {provider_facing_model: {}},
-                }
-            }
+        provider_key = _TRANSIENT_PROVIDER_ID
+        options = {
+            "baseURL": lease.relay_url,
+            "apiKey": lease.lease_id,
         }
     else:
-        provider_facing_model = _extract_provider_facing_model(resolution.model_id)
-        payload = {
-            "provider": {
-                _TRANSIENT_PROVIDER_ID: {
-                    "npm": _TRANSIENT_PROVIDER_NPM,
-                    "name": _TRANSIENT_PROVIDER_NAME,
-                    "options": {"baseURL": resolution.base_url},
-                    "models": {provider_facing_model: {}},
-                }
+        provider_key = resolution.provider_id or _TRANSIENT_PROVIDER_ID
+        if resolution.auth_method != "api_key" and resolution.provider_id:
+            options = {"baseURL": resolution.base_url}
+        else:
+            options = {"baseURL": resolution.base_url}
+    provider_facing_model = _extract_provider_facing_model(resolution.model_id)
+    payload = {
+        "provider": {
+            provider_key: {
+                "npm": _TRANSIENT_PROVIDER_NPM,
+                "name": _TRANSIENT_PROVIDER_NAME,
+                "options": options,
+                "models": {provider_facing_model: {}},
             }
         }
+    }
     return json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
 
 
@@ -568,6 +567,159 @@ def _resolve_windows_cmd() -> str | None:
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
     return None
+
+
+# ---------------------------------------------------------------------------
+# OpenCode persisted auth metadata probe
+# ---------------------------------------------------------------------------
+
+# Provider IDs accepted by reverse-agent. Only safe identifier grammar is
+# accepted; display labels ("GitHub Copilot") must not be auto-mapped to an ID.
+_SAFE_PROVIDER_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,127}$")
+
+_ALLOWED_AUTH_TYPES = frozenset({
+    "api",
+    "oauth",
+    "sso",
+    "account_login",
+    "external_cli_session",
+    "api_key",
+    "session",
+    "credential",
+})
+
+_AUTH_LIST_COMMANDS = ("auth", "list")
+_AUTH_LS_COMMANDS = ("auth", "ls")
+
+_AUTH_PROBE_ENV = dict(_OPENCODE_DISABLE_ENV)
+
+
+def parse_opencode_auth_list(stdout: str) -> dict[str, str]:
+    """Parse sanitized OpenCode ``auth list`` output into {provider_id: auth_type}.
+
+    Only provider identity and auth type are returned. No raw stdout,
+    credential-file path, header, or auth.json path ever appears in the
+    returned metadata.
+
+    Accepted input shapes:
+      - JSON object: {"providers": [{"id": "sensetime", "authType": "api"}, ...]}
+      - JSON array:  [{"id": "sensetime", "authType": "api"}, ...]
+      - JSON object with top-level list-valued keys whose values look like
+        provider records: {"sensetime": [{"authType": "api"}]}
+
+    A provider ID is accepted only when it matches the safe identifier
+    grammar. Display labels like "GitHub Copilot" do not match and are
+    silently ignored rather than auto-mapped to "github-copilot".
+    """
+    result: dict[str, str] = {}
+    if not stdout:
+        return result
+    text = stdout.strip()
+    if not text:
+        return result
+    try:
+        parsed = json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return result
+    if isinstance(parsed, list):
+        records = parsed
+    elif isinstance(parsed, dict):
+        providers = parsed.get("providers")
+        if isinstance(providers, list):
+            records = providers
+        else:
+            records = _dict_values_to_records(parsed)
+    else:
+        return result
+    if not isinstance(records, list):
+        return result
+    for entry in records:
+        if not isinstance(entry, dict):
+            continue
+        pid = _extract_value(entry, ("id", "provider", "providerId", "name"))
+        if not pid or not isinstance(pid, str):
+            continue
+        pid = pid.strip()
+        if not pid:
+            continue
+        if not _SAFE_PROVIDER_ID_RE.match(pid):
+            continue
+        if pid in result:
+            continue
+        auth_type = _extract_value(entry, ("authType", "auth_type", "type", "kind"))
+        if not auth_type or not isinstance(auth_type, str):
+            auth_type = "unknown"
+        else:
+            auth_type = auth_type.strip() or "unknown"
+        if auth_type.lower() not in _ALLOWED_AUTH_TYPES:
+            continue
+        result[pid] = auth_type
+    return result
+
+
+def _extract_value(entry: Mapping[str, Any], candidates: tuple[str, ...]) -> Any:
+    for key in candidates:
+        v = entry.get(key)
+        if v is not None and v != "":
+            return v
+    return None
+
+
+def _dict_values_to_records(mapping: Mapping[str, Any]) -> list[Any]:
+    records: list[Any] = []
+    for value in mapping.values():
+        if isinstance(value, dict):
+            records.append(value)
+        elif isinstance(value, list):
+            records.extend(value)
+        else:
+            records.append({"name": value})
+    return records
+
+
+def execute_opencode_auth_list_probe(
+    *,
+    subprocess_run: Callable[..., subprocess.CompletedProcess[str]] | None = None,
+    opencode_exe: str | None = None,
+) -> dict[str, str]:
+    """Run the sanitized OpenCode auth-list probe and return provider metadata.
+
+    Executes ``opencode auth list`` (falling back to ``opencode auth ls``).
+    The child environment is restricted to the Binding-compatible
+    non-secret allowlist plus the OpenCode safety-disable flags; no
+    arbitrary parent environment is copied.
+
+    On any failure (CLI missing, nonzero exit, malformed output,
+    timeout) the probe returns an empty authenticated-provider set so the
+    trusted host may still start with external sessions marked ``missing``.
+    """
+    run = subprocess_run or subprocess.run
+    try:
+        cli_path, _is_cmd = resolve_opencode_cli(exe=opencode_exe)
+    except ExecutorRuntimeError:
+        return {}
+    child_env: dict[str, str] = {}
+    for key in ("PATH", "SystemRoot"):
+        value = os.environ.get(key)
+        if isinstance(value, str) and value:
+            child_env[key] = value
+    child_env.update(_AUTH_PROBE_ENV)
+    for args in (_AUTH_LIST_COMMANDS, _AUTH_LS_COMMANDS):
+        try:
+            proc = run(
+                [cli_path, *args],
+                cwd=os.getcwd(),
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+                env=child_env,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            continue
+        if proc.returncode == 0:
+            return parse_opencode_auth_list(proc.stdout)
+    return {}
 
 
 # ---------------------------------------------------------------------------

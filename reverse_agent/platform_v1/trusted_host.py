@@ -33,7 +33,10 @@ from ..model_access.credential_relay import (
 from ..model_access.service import _handler_factory as _model_control_handler_factory
 from ..model_access.store import ModelProfileStore
 from .github_adapter import LiveGitHubAdapter
-from .opencode_executor import ExecutionLeaseHandle
+from .opencode_executor import (
+    ExecutionLeaseHandle,
+    execute_opencode_auth_list_probe,
+)
 from .run_store import TaskStore
 from .task_runtime import ExecutorRouter
 from .task_service import _handler_factory as _task_handler_factory
@@ -58,6 +61,7 @@ class CombinedTrustedHost:
         github_adapter: LiveGitHubAdapter | None = None,
         execution_authority_sha: str = "",
         planning_sha: str = "",
+        auth_list_probe: callable | None = execute_opencode_auth_list_probe,
     ) -> None:
         task_store = task_store or _make_task_store(task_db_path)
         if store is not None:
@@ -71,6 +75,7 @@ class CombinedTrustedHost:
         self._github_adapter = github_adapter
         self._execution_authority_sha = execution_authority_sha
         self._planning_sha = planning_sha
+        self._auth_list_probe = auth_list_probe
 
         self._model_control_host = model_control_host
         self._model_control_port = model_control_port
@@ -90,6 +95,22 @@ class CombinedTrustedHost:
     @property
     def store(self) -> ModelProfileStore:
         return self._store
+
+    def _refresh_external_session_auth(self) -> None:
+        probe = self._auth_list_probe
+        if probe is None:
+            return
+        if not self._has_external_session_connections():
+            return
+        try:
+            provider_metadata = probe()
+            if provider_metadata:
+                self._store.refresh_external_session_status(provider_metadata)
+        except Exception:
+            pass
+
+    def _has_external_session_connections(self) -> bool:
+        return self._store.has_external_session_connections()
 
     @property
     def task_store(self) -> TaskStore:
@@ -153,6 +174,8 @@ class CombinedTrustedHost:
         model_control_port: int | None = None,
         task_api_port: int | None = None,
     ) -> None:
+        self._refresh_external_session_auth()
+
         # Startup reconciliation: find expired durable runs, mark stale
         # tasks INTERRUPTED with orphan_stale_lease classification.
         # Does NOT call any model/provider; reconciliation only.
