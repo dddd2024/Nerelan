@@ -179,11 +179,16 @@ class _StoredConnection:
             )
         api_key_env = _sanitize_env_name(data.get("api_key_env"))
         conn = Connection.from_mapping(dict(data))
+        auth_method = conn.auth_method
+        if auth_method in {"account_login", "external_cli_session"}:
+            initial_status = "missing"
+        else:
+            initial_status = "not_applicable"
         return cls(
             connection=conn,
             api_key=None,
             api_key_env=api_key_env,
-            external_session_status="not_applicable",
+            external_session_status=initial_status,
         )
 
 
@@ -221,6 +226,53 @@ class ModelProfileStore:
     def list_connections_public(self) -> list[dict[str, Any]]:
         with self._lock:
             return [stored.public() for stored in self._connections.values()]
+
+    def refresh_external_session_status(
+        self,
+        authenticated_provider_ids: Mapping[str, str],
+    ) -> int:
+        """Refresh in-memory external-session status from sanitized auth probe.
+
+        ``authenticated_provider_ids`` is a provider-id -> auth-type mapping
+        derived from a fresh, sanitized OpenCode ``auth list`` probe.
+        External-session status is intentionally NOT persisted; each fresh
+        process must reprove availability from a live probe.
+
+        Only exact provider-ID matches are accepted (no fuzzy matching, no
+        display-label guessing).  ``api_key`` and ``none`` Connections
+        always remain ``not_applicable``.
+        """
+        provider_set = set(authenticated_provider_ids.keys())
+        refreshed = 0
+        with self._lock:
+            for stored in self._connections.values():
+                auth_method = stored.connection.auth_method
+                if auth_method in {"account_login", "external_cli_session"}:
+                    provider = stored.connection.provider
+                    if not provider:
+                        status = "missing"
+                    elif provider in provider_set:
+                        status = "available"
+                    else:
+                        status = "missing"
+                    if stored.external_session_status != status:
+                        refreshed += 1
+                    stored.external_session_status = status
+                else:
+                    if stored.external_session_status != "not_applicable":
+                        refreshed += 1
+                    stored.external_session_status = "not_applicable"
+        return refreshed
+
+    def has_external_session_connections(self) -> bool:
+        """Return True if any Connection uses an external-session auth method."""
+        for stored in self._connections.values():
+            if stored.connection.auth_method in {
+                "account_login",
+                "external_cli_session",
+            }:
+                return True
+        return False
 
     def get_connection_public(self, connection_id: str) -> dict[str, Any]:
         with self._lock:
