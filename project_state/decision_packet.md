@@ -1,391 +1,74 @@
 # Decision Packet
 
 ```json decision_meta
-{
-  "schema_version": 1,
-  "decision_id": "decision_20260808_pr134_frontend_opencode_devup_landing_v1",
-  "round_id": "round_20260808_pr134_frontend_opencode_devup_landing_v1",
-  "status": "APPROVED",
-  "mainline": "engineering_branch",
-  "skill_profiles": ["reverse-agent-iteration@v2"]
-}
+{"schema_version":1,"decision_id":"decision_20260816_issue215_dogfood1_product_setup_bootstrap_r2_v2","round_id":"round_20260816_issue215_dogfood1_product_setup_bootstrap_r2_v2","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260808_issue133_frontend_opencode_devup_v4",
-  "follows_last_round_id": "round_20260808_issue133_frontend_opencode_devup_v4",
-  "previous_audit_outcome": "ISSUE133_V4_LOCAL_ACCEPTANCE_READY_FOR_OWNER_LANDING",
-  "workstream_id": "pr134-frontend-opencode-devup-landing-v1",
-  "source_issue": 133,
-  "parent_issue": 127,
-  "active_pr": 134,
-  "required_branch": "owner/issue133-frontend-opencode-devup-v1",
-  "starting_head": "f6c9bad0cfad9f380a917f1a8f8c14eb58a52466",
-  "activation_base_sha": "a1d09d4ae8887405721efe9871881db788c5820a",
-  "accepted_product_head": "f6c9bad0cfad9f380a917f1a8f8c14eb58a52466",
-  "allowed_merge_method": "merge",
+  "follows_last_decision_id": "decision_20260816_issue215_dogfood1_product_setup_bootstrap_r2_v1",
+  "follows_last_round_id": "round_20260816_issue215_dogfood1_product_setup_bootstrap_r2_v1",
+  "previous_audit_outcome": "ISSUE215_V1_SUPERSEDED_BEFORE_EXECUTION_CREDENTIAL_SCOPE_AMBIGUITY",
+  "workstream_id": "issue215-dogfood1-product-setup-bootstrap-r2-v2",
+  "source_issue": 215,
+  "parent_issue": 148,
+  "required_branch": "owner/issue215-dogfood1-product-setup-bootstrap-r2-v2",
+  "starting_head": "09ac6ea2fd6fdb46364252407dd73ec136f82ec9",
+  "activation_base_sha": "09ac6ea2fd6fdb46364252407dd73ec136f82ec9",
+  "canonical_planning_sha": "09ac6ea2fd6fdb46364252407dd73ec136f82ec9",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
+  "supersedes_decision_id": "decision_20260816_issue215_dogfood1_product_setup_bootstrap_r2_v1",
+  "superseded_branch_must_not_execute": "owner/issue215-dogfood1-product-setup-bootstrap-r2-v1",
   "pr_creation_allowed": false,
-  "draft_pr_creation_allowed": false,
-  "pr_body_update_allowed": false,
-  "pr_comment_allowed": true,
   "issue_comment_allowed": false,
   "branch_creation_allowed": false,
-  "worktree_creation_allowed": false,
-  "local_commit_allowed": true,
-  "normal_push_allowed": true,
-  "exact_head_workflow_observation_allowed": true,
-  "merge_allowed": true,
-  "mark_ready_allowed": true,
-  "auto_merge_allowed": false,
+  "worktree_creation_allowed": true,
+  "local_commit_allowed": false,
+  "normal_push_allowed": false,
+  "merge_allowed": false,
   "force_push_allowed": false,
-  "rebase_allowed": false,
-  "direct_push_to_main_allowed": false,
-  "release_allowed": false,
-  "deployment_allowed": false,
-  "real_provider_credential_allowed": false,
-  "live_provider_probe_allowed": false,
-  "model_execution_required": false,
-  "model_api_invocation_allowed": false,
-  "opencode_invocation_allowed": false,
-  "codex_invocation_allowed": false,
-  "openhands_invocation_allowed": false,
-  "package_installation_allowed": false,
-  "provider_configuration_mutation_allowed": false,
-  "credential_value_access_allowed": false,
-  "bounded_external_source_access_allowed": false,
-  "repair_attempt_limit": 1,
-  "infrastructure_retry_limit": 0,
-  "audit_generation_allowed": false,
-  "prior_audits_immutable": true,
-  "bootstrap_state_initial": "BOOTSTRAP_OPEN",
-  "bootstrap_exception_files": [
-    "project_state/decision_packet.md",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+  "rebase_during_execution_allowed": false,
+  "destructive_operations_allowed": false,
+  "external_harness_write_path": "F:/reverse-agent-issue215-product-setup-bootstrap-v2/setup_bootstrap.py",
+  "external_runtime_write_allowlist": [
+    "F:/reverse-agent-issue215-product-setup-bootstrap-v2/**",
+    "F:/reverse-agent/.platform_v1_runtime/model_setup_state.json"
   ],
-  "bootstrap_exception_commands": [
-    "git status --short",
-    "git fetch origin main",
-    "git fetch origin owner/issue133-frontend-opencode-devup-v1",
-    "git show origin/owner/issue133-frontend-opencode-devup-v1:project_state/decision_packet.md",
-    "git switch owner/issue133-frontend-opencode-devup-v1",
-    "git merge --ff-only origin/owner/issue133-frontend-opencode-devup-v1",
-    "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-    "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
-    "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
-    "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre"
-  ],
-  "allowed_commands": [
-    {
-      "command_id": "observation.git_status",
-      "command": "git status --short",
-      "phase": "status",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "sync.fetch_main",
-      "command": "git fetch origin main",
-      "phase": "bootstrap",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "sync.fetch_pr134_branch",
-      "command": "git fetch origin owner/issue133-frontend-opencode-devup-v1",
-      "phase": "bootstrap",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "sync.inspect_remote_decision",
-      "command": "git show origin/owner/issue133-frontend-opencode-devup-v1:project_state/decision_packet.md",
-      "phase": "bootstrap",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "sync.switch_branch",
-      "command": "git switch owner/issue133-frontend-opencode-devup-v1",
-      "phase": "bootstrap",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_sync"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "sync.fast_forward_pr134_branch",
-      "command": "git merge --ff-only origin/owner/issue133-frontend-opencode-devup-v1",
-      "phase": "bootstrap",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_sync"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "observation.git_head",
-      "command": "git rev-parse HEAD",
-      "phase": "status",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "observation.git_main",
-      "command": "git rev-parse origin/main",
-      "phase": "status",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "observation.merge_base",
-      "command": "git merge-base HEAD origin/main",
-      "phase": "status",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "observation.active_intent_hash_before",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/active.json').Hash.ToLower()\"",
-      "phase": "status",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "mutation.archive_pr132_intent",
-      "command": "powershell -NoProfile -Command \"Copy-Item 'project_state/mainline_merge_intents/active.json' 'project_state/mainline_merge_intents/archive/pr132_v7.json'\"",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["governance_artifact_mutation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "allowed_mutated_paths": ["project_state/mainline_merge_intents/archive/pr132_v7.json"]
-    },
-    {
-      "command_id": "observation.archive_hash_after",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/archive/pr132_v7.json').Hash.ToLower()\"",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "observation.decision_sha256",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/decision_packet.md').Hash.ToLower()\"",
-      "phase": "status",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "observation.command_plan_sha256",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/gates/command_plan.json').Hash.ToLower()\"",
-      "phase": "status",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "test.mainline_landing",
-      "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "test.platform_v1",
-      "command": "python -m pytest tests/platform_v1 -q",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "test.gate_regression",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "validation.diff_check",
-      "command": "git diff --check a1d09d4ae8887405721efe9871881db788c5820a..HEAD",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["diff_validation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "validation.path_list",
-      "command": "git diff --name-only f6c9bad0cfad9f380a917f1a8f8c14eb58a52466..HEAD",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "publication.push_branch",
-      "command": "git push origin owner/issue133-frontend-opencode-devup-v1",
-      "phase": "publication",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["push", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_only_after_validation": true
-    }
-  ],
-  "allowed_mutated_paths": [
-    "project_state/decision_packet.md",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr132_v7.json"
-  ],
-  "reference_paths": [
-    "AGENTS.md",
-    "README.md",
-    "pyproject.toml",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/mainline_landing.py",
-    "tests/test_project_gate.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_mainline_landing.py",
-    "tests/test_integration_baseline.py",
-    "tests/test_project_audits.py",
-    "tests/platform_v1/**",
-    "project_state/schemas/**"
-  ],
-  "generated_artifact_paths": [
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
-  ],
-  "forbidden_mutated_paths": [
-    "AGENTS.md",
-    "README.md",
-    "pyproject.toml",
-    "requirements*.txt",
-    "poetry.lock",
-    "uv.lock",
-    ".github/**",
-    "frontend/**",
-    "docs/**",
-    "reverse_agent/**",
-    "tests/**",
-    "project_state/current_state.json",
-    "project_state/state_manifest.json",
-    "project_state/artifact_index.json",
-    "project_state/schemas/**",
-    "project_state/rounds/**",
-    "project_state/audits/**"
-  ],
-  "forbidden_operations": [
-    "direct_push_main",
-    "auto_merge",
-    "force_push",
-    "rebase",
-    "amend",
-    "squash",
-    "tag_or_release",
-    "release",
-    "deployment",
-    "credential_access",
-    "credential_publication",
-    "model_api_invocation",
-    "opencode_invocation",
-    "codex_invocation",
-    "openhands_invocation",
-    "runner_dispatch",
-    "external_reverse_tool_invocation",
-    "unknown_binary_execution",
-    "destructive",
-    "unbounded_network_access",
-    "create_pr",
-    "pr_creation",
-    "draft_pr_creation",
-    "pr_body_update",
-    "reset_hard",
-    "git_clean"
-  ],
+  "product_setup_target": "F:/reverse-agent/.platform_v1_runtime/model_setup_state.json",
+  "product_setup_target_must_be_absent_before_install": true,
+  "real_task_store_path_forbidden": "F:/reverse-agent/.platform_v1_runtime/tasks.sqlite3",
+  "canonical_setup": {
+    "connection_id": "sensenova-67-flash-lite",
+    "connection_name": "SenseNova 6.7 Flash-Lite",
+    "provider": "openai-compatible",
+    "base_url": "https://token.sensenova.cn/v1",
+    "auth_method": "api_key",
+    "api_key_env": "SENSENOVA_API_KEY",
+    "binding_id": "opencode-sensenova-67-flash-lite",
+    "binding_name": "OpenCode SenseNova 6.7 Flash-Lite",
+    "executor_id": "opencode",
+    "model_id": "sensenova-6.7-flash-lite",
+    "enabled": true
+  },
+  "credential_boundary": {
+    "agent_or_harness_credential_value_access_allowed": false,
+    "agent_or_harness_credential_file_discovery_allowed": false,
+    "agent_or_harness_environment_name_presence_check_allowed": ["SENSENOVA_API_KEY"],
+    "agent_or_harness_environment_value_read_allowed": false,
+    "agent_or_harness_environment_value_print_allowed": false,
+    "agent_or_harness_environment_value_hash_allowed": false,
+    "agent_or_harness_environment_value_length_check_allowed": false,
+    "agent_or_harness_environment_value_copy_or_export_allowed": false,
+    "trusted_host_internal_env_backed_secret_resolution_allowed": true,
+    "trusted_host_secret_output_allowed": false,
+    "trusted_host_provider_use_allowed": false,
+    "trusted_host_credential_relay_lease_allowed": false,
+    "raw_credential_persistence_allowed": false
+  },
   "capability_policy": {
     "runner_dispatch_allowed": false,
     "model_api_invocation_allowed": false,
@@ -396,120 +79,197 @@
     "unknown_binary_execution_allowed": false,
     "destructive_operations_allowed": false,
     "network_access_default_allowed": false,
+    "package_installation_allowed": false,
+    "local_network_exceptions": [
+      "git -C F:/reverse-agent-planning-smoke fetch origin owner/repository-modernization-v2-planning",
+      "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue215-dogfood1-product-setup-bootstrap-r2-v2"
+    ],
+    "loopback_model_control_http_allowed": true,
+    "external_provider_network_allowed": false,
+    "remote_observation_read_only_allowed": true,
     "direct_push_to_main_allowed": false,
-    "merge_allowed": true,
-    "mark_ready_allowed": true,
+    "merge_allowed": false,
     "force_push_allowed": false,
     "rebase_during_execution_allowed": false,
-    "tag_or_release_allowed": false,
-    "remote_observation_read_only_allowed": true,
-    "local_network_exceptions": [
-      "git fetch origin main",
-      "git fetch origin owner/issue133-frontend-opencode-devup-v1",
-      "git push origin owner/issue133-frontend-opencode-devup-v1",
-      "gh pr view 134 --repo dddd2024/reverse-agent",
-      "gh pr checks 134 --repo dddd2024/reverse-agent"
-    ],
-    "ci_network_exceptions": []
+    "tag_or_release_allowed": false
   },
-  "authorized_risk_tier": "R2",
-  "authorized_risk_paths": [
+  "bootstrap_exception_files": [
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
+  "bootstrap_exception_commands": [
+    "git -C F:/reverse-agent-planning-smoke status --short",
+    "git -C F:/reverse-agent-planning-smoke fetch origin owner/repository-modernization-v2-planning",
+    "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue215-dogfood1-product-setup-bootstrap-r2-v2",
+    "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/repository-modernization-v2-planning",
+    "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/issue215-dogfood1-product-setup-bootstrap-r2-v2",
+    "powershell -NoProfile -Command \"$b=(git -C F:/reverse-agent-planning-smoke branch --list owner/issue215-dogfood1-product-setup-bootstrap-r2-v2);if($b){'ISSUE215_V2_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};if(Test-Path -LiteralPath 'F:/reverse-agent-issue215-dogfood1-product-setup-bootstrap-r2-v2'){'ISSUE215_V2_AUTHORITY_WORKTREE_ALREADY_EXISTS';exit 24};if(Test-Path -LiteralPath 'F:/reverse-agent-issue215-bootstrap-source-v2'){'ISSUE215_V2_SOURCE_WORKTREE_ALREADY_EXISTS';exit 23};if(Test-Path -LiteralPath 'F:/reverse-agent-issue215-product-setup-bootstrap-v2'){'ISSUE215_V2_EVIDENCE_ROOT_ALREADY_EXISTS';exit 22};'ISSUE215_V2_BOOTSTRAP_TARGETS_ABSENT'\"",
+    "git -C F:/reverse-agent-planning-smoke worktree add --track -b owner/issue215-dogfood1-product-setup-bootstrap-r2-v2 F:/reverse-agent-issue215-dogfood1-product-setup-bootstrap-r2-v2 origin/owner/issue215-dogfood1-product-setup-bootstrap-r2-v2",
+    "Set-Location F:/reverse-agent-issue215-dogfood1-product-setup-bootstrap-r2-v2",
+    "git status --short",
+    "git rev-parse HEAD",
+    "git merge-base HEAD 09ac6ea2fd6fdb46364252407dd73ec136f82ec9",
+    "git show HEAD:project_state/decision_packet.md",
+    "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+    "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+    "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
+    "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre"
+  ],
+  "allowed_commands": [
+    {"command_id":"issue215v2.source_worktree_create","command":"git -C F:/reverse-agent-planning-smoke worktree add --detach F:/reverse-agent-issue215-bootstrap-source-v2 09ac6ea2fd6fdb46364252407dd73ec136f82ec9","phase":"setup","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["worktree_create"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"issue215v2.source_head","command":"git -C F:/reverse-agent-issue215-bootstrap-source-v2 rev-parse HEAD","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"issue215v2.source_status_before","command":"git -C F:/reverse-agent-issue215-bootstrap-source-v2 status --short","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"issue215v2.evidence_root_create","command":"powershell -NoProfile -Command \"New-Item -ItemType Directory -Path 'F:/reverse-agent-issue215-product-setup-bootstrap-v2' -ErrorAction Stop | Out-Null; 'ISSUE215_V2_EVIDENCE_ROOT_CREATED'\"","phase":"setup","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"issue215v2.setup_bootstrap","command":"powershell -NoProfile -Command \"$a=(git -C 'F:/reverse-agent-issue215-dogfood1-product-setup-bootstrap-r2-v2' rev-parse HEAD).Trim(); python 'F:/reverse-agent-issue215-product-setup-bootstrap-v2/setup_bootstrap.py' --source 'F:/reverse-agent-issue215-bootstrap-source-v2' --root 'F:/reverse-agent-issue215-product-setup-bootstrap-v2/runtime' --target 'F:/reverse-agent/.platform_v1_runtime/model_setup_state.json' --authority $a --planning '09ac6ea2fd6fdb46364252407dd73ec136f82ec9'\"","phase":"configuration","required":true,"expected_exit_codes":[0,20],"execution_surface":"local","operations":["run_checks"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"issue215v2.source_status_after","command":"git -C F:/reverse-agent-issue215-bootstrap-source-v2 status --short","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"},
+    {"command_id":"issue215v2.authority_status_final","command":"git -C F:/reverse-agent-issue215-dogfood1-product-setup-bootstrap-r2-v2 status --short","phase":"status","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["repository_observation"],"network_access":false,"required_evidence_source":"local_command_evidence"}
+  ],
+  "allowed_mutated_paths": [
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
+  "reference_paths": [
+    "reverse_agent/model_access/contracts.py",
+    "reverse_agent/model_access/store.py",
+    "reverse_agent/model_access/service.py",
+    "reverse_agent/model_access/credential_relay.py",
+    "reverse_agent/platform_v1/trusted_host.py",
+    "reverse_agent/platform_v1/binding_resolver.py",
+    "reverse_agent/platform_v1/run_store.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/opencode_executor.py"
+  ],
+  "generated_artifact_paths": [
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
+  "forbidden_mutated_paths": [
     "project_state/decision_packet.md",
-    "project_state/gates/**",
-    "project_state/mainline_merge_intents/**"
+    "project_state/mainline_merge_intents/**",
+    "reverse_agent/**",
+    "tests/**",
+    "frontend/**",
+    ".github/**",
+    "docs/**",
+    "pyproject.toml",
+    "dev-up.ps1",
+    "dev-down.ps1"
   ],
-  "path_risk_floor": [
-    {"pattern": "project_state/decision_packet.md", "minimum_risk": "R2"},
-    {"pattern": "project_state/gates/**", "minimum_risk": "R2"},
-    {"pattern": "project_state/mainline_merge_intents/**", "minimum_risk": "R2"}
-  ]
+  "forbidden_operations": [
+    "repository_product_mutation",
+    "repository_test_mutation",
+    "governance_mutation_outside_generated_gates",
+    "agent_or_harness_credential_value_read",
+    "agent_or_harness_credential_value_print",
+    "agent_or_harness_credential_value_hash",
+    "agent_or_harness_credential_value_length_check",
+    "agent_or_harness_credential_value_copy_or_export",
+    "agent_or_harness_credential_file_discovery",
+    "session_api_key_configuration",
+    "live_connection_probe",
+    "credential_relay_lease",
+    "task_execute",
+    "model_api_invocation",
+    "provider_network_call",
+    "opencode_invocation",
+    "codex_invocation",
+    "openhands_invocation",
+    "local_commit",
+    "push",
+    "pr_create",
+    "merge",
+    "force_push",
+    "rebase",
+    "reset",
+    "clean",
+    "stash",
+    "amend",
+    "tag_or_release",
+    "overwrite_existing_product_setup_state",
+    "real_task_store_mutation",
+    "dependency_install"
+  ],
+  "authorized_risk_tier":"R2",
+  "authorized_risk_paths":["project_state/gates/**"]
 }
 ```
 
-## Goal
+# Goal
 
-PR #134 v1 is the governance-only landing authority for the already accepted frontend OpenCode cutover and one-click development stack. The product/runtime head is frozen at:
+Create exactly one restart-safe, environment-backed sanitized Product Setup record for SenseNova 6.7 Flash-Lite and prove that the resulting Connection/Binding survives two fresh trusted-host OS process cycles without Agent/harness access to the raw API key, without touching the real TaskStore, and without any model/provider request.
 
-```text
-f6c9bad0cfad9f380a917f1a8f8c14eb58a52466
-```
+# Why v2 supersedes v1
 
-Owner remote audit and local Windows/OpenCode acceptance have both completed. The accepted runtime evidence proves one real OpenCode/SenseNova task reached `READY_FOR_REVIEW`, created only `issue133_gui_v4_acceptance.txt` in the Executor-owned linked worktree, returned validation exit 0 with ExecutorAction/git_diff_check evidence, kept the clean exact-head source worktree unchanged, closed ports 4173/8765/8766 on two dev-up/dev-down cycles, and performed exactly one model task with Codex=0, OpenHands=0, no fixture fallback, no credential exposure, no package install, and no provider mutation.
+V1 used an over-broad `credential_value_access_allowed=false` phrase while also requiring the trusted host to report `secret_status=environment`. Current trusted-host store semantics internally resolve an env-backed secret to derive/use trusted status. V2 scopes the prohibition correctly: the Agent/harness never receives or reads the value; the trusted host may perform its existing internal env-backed resolution, but may not output the secret, mint a credential lease, or make any provider request in this round.
 
-The prior PR-triggered product-head CI failed only the two expected stale mainline-intent tests:
+# External harness rule
 
-```text
-tests/test_mainline_landing.py::test_committed_active_intent_binds_exact_current_authority
-tests/test_mainline_landing.py::test_production_pre_merge_simulation
-```
+`F:/reverse-agent-issue215-product-setup-bootstrap-v2/setup_bootstrap.py` is the only external script permitted. It may be created only after transition preflight is `PRE_EXECUTION_AUTHORIZED`, `blocking_reasons=[]`, and `issue215v2.evidence_root_create` succeeds. It must not be added to Git.
 
-All other exact-head engineering checks are accepted:
+The script may test only membership of the literal environment key `SENSENOVA_API_KEY` (for example, `"SENSENOVA_API_KEY" in os.environ`). It must never retrieve that mapping value. Child trusted-host processes must inherit the environment implicitly; do not construct an `env` mapping by copying environment values.
 
-```text
-Model Access      SUCCESS
-Decision Preflight SUCCESS
-State Gate         SUCCESS
-```
+# Configuration protocol
 
-After synchronizing to this Owner Decision and obtaining `PRE_EXECUTION_AUTHORIZED`, the landing round may only:
-1. record the SHA-256 of the current PR132 active intent;
-2. archive that exact file byte-for-byte to `project_state/mainline_merge_intents/archive/pr132_v7.json` and prove the archive SHA-256 equals the pre-copy hash;
-3. calculate SHA-256 of the committed landing Decision and generated landing command plan;
-4. replace `active.json` with the exact PR134 landing intent using those observed hashes;
-5. run landing/platform/gate validation, diff/path checks, commit only the eight governance paths, and normal-push.
+If `SENSENOVA_API_KEY` is absent, write a sanitized summary and exit 20 with blocker `SENSENOVA_API_KEY_ENV_NOT_PRESENT`; do not start a host or mutate Product Setup.
 
-The new active intent must use:
+If present, use a disposable runtime and normal loopback Model Control PUT endpoints to create exactly:
 
-```json
-{
-  "schema_version": 1,
-  "intent_id": "pr134_frontend_opencode_devup_landing_v1",
-  "repository": "dddd2024/reverse-agent",
-  "source_pr": 134,
-  "locked_base_sha": "a1d09d4ae8887405721efe9871881db788c5820a",
-  "allowed_merge_method": "merge",
-  "decision_identity": {
-    "decision_id": "decision_20260808_pr134_frontend_opencode_devup_landing_v1",
-    "decision_content_sha256": "<OBSERVED_DECISION_SHA256>"
-  },
-  "command_plan_sha256": "<OBSERVED_COMMAND_PLAN_SHA256>",
-  "merge_tree_policy": "equal_to_accepted_head_tree",
-  "required_workflows": [
-    "CI",
-    "Decision Preflight",
-    "State Gate (pull_request)",
-    "State Gate (push)"
-  ],
-  "expires_at": "2026-08-15T23:59:59Z"
-}
-```
+Connection `sensenova-67-flash-lite`:
+- name `SenseNova 6.7 Flash-Lite`
+- provider `openai-compatible`
+- base_url `https://token.sensenova.cn/v1`
+- auth_method `api_key`
+- api_key_env `SENSENOVA_API_KEY`
+- enabled true
 
-## Acceptance
+Binding `opencode-sensenova-67-flash-lite`:
+- name `OpenCode SenseNova 6.7 Flash-Lite`
+- executor_id `opencode`
+- connection_id `sensenova-67-flash-lite`
+- model_id `sensenova-6.7-flash-lite`
+- enabled true
 
-1. Remote branch must fast-forward to the Decision commit; preserve unknown untracked files.
-2. Landing Decision commit precedes all landing gate generation and merge-intent mutation.
-3. Standard transition sequence: transition-command-plan PASS, transition-lint PASS, transition-preflight `PRE_EXECUTION_AUTHORIZED`, `blocking_reasons=[]`.
-4. PR132 active-intent SHA before copy exactly equals `archive/pr132_v7.json` SHA after copy.
-5. PR134 active intent contains observed, not guessed, SHA-256 values for the exact committed landing Decision and generated landing command plan.
-6. `f6c9bad0...` remains ancestor and no product/test/runtime/frontend/workflow/doc/package file changes occur after that accepted product head.
-7. Landing/integration/audit tests pass with zero failures.
-8. `tests/platform_v1` passes with zero failures; the two known landing-governance failures disappear without modifying tests.
-9. project-gate/control-plane regression tests pass.
-10. `git diff --check a1d09d4...HEAD` passes.
-11. `git diff --name-only f6c9bad0...HEAD` contains only the eight authorized governance paths.
-12. No model/provider/runtime execution. OpenCode=0, Codex=0, OpenHands=0.
-13. Normal push only. No rebase, reset, clean, force push, squash, main push, Ready, merge, release or deploy by local Agent.
+Do not call the Connection `/test` endpoint. Public GET must report the Connection with `secret_status=environment` while not revealing `api_key_env` or any raw credential.
 
-```text
-PR134_LANDING_GOVERNANCE_READY_FOR_OWNER_EXACT_HEAD_REVIEW
-```
+After the disposable host is stopped, strictly validate the generated schema-v1 state. It must contain only the exact sanitized Connection/Binding and no forbidden credential-bearing field. Install those validated bytes into `F:/reverse-agent/.platform_v1_runtime/model_setup_state.json` only if that target is still absent. On Windows use a same-directory flushed/fsynced temporary file followed by a non-overwriting rename; if the target appears before rename, preserve it and exit 20 with `PRODUCT_SETUP_TARGET_BECAME_PRESENT`.
 
-## Execution policy
+Never open, copy or modify `F:/reverse-agent/.platform_v1_runtime/tasks.sqlite3`.
 
-- This Decision is the only active local landing authority; issue133 v4 is complete and superseded for further execution.
-- Do not modify `active.json` until preflight authorizes execution and the old active intent has been hashed and archived.
-- Archive must be byte-for-byte identical; hash mismatch is a hard stop.
-- Do not guess or hand-copy Decision/command-plan digests; use the authorized `Get-FileHash` commands on committed/generated files.
-- Product head `f6c9bad0...` is immutable for landing; any post-product change outside the eight governance paths is a hard stop.
-- Owner-only PR comment/Ready/merge permissions are not delegated to the local Agent.
-- No OpenCode, Codex, OpenHands, provider/model, credential, release or deployment action is authorized.
+# Restart proof
+
+After successful install, copy only the sanitized state bytes into a fresh disposable restart runtime. Start fresh trusted-host OS process cycle 1 and cycle 2 against that disposable TaskStore runtime using exact planning SHA and current authority HEAD. Between cycles stop only the exact child PID and require loopback ports to be released. Do not recreate Connection/Binding between cycles.
+
+For both cycles require:
+- exact trusted_host_meta authority/planning identities;
+- GET Connection identity exact;
+- GET Binding identity exact;
+- GET executor `opencode` operational true;
+- public Connection `secret_status=environment`;
+- no public `api_key_env` field;
+- no raw secret field/value in persisted state or public responses;
+- no Task execute, credential lease, live probe, model/provider call or external network request.
+
+If ports 8765/8766 are occupied by an unrelated process, do not kill it; exit 20 with `LOCAL_PRODUCT_PORT_OCCUPIED`.
+
+# Acceptance
+
+Success terminal:
+
+`DOGFOOD1_PRODUCT_SETUP_BOOTSTRAP_AND_READINESS_ACCEPTED`
+
+Bounded blocked terminal:
+
+`DOGFOOD1_PRODUCT_SETUP_BOOTSTRAP_BLOCKED`
+
+Exit 20 is a bounded blocked outcome only, never success. Any unexpected invariant failure uses a distinct nonzero/non-20 exit and terminal `DOGFOOD1_PRODUCT_SETUP_BOOTSTRAP_FAILURE`.
+
+No repository commit/push/PR/merge is permitted in this round.
