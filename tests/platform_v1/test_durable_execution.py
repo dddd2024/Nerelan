@@ -25,7 +25,7 @@ from reverse_agent.architecture.contracts import (
     WorkerAssignment,
     WorkerExecutionResult,
 )
-from reverse_agent.platform_v1.opencode_executor import handoff_dir as _handoff_dir
+from reverse_agent.platform_v1.opencode_executor import handoff_dir as _handoff_dir, _collect_product_diff as _collect_product_diff
 from reverse_agent.platform_v1.durable_execution import (
     ACCEPTED_CHECKPOINTS,
     CHECKPOINT_ORDER,
@@ -38,6 +38,8 @@ from reverse_agent.platform_v1.durable_execution import (
     set_crash_after_checkpoint,
     _check_strict_serde_active,
     _make_strict_saver,
+    _digest as _dur_digest,
+    _json_payload as _dur_json_payload,
 )
 from reverse_agent.platform_v1.run_store import (
     TaskStore,
@@ -300,6 +302,8 @@ def test_crash_after_coder_uses_real_durable_path(tmp_path) -> None:
     run = store._find_active_durable_run(task.id)
     assert run is not None
     assert run["accepted_checkpoint"] == "POST_CODER"
+    persisted_digest = run["coder_product_diff_digest"]
+    assert persisted_digest != ""
 
     store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
     fake2 = FakeExecutor()
@@ -318,7 +322,19 @@ def test_crash_after_coder_uses_real_durable_path(tmp_path) -> None:
 
     assert fake2.call_count.get("planner", 0) == 0
     assert fake2.call_count.get("coder", 0) == 0
-    assert fake2.call_count.get("reviewer", 0) >= 1
+    assert fake2.call_count.get("reviewer", 0) == 1
+    assert outcome.success is True
+
+    run_after = store2._get_durable_run(run["run_id"])
+    assert run_after.accepted_checkpoint == "POST_VALIDATION"
+    assert run_after.validation_exit_code == 0
+    final_task = store2.get_task(task.id)
+    assert final_task.status == "READY_FOR_REVIEW"
+
+    wt_path = Path(run_after.worktree_path)
+    current_snapshot = _collect_product_diff(wt_path)
+    reconstructed = _dur_digest(_dur_json_payload(list(current_snapshot)))
+    assert reconstructed == persisted_digest
 
 
 def test_second_crash_during_recovery(tmp_path) -> None:
@@ -2717,3 +2733,245 @@ def test_empty_HEAD_fails_closed_before_pre_planner(tmp_path) -> None:
     assert run.accepted_checkpoint == ""
     assert run.repository_base_sha == ""
     assert run.worktree_head_sha == ""
+
+
+# ---------------------------------------------------------------------------
+# Issue #205: POST_CODER durable resume — restore persisted Coder snapshot
+# ---------------------------------------------------------------------------
+
+def test_post_coder_resume_tampered_worktree_fails_closed(tmp_path) -> None:
+    """A POST_CODER crash whose persisted worktree is then tampered with must
+    fail closed BEFORE Reviewer runs. The reconstructed current-snapshot digest
+    must differ from the persisted coder_product_diff_digest, Reviewer call
+    count must be 0, accepted_checkpoint must NOT be promoted past POST_CODER,
+    and classification must be coder_snapshot_mismatch."""
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+
+    task = store.create_task(
+        title="tamper-coder-test",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+
+    wt_dir = _init_git_worktree(tmp_path, "wt_tamper")
+    set_crash_after_checkpoint("POST_CODER")
+
+    fake = FakeExecutor()
+
+    class RR(ExecutorRouter):
+        def create_executor(self, *, executor_kind: str = "opencode", **kwargs: Any) -> FakeExecutor:
+            return fake
+        def dispatch_execute(self, *a: Any, **kw: Any):
+            raise NotImplementedError()
+
+    service = DurableExecutionService(store=store, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
+    with pytest.raises(_CrashSimulated):
+        service.execute_durable_sequential_team(
+            task_id=task.id, workspace_root=str(wt_dir), lease_owner="worker-1",
+        )
+    reset_crash_seam()
+
+    run = store._get_durable_run(
+        store._conn.execute(
+            "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+            (task.id,),
+        ).fetchone()["run_id"]
+    )
+    assert run.accepted_checkpoint == "POST_CODER"
+    persisted_digest = run.coder_product_diff_digest
+    assert persisted_digest != ""
+    wt_path = Path(run.worktree_path)
+    assert wt_path.exists()
+
+    pre_digest = _dur_digest(_dur_json_payload(list(_collect_product_diff(wt_path))))
+    assert pre_digest == persisted_digest
+
+    (wt_path / "product.py").write_text("# tampered by an external actor\n", encoding="utf-8")
+    tampered_digest = _dur_digest(_dur_json_payload(list(_collect_product_diff(wt_path))))
+    assert tampered_digest != persisted_digest
+
+    store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
+    fake2 = FakeExecutor()
+
+    class RR2(ExecutorRouter):
+        def create_executor(self, executor_kind: str, **kwargs: Any) -> FakeExecutor:
+            return fake2
+        def dispatch_execute(self, *a, **kw):
+            raise NotImplementedError()
+
+    service2 = DurableExecutionService(store=store2, router=RR2(), execution_authority_sha="test_authority", planning_sha="test_planning")
+    _expire_and_reconcile(store2, task.id)
+    outcome = service2.resume_sequential_team(task_id=task.id, lease_owner="worker-2")
+
+    assert outcome.success is False
+    assert outcome.failure_classification == "coder_snapshot_mismatch"
+    assert fake2.call_count.get("reviewer", 0) == 0
+    assert fake2.call_count.get("planner", 0) == 0
+    assert fake2.call_count.get("coder", 0) == 0
+
+    run_after = store2._get_durable_run(run.run_id)
+    assert run_after.accepted_checkpoint == "POST_CODER"
+    task_after = store2.get_task(task.id)
+    assert task_after.failure_classification == "coder_snapshot_mismatch"
+
+
+def test_post_coder_resume_missing_persisted_digest_fails_closed(tmp_path) -> None:
+    """A POST_CODER crash whose persisted coder_product_diff_digest is empty
+    must fail closed BEFORE Reviewer runs. Reviewer call count must be 0,
+    Planner/Coder must NOT be rerun, and classification must be
+    coder_snapshot_missing."""
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+
+    task = store.create_task(
+        title="missing-digest-coder-test",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+
+    wt_dir = _init_git_worktree(tmp_path, "wt_missing")
+    set_crash_after_checkpoint("POST_CODER")
+
+    fake = FakeExecutor()
+
+    class RR(ExecutorRouter):
+        def create_executor(self, *, executor_kind: str = "opencode", **kwargs: Any) -> FakeExecutor:
+            return fake
+        def dispatch_execute(self, *a: Any, **kw: Any):
+            raise NotImplementedError()
+
+    service = DurableExecutionService(store=store, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
+    with pytest.raises(_CrashSimulated):
+        service.execute_durable_sequential_team(
+            task_id=task.id, workspace_root=str(wt_dir), lease_owner="worker-1",
+        )
+    reset_crash_seam()
+
+    run_row = store._conn.execute(
+        "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+        (task.id,),
+    ).fetchone()["run_id"]
+    store._conn.execute(
+        "UPDATE durable_runs SET coder_product_diff_digest = '' WHERE run_id = ?",
+        (run_row,),
+    )
+    run = store._get_durable_run(run_row)
+    assert run.accepted_checkpoint == "POST_CODER"
+    assert run.coder_product_diff_digest == ""
+
+    store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
+    fake2 = FakeExecutor()
+
+    class RR2(ExecutorRouter):
+        def create_executor(self, executor_kind: str, **kwargs: Any) -> FakeExecutor:
+            return fake2
+        def dispatch_execute(self, *a, **kw):
+            raise NotImplementedError()
+
+    service2 = DurableExecutionService(store=store2, router=RR2(), execution_authority_sha="test_authority", planning_sha="test_planning")
+    _expire_and_reconcile(store2, task.id)
+    outcome = service2.resume_sequential_team(task_id=task.id, lease_owner="worker-2")
+
+    assert outcome.success is False
+    assert outcome.failure_classification == "coder_snapshot_missing"
+    assert fake2.call_count.get("reviewer", 0) == 0
+    assert fake2.call_count.get("planner", 0) == 0
+    assert fake2.call_count.get("coder", 0) == 0
+
+    run_after = store2._get_durable_run(run_row)
+    assert run_after.accepted_checkpoint == "POST_CODER"
+    task_after = store2.get_task(task.id)
+    assert task_after.failure_classification == "coder_snapshot_missing"
+
+
+class _MutatingReviewerExecutor:
+    """Provider-free executor whose Reviewer intentionally mutates a product file."""
+
+    def prepare_worktree_once(self, task_id: str, workspace_root: Path, callback: Any = None) -> _FakePreparedCtx:
+        wt = workspace_root / f"wt-{task_id[-8:]}"
+        _make_git_worktree(wt)
+        return _FakePreparedCtx(worktree=wt)
+
+    def execute_role_prepared(self, prepared: Any, store: Any, *, role_context: Any = None, event_callback: Any = None) -> Any:
+        role = role_context.role if role_context else "planner"
+        wt = prepared.worktree
+        handoff = _handoff_dir(wt)
+        if role == "planner":
+            handoff.mkdir(parents=True, exist_ok=True)
+            (handoff / "plan.md").write_text("# Plan\nStep 1: implement\n", encoding="utf-8")
+        elif role == "coder":
+            if not (handoff / "plan.md").exists():
+                raise RuntimeError("missing plan")
+            (wt / "product.py").write_text("def hello(): pass\n", encoding="utf-8")
+        elif role == "reviewer":
+            handoff.mkdir(parents=True, exist_ok=True)
+            (handoff / "review.md").write_text("# Review\nLooks good\n", encoding="utf-8")
+            (wt / "product.py").write_text("# reviewer mutated this file\n", encoding="utf-8")
+
+        class _Result:
+            success = True
+            execution_id = f"exec-{role}"
+            validation_exit_code = 0
+            failure_classification = ""
+            error = ""
+        return _Result()
+
+
+def test_post_coder_reviewer_mutation_still_rejected_after_restore(tmp_path) -> None:
+    """After the Coder snapshot is correctly restored from the persisted
+    worktree on POST_CODER resume, Reviewer product mutation must STILL be
+    rejected as reviewer_product_mutation. The restore must not weaken the
+    reviewer invariant (reviewer_post must equal the restored Coder snapshot)."""
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+
+    task = store.create_task(
+        title="reviewer-mutate-coder-test",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+
+    wt_dir = _init_git_worktree(tmp_path, "wt_revmut")
+    set_crash_after_checkpoint("POST_CODER")
+
+    first = FakeExecutor()
+
+    class RR(ExecutorRouter):
+        def create_executor(self, *, executor_kind: str = "opencode", **kwargs: Any) -> FakeExecutor:
+            return first
+        def dispatch_execute(self, *a: Any, **kw: Any):
+            raise NotImplementedError()
+
+    service = DurableExecutionService(store=store, router=RR(), execution_authority_sha="test_authority", planning_sha="test_planning")
+    with pytest.raises(_CrashSimulated):
+        service.execute_durable_sequential_team(
+            task_id=task.id, workspace_root=str(wt_dir), lease_owner="worker-1",
+        )
+    reset_crash_seam()
+
+    run_row = store._conn.execute(
+        "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+        (task.id,),
+    ).fetchone()["run_id"]
+    run = store._get_durable_run(run_row)
+    assert run.accepted_checkpoint == "POST_CODER"
+    assert run.coder_product_diff_digest != ""
+
+    store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
+    mutator = _MutatingReviewerExecutor()
+
+    class RR2(ExecutorRouter):
+        def create_executor(self, executor_kind: str, **kwargs: Any) -> _MutatingReviewerExecutor:
+            return mutator
+        def dispatch_execute(self, *a, **kw):
+            raise NotImplementedError()
+
+    service2 = DurableExecutionService(store=store2, router=RR2(), execution_authority_sha="test_authority", planning_sha="test_planning")
+    _expire_and_reconcile(store2, task.id)
+    outcome = service2.resume_sequential_team(task_id=task.id, lease_owner="worker-2")
+
+    assert outcome.success is False
+    assert outcome.failure_classification == "reviewer_product_mutation"
+    task_rev = store2.get_task(task.id)
+    assert task_rev.failure_classification == "reviewer_product_mutation"
