@@ -31,7 +31,7 @@ jobs:
         run: python -c "import reverse_agent.project_gate; import reverse_agent.project_state; import reverse_agent.post_final_evidence_sync; import reverse_agent.decision_preflight"
 
       - name: Focused tests
-        run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py tests/test_control_plane_transition.py tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py -q
+        run: python -m pytest tests/test_project_gate.py tests/test_ci_responsibility.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py tests/test_control_plane_transition.py tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py -q
 
       - name: Supervisor and repository hygiene tests
         run: python -m pytest tests/test_supervisor_validate.py tests/test_repository_hygiene.py -q
@@ -41,9 +41,6 @@ jobs:
 
       - name: Integration baseline, mainline landing and project audit tests
         run: python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q
-
-      - name: Project gate and workflow contract tests
-        run: python -m pytest tests/test_project_gate.py -q
 
       - name: Platform V1 blocking gate
         run: python -m pytest tests/platform_v1 -q

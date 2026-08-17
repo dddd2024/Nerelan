@@ -6,8 +6,6 @@ on:
       - main
     paths:
       - "project_state/**"
-      - "reverse_agent/**"
-      - "tests/**"
       - ".github/workflows/**"
       - ".codex-skills/**"
       - "docs/prompts/**"
