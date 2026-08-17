@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 import threading
+import time as _time_mod
 
 import pytest
 
@@ -1028,3 +1029,245 @@ def test_binding_ref_and_orchestration_mode_persisted_together(
     ).fetchone()
     assert raw["binding_ref"] == "coding-fast"
     assert raw["orchestration_mode"] == "sequential_team"
+
+
+# ===================================================================
+# ISSUE140 R2 V1 — Single durable dispatch HTTP tests
+# ===================================================================
+
+import threading as _t_mod
+from threading import Event as _Event
+
+from reverse_agent.platform_v1.durable_execution import (
+    DurableExecutionService,
+    reset_crash_seam,
+)
+from reverse_agent.platform_v1.task_runtime import (
+    ExecutorRuntimeError,
+)
+
+
+class _SingleFakeExecutor:
+    """Provider-free fake executor for single+opencode HTTP tests."""
+
+    def __init__(self, *, hold_event=None, fail_on_execute=False) -> None:
+        import subprocess as _sp
+        from pathlib import Path as _P
+        self.execute_calls = 0
+        self.prepare_calls = 0
+        self.hold_event = hold_event or _Event()
+        self.fail_on_execute = fail_on_execute
+
+    def prepare_worktree_once(self, task_id: str, workspace_root, callback=None):
+        import subprocess as _sp
+        from pathlib import Path as _P
+        self.prepare_calls += 1
+        wt = _P(workspace_root) / f"wt-{task_id[-8:]}"
+        wt.mkdir(parents=True, exist_ok=True)
+        _sp.run(["git", "init", "-q"], cwd=wt, capture_output=True, check=True)
+        _sp.run(["git", "config", "user.email", "t@l"], cwd=wt, capture_output=True, check=True)
+        _sp.run(["git", "config", "user.name", "T"], cwd=wt, capture_output=True, check=True)
+        (wt / "r.md").write_text("x\n")
+        _sp.run(["git", "add", "."], cwd=wt, capture_output=True, check=True)
+        _sp.run(["git", "commit", "-q", "-m", "i"], cwd=wt, capture_output=True, check=True)
+
+        class _C:
+            def __init__(s, p):
+                s.worktree = p
+                s.execution_id = f"exec-{task_id}"
+                s.base_sha = ""
+                s.cli_path = ""
+                s.is_cmd = False
+                s.opencode_exe = None
+        return _C(wt)
+
+    def execute_role_prepared(self, prepared, store, *, role_context=None, event_callback=None):
+        if self.hold_event is not None:
+            self.hold_event.wait(timeout=10.0)
+        self.execute_calls += 1
+        if self.fail_on_execute:
+            class _FR:
+                success = False
+                execution_id = "ef"
+                validation_exit_code = 1
+                failure_classification = "fail"
+                error = "fake fail"
+                changed_files = []
+                validation_command_id = "git_diff_check"
+                validation_output_digest = "df"
+            return _FR()
+        class _SR:
+            success = True
+            execution_id = "es"
+            validation_exit_code = 0
+            failure_classification = ""
+            error = ""
+            changed_files = [{"path": "r.md"}]
+            validation_command_id = "git_diff_check"
+            validation_output_digest = "dok"
+        return _SR()
+
+
+class _SingleFakeRouter(ExecutorRouter):
+    def __init__(self, fake):
+        super().__init__()
+        self._fake = fake
+    def create_executor(self, *, executor_kind="opencode", **kwargs):
+        return self._fake
+    def dispatch_execute(self, *a, **kw):
+        raise NotImplementedError()
+
+
+def _req_single(base_url, method, path, body=None):
+    import json as _j
+    import http.client as _h
+    host, port = base_url.replace("http://", "").split(":", 1)
+    conn = _h.HTTPConnection(host, int(port), timeout=10)
+    headers = {"Accept": "application/json", "Origin": "http://localhost:5173"}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+        body = _j.dumps(body).encode()
+    conn.request(method, path, body=body, headers=headers)
+    resp = conn.getresponse()
+    data = resp.read()
+    conn.close()
+    return resp.status, _j.loads(data.decode()) if data else None
+
+
+def test_single_execute_returns_202_before_fake_completion(tmp_path) -> None:
+    reset_crash_seam()
+    from http.server import ThreadingHTTPServer as _Srv
+
+    db_path = str(tmp_path / "s202.sqlite3")
+    store = TaskStore(db_path=db_path)
+    fake = _SingleFakeExecutor()
+    router = _SingleFakeRouter(fake)
+    handler_cls = _handler_factory(
+        store, router, allowed_origin="http://localhost:5173",
+        execution_authority_sha="test_auth", planning_sha="test_plan",
+    )
+    server = _Srv(("127.0.0.1", 0), handler_cls)
+    port = server.server_address[1]
+    t = _t_mod.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+    try:
+        base = f"http://127.0.0.1:{port}"
+        _, created = _req_single(base, "POST", "/api/tasks", {
+            "title": "s202", "executor_kind": "opencode",
+            "orchestration_mode": "single",
+            "repository": "https://github.com/dddd2024/reverse-agent",
+        })
+        tid = created["id"]
+        assert fake.execute_calls == 0
+        status, body = _req_single(base, "POST", f"/api/tasks/{tid}/execute", {})
+        assert status == 202, (status, body)
+        task_id_in_body = body.get("id", "")
+        assert task_id_in_body == tid
+        assert fake.execute_calls == 0
+        _time_mod.sleep(0.3)
+        fake.hold_event.set()
+        _time_mod.sleep(0.5)
+        final = store.get_task(tid)
+        assert final.status == "READY_FOR_REVIEW"
+        assert fake.execute_calls == 1
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_single_client_disconnect_background_independent(tmp_path) -> None:
+    reset_crash_seam()
+    from http.server import ThreadingHTTPServer as _Srv
+
+    db_path = str(tmp_path / "sdc.sqlite3")
+    store = TaskStore(db_path=db_path)
+    fake = _SingleFakeExecutor()
+    router = _SingleFakeRouter(fake)
+    handler_cls = _handler_factory(
+        store, router, allowed_origin="http://localhost:5173",
+        execution_authority_sha="test_auth", planning_sha="test_plan",
+    )
+    server = _Srv(("127.0.0.1", 0), handler_cls)
+    port = server.server_address[1]
+    t = _t_mod.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+    try:
+        base = f"http://127.0.0.1:{port}"
+        _, created = _req_single(base, "POST", "/api/tasks", {
+            "title": "sdc", "executor_kind": "opencode",
+            "orchestration_mode": "single",
+            "repository": "https://github.com/dddd2024/reverse-agent",
+        })
+        tid = created["id"]
+
+        import http.client as _h2
+        conn = _h2.HTTPConnection("127.0.0.1", port, timeout=10)
+        conn.request(
+            "POST", f"/api/tasks/{tid}/execute",
+            body=b"{}",
+            headers={"Content-Type": "application/json", "Origin": "http://localhost:5173"},
+        )
+        resp = conn.getresponse()
+        status = resp.status
+        resp.read()
+        conn.close()
+        assert status == 202
+
+        assert fake.execute_calls == 0
+        fake.hold_event.set()
+        _time_mod.sleep(1.0)
+
+        final = store.get_task(tid)
+        assert final.status == "READY_FOR_REVIEW"
+        assert fake.execute_calls == 1
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_single_duplicate_execute_fails_closed(tmp_path) -> None:
+    reset_crash_seam()
+    from http.server import ThreadingHTTPServer as _Srv
+
+    db_path = str(tmp_path / "sdup.sqlite3")
+    store = TaskStore(db_path=db_path)
+    fake = _SingleFakeExecutor()
+    router = _SingleFakeRouter(fake)
+    handler_cls = _handler_factory(
+        store, router, allowed_origin="http://localhost:5173",
+        execution_authority_sha="test_auth", planning_sha="test_plan",
+    )
+    server = _Srv(("127.0.0.1", 0), handler_cls)
+    port = server.server_address[1]
+    t = _t_mod.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+    try:
+        base = f"http://127.0.0.1:{port}"
+        _, created = _req_single(base, "POST", "/api/tasks", {
+            "title": "sdup", "executor_kind": "opencode",
+            "orchestration_mode": "single",
+            "repository": "https://github.com/dddd2024/reverse-agent",
+        })
+        tid = created["id"]
+
+        status1, body1 = _req_single(base, "POST", f"/api/tasks/{tid}/execute", {})
+        assert status1 == 202, (status1, body1)
+
+        _time_mod.sleep(0.2)
+        status2, body2 = _req_single(base, "POST", f"/api/tasks/{tid}/execute", {})
+        assert status2 == 409, (status2, body2)
+
+        fake.hold_event.set()
+        _time_mod.sleep(1.0)
+
+        run_count = store._conn.execute(
+            "SELECT COUNT(*) FROM durable_runs WHERE task_id = ?", (tid,)
+        ).fetchone()[0]
+        assert run_count == 1
+        assert fake.execute_calls == 1
+
+        final = store.get_task(tid)
+        assert final.status == "READY_FOR_REVIEW"
+    finally:
+        server.shutdown()
+        server.server_close()

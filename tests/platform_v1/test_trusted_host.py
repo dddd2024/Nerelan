@@ -1038,3 +1038,60 @@ def test_host_default_startup_does_not_probe_and_keeps_executor_managed(tmp_path
         )["external_session_status"] == "executor_managed"
     finally:
         host.stop()
+
+
+# ===================================================================
+# ISSUE140 R2 V1 — CombinedTrustedHost stale single durable reconciliation
+# ===================================================================
+
+def test_startup_reconcile_stale_single_durable_no_executor_call(tmp_path) -> None:
+    """CombinedTrustedHost startup reconciliation must mark an expired
+    durable single run INTERRUPTED and must NOT invoke any executor/model."""
+    store = _make_store(tmp_path)
+
+    task = store.create_task(
+        title="single-startup-stale",
+        executor_kind="opencode",
+        orchestration_mode="single",
+    )
+
+    lease = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="old-worker",
+        task_status="QUEUED",
+        expected_orchestration_mode="single",
+    )
+    run_id = lease.run_id
+    assert store.get_task(task.id).status == "PREPARING_WORKSPACE"
+
+    now_ms = int(time.time() * 1000)
+    store._conn.execute(
+        "UPDATE durable_runs SET lease_expiry_ms = ? WHERE run_id = ?",
+        (now_ms - 10000, run_id),
+    )
+
+    fake_executor_calls = {"count": 0}
+
+    class _CrashRouter(ExecutorRouter):
+        def create_executor(self, *, executor_kind="opencode", **kwargs):
+            fake_executor_calls["count"] += 1
+            raise RuntimeError("should not be called")
+        def dispatch_execute(self, *a, **kw):
+            fake_executor_calls["count"] += 1
+            raise RuntimeError("should not be called")
+
+    host = CombinedTrustedHost(
+        task_store=store,
+        execution_authority_sha="auth_v",
+        planning_sha="plan_v",
+    )
+    host._router = _CrashRouter()
+    try:
+        host.start(model_control_port=0, task_api_port=0)
+    except Exception:
+        pass
+    host.stop()
+
+    task_after = store.get_task(task.id)
+    assert task_after.status == "INTERRUPTED"
+    assert fake_executor_calls["count"] == 0

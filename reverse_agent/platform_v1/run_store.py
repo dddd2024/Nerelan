@@ -878,6 +878,7 @@ class TaskStore:
         repository_base_sha: str = "",
         worktree_path: str = "",
         checkpoint_db_path: str = "",
+        expected_orchestration_mode: str = "sequential_team",
     ) -> Any:
         """Atomically claim a durable lease in a single SQLite write transaction.
 
@@ -913,11 +914,11 @@ class TaskStore:
                     f"durable_claim_wrong_executor_kind:{task_id}:"
                     f"expected=opencode:actual={current_executor_kind}"
                 )
-            if current_orchestration_mode != "sequential_team":
+            if current_orchestration_mode != expected_orchestration_mode:
                 cur.execute("ROLLBACK")
                 raise TaskStoreError(
                     f"durable_claim_wrong_orchestration_mode:{task_id}:"
-                    f"expected=sequential_team:"
+                    f"expected={expected_orchestration_mode}:"
                     f"actual={current_orchestration_mode}"
                 )
             if task_status is not None and current_status != task_status:
@@ -1264,7 +1265,10 @@ class TaskStore:
             try:
                 cur.execute("BEGIN IMMEDIATE")
                 run_row = cur.execute(
-                    "SELECT * FROM durable_runs WHERE run_id = ?", (run_id,),
+                    "SELECT dr.*, t.orchestration_mode as task_om "
+                    "FROM durable_runs dr "
+                    "JOIN tasks t ON t.id = dr.task_id "
+                    "WHERE dr.run_id = ?", (run_id,),
                 ).fetchone()
                 if run_row is None:
                     cur.execute("ROLLBACK")
@@ -1277,15 +1281,27 @@ class TaskStore:
                         f"current_epoch={run_row['lease_epoch']}"
                     )
                 current_accepted = run_row["accepted_checkpoint"]
-                current_rank = _CHECKPOINT_INDEX.get(current_accepted, -1)
-                new_rank = _CHECKPOINT_INDEX.get(checkpoint_name, -1)
+                _om = run_row["task_om"] or "sequential_team"
+                if _om == "single":
+                    _cp_index = _SINGLE_CHECKPOINT_INDEX
+                    _first_cp = "PRE_EXECUTOR"
+                elif _om == "sequential_team":
+                    _cp_index = _CHECKPOINT_INDEX
+                    _first_cp = "PRE_PLANNER"
+                else:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(
+                        f"accept_checkpoint_unknown_orchestration_mode:{_om}"
+                    )
+                current_rank = _cp_index.get(current_accepted, -1)
+                new_rank = _cp_index.get(checkpoint_name, -1)
                 if new_rank < 0:
                     cur.execute("ROLLBACK")
                     raise TaskStoreError(f"invalid_checkpoint_name:{checkpoint_name}")
-                if current_accepted == "" and checkpoint_name != "PRE_PLANNER":
+                if current_accepted == "" and checkpoint_name != _first_cp:
                     cur.execute("ROLLBACK")
                     raise TaskStoreError(
-                        f"checkpoint_first_must_be_pre_planner:"
+                        f"checkpoint_first_must_be_{_first_cp.lower()}:"
                         f"run={run_id}:first_attempted={checkpoint_name}"
                     )
                 if new_rank < current_rank:
@@ -1521,6 +1537,7 @@ class TaskStore:
         self, run_id: str, lease_owner: str,
         *, expiry_ms: int = 300000,
         require_interrupted: bool = False,
+        expected_orchestration_mode: str = "sequential_team",
     ) -> Any:
         """Atomically recover a durable lease with a strictly larger epoch.
 
@@ -1558,10 +1575,11 @@ class TaskStore:
                     f"durable_recover_wrong_task_status:{run_id}:"
                     f"expected=INTERRUPTED:actual={task_status}"
                 )
-            if row["orchestration_mode"] != "sequential_team":
+            if row["orchestration_mode"] != expected_orchestration_mode:
                 cur.execute("ROLLBACK")
                 raise TaskStoreError(
                     f"durable_recover_wrong_orchestration_mode:{run_id}:"
+                    f"expected={expected_orchestration_mode}:"
                     f"actual={row['orchestration_mode']}"
                 )
             if row["executor_kind"] != "opencode":
@@ -1619,6 +1637,7 @@ class TaskStore:
             row2 = cur.execute(
                 "SELECT * FROM durable_runs WHERE run_id = ?", (run_id,),
             ).fetchone()
+            cur.close()
             return self._lease_handle_from_row(row2)
         except TaskStoreError:
             raise
@@ -1864,52 +1883,53 @@ class TaskStore:
     ) -> Task:
         """SQLite-atomic: validate lease owner+epoch AND perform status transition
         under ONE BEGIN IMMEDIATE transaction. No TOCTOU window across processes."""
-        cur = self._conn.cursor()
-        try:
-            cur.execute("BEGIN IMMEDIATE")
-            self._fenced_validate_lease(cur, run_id, owner, epoch)
-            if status not in TASK_STATUS_ORDER:
-                cur.execute("ROLLBACK")
-                raise TaskStoreError(f"invalid_status:{status}")
-            current_row = cur.execute(
-                "SELECT status FROM tasks WHERE id = ?", (task_id,),
-            ).fetchone()
-            if current_row is None:
-                cur.execute("ROLLBACK")
-                raise TaskStoreError(f"task_not_found:{task_id}")
-            current_status = current_row["status"]
-            if current_status == status:
+        with self._lock:
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                self._fenced_validate_lease(cur, run_id, owner, epoch)
+                if status not in TASK_STATUS_ORDER:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(f"invalid_status:{status}")
+                current_row = cur.execute(
+                    "SELECT status FROM tasks WHERE id = ?", (task_id,),
+                ).fetchone()
+                if current_row is None:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(f"task_not_found:{task_id}")
+                current_status = current_row["status"]
+                if current_status == status:
+                    cur.execute("COMMIT")
+                    return self.get_task(task_id)
+                allowed = TRANSITION_RULES.get(current_status, ())
+                if status not in allowed:
+                    cur.execute("ROLLBACK")
+                    raise InvalidTransitionError(
+                        f"invalid_transition:{current_status}->{status} allowed={allowed}"
+                    )
+                if current_status in TERMINAL_STATUSES:
+                    cur.execute("ROLLBACK")
+                    raise InvalidTransitionError(f"terminal_status:{current_status}")
+                cur.execute(
+                    "UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?",
+                    (status, _utc_now(), task_id),
+                )
                 cur.execute("COMMIT")
                 return self.get_task(task_id)
-            allowed = TRANSITION_RULES.get(current_status, ())
-            if status not in allowed:
-                cur.execute("ROLLBACK")
-                raise InvalidTransitionError(
-                    f"invalid_transition:{current_status}->{status} allowed={allowed}"
-                )
-            if current_status in TERMINAL_STATUSES:
-                cur.execute("ROLLBACK")
-                raise InvalidTransitionError(f"terminal_status:{current_status}")
-            cur.execute(
-                "UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?",
-                (status, _utc_now(), task_id),
-            )
-            cur.execute("COMMIT")
-            return self.get_task(task_id)
-        except (TaskStoreError, InvalidTransitionError):
-            try:
-                cur.execute("ROLLBACK")
-            except Exception:
-                pass
-            raise
-        except Exception as exc:
-            try:
-                cur.execute("ROLLBACK")
-            except Exception:
-                pass
-            raise TaskStoreError(
-                f"fenced_transition_to_failed:{exc}"
-            ) from exc
+            except (TaskStoreError, InvalidTransitionError):
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError(
+                    f"fenced_transition_to_failed:{exc}"
+                ) from exc
 
     def _fenced_set_changed_files(
         self,
@@ -1920,46 +1940,47 @@ class TaskStore:
         epoch: int,
     ) -> Task:
         """SQLite-atomic fenced set_changed_files."""
-        cur = self._conn.cursor()
-        try:
-            cur.execute("BEGIN IMMEDIATE")
-            self._fenced_validate_lease(cur, run_id, owner, epoch)
-            cur.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone()
-            cur.execute("DELETE FROM task_changed_files WHERE task_id = ?", (task_id,))
-            for f in files:
+        with self._lock:
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                self._fenced_validate_lease(cur, run_id, owner, epoch)
+                cur.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone()
+                cur.execute("DELETE FROM task_changed_files WHERE task_id = ?", (task_id,))
+                for f in files:
+                    cur.execute(
+                        "INSERT INTO task_changed_files "
+                        "(task_id, path, status, additions, deletions, diff_digest) "
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                        (
+                            task_id,
+                            str(f.get("path", "")),
+                            str(f.get("status", "modified")),
+                            int(f.get("additions", 0)),
+                            int(f.get("deletions", 0)),
+                            str(f.get("diff_digest", "")),
+                        ),
+                    )
                 cur.execute(
-                    "INSERT INTO task_changed_files "
-                    "(task_id, path, status, additions, deletions, diff_digest) "
-                    "VALUES (?, ?, ?, ?, ?, ?)",
-                    (
-                        task_id,
-                        str(f.get("path", "")),
-                        str(f.get("status", "modified")),
-                        int(f.get("additions", 0)),
-                        int(f.get("deletions", 0)),
-                        str(f.get("diff_digest", "")),
-                    ),
+                    "UPDATE tasks SET updated_at = ? WHERE id = ?",
+                    (_utc_now(), task_id),
                 )
-            cur.execute(
-                "UPDATE tasks SET updated_at = ? WHERE id = ?",
-                (_utc_now(), task_id),
-            )
-            cur.execute("COMMIT")
-            return self.get_task(task_id)
-        except TaskStoreError:
-            try:
-                cur.execute("ROLLBACK")
-            except Exception:
-                pass
-            raise
-        except Exception as exc:
-            try:
-                cur.execute("ROLLBACK")
-            except Exception:
-                pass
-            raise TaskStoreError(
-                f"fenced_set_changed_files_failed:{exc}"
-            ) from exc
+                cur.execute("COMMIT")
+                return self.get_task(task_id)
+            except TaskStoreError:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError(
+                    f"fenced_set_changed_files_failed:{exc}"
+                ) from exc
 
     def _fenced_add_event(
         self,
@@ -1975,49 +1996,50 @@ class TaskStore:
         epoch: int,
     ) -> TaskEvent:
         """SQLite-atomic fenced add_event."""
-        cur = self._conn.cursor()
-        try:
-            cur.execute("BEGIN IMMEDIATE")
-            self._fenced_validate_lease(cur, run_id, owner, epoch)
-            cur.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone()
-            now = _utc_now()
-            event_id = f"event-{task_id}-{_short_uuid()}"
-            meta_json = json_dumps_stable(metadata or {})
-            cur.execute(
-                "INSERT INTO task_events "
-                "(id, task_id, type, timestamp, title, description, raw_log, metadata) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (event_id, task_id, event_type, now, title, description, raw_log, meta_json),
-            )
-            cur.execute(
-                "UPDATE tasks SET updated_at = ? WHERE id = ?",
-                (now, task_id),
-            )
-            cur.execute("COMMIT")
-            return TaskEvent(
-                id=event_id,
-                task_id=task_id,
-                type=event_type,
-                timestamp=now,
-                title=title,
-                description=description,
-                raw_log=raw_log,
-                metadata=dict(metadata or {}),
-            )
-        except TaskStoreError:
+        with self._lock:
+            cur = self._conn.cursor()
             try:
-                cur.execute("ROLLBACK")
-            except Exception:
-                pass
-            raise
-        except Exception as exc:
-            try:
-                cur.execute("ROLLBACK")
-            except Exception:
-                pass
-            raise TaskStoreError(
-                f"fenced_add_event_failed:{exc}"
-            ) from exc
+                cur.execute("BEGIN IMMEDIATE")
+                self._fenced_validate_lease(cur, run_id, owner, epoch)
+                cur.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone()
+                now = _utc_now()
+                event_id = f"event-{task_id}-{_short_uuid()}"
+                meta_json = json_dumps_stable(metadata or {})
+                cur.execute(
+                    "INSERT INTO task_events "
+                    "(id, task_id, type, timestamp, title, description, raw_log, metadata) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (event_id, task_id, event_type, now, title, description, raw_log, meta_json),
+                )
+                cur.execute(
+                    "UPDATE tasks SET updated_at = ? WHERE id = ?",
+                    (now, task_id),
+                )
+                cur.execute("COMMIT")
+                return TaskEvent(
+                    id=event_id,
+                    task_id=task_id,
+                    type=event_type,
+                    timestamp=now,
+                    title=title,
+                    description=description,
+                    raw_log=raw_log,
+                    metadata=dict(metadata or {}),
+                )
+            except TaskStoreError:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError(
+                    f"fenced_add_event_failed:{exc}"
+                ) from exc
 
     def _fenced_add_evidence(
         self,
@@ -2034,38 +2056,39 @@ class TaskStore:
         epoch: int,
     ) -> Task:
         """SQLite-atomic fenced add_evidence."""
-        cur = self._conn.cursor()
-        try:
-            cur.execute("BEGIN IMMEDIATE")
-            self._fenced_validate_lease(cur, run_id, owner, epoch)
-            cur.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone()
-            ev_id = f"ev-{task_id}-{_short_uuid()}"
-            cur.execute(
-                "INSERT INTO task_evidence "
-                "(id, task_id, category, label, value, status, detail, raw_json_digest) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (ev_id, task_id, category, label, value, status, detail, raw_json_digest),
-            )
-            cur.execute(
-                "UPDATE tasks SET updated_at = ? WHERE id = ?",
-                (_utc_now(), task_id),
-            )
-            cur.execute("COMMIT")
-            return self.get_task(task_id)
-        except TaskStoreError:
+        with self._lock:
+            cur = self._conn.cursor()
             try:
-                cur.execute("ROLLBACK")
-            except Exception:
-                pass
-            raise
-        except Exception as exc:
-            try:
-                cur.execute("ROLLBACK")
-            except Exception:
-                pass
-            raise TaskStoreError(
-                f"fenced_add_evidence_failed:{exc}"
-            ) from exc
+                cur.execute("BEGIN IMMEDIATE")
+                self._fenced_validate_lease(cur, run_id, owner, epoch)
+                cur.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone()
+                ev_id = f"ev-{task_id}-{_short_uuid()}"
+                cur.execute(
+                    "INSERT INTO task_evidence "
+                    "(id, task_id, category, label, value, status, detail, raw_json_digest) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (ev_id, task_id, category, label, value, status, detail, raw_json_digest),
+                )
+                cur.execute(
+                    "UPDATE tasks SET updated_at = ? WHERE id = ?",
+                    (_utc_now(), task_id),
+                )
+                cur.execute("COMMIT")
+                return self.get_task(task_id)
+            except TaskStoreError:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError(
+                    f"fenced_add_evidence_failed:{exc}"
+                ) from exc
 
     def _fenced_classify_failure(
         self,
@@ -2078,55 +2101,56 @@ class TaskStore:
         epoch: int,
     ) -> Task:
         """SQLite-atomic fenced classify_failure."""
-        cur = self._conn.cursor()
-        try:
-            cur.execute("BEGIN IMMEDIATE")
-            self._fenced_validate_lease(cur, run_id, owner, epoch)
-            task_row = cur.execute(
-                "SELECT status FROM tasks WHERE id = ?", (task_id,),
-            ).fetchone()
-            if task_row is None:
-                cur.execute("ROLLBACK")
-                raise TaskStoreError(f"task_not_found:{task_id}")
-            if task_row["status"] in TERMINAL_STATUSES:
-                cur.execute("ROLLBACK")
-                raise TaskStoreError(f"terminal_status:{task_row['status']}")
-            target = "BLOCKED" if classification == "blocked" else "FAILED"
-            cur.execute(
-                "UPDATE tasks SET failure_classification = ?, failure_detail = ?, "
-                "status = ?, updated_at = ? WHERE id = ?",
-                (classification, detail, target, _utc_now(), task_id),
-            )
-            now = _utc_now()
-            event_id = f"event-{task_id}-{_short_uuid()}"
-            cur.execute(
-                "INSERT INTO task_events "
-                "(id, task_id, type, timestamp, title, description, raw_log, metadata) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    event_id, task_id, "EXECUTOR_FINISHED", now,
-                    "Executor failed",
-                    f"failure_classification={classification}",
-                    "",
-                    json_dumps_stable({"failure_classification": classification, "detail": detail}),
-                ),
-            )
-            cur.execute("COMMIT")
-            return self.get_task(task_id)
-        except TaskStoreError:
+        with self._lock:
+            cur = self._conn.cursor()
             try:
-                cur.execute("ROLLBACK")
-            except Exception:
-                pass
-            raise
-        except Exception as exc:
-            try:
-                cur.execute("ROLLBACK")
-            except Exception:
-                pass
-            raise TaskStoreError(
-                f"fenced_classify_failure_failed:{exc}"
-            ) from exc
+                cur.execute("BEGIN IMMEDIATE")
+                self._fenced_validate_lease(cur, run_id, owner, epoch)
+                task_row = cur.execute(
+                    "SELECT status FROM tasks WHERE id = ?", (task_id,),
+                ).fetchone()
+                if task_row is None:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(f"task_not_found:{task_id}")
+                if task_row["status"] in TERMINAL_STATUSES:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(f"terminal_status:{task_row['status']}")
+                target = "BLOCKED" if classification == "blocked" else "FAILED"
+                cur.execute(
+                    "UPDATE tasks SET failure_classification = ?, failure_detail = ?, "
+                    "status = ?, updated_at = ? WHERE id = ?",
+                    (classification, detail, target, _utc_now(), task_id),
+                )
+                now = _utc_now()
+                event_id = f"event-{task_id}-{_short_uuid()}"
+                cur.execute(
+                    "INSERT INTO task_events "
+                    "(id, task_id, type, timestamp, title, description, raw_log, metadata) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        event_id, task_id, "EXECUTOR_FINISHED", now,
+                        "Executor failed",
+                        f"failure_classification={classification}",
+                        "",
+                        json_dumps_stable({"failure_classification": classification, "detail": detail}),
+                    ),
+                )
+                cur.execute("COMMIT")
+                return self.get_task(task_id)
+            except TaskStoreError:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError(
+                    f"fenced_classify_failure_failed:{exc}"
+                ) from exc
 
     def _fenced_set_task_validation(
         self,
@@ -2140,33 +2164,34 @@ class TaskStore:
         epoch: int,
     ) -> Task:
         """SQLite-atomic fenced set_task_validation."""
-        cur = self._conn.cursor()
-        try:
-            cur.execute("BEGIN IMMEDIATE")
-            self._fenced_validate_lease(cur, run_id, owner, epoch)
-            cur.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone()
-            cur.execute(
-                "UPDATE tasks SET validation_command_id = ?, "
-                "validation_exit_code = ?, validation_output_digest = ?, "
-                "updated_at = ? WHERE id = ?",
-                (command_id, exit_code, output_digest, _utc_now(), task_id),
-            )
-            cur.execute("COMMIT")
-            return self.get_task(task_id)
-        except TaskStoreError:
+        with self._lock:
+            cur = self._conn.cursor()
             try:
-                cur.execute("ROLLBACK")
-            except Exception:
-                pass
-            raise
-        except Exception as exc:
-            try:
-                cur.execute("ROLLBACK")
-            except Exception:
-                pass
-            raise TaskStoreError(
-                f"fenced_set_task_validation_failed:{exc}"
-            ) from exc
+                cur.execute("BEGIN IMMEDIATE")
+                self._fenced_validate_lease(cur, run_id, owner, epoch)
+                cur.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,)).fetchone()
+                cur.execute(
+                    "UPDATE tasks SET validation_command_id = ?, "
+                    "validation_exit_code = ?, validation_output_digest = ?, "
+                    "updated_at = ? WHERE id = ?",
+                    (command_id, exit_code, output_digest, _utc_now(), task_id),
+                )
+                cur.execute("COMMIT")
+                return self.get_task(task_id)
+            except TaskStoreError:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError(
+                    f"fenced_set_task_validation_failed:{exc}"
+                ) from exc
 
     def _fenced_terminalize(
         self,
@@ -2183,50 +2208,51 @@ class TaskStore:
         epoch: int,
     ) -> Task:
         """SQLite-atomic fenced terminal publication."""
-        cur = self._conn.cursor()
-        try:
-            cur.execute("BEGIN IMMEDIATE")
-            self._fenced_validate_lease(cur, run_id, owner, epoch)
-            task_row = cur.execute(
-                "SELECT status FROM tasks WHERE id = ?", (task_id,),
-            ).fetchone()
-            if task_row is None:
-                cur.execute("ROLLBACK")
-                raise TaskStoreError(f"task_not_found:{task_id}")
-            if task_row["status"] in TERMINAL_STATUSES:
+        with self._lock:
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                self._fenced_validate_lease(cur, run_id, owner, epoch)
+                task_row = cur.execute(
+                    "SELECT status FROM tasks WHERE id = ?", (task_id,),
+                ).fetchone()
+                if task_row is None:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(f"task_not_found:{task_id}")
+                if task_row["status"] in TERMINAL_STATUSES:
+                    cur.execute("COMMIT")
+                    return self.get_task(task_id)
+                if terminal_status not in TERMINAL_STATUSES:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(f"invalid_terminal_status:{terminal_status}")
+                cur.execute(
+                    "UPDATE tasks SET "
+                    "validation_command_id = ?, validation_exit_code = ?, "
+                    "validation_output_digest = ?, failure_classification = ?, "
+                    "failure_detail = ?, status = ?, updated_at = ? "
+                    "WHERE id = ?",
+                    (
+                        validation_command_id, validation_exit_code,
+                        validation_output_digest, failure_classification,
+                        failure_detail, terminal_status, _utc_now(), task_id,
+                    ),
+                )
                 cur.execute("COMMIT")
                 return self.get_task(task_id)
-            if terminal_status not in TERMINAL_STATUSES:
-                cur.execute("ROLLBACK")
-                raise TaskStoreError(f"invalid_terminal_status:{terminal_status}")
-            cur.execute(
-                "UPDATE tasks SET "
-                "validation_command_id = ?, validation_exit_code = ?, "
-                "validation_output_digest = ?, failure_classification = ?, "
-                "failure_detail = ?, status = ?, updated_at = ? "
-                "WHERE id = ?",
-                (
-                    validation_command_id, validation_exit_code,
-                    validation_output_digest, failure_classification,
-                    failure_detail, terminal_status, _utc_now(), task_id,
-                ),
-            )
-            cur.execute("COMMIT")
-            return self.get_task(task_id)
-        except TaskStoreError:
-            try:
-                cur.execute("ROLLBACK")
-            except Exception:
-                pass
-            raise
-        except Exception as exc:
-            try:
-                cur.execute("ROLLBACK")
-            except Exception:
-                pass
-            raise TaskStoreError(
-                f"fenced_terminalize_failed:{exc}"
-            ) from exc
+            except TaskStoreError:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError(
+                    f"fenced_terminalize_failed:{exc}"
+                ) from exc
 
     @staticmethod
     def _fenced_validate_lease(
@@ -2318,6 +2344,19 @@ _CHECKPOINT_INDEX: dict[str, int] = {
     "POST_REVIEWER": 3, "POST_VALIDATION": 4,
 }
 
+_SINGLE_CHECKPOINTS = frozenset({
+    "PRE_EXECUTOR",
+    "EXECUTOR_DISPATCHED",
+    "POST_EXECUTOR",
+    "POST_VALIDATION",
+})
+_SINGLE_CHECKPOINT_INDEX: dict[str, int] = {
+    "PRE_EXECUTOR": 0,
+    "EXECUTOR_DISPATCHED": 1,
+    "POST_EXECUTOR": 2,
+    "POST_VALIDATION": 3,
+}
+
 def _checkpoint_to_role(checkpoint_name: str) -> str:
     role_map = {
         "PRE_PLANNER": "planner",
@@ -2325,6 +2364,9 @@ def _checkpoint_to_role(checkpoint_name: str) -> str:
         "POST_CODER": "reviewer",
         "POST_REVIEWER": "verifier",
         "POST_VALIDATION": "complete",
+        "PRE_EXECUTOR": "executor",
+        "EXECUTOR_DISPATCHED": "executor",
+        "POST_EXECUTOR": "validator",
     }
     return role_map.get(checkpoint_name, "")
 

@@ -40,6 +40,8 @@ from reverse_agent.platform_v1.durable_execution import (
     _make_strict_saver,
     _digest as _dur_digest,
     _json_payload as _dur_json_payload,
+    _check_crash_seam as _single_check_crash_seam,
+    DurableSingleStoreFacade,
 )
 from reverse_agent.platform_v1.run_store import (
     TaskStore,
@@ -2975,3 +2977,433 @@ def test_post_coder_reviewer_mutation_still_rejected_after_restore(tmp_path) -> 
     assert outcome.failure_classification == "reviewer_product_mutation"
     task_rev = store2.get_task(task.id)
     assert task_rev.failure_classification == "reviewer_product_mutation"
+
+
+# ===================================================================
+# ISSUE140 R2 V1 — Single durable dispatch tests
+# ===================================================================
+
+class _SingleFakeExecutor:
+    """Provider-free fake executor for single+opencode durable tests.
+
+    Holds a threading.Event to control when execute_role_prepared returns.
+    """
+
+    def __init__(self, *, hold_event=None, fail_on_execute=False) -> None:
+        from threading import Event
+        self.execute_calls = 0
+        self.prepare_calls = 0
+        self.hold_event = hold_event or Event()
+        self.fail_on_execute = fail_on_execute
+
+    def prepare_worktree_once(self, task_id: str, workspace_root: Path, callback: Any = None) -> _FakePreparedCtx:
+        self.prepare_calls += 1
+        wt = workspace_root / f"wt-{task_id[-8:]}"
+        _make_git_worktree(wt)
+        return _FakePreparedCtx(worktree=wt)
+
+    def execute_role_prepared(self, prepared: Any, store: Any, *, role_context: Any = None, event_callback: Any = None) -> Any:
+        self.execute_calls += 1
+        if self.hold_event is not None:
+            self.hold_event.wait(timeout=10.0)
+        if self.fail_on_execute:
+            class _FailResult:
+                success = False
+                execution_id = "exec-fail"
+                validation_exit_code = 1
+                failure_classification = "simulated_failure"
+                error = "fake executor failed"
+                changed_files = []
+                validation_command_id = "git_diff_check"
+                validation_output_digest = "digest-fail"
+            return _FailResult()
+        class _SuccessResult:
+            success = True
+            execution_id = "exec-success"
+            validation_exit_code = 0
+            failure_classification = ""
+            error = ""
+            changed_files = [{"path": "product.py", "status": "modified"}]
+            validation_command_id = "git_diff_check"
+            validation_output_digest = "digest-ok"
+        return _SuccessResult()
+
+
+def _single_store(tmp_path) -> TaskStore:
+    return _make_store(tmp_path)
+
+
+def _single_svc(store, fake=None):
+    class _FakeRouter(ExecutorRouter):
+        def __init__(self, fake):
+            super().__init__()
+            self._fake = fake
+        def create_executor(self, *, executor_kind: str = "opencode", **kwargs: Any) -> _SingleFakeExecutor:
+            return self._fake
+        def dispatch_execute(self, *a: Any, **kw: Any):
+            raise NotImplementedError()
+    return DurableExecutionService(
+        store=store, router=_FakeRouter(fake),
+        execution_authority_sha="test_auth_sha", planning_sha="test_plan_sha",
+    )
+
+
+def _single_reconcile_to_interrupted(store, task_id):
+    import time as _t
+    now_ms = int(_t.time() * 1000)
+    row = store._conn.execute(
+        "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+        (task_id,),
+    ).fetchone()
+    if row is None:
+        return
+    store._conn.execute(
+        "UPDATE durable_runs SET lease_expiry_ms = ? WHERE run_id = ?",
+        (now_ms - 10000, row["run_id"]),
+    )
+    svc = DurableExecutionService(
+        store=store, router=ExecutorRouter(),
+        execution_authority_sha="test_auth_sha", planning_sha="test_plan_sha",
+    )
+    svc.reconcile_expired_runs(now_ms=now_ms, max_age_ms=1000)
+
+
+# --- D: PRE_EXECUTOR restart ---
+
+def test_single_pre_executor_restart_resume_invokes_executor_once(tmp_path) -> None:
+    reset_crash_seam()
+    store = _single_store(tmp_path)
+    task = store.create_task(
+        title="single-pre-restart",
+        executor_kind="opencode",
+        orchestration_mode="single",
+    )
+
+    fake = _SingleFakeExecutor()
+    svc = _single_svc(store, fake)
+
+    wt_dir = _init_git_worktree(tmp_path, "wt_single1")
+
+    set_crash_after_checkpoint("PRE_EXECUTOR")
+    with pytest.raises(_CrashSimulated):
+        svc.begin_durable_single(
+            task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
+        )
+    reset_crash_seam()
+
+    run = store._find_active_durable_run(task.id)
+    assert run is not None
+    assert run["accepted_checkpoint"] == "PRE_EXECUTOR"
+
+    _single_reconcile_to_interrupted(store, task.id)
+    task_after = store.get_task(task.id)
+    assert task_after.status == "INTERRUPTED"
+
+    fake2 = _SingleFakeExecutor()
+    svc2 = _single_svc(store, fake2)
+    outcome = svc2.resume_single(
+        task_id=task.id, lease_owner="w2",
+    )
+    assert fake2.execute_calls == 1
+    assert outcome.success is True
+    final = store.get_task(task.id)
+    assert final.status == "READY_FOR_REVIEW"
+
+
+# --- E: Dispatch ambiguity ---
+
+def test_single_dispatch_ambiguous_resume_no_executor_call(tmp_path) -> None:
+    reset_crash_seam()
+    store = _single_store(tmp_path)
+    task = store.create_task(
+        title="single-dispatch-ambig",
+        executor_kind="opencode",
+        orchestration_mode="single",
+    )
+
+    fake = _SingleFakeExecutor()
+    svc = _single_svc(store, fake)
+    wt_dir = _init_git_worktree(tmp_path, "wt_single2")
+
+    ctx = svc.begin_durable_single(
+        task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
+    )
+
+    store._accept_checkpoint(
+        ctx.run_id, "EXECUTOR_DISPATCHED", "", 1, ctx.owner, ctx.epoch
+    )
+    _single_check_crash_seam("EXECUTOR_DISPATCHED")
+
+    set_crash_after_checkpoint("EXECUTOR_DISPATCHED")
+    try:
+        svc._execute_single_with_lease(ctx)
+    except _CrashSimulated:
+        pass
+    reset_crash_seam()
+
+    run = store._find_active_durable_run(task.id)
+    assert run["accepted_checkpoint"] == "EXECUTOR_DISPATCHED"
+
+    _single_reconcile_to_interrupted(store, task.id)
+    task_after = store.get_task(task.id)
+    assert task_after.status == "INTERRUPTED"
+
+    fake2 = _SingleFakeExecutor()
+    svc2 = _single_svc(store, fake2)
+    with pytest.raises(DurableResumeError) as excinfo:
+        svc2.resume_single(task_id=task.id, lease_owner="w2")
+    assert "single_executor_dispatch_ambiguous" in str(excinfo.value)
+    assert fake2.execute_calls == 0
+
+
+# --- F: POST_EXECUTOR recovery ---
+
+def test_single_post_executor_recovery_no_executor_call(tmp_path) -> None:
+    reset_crash_seam()
+    store = _single_store(tmp_path)
+    task = store.create_task(
+        title="single-post-exec-recover",
+        executor_kind="opencode",
+        orchestration_mode="single",
+    )
+
+    fake = _SingleFakeExecutor()
+    svc = _single_svc(store, fake)
+    wt_dir = _init_git_worktree(tmp_path, "wt_single3")
+
+    ctx = svc.begin_durable_single(
+        task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
+    )
+
+    set_crash_after_checkpoint("POST_EXECUTOR")
+    with pytest.raises(_CrashSimulated):
+        svc._execute_single_with_lease(ctx)
+    reset_crash_seam()
+
+    run = store._find_active_durable_run(task.id)
+    assert run["accepted_checkpoint"] == "POST_EXECUTOR"
+
+    _single_reconcile_to_interrupted(store, task.id)
+    task_after = store.get_task(task.id)
+    assert task_after.status == "INTERRUPTED"
+
+    fake2 = _SingleFakeExecutor()
+    svc2 = _single_svc(store, fake2)
+    outcome = svc2.resume_single(task_id=task.id, lease_owner="w2")
+
+    assert fake2.execute_calls == 0
+    assert outcome.success is True
+    final = store.get_task(task.id)
+    assert final.status == "READY_FOR_REVIEW"
+
+    cps = store._get_durable_checkpoints(ctx.run_id)
+    cp_names = [c.checkpoint_name for c in cps]
+    assert "POST_VALIDATION" in cp_names
+
+
+# --- G: Stale epoch task writes ---
+
+def test_single_stale_epoch_task_writes_fenced(tmp_path) -> None:
+    store = _single_store(tmp_path)
+    task = store.create_task(
+        title="single-stale-task",
+        executor_kind="opencode",
+        orchestration_mode="single",
+    )
+
+    fake = _SingleFakeExecutor()
+    svc = _single_svc(store, fake)
+    wt_dir = _init_git_worktree(tmp_path, "wt_single4")
+
+    ctx = svc.begin_durable_single(
+        task_id=task.id, workspace_root=str(wt_dir), lease_owner="old",
+    )
+    old_epoch = ctx.epoch
+    run_id = ctx.run_id
+
+    lease2 = store._recover_durable_lease(
+        run_id, "new", expected_orchestration_mode="single",
+    )
+    assert lease2.epoch == old_epoch + 1
+
+    with pytest.raises(TaskStoreError):
+        store._fenced_transition_to(run_id, task.id, "VALIDATING", "old", old_epoch)
+    with pytest.raises(TaskStoreError):
+        store._fenced_set_changed_files(run_id, task.id, [{"path": "x.py"}], "old", old_epoch)
+    with pytest.raises(TaskStoreError):
+        store._fenced_add_event(
+            run_id, task.id, event_type="EXECUTOR_FINISHED",
+            title="stale", owner="old", epoch=old_epoch,
+        )
+    with pytest.raises(TaskStoreError):
+        store._fenced_classify_failure(
+            run_id, task.id, classification="failed", detail="stale",
+            owner="old", epoch=old_epoch,
+        )
+    with pytest.raises(TaskStoreError):
+        store._fenced_set_task_validation(
+            run_id, task.id, command_id="x", exit_code=0, output_digest="",
+            owner="old", epoch=old_epoch,
+        )
+    with pytest.raises(TaskStoreError):
+        store._accept_checkpoint(run_id, "POST_EXECUTOR", "", 1, "old", old_epoch)
+
+
+# --- H: Stale epoch executor evidence ---
+
+def test_single_stale_epoch_executor_evidence_fenced(tmp_path) -> None:
+    store = _single_store(tmp_path)
+    task = store.create_task(
+        title="single-stale-evidence",
+        executor_kind="opencode",
+        orchestration_mode="single",
+    )
+
+    fake = _SingleFakeExecutor()
+    svc = _single_svc(store, fake)
+    wt_dir = _init_git_worktree(tmp_path, "wt_single5")
+
+    ctx = svc.begin_durable_single(
+        task_id=task.id, workspace_root=str(wt_dir), lease_owner="old",
+    )
+    old_epoch = ctx.epoch
+    run_id = ctx.run_id
+
+    facade = DurableSingleStoreFacade(store, run_id, "old", old_epoch)
+    store._recover_durable_lease(run_id, "new", expected_orchestration_mode="single")
+
+    with pytest.raises(TaskStoreError):
+        facade.add_evidence(
+            task.id, category="test", label="l", value="v", status="info",
+        )
+
+    ev_count = store._conn.execute(
+        "SELECT COUNT(*) FROM task_evidence WHERE task_id = ?", (task.id,),
+    ).fetchone()[0]
+    assert ev_count == 0
+
+
+# --- I: Stale epoch executor event ---
+
+def test_single_stale_epoch_executor_event_fenced(tmp_path) -> None:
+    store = _single_store(tmp_path)
+    task = store.create_task(
+        title="single-stale-event",
+        executor_kind="opencode",
+        orchestration_mode="single",
+    )
+
+    fake = _SingleFakeExecutor()
+    svc = _single_svc(store, fake)
+    wt_dir = _init_git_worktree(tmp_path, "wt_single6")
+
+    ctx = svc.begin_durable_single(
+        task_id=task.id, workspace_root=str(wt_dir), lease_owner="old",
+    )
+    old_epoch = ctx.epoch
+    run_id = ctx.run_id
+
+    store._recover_durable_lease(run_id, "new", expected_orchestration_mode="single")
+
+    with pytest.raises(TaskStoreError):
+        store._fenced_add_event(
+            run_id, task.id,
+            event_type="EXECUTOR_FINISHED",
+            title="stale event",
+            owner="old", epoch=old_epoch,
+        )
+
+    events = store.get_events(task.id)
+    assert len([e for e in events if e.title == "stale event"]) == 0
+
+
+# --- Single checkpoint sequence ---
+
+def test_single_checkpoint_sequence_exactly_four(tmp_path) -> None:
+    reset_crash_seam()
+    store = _single_store(tmp_path)
+    task = store.create_task(
+        title="single-cp-seq",
+        executor_kind="opencode",
+        orchestration_mode="single",
+    )
+
+    fake = _SingleFakeExecutor()
+    svc = _single_svc(store, fake)
+    wt_dir = _init_git_worktree(tmp_path, "wt_single7")
+
+    ctx = svc.begin_durable_single(
+        task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
+    )
+    cps_before = [c.checkpoint_name for c in store._get_durable_checkpoints(ctx.run_id)]
+    assert cps_before == ["PRE_EXECUTOR"]
+
+    svc._execute_single_with_lease(ctx)
+
+    cps_after = [c.checkpoint_name for c in store._get_durable_checkpoints(ctx.run_id)]
+    assert cps_after == ["PRE_EXECUTOR", "EXECUTOR_DISPATCHED", "POST_EXECUTOR", "POST_VALIDATION"]
+    assert store.get_task(task.id).status == "READY_FOR_REVIEW"
+    assert fake.execute_calls == 1
+
+
+# --- Single first checkpoint must be PRE_EXECUTOR ---
+
+def test_single_first_checkpoint_must_be_pre_executor(tmp_path) -> None:
+    store = _single_store(tmp_path)
+    task = store.create_task(
+        title="single-first-cp",
+        executor_kind="opencode",
+        orchestration_mode="single",
+    )
+    lease = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="w1", task_status="QUEUED",
+        expected_orchestration_mode="single",
+    )
+    run_id = lease.run_id
+    for cp in ("EXECUTOR_DISPATCHED", "POST_EXECUTOR", "POST_VALIDATION"):
+        with pytest.raises(TaskStoreError) as ei:
+            store._accept_checkpoint(run_id, cp, "x", 1, lease.owner, lease.epoch)
+        assert "first_must_be_pre_executor" in str(ei.value)
+
+
+# --- Single resume identity validation ---
+
+def test_single_resume_authority_mismatch_fails(tmp_path) -> None:
+    reset_crash_seam()
+    store = _single_store(tmp_path)
+    task = store.create_task(
+        title="single-auth-mismatch",
+        executor_kind="opencode",
+        orchestration_mode="single",
+    )
+
+    fake = _SingleFakeExecutor()
+    svc = _single_svc(store, fake)
+    wt_dir = _init_git_worktree(tmp_path, "wt_single8")
+
+    set_crash_after_checkpoint("PRE_EXECUTOR")
+    with pytest.raises(_CrashSimulated):
+        svc.begin_durable_single(
+            task_id=task.id, workspace_root=str(wt_dir), lease_owner="w1",
+        )
+    reset_crash_seam()
+
+    _single_reconcile_to_interrupted(store, task.id)
+
+    class _ResumeMismatchRouter(ExecutorRouter):
+        def __init__(self):
+            super().__init__()
+            self._fake = fake
+        def create_executor(self, *, executor_kind="opencode", **kwargs):
+            return self._fake
+        def dispatch_execute(self, *a, **kw):
+            raise NotImplementedError()
+
+    svc2 = DurableExecutionService(
+        store=store, router=_ResumeMismatchRouter(),
+        execution_authority_sha="wrong_auth", planning_sha="test_plan_sha",
+    )
+    with pytest.raises(DurableResumeError) as ei:
+        svc2.resume_single(task_id=task.id, lease_owner="w2")
+    assert "authority_sha_mismatch" in str(ei.value)
