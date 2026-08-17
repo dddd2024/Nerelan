@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260817_issue230_single_durable_execution_r2_v3",
-  "round_id": "round_20260817_issue230_single_durable_execution_r2_v3",
+  "decision_id": "decision_20260817_issue230_single_durable_execution_r2_v4",
+  "round_id": "round_20260817_issue230_single_durable_execution_r2_v4",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,28 +14,30 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260817_issue230_single_durable_execution_r2_v2",
-  "follows_last_round_id": "round_20260817_issue230_single_durable_execution_r2_v2",
-  "previous_audit_outcome": "ISSUE230_V2_SUPERSEDED_BEFORE_LOCAL_EXECUTION_OWNER_PLANNING_DRIFT_AND_AUTHORITY_BRANCH_CONTAMINATION",
-  "supersedes_decision_id": "decision_20260817_issue230_single_durable_execution_r2_v2",
-  "superseded_branch_must_not_execute": "owner/issue230-single-durable-execution-r2-v2",
-  "workstream_id": "issue230-single-durable-execution-r2-v3",
+  "follows_last_decision_id": "decision_20260817_issue230_single_durable_execution_r2_v3",
+  "follows_last_round_id": "round_20260817_issue230_single_durable_execution_r2_v3",
+  "previous_audit_outcome": "ISSUE230_V3_OWNER_AUDIT_REJECTED_REAL_OPENCODE_DOUBLE_PREPARE_AND_UNFENCED_ACCEPTANCE",
+  "supersedes_decision_id": "decision_20260817_issue230_single_durable_execution_r2_v3",
+  "superseded_branch_must_not_execute": "owner/issue230-single-durable-execution-r2-v3",
+  "workstream_id": "issue230-single-durable-execution-r2-v4",
   "source_issue": 230,
   "parent_issue": 140,
-  "required_branch": "owner/issue230-single-durable-execution-r2-v3",
-  "starting_head": "48a18a0fcc584ab7612297726c2aa9f5589ad252",
-  "activation_base_sha": "48a18a0fcc584ab7612297726c2aa9f5589ad252",
+  "required_branch": "owner/issue230-single-durable-execution-r2-v4",
+  "starting_head": "e83ae98dc740ca0901175e0ed2d14873a19952df",
+  "activation_base_sha": "e83ae98dc740ca0901175e0ed2d14873a19952df",
+  "predecessor_candidate_head": "e83ae98dc740ca0901175e0ed2d14873a19952df",
   "canonical_planning_sha": "48a18a0fcc584ab7612297726c2aa9f5589ad252",
-  "authority_worktree": "F:/reverse-agent-issue230-single-durable-execution-r2-v3",
+  "authority_worktree": "F:/reverse-agent-issue230-single-durable-execution-r2-v4",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
+  "predecessor_candidate_repair_only": true,
   "pr_creation_allowed": false,
   "issue_comment_allowed": false,
   "worktree_creation_allowed": true,
   "branch_creation_allowed": true,
-  "branch_creation_scope": "local_tracking_branch_owner/issue230-single-durable-execution-r2-v3_only",
+  "branch_creation_scope": "local_tracking_branch_owner/issue230-single-durable-execution-r2-v4_only",
   "remote_branch_creation_allowed": false,
   "local_commit_allowed": true,
   "normal_push_allowed": true,
@@ -60,13 +62,12 @@
   "synthetic_test_credential_fixture_allowed": true,
   "real_task_store_access_allowed": false,
   "product_change_commit_limit": 1,
-  "single_execution_must_reuse_existing_durable_primitives": true,
-  "new_recovery_subsystem_allowed": false,
-  "startup_model_execution_allowed": false,
-  "duplicate_execute_must_fail_closed": true,
-  "stale_owner_mutation_allowed": false,
+  "real_opencode_prepare_must_happen_once": true,
+  "durable_path_must_not_call_nonfenced_dispatch_helper": true,
+  "external_operation_record_and_reconcile_must_be_fenced": true,
+  "resume_existing_worktree_must_not_reprepare": true,
   "ambiguous_external_operation_auto_retry_allowed": false,
-  "execute_resume_semantics_must_remain_separate": true,
+  "startup_model_execution_allowed": false,
   "bootstrap_exception_files": [
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
@@ -77,12 +78,12 @@
   "bootstrap_exception_commands": [
     "git -C F:/reverse-agent-planning-smoke status --short",
     "git -C F:/reverse-agent-planning-smoke fetch origin owner/repository-modernization-v2-planning",
-    "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue230-single-durable-execution-r2-v3",
+    "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue230-single-durable-execution-r2-v4",
     "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/repository-modernization-v2-planning",
-    "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/issue230-single-durable-execution-r2-v3",
-    "powershell -NoProfile -Command \"$b=(git -C F:/reverse-agent-planning-smoke branch --list owner/issue230-single-durable-execution-r2-v3);if($b){'ISSUE230_V3_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};if(Test-Path -LiteralPath 'F:/reverse-agent-issue230-single-durable-execution-r2-v3'){'ISSUE230_V3_WORKTREE_ALREADY_EXISTS';exit 24};'ISSUE230_V3_BOOTSTRAP_TARGETS_ABSENT'\"",
-    "git -C F:/reverse-agent-planning-smoke worktree add --track -b owner/issue230-single-durable-execution-r2-v3 F:/reverse-agent-issue230-single-durable-execution-r2-v3 origin/owner/issue230-single-durable-execution-r2-v3",
-    "Set-Location F:/reverse-agent-issue230-single-durable-execution-r2-v3",
+    "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/issue230-single-durable-execution-r2-v4",
+    "powershell -NoProfile -Command \"$b=(git -C F:/reverse-agent-planning-smoke branch --list owner/issue230-single-durable-execution-r2-v4);if($b){'ISSUE230_V4_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};if(Test-Path -LiteralPath 'F:/reverse-agent-issue230-single-durable-execution-r2-v4'){'ISSUE230_V4_WORKTREE_ALREADY_EXISTS';exit 24};'ISSUE230_V4_BOOTSTRAP_TARGETS_ABSENT'\"",
+    "git -C F:/reverse-agent-planning-smoke worktree add --track -b owner/issue230-single-durable-execution-r2-v4 F:/reverse-agent-issue230-single-durable-execution-r2-v4 origin/owner/issue230-single-durable-execution-r2-v4",
+    "Set-Location F:/reverse-agent-issue230-single-durable-execution-r2-v4",
     "git status --short",
     "git rev-parse HEAD",
     "git merge-base HEAD 48a18a0fcc584ab7612297726c2aa9f5589ad252",
@@ -93,7 +94,7 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "issue230v3.status_before",
+      "command_id": "issue230v4.status_before",
       "command": "git status --short",
       "phase": "status",
       "required": true,
@@ -104,8 +105,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue230v3.focused_durable_single_tests",
-      "command": "python -m pytest tests/platform_v1/test_task_service.py tests/platform_v1/test_task_execution.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_trusted_host.py tests/platform_v1/test_idempotency.py -q",
+      "command_id": "issue230v4.targeted_repair_tests",
+      "command": "python -m pytest tests/platform_v1/test_durable_execution.py tests/platform_v1/test_task_execution.py tests/platform_v1/test_opencode_executor.py tests/platform_v1/test_task_service.py -q",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -115,8 +116,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue230v3.provider_free_regressions",
-      "command": "python -m pytest tests/platform_v1/test_provider_free_task_plane.py tests/platform_v1/test_binding_resolver.py tests/platform_v1/test_opencode_executor.py -q",
+      "command_id": "issue230v4.full_issue230_regressions",
+      "command": "python -m pytest tests/platform_v1/test_task_service.py tests/platform_v1/test_task_execution.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_trusted_host.py tests/platform_v1/test_idempotency.py tests/platform_v1/test_provider_free_task_plane.py tests/platform_v1/test_binding_resolver.py tests/platform_v1/test_opencode_executor.py -q",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -126,7 +127,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue230v3.diff_check",
+      "command_id": "issue230v4.diff_check",
       "command": "git diff --check",
       "phase": "validation",
       "required": true,
@@ -137,7 +138,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue230v3.changed_paths_before_commit",
+      "command_id": "issue230v4.changed_paths_before_commit",
       "command": "git diff --name-only",
       "phase": "validation",
       "required": true,
@@ -148,8 +149,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue230v3.stage_exact_scope",
-      "command": "git add reverse_agent/platform_v1/task_service.py reverse_agent/platform_v1/task_execution.py reverse_agent/platform_v1/durable_execution.py reverse_agent/platform_v1/run_store.py reverse_agent/platform_v1/trusted_host.py tests/platform_v1/test_task_service.py tests/platform_v1/test_task_execution.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_trusted_host.py tests/platform_v1/test_idempotency.py",
+      "command_id": "issue230v4.stage_exact_scope",
+      "command": "git add reverse_agent/platform_v1/durable_execution.py reverse_agent/platform_v1/run_store.py reverse_agent/platform_v1/task_execution.py reverse_agent/platform_v1/opencode_executor.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_task_execution.py tests/platform_v1/test_opencode_executor.py tests/platform_v1/test_task_service.py",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -159,7 +160,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue230v3.staged_paths",
+      "command_id": "issue230v4.staged_paths",
       "command": "git diff --cached --name-only",
       "phase": "validation",
       "required": true,
@@ -170,7 +171,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue230v3.staged_diff_check",
+      "command_id": "issue230v4.staged_diff_check",
       "command": "git diff --cached --check",
       "phase": "validation",
       "required": true,
@@ -181,8 +182,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue230v3.commit_implementation",
-      "command": "git commit -m \"Make single-task execution durable\"",
+      "command_id": "issue230v4.commit_repair",
+      "command": "git commit -m \"Fix durable single executor fencing\"",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -193,7 +194,7 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue230v3.head_after_commit",
+      "command_id": "issue230v4.head_after_commit",
       "command": "git rev-parse HEAD",
       "phase": "status",
       "required": true,
@@ -204,19 +205,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue230v3.compare_paths_after_commit",
-      "command": "git diff --name-only 48a18a0fcc584ab7612297726c2aa9f5589ad252..HEAD",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue230v3.push_branch",
-      "command": "git push origin owner/issue230-single-durable-execution-r2-v3",
+      "command_id": "issue230v4.push_branch",
+      "command": "git push origin owner/issue230-single-durable-execution-r2-v4",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -227,8 +217,8 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue230v3.remote_tracking_head",
-      "command": "git rev-parse origin/owner/issue230-single-durable-execution-r2-v3",
+      "command_id": "issue230v4.remote_tracking_head",
+      "command": "git rev-parse origin/owner/issue230-single-durable-execution-r2-v4",
       "phase": "status",
       "required": true,
       "expected_exit_codes": [0],
@@ -238,7 +228,7 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue230v3.status_final",
+      "command_id": "issue230v4.status_final",
       "command": "git status --short",
       "phase": "status",
       "required": true,
@@ -250,16 +240,14 @@
     }
   ],
   "allowed_mutated_paths": [
-    "reverse_agent/platform_v1/task_service.py",
-    "reverse_agent/platform_v1/task_execution.py",
     "reverse_agent/platform_v1/durable_execution.py",
     "reverse_agent/platform_v1/run_store.py",
-    "reverse_agent/platform_v1/trusted_host.py",
-    "tests/platform_v1/test_task_service.py",
-    "tests/platform_v1/test_task_execution.py",
+    "reverse_agent/platform_v1/task_execution.py",
+    "reverse_agent/platform_v1/opencode_executor.py",
     "tests/platform_v1/test_durable_execution.py",
-    "tests/platform_v1/test_trusted_host.py",
-    "tests/platform_v1/test_idempotency.py",
+    "tests/platform_v1/test_task_execution.py",
+    "tests/platform_v1/test_opencode_executor.py",
+    "tests/platform_v1/test_task_service.py",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
@@ -274,28 +262,19 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "reference_paths": [
+    "reverse_agent/platform_v1/task_service.py",
     "reverse_agent/platform_v1/task_runtime.py",
-    "reverse_agent/platform_v1/opencode_executor.py",
     "reverse_agent/platform_v1/binding_resolver.py",
-    "reverse_agent/model_access/**",
-    "tests/platform_v1/test_task_contracts.py",
-    "tests/platform_v1/test_task_runtime.py",
+    "tests/platform_v1/test_provider_free_task_plane.py",
     "tests/platform_v1/test_binding_resolver.py",
-    "tests/platform_v1/test_opencode_executor.py",
     "project_state/schemas/**"
   ],
   "forbidden_mutated_paths": [
     "project_state/decision_packet.md",
+    "reverse_agent/platform_v1/task_service.py",
     "reverse_agent/platform_v1/task_runtime.py",
-    "reverse_agent/platform_v1/opencode_executor.py",
     "reverse_agent/platform_v1/binding_resolver.py",
     "reverse_agent/model_access/**",
-    "tests/platform_v1/test_task_contracts.py",
-    "tests/platform_v1/test_task_runtime.py",
-    "tests/platform_v1/test_binding_resolver.py",
-    "tests/platform_v1/test_opencode_executor.py",
-    "tests/platform_v1/test_credential_relay.py",
-    "tests/platform_v1/test_task3c_v5_opencode_probe.py",
     "frontend/**",
     ".github/**",
     "docs/**",
@@ -348,11 +327,10 @@
     "destructive_operations_allowed": false,
     "network_access_default_allowed": false,
     "package_installation_allowed": false,
-    "bmad_installation_allowed": false,
     "local_network_exceptions": [
       "git -C F:/reverse-agent-planning-smoke fetch origin owner/repository-modernization-v2-planning",
-      "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue230-single-durable-execution-r2-v3",
-      "git push origin owner/issue230-single-durable-execution-r2-v3"
+      "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue230-single-durable-execution-r2-v4",
+      "git push origin owner/issue230-single-durable-execution-r2-v4"
     ],
     "loopback_model_control_http_allowed": false,
     "loopback_task_api_start_allowed": true,
@@ -366,7 +344,7 @@
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false
   },
-  "expected_terminal_status": "SINGLE_TASK_DURABLE_EXECUTION_READY_FOR_OWNER_AUDIT",
-  "blocked_terminal_status": "SINGLE_TASK_DURABLE_EXECUTION_BLOCKED_WITH_EXACT_EVIDENCE"
+  "expected_terminal_status": "SINGLE_TASK_DURABLE_EXECUTION_V4_READY_FOR_OWNER_AUDIT",
+  "blocked_terminal_status": "SINGLE_TASK_DURABLE_EXECUTION_V4_BLOCKED_WITH_EXACT_EVIDENCE"
 }
 ```
