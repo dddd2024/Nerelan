@@ -345,7 +345,7 @@ class ModelProfileStore:
                     ):
                         external_status = "executor_managed"
                     else:
-                        external_status = "executor_managed"
+                        external_status = existing.external_session_status
                 else:
                     external_status = "not_applicable"
 

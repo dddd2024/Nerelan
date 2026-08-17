@@ -1030,10 +1030,11 @@ def test_host_default_startup_does_not_probe_and_keeps_executor_managed(tmp_path
 
     try:
         host.start(model_control_port=0, task_api_port=0)
-    except Exception:
-        pass
-    host.stop()
-
-    assert host.store.get_connection_public(
-        "sensetime-external-conn"
-    )["external_session_status"] == "executor_managed"
+        assert host.model_control_url != ""
+        assert host.task_api_url != ""
+        assert host.relay_url != ""
+        assert host.store.get_connection_public(
+            "sensetime-external-conn"
+        )["external_session_status"] == "executor_managed"
+    finally:
+        host.stop()

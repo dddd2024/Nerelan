@@ -813,7 +813,7 @@ def test_external_session_missing_when_provider_not_in_auth_metadata() -> None:
 
 
 def test_executor_managed_external_session_survives_authority_unchanged_upsert(tmp_path) -> None:
-    """Authority-unchanged external auth upsert keeps executor_managed status."""
+    """Authority-unchanged external auth upsert preserves existing runtime status."""
     sp = _state_path(tmp_path)
     store = ModelProfileStore(state_path=sp)
     store.upsert_connection(
@@ -836,7 +836,67 @@ def test_executor_managed_external_session_survives_authority_unchanged_upsert(t
             provider="sensetime",
         ),
     )
+    assert store.get_connection_public("persisted-external-conn")["external_session_status"] == "available"
+
+
+def test_available_external_session_survives_authority_unchanged_upsert(tmp_path) -> None:
+    """After refresh sets external-session status to 'available', a name-only
+    upsert with no authority-bearing change must preserve 'available'."""
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(
+        connection_payload(
+            connection_id="persisted-external-conn",
+            auth_method="external_cli_session",
+            provider="sensetime",
+        ),
+    )
     assert store.get_connection_public("persisted-external-conn")["external_session_status"] == "executor_managed"
+
+    store.refresh_external_session_status({"sensetime": "api"})
+    before = store.get_connection_public("persisted-external-conn")["external_session_status"]
+    assert before == "available"
+
+    store.upsert_connection(
+        connection_payload(
+            connection_id="persisted-external-conn",
+            auth_method="external_cli_session",
+            provider="sensetime",
+            name="Renamed Connection",
+        ),
+    )
+    after = store.get_connection_public("persisted-external-conn")["external_session_status"]
+    assert after == "available"
+
+
+def test_missing_external_session_survives_authority_unchanged_upsert(tmp_path) -> None:
+    """After refresh sets external-session status to 'missing', a name-only
+    upsert with no authority-bearing change must preserve 'missing'."""
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(
+        connection_payload(
+            connection_id="persisted-external-conn",
+            auth_method="external_cli_session",
+            provider="sensetime",
+        ),
+    )
+    assert store.get_connection_public("persisted-external-conn")["external_session_status"] == "executor_managed"
+
+    store.refresh_external_session_status({"other-provider": "api"})
+    before = store.get_connection_public("persisted-external-conn")["external_session_status"]
+    assert before == "missing"
+
+    store.upsert_connection(
+        connection_payload(
+            connection_id="persisted-external-conn",
+            auth_method="external_cli_session",
+            provider="sensetime",
+            name="Renamed Connection",
+        ),
+    )
+    after = store.get_connection_public("persisted-external-conn")["external_session_status"]
+    assert after == "missing"
 
 
 def test_executor_managed_external_session_resets_when_authority_changes(tmp_path) -> None:
