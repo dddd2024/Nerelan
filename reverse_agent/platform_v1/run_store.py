@@ -351,6 +351,8 @@ class TaskStore:
             );
             CREATE TABLE IF NOT EXISTS durable_external_operations (
                 operation_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL REFERENCES durable_runs(run_id),
+                task_id TEXT NOT NULL REFERENCES tasks(id),
                 operation_key TEXT NOT NULL,
                 idempotency_key TEXT NOT NULL,
                 request_digest TEXT NOT NULL,
@@ -372,6 +374,23 @@ class TaskStore:
         if "orchestration_mode" not in task_columns:
             self._conn.execute(
                 "ALTER TABLE tasks ADD COLUMN orchestration_mode TEXT NOT NULL DEFAULT 'single'"
+            )
+
+        # Backfill run_id + task_id for any pre-existing external ops rows.
+        _ext_cols = {
+            row["name"] for row in self._conn.execute(
+                "PRAGMA table_info(durable_external_operations)"
+            )
+        }
+        if "run_id" not in _ext_cols:
+            self._conn.execute(
+                "ALTER TABLE durable_external_operations "
+                "ADD COLUMN run_id TEXT NOT NULL DEFAULT ''"
+            )
+        if "task_id" not in _ext_cols:
+            self._conn.execute(
+                "ALTER TABLE durable_external_operations "
+                "ADD COLUMN task_id TEXT NOT NULL DEFAULT ''"
             )
 
         run_columns = {
@@ -1630,27 +1649,51 @@ class TaskStore:
                 f"recover_durable_lease_failed:{exc}"
             ) from exc
     def _external_operation_prevents_dispatch(
-        self, idempotency_key: str, request_digest: str
+        self, idempotency_key: str, request_digest: str,
+        run_id: str = "", owner: str = "", epoch: int = 0,
     ) -> bool:
         """Return True if dispatch should be prevented (operation already exists/succeeded).
 
-        This implements idempotency semantics: if an operation with the same
-        idempotency key already reached SUCCESS or RECONCILED state, prevent
-        duplicate dispatch. If the key doesn't exist, dispatch is allowed.
+        Validates run_id + owner + epoch under the same lock as the query.
         """
         with self._lock:
             if not idempotency_key:
                 return False
-            row = self._conn.execute(
-                "SELECT state, request_digest FROM durable_external_operations "
-                "WHERE idempotency_key = ? ORDER BY created_at DESC LIMIT 1",
-                (idempotency_key,),
-            ).fetchone()
-            if row is None:
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                if run_id:
+                    run_row = cur.execute(
+                        "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
+                        (run_id,),
+                    ).fetchone()
+                    if run_row is None:
+                        cur.execute("ROLLBACK")
+                        return False
+                    if (
+                        int(run_row["lease_epoch"]) != epoch
+                        or run_row["lease_owner"] != owner
+                    ):
+                        cur.execute("ROLLBACK")
+                        return False
+                row = cur.execute(
+                    "SELECT state, request_digest FROM durable_external_operations "
+                    "WHERE idempotency_key = ? AND request_digest = ? "
+                    "ORDER BY created_at DESC LIMIT 1",
+                    (idempotency_key, request_digest),
+                ).fetchone()
+                cur.execute("COMMIT")
+                if row is None:
+                    return False
+                # PENDING is ambiguous: dispatch may or may not have completed.
+                # Fail closed: prevent re-dispatch for ANY existing state.
+                return True
+            except Exception:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
                 return False
-            if row["request_digest"] != request_digest:
-                return False
-            return row["state"] in ("SUCCESS", "RECONCILED")
 
     def _record_external_operation(
         self,
@@ -1658,35 +1701,72 @@ class TaskStore:
         operation_key: str,
         idempotency_key: str,
         request_digest: str,
+        run_id: str = "",
+        task_id: str = "",
+        owner: str = "",
+        epoch: int = 0,
     ) -> Any:
         """Record an external operation BEFORE dispatch.
 
-        If an existing operation with the same idempotency key is found,
-        return it (idempotency).
+        Validates run_id + owner + epoch under the same lock as the INSERT.
         """
         with self._lock:
-            existing = self._conn.execute(
-                "SELECT * FROM durable_external_operations "
-                "WHERE idempotency_key = ? AND request_digest = ? "
-                "ORDER BY created_at DESC LIMIT 1",
-                (idempotency_key, request_digest),
-            ).fetchone()
-            if existing is not None:
-                return _row_to_external_operation(dict(existing))
-            now = _utc_now()
-            op_id = f"op-{_short_uuid()}"
-            self._conn.execute(
-                "INSERT INTO durable_external_operations "
-                "(operation_id, operation_key, idempotency_key, request_digest, "
-                "state, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, 'PENDING', ?, ?)",
-                (op_id, operation_key, idempotency_key, request_digest, now, now),
-            )
-            row = self._conn.execute(
-                "SELECT * FROM durable_external_operations WHERE operation_id = ?",
-                (op_id,),
-            ).fetchone()
-            return _row_to_external_operation(dict(row))
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                if run_id:
+                    run_row = cur.execute(
+                        "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
+                        (run_id,),
+                    ).fetchone()
+                    if run_row is None:
+                        cur.execute("ROLLBACK")
+                        raise TaskStoreError(f"durable_run_not_found:{run_id}")
+                    if (
+                        int(run_row["lease_epoch"]) != epoch
+                        or run_row["lease_owner"] != owner
+                    ):
+                        cur.execute("ROLLBACK")
+                        raise TaskStoreError(
+                            f"lease_fenced_external_op:{run_id}:"
+                            f"owner={owner}:epoch={epoch} "
+                            f"current_owner={run_row['lease_owner']}:"
+                            f"current_epoch={run_row['lease_epoch']}"
+                        )
+                existing = cur.execute(
+                    "SELECT * FROM durable_external_operations "
+                    "WHERE idempotency_key = ? AND request_digest = ? "
+                    "ORDER BY created_at DESC LIMIT 1",
+                    (idempotency_key, request_digest),
+                ).fetchone()
+                if existing is not None:
+                    cur.execute("COMMIT")
+                    return _row_to_external_operation(dict(existing))
+                now = _utc_now()
+                op_id = f"op-{_short_uuid()}"
+                cur.execute(
+                    "INSERT INTO durable_external_operations "
+                    "(operation_id, run_id, task_id, operation_key, idempotency_key, "
+                    "request_digest, state, created_at, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)",
+                    (op_id, run_id, task_id, operation_key, idempotency_key, request_digest, now, now),
+                )
+                cur.execute("COMMIT")
+                row = cur.execute(
+                    "SELECT * FROM durable_external_operations WHERE operation_id = ?",
+                    (op_id,),
+                ).fetchone()
+                return _row_to_external_operation(dict(row))
+            except TaskStoreError:
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError(
+                    f"record_external_operation_failed:{exc}"
+                ) from exc
 
     def _reconcile_external_operation(
         self,
@@ -1694,31 +1774,91 @@ class TaskStore:
         operation_id: str,
         external_operation_id: str,
         result_state: str,
+        run_id: str = "",
+        owner: str = "",
+        epoch: int = 0,
     ) -> Any:
-        """Reconcile an external operation with the result of a dispatch."""
+        """Reconcile an external operation with the result of a dispatch.
+
+        Validates run_id + owner + epoch under the same lock as the UPDATE.
+        """
         with self._lock:
-            row = self._conn.execute(
-                "SELECT * FROM durable_external_operations WHERE operation_id = ?",
-                (operation_id,),
-            ).fetchone()
-            if row is None:
-                raise TaskStoreError(f"external_operation_not_found:{operation_id}")
-            self._conn.execute(
-                "UPDATE durable_external_operations SET "
-                "external_operation_id = ?, result_state = ?, "
-                "state = ?, updated_at = ? "
-                "WHERE operation_id = ?",
-                (
-                    external_operation_id, result_state,
-                    "SUCCESS" if result_state == "success" else "RECONCILED",
-                    _utc_now(), operation_id,
-                ),
-            )
-            updated = self._conn.execute(
-                "SELECT * FROM durable_external_operations WHERE operation_id = ?",
-                (operation_id,),
-            ).fetchone()
-            return _row_to_external_operation(dict(updated))
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                if run_id:
+                    run_row = cur.execute(
+                        "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
+                        (run_id,),
+                    ).fetchone()
+                    if run_row is None:
+                        cur.execute("ROLLBACK")
+                        raise TaskStoreError(f"durable_run_not_found:{run_id}")
+                    if (
+                        int(run_row["lease_epoch"]) != epoch
+                        or run_row["lease_owner"] != owner
+                    ):
+                        cur.execute("ROLLBACK")
+                        raise TaskStoreError(
+                            f"lease_fenced_external_op_reconcile:{run_id}:"
+                            f"owner={owner}:epoch={epoch} "
+                            f"current_owner={run_row['lease_owner']}:"
+                            f"current_epoch={run_row['lease_epoch']}"
+                        )
+                if run_id:
+                    row = cur.execute(
+                        "SELECT * FROM durable_external_operations WHERE operation_id = ? "
+                        "AND run_id = ?",
+                        (operation_id, run_id),
+                    ).fetchone()
+                else:
+                    row = cur.execute(
+                        "SELECT * FROM durable_external_operations WHERE operation_id = ?",
+                        (operation_id,),
+                    ).fetchone()
+                if row is None:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(f"external_operation_not_found:{operation_id}")
+                if run_id:
+                    cur.execute(
+                        "UPDATE durable_external_operations SET "
+                        "external_operation_id = ?, result_state = ?, "
+                        "state = ?, updated_at = ? "
+                        "WHERE operation_id = ? AND run_id = ?",
+                        (
+                            external_operation_id, result_state,
+                            "SUCCESS" if result_state == "success" else "RECONCILED",
+                            _utc_now(), operation_id, run_id,
+                        ),
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE durable_external_operations SET "
+                        "external_operation_id = ?, result_state = ?, "
+                        "state = ?, updated_at = ? "
+                        "WHERE operation_id = ?",
+                        (
+                            external_operation_id, result_state,
+                            "SUCCESS" if result_state == "success" else "RECONCILED",
+                            _utc_now(), operation_id,
+                        ),
+                    )
+                cur.execute("COMMIT")
+                updated = cur.execute(
+                    "SELECT * FROM durable_external_operations WHERE operation_id = ?",
+                    (operation_id,),
+                ).fetchone()
+                return _row_to_external_operation(dict(updated))
+            except TaskStoreError:
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError(
+                    f"reconcile_external_operation_failed:{exc}"
+                ) from exc
 
     def _reconcile_expired_runs(
         self,

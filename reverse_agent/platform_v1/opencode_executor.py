@@ -1449,6 +1449,60 @@ class OpenCodeExecutor:
             role_context=role_context,
         )
 
+    @staticmethod
+    def reconstruct_prepared_context(
+        *,
+        worktree_path: str,
+        base_sha: str,
+        execution_id: str,
+        opencode_exe: str | None = None,
+    ) -> PreparedWorkspaceContext:
+        """Reconstruct a ``PreparedWorkspaceContext`` from an already-existing
+        worktree and its persisted identity.
+
+        This is a provider-free helper used during durable resume. It does
+        NOT call OpenCode, query auth, query models, access credentials,
+        call providers, or create another worktree. It only:
+        - validates the worktree path exists and contains a git HEAD;
+        - resolves the local CLI path and is_cmd flag;
+        - returns a context bound to the persisted identity.
+
+        Raises ``ExecutorRuntimeError`` if the identity cannot be proven.
+        """
+        from pathlib import Path as _Path
+        wt = _Path(worktree_path)
+        if not wt.exists() or not wt.is_dir():
+            raise ExecutorRuntimeError(
+                f"durable_resume_worktree_missing:{worktree_path}"
+            )
+        head_proc = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(wt),
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        actual_head = head_proc.stdout.strip()
+        if not actual_head:
+            raise ExecutorRuntimeError(
+                f"durable_resume_worktree_no_HEAD:{worktree_path}"
+            )
+        if actual_head != base_sha:
+            raise ExecutorRuntimeError(
+                f"durable_resume_worktree_head_mismatch:"
+                f"expected={base_sha}:actual={actual_head}"
+            )
+        cli_path, is_cmd = resolve_opencode_cli(opencode_exe)
+        return PreparedWorkspaceContext(
+            worktree=wt,
+            base_sha=base_sha,
+            execution_id=execution_id,
+            cli_path=cli_path,
+            is_cmd=is_cmd,
+            opencode_exe=opencode_exe,
+        )
+
     def _task_title(self, store: Any, task_id: str) -> str:
         try:
             task = store.get_task(task_id)
