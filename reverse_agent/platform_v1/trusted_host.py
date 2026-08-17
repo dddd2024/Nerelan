@@ -61,7 +61,7 @@ class CombinedTrustedHost:
         github_adapter: LiveGitHubAdapter | None = None,
         execution_authority_sha: str = "",
         planning_sha: str = "",
-        auth_list_probe: callable | None = execute_opencode_auth_list_probe,
+        auth_list_probe: callable | None = None,
     ) -> None:
         task_store = task_store or _make_task_store(task_db_path)
         if store is not None:

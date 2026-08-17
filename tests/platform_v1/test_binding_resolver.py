@@ -250,6 +250,56 @@ def test_external_auth_accepts_available_session_without_credentials(
     assert resolution.external_session_status == "available"
 
 
+@pytest.mark.parametrize(
+    ("auth_method", "status"),
+    [
+        ("external_cli_session", "executor_managed"),
+        ("account_login", "executor_managed"),
+        ("external_cli_session", "available"),
+        ("account_login", "available"),
+    ],
+)
+def test_external_auth_accepts_executor_managed_session_without_credentials(
+    auth_method: str,
+    status: str,
+) -> None:
+    resolution = BindingResolver(
+        transport=_FakeTransport(
+            connection=_connection(
+                auth_method=auth_method,
+                external_session_status=status,
+            )
+        )
+    ).resolve("coding-fast", task_executor="opencode")
+
+    assert resolution.auth_method == auth_method
+    assert resolution.external_session_status == status
+
+
+@pytest.mark.parametrize(
+    ("auth_method", "status"),
+    [
+        ("external_cli_session", "missing"),
+        ("account_login", "missing"),
+        ("external_cli_session", "unknown_value"),
+        ("account_login", "unknown_value"),
+    ],
+)
+def test_external_auth_fails_closed_on_missing_or_unknown_status(
+    auth_method: str,
+    status: str,
+) -> None:
+    with pytest.raises(BindingResolutionError, match="external_session_unavailable"):
+        BindingResolver(
+            transport=_FakeTransport(
+                connection=_connection(
+                    auth_method=auth_method,
+                    external_session_status=status,
+                )
+            )
+        ).resolve("coding-fast", task_executor="opencode")
+
+
 def test_existing_matching_provider_prefix_is_preserved() -> None:
     resolution = BindingResolver(
         transport=_FakeTransport(

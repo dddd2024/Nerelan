@@ -17,7 +17,7 @@ _SECRET_STATUS_VALUES = frozenset(
     {"missing", "session", "environment", "not_applicable"}
 )
 _EXTERNAL_SESSION_STATUS_VALUES = frozenset(
-    {"missing", "available", "not_applicable"}
+    {"missing", "available", "executor_managed", "not_applicable"}
 )
 
 

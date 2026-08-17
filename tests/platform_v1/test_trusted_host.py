@@ -774,7 +774,7 @@ def test_host_startup_refreshes_external_session_from_injected_auth_probe(tmp_pa
     })
     assert host.store.get_connection_public(
         "sensetime-external-conn"
-    )["external_session_status"] == "missing"
+    )["external_session_status"] == "executor_managed"
 
     try:
         host.start(model_control_port=0, task_api_port=0)
@@ -1003,3 +1003,37 @@ def test_external_session_available_rejected_when_probe_raises(tmp_path) -> None
     assert host2.store.get_connection_public("sensetime-ext")[
         "external_session_status"
     ] == "missing"
+
+
+def test_host_default_startup_does_not_probe_and_keeps_executor_managed(tmp_path) -> None:
+    """CombinedTrustedHost default (auth_list_probe=None) must not call any auth
+    probe on startup; external-session Connections must remain executor_managed."""
+    store = _make_store(tmp_path)
+    host = CombinedTrustedHost(
+        task_store=store,
+        execution_authority_sha="auth_v",
+        planning_sha="plan_v",
+    )
+    assert host._auth_list_probe is None
+
+    host.store.upsert_connection({
+        "connection_id": "sensetime-external-conn",
+        "name": "SenseTime External",
+        "provider": "sensetime",
+        "base_url": "https://api.sensenova.cn/v1",
+        "auth_method": "external_cli_session",
+        "enabled": True,
+    })
+    assert host.store.get_connection_public(
+        "sensetime-external-conn"
+    )["external_session_status"] == "executor_managed"
+
+    try:
+        host.start(model_control_port=0, task_api_port=0)
+    except Exception:
+        pass
+    host.stop()
+
+    assert host.store.get_connection_public(
+        "sensetime-external-conn"
+    )["external_session_status"] == "executor_managed"
