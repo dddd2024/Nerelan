@@ -907,18 +907,17 @@ class TaskStore:
             current_status = task_row["status"]
             current_executor_kind = task_row["executor_kind"]
             current_orchestration_mode = task_row["orchestration_mode"]
-            if current_executor_kind != "opencode":
+            if current_executor_kind not in ("opencode", "deterministic_fixture"):
                 cur.execute("ROLLBACK")
                 raise TaskStoreError(
                     f"durable_claim_wrong_executor_kind:{task_id}:"
-                    f"expected=opencode:actual={current_executor_kind}"
+                    f"expected=opencode_or_deterministic_fixture:actual={current_executor_kind}"
                 )
-            if current_orchestration_mode != "sequential_team":
+            if current_orchestration_mode not in ("sequential_team", "single"):
                 cur.execute("ROLLBACK")
                 raise TaskStoreError(
                     f"durable_claim_wrong_orchestration_mode:{task_id}:"
-                    f"expected=sequential_team:"
-                    f"actual={current_orchestration_mode}"
+                    f"expected=sequential_team_or_single:actual={current_orchestration_mode}"
                 )
             if task_status is not None and current_status != task_status:
                 cur.execute("ROLLBACK")
@@ -1558,13 +1557,13 @@ class TaskStore:
                     f"durable_recover_wrong_task_status:{run_id}:"
                     f"expected=INTERRUPTED:actual={task_status}"
                 )
-            if row["orchestration_mode"] != "sequential_team":
+            if row["orchestration_mode"] not in ("sequential_team", "single"):
                 cur.execute("ROLLBACK")
                 raise TaskStoreError(
                     f"durable_recover_wrong_orchestration_mode:{run_id}:"
                     f"actual={row['orchestration_mode']}"
                 )
-            if row["executor_kind"] != "opencode":
+            if row["executor_kind"] not in ("opencode", "deterministic_fixture"):
                 cur.execute("ROLLBACK")
                 raise TaskStoreError(
                     f"durable_recover_wrong_executor_kind:{run_id}:"

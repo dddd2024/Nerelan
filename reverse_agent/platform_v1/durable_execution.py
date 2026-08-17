@@ -524,6 +524,466 @@ class DurableExecutionService:
             self.store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
             raise
 
+    # ---------------------------------------------------------------
+    # Single-mode durable execution
+    # ---------------------------------------------------------------
+
+    def execute_durable_single(
+        self,
+        task_id: str,
+        *,
+        workspace_root: str,
+        lease_owner: str = "task-api",
+    ) -> Any:
+        """Execute a new durable single-mode run with atomic lease acquisition.
+
+        Mirrors the sequential-team durable path: one /execute yields
+        exactly one durable run with owner+epoch fencing, heartbeat,
+        worktree/authority identity persistence, checkpoint acceptance,
+        external-operation journaling, and resume-capable terminal state.
+        """
+        from .task_execution import TaskExecutionOutcome
+        self._assert_trusted_identity_for_execute()
+        task = self.store.get_task(task_id)
+        if task.orchestration_mode != "single":
+            raise TaskExecutionError(
+                f"durable_single_wrong_mode:{task_id}:actual={task.orchestration_mode}"
+            )
+        lease = self._acquire_or_find_lease(
+            task_id, lease_owner, "", workspace_root
+        )
+        _hb = _HeartbeatContext(
+            store=self.store,
+            run_id=lease.run_id,
+            owner=lease.owner,
+            epoch=lease.epoch,
+            expiry_ms=self.expiry_ms,
+            heartbeat_window_ms=self.heartbeat_window_ms,
+        )
+        try:
+            return _hb.heartbeat_during(
+                lambda: self._execute_single_with_lease(
+                    task_id, workspace_root, lease,
+                )
+            )
+        except _CrashSimulated:
+            raise
+        except Exception:
+            self.store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
+            raise
+
+    def _execute_single_with_lease(
+        self,
+        task_id: str,
+        workspace_root: str,
+        lease: LeaseHandle,
+    ) -> Any:
+        """Execute a durable single-mode run: one executor dispatch,
+        fenced checkpoints, validation, terminalization.
+
+        Checkpoint sequence:
+          PRE_PLANNER -> POST_PLANNER -> POST_CODER ->
+          POST_REVIEWER -> POST_VALIDATION
+
+        Semantics for single mode:
+          PRE_PLANNER:  durable run established, before dispatch
+          POST_PLANNER: executor dispatch completed, result accepted
+          POST_CODER:   changed files durably persisted
+          POST_REVIEWER: validation-ready state accepted
+          POST_VALIDATION: validation completed
+        """
+        from .task_execution import TaskExecutionOutcome
+        from .task_runtime import LocalValidationRunner
+        from .opencode_executor import (
+            _collect_product_diff,
+            _collect_final_product_files,
+        )
+
+        self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
+        run = self.store._get_durable_run(lease.run_id)
+
+        if run.accepted_checkpoint == "POST_VALIDATION":
+            stored = self.store.get_task(task_id)
+            review_status = (
+                "READY_FOR_REVIEW_FIXTURE"
+                if stored.executor_kind == "deterministic_fixture"
+                else "READY_FOR_REVIEW"
+            )
+            if stored.status == review_status:
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=run.execution_id,
+                    success=True,
+                    validation_command_id=run.validation_command_id or "git_diff_check",
+                    validation_exit_code=run.validation_exit_code or 0,
+                )
+            raise TaskExecutionError(
+                f"durable_single_post_validation_without_ready:{task_id}"
+            )
+
+        task = self.store.get_task(task_id)
+        executor_kind = task.executor_kind
+        review_status = (
+            "READY_FOR_REVIEW_FIXTURE"
+            if executor_kind == "deterministic_fixture"
+            else "READY_FOR_REVIEW"
+        )
+        executor_kwargs = self._build_executor_kwargs(task)
+
+        # --- External dispatch via the same router path as TaskExecutionService ---
+        # For deterministic_fixture, the executor creates its own worktree internally.
+        # For opencode, prepare_worktree_once is used to establish identity first.
+        use_prepare = executor_kind == "opencode"
+
+        if use_prepare:
+            try:
+                executor = self.router.create_executor(
+                    executor_kind=executor_kind, **executor_kwargs
+                )
+            except Exception as exc:
+                self.store._fenced_classify_failure(
+                    lease.run_id, task_id,
+                    classification="blocked", detail=str(exc),
+                    owner=lease.owner, epoch=lease.epoch,
+                )
+                final = self.store.get_task(task_id)
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=final.execution_id,
+                    success=False, validation_command_id="",
+                    validation_exit_code=-1,
+                    failure_classification=final.failure_classification,
+                    failure_detail=final.failure_detail,
+                )
+
+            try:
+                prepared = executor.prepare_worktree_once(
+                    task_id, Path(workspace_root),
+                    self._execution_service._store_event_callback
+                )
+            except Exception as exc:
+                self.store._fenced_classify_failure(
+                    lease.run_id, task_id,
+                    classification="blocked",
+                    detail=f"worktree_preparation_failed:{exc}",
+                    owner=lease.owner, epoch=lease.epoch,
+                )
+                final = self.store.get_task(task_id)
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=final.execution_id,
+                    success=False, validation_command_id="",
+                    validation_exit_code=-1,
+                    failure_classification=final.failure_classification,
+                    failure_detail=final.failure_detail,
+                )
+
+            wt_path = str(prepared.worktree)
+            if not Path(wt_path).exists():
+                self.store._fenced_classify_failure(
+                    lease.run_id, task_id,
+                    classification="blocked",
+                    detail=f"prepared_worktree_missing:{wt_path}",
+                    owner=lease.owner, epoch=lease.epoch,
+                )
+                final = self.store.get_task(task_id)
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=final.execution_id,
+                    success=False, validation_command_id="",
+                    validation_exit_code=-1,
+                    failure_classification=final.failure_classification,
+                    failure_detail=final.failure_detail,
+                )
+
+            wt_head_sha = self._git_rev_parse_head(wt_path)
+            if not wt_head_sha:
+                self.store._fenced_classify_failure(
+                    lease.run_id, task_id,
+                    classification="blocked",
+                    detail=f"prepared_worktree_empty_HEAD:{wt_path}",
+                    owner=lease.owner, epoch=lease.epoch,
+                )
+                final = self.store.get_task(task_id)
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=final.execution_id,
+                    success=False, validation_command_id="",
+                    validation_exit_code=-1,
+                    failure_classification=final.failure_classification,
+                    failure_detail=final.failure_detail,
+                )
+
+            repo_base_sha = wt_head_sha
+
+            self.store._set_worktree_identity(
+                lease.run_id, wt_path, wt_head_sha,
+                lease.owner, lease.epoch,
+            )
+            self.store._set_authority_identity(
+                lease.run_id,
+                self._trusted_authority_sha(),
+                self._trusted_planning_sha(),
+                lease.owner, lease.epoch,
+            )
+            self.store._set_repository_base_sha(
+                lease.run_id, repo_base_sha,
+                lease.owner, lease.epoch,
+            )
+
+            task_db_path = self.store.db_path
+            task_db_dir = os.path.dirname(os.path.abspath(task_db_path)) or "."
+            checkpoint_dir = os.path.join(task_db_dir, "durable_checkpoints")
+            os.makedirs(checkpoint_dir, exist_ok=True)
+            checkpoint_db_path = os.path.join(
+                checkpoint_dir, f"{lease.run_id}.sqlite3"
+            )
+            self.store._set_checkpoint_db_path(
+                lease.run_id, checkpoint_db_path,
+                lease.owner, lease.epoch,
+            )
+        else:
+            wt_path = ""
+            repo_base_sha = ""
+
+        # PRE_PLANNER: durable run established before any external dispatch.
+        self.store._accept_checkpoint(
+            lease.run_id, "PRE_PLANNER", "", 1, lease.owner, lease.epoch
+        )
+        _check_crash_seam("PRE_PLANNER")
+
+        baseline_product = (
+            _collect_product_diff(Path(wt_path))
+            if wt_path and Path(wt_path).exists() else ()
+        )
+        self.store._fenced_set_changed_files(
+            lease.run_id, task_id, baseline_product,
+            lease.owner, lease.epoch,
+        )
+
+        self.store._fenced_transition_to(
+            lease.run_id, task_id, "RUNNING",
+            lease.owner, lease.epoch,
+        )
+
+        # --- Record external operation BEFORE dispatch ---
+        idempotency_key = f"single-exec-{task_id}-{run.execution_id}"
+        request_digest = _digest(_json_payload({
+            "task_id": task_id,
+            "execution_id": run.execution_id,
+            "workspace_root": workspace_root,
+            "repo_base": repo_base_sha,
+        }))
+        ext_op = self.store._record_external_operation(
+            operation_key=f"single-exec-{task_id}",
+            idempotency_key=idempotency_key,
+            request_digest=request_digest,
+        )
+
+        val_command_id = "git_diff_check"
+        try:
+            exec_result = self._execution_service._dispatch_executor(
+                task=task,
+                workspace_root=workspace_root,
+                validation_command_id=val_command_id,
+                executor_kwargs=executor_kwargs,
+            )
+        except Exception as exc:
+            self.store._fenced_classify_failure(
+                lease.run_id, task_id,
+                classification="executor_dispatch_failed",
+                detail=f"executor_dispatch_exception:{exc}",
+                owner=lease.owner, epoch=lease.epoch,
+            )
+            self.store._fenced_terminalize(
+                lease.run_id, task_id,
+                terminal_status="FAILED",
+                validation_command_id="",
+                validation_exit_code=-1,
+                validation_output_digest="",
+                failure_classification="executor_dispatch_failed",
+                failure_detail=f"executor_dispatch_exception:{exc}",
+                owner=lease.owner, epoch=lease.epoch,
+            )
+            final = self.store.get_task(task_id)
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=final.execution_id,
+                success=False, validation_command_id="",
+                validation_exit_code=-1,
+                failure_classification=final.failure_classification,
+                failure_detail=final.failure_detail,
+            )
+
+        # --- Reconcile external operation ---
+        self.store._reconcile_external_operation(
+            operation_id=ext_op.operation_id,
+            external_operation_id=ext_op.operation_id,
+            result_state="success" if exec_result["success"] else "failure",
+        )
+
+        if not exec_result["success"]:
+            classification = (
+                "blocked"
+                if "unapproved" in exec_result.get("error", "")
+                else exec_result.get("failure_classification", "failed")
+            ) or "failed"
+            self.store._accept_checkpoint(
+                lease.run_id, "POST_PLANNER",
+                _digest(str(exec_result.get("error", ""))),
+                1, lease.owner, lease.epoch,
+            )
+            self.store._accept_checkpoint(
+                lease.run_id, "POST_CODER", "",
+                1, lease.owner, lease.epoch,
+            )
+            self.store._accept_checkpoint(
+                lease.run_id, "POST_REVIEWER", "",
+                1, lease.owner, lease.epoch,
+            )
+            self.store._accept_checkpoint(
+                lease.run_id, "POST_VALIDATION", "",
+                1, lease.owner, lease.epoch,
+            )
+            self.store._fenced_terminalize(
+                lease.run_id, task_id,
+                terminal_status="FAILED",
+                validation_command_id=exec_result.get("validation_command_id", ""),
+                validation_exit_code=exec_result.get("validation_exit_code", -1),
+                validation_output_digest=exec_result.get("validation_output_digest", ""),
+                failure_classification=classification,
+                failure_detail=exec_result.get("error", "executor failed"),
+                owner=lease.owner, epoch=lease.epoch,
+            )
+            final = self.store.get_task(task_id)
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=final.execution_id,
+                success=False,
+                validation_command_id=exec_result.get("validation_command_id", ""),
+                validation_exit_code=exec_result.get("validation_exit_code", -1),
+                failure_classification=final.failure_classification,
+                failure_detail=final.failure_detail,
+            )
+
+        self.store._accept_checkpoint(
+            lease.run_id, "POST_PLANNER",
+            _digest(_json_payload(exec_result)),
+            1, lease.owner, lease.epoch,
+        )
+        _check_crash_seam("POST_PLANNER")
+
+        self.store._fenced_set_changed_files(
+            lease.run_id, task_id, tuple(exec_result.get("changed_files", [])),
+            lease.owner, lease.epoch,
+        )
+        self.store._accept_checkpoint(
+            lease.run_id, "POST_CODER", "",
+            1, lease.owner, lease.epoch,
+        )
+        _check_crash_seam("POST_CODER")
+
+        self.store._set_validation_result(
+            lease.run_id,
+            command_id=exec_result.get("validation_command_id", val_command_id),
+            exit_code=exec_result.get("validation_exit_code", 0),
+            output_digest=exec_result.get("validation_output_digest", ""),
+            owner=lease.owner, epoch=lease.epoch,
+        )
+        self.store._accept_checkpoint(
+            lease.run_id, "POST_REVIEWER", "",
+            1, lease.owner, lease.epoch,
+        )
+        _check_crash_seam("POST_REVIEWER")
+
+        # For opencode, run final git_diff_check in the prepared worktree.
+        # For deterministic_fixture, the executor already ran validation internally.
+        if use_prepare and wt_path:
+            val_runner = LocalValidationRunner()
+            try:
+                val_exit, val_output, val_digest = val_runner.run(
+                    task_id=task_id,
+                    command_id=val_command_id,
+                    cwd=wt_path,
+                )
+            except Exception:
+                val_exit, val_output, val_digest = -1, "", ""
+        else:
+            val_exit = exec_result.get("validation_exit_code", 0)
+            val_output = ""
+            val_digest = exec_result.get("validation_output_digest", "")
+
+        self.store._set_validation_result(
+            lease.run_id,
+            command_id=val_command_id,
+            exit_code=val_exit,
+            output_digest=val_digest,
+            owner=lease.owner, epoch=lease.epoch,
+        )
+        self.store._accept_checkpoint(
+            lease.run_id, "POST_VALIDATION", "",
+            1, lease.owner, lease.epoch,
+        )
+        _check_crash_seam("POST_VALIDATION")
+
+        final_changed = exec_result.get("changed_files", [])
+        if use_prepare and wt_path:
+            final_changed = _collect_final_product_files(Path(wt_path))
+        self.store._fenced_set_changed_files(
+            lease.run_id, task_id, tuple(final_changed),
+            lease.owner, lease.epoch,
+        )
+
+        self.store._fenced_transition_to(
+            lease.run_id, task_id, "VALIDATING",
+            lease.owner, lease.epoch,
+        )
+        if val_exit == 0:
+            self.store._fenced_transition_to(
+                lease.run_id, task_id, review_status,
+                lease.owner, lease.epoch,
+            )
+            self.store._fenced_add_event(
+                lease.run_id, task_id,
+                event_type="VALIDATED",
+                title="Durable single execution validated",
+                description="single-mode executor dispatch + validation completed",
+                metadata={
+                    "validation_exit_code": val_exit,
+                    "validation_command_id": val_command_id,
+                    "run_id": lease.run_id,
+                    "executor_kind": executor_kind,
+                },
+                owner=lease.owner, epoch=lease.epoch,
+            )
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=run.execution_id,
+                success=True,
+                validation_command_id=val_command_id,
+                validation_exit_code=val_exit,
+            )
+
+        self.store._fenced_terminalize(
+            lease.run_id, task_id,
+            terminal_status="FAILED",
+            validation_command_id=val_command_id,
+            validation_exit_code=val_exit,
+            validation_output_digest=val_digest,
+            failure_classification="deterministic_validation_failure",
+            failure_detail=f"git_diff_check exit={val_exit}",
+            owner=lease.owner, epoch=lease.epoch,
+        )
+        return TaskExecutionOutcome(
+            task_id=task_id,
+            execution_id=run.execution_id,
+            success=False,
+            validation_command_id=val_command_id,
+            validation_exit_code=val_exit,
+            failure_classification="deterministic_validation_failure",
+            failure_detail=f"git_diff_check exit={val_exit}",
+        )
+
     def _acquire_or_find_lease(
         self,
         task_id: str,
@@ -1407,6 +1867,492 @@ class DurableExecutionService:
         except Exception:
             self.store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
             raise
+
+    # ---------------------------------------------------------------
+    # Single-mode durable resume / recovery
+    # ---------------------------------------------------------------
+
+    def resume_single(
+        self,
+        task_id: str,
+        *,
+        workspace_root: str = "",
+        lease_owner: str = "task-api-resume",
+        repository_base_sha: str = "",
+        execution_authority_sha: str | None = None,
+        planning_sha: str | None = None,
+    ) -> Any:
+        """Resume/recover a durable single-mode run from the last accepted
+        checkpoint. Uses same fencing, identity, and recovery semantics as
+        sequential-team resume; executor dispatch is skipped when its result
+        has already been durably accepted.
+        """
+        from .task_execution import TaskExecutionOutcome
+
+        auth_sha, plan_sha = self._assert_trusted_identity_for_resume(
+            execution_authority_sha=execution_authority_sha,
+            planning_sha=planning_sha,
+        )
+
+        run_raw = self.store._find_active_durable_run(task_id)
+        if run_raw is None:
+            raise DurableResumeError(f"no_active_durable_run:{task_id}")
+
+        if isinstance(run_raw, dict):
+            run_id = run_raw["run_id"]
+        else:
+            run_id = run_raw.run_id
+        run_obj = self.store._get_durable_run(run_id)
+        stored_task = self.store.get_task(task_id)
+
+        if stored_task.status in ("READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"):
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=run_obj.execution_id,
+                success=True,
+                validation_command_id=run_obj.validation_command_id or "git_diff_check",
+                validation_exit_code=run_obj.validation_exit_code or 0,
+            )
+
+        if stored_task.orchestration_mode != "single":
+            raise DurableResumeError(
+                f"invalid_orchestration_mode:{stored_task.orchestration_mode}"
+            )
+
+        if auth_sha and run_obj.execution_authority_sha != auth_sha:
+            raise DurableResumeError(
+                f"authority_sha_mismatch:{run_obj.execution_authority_sha}!={auth_sha}"
+            )
+        if plan_sha and run_obj.planning_sha != plan_sha:
+            raise DurableResumeError(
+                f"planning_sha_mismatch:{run_obj.planning_sha}!={plan_sha}"
+            )
+
+        now_ms = _utc_now_ms()
+        lease_expiry_ms = int(getattr(run_obj, "lease_expiry_ms", 0) or 0)
+        existing_owner = getattr(run_obj, "lease_owner", "") or ""
+        existing_epoch = int(getattr(run_obj, "lease_epoch", 0) or 0)
+
+        live_statuses = frozenset({
+            "PREPARING_WORKSPACE", "RUNNING", "RUNNING_FIXTURE", "VALIDATING",
+        })
+        if (
+            stored_task.status in live_statuses
+            and lease_expiry_ms > now_ms
+            and existing_owner
+            and existing_epoch > 0
+        ):
+            raise DurableResumeError(
+                f"durable_run_lease_live:{task_id}:"
+                f"status={stored_task.status}:epoch={existing_epoch}:"
+                f"owner={existing_owner}"
+            )
+
+        recovery_class = getattr(run_obj, "recovery_classification", "") or ""
+        if stored_task.status == "INTERRUPTED":
+            if recovery_class not in ("orphan_stale_lease", "interrupted", "recovering"):
+                raise DurableResumeError(
+                    f"invalid_recovery_classification:{recovery_class}"
+                )
+        elif stored_task.status not in ("BLOCKED", "FAILED", "CANCELLED", "INTERRUPTED"):
+            raise DurableResumeError(
+                f"invalid_resume_status:{stored_task.status}"
+            )
+
+        wt_path = run_obj.worktree_path
+        if not wt_path:
+            wt_path = workspace_root
+        if workspace_root and run_obj.worktree_path and run_obj.worktree_path != workspace_root:
+            raise DurableResumeError(
+                f"workspace_mismatch:{run_obj.worktree_path}!={workspace_root}"
+            )
+
+        accepted_cp_pre = getattr(run_obj, "accepted_checkpoint", "") or ""
+        if not Path(wt_path).exists() and accepted_cp_pre != "PRE_PLANNER":
+            raise DurableResumeError(f"worktree_not_found:{wt_path}")
+
+        if Path(wt_path).exists():
+            actual_head = self._git_rev_parse_head(wt_path)
+            stored_base = getattr(run_obj, "repository_base_sha", "") or ""
+            if stored_base and actual_head != stored_base:
+                raise DurableResumeError(
+                    f"repository_base_head_mismatch:{stored_base}!={actual_head}"
+                )
+
+        accepted_cp = getattr(run_obj, "accepted_checkpoint", "") or ""
+        if accepted_cp == "POST_VALIDATION":
+            stored = self.store.get_task(task_id)
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=run_obj.execution_id,
+                success=True,
+                validation_command_id=run_obj.validation_command_id or "git_diff_check",
+                validation_exit_code=run_obj.validation_exit_code or 0,
+            )
+
+        if accepted_cp == "":
+            raise DurableResumeError(
+                f"pre_pre_planner_no_reconstruction_path:{task_id}:"
+                f"accepted_checkpoint_empty_fail_closed"
+            )
+
+        resume_owner = lease_owner or existing_owner or "task-api-resume"
+        require_interrupted = stored_task.status == "INTERRUPTED"
+        lease = self.store._recover_durable_lease(
+            run_id, resume_owner,
+            expiry_ms=self.expiry_ms,
+            require_interrupted=require_interrupted,
+        )
+        assert lease.epoch > existing_epoch, "recovery epoch must be strictly newer"
+
+        _hb = _HeartbeatContext(
+            store=self.store,
+            run_id=lease.run_id,
+            owner=lease.owner,
+            epoch=lease.epoch,
+            expiry_ms=self.expiry_ms,
+            heartbeat_window_ms=self.heartbeat_window_ms,
+        )
+        try:
+            return _hb.heartbeat_during(
+                lambda: self._resume_single_with_lease(
+                    task_id, wt_path, run_obj, lease,
+                )
+            )
+        except _CrashSimulated:
+            raise
+        except Exception:
+            self.store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
+            raise
+
+    def _resume_single_with_lease(
+        self,
+        task_id: str,
+        workspace_root: str,
+        run: Any,
+        lease: LeaseHandle,
+    ) -> Any:
+        """Resume a single-mode durable run.
+
+        Based on last accepted checkpoint:
+        - PRE_PLANNER: identity persisted but executor not yet dispatched;
+          re-dispatch allowed (crash occurred before external call).
+        - POST_PLANNER / POST_CODER / POST_REVIEWER: executor result already
+          durably accepted; continue to validation WITHOUT re-dispatch.
+        - POST_VALIDATION: already complete; return success.
+        """
+        from .task_execution import TaskExecutionOutcome
+        from .task_runtime import LocalValidationRunner
+        from .opencode_executor import (
+            _collect_product_diff,
+            _collect_final_product_files,
+        )
+
+        self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
+
+        stored = self.store.get_task(task_id)
+        if stored.status == "INTERRUPTED":
+            self.store._fenced_transition_to(
+                lease.run_id, task_id, "RUNNING",
+                lease.owner, lease.epoch,
+            )
+
+        accepted = run.accepted_checkpoint
+        if accepted == "POST_VALIDATION":
+            stored = self.store.get_task(task_id)
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=run.execution_id,
+                success=True,
+                validation_command_id=run.validation_command_id or "git_diff_check",
+                validation_exit_code=run.validation_exit_code or 0,
+            )
+
+        wt_path = str(run.worktree_path or workspace_root)
+        prepared_path = Path(wt_path)
+        baseline_product = _collect_product_diff(prepared_path) if prepared_path.exists() else ()
+        self.store._fenced_set_changed_files(
+            lease.run_id, task_id, baseline_product,
+            lease.owner, lease.epoch,
+        )
+
+        role_attempt = run.role_attempt
+
+        if accepted in ("POST_PLANNER", "POST_CODER", "POST_REVIEWER"):
+            # Executor result already durably accepted; skip dispatch.
+            pass
+        elif accepted == "PRE_PLANNER":
+            # Identity persisted but executor not yet dispatched;
+            # re-dispatch is safe (crash occurred before external call).
+            task = self.store.get_task(task_id)
+            executor_kind = task.executor_kind
+            executor_kwargs = self._build_executor_kwargs(task)
+            try:
+                executor = self.router.create_executor(
+                    executor_kind=executor_kind, **executor_kwargs
+                )
+            except Exception as exc:
+                self.store._fenced_classify_failure(
+                    lease.run_id, task_id,
+                    classification="blocked", detail=str(exc),
+                    owner=lease.owner, epoch=lease.epoch,
+                )
+                final = self.store.get_task(task_id)
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=final.execution_id,
+                    success=False, validation_command_id="",
+                    validation_exit_code=-1,
+                    failure_classification=final.failure_classification,
+                    failure_detail=final.failure_detail,
+                )
+
+            # Record external operation before re-dispatch.
+            idempotency_key = f"single-exec-{task_id}-{run.execution_id}"
+            request_digest = _digest(_json_payload({
+                "task_id": task_id,
+                "execution_id": run.execution_id,
+                "workspace_root": workspace_root,
+                "repo_base": run.repository_base_sha,
+            }))
+
+            # Check if we already have a recorded (but unreconciled) operation.
+            if self.store._external_operation_prevents_dispatch(
+                idempotency_key, request_digest,
+            ):
+                # Ambiguous: dispatch may have happened but completion unproven.
+                # FAIL CLOSED: do not re-issue.
+                self.store._fenced_classify_failure(
+                    lease.run_id, task_id,
+                    classification="ambiguous_external_operation",
+                    detail="external operation already recorded; refusing second dispatch",
+                    owner=lease.owner, epoch=lease.epoch,
+                )
+                self.store._fenced_terminalize(
+                    lease.run_id, task_id,
+                    terminal_status="FAILED",
+                    validation_command_id="",
+                    validation_exit_code=-1,
+                    validation_output_digest="",
+                    failure_classification="ambiguous_external_operation",
+                    failure_detail="external operation already recorded; refusing second dispatch",
+                    owner=lease.owner, epoch=lease.epoch,
+                )
+                final = self.store.get_task(task_id)
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=final.execution_id,
+                    success=False, validation_command_id="",
+                    validation_exit_code=-1,
+                    failure_classification=final.failure_classification,
+                    failure_detail=final.failure_detail,
+                )
+
+            ext_op = self.store._record_external_operation(
+                operation_key=f"single-exec-{task_id}",
+                idempotency_key=idempotency_key,
+                request_digest=request_digest,
+            )
+
+            try:
+                exec_result = self._execution_service._dispatch_executor(
+                    task=task,
+                    workspace_root=workspace_root,
+                    validation_command_id="git_diff_check",
+                    executor_kwargs=executor_kwargs,
+                )
+            except Exception as exc:
+                self.store._fenced_classify_failure(
+                    lease.run_id, task_id,
+                    classification="executor_dispatch_failed",
+                    detail=f"executor_dispatch_exception:{exc}",
+                    owner=lease.owner, epoch=lease.epoch,
+                )
+                self.store._fenced_terminalize(
+                    lease.run_id, task_id,
+                    terminal_status="FAILED",
+                    validation_command_id="",
+                    validation_exit_code=-1,
+                    validation_output_digest="",
+                    failure_classification="executor_dispatch_failed",
+                    failure_detail=f"executor_dispatch_exception:{exc}",
+                    owner=lease.owner, epoch=lease.epoch,
+                )
+                final = self.store.get_task(task_id)
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=final.execution_id,
+                    success=False, validation_command_id="",
+                    validation_exit_code=-1,
+                    failure_classification=final.failure_classification,
+                    failure_detail=final.failure_detail,
+                )
+
+            self.store._reconcile_external_operation(
+                operation_id=ext_op.operation_id,
+                external_operation_id=ext_op.operation_id,
+                result_state="success" if exec_result["success"] else "failure",
+            )
+
+            if exec_result["success"]:
+                computed_wt = os.path.join(workspace_root, task_id)
+                if Path(computed_wt).exists():
+                    self.store._set_worktree_identity(
+                        lease.run_id, computed_wt,
+                        self._git_rev_parse_head(computed_wt),
+                        lease.owner, lease.epoch,
+                    )
+                    wt_path = computed_wt
+                    prepared_path = Path(wt_path)
+            else:
+                self.store._accept_checkpoint(
+                    lease.run_id, "POST_PLANNER",
+                    _digest(str(exec_result.get("error", ""))),
+                    role_attempt, lease.owner, lease.epoch,
+                )
+                self.store._accept_checkpoint(
+                    lease.run_id, "POST_CODER", "",
+                    role_attempt, lease.owner, lease.epoch,
+                )
+                self.store._accept_checkpoint(
+                    lease.run_id, "POST_REVIEWER", "",
+                    role_attempt, lease.owner, lease.epoch,
+                )
+                self.store._accept_checkpoint(
+                    lease.run_id, "POST_VALIDATION", "",
+                    role_attempt, lease.owner, lease.epoch,
+                )
+                classification = (
+                    exec_result.get("failure_classification", "failed") or "failed"
+                )
+                self.store._fenced_terminalize(
+                    lease.run_id, task_id,
+                    terminal_status="FAILED",
+                    validation_command_id=exec_result.get("validation_command_id", ""),
+                    validation_exit_code=exec_result.get("validation_exit_code", -1),
+                    validation_output_digest=exec_result.get("validation_output_digest", ""),
+                    failure_classification=classification,
+                    failure_detail=exec_result.get("error", "executor failed"),
+                    owner=lease.owner, epoch=lease.epoch,
+                )
+                final = self.store.get_task(task_id)
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=final.execution_id,
+                    success=False,
+                    validation_command_id=exec_result.get("validation_command_id", ""),
+                    validation_exit_code=exec_result.get("validation_exit_code", -1),
+                    failure_classification=final.failure_classification,
+                    failure_detail=final.failure_detail,
+                )
+
+            # Accept POST_PLANNER, POST_CODER, POST_REVIEWER for successful dispatch.
+            self.store._accept_checkpoint(
+                lease.run_id, "POST_PLANNER",
+                _digest(_json_payload(exec_result)),
+                role_attempt, lease.owner, lease.epoch,
+            )
+            _check_crash_seam("POST_PLANNER")
+            self.store._fenced_set_changed_files(
+                lease.run_id, task_id, tuple(exec_result.get("changed_files", [])),
+                lease.owner, lease.epoch,
+            )
+            self.store._accept_checkpoint(
+                lease.run_id, "POST_CODER", "",
+                role_attempt, lease.owner, lease.epoch,
+            )
+            _check_crash_seam("POST_CODER")
+            self.store._set_validation_result(
+                lease.run_id,
+                command_id=exec_result.get("validation_command_id", "git_diff_check"),
+                exit_code=exec_result.get("validation_exit_code", 0),
+                output_digest=exec_result.get("validation_output_digest", ""),
+                owner=lease.owner, epoch=lease.epoch,
+            )
+            self.store._accept_checkpoint(
+                lease.run_id, "POST_REVIEWER", "",
+                role_attempt, lease.owner, lease.epoch,
+            )
+            _check_crash_seam("POST_REVIEWER")
+
+        # --- Validation phase (common path) ---
+        val_runner = LocalValidationRunner()
+        try:
+            val_exit, val_output, val_digest = val_runner.run(
+                task_id=task_id,
+                command_id="git_diff_check",
+                cwd=wt_path,
+            )
+        except Exception:
+            val_exit, val_output, val_digest = -1, "", ""
+
+        self.store._set_validation_result(
+            lease.run_id,
+            command_id="git_diff_check",
+            exit_code=val_exit,
+            output_digest=val_digest,
+            owner=lease.owner, epoch=lease.epoch,
+        )
+        self.store._accept_checkpoint(
+            lease.run_id, "POST_VALIDATION", "",
+            role_attempt, lease.owner, lease.epoch,
+        )
+        _check_crash_seam("POST_VALIDATION")
+
+        final_changed = _collect_final_product_files(prepared_path)
+        self.store._fenced_set_changed_files(
+            lease.run_id, task_id, final_changed,
+            lease.owner, lease.epoch,
+        )
+
+        self.store._fenced_transition_to(
+            lease.run_id, task_id, "VALIDATING",
+            lease.owner, lease.epoch,
+        )
+        if val_exit == 0:
+            self.store._fenced_transition_to(
+                lease.run_id, task_id, "READY_FOR_REVIEW",
+                lease.owner, lease.epoch,
+            )
+            self.store._fenced_add_event(
+                lease.run_id, task_id,
+                event_type="VALIDATED",
+                title="Durable single execution validated (resume)",
+                description="resume validation completed",
+                metadata={
+                    "validation_exit_code": val_exit,
+                    "validation_command_id": "git_diff_check",
+                    "run_id": lease.run_id,
+                },
+                owner=lease.owner, epoch=lease.epoch,
+            )
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=run.execution_id,
+                success=True,
+                validation_command_id="git_diff_check",
+                validation_exit_code=val_exit,
+            )
+
+        self.store._fenced_terminalize(
+            lease.run_id, task_id,
+            terminal_status="FAILED",
+            validation_command_id="git_diff_check",
+            validation_exit_code=val_exit,
+            validation_output_digest=val_digest,
+            failure_classification="deterministic_validation_failure",
+            failure_detail=f"git_diff_check exit={val_exit}",
+            owner=lease.owner, epoch=lease.epoch,
+        )
+        return TaskExecutionOutcome(
+            task_id=task_id,
+            execution_id=run.execution_id,
+            success=False,
+            validation_command_id="git_diff_check",
+            validation_exit_code=val_exit,
+            failure_classification="deterministic_validation_failure",
+            failure_detail=f"git_diff_check exit={val_exit}",
+        )
 
     def _resume_with_lease(
         self,

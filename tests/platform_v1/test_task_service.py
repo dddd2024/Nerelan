@@ -22,7 +22,12 @@ def task_server(tmp_path):
     db_path = str(tmp_path / "tasks.sqlite3")
     store = TaskStore(db_path=db_path)
     router = ExecutorRouter()
-    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173")
+    handler_cls = _handler_factory(
+        store, router,
+        allowed_origin="http://localhost:5173",
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    )
     from http.server import ThreadingHTTPServer
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
@@ -213,7 +218,12 @@ def test_router_injection_http_execute(task_server) -> None:
     tracing_router = _TracingRouter()
     from http.server import ThreadingHTTPServer
 
-    handler_cls = _handler_factory(store, tracing_router, allowed_origin="http://localhost:5173")
+    handler_cls = _handler_factory(
+        store, tracing_router,
+        allowed_origin="http://localhost:5173",
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    )
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
     port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -263,7 +273,12 @@ def test_task_service_executor_runs_while_state_is_running_not_validating(tmp_pa
             )
 
     router = _TimelineRouter()
-    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173")
+    handler_cls = _handler_factory(
+        store, router,
+        allowed_origin="http://localhost:5173",
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    )
     from http.server import ThreadingHTTPServer
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
@@ -279,9 +294,9 @@ def test_task_service_executor_runs_while_state_is_running_not_validating(tmp_pa
         assert executed["status"] == "READY_FOR_REVIEW_FIXTURE"
         assert router.states_at_dispatch, "executor must be dispatched"
         for s in router.states_at_dispatch:
-            assert s == "RUNNING_FIXTURE", s
+            assert s == "RUNNING", s
             assert s != "VALIDATING", s
-            assert s != "READY_FOR_REVIEW_FIXTURE", s
+            assert s != "READY_FOR_REVIEW", s
     finally:
         server.shutdown()
         server.server_close()
@@ -312,7 +327,12 @@ def test_task_service_validator_runs_after_executor(tmp_path) -> None:
             return result
 
     obs = _StateObserver()
-    handler_cls = _handler_factory(store, obs, allowed_origin="http://localhost:5173")
+    handler_cls = _handler_factory(
+        store, obs,
+        allowed_origin="http://localhost:5173",
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    )
     from http.server import ThreadingHTTPServer
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
@@ -328,8 +348,8 @@ def test_task_service_validator_runs_after_executor(tmp_path) -> None:
         assert executed["status"] == "READY_FOR_REVIEW_FIXTURE"
         assert obs.states, "executor must run"
         for before, after in obs.states:
-            assert before == "RUNNING_FIXTURE"
-            assert after == "RUNNING_FIXTURE"
+            assert before == "RUNNING"
+            assert after == "RUNNING"
         task = store.get_task(tid)
         assert task.validation_exit_code == 0
         assert task.validation_command_id == "git_diff_check"
@@ -983,7 +1003,10 @@ def test_single_mode_execute_backward_compatible_http(tmp_path) -> None:
 
     trace_router = _TraceRouter()
     handler_cls = _handler_factory(
-        store, trace_router, allowed_origin="http://localhost:5173"
+        store, trace_router,
+        allowed_origin="http://localhost:5173",
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
     )
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
     port = server.server_address[1]

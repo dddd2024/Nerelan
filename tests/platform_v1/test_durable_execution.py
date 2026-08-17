@@ -2975,3 +2975,420 @@ def test_post_coder_reviewer_mutation_still_rejected_after_restore(tmp_path) -> 
     assert outcome.failure_classification == "reviewer_product_mutation"
     task_rev = store2.get_task(task.id)
     assert task_rev.failure_classification == "reviewer_product_mutation"
+
+# ===================================================================
+# Single-mode durable execution tests (Issue #230 Sprint A)
+# ===================================================================
+
+def test_single_execute_creates_exactly_one_durable_run(tmp_path) -> None:
+    """One single /execute -> exactly one durable run, one lease."""
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="single-durable-one",
+        executor_kind="deterministic_fixture",
+        orchestration_mode="single",
+    )
+
+    service = DurableExecutionService(
+        store=store, router=ExecutorRouter(),
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    )
+    outcome = service.execute_durable_single(
+        task_id=task.id, workspace_root=str(tmp_path / "ws"), lease_owner="w1",
+    )
+    assert outcome.success is True
+
+    rows = store._conn.execute(
+        "SELECT run_id FROM durable_runs WHERE task_id = ?", (task.id,),
+    ).fetchall()
+    assert len(rows) == 1
+
+    run = store._get_durable_run(rows[0]["run_id"])
+    assert run.lease_owner == "w1"
+    assert run.lease_epoch == 1
+    assert run.accepted_checkpoint == "POST_VALIDATION"
+
+    task_after = store.get_task(task.id)
+    assert task_after.status == "READY_FOR_REVIEW_FIXTURE"
+
+
+def test_single_execute_dispatches_executor_once(tmp_path) -> None:
+    """One eligible single execution -> exactly one fake executor dispatch."""
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="single-dispatch",
+        executor_kind="deterministic_fixture",
+        orchestration_mode="single",
+    )
+
+    dispatch_count = [0]
+
+    class CountingRouter(ExecutorRouter):
+        def dispatch_execute(self, **kwargs):
+            dispatch_count[0] += 1
+            return super().dispatch_execute(**kwargs)
+
+    service = DurableExecutionService(
+        store=store, router=CountingRouter(),
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    )
+    outcome = service.execute_durable_single(
+        task_id=task.id, workspace_root=str(tmp_path / "ws"), lease_owner="w1",
+    )
+    assert outcome.success is True
+    assert dispatch_count[0] == 1
+
+
+def test_single_duplicate_execute_fails_closed(tmp_path) -> None:
+    """Second /execute on same task -> zero second dispatch, no second run."""
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="single-dup",
+        executor_kind="deterministic_fixture",
+        orchestration_mode="single",
+    )
+
+    dispatch_count = [0]
+
+    class CountingRouter2(ExecutorRouter):
+        def dispatch_execute(self, **kwargs):
+            dispatch_count[0] += 1
+            return super().dispatch_execute(**kwargs)
+
+    service = DurableExecutionService(
+        store=store, router=CountingRouter2(),
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    )
+    outcome1 = service.execute_durable_single(
+        task_id=task.id, workspace_root=str(tmp_path / "ws"), lease_owner="w1",
+    )
+    assert outcome1.success is True
+    assert dispatch_count[0] == 1
+
+    service2 = DurableExecutionService(
+        store=store, router=CountingRouter2(),
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    )
+    with pytest.raises((TaskExecutionError, TaskStoreError)):
+        service2.execute_durable_single(
+            task_id=task.id, workspace_root=str(tmp_path / "ws"), lease_owner="w2",
+        )
+    assert dispatch_count[0] == 1
+
+    rows = store._conn.execute(
+        "SELECT run_id FROM durable_runs WHERE task_id = ?", (task.id,),
+    ).fetchall()
+    assert len(rows) == 1
+
+
+def test_single_stale_epoch_mutation_rejected(tmp_path) -> None:
+    """Stale owner/epoch cannot mutate durable accepted state for single mode."""
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="single-epoch",
+        executor_kind="deterministic_fixture",
+        orchestration_mode="single",
+    )
+
+    lease = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="w1",
+    )
+    run_id = lease.run_id
+    store._accept_checkpoint(run_id, "PRE_PLANNER", "", 1, lease.owner, lease.epoch)
+
+    lease2 = store._recover_durable_lease(run_id, "w2")
+    assert lease2.epoch == 2
+
+    with pytest.raises(TaskStoreError):
+        store._accept_checkpoint(run_id, "POST_PLANNER", "x", 1, "w1", 1)
+    with pytest.raises(TaskStoreError):
+        store._heartbeat_durable_lease(run_id, "w1", 1, expiry_ms=300000)
+    with pytest.raises(TaskStoreError):
+        store._fenced_classify_failure(
+            run_id, task.id, classification="x", detail="x",
+            owner="w1", epoch=1,
+        )
+    with pytest.raises(TaskStoreError):
+        store._fenced_terminalize(
+            run_id, task.id, terminal_status="FAILED",
+            validation_command_id="", validation_exit_code=-1,
+            validation_output_digest="",
+            failure_classification="x", failure_detail="x",
+            owner="w1", epoch=1,
+        )
+
+
+def test_single_recovery_epoch_strictly_newer(tmp_path) -> None:
+    """Recovery obtains a strictly newer fencing epoch for single mode."""
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="single-recovery-epoch",
+        executor_kind="deterministic_fixture",
+        orchestration_mode="single",
+    )
+
+    lease1 = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="w1",
+    )
+    run_id = lease1.run_id
+    store._accept_checkpoint(run_id, "PRE_PLANNER", "", 1, lease1.owner, lease1.epoch)
+    assert lease1.epoch == 1
+
+    _expire_and_reconcile(store, task.id)
+    task_after = store.get_task(task.id)
+    assert task_after.status == "INTERRUPTED"
+
+    lease2 = store._recover_durable_lease(run_id, "w2")
+    assert lease2.epoch == 2
+    assert lease2.epoch > lease1.epoch
+
+
+def test_single_base_authority_drift_fails_closed(tmp_path) -> None:
+    """Different execution_authority_sha on resume -> fail closed."""
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="single-authority-drift",
+        executor_kind="deterministic_fixture",
+        orchestration_mode="single",
+    )
+
+    lease = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="w1",
+    )
+    run_id = lease.run_id
+    store._accept_checkpoint(run_id, "PRE_PLANNER", "", 1, lease.owner, lease.epoch)
+
+    _expire_and_reconcile(store, task.id)
+
+    service_bad = DurableExecutionService(
+        store=store, router=ExecutorRouter(),
+        execution_authority_sha="different_authority",
+        planning_sha="test_planning",
+    )
+    with pytest.raises(DurableResumeError) as exc_info:
+        service_bad.resume_single(
+            task_id=task.id, workspace_root=str(tmp_path / "ws"), lease_owner="w2",
+        )
+    assert "authority_sha_mismatch" in str(exc_info.value)
+
+
+def test_single_crash_before_dispatch_can_recover(tmp_path) -> None:
+    """Crash after PRE_PLANNER but before dispatch -> recovery re-dispatches once."""
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="single-crash-before-dispatch",
+        executor_kind="deterministic_fixture",
+        orchestration_mode="single",
+    )
+
+    dispatch_count = [0]
+
+    class CountingRouter3(ExecutorRouter):
+        def dispatch_execute(self, **kwargs):
+            dispatch_count[0] += 1
+            return super().dispatch_execute(**kwargs)
+
+    lease = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="w1",
+    )
+    run_id = lease.run_id
+    store._set_authority_identity(
+        run_id, "test_authority", "test_planning", lease.owner, lease.epoch,
+    )
+    store._accept_checkpoint(run_id, "PRE_PLANNER", "", 1, lease.owner, lease.epoch)
+    store._fenced_transition_to(run_id, task.id, "RUNNING", lease.owner, lease.epoch)
+
+    _expire_and_reconcile(store, task.id)
+
+    service2 = DurableExecutionService(
+        store=store, router=CountingRouter3(),
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    )
+    outcome = service2.resume_single(
+        task_id=task.id, workspace_root=str(tmp_path / "ws"), lease_owner="w2",
+    )
+    assert outcome.success is True
+    assert dispatch_count[0] == 1
+
+    run_after = store._get_durable_run(run_id)
+    assert run_after.accepted_checkpoint == "POST_VALIDATION"
+
+
+def test_single_ambiguous_external_operation_not_reissued(tmp_path) -> None:
+    """Ambiguous in-flight external operation -> fail closed, no second dispatch."""
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="single-ambiguous-op",
+        executor_kind="deterministic_fixture",
+        orchestration_mode="single",
+    )
+
+    dispatch_count = [0]
+
+    class CountingRouter4(ExecutorRouter):
+        def dispatch_execute(self, **kwargs):
+            dispatch_count[0] += 1
+            return super().dispatch_execute(**kwargs)
+
+    lease = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="w1",
+    )
+    run_id = lease.run_id
+    store._set_authority_identity(
+        run_id, "test_authority", "test_planning", lease.owner, lease.epoch,
+    )
+    store._accept_checkpoint(run_id, "PRE_PLANNER", "", 1, lease.owner, lease.epoch)
+    store._fenced_transition_to(run_id, task.id, "RUNNING", lease.owner, lease.epoch)
+
+    run_obj = store._get_durable_run(run_id)
+    idempotency_key = f"single-exec-{task.id}-{run_obj.execution_id}"
+    request_digest = _dur_digest(_dur_json_payload({
+        "task_id": task.id,
+        "execution_id": run_obj.execution_id,
+        "workspace_root": str(tmp_path / "ws"),
+        "repo_base": "",
+    }))
+
+    op = store._record_external_operation(
+        operation_key=f"single-exec-{task.id}",
+        idempotency_key=idempotency_key,
+        request_digest=request_digest,
+    )
+    store._reconcile_external_operation(
+        operation_id=op.operation_id,
+        external_operation_id=op.operation_id,
+        result_state="success",
+    )
+
+    _expire_and_reconcile(store, task.id)
+
+    service2 = DurableExecutionService(
+        store=store, router=CountingRouter4(),
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    )
+    outcome = service2.resume_single(
+        task_id=task.id, workspace_root=str(tmp_path / "ws"), lease_owner="w2",
+    )
+    assert outcome.success is False
+    assert outcome.failure_classification == "ambiguous_external_operation"
+    assert dispatch_count[0] == 0
+
+
+def test_single_terminal_semantics_deterministic(tmp_path) -> None:
+    """Single-mode durable execution reaches deterministic terminal state."""
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="single-terminal",
+        executor_kind="deterministic_fixture",
+        orchestration_mode="single",
+    )
+
+    service = DurableExecutionService(
+        store=store, router=ExecutorRouter(),
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    )
+    outcome = service.execute_durable_single(
+        task_id=task.id, workspace_root=str(tmp_path / "ws"), lease_owner="w1",
+    )
+    assert outcome.success is True
+    assert outcome.validation_exit_code == 0
+    assert outcome.validation_command_id == "git_diff_check"
+
+    task_after = store.get_task(task.id)
+    assert task_after.status == "READY_FOR_REVIEW_FIXTURE"
+    assert task_after.validation_exit_code == 0
+    assert task_after.validation_command_id == "git_diff_check"
+
+    run_id_row = store._conn.execute(
+        "SELECT run_id FROM durable_runs WHERE task_id = ?", (task.id,),
+    ).fetchone()
+    cps = service.checkpoint_sequence(run_id_row["run_id"])
+    assert "POST_VALIDATION" in cps
+    assert len(cps) == 5
+
+
+def test_single_startup_reconciliation_no_model_calls(tmp_path) -> None:
+    """Startup reconciliation for single mode: zero model/executor activity."""
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="single-stale-startup",
+        executor_kind="deterministic_fixture",
+        orchestration_mode="single",
+    )
+
+    lease = store._acquire_durable_lease(
+        task_id=task.id, execution_id=task.execution_id,
+        lease_owner="w1",
+    )
+    run_id = lease.run_id
+    store._accept_checkpoint(run_id, "PRE_PLANNER", "", 1, lease.owner, lease.epoch)
+    store._fenced_transition_to(run_id, task.id, "RUNNING", lease.owner, lease.epoch)
+
+    store._conn.execute(
+        "UPDATE durable_runs SET lease_expiry_ms = ? WHERE run_id = ?",
+        (int(time.time() * 1000) - 10000, run_id),
+    )
+
+    service = DurableExecutionService(
+        store=store, router=ExecutorRouter(),
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    )
+    records = service.reconcile_expired_runs(
+        now_ms=int(time.time() * 1000), max_age_ms=1000
+    )
+    assert len(records) == 1
+    assert records[0]["recovery_classification"] == "orphan_stale_lease"
+
+    task_after = store.get_task(task.id)
+    assert task_after.status == "INTERRUPTED"
+    assert task_after.failure_classification == ""
+
+
+def test_single_mode_not_dispatched_to_sequential_team(tmp_path) -> None:
+    """Single mode /execute must NOT call execute_durable_sequential_team."""
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="single-not-seq",
+        executor_kind="deterministic_fixture",
+        orchestration_mode="single",
+    )
+
+    service = DurableExecutionService(
+        store=store, router=ExecutorRouter(),
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    )
+    outcome = service.execute_durable_single(
+        task_id=task.id, workspace_root=str(tmp_path / "ws"), lease_owner="w1",
+    )
+    assert outcome.success is True
+
+    run_rows = store._conn.execute(
+        "SELECT run_id, lease_owner, lease_epoch, accepted_checkpoint "
+        "FROM durable_runs WHERE task_id = ?", (task.id,),
+    ).fetchall()
+    assert len(run_rows) == 1
+    assert run_rows[0]["accepted_checkpoint"] == "POST_VALIDATION"

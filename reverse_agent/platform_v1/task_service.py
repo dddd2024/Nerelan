@@ -403,6 +403,37 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     task = self.store.get_task(segments[2])
                     self._send_json(HTTPStatus.OK, self._task_response(task))
                     return
+                elif task.orchestration_mode == "single":
+                    dur_svc = DurableExecutionService(
+                        store=self.store,
+                        router=self.router,
+                        lease_provider=getattr(self, "lease_provider", None),
+                        binding_resolver=getattr(self, "binding_resolver", None),
+                        execution_authority_sha=getattr(
+                            self, "execution_authority_sha", ""
+                        ),
+                        planning_sha=getattr(
+                            self, "planning_sha", ""
+                        ),
+                    )
+                    try:
+                        outcome = dur_svc.execute_durable_single(
+                            task_id=segments[2],
+                            workspace_root=workspace_root,
+                            lease_owner="task-api",
+                        )
+                    except TaskExecutionError as exc:
+                        if "task_not_found" in str(exc):
+                            self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
+                            return
+                        self._send_json(HTTPStatus.CONFLICT, {"error": str(exc)})
+                        return
+                    except ExecutorRuntimeError as exc:
+                        self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                        return
+                    task = self.store.get_task(segments[2])
+                    self._send_json(HTTPStatus.OK, self._task_response(task))
+                    return
                 else:
                     execution_service = TaskExecutionService(
                         store=self.store,
@@ -438,9 +469,9 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 except TaskStoreError:
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
                     return
-                if task.orchestration_mode != "sequential_team":
+                if task.orchestration_mode not in ("sequential_team", "single"):
                     self._send_json(HTTPStatus.CONFLICT, {
-                        "error": f"not_sequential_team:{task.orchestration_mode}"
+                        "error": f"not_durable_mode:{task.orchestration_mode}"
                     })
                     return
                 run = self.store._find_active_durable_run(segments[2])
@@ -462,10 +493,16 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     ),
                 )
                 try:
-                    outcome = dur_svc.resume_sequential_team(
-                        task_id=segments[2],
-                        lease_owner="task-api-resume",
-                    )
+                    if task.orchestration_mode == "single":
+                        outcome = dur_svc.resume_single(
+                            task_id=segments[2],
+                            lease_owner="task-api-resume",
+                        )
+                    else:
+                        outcome = dur_svc.resume_sequential_team(
+                            task_id=segments[2],
+                            lease_owner="task-api-resume",
+                        )
                 except DurableResumeError as exc:
                     self._send_json(HTTPStatus.CONFLICT, {"error": str(exc)})
                     return
