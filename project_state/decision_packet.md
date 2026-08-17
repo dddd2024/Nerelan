@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260817_issue224_external_session_executor_managed_r2_v6",
-  "round_id": "round_20260817_issue224_external_session_executor_managed_r2_v6",
+  "decision_id": "decision_20260817_issue224_external_session_executor_managed_r2_v8",
+  "round_id": "round_20260817_issue224_external_session_executor_managed_r2_v8",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,55 +14,51 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260817_issue224_external_session_executor_managed_r2_v5",
-  "follows_last_round_id": "round_20260817_issue224_external_session_executor_managed_r2_v5",
-  "previous_audit_outcome": "ISSUE224_V5_SUPERSEDED_BEFORE_EXECUTION_WINDOWS_WORKTREE_HASH_AMBIGUITY",
-  "supersedes_decision_id": "decision_20260817_issue224_external_session_executor_managed_r2_v5",
+  "follows_last_decision_id": "decision_20260817_issue224_external_session_executor_managed_r2_v7",
+  "follows_last_round_id": "round_20260817_issue224_external_session_executor_managed_r2_v7",
+  "previous_audit_outcome": "ISSUE224_V7_BLOCKED_PREEXECUTION_MISSING_LEGACY_CAPABILITY_BOOLEANS",
+  "supersedes_decision_id": "decision_20260817_issue224_external_session_executor_managed_r2_v7",
   "superseded_branches_must_not_execute": [
-    "owner/issue224-external-session-executor-managed-r2-v1",
-    "owner/issue224-external-session-executor-managed-r2-v2",
-    "owner/issue224-external-session-executor-managed-r2-v3",
-    "owner/issue224-external-session-executor-managed-r2-v4",
-    "owner/issue224-external-session-executor-managed-r2-v5"
+    "owner/issue224-external-session-executor-managed-r2-v7"
   ],
-  "workstream_id": "issue224-external-session-executor-managed-r2-v6",
+  "superseded_branches_must_not_land": [
+    "owner/issue224-external-session-executor-managed-r2-v6",
+    "owner/issue224-external-session-executor-managed-r2-v7"
+  ],
+  "workstream_id": "issue224-external-session-executor-managed-r2-v8",
   "source_issue": 224,
   "parent_issue": 148,
-  "required_branch": "owner/issue224-external-session-executor-managed-r2-v6",
-  "starting_head": "3b650e6239336c796593cecd3c137cf839cf1e95",
-  "activation_base_sha": "3b650e6239336c796593cecd3c137cf839cf1e95",
+  "required_branch": "owner/issue224-external-session-executor-managed-r2-v8",
+  "starting_head": "f252dcffd84d033a8d38c9d4db083ad32b86234b",
+  "activation_base_sha": "f252dcffd84d033a8d38c9d4db083ad32b86234b",
   "canonical_planning_sha": "3b650e6239336c796593cecd3c137cf839cf1e95",
-  "required_recovery_source_head": "0d9832975621abb04b188cd61d3d0dded98e2fb4",
+  "required_recovery_source_head": "cb267dc1dff0cd63421c4eddf8997b22822cd61c",
   "required_recovery_worktree": "F:/reverse-agent-issue224-external-session-executor-managed-r2-v3",
-  "preserved_dirty_worktree_reuse_allowed": true,
+  "preserved_worktree_reuse_allowed": true,
   "fresh_worktree_creation_required": false,
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
-  "decision_commit_must_precede_recovery": true,
+  "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
   "pr_creation_allowed": false,
   "issue_comment_allowed": false,
   "worktree_creation_allowed": false,
   "branch_creation_allowed": true,
-  "branch_creation_scope": "local_tracking_branch_owner/issue224-external-session-executor-managed-r2-v6_only",
+  "branch_creation_scope": "local_tracking_branch_owner/issue224-external-session-executor-managed-r2-v8_only",
   "remote_branch_creation_allowed": false,
   "local_commit_allowed": true,
   "normal_push_allowed": true,
+  "direct_push_to_main_allowed": false,
   "merge_allowed": false,
   "force_push_allowed": false,
   "rebase_during_execution_allowed": false,
   "destructive_operations_allowed": false,
-  "package_installation_allowed": true,
-  "package_installation_exact_command_only": "npm ci --prefix frontend --no-audit --no-fund",
-  "package_installation_scope": "frontend/node_modules only from canonical package-lock.json",
-  "package_json_expected_repository_blob": "f63104f56cf4d0ae3955bcc5628a43b74e4707e4",
-  "package_lock_expected_repository_blob": "ac4b0e89b94b95b97850c8367fcabd28fd3f4a66",
-  "minimum_node_version": "22.22.0",
-  "product_setup_mutation_allowed": false,
+  "unknown_binary_execution_allowed": false,
   "model_api_invocation_allowed": false,
+  "external_reverse_tool_invocation_allowed": false,
+  "package_installation_allowed": false,
+  "product_setup_mutation_allowed": false,
   "provider_network_call_allowed": false,
-  "dependency_install_network_allowed": true,
-  "dependency_install_network_scope": "traffic induced solely by exact canonical npm ci command",
   "opencode_invocation_allowed": false,
   "opencode_task_invocation_allowed": false,
   "opencode_auth_metadata_probe_allowed": false,
@@ -74,18 +70,9 @@
   "real_task_store_access_allowed": false,
   "product_change_commit_limit": 1,
   "required_runtime_status": "executor_managed",
-  "derived_connection_status_write_policy": "reject_caller_supplied",
-  "connection_provider_contract": "safe_identifier_parity_backend_frontend",
+  "non_authority_runtime_evidence_policy": "preserve_existing_available_or_missing",
+  "authority_change_runtime_evidence_policy": "reset_executor_managed",
   "bootstrap_exception_files": [
-    "reverse_agent/model_access/contracts.py",
-    "reverse_agent/model_access/store.py",
-    "reverse_agent/platform_v1/trusted_host.py",
-    "reverse_agent/platform_v1/binding_resolver.py",
-    "tests/test_connection_binding.py",
-    "tests/platform_v1/test_binding_resolver.py",
-    "tests/platform_v1/test_trusted_host.py",
-    "frontend/src/schemas/model-access.ts",
-    "frontend/tests/model-access-client.test.ts",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
@@ -99,13 +86,13 @@
     "git diff --cached --name-only",
     "git diff --name-only",
     "git fetch origin owner/repository-modernization-v2-planning",
-    "git fetch origin owner/issue224-external-session-executor-managed-r2-v6",
+    "git fetch origin owner/issue224-external-session-executor-managed-r2-v8",
     "git rev-parse origin/owner/repository-modernization-v2-planning",
-    "git rev-parse origin/owner/issue224-external-session-executor-managed-r2-v6",
-    "powershell -NoProfile -Command \"$b=(git branch --list owner/issue224-external-session-executor-managed-r2-v6);if($b){'ISSUE224_V6_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};'ISSUE224_V6_LOCAL_BRANCH_ABSENT'\"",
-    "git switch -c owner/issue224-external-session-executor-managed-r2-v6 --track origin/owner/issue224-external-session-executor-managed-r2-v6",
+    "git rev-parse origin/owner/issue224-external-session-executor-managed-r2-v8",
+    "powershell -NoProfile -Command \"$b=(git branch --list owner/issue224-external-session-executor-managed-r2-v8);if($b){'ISSUE224_V8_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};'ISSUE224_V8_LOCAL_BRANCH_ABSENT'\"",
+    "git switch -c owner/issue224-external-session-executor-managed-r2-v8 --track origin/owner/issue224-external-session-executor-managed-r2-v8",
     "git rev-parse HEAD",
-    "git merge-base HEAD 3b650e6239336c796593cecd3c137cf839cf1e95",
+    "git merge-base HEAD f252dcffd84d033a8d38c9d4db083ad32b86234b",
     "git status --short",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
@@ -114,7 +101,7 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "issue224v6.status_before",
+      "command_id": "issue224v8.status_before",
       "command": "git status --short",
       "phase": "status",
       "required": true,
@@ -125,84 +112,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue224v6.package_json_repository_blob",
-      "command": "git rev-parse HEAD:frontend/package.json",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue224v6.package_lock_repository_blob",
-      "command": "git rev-parse HEAD:frontend/package-lock.json",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue224v6.package_manifest_clean_before",
-      "command": "git diff --exit-code -- frontend/package.json frontend/package-lock.json",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["diff_validation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue224v6.node_version_gate",
-      "command": "node -e \"const v=process.versions.node.split('.').map(Number);const ok=v[0]>22||(v[0]===22&&v[1]>=22);if(!ok){console.error('NODE_VERSION_BELOW_22_22_0');process.exit(22)}console.log(process.versions.node)\"",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["runtime_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue224v6.npm_version",
-      "command": "npm --version",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["runtime_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue224v6.frontend_dependency_bootstrap",
-      "command": "npm ci --prefix frontend --no-audit --no-fund",
-      "phase": "environment_recovery",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["package_installation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue224v6.package_manifest_clean_after",
-      "command": "git diff --exit-code -- frontend/package.json frontend/package-lock.json",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["diff_validation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue224v6.python_focused_tests",
+      "command_id": "issue224v8.python_focused_tests",
       "command": "python -m pytest tests/test_connection_binding.py tests/platform_v1/test_binding_resolver.py tests/platform_v1/test_trusted_host.py tests/platform_v1/test_opencode_executor.py -q",
       "phase": "validation",
       "required": true,
@@ -213,7 +123,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue224v6.frontend_focused_test",
+      "command_id": "issue224v8.frontend_focused_test",
       "command": "npm --prefix frontend test -- model-access-client.test.ts",
       "phase": "validation",
       "required": true,
@@ -224,7 +134,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue224v6.frontend_typecheck",
+      "command_id": "issue224v8.frontend_typecheck",
       "command": "npm --prefix frontend run typecheck",
       "phase": "validation",
       "required": true,
@@ -235,7 +145,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue224v6.diff_check",
+      "command_id": "issue224v8.diff_check",
       "command": "git diff --check",
       "phase": "validation",
       "required": true,
@@ -246,7 +156,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue224v6.changed_paths_before_commit",
+      "command_id": "issue224v8.changed_paths_before_commit",
       "command": "git diff --name-only",
       "phase": "validation",
       "required": true,
@@ -257,8 +167,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue224v6.stage_exact_product",
-      "command": "git add reverse_agent/model_access/contracts.py reverse_agent/model_access/store.py reverse_agent/platform_v1/trusted_host.py reverse_agent/platform_v1/binding_resolver.py tests/test_connection_binding.py tests/platform_v1/test_binding_resolver.py tests/platform_v1/test_trusted_host.py frontend/src/schemas/model-access.ts frontend/tests/model-access-client.test.ts",
+      "command_id": "issue224v8.stage_exact_fix",
+      "command": "git add reverse_agent/model_access/store.py tests/test_connection_binding.py tests/platform_v1/test_trusted_host.py",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -268,7 +178,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue224v6.staged_paths",
+      "command_id": "issue224v8.staged_paths",
       "command": "git diff --cached --name-only",
       "phase": "validation",
       "required": true,
@@ -279,7 +189,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue224v6.staged_diff_check",
+      "command_id": "issue224v8.staged_diff_check",
       "command": "git diff --cached --check",
       "phase": "validation",
       "required": true,
@@ -290,8 +200,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue224v6.commit_product",
-      "command": "git commit -m \"Implement executor-managed external sessions\"",
+      "command_id": "issue224v8.commit_fix",
+      "command": "git commit -m \"Preserve trusted external session evidence\"",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -302,7 +212,7 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue224v6.head_after_commit",
+      "command_id": "issue224v8.head_after_commit",
       "command": "git rev-parse HEAD",
       "phase": "status",
       "required": true,
@@ -313,8 +223,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue224v6.compare_paths_after_commit",
-      "command": "git diff --name-only 3b650e6239336c796593cecd3c137cf839cf1e95..HEAD",
+      "command_id": "issue224v8.compare_paths_after_commit",
+      "command": "git diff --name-only f252dcffd84d033a8d38c9d4db083ad32b86234b..HEAD",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -324,8 +234,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue224v6.push_branch",
-      "command": "git push origin owner/issue224-external-session-executor-managed-r2-v6",
+      "command_id": "issue224v8.push_branch",
+      "command": "git push origin owner/issue224-external-session-executor-managed-r2-v8",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -336,8 +246,8 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue224v6.remote_tracking_head",
-      "command": "git rev-parse origin/owner/issue224-external-session-executor-managed-r2-v6",
+      "command_id": "issue224v8.remote_tracking_head",
+      "command": "git rev-parse origin/owner/issue224-external-session-executor-managed-r2-v8",
       "phase": "status",
       "required": true,
       "expected_exit_codes": [0],
@@ -347,7 +257,7 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue224v6.status_final",
+      "command_id": "issue224v8.status_final",
       "command": "git status --short",
       "phase": "status",
       "required": true,
@@ -359,34 +269,14 @@
     }
   ],
   "allowed_mutated_paths": [
-    "reverse_agent/model_access/contracts.py",
     "reverse_agent/model_access/store.py",
-    "reverse_agent/platform_v1/trusted_host.py",
-    "reverse_agent/platform_v1/binding_resolver.py",
     "tests/test_connection_binding.py",
-    "tests/platform_v1/test_binding_resolver.py",
     "tests/platform_v1/test_trusted_host.py",
-    "frontend/src/schemas/model-access.ts",
-    "frontend/tests/model-access-client.test.ts",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json"
-  ],
-  "generated_local_dependency_paths": [
-    "frontend/node_modules/**"
-  ],
-  "reference_paths": [
-    "reverse_agent/platform_v1/opencode_executor.py",
-    "reverse_agent/model_access/service.py",
-    "frontend/src/lib/model-control-client.ts",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "frontend/.gitignore",
-    "tests/platform_v1/test_opencode_executor.py",
-    "AGENTS.md",
-    "project_state/schemas/**"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -395,19 +285,33 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json"
   ],
-  "forbidden_mutated_paths": [
-    "project_state/decision_packet.md",
+  "reference_paths": [
+    "reverse_agent/model_access/contracts.py",
+    "reverse_agent/platform_v1/trusted_host.py",
+    "reverse_agent/platform_v1/binding_resolver.py",
     "reverse_agent/platform_v1/opencode_executor.py",
     "reverse_agent/model_access/service.py",
-    "reverse_agent/model_access/credential_relay.py",
-    "reverse_agent/platform_v1/task_service.py",
-    "reverse_agent/platform_v1/durable_execution.py",
-    "reverse_agent/platform_v1/run_store.py",
+    "tests/platform_v1/test_binding_resolver.py",
+    "tests/platform_v1/test_opencode_executor.py",
+    "frontend/src/schemas/model-access.ts",
+    "frontend/tests/model-access-client.test.ts",
     "frontend/src/lib/model-control-client.ts",
-    "frontend/src/components/**",
-    "frontend/src/routes/**",
     "frontend/package.json",
     "frontend/package-lock.json",
+    "project_state/schemas/**"
+  ],
+  "forbidden_mutated_paths": [
+    "project_state/decision_packet.md",
+    "reverse_agent/model_access/contracts.py",
+    "reverse_agent/platform_v1/trusted_host.py",
+    "reverse_agent/platform_v1/binding_resolver.py",
+    "reverse_agent/platform_v1/opencode_executor.py",
+    "reverse_agent/model_access/service.py",
+    "frontend/src/**",
+    "frontend/tests/**",
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "tests/platform_v1/test_binding_resolver.py",
     "tests/platform_v1/test_opencode_executor.py",
     ".github/**",
     "docs/**",
@@ -415,14 +319,6 @@
     "AGENTS.md"
   ],
   "forbidden_operations": [
-    "discard_preserved_v3_edits",
-    "remote_branch_creation",
-    "npm_install",
-    "npm_update",
-    "npm_audit_fix",
-    "alternate_package_manager_install",
-    "package_manifest_mutation",
-    "package_lock_mutation",
     "governance_mutation_outside_generated_gates",
     "real_user_credential_file_discovery",
     "real_user_credential_file_read",
@@ -430,96 +326,74 @@
     "real_user_credential_value_print",
     "real_user_credential_value_hash",
     "real_user_credential_value_length_or_measurement",
-    "import_real_credentials_into_tests",
     "auth_login",
     "auth_logout",
     "opencode_invocation",
     "opencode_auth_probe",
     "opencode_run",
-    "opencode_models",
     "model_api_invocation",
+    "external_reverse_tool_invocation",
+    "unknown_binary_execution",
     "provider_network_call",
     "live_connection_probe",
     "credential_relay_lease",
     "task_execute",
     "product_setup_mutation",
     "real_task_store_access",
+    "dependency_install",
+    "package_lock_mutation",
     "pr_create",
     "merge",
     "force_push",
     "rebase",
+    "destructive",
     "reset",
     "clean",
     "stash",
     "amend",
     "tag_or_release",
     "direct_push_main"
-  ],
-  "capability_policy": {
-    "runner_dispatch_allowed": false,
-    "model_api_invocation_allowed": false,
-    "opencode_invocation_allowed": false,
-    "codex_invocation_allowed": false,
-    "openhands_invocation_allowed": false,
-    "external_reverse_tool_invocation_allowed": false,
-    "dependency_install_network_allowed_only_during_exact_npm_ci": true
-  },
-  "terminal_success": "EXTERNAL_SESSION_EXECUTOR_MANAGED_IMPLEMENTATION_READY_FOR_OWNER_AUDIT",
-  "terminal_blocked": "EXTERNAL_SESSION_EXECUTOR_MANAGED_IMPLEMENTATION_BLOCKED"
+  ]
 }
 ```
 
-## Owner recovery intent
+## Implementation scope
 
-R2 V3 reached `PRE_EXECUTION_AUTHORIZED`, produced the complete nine-file authorized implementation, and passed its bounded Python validation (`247 passed, 1 skipped`), but correctly stopped before stage/commit because `frontend/node_modules` was absent and V3 explicitly forbade dependency installation. V4 and V5 were both superseded before local execution by Owner reverse-audit: V4 had a standard branch-creation permission ambiguity; V5 used a Windows-sensitive working-tree hash comparison. V6 is the corrected recovery authority.
+This is a narrow post-V6 Owner-audit repair plus V7 preflight-governance recovery. Preserve the accepted V6 implementation and change only the three authorized files.
 
-V6 intentionally reuses the preserved V3 worktree at `F:/reverse-agent-issue224-external-session-executor-managed-r2-v3`. Before switching authority, local execution must prove all of the following:
+### Store correction
 
-1. current HEAD is exactly V3 authority `0d9832975621abb04b188cd61d3d0dded98e2fb4`;
-2. nothing is staged;
-3. the dirty tracked set is exactly the nine authorized product/test files plus the five generated gate files from V3;
-4. no implementation commit or push exists;
-5. canonical planning remains exactly `3b650e6239336c796593cecd3c137cf839cf1e95`;
-6. the local V6 branch does not already exist.
+In `ModelProfileStore.upsert_connection`, external-session runtime evidence MUST follow these rules:
 
-Only then may the preserved dirty worktree create/switch to the local tracking branch `owner/issue224-external-session-executor-managed-r2-v6` from its already-published remote authority. No other local or remote branch creation is authorized. Switching authority must preserve the nine implementation edits; any conflict, lost edit, extra tracked change, staged content, or unexpected HEAD is a hard stop.
+1. New `account_login` / `external_cli_session` Connection -> `executor_managed`.
+2. Reload from sanitized persistence -> `executor_managed` (already implemented in V6; do not alter).
+3. Existing external Connection with authority-bearing change (`provider`, `base_url`, or `auth_method`) -> reset `executor_managed`.
+4. Existing external Connection with NO authority-bearing change -> preserve the existing runtime status exactly. A trusted internal refresh that produced `available` or `missing` MUST survive a name-only or enabled-only upsert.
+5. Caller-supplied derived status remains rejected. Do not reopen status injection.
 
-## Cross-platform frontend environment recovery
+The expected minimal product form is equivalent to leaving the previously loaded `external_status` untouched on the non-authority branch, not assigning `executor_managed` in both branches.
 
-The only newly authorized capability beyond V3 is one lockfile-bound dependency bootstrap:
+### Store regressions
 
-`npm ci --prefix frontend --no-audit --no-fund`
+Update `tests/test_connection_binding.py` to prove:
 
-Repository-object authority must first be verified with:
+- trusted `available` survives a genuine authority-unchanged mutation, preferably name-only;
+- trusted `missing` survives a genuine authority-unchanged mutation;
+- provider/base/auth change still resets to `executor_managed`;
+- new/reloaded behavior, non-persistence, caller rejection, and API-key semantics remain unchanged.
 
-- `git rev-parse HEAD:frontend/package.json` == `f63104f56cf4d0ae3955bcc5628a43b74e4707e4`
-- `git rev-parse HEAD:frontend/package-lock.json` == `ac4b0e89b94b95b97850c8367fcabd28fd3f4a66`
+### Trusted-host regression integrity
 
-These checks intentionally use repository objects rather than working-tree `git hash-object`, so Windows line-ending conversion cannot create a false mismatch. Separately, `git diff --exit-code -- frontend/package.json frontend/package-lock.json` must pass immediately before and immediately after `npm ci`, proving the local tracked manifests were not changed by recovery.
+In `tests/platform_v1/test_trusted_host.py`, change only the default-startup regression. It MUST NOT use `except Exception: pass` around `host.start()`. Start the host normally on ephemeral ports and use `try/finally` only to guarantee `host.stop()`. An unexpected startup exception must fail the test. Confirm after successful startup that the external Connection remains `executor_managed` and no default auth probe was configured or invoked.
 
-The Node version gate is executable and must pass with version `>=22.22.0`. If it exits nonzero, stop blocked. `npm ci` must exit 0 under the canonical lockfile. `frontend/node_modules/**` is generated local dependency state ignored by `frontend/.gitignore`; it must never be staged or committed.
+Do not modify `reverse_agent/platform_v1/trusted_host.py`; Owner static audit accepted its V6 product behavior.
 
-No other dependency command is authorized. Do not use `npm install`, `npm update`, `npm audit fix`, pnpm, yarn, bun, pip installation, lockfile repair, or package-version changes. Dependency lifecycle scripts executed automatically by the canonical `npm ci` are permitted only as part of that exact command; no separate lifecycle-script invocation is authorized. Network access is allowed only when induced by this exact canonical `npm ci`; model/provider/network probes remain forbidden.
+## Validation
 
-## Product implementation requirements retained from V3
+Run the exact bounded Python suite plus the unchanged frontend focused Vitest and TypeScript typecheck. Existing `frontend/node_modules` from V6 may be reused as ignored environment state; installing or updating dependencies is forbidden. If it is unavailable, fail closed rather than installing.
 
-The preserved nine-file implementation remains bounded to these semantics:
+Success terminal:
+`EXTERNAL_SESSION_EXECUTOR_MANAGED_V8_FIX_READY_FOR_OWNER_AUDIT`
 
-- `external_cli_session` / `account_login` gain runtime-derived `executor_managed` state;
-- caller-supplied derived external-session status is rejected;
-- new/reloaded external sessions default to `executor_managed` and the runtime status is not persisted;
-- authority-bearing external Connection changes reset runtime evidence to `executor_managed`;
-- explicit trusted exact-provider refresh may still set `available` / `missing`;
-- default `CombinedTrustedHost` performs no OpenCode auth-list probe;
-- BindingResolver accepts `executor_managed` / `available` and rejects `missing` / unknown;
-- `opencode_executor.py` remains unchanged and exact provider/base/model routing remains authoritative;
-- frontend accepts `executor_managed` and backend-safe provider identifiers such as `sensetime`, while invalid provider IDs remain rejected;
-- frontend write payloads still cannot assert derived status.
-
-## Validation and publication
-
-After environment recovery, rerun all V6-authorized Python and frontend validations. Do not rely solely on V3's earlier Python result for publication. Only after every required validation exits 0 may the exact nine product/test files be staged, committed once with the authorized message, and pushed to the V6 branch.
-
-The five generated transition-gate files remain unstaged. `project_state/decision_packet.md`, package manifests, package lock, reference-only files, and `frontend/node_modules` must not be included in the implementation commit.
-
-No real/user credential access, OpenCode invocation, model/provider request, Connection live test, relay lease, Task execution, Product Setup mutation, real TaskStore access, PR creation, or merge is authorized.
+Blocked terminal:
+`EXTERNAL_SESSION_EXECUTOR_MANAGED_V8_FIX_BLOCKED`
