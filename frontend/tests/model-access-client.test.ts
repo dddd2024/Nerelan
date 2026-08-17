@@ -63,6 +63,41 @@ describe("connection client contract", () => {
     ).toThrow();
   });
 
+  it("accepts backend-safe generic provider identifiers", () => {
+    const provider = "custom.provider_v2";
+    expect(() =>
+      ConnectionInputSchema.parse({
+        connectionId: "generic-conn",
+        name: "Generic Provider",
+        provider,
+        baseUrl: "https://api.example.com/v1",
+        authMethod: "external_cli_session",
+        enabled: true,
+      }),
+    ).not.toThrow();
+  });
+
+  it("rejects unsafe provider identifiers", () => {
+    const invalidProviders = [
+      "SenseTime",
+      "Invalid Provider",
+      "a/b",
+      "https://token:secret@api.example.com",
+    ];
+    for (const provider of invalidProviders) {
+      expect(() =>
+        ConnectionInputSchema.parse({
+          connectionId: "bad-provider-conn",
+          name: "Bad Provider",
+          provider,
+          baseUrl: "https://api.example.com/v1",
+          authMethod: "external_cli_session",
+          enabled: true,
+        }),
+      ).toThrow();
+    }
+  });
+
   it("keeps secret status from environment variable reference", async () => {
     const client = createMockModelControlClient([]);
     await client.upsertConnection({
@@ -255,6 +290,113 @@ describe("connection probe client contract", () => {
       expect(parsed).not.toHaveProperty("provider");
       expect(parsed).not.toHaveProperty("auth_method");
       expect(parsed).not.toHaveProperty("authMethod");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("executor-managed external session regressions", () => {
+  it("http GET /connections snake_case parses executor_managed sensetime provider", async () => {
+    const snakePayload = {
+      connection_id: "sensetime-ext",
+      name: "SenseTime External",
+      provider: "sensetime",
+      base_url: "https://api.sensenova.cn/v1",
+      auth_method: "external_cli_session",
+      enabled: true,
+      secret_status: "not_applicable",
+      external_session_status: "executor_managed",
+    };
+
+    const mockFetch = vi.fn(async () => ({
+      ok: true,
+      text: async () => JSON.stringify([snakePayload]),
+    }));
+    vi.stubGlobal("fetch", mockFetch);
+
+    try {
+      const client = createHttpModelControlClient("/api");
+      const connections = await client.listConnections();
+      expect(connections.length).toBe(1);
+      expect(connections[0].provider).toBe("sensetime");
+      expect(connections[0].authMethod).toBe("external_cli_session");
+      expect(connections[0].externalSessionStatus).toBe("executor_managed");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("accepts backend-safe generic provider identifier via upsert input", () => {
+    expect(() =>
+      ConnectionInputSchema.parse({
+        connectionId: "sensetime-conn",
+        name: "SenseTime",
+        provider: "sensetime",
+        baseUrl: "https://api.sensenova.cn/v1",
+        authMethod: "external_cli_session",
+        enabled: true,
+      }),
+    ).not.toThrow();
+  });
+
+  it("rejects invalid provider identifiers including empty, uppercase, slash, url, and over-80", () => {
+    const invalid = [
+      "SenseTime",
+      "Invalid Provider",
+      "a/b",
+      "https://token:secret@example.com",
+      "a".repeat(81),
+    ];
+    for (const provider of invalid) {
+      expect(() =>
+        ConnectionInputSchema.parse({
+          connectionId: "bad-conn",
+          name: "Bad",
+          provider,
+          baseUrl: "https://api.example.com/v1",
+          authMethod: "external_cli_session",
+          enabled: true,
+        }),
+      ).toThrow();
+    }
+  });
+
+  it("http upsert request body never contains derived secret or external session status", async () => {
+    let capturedBodyStr: string | undefined;
+    const mockFetch = vi.fn(async () => ({
+      ok: true,
+      text: async () =>
+        JSON.stringify({
+          connection_id: "sensetime-conn",
+          name: "SenseTime",
+          provider: "sensetime",
+          base_url: "https://api.sensenova.cn/v1",
+          auth_method: "external_cli_session",
+          enabled: true,
+          secret_status: "not_applicable",
+          external_session_status: "executor_managed",
+        }),
+    }));
+    vi.stubGlobal("fetch", mockFetch);
+
+    try {
+      const client = createHttpModelControlClient("/api");
+      await client.upsertConnection({
+        connectionId: "sensetime-conn",
+        name: "SenseTime",
+        provider: "sensetime",
+        baseUrl: "https://api.sensenova.cn/v1",
+        authMethod: "external_cli_session",
+        enabled: true,
+      });
+      const call = mockFetch.mock.calls[0] as unknown[];
+      capturedBodyStr = String((call[1] as { body?: string })?.body ?? "");
+      const parsed = JSON.parse(capturedBodyStr!);
+      expect(parsed).not.toHaveProperty("secret_status");
+      expect(parsed).not.toHaveProperty("secretStatus");
+      expect(parsed).not.toHaveProperty("external_session_status");
+      expect(parsed).not.toHaveProperty("externalSessionStatus");
     } finally {
       vi.unstubAllGlobals();
     }

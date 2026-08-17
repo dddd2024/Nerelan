@@ -38,6 +38,8 @@ _FORBIDDEN_PERSISTED_FIELDS = frozenset({
     "private_key",
     "account_token",
     "external_session_status",
+    "externalSessionStatus",
+    "executor_managed",
 })
 
 # Sanitized connection fields that are safe to persist.
@@ -181,7 +183,7 @@ class _StoredConnection:
         conn = Connection.from_mapping(dict(data))
         auth_method = conn.auth_method
         if auth_method in {"account_login", "external_cli_session"}:
-            initial_status = "missing"
+            initial_status = "executor_managed"
         else:
             initial_status = "not_applicable"
         return cls(
@@ -282,6 +284,7 @@ class ModelProfileStore:
             return stored.public()
 
     def upsert_connection(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        _reject_derived_external_status(payload)
         connection = Connection.from_mapping(payload)
         with self._lock:
             existing = self._connections.get(connection.connection_id)
@@ -334,21 +337,15 @@ class ModelProfileStore:
                 api_key = None
                 api_key_env = None
                 if connection.auth_method in {"account_login", "external_cli_session"}:
-                    incoming_status = payload.get(
-                        "external_session_status",
-                        payload.get("externalSessionStatus"),
-                    )
-                    if incoming_status is not None:
-                        if incoming_status not in {"missing", "available"}:
-                            raise ValueError(
-                                "external_session_status must be missing or available"
-                            )
-                        external_status = str(incoming_status)
-                    elif (
+                    if (
                         not existing
-                        or existing.connection.auth_method != connection.auth_method
+                        or existing.connection.auth_method
+                        != connection.auth_method
+                        or authority_changed
                     ):
-                        external_status = "missing"
+                        external_status = "executor_managed"
+                    else:
+                        external_status = existing.external_session_status
                 else:
                     external_status = "not_applicable"
 
@@ -794,6 +791,13 @@ def _reject_raw_session_credentials(payload: Mapping[str, Any]) -> None:
     }
     if forbidden.intersection(payload):
         raise ValueError("raw session credentials are not accepted")
+
+
+def _reject_derived_external_status(payload: Mapping[str, Any]) -> None:
+    if "external_session_status" in payload:
+        raise ValueError("external_session_status is a runtime value and is not accepted")
+    if "externalSessionStatus" in payload:
+        raise ValueError("externalSessionStatus is a runtime value and is not accepted")
 
 
 def _authority_fields_changed(

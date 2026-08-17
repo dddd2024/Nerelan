@@ -139,7 +139,7 @@ class BindingResolver:
         if auth_method == "api_key":
             relay_required = True
         elif auth_method in {"external_cli_session", "account_login"}:
-            if external_session_status != "available":
+            if external_session_status not in {"executor_managed", "available"}:
                 raise BindingResolutionError("external_session_unavailable")
             relay_required = False
         elif auth_method != "none":

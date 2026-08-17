@@ -1,9 +1,15 @@
 import { z } from "zod";
 
-export const ConnectionProviderSchema = z.enum([
-  "openai-compatible",
-  "litellm-proxy",
-]);
+const providerId = z
+  .string()
+  .min(1, "Provider ID 不能为空")
+  .max(80, "Provider ID 不能超过 80 个字符")
+  .regex(
+    /^[a-z0-9][a-z0-9._-]{0,79}$/,
+    "Provider ID 只能包含小写字母、数字、点、下划线和连字符",
+  );
+
+export const ConnectionProviderSchema = providerId;
 
 export const AuthMethodSchema = z.enum([
   "api_key",
@@ -22,6 +28,7 @@ export const ConnectionSecretStatusSchema = z.enum([
 export const ExternalSessionStatusSchema = z.enum([
   "missing",
   "available",
+  "executor_managed",
   "not_applicable",
 ]);
 

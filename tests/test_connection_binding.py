@@ -129,12 +129,27 @@ def test_external_auth_methods_represent_status_without_accepting_token(
         connection_payload(
             connection_id=f"{auth_method}-connection",
             auth_method=auth_method,
-            external_session_status="available",
         )
     )
 
-    assert public["external_session_status"] == "available"
+    assert public["external_session_status"] == "executor_managed"
     assert public["secret_status"] == "not_applicable"
+    with pytest.raises(ValueError, match="external_session_status"):
+        store.upsert_connection(
+            connection_payload(
+                connection_id=f"{auth_method}-derived-status",
+                auth_method=auth_method,
+                external_session_status="available",
+            )
+        )
+    with pytest.raises(ValueError, match="externalSessionStatus"):
+        store.upsert_connection(
+            connection_payload(
+                connection_id=f"{auth_method}-derived-status-camel",
+                auth_method=auth_method,
+                externalSessionStatus="available",
+            )
+        )
     with pytest.raises(ValueError, match="raw session credentials"):
         store.upsert_connection(
             connection_payload(
@@ -154,7 +169,7 @@ def test_changing_auth_method_resets_incompatible_secret_status() -> None:
     )
 
     assert public["secret_status"] == "not_applicable"
-    assert public["external_session_status"] == "missing"
+    assert public["external_session_status"] == "executor_managed"
     assert store.resolve_connection_secret("sense-api") is None
 
 
@@ -777,7 +792,7 @@ def test_external_session_becomes_available_from_sanitized_auth_metadata() -> No
             provider="sensetime",
         ),
     )
-    assert store.get_connection_public("external-cli-conn")["external_session_status"] == "missing"
+    assert store.get_connection_public("external-cli-conn")["external_session_status"] == "executor_managed"
     refreshed = store.refresh_external_session_status({"sensetime": "api"})
     assert refreshed == 1
     assert store.get_connection_public("external-cli-conn")["external_session_status"] == "available"
@@ -792,11 +807,13 @@ def test_external_session_missing_when_provider_not_in_auth_metadata() -> None:
             provider="sensetime",
         ),
     )
+    assert store.get_connection_public("external-cli-conn")["external_session_status"] == "executor_managed"
     store.refresh_external_session_status({"other-provider": "api"})
     assert store.get_connection_public("external-cli-conn")["external_session_status"] == "missing"
 
 
-def test_external_session_stays_missing_after_restart_without_persisted_status(tmp_path) -> None:
+def test_executor_managed_external_session_survives_authority_unchanged_upsert(tmp_path) -> None:
+    """Authority-unchanged external auth upsert preserves existing runtime status."""
     sp = _state_path(tmp_path)
     store = ModelProfileStore(state_path=sp)
     store.upsert_connection(
@@ -804,24 +821,186 @@ def test_external_session_stays_missing_after_restart_without_persisted_status(t
             connection_id="persisted-external-conn",
             auth_method="external_cli_session",
             provider="sensetime",
-            external_session_status="available",
+        ),
+    )
+    assert store.get_connection_public("persisted-external-conn")["external_session_status"] == "executor_managed"
+
+    refresh = store.refresh_external_session_status({"sensetime": "api"})
+    assert refresh == 1
+    assert store.get_connection_public("persisted-external-conn")["external_session_status"] == "available"
+
+    store.upsert_connection(
+        connection_payload(
+            connection_id="persisted-external-conn",
+            auth_method="external_cli_session",
+            provider="sensetime",
         ),
     )
     assert store.get_connection_public("persisted-external-conn")["external_session_status"] == "available"
 
+
+def test_available_external_session_survives_authority_unchanged_upsert(tmp_path) -> None:
+    """After refresh sets external-session status to 'available', a name-only
+    upsert with no authority-bearing change must preserve 'available'."""
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(
+        connection_payload(
+            connection_id="persisted-external-conn",
+            auth_method="external_cli_session",
+            provider="sensetime",
+        ),
+    )
+    assert store.get_connection_public("persisted-external-conn")["external_session_status"] == "executor_managed"
+
+    store.refresh_external_session_status({"sensetime": "api"})
+    before = store.get_connection_public("persisted-external-conn")["external_session_status"]
+    assert before == "available"
+
+    store.upsert_connection(
+        connection_payload(
+            connection_id="persisted-external-conn",
+            auth_method="external_cli_session",
+            provider="sensetime",
+            name="Renamed Connection",
+        ),
+    )
+    after = store.get_connection_public("persisted-external-conn")["external_session_status"]
+    assert after == "available"
+
+
+def test_missing_external_session_survives_authority_unchanged_upsert(tmp_path) -> None:
+    """After refresh sets external-session status to 'missing', a name-only
+    upsert with no authority-bearing change must preserve 'missing'."""
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(
+        connection_payload(
+            connection_id="persisted-external-conn",
+            auth_method="external_cli_session",
+            provider="sensetime",
+        ),
+    )
+    assert store.get_connection_public("persisted-external-conn")["external_session_status"] == "executor_managed"
+
+    store.refresh_external_session_status({"other-provider": "api"})
+    before = store.get_connection_public("persisted-external-conn")["external_session_status"]
+    assert before == "missing"
+
+    store.upsert_connection(
+        connection_payload(
+            connection_id="persisted-external-conn",
+            auth_method="external_cli_session",
+            provider="sensetime",
+            name="Renamed Connection",
+        ),
+    )
+    after = store.get_connection_public("persisted-external-conn")["external_session_status"]
+    assert after == "missing"
+
+
+def test_executor_managed_external_session_resets_when_authority_changes(tmp_path) -> None:
+    """Authority-bearing field change resets external-session status to executor_managed."""
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(
+        connection_payload(
+            connection_id="persisted-external-conn",
+            auth_method="external_cli_session",
+            provider="sensetime",
+        ),
+    )
+    store.refresh_external_session_status({"sensetime": "api"})
+    assert store.get_connection_public("persisted-external-conn")["external_session_status"] == "available"
+
+    store.upsert_connection(
+        connection_payload(
+            connection_id="persisted-external-conn",
+            auth_method="external_cli_session",
+            provider="sensetime-v2",
+        ),
+    )
+    assert store.get_connection_public("persisted-external-conn")["external_session_status"] == "executor_managed"
+    assert store.get_connection_public("persisted-external-conn")["provider"] == "sensetime-v2"
+
+
+def test_executor_managed_external_session_resets_from_api_key_to_external(tmp_path) -> None:
+    """Switching an existing api_key connection to external auth resets to executor_managed."""
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(
+        connection_payload(
+            connection_id="sense-api",
+            auth_method="api_key",
+            api_key="fake-key-not-real",
+        ),
+    )
+    assert store.get_connection_public("sense-api")["external_session_status"] == "not_applicable"
+
+    store.upsert_connection(
+        connection_payload(
+            connection_id="sense-api",
+            auth_method="external_cli_session",
+            provider="sensetime",
+        ),
+    )
+    assert store.get_connection_public("sense-api")["external_session_status"] == "executor_managed"
+    assert store.get_connection_public("sense-api")["secret_status"] == "not_applicable"
+    assert store.resolve_connection_secret("sense-api") is None
+
+
+def test_executor_managed_external_session_resets_from_external_to_api_key(tmp_path) -> None:
+    """Switching an external connection back to api_key stays not_applicable."""
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(
+        connection_payload(
+            connection_id="persisted-external-conn",
+            auth_method="external_cli_session",
+            provider="sensetime",
+        ),
+    )
+    assert store.get_connection_public("persisted-external-conn")["external_session_status"] == "executor_managed"
+
+    store.upsert_connection(
+        connection_payload(
+            connection_id="persisted-external-conn",
+            auth_method="api_key",
+            api_key="fake-key-not-real",
+        ),
+    )
+    assert store.get_connection_public("persisted-external-conn")["external_session_status"] == "not_applicable"
+    assert store.get_connection_public("persisted-external-conn")["secret_status"] == "session"
+
+
+def test_executor_managed_external_session_reload_from_sanitized_persisted_state(tmp_path) -> None:
+    """Reloaded external-session Connection starts executor_managed; persisted JSON
+    must never contain the runtime status or the executor_managed sentinel."""
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(
+        connection_payload(
+            connection_id="persisted-external-conn",
+            auth_method="external_cli_session",
+            provider="sensetime",
+        ),
+    )
+    assert store.get_connection_public("persisted-external-conn")["external_session_status"] == "executor_managed"
+
     raw_bytes = _Path(sp).read_bytes()
     assert b"external_session_status" not in raw_bytes
-    assert b"available" not in raw_bytes
+    assert b"externalSessionStatus" not in raw_bytes
+    assert b"executor_managed" not in raw_bytes
 
     fresh = ModelProfileStore(state_path=sp)
     listed = fresh.list_connections_public()
-    assert listed[0]["external_session_status"] == "missing"
+    assert listed[0]["external_session_status"] == "executor_managed"
 
     fresh.refresh_external_session_status({"sensetime": "api"})
     assert fresh.get_connection_public("persisted-external-conn")["external_session_status"] == "available"
 
     fresh_second = ModelProfileStore(state_path=sp)
-    assert fresh_second.get_connection_public("persisted-external-conn")["external_session_status"] == "missing"
+    assert fresh_second.get_connection_public("persisted-external-conn")["external_session_status"] == "executor_managed"
 
     fresh_second.refresh_external_session_status({})
     assert fresh_second.get_connection_public("persisted-external-conn")["external_session_status"] == "missing"
