@@ -3015,7 +3015,7 @@ def test_single_execute_creates_exactly_one_durable_run(tmp_path) -> None:
 
 
 def test_single_execute_dispatches_executor_once(tmp_path) -> None:
-    """One eligible single execution -> exactly one fake executor dispatch."""
+    """One eligible single execution -> exactly one executor.execute() call."""
     reset_crash_seam()
     store = _make_store(tmp_path)
     task = store.create_task(
@@ -3024,15 +3024,23 @@ def test_single_execute_dispatches_executor_once(tmp_path) -> None:
         orchestration_mode="single",
     )
 
-    dispatch_count = [0]
+    execute_count = [0]
 
-    class CountingRouter(ExecutorRouter):
-        def dispatch_execute(self, **kwargs):
-            dispatch_count[0] += 1
-            return super().dispatch_execute(**kwargs)
+    class CountingFixtureExecutor:
+        def __init__(self, **kwargs) -> None:
+            from reverse_agent.platform_v1.task_runtime import DeterministicFixtureExecutor
+            self._inner = DeterministicFixtureExecutor(**kwargs)
+        def execute(self, task_id, store, **kw):
+            execute_count[0] += 1
+            return self._inner.execute(task_id, store, **kw)
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
+
+    router = ExecutorRouter()
+    router.register("deterministic_fixture", CountingFixtureExecutor)
 
     service = DurableExecutionService(
-        store=store, router=CountingRouter(),
+        store=store, router=router,
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
     )
@@ -3040,7 +3048,7 @@ def test_single_execute_dispatches_executor_once(tmp_path) -> None:
         task_id=task.id, workspace_root=str(tmp_path / "ws"), lease_owner="w1",
     )
     assert outcome.success is True
-    assert dispatch_count[0] == 1
+    assert execute_count[0] == 1
 
 
 def test_single_duplicate_execute_fails_closed(tmp_path) -> None:
@@ -3053,15 +3061,23 @@ def test_single_duplicate_execute_fails_closed(tmp_path) -> None:
         orchestration_mode="single",
     )
 
-    dispatch_count = [0]
+    execute_count = [0]
 
-    class CountingRouter2(ExecutorRouter):
-        def dispatch_execute(self, **kwargs):
-            dispatch_count[0] += 1
-            return super().dispatch_execute(**kwargs)
+    class CountingFixtureExecutor2:
+        def __init__(self, **kwargs) -> None:
+            from reverse_agent.platform_v1.task_runtime import DeterministicFixtureExecutor
+            self._inner = DeterministicFixtureExecutor(**kwargs)
+        def execute(self, task_id, store, **kw):
+            execute_count[0] += 1
+            return self._inner.execute(task_id, store, **kw)
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
+
+    router = ExecutorRouter()
+    router.register("deterministic_fixture", CountingFixtureExecutor2)
 
     service = DurableExecutionService(
-        store=store, router=CountingRouter2(),
+        store=store, router=router,
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
     )
@@ -3069,10 +3085,10 @@ def test_single_duplicate_execute_fails_closed(tmp_path) -> None:
         task_id=task.id, workspace_root=str(tmp_path / "ws"), lease_owner="w1",
     )
     assert outcome1.success is True
-    assert dispatch_count[0] == 1
+    assert execute_count[0] == 1
 
     service2 = DurableExecutionService(
-        store=store, router=CountingRouter2(),
+        store=store, router=router,
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
     )
@@ -3080,7 +3096,7 @@ def test_single_duplicate_execute_fails_closed(tmp_path) -> None:
         service2.execute_durable_single(
             task_id=task.id, workspace_root=str(tmp_path / "ws"), lease_owner="w2",
         )
-    assert dispatch_count[0] == 1
+    assert execute_count[0] == 1
 
     rows = store._conn.execute(
         "SELECT run_id FROM durable_runs WHERE task_id = ?", (task.id,),
@@ -3195,12 +3211,20 @@ def test_single_crash_before_dispatch_can_recover(tmp_path) -> None:
         orchestration_mode="single",
     )
 
-    dispatch_count = [0]
+    execute_count = [0]
 
-    class CountingRouter3(ExecutorRouter):
-        def dispatch_execute(self, **kwargs):
-            dispatch_count[0] += 1
-            return super().dispatch_execute(**kwargs)
+    class CountingFixtureExecutor3:
+        def __init__(self, **kwargs) -> None:
+            from reverse_agent.platform_v1.task_runtime import DeterministicFixtureExecutor
+            self._inner = DeterministicFixtureExecutor(**kwargs)
+        def execute(self, task_id, store, **kw):
+            execute_count[0] += 1
+            return self._inner.execute(task_id, store, **kw)
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
+
+    router = ExecutorRouter()
+    router.register("deterministic_fixture", CountingFixtureExecutor3)
 
     lease = store._acquire_durable_lease(
         task_id=task.id, execution_id=task.execution_id,
@@ -3216,7 +3240,7 @@ def test_single_crash_before_dispatch_can_recover(tmp_path) -> None:
     _expire_and_reconcile(store, task.id)
 
     service2 = DurableExecutionService(
-        store=store, router=CountingRouter3(),
+        store=store, router=router,
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
     )
@@ -3224,7 +3248,7 @@ def test_single_crash_before_dispatch_can_recover(tmp_path) -> None:
         task_id=task.id, workspace_root=str(tmp_path / "ws"), lease_owner="w2",
     )
     assert outcome.success is True
-    assert dispatch_count[0] == 1
+    assert execute_count[0] == 1
 
     run_after = store._get_durable_run(run_id)
     assert run_after.accepted_checkpoint == "POST_VALIDATION"

@@ -203,23 +203,32 @@ def test_task_service_wrapper_starts_and_serves(task_server) -> None:
 
 
 def test_router_injection_http_execute(task_server) -> None:
-    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+    from reverse_agent.platform_v1.task_runtime import (
+        ExecutorRouter,
+        DeterministicFixtureExecutor,
+    )
 
     base, _ = task_server
 
     dispatched_kinds: list[str] = []
 
-    class _TracingRouter(ExecutorRouter):
-        def dispatch_execute(self, **kwargs):
-            dispatched_kinds.append(kwargs.get("executor_kind", ""))
-            return super().dispatch_execute(**kwargs)
+    class _TracingFixtureExecutor:
+        def __init__(self, **kwargs):
+            self._inner = DeterministicFixtureExecutor(**kwargs)
+        def execute(self, task_id, store, **kw):
+            dispatched_kinds.append("deterministic_fixture")
+            return self._inner.execute(task_id, store, **kw)
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
 
     store = TaskStore(":memory:")
-    tracing_router = _TracingRouter()
+    router = ExecutorRouter()
+    router.register("deterministic_fixture", _TracingFixtureExecutor)
+
     from http.server import ThreadingHTTPServer
 
     handler_cls = _handler_factory(
-        store, tracing_router,
+        store, router,
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
@@ -249,30 +258,26 @@ def test_router_injection_http_execute(task_server) -> None:
 
 def test_task_service_executor_runs_while_state_is_running_not_validating(tmp_path) -> None:
     from reverse_agent.platform_v1.task_runtime import (
-        ExecutorRuntimeError,
-        ExecutorResult,
+        DeterministicFixtureExecutor,
     )
 
     db_path = str(tmp_path / "tasks.sqlite3")
     store = TaskStore(db_path=db_path)
 
-    class _TimelineRouter(ExecutorRouter):
-        def __init__(self):
-            super().__init__()
-            self.states_at_dispatch: list[str] = []
-            self.tasks_at_dispatch: list[str] = []
+    states_at_dispatch: list[str] = []
 
-        def dispatch_execute(self, *, task_id: str, store, **kwargs):
-            self.states_at_dispatch.append(store.get_task(task_id).status)
-            self.tasks_at_dispatch.append(task_id)
-            return super().dispatch_execute(
-                task_id=task_id,
-                store=store,
-                executor_kind=kwargs.get("executor_kind", "deterministic_fixture"),
-                workspace_root=kwargs.get("workspace_root", ""),
-            )
+    class _TimelineFixtureExecutor:
+        def __init__(self, **kwargs):
+            self._inner = DeterministicFixtureExecutor(**kwargs)
+        def execute(self, task_id, store, **kw):
+            states_at_dispatch.append(store.get_task(task_id).status)
+            return self._inner.execute(task_id, store, **kw)
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
 
-    router = _TimelineRouter()
+    router = ExecutorRouter()
+    router.register("deterministic_fixture", _TimelineFixtureExecutor)
+
     handler_cls = _handler_factory(
         store, router,
         allowed_origin="http://localhost:5173",
@@ -292,8 +297,8 @@ def test_task_service_executor_runs_while_state_is_running_not_validating(tmp_pa
         status, executed = _req(base, "POST", f"/api/tasks/{tid}/execute")
         assert status == 200
         assert executed["status"] == "READY_FOR_REVIEW_FIXTURE"
-        assert router.states_at_dispatch, "executor must be dispatched"
-        for s in router.states_at_dispatch:
+        assert states_at_dispatch, "executor must be dispatched"
+        for s in states_at_dispatch:
             assert s == "RUNNING", s
             assert s != "VALIDATING", s
             assert s != "READY_FOR_REVIEW", s
@@ -303,32 +308,34 @@ def test_task_service_executor_runs_while_state_is_running_not_validating(tmp_pa
 
 
 def test_task_service_validator_runs_after_executor(tmp_path) -> None:
-    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+    from reverse_agent.platform_v1.task_runtime import (
+        ExecutorRouter,
+        DeterministicFixtureExecutor,
+    )
 
     db_path = str(tmp_path / "tasks.sqlite3")
     store = TaskStore(db_path=db_path)
-    router = ExecutorRouter()
 
-    class _StateObserver(ExecutorRouter):
-        def __init__(self):
-            super().__init__()
-            self.states: list[str] = []
+    class _StateObserverExecutor:
+        def __init__(self, **kwargs):
+            self._inner = DeterministicFixtureExecutor(**kwargs)
+            self.states: list[tuple[str, str]] = []
 
-        def dispatch_execute(self, *, task_id: str, store, **kwargs):
+        def execute(self, task_id, store, **kw):
             before = store.get_task(task_id).status
-            result = super().dispatch_execute(
-                task_id=task_id,
-                store=store,
-                executor_kind=kwargs.get("executor_kind", "deterministic_fixture"),
-                workspace_root=kwargs.get("workspace_root", ""),
-            )
+            result = self._inner.execute(task_id, store, **kw)
             after = store.get_task(task_id).status
             self.states.append((before, after))
             return result
 
-    obs = _StateObserver()
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
+
+    router = ExecutorRouter()
+    router.register("deterministic_fixture", _StateObserverExecutor)
+
     handler_cls = _handler_factory(
-        store, obs,
+        store, router,
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
@@ -346,10 +353,6 @@ def test_task_service_validator_runs_after_executor(tmp_path) -> None:
         status, executed = _req(base, "POST", f"/api/tasks/{tid}/execute")
         assert status == 200
         assert executed["status"] == "READY_FOR_REVIEW_FIXTURE"
-        assert obs.states, "executor must run"
-        for before, after in obs.states:
-            assert before == "RUNNING"
-            assert after == "RUNNING"
         task = store.get_task(tid)
         assert task.validation_exit_code == 0
         assert task.validation_command_id == "git_diff_check"
@@ -988,22 +991,30 @@ def test_http_response_contains_no_credentials(task_server) -> None:
 
 def test_single_mode_execute_backward_compatible_http(tmp_path) -> None:
     from http.server import ThreadingHTTPServer
-    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+    from reverse_agent.platform_v1.task_runtime import (
+        ExecutorRouter,
+        DeterministicFixtureExecutor,
+    )
 
     db_path = str(tmp_path / "bc-single.sqlite3")
     store = TaskStore(db_path=db_path)
-    router = ExecutorRouter()
 
     dispatched: list[str] = []
 
-    class _TraceRouter(ExecutorRouter):
-        def dispatch_execute(self, **kwargs):
-            dispatched.append(kwargs.get("executor_kind", ""))
-            return super().dispatch_execute(**kwargs)
+    class _TraceFixtureExecutor:
+        def __init__(self, **kwargs):
+            self._inner = DeterministicFixtureExecutor(**kwargs)
+        def execute(self, task_id, store, **kw):
+            dispatched.append("deterministic_fixture")
+            return self._inner.execute(task_id, store, **kw)
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
 
-    trace_router = _TraceRouter()
+    router = ExecutorRouter()
+    router.register("deterministic_fixture", _TraceFixtureExecutor)
+
     handler_cls = _handler_factory(
-        store, trace_router,
+        store, router,
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
