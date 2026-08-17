@@ -2371,3 +2371,106 @@ def test_auth_list_parser_json_compatibility_still_passes() -> None:
     # Empty JSON
     assert parse_opencode_auth_list("{}") == {}
     assert parse_opencode_auth_list("[]") == {}
+
+
+# ---------------------------------------------------------------------------
+# Issue #227 — executor-managed external-session gate regressions
+# ---------------------------------------------------------------------------
+
+def _executor_managed_binding_resolution(
+    auth_method: str = "external_cli_session",
+    status: str = "executor_managed",
+) -> OpenCodeBindingResolution:
+    return OpenCodeBindingResolution(
+        binding_ref="coding-fast",
+        connection_id="sense-api",
+        executor_id="opencode",
+        provider_id="openai-compatible",
+        model_id="openai-compatible/sense-coding-fast",
+        base_url="https://models.example.test/v1",
+        auth_method=auth_method,
+        external_session_status=status,
+    )
+
+
+def test_external_cli_session_executor_managed_accepted() -> None:
+    executor = OpenCodeExecutor(
+        binding_resolution=_executor_managed_binding_resolution(
+            "external_cli_session", "executor_managed"
+        ),
+        parent_env=_GuardedParentEnvironment(),
+        opencode_exe="/fake/opencode",
+    )
+    assert executor._model_id == "openai-compatible/sense-coding-fast"
+
+
+def test_external_cli_session_available_still_accepted() -> None:
+    executor = OpenCodeExecutor(
+        binding_resolution=_executor_managed_binding_resolution(
+            "external_cli_session", "available"
+        ),
+        parent_env=_GuardedParentEnvironment(),
+        opencode_exe="/fake/opencode",
+    )
+    assert executor._model_id == "openai-compatible/sense-coding-fast"
+
+
+def test_account_login_executor_managed_accepted() -> None:
+    executor = OpenCodeExecutor(
+        binding_resolution=_executor_managed_binding_resolution(
+            "account_login", "executor_managed"
+        ),
+        parent_env=_GuardedParentEnvironment(),
+        opencode_exe="/fake/opencode",
+    )
+    assert executor._model_id == "openai-compatible/sense-coding-fast"
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        "missing",
+        "not_applicable",
+        "unknown",
+        "",
+    ],
+    ids=lambda s: s if s else "empty",
+)
+def test_external_session_rejected_statuses_raise(status: str) -> None:
+    for auth_method in ("external_cli_session", "account_login"):
+        with pytest.raises(ExecutorRuntimeError, match="external_session_unavailable"):
+            OpenCodeExecutor(
+                binding_resolution=_executor_managed_binding_resolution(
+                    auth_method, status
+                ),
+                parent_env=_GuardedParentEnvironment(),
+                opencode_exe="/fake/opencode",
+            )
+
+
+def test_executor_router_create_executor_with_executor_managed_binding() -> None:
+    router = ExecutorRouter()
+    executor = router.create_executor(
+        executor_kind="opencode",
+        binding_resolution=_executor_managed_binding_resolution(),
+        parent_env=_GuardedParentEnvironment(),
+        opencode_exe="/fake/opencode",
+    )
+    assert isinstance(executor, OpenCodeExecutor)
+    assert executor._model_id == "openai-compatible/sense-coding-fast"
+
+
+def test_binding_config_content_executor_managed_preserves_metadata_and_secret_free() -> None:
+    resolution = _executor_managed_binding_resolution()
+    content = build_binding_config_content(resolution)
+
+    parsed = json.loads(content)
+    provider_entry = parsed["provider"]["openai-compatible"]
+    assert provider_entry["options"]["baseURL"] == "https://models.example.test/v1"
+    assert "sense-coding-fast" in provider_entry["models"]
+    assert provider_entry["name"] == "Reverse Agent Relay"
+    assert provider_entry["npm"] == "@ai-sdk/openai-compatible"
+
+    lowered = content.lower()
+    for forbidden in ("apikey", "token", "password", "credential", "cookie"):
+        assert forbidden not in lowered, f"secret indicator {forbidden!r} leaked into config"

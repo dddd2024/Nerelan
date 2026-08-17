@@ -1066,8 +1066,12 @@ class OpenCodeExecutor:
             elif binding_resolution.auth_method in {
                 "external_cli_session",
                 "account_login",
-            } and binding_resolution.external_session_status != "available":
-                raise ExecutorRuntimeError("external_session_unavailable")
+            }:
+                if binding_resolution.external_session_status not in {
+                    "executor_managed",
+                    "available",
+                }:
+                    raise ExecutorRuntimeError("external_session_unavailable")
             self._model_id = validate_model_id(binding_resolution.model_id)
         else:
             self._model_id = validate_model_id(
