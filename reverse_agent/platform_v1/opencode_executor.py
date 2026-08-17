@@ -1420,6 +1420,102 @@ class OpenCodeExecutor:
             opencode_exe=self._opencode_exe,
         )
 
+    def rebind_prepared_worktree(
+        self,
+        *,
+        task_id: str,
+        existing_worktree: str,
+        expected_base_sha: str,
+        execution_id: str,
+    ) -> PreparedWorkspaceContext:
+        """Reconstruct a PreparedWorkspaceContext for an already-existing persisted worktree.
+
+        NON-MUTATING: this method MUST NOT call ``git worktree add`` / ``git worktree remove``,
+        delete or recreate the directory, run ``git reset`` / ``git checkout`` / ``git clean``,
+        modify tracked files, invoke OpenCode, or make any network call.
+
+        Checks performed:
+        1. worktree path exists
+        2. path is a directory
+        3. ``git rev-parse HEAD`` succeeds
+        4. HEAD equals expected_base_sha (the persisted worktree HEAD)
+        5. for explicit real repo_dir: existing path is a registered linked worktree
+        6. worktree is not the source repo itself / not unsafe nested source path
+        7. CLI metadata resolved (using fake opencode_exe for tests)
+        8. returns PreparedWorkspaceContext
+        """
+        if not existing_worktree or not existing_worktree.strip():
+            raise ExecutorRuntimeError("rebind_existing_worktree_path_required")
+        wt = Path(existing_worktree)
+        if not wt.exists():
+            raise ExecutorRuntimeError(
+                "rebind_prepared_worktree_missing:%s" % existing_worktree
+            )
+        if not wt.is_dir():
+            raise ExecutorRuntimeError(
+                "rebind_prepared_worktree_not_directory:%s" % existing_worktree
+            )
+
+        head_proc = self._run_git(
+            ["git", "rev-parse", "HEAD"],
+            cwd=wt,
+            timeout=10,
+        )
+        if head_proc.returncode != 0:
+            raise ExecutorRuntimeError(
+                "rebind_prepared_worktree_not_git:%s" % existing_worktree
+            )
+        actual_head = head_proc.stdout.strip()
+        if not actual_head:
+            raise ExecutorRuntimeError(
+                "rebind_prepared_worktree_empty_HEAD:%s" % existing_worktree
+            )
+        if expected_base_sha and actual_head != expected_base_sha:
+            raise ExecutorRuntimeError(
+                "rebind_prepared_worktree_head_mismatch:"
+                "expected=%s:actual=%s" % (expected_base_sha, actual_head)
+            )
+
+        if self._repo_dir_explicit:
+            repo_dir = Path(self._repo_dir).resolve()
+            if not repo_dir.exists() or not repo_dir.is_dir():
+                raise ExecutorRuntimeError(
+                    "rebind_repo_dir_invalid:%s" % self._repo_dir
+                )
+            wt_resolved = wt.resolve()
+            if wt_resolved == repo_dir:
+                raise ExecutorRuntimeError(
+                    "rebind_worktree_is_source_repo"
+                )
+            if _is_path_contained(wt_resolved, repo_dir):
+                raise ExecutorRuntimeError(
+                    "rebind_worktree_nested_in_source_repo"
+                )
+            list_proc = self._run_git(
+                ["git", "worktree", "list", "--porcelain"],
+                cwd=repo_dir,
+                timeout=10,
+            )
+            if list_proc.returncode == 0:
+                if (
+                    wt.as_posix() not in list_proc.stdout
+                    and str(wt) not in list_proc.stdout
+                    and str(wt_resolved) not in list_proc.stdout
+                ):
+                    raise ExecutorRuntimeError(
+                        "rebind_worktree_not_registered_linked_worktree"
+                    )
+
+        cli_path, is_cmd = resolve_opencode_cli(self._opencode_exe)
+        return PreparedWorkspaceContext(
+            worktree=wt,
+            base_sha=actual_head,
+            execution_id=execution_id,
+            cli_path=cli_path,
+            is_cmd=is_cmd,
+            opencode_exe=self._opencode_exe,
+        )
+
     def execute_role_prepared(
         self,
         prepared: PreparedWorkspaceContext,

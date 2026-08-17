@@ -170,6 +170,9 @@ class TestCombinedTrustedHostInstalledOpenCodeE2E:
         MASTER = "prod-e2e-master-" + os.urandom(16).hex()
         BINDING_ID = "e2e-binding-v7"
         CONN_ID = "e2e-conn-v7"
+        EXEC_AUTH = "a" * 40
+        PLAN_SHA = "b" * 40
+        assert EXEC_AUTH != PLAN_SHA
 
         fake_port = _free_port()
         fake = _FakeProvider(fake_port)
@@ -215,6 +218,8 @@ class TestCombinedTrustedHostInstalledOpenCodeE2E:
                         store=store,
                         model_control_port=0,
                         task_api_port=0,
+                        execution_authority_sha=EXEC_AUTH,
+                        planning_sha=PLAN_SHA,
                     )
                     host.start()
 
@@ -254,8 +259,31 @@ class TestCombinedTrustedHostInstalledOpenCodeE2E:
                         actual_task_url, f"/api/tasks/{task_id}/execute",
                         exec_body, timeout=180,
                     )
+                    assert exec_status == 202, \
+                        f"execute must return 202 Accepted, got {exec_status}: {exec_data[:300]}"
 
-                    time.sleep(0.5)
+                    terminal = {"READY_FOR_REVIEW", "FAILED", "BLOCKED", "CANCELLED"}
+                    deadline = time.monotonic() + 180.0
+                    final_status = None
+                    while time.monotonic() < deadline:
+                        get_status, get_data = _http_json_get(
+                            actual_task_url, f"/api/tasks/{task_id}",
+                            timeout=5.0,
+                        )
+                        if get_status == 200:
+                            try:
+                                d = json.loads(get_data.decode("utf-8"))
+                            except Exception:
+                                d = {}
+                            st = d.get("status")
+                            if st in terminal:
+                                final_status = st
+                                break
+                        time.sleep(0.2)
+
+                    assert final_status == "READY_FOR_REVIEW", \
+                        f"unexpected terminal: {final_status}"
+
                     received = fake.received_requests()
                     assert len(received) >= 1, \
                         f"fake provider received no requests. exec={exec_status} data={exec_data[:500]}"
@@ -314,7 +342,6 @@ class TestCombinedTrustedHostInstalledOpenCodeE2E:
                     assert leak_count == 0, \
                         f"master leak count={leak_count}"
 
-                    time.sleep(0.3)
                     lease_count_after = host.relay_manager.lease_count()
                     assert lease_count_after == 0, \
                         f"lease not released after execution, count={lease_count_after}"
@@ -328,6 +355,7 @@ class TestCombinedTrustedHostInstalledOpenCodeE2E:
                     print(f"auth_hash_equality={auth_hash == expected_hash}")
                     print(f"lease_before={lease_count_before} after={lease_count_after}")
                     print(f"leak_count={leak_count}")
+                    print(f"final_task_status={final_status}")
 
                 finally:
                     host.stop()

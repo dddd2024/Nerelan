@@ -534,12 +534,6 @@ class _TaskHandler(BaseHTTPRequestHandler):
                         "error": f"not_durable:{task.orchestration_mode}"
                     })
                     return
-                run = self.store._find_active_durable_run(segments[2])
-                if run is None:
-                    self._send_json(HTTPStatus.CONFLICT, {
-                        "error": "no_active_durable_run_to_resume"
-                    })
-                    return
                 task = self.store.get_task(segments[2])
                 self._send_json(HTTPStatus.OK, self._task_response(task))
                 return

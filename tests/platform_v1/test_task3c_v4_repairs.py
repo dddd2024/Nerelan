@@ -529,46 +529,141 @@ class TestTaskApiApiKeyWiring:
         port = _free_port()
         fake_url = f"http://127.0.0.1:{port}"
 
+        EXEC_AUTH = "a" * 40
+        PLAN_SHA = "b" * 40
+        assert EXEC_AUTH != PLAN_SHA
+
         store = ModelProfileStore()
         store.upsert_connection({
-            "connection_id": "http-conn",
+            "connection_id": "http-conn-v3",
             "name": "H",
             "provider": "openai-compatible",
             "base_url": fake_url,
             "auth_method": "api_key",
-            "api_key": "master-key-http",
+            "api_key": "master-key-http-v3",
         })
         store.upsert_binding({
-            "binding_id": "http-binding",
+            "binding_id": "http-binding-v3",
             "name": "B",
             "executor_id": "opencode",
-            "connection_id": "http-conn",
+            "connection_id": "http-conn-v3",
             "model_id": "gpt-4o",
         })
 
         fake_srv, received = _start_fake_provider(port)
         try:
-            mc_port = _free_port()
-            task_port = _free_port()
-            host = CombinedTrustedHost(store=store)
-            host.start(model_control_port=mc_port, task_api_port=task_port)
-            assert host.model_control_url == f"http://127.0.0.1:{mc_port}"
+            host = CombinedTrustedHost(
+                store=store,
+                execution_authority_sha=EXEC_AUTH,
+                planning_sha=PLAN_SHA,
+            )
+            host.start(model_control_port=_free_port(), task_api_port=_free_port())
+            assert host.model_control_url
+            http_srv: ThreadingHTTPServer | None = None
             try:
-                task_store = TaskStore(db_path=str(tmp_path / "http-tasks.sqlite3"))
-                task = task_store.create_task(
-                    title="http-api-key-task",
-                    executor_kind="opencode",
-                    binding_ref="http-binding",
-                )
+                from reverse_agent.platform_v1.binding_resolver import BindingResolver
+                task_store = TaskStore(db_path=str(tmp_path / "http-v3.sqlite3"))
 
-                class _CaptureRouter(ExecutorRouter):
-                    def dispatch_execute(self, **kwargs: Any):
-                        assert "lease_provider" in kwargs
-                        lp = kwargs["lease_provider"]
-                        resolution = kwargs["binding_resolution"]
-                        handle = lp(resolution)
-                        assert handle._release_callback is not None
+                proof: dict[str, Any] = {
+                    "executor_kind_seen": False,
+                    "binding_resolution_seen": False,
+                    "lease_provider_seen": False,
+                    "lease_created": False,
+                    "lease_callback_seen": False,
+                    "lease_released": False,
+                    "prepared_head": "",
+                    "execute_calls": 0,
+                }
+
+                class _FakePrepared:
+                    def __init__(self, worktree: Path, head_sha: str) -> None:
+                        self.worktree = worktree
+                        self.base_sha = head_sha
+                        self.execution_id = "exec-fake-http-v3"
+                        self.cli_path = "opencode"
+                        self.is_cmd = False
+                        self.opencode_exe = None
+
+                class _FakeOpenCodeExecutor:
+                    def __init__(self, binding_resolution: Any,
+                                 lease_provider: Any) -> None:
+                        proof["executor_kind_seen"] = True
+                        assert binding_resolution is not None, \
+                            "binding_resolution must be present"
+                        assert getattr(binding_resolution, "executor_id", "") \
+                            == "opencode"
+                        proof["binding_resolution_seen"] = True
+                        assert callable(lease_provider), \
+                            "lease_provider must be callable"
+                        proof["lease_provider_seen"] = True
+                        handle = lease_provider(binding_resolution)
+                        assert handle is not None and handle.lease_id, \
+                            "lease handle must exist"
+                        proof["lease_created"] = True
+                        assert handle._release_callback is not None, \
+                            "lease release callback must be present"
+                        proof["lease_callback_seen"] = True
+                        assert host.relay_manager.has_active_lease(
+                            handle.lease_id
+                        )
                         handle.release()
+                        proof["lease_released"] = True
+                        assert not host.relay_manager.has_active_lease(
+                            handle.lease_id
+                        )
+
+                    def prepare_worktree_once(
+                        self,
+                        task_id: str,
+                        root_path: Path,
+                        event_callback: Any,
+                    ) -> Any:
+                        import subprocess as _sp
+                        import tempfile as _tf
+                        tmp = _tf.mkdtemp(prefix="issue140-v3-http-")
+                        _sp.run(
+                            ["git", "init", "-q"], cwd=tmp,
+                            check=True, capture_output=True, timeout=10,
+                        )
+                        _sp.run(
+                            ["git", "config", "user.email",
+                             "fake@provider-free.local"], cwd=tmp,
+                            check=True, capture_output=True, timeout=5,
+                        )
+                        _sp.run(
+                            ["git", "config", "user.name",
+                             "ProviderFree Fake"], cwd=tmp,
+                            check=True, capture_output=True, timeout=5,
+                        )
+                        (Path(tmp) / "fixture.txt").write_text(
+                            "provider-free fixture\n", encoding="utf-8"
+                        )
+                        _sp.run(
+                            ["git", "add", "."], cwd=tmp,
+                            check=True, capture_output=True, timeout=5,
+                        )
+                        _sp.run(
+                            ["git", "commit", "-q", "-m", "init"], cwd=tmp,
+                            check=True, capture_output=True, timeout=10,
+                        )
+                        head = _sp.run(
+                            ["git", "rev-parse", "HEAD"], cwd=tmp,
+                            capture_output=True, text=True, check=True,
+                            timeout=5,
+                        ).stdout.strip()
+                        assert head, "prepared worktree must have HEAD"
+                        proof["prepared_head"] = head
+                        return _FakePrepared(Path(tmp), head)
+
+                    def execute_role_prepared(
+                        self,
+                        prepared: Any,
+                        store: Any,
+                        *,
+                        role_context: Any = None,
+                        event_callback: Any = None,
+                    ) -> ExecutorResult:
+                        proof["execute_calls"] += 1
                         return ExecutorResult(
                             success=True,
                             validation_exit_code=0,
@@ -577,17 +672,28 @@ class TestTaskApiApiKeyWiring:
                             validation_output_summary="",
                         )
 
-                from reverse_agent.platform_v1.binding_resolver import BindingResolver
+                def _fake_opencode_factory(**kwargs: Any) -> Any:
+                    return _FakeOpenCodeExecutor(
+                        binding_resolution=kwargs.get("binding_resolution"),
+                        lease_provider=kwargs.get("lease_provider"),
+                    )
+
+                router = ExecutorRouter()
+                router.register("opencode", _fake_opencode_factory)
                 resolver = BindingResolver(base_url=host.model_control_url)
 
                 handler_cls = _handler_factory(
                     task_store,
-                    _CaptureRouter(),
+                    router,
                     allowed_origin="http://127.0.0.1:4173",
                     lease_provider=host._lease_provider_factory(),
                     binding_resolver=resolver,
+                    execution_authority_sha=EXEC_AUTH,
+                    planning_sha=PLAN_SHA,
                 )
                 assert handler_cls.lease_provider is not None
+                assert handler_cls.execution_authority_sha == EXEC_AUTH
+                assert handler_cls.planning_sha == PLAN_SHA
 
                 http_srv = ThreadingHTTPServer(
                     ("127.0.0.1", _free_port()), handler_cls
@@ -596,17 +702,17 @@ class TestTaskApiApiKeyWiring:
                 ht.start()
                 http_port = http_srv.server_address[1]
 
-                body = json.dumps({
-                    "title": "http-created",
+                create_body = json.dumps({
+                    "title": "http-created-v3",
                     "executor_kind": "opencode",
-                    "binding_ref": "http-binding",
+                    "binding_ref": "http-binding-v3",
                     "repository": "https://github.com/dddd2024/reverse-agent",
                 }).encode("utf-8")
                 conn = HTTPConnection("127.0.0.1", http_port, timeout=5)
                 conn.request(
                     "POST",
                     "/api/tasks",
-                    body=body,
+                    body=create_body,
                     headers={"Content-Type": "application/json"},
                 )
                 resp = conn.getresponse()
@@ -625,12 +731,44 @@ class TestTaskApiApiKeyWiring:
                 resp = conn.getresponse()
                 resp.read()
                 conn.close()
-                assert resp.status == 200
+                assert resp.status == 202
 
-                final = task_store.get_task(task_id)
-                assert final.status == "READY_FOR_REVIEW"
+                terminal = {"READY_FOR_REVIEW", "FAILED", "BLOCKED", "CANCELLED"}
+                deadline = time.monotonic() + 12.0
+                final_status = None
+                while time.monotonic() < deadline:
+                    conn = HTTPConnection("127.0.0.1", http_port, timeout=3)
+                    conn.request("GET", f"/api/tasks/{task_id}")
+                    r = conn.getresponse()
+                    body_bytes = r.read()
+                    conn.close()
+                    if r.status == 200:
+                        try:
+                            d = json.loads(body_bytes.decode("utf-8"))
+                        except Exception:
+                            d = {}
+                        st = d.get("status")
+                        if st in terminal:
+                            final_status = st
+                            break
+                    time.sleep(0.05)
+
+                assert final_status == "READY_FOR_REVIEW", \
+                    f"unexpected terminal: {final_status}"
+
+                assert proof["executor_kind_seen"]
+                assert proof["binding_resolution_seen"]
+                assert proof["lease_provider_seen"]
+                assert proof["lease_created"]
+                assert proof["lease_callback_seen"]
+                assert proof["lease_released"]
+                assert proof["prepared_head"]
+                assert proof["execute_calls"] == 1
+                assert len(received) == 0, \
+                    "no provider traffic should be sent by the fake"
             finally:
-                http_srv.shutdown()
+                if http_srv is not None:
+                    http_srv.shutdown()
                 host.stop()
         finally:
             fake_srv.shutdown()

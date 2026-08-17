@@ -134,15 +134,18 @@ class DurableRun:
     validation_command_id: str
     validation_exit_code: int | None
     validation_output_digest: str
-    lease_owner: str
-    lease_epoch: int
-    heartbeat_at_ms: int
-    lease_expiry_ms: int
-    checkpoint_db_path: str
-    recovery_classification: str
-    interrupted_at: str
-    created_at: str
-    updated_at: str
+    executor_success: int | None = None
+    executor_failure_classification: str = ""
+    executor_failure_detail: str = ""
+    lease_owner: str = ""
+    lease_epoch: int = 0
+    heartbeat_at_ms: int = 0
+    lease_expiry_ms: int = 0
+    checkpoint_db_path: str = ""
+    recovery_classification: str = ""
+    interrupted_at: str = ""
+    created_at: str = ""
+    updated_at: str = ""
 
 
 @dataclass(frozen=True)
@@ -2169,6 +2172,18 @@ class DurableExecutionService:
         val_exit = getattr(result, "validation_exit_code", 0)
         val_digest = getattr(result, "validation_output_digest", "") or ""
 
+        result_success = bool(getattr(result, "success", False))
+        if result_success:
+            _exec_fail_class = ""
+            _exec_fail_detail = ""
+        else:
+            _exec_fail_class = (
+                getattr(result, "failure_classification", "") or "executor_failed"
+            )[:200]
+            _exec_fail_detail = (
+                getattr(result, "error", "") or f"exit={val_exit}"
+            )[:1000]
+
         store._fenced_set_changed_files(
             run_id, task_id,
             list(changed_files),
@@ -2181,13 +2196,28 @@ class DurableExecutionService:
             output_digest=val_digest,
             owner=owner, epoch=epoch,
         )
+        store._set_validation_result(
+            run_id,
+            command_id=val_cmd,
+            exit_code=int(val_exit),
+            output_digest=val_digest,
+            owner=owner, epoch=epoch,
+        )
+
+        store._set_executor_result(
+            run_id,
+            executor_success=1 if result_success else 0,
+            failure_classification=_exec_fail_class,
+            failure_detail=_exec_fail_detail,
+            owner=owner, epoch=epoch,
+        )
 
         store._accept_checkpoint(
             run_id, "POST_EXECUTOR", "", 1, owner, epoch
         )
         _check_crash_seam("POST_EXECUTOR")
 
-        if int(val_exit) == 0 and getattr(result, "success", False):
+        if int(val_exit) == 0 and result_success:
             store._fenced_transition_to(
                 run_id, task_id, "VALIDATING", owner, epoch,
             )
@@ -2220,8 +2250,8 @@ class DurableExecutionService:
         store._fenced_transition_to(
             run_id, task_id, "VALIDATING", owner, epoch,
         )
-        fail_class = getattr(result, "failure_classification", "") or "executor_failed"
-        fail_detail = getattr(result, "error", "") or f"exit={val_exit}"
+        fail_class = _exec_fail_class or "executor_failed"
+        fail_detail = _exec_fail_detail or f"exit={val_exit}"
         store._fenced_terminalize(
             run_id, task_id,
             terminal_status="FAILED",
@@ -2449,18 +2479,19 @@ class DurableExecutionService:
                 failure_detail=final.failure_detail,
             )
 
-        prepared = None
+        persisted_wt_path = run.worktree_path or workspace_root
         try:
-            prepared = executor.prepare_worktree_once(
-                task_id,
-                Path(workspace_root),
-                lambda tid, ev: None,
+            prepared = executor.rebind_prepared_worktree(
+                task_id=task_id,
+                existing_worktree=persisted_wt_path,
+                expected_base_sha=run.worktree_head_sha or run.repository_base_sha,
+                execution_id=run.execution_id,
             )
         except Exception as exc:
             self.store._fenced_classify_failure(
                 lease.run_id, task_id,
                 classification="blocked",
-                detail=f"worktree_preparation_failed:{exc}",
+                detail=f"worktree_rebind_failed:{exc}",
                 owner=lease.owner, epoch=lease.epoch,
             )
             final = self.store.get_task(task_id)
@@ -2473,14 +2504,17 @@ class DurableExecutionService:
                 failure_detail=final.failure_detail,
             )
 
+        wt_path = str(prepared.worktree)
+        wt_head_sha = prepared.base_sha
+
         ctx = DurableSingleContinuationContext(
             run_id=lease.run_id,
             task_id=task_id,
             execution_id=lease.execution_id,
             owner=lease.owner,
             epoch=lease.epoch,
-            worktree_path=str(prepared.worktree),
-            worktree_head_sha=self._git_rev_parse_head(str(prepared.worktree)),
+            worktree_path=wt_path,
+            worktree_head_sha=wt_head_sha,
             repository_base_sha=run.repository_base_sha,
             execution_authority_sha=self._trusted_authority_sha(),
             planning_sha=self._trusted_planning_sha(),
@@ -2503,11 +2537,47 @@ class DurableExecutionService:
     ) -> TaskExecutionOutcome:
         from .task_execution import TaskExecutionOutcome
 
-        val_cmd = run.validation_command_id or "git_diff_check"
-        val_exit = run.validation_exit_code or 0
-        val_digest = run.validation_output_digest or ""
+        executor_success = getattr(run, "executor_success", None)
+        fail_class = getattr(run, "executor_failure_classification", "") or ""
+        fail_detail = getattr(run, "executor_failure_detail", "") or ""
+        val_cmd = getattr(run, "validation_command_id", "") or "git_diff_check"
+        val_exit = getattr(run, "validation_exit_code", None)
+        val_digest = getattr(run, "validation_output_digest", "") or ""
 
-        if int(val_exit) == 0:
+        if executor_success is None or val_exit is None:
+            self.store._fenced_transition_to(
+                lease.run_id, task_id, "VALIDATING",
+                lease.owner, lease.epoch,
+            )
+            self.store._fenced_terminalize(
+                lease.run_id, task_id,
+                terminal_status="FAILED",
+                validation_command_id=val_cmd,
+                validation_exit_code=val_exit if val_exit is not None else -1,
+                validation_output_digest=val_digest,
+                failure_classification="single_post_executor_result_incomplete",
+                failure_detail=(
+                    "executor_success or validation_exit_code is NULL: "
+                    "executor result not durably captured before crash; "
+                    "fail_closed_no_executor_invocation"
+                ),
+                owner=lease.owner, epoch=lease.epoch,
+            )
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=run.execution_id,
+                success=False,
+                validation_command_id=val_cmd,
+                validation_exit_code=val_exit if val_exit is not None else -1,
+                failure_classification="single_post_executor_result_incomplete",
+                failure_detail=(
+                    "executor_success or validation_exit_code is NULL: "
+                    "executor result not durably captured before crash; "
+                    "fail_closed_no_executor_invocation"
+                ),
+            )
+
+        if executor_success == 1 and int(val_exit) == 0:
             self.store._fenced_transition_to(
                 lease.run_id, task_id, "VALIDATING",
                 lease.owner, lease.epoch,
@@ -2540,6 +2610,12 @@ class DurableExecutionService:
                 validation_exit_code=int(val_exit),
             )
 
+        detail = fail_detail or f"exit={val_exit}"
+        classification = fail_class or (
+            "deterministic_validation_failure"
+            if executor_success == 1 and int(val_exit) != 0
+            else "executor_failed"
+        )
         self.store._fenced_transition_to(
             lease.run_id, task_id, "VALIDATING",
             lease.owner, lease.epoch,
@@ -2550,8 +2626,8 @@ class DurableExecutionService:
             validation_command_id=val_cmd,
             validation_exit_code=int(val_exit),
             validation_output_digest=val_digest,
-            failure_classification="executor_failed",
-            failure_detail=f"exit={val_exit}",
+            failure_classification=classification,
+            failure_detail=detail,
             owner=lease.owner, epoch=lease.epoch,
         )
         return TaskExecutionOutcome(
@@ -2560,8 +2636,8 @@ class DurableExecutionService:
             success=False,
             validation_command_id=val_cmd,
             validation_exit_code=int(val_exit),
-            failure_classification="executor_failed",
-            failure_detail=f"exit={val_exit}",
+            failure_classification=classification,
+            failure_detail=detail,
         )
 
     # ---------------------------------------------------------------

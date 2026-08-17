@@ -335,6 +335,9 @@ class TaskStore:
                 heartbeat_at_ms INTEGER NOT NULL DEFAULT 0,
                 lease_expiry_ms INTEGER NOT NULL DEFAULT 0,
                 checkpoint_db_path TEXT NOT NULL DEFAULT '',
+                executor_success INTEGER,
+                executor_failure_classification TEXT NOT NULL DEFAULT '',
+                executor_failure_detail TEXT NOT NULL DEFAULT '',
                 recovery_classification TEXT NOT NULL DEFAULT 'normal',
                 interrupted_at TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
@@ -384,6 +387,9 @@ class TaskStore:
             ("worktree_prepared_at", "TEXT NOT NULL DEFAULT ''"),
             ("partial_coder_diff_digest", "TEXT NOT NULL DEFAULT ''"),
             ("checkpoint_db_path", "TEXT NOT NULL DEFAULT ''"),
+            ("executor_success", "INTEGER"),
+            ("executor_failure_classification", "TEXT NOT NULL DEFAULT ''"),
+            ("executor_failure_detail", "TEXT NOT NULL DEFAULT ''"),
         ]:
             if col not in run_columns:
                 self._conn.execute(f"ALTER TABLE durable_runs ADD COLUMN {col} {dtype}")
@@ -1533,6 +1539,47 @@ class TaskStore:
                 (checkpoint_db_path, _utc_now(), run_id),
             )
 
+    def _set_executor_result(
+        self,
+        run_id: str,
+        *,
+        executor_success: int | None,
+        failure_classification: str,
+        failure_detail: str,
+        owner: str,
+        epoch: int,
+    ) -> None:
+        """Persist the complete normalized executor result truth, fenced atomically.
+
+        The supplied owner+epoch and the mutation are performed in ONE
+        BEGIN IMMEDIATE transaction so a stale lease cannot overwrite the
+        executor result. Failure classification/detail are bounded to keep
+        the row compact and prevent raw OpenCode output from being stored.
+        executor_success is tri-valued: NULL (not captured), 0 (failure),
+        1 (success).
+        """
+        with self._lock:
+            if failure_classification is None:
+                failure_classification = ""
+            if failure_detail is None:
+                failure_detail = ""
+            bounded_classification = str(failure_classification)[:200]
+            bounded_detail = str(failure_detail)[:1000]
+            self._atomic_fenced_update(
+                run_id, owner, epoch,
+                "UPDATE durable_runs SET "
+                "executor_success = ?, executor_failure_classification = ?, "
+                "executor_failure_detail = ?, updated_at = ? "
+                "WHERE run_id = ?",
+                (
+                    executor_success,
+                    bounded_classification,
+                    bounded_detail,
+                    _utc_now(),
+                    run_id,
+                ),
+            )
+
     def _recover_durable_lease(
         self, run_id: str, lease_owner: str,
         *, expiry_ms: int = 300000,
@@ -2395,6 +2442,9 @@ def _row_to_durable_run(row: sqlite3.Row) -> Any:
         validation_command_id: str
         validation_exit_code: int | None
         validation_output_digest: str
+        executor_success: int | None
+        executor_failure_classification: str
+        executor_failure_detail: str
         lease_owner: str
         lease_epoch: int
         heartbeat_at_ms: int
@@ -2424,6 +2474,9 @@ def _row_to_durable_run(row: sqlite3.Row) -> Any:
         validation_command_id=row["validation_command_id"],
         validation_exit_code=row["validation_exit_code"],
         validation_output_digest=row["validation_output_digest"],
+        executor_success=row["executor_success"] if "executor_success" in cols else None,
+        executor_failure_classification=row["executor_failure_classification"] if "executor_failure_classification" in cols else "",
+        executor_failure_detail=row["executor_failure_detail"] if "executor_failure_detail" in cols else "",
         lease_owner=row["lease_owner"],
         lease_epoch=int(row["lease_epoch"]),
         heartbeat_at_ms=int(row["heartbeat_at_ms"]),

@@ -60,9 +60,14 @@ from reverse_agent.platform_v1.task_runtime import ExecutorRouter
 
 class _FakePreparedCtx:
     """Fake return value from prepare_worktree_once()."""
-    def __init__(self, worktree: Path, execution_id: str = "") -> None:
+    def __init__(self, worktree: Path, execution_id: str = "",
+                 base_sha: str = "fake-base-sha") -> None:
         self.worktree = worktree
         self.execution_id = execution_id or f"exec-{worktree.name}"
+        self.base_sha = base_sha
+        self.cli_path = "fake-opencode.exe"
+        self.is_cmd = False
+        self.opencode_exe = None
 
 
 class RecordingWorker:
@@ -2989,18 +2994,47 @@ class _SingleFakeExecutor:
     Holds a threading.Event to control when execute_role_prepared returns.
     """
 
-    def __init__(self, *, hold_event=None, fail_on_execute=False) -> None:
+    def __init__(self, *, hold_event=None, fail_on_execute=False,
+                 rebind_worktree=None, rebind_head_sha="",
+                 raise_on_prepare=False, raise_on_rebind=False) -> None:
         from threading import Event
         self.execute_calls = 0
         self.prepare_calls = 0
+        self.rebind_calls = 0
+        self.rebind_args = []
         self.hold_event = hold_event or Event()
         self.fail_on_execute = fail_on_execute
+        self._rebind_worktree = rebind_worktree
+        self._rebind_head_sha = rebind_head_sha
+        self.raise_on_prepare = raise_on_prepare
+        self.raise_on_rebind = raise_on_rebind
 
     def prepare_worktree_once(self, task_id: str, workspace_root: Path, callback: Any = None) -> _FakePreparedCtx:
         self.prepare_calls += 1
+        if self.raise_on_prepare:
+            raise RuntimeError("prepare_worktree_once should not be called during resume")
         wt = workspace_root / f"wt-{task_id[-8:]}"
         _make_git_worktree(wt)
         return _FakePreparedCtx(worktree=wt)
+
+    def rebind_prepared_worktree(
+        self, *, task_id: str, existing_worktree: str,
+        expected_base_sha: str, execution_id: str,
+    ) -> _FakePreparedCtx:
+        self.rebind_calls += 1
+        self.rebind_args.append({
+            "task_id": task_id,
+            "existing_worktree": existing_worktree,
+            "expected_base_sha": expected_base_sha,
+            "execution_id": execution_id,
+        })
+        if self.raise_on_rebind:
+            raise RuntimeError("rebind_prepared_worktree failed")
+        wt = self._rebind_worktree if self._rebind_worktree else Path(existing_worktree)
+        return _FakePreparedCtx(
+            worktree=wt, execution_id=execution_id,
+            base_sha=expected_base_sha,
+        )
 
     def execute_role_prepared(self, prepared: Any, store: Any, *, role_context: Any = None, event_callback: Any = None) -> Any:
         self.execute_calls += 1
@@ -3094,20 +3128,26 @@ def test_single_pre_executor_restart_resume_invokes_executor_once(tmp_path) -> N
     run = store._find_active_durable_run(task.id)
     assert run is not None
     assert run["accepted_checkpoint"] == "PRE_EXECUTOR"
+    persisted_wt_path = run["worktree_path"]
+    persisted_wt_head = run["worktree_head_sha"]
 
     _single_reconcile_to_interrupted(store, task.id)
     task_after = store.get_task(task.id)
     assert task_after.status == "INTERRUPTED"
 
-    fake2 = _SingleFakeExecutor()
+    fake2 = _SingleFakeExecutor(raise_on_prepare=True)
     svc2 = _single_svc(store, fake2)
     outcome = svc2.resume_single(
         task_id=task.id, lease_owner="w2",
     )
+    assert fake2.prepare_calls == 0
+    assert fake2.rebind_calls == 1
     assert fake2.execute_calls == 1
     assert outcome.success is True
     final = store.get_task(task.id)
     assert final.status == "READY_FOR_REVIEW"
+    assert fake2.rebind_args[0]["existing_worktree"] == persisted_wt_path
+    assert fake2.rebind_args[0]["expected_base_sha"] == persisted_wt_head
 
 
 # --- E: Dispatch ambiguity ---
