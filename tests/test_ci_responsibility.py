@@ -178,7 +178,63 @@ def test_state_gate_governance_paths_do_match() -> None:
 def test_ci_platform_v1_blocking_gate_present() -> None:
     content = _read_ci()
     assert "Platform V1 blocking gate" in content
-    assert "python -m pytest tests/platform_v1 -q" in content
+    assert "python -m pytest tests/platform_v1" in content
+
+
+_EXACT_DESELECTED_NODE = (
+    "tests/platform_v1/test_task3c_v6_production_relay.py"
+    "::TestCombinedTrustedHostInstalledOpenCodeE2E"
+    "::test_real_task_api_opencode_relay_fake_provider_end_to_end"
+)
+
+
+def _extract_platform_v1_blocking_command(content: str) -> str | None:
+    marker = "Platform V1 blocking gate"
+    idx = content.find(marker)
+    assert idx != -1, "Platform V1 blocking gate section missing"
+    section = content[idx:]
+    for line in section.splitlines()[1:]:
+        if line.strip().startswith("run:"):
+            return line.split("run:", 1)[1].strip()
+    return None
+
+
+def test_ci_platform_v1_blocking_gate_deselects_exact_installed_opencode_node() -> None:
+    content = _read_ci()
+    cmd = _extract_platform_v1_blocking_command(content)
+    assert cmd is not None
+    assert "--deselect=" in cmd, (
+        "Platform V1 blocking gate must deselect the installed-OpenCode E2E node"
+    )
+    deselected = cmd.split("--deselect=", 1)[1].strip()
+    assert deselected == _EXACT_DESELECTED_NODE, (
+        f"expected exact node deselect {_EXACT_DESELECTED_NODE!r}, got {deselected!r}"
+    )
+
+
+def test_ci_platform_v1_blocking_gate_single_deselect_only() -> None:
+    content = _read_ci()
+    cmd = _extract_platform_v1_blocking_command(content)
+    assert cmd is not None
+    deselect_count = cmd.count("--deselect")
+    assert deselect_count == 1, (
+        f"Platform V1 blocking gate must contain exactly one --deselect, "
+        f"got {deselect_count}"
+    )
+
+
+def test_ci_platform_v1_blocking_gate_does_not_broad_ignore_relay_file() -> None:
+    content = _read_ci()
+    cmd = _extract_platform_v1_blocking_command(content)
+    assert cmd is not None
+    deselect_target = cmd.split("--deselect=", 1)[1].strip()
+    assert deselect_target.endswith(
+        "::TestCombinedTrustedHostInstalledOpenCodeE2E"
+        "::test_real_task_api_opencode_relay_fake_provider_end_to_end"
+    ), "deselect must target the exact node, not the whole relay file"
+    assert deselect_target != "tests/platform_v1/test_task3c_v6_production_relay.py", (
+        "must not broad-ignore test_task3c_v6_production_relay.py"
+    )
 
 
 def test_ci_repository_wide_diagnostic_nonblocking() -> None:

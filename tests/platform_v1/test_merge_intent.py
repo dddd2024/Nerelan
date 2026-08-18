@@ -506,95 +506,140 @@ class TestV4DiffersFromV3:
 
 
 # ---------------------------------------------------------------------------
-# Immutability regression: Decision bytes match the unique Decision commit
+# Immutability regression: Decision bytes match the unique Decision commit,
+# or (for a clean product-only landing) are inherited byte-for-byte from
+# starting_head with no Decision-modifying commit in the range.
 # ---------------------------------------------------------------------------
+
+def _blob_at(reefspec: str) -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", reefspec],
+            cwd=REPO_ROOT,
+            encoding="utf-8",
+            errors="strict",
+        ).strip()
+    except subprocess.CalledProcessError:
+        return ""
+
+
+def _decision_modifying_commits(starting_head: str) -> list[str]:
+    log_out = subprocess.check_output(
+        ["git", "rev-list", f"{starting_head}..HEAD"],
+        cwd=REPO_ROOT,
+        encoding="utf-8",
+    ).strip()
+    commits = [c for c in log_out.splitlines() if c]
+    mod_commits: list[str] = []
+    for sha in commits:
+        names = subprocess.check_output(
+            ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", sha],
+            cwd=REPO_ROOT,
+            encoding="utf-8",
+            errors="strict",
+        ).strip()
+        if "project_state/decision_packet.md" in names.splitlines():
+            mod_commits.append(sha)
+    return mod_commits
+
 
 class TestDecisionImmutability:
     def test_single_decision_commit_in_range(self) -> None:
-        """Only one commit modifying decision_packet.md in starting_head..HEAD."""
+        """At most one commit modifies decision_packet.md in starting_head..HEAD.
+
+        Case A: a Decision-modifying commit exists -> there is exactly one.
+        Case B: no Decision-modifying commit exists -> this is a legal clean
+        product-only landing that inherits an immutable Decision; the test
+        still proves the range contains no hidden Decision mutation.
+        """
         contract = _parse_decision_contract()
         starting_head = contract["starting_head"]
-        log_out = subprocess.check_output(
-            ["git", "rev-list", f"{starting_head}..HEAD"],
-            cwd=REPO_ROOT,
-            encoding="utf-8",
-        ).strip()
-        commits = [c for c in log_out.splitlines() if c]
-        mod_commits = []
-        for sha in commits:
-            names = subprocess.check_output(
-                ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", sha],
-                cwd=REPO_ROOT,
-                encoding="utf-8",
-                errors="strict",
-            ).strip()
-            if "project_state/decision_packet.md" in names.splitlines():
-                mod_commits.append(sha)
-        assert mod_commits, "no Decision commit found in starting_head..HEAD"
+        mod_commits = _decision_modifying_commits(starting_head)
+        if not mod_commits:
+            assert _blob_at(
+                f"{starting_head}:project_state/decision_packet.md"
+            ), (
+                "clean product-only landing requires an inherited Decision "
+                "blob present at starting_head"
+            )
+            assert (
+                _blob_at(
+                    f"{starting_head}:project_state/decision_packet.md"
+                )
+                == _blob_at("HEAD:project_state/decision_packet.md")
+            ), (
+                "clean product-only landing inherited a Decision whose bytes "
+                "diverged from HEAD"
+            )
+            return
         assert len(mod_commits) == 1, (
-            f"expected exactly 1 Decision-modifying commit, got {len(mod_commits)}"
+            f"expected at most 1 Decision-modifying commit, got {len(mod_commits)}"
         )
 
     def test_decision_bytes_unchanged_since_commit(self) -> None:
-        """Current Decision file bytes equal bytes at the Decision commit."""
+        """HEAD's Decision blob equals the blob of the unique Decision commit,
+        or (when no Decision commit exists) equals the inherited blob at
+        starting_head -- proving no later commit altered Decision bytes.
+        """
         contract = _parse_decision_contract()
         starting_head = contract["starting_head"]
-        log_out = subprocess.check_output(
-            ["git", "rev-list", f"{starting_head}..HEAD"],
-            cwd=REPO_ROOT,
-            encoding="utf-8",
-        ).strip()
-        commits = [c for c in log_out.splitlines() if c]
-        for sha in commits:
-            names = subprocess.check_output(
-                ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", sha],
-                cwd=REPO_ROOT,
-                encoding="utf-8",
-                errors="strict",
-            ).strip()
-            if "project_state/decision_packet.md" not in names.splitlines():
-                continue
-            blob_at_commit = subprocess.check_output(
-                ["git", "rev-parse", f"{sha}:project_state/decision_packet.md"],
-                cwd=REPO_ROOT,
-                encoding="utf-8",
-                errors="strict",
-            ).strip()
-            blob_at_head = subprocess.check_output(
-                ["git", "rev-parse", "HEAD:project_state/decision_packet.md"],
-                cwd=REPO_ROOT,
-                encoding="utf-8",
-                errors="strict",
-            ).strip()
-            assert blob_at_commit == blob_at_head, (
-                "Decision file bytes changed after its commit"
+        head_blob = _blob_at("HEAD:project_state/decision_packet.md")
+        mod_commits = _decision_modifying_commits(starting_head)
+        if not mod_commits:
+            assert head_blob, (
+                "clean product-only landing requires the Decision blob at HEAD"
             )
+            assert head_blob == _blob_at(
+                f"{starting_head}:project_state/decision_packet.md"
+            ), (
+                "clean product-only landing inherited a Decision whose bytes "
+                "diverged from HEAD"
+            )
+            return
+        assert len(mod_commits) == 1, (
+            f"expected exactly 1 Decision-modifying commit to compare bytes, "
+            f"got {len(mod_commits)}"
+        )
+        assert (
+            _blob_at(f"{mod_commits[0]}:project_state/decision_packet.md")
+            == head_blob
+        ), "Decision file bytes changed after its commit"
 
     def test_decision_commit_precedes_implementation(self) -> None:
-        """The Decision commit appears before any non-Decision commit in history."""
+        """In starting_head..HEAD the single Decision-modifying commit is the
+        oldest commit (appears first in reverse-chronological rev-list order),
+        i.e. it precedes any later implementation commit.
+
+        When no Decision-modifying commit exists this is a legal clean
+        product-only landing: the inherited Decision bytes are verified in
+        test_decision_bytes_unchanged_since_commit instead.
+        """
         contract = _parse_decision_contract()
         starting_head = contract["starting_head"]
+        mod_commits = _decision_modifying_commits(starting_head)
+        if not mod_commits:
+            assert (
+                _blob_at(
+                    f"{starting_head}:project_state/decision_packet.md"
+                )
+                == _blob_at("HEAD:project_state/decision_packet.md")
+            )
+            return
+        assert len(mod_commits) == 1, (
+            f"expected exactly 1 Decision-modifying commit to order, "
+            f"got {len(mod_commits)}"
+        )
         log_out = subprocess.check_output(
             ["git", "rev-list", f"{starting_head}..HEAD"],
             cwd=REPO_ROOT,
             encoding="utf-8",
         ).strip()
         commits = [c for c in log_out.splitlines() if c]
-        decision_sha = None
-        for sha in commits:
-            names = subprocess.check_output(
-                ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", sha],
-                cwd=REPO_ROOT,
-                encoding="utf-8",
-                errors="strict",
-            ).strip()
-            if "project_state/decision_packet.md" in names.splitlines():
-                decision_sha = sha
-        assert decision_sha is not None
-        idx = commits.index(decision_sha)
+        assert commits, "no commits in starting_head..HEAD"
+        idx = commits.index(mod_commits[0])
         assert idx == len(commits) - 1, (
-            f"Decision commit is not the oldest commit after starting_head "
-            f"(got index {idx}, expected {len(commits) - 1})"
+            f"Decision commit must be the oldest commit after starting_head "
+            f"(index {idx}, expected {len(commits) - 1} in newest-first rev-list)"
         )
 
     def test_no_duplicate_decision_json_blocks(self) -> None:
