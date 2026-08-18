@@ -2,6 +2,7 @@ import fnmatch
 import re
 from pathlib import Path
 import tomllib
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
@@ -207,24 +208,34 @@ def _normalize_package_name(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def _find_dependency_entry(
+def _find_dependency_entries(
     dependencies: list[str], normalized_name: str
-) -> str | None:
+) -> list[str]:
+    entries = []
     for dep in dependencies:
         match = re.match(r"^([A-Za-z0-9_.-]+)", dep)
         if match and _normalize_package_name(match.group(1)) == normalized_name:
-            return dep
-    return None
+            entries.append(dep)
+    return entries
 
 
 def _assert_exact_pin_policy(
     dependencies: list[str], package_name: str
 ) -> None:
-    entry = _find_dependency_entry(dependencies, package_name)
-    assert entry is not None, f"{package_name} dependency entry missing"
-    assert "==" in entry, f"{package_name} must use == exact pin, got: {entry}"
-    version_part = entry.split("==", 1)[1]
-    version_part = re.split(r"[,;\s]", version_part, maxsplit=1)[0].strip()
+    entries = _find_dependency_entries(dependencies, package_name)
+    assert entries, f"{package_name} dependency entry missing"
+    assert len(entries) == 1, f"{package_name} must appear exactly once"
+    entry = entries[0]
+    name_match = re.match(r"^([A-Za-z0-9_.-]+)", entry)
+    assert name_match is not None
+    pkg_name = name_match.group(1)
+    remainder = entry[name_match.end():]
+    if not remainder.startswith("=="):
+        raise AssertionError(
+            f"{package_name} must use exact == pin, got: {entry}"
+        )
+    version_part = remainder[2:].strip()
+    version_part = re.split(r"[,;@\s]", version_part, maxsplit=1)[0].strip()
     assert version_part, f"{package_name} has empty version after =="
 
 
@@ -238,6 +249,46 @@ def test_langgraph_checkpoint_sqlite_exact_pin_policy() -> None:
     pyproject = _read_pyproject()
     dependencies = pyproject["project"]["dependencies"]
     _assert_exact_pin_policy(dependencies, "langgraph-checkpoint-sqlite")
+
+
+def _assert_exact_pin_rejects(dependencies: list[str], package_name: str) -> None:
+    with pytest.raises(AssertionError):
+        _assert_exact_pin_policy(dependencies, package_name)
+
+
+def _assert_exact_pin_accepts(dependencies: list[str], package_name: str) -> None:
+    _assert_exact_pin_policy(dependencies, package_name)
+
+
+def test_exact_pin_policy_rejects_duplicate_dependency_entry() -> None:
+    _assert_exact_pin_rejects(
+        [
+            "langgraph==SENTINEL",
+            "langgraph>=OTHER_SENTINEL",
+        ],
+        "langgraph",
+    )
+
+
+def test_exact_pin_policy_rejects_range_only_dependency() -> None:
+    _assert_exact_pin_rejects(
+        ["langgraph>=SENTINEL"],
+        "langgraph",
+    )
+
+
+def test_exact_pin_policy_rejects_unpinned_dependency() -> None:
+    _assert_exact_pin_rejects(
+        ["langgraph"],
+        "langgraph",
+    )
+
+
+def test_exact_pin_policy_accepts_unique_exact_pin() -> None:
+    _assert_exact_pin_accepts(
+        ["langgraph==SENTINEL"],
+        "langgraph",
+    )
 
 
 def test_pyproject_test_extra_pytest_range() -> None:
