@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260818_issue236_sprint_b1_ci_isolation_r2_v4",
-  "round_id": "round_20260818_issue236_sprint_b1_ci_isolation_r2_v4",
+  "decision_id": "decision_20260818_issue236_sprint_b1_ci_isolation_r2_v5",
+  "round_id": "round_20260818_issue236_sprint_b1_ci_isolation_r2_v5",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,59 +14,33 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260818_issue236_sprint_b1_ci_isolation_r2_v3",
-  "follows_last_round_id": "round_20260818_issue236_sprint_b1_ci_isolation_r2_v3",
-  "previous_audit_outcome": "ISSUE236_V3_SUPERSEDED_BEFORE_EXECUTION_DUE_OUTPUT_CAPTURE_ENCODING_RISK",
-  "supersedes_decision_id": "decision_20260818_issue236_sprint_b1_ci_isolation_r2_v3",
-  "superseded_branch_must_not_execute": "owner/issue236-sprint-b1-ci-isolation-r2-v3",
-  "workstream_id": "issue236-sprint-b1-ci-isolation-r2-v4",
+  "follows_last_decision_id": "decision_20260818_issue236_sprint_b1_ci_isolation_r2_v4",
+  "follows_last_round_id": "round_20260818_issue236_sprint_b1_ci_isolation_r2_v4",
+  "previous_audit_outcome": "ISSUE236_V4_BLOCKED_BOOTSTRAP_WORKTREE_NOT_FULLY_MATERIALIZED_REMOTE_TREE_VERIFIED_INTACT",
+  "supersedes_decision_id": "decision_20260818_issue236_sprint_b1_ci_isolation_r2_v4",
+  "superseded_branch_must_not_execute": "owner/issue236-sprint-b1-ci-isolation-r2-v4",
+  "workstream_id": "issue236-sprint-b1-ci-isolation-r2-v5",
   "source_issue": 236,
   "parent_issue": 233,
-  "required_branch": "owner/issue236-sprint-b1-ci-isolation-r2-v4",
-  "starting_head": "a001708a1d315ee882d18c912d8813edc0dcfe49",
-  "activation_base_sha": "a001708a1d315ee882d18c912d8813edc0dcfe49",
+  "required_branch": "owner/issue236-sprint-b1-ci-isolation-r2-v5",
+  "starting_head": "8c1d788e8de81ed9b3be9162a9c0a7ecb3633679",
+  "activation_base_sha": "8c1d788e8de81ed9b3be9162a9c0a7ecb3633679",
   "predecessor_candidate_head": "29c58693649dcaef113073e02ade5bc8280f7c35",
-  "predecessor_authority_head": "a001708a1d315ee882d18c912d8813edc0dcfe49",
+  "predecessor_authority_head": "8c1d788e8de81ed9b3be9162a9c0a7ecb3633679",
   "local_repair_source_sha": "f4d28a7aa31e8ac61785850a0b3d13a186d54b55",
   "local_repair_source_required_parent": "65b9d62114ba30b070e0985080dc1b9744217596",
   "canonical_planning_sha": "74bad91c3721045342e83f0ecd1c06e9ae7cf670",
-  "authority_worktree": "F:/reverse-agent-issue236-sprint-b1-ci-isolation-r2-v4",
-  "canonical_baseline_worktree": "F:/reverse-agent-issue236-sprint-b1-canonical-baseline-v4",
-  "clean_validation_worktree": "F:/reverse-agent-issue236-sprint-b1-clean-validation-v4",
+  "authority_worktree": "F:/reverse-agent-issue236-sprint-b1-ci-isolation-r2-v5",
+  "canonical_baseline_worktree": "F:/reverse-agent-issue236-sprint-b1-canonical-baseline-v5",
+  "clean_validation_worktree": "F:/reverse-agent-issue236-sprint-b1-clean-validation-v5",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
   "predecessor_candidate_repair_only": true,
-  "pr_creation_allowed": false,
-  "issue_comment_allowed": false,
-  "worktree_creation_allowed": true,
-  "branch_creation_allowed": true,
-  "branch_creation_scope": "local_tracking_branch_owner/issue236-sprint-b1-ci-isolation-r2-v4_only",
-  "remote_branch_creation_allowed": false,
-  "local_commit_allowed": true,
-  "normal_push_allowed": true,
-  "direct_push_to_main_allowed": false,
-  "merge_allowed": false,
-  "force_push_allowed": false,
-  "rebase_during_execution_allowed": false,
-  "destructive_operations_allowed": false,
-  "unknown_binary_execution_allowed": false,
-  "model_api_invocation_allowed": false,
-  "external_reverse_tool_invocation_allowed": false,
-  "package_installation_allowed": false,
-  "product_setup_mutation_allowed": false,
-  "provider_network_call_allowed": false,
-  "opencode_invocation_allowed": false,
-  "opencode_task_invocation_allowed": false,
-  "opencode_auth_metadata_probe_allowed": false,
-  "credential_relay_lease_allowed": false,
-  "task_execute_allowed": false,
-  "live_connection_probe_allowed": false,
-  "real_user_credential_access_allowed": false,
-  "synthetic_test_credential_fixture_allowed": true,
-  "real_task_store_access_allowed": false,
   "product_change_commit_limit": 1,
+  "authority_worktree_full_materialization_required": true,
+  "sparse_checkout_disable_is_bootstrap_materialization_only": true,
   "repair_scope_exact_paths": [
     ".github/workflows/state-gate.yml",
     "tests/test_ci_responsibility.py"
@@ -77,7 +51,6 @@
   "required_dependency_pin_operator": "==",
   "dependency_version_literal_must_not_be_hardcoded_in_test": true,
   "platform_v1_runtime_behavior_must_not_change": true,
-  "branch_protection_mutation_allowed": false,
   "platform_v1_acceptance_mode": "canonical_baseline_delta",
   "canonical_baseline_failure_set_must_equal_projection_failure_set": true,
   "canonical_baseline_failure_set_must_equal_expected_known_debt": true,
@@ -97,15 +70,17 @@
   "bootstrap_exception_commands": [
     "git -C F:/reverse-agent-planning-smoke status --short",
     "git -C F:/reverse-agent-planning-smoke fetch origin owner/repository-modernization-v2-planning",
-    "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue236-sprint-b1-ci-isolation-r2-v4",
+    "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue236-sprint-b1-ci-isolation-r2-v5",
     "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/repository-modernization-v2-planning",
-    "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/issue236-sprint-b1-ci-isolation-r2-v4",
-    "powershell -NoProfile -Command \"$b=(git -C F:/reverse-agent-planning-smoke branch --list owner/issue236-sprint-b1-ci-isolation-r2-v4);if($b){'ISSUE236_V4_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};if(Test-Path -LiteralPath 'F:/reverse-agent-issue236-sprint-b1-ci-isolation-r2-v4'){'ISSUE236_V4_WORKTREE_ALREADY_EXISTS';exit 24};if(Test-Path -LiteralPath 'F:/reverse-agent-issue236-sprint-b1-canonical-baseline-v4'){'ISSUE236_V4_BASELINE_WORKTREE_ALREADY_EXISTS';exit 23};if(Test-Path -LiteralPath 'F:/reverse-agent-issue236-sprint-b1-clean-validation-v4'){'ISSUE236_V4_PROJECTION_WORKTREE_ALREADY_EXISTS';exit 22};'ISSUE236_V4_BOOTSTRAP_TARGETS_ABSENT'\"",
-    "git -C F:/reverse-agent-planning-smoke worktree add --track -b owner/issue236-sprint-b1-ci-isolation-r2-v4 F:/reverse-agent-issue236-sprint-b1-ci-isolation-r2-v4 origin/owner/issue236-sprint-b1-ci-isolation-r2-v4",
-    "Set-Location F:/reverse-agent-issue236-sprint-b1-ci-isolation-r2-v4",
+    "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/issue236-sprint-b1-ci-isolation-r2-v5",
+    "powershell -NoProfile -Command \"$b=(git -C F:/reverse-agent-planning-smoke branch --list owner/issue236-sprint-b1-ci-isolation-r2-v5);if($b){'ISSUE236_V5_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};if(Test-Path -LiteralPath 'F:/reverse-agent-issue236-sprint-b1-ci-isolation-r2-v5'){'ISSUE236_V5_WORKTREE_ALREADY_EXISTS';exit 24};if(Test-Path -LiteralPath 'F:/reverse-agent-issue236-sprint-b1-canonical-baseline-v5'){'ISSUE236_V5_BASELINE_WORKTREE_ALREADY_EXISTS';exit 23};if(Test-Path -LiteralPath 'F:/reverse-agent-issue236-sprint-b1-clean-validation-v5'){'ISSUE236_V5_PROJECTION_WORKTREE_ALREADY_EXISTS';exit 22};'ISSUE236_V5_BOOTSTRAP_TARGETS_ABSENT'\"",
+    "git -C F:/reverse-agent-planning-smoke worktree add --track -b owner/issue236-sprint-b1-ci-isolation-r2-v5 F:/reverse-agent-issue236-sprint-b1-ci-isolation-r2-v5 origin/owner/issue236-sprint-b1-ci-isolation-r2-v5",
+    "git -C F:/reverse-agent-issue236-sprint-b1-ci-isolation-r2-v5 sparse-checkout disable",
+    "Set-Location F:/reverse-agent-issue236-sprint-b1-ci-isolation-r2-v5",
     "git status --short",
     "git rev-parse HEAD",
-    "git merge-base HEAD a001708a1d315ee882d18c912d8813edc0dcfe49",
+    "git merge-base HEAD 8c1d788e8de81ed9b3be9162a9c0a7ecb3633679",
+    "powershell -NoProfile -Command \"$r='F:/reverse-agent-issue236-sprint-b1-ci-isolation-r2-v5';$req=@('pyproject.toml','reverse_agent/project_gate.py','tests/test_project_gate.py','project_state/decision_packet.md');foreach($p in $req){if(-not (Test-Path -LiteralPath (Join-Path $r $p))){Write-Output ('MISSING:'+$p);exit 28}};$d=@(git -C $r diff HEAD --name-status);if($d.Count -ne 0){$d|Select-Object -First 20;exit 29};$s=@(git -C $r ls-files -v | Where-Object { $_ -match '^S ' });if($s.Count -ne 0){$s|Select-Object -First 20;exit 30};'ISSUE236_V5_FULL_WORKTREE_MATERIALIZED'\"",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
@@ -113,7 +88,7 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "issue236v4.status_before",
+      "command_id": "issue236v5.status_before",
       "command": "git status --short",
       "phase": "status",
       "required": true,
@@ -124,8 +99,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v4.verify_local_repair_source",
-      "command": "powershell -NoProfile -Command \"$p=(git rev-parse f4d28a7aa31e8ac61785850a0b3d13a186d54b55^).Trim();$d=@(git diff --name-only 65b9d62114ba30b070e0985080dc1b9744217596 f4d28a7aa31e8ac61785850a0b3d13a186d54b55);if($p -ne '65b9d62114ba30b070e0985080dc1b9744217596'){exit 26};if(($d -join ',') -ne '.github/workflows/state-gate.yml,tests/test_ci_responsibility.py'){exit 27};'ISSUE236_V4_LOCAL_REPAIR_SOURCE_VERIFIED'\"",
+      "command_id": "issue236v5.verify_local_repair_source",
+      "command": "powershell -NoProfile -Command \"$p=(git rev-parse f4d28a7aa31e8ac61785850a0b3d13a186d54b55^).Trim();$d=@(git diff --name-only 65b9d62114ba30b070e0985080dc1b9744217596 f4d28a7aa31e8ac61785850a0b3d13a186d54b55);if($p -ne '65b9d62114ba30b070e0985080dc1b9744217596'){exit 26};if(($d -join ',') -ne '.github/workflows/state-gate.yml,tests/test_ci_responsibility.py'){exit 27};'ISSUE236_V5_LOCAL_REPAIR_SOURCE_VERIFIED'\"",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -135,7 +110,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v4.import_repair",
+      "command_id": "issue236v5.import_repair",
       "command": "git checkout f4d28a7aa31e8ac61785850a0b3d13a186d54b55 -- .github/workflows/state-gate.yml tests/test_ci_responsibility.py",
       "phase": "implementation",
       "required": true,
@@ -146,7 +121,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v4.focused_repair_tests",
+      "command_id": "issue236v5.focused_repair_tests",
       "command": "python -m pytest tests/test_project_gate.py tests/test_ci_responsibility.py -q",
       "phase": "validation",
       "required": true,
@@ -157,7 +132,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v4.governance_regressions",
+      "command_id": "issue236v5.governance_regressions",
       "command": "python -m pytest tests/test_control_plane_transition.py tests/test_repository_hygiene.py tests/test_project_state.py tests/test_decision_preflight.py -q",
       "phase": "validation",
       "required": true,
@@ -168,7 +143,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v4.diff_check",
+      "command_id": "issue236v5.diff_check",
       "command": "git diff --check",
       "phase": "validation",
       "required": true,
@@ -179,18 +154,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v4.changed_paths_before_commit",
-      "command": "git diff --name-only",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue236v4.stage_exact_scope",
+      "command_id": "issue236v5.stage_exact_scope",
       "command": "git add .github/workflows/state-gate.yml tests/test_ci_responsibility.py",
       "phase": "publication",
       "required": true,
@@ -201,7 +165,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v4.staged_paths",
+      "command_id": "issue236v5.staged_paths",
       "command": "git diff --cached --name-only",
       "phase": "validation",
       "required": true,
@@ -212,7 +176,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v4.staged_diff_check",
+      "command_id": "issue236v5.staged_diff_check",
       "command": "git diff --cached --check",
       "phase": "validation",
       "required": true,
@@ -223,7 +187,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v4.commit_repair",
+      "command_id": "issue236v5.commit_repair",
       "command": "git commit -m \"Fix State Gate PR responsibility routing\"",
       "phase": "publication",
       "required": true,
@@ -235,7 +199,7 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue236v4.head_after_commit",
+      "command_id": "issue236v5.head_after_commit",
       "command": "git rev-parse HEAD",
       "phase": "status",
       "required": true,
@@ -246,8 +210,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v4.baseline_create",
-      "command": "git worktree add --detach F:/reverse-agent-issue236-sprint-b1-canonical-baseline-v4 74bad91c3721045342e83f0ecd1c06e9ae7cf670",
+      "command_id": "issue236v5.baseline_create",
+      "command": "git worktree add --detach F:/reverse-agent-issue236-sprint-b1-canonical-baseline-v5 74bad91c3721045342e83f0ecd1c06e9ae7cf670",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -257,8 +221,19 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v4.projection_create",
-      "command": "git worktree add --detach F:/reverse-agent-issue236-sprint-b1-clean-validation-v4 74bad91c3721045342e83f0ecd1c06e9ae7cf670",
+      "command_id": "issue236v5.baseline_sparse_disable",
+      "command": "git -C F:/reverse-agent-issue236-sprint-b1-canonical-baseline-v5 sparse-checkout disable",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_sync"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue236v5.baseline_materialization_verify",
+      "command": "powershell -NoProfile -Command \"$r='F:/reverse-agent-issue236-sprint-b1-canonical-baseline-v5';$req=@('pyproject.toml','reverse_agent/project_gate.py','tests/platform_v1/test_merge_intent.py','project_state/decision_packet.md');foreach($p in $req){if(-not (Test-Path -LiteralPath (Join-Path $r $p))){Write-Output ('MISSING:'+$p);exit 31}};$d=@(git -C $r diff HEAD --name-status);if($d.Count -ne 0){$d|Select-Object -First 20;exit 32};$s=@(git -C $r ls-files -v | Where-Object { $_ -match '^S ' });if($s.Count -ne 0){$s|Select-Object -First 20;exit 33};'ISSUE236_V5_BASELINE_FULLY_MATERIALIZED'\"",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -268,8 +243,41 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v4.projection_overlay",
-      "command": "git -C F:/reverse-agent-issue236-sprint-b1-clean-validation-v4 checkout owner/issue236-sprint-b1-ci-isolation-r2-v4 -- .github/workflows/state-gate.yml .github/workflows/ci.yml tests/test_project_gate.py tests/test_ci_responsibility.py",
+      "command_id": "issue236v5.projection_create",
+      "command": "git worktree add --detach F:/reverse-agent-issue236-sprint-b1-clean-validation-v5 74bad91c3721045342e83f0ecd1c06e9ae7cf670",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue236v5.projection_sparse_disable",
+      "command": "git -C F:/reverse-agent-issue236-sprint-b1-clean-validation-v5 sparse-checkout disable",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_sync"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue236v5.projection_materialization_verify",
+      "command": "powershell -NoProfile -Command \"$r='F:/reverse-agent-issue236-sprint-b1-clean-validation-v5';$req=@('pyproject.toml','reverse_agent/project_gate.py','tests/test_project_gate.py','project_state/decision_packet.md');foreach($p in $req){if(-not (Test-Path -LiteralPath (Join-Path $r $p))){Write-Output ('MISSING:'+$p);exit 34}};$d=@(git -C $r diff HEAD --name-status);if($d.Count -ne 0){$d|Select-Object -First 20;exit 35};$s=@(git -C $r ls-files -v | Where-Object { $_ -match '^S ' });if($s.Count -ne 0){$s|Select-Object -First 20;exit 36};'ISSUE236_V5_PROJECTION_FULLY_MATERIALIZED'\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue236v5.projection_overlay",
+      "command": "git -C F:/reverse-agent-issue236-sprint-b1-clean-validation-v5 checkout owner/issue236-sprint-b1-ci-isolation-r2-v5 -- .github/workflows/state-gate.yml .github/workflows/ci.yml tests/test_project_gate.py tests/test_ci_responsibility.py",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -279,8 +287,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v4.projection_paths",
-      "command": "git -C F:/reverse-agent-issue236-sprint-b1-clean-validation-v4 diff --cached --name-only",
+      "command_id": "issue236v5.projection_paths",
+      "command": "git -C F:/reverse-agent-issue236-sprint-b1-clean-validation-v5 diff --cached --name-only",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -290,8 +298,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v4.projection_diff_check",
-      "command": "git -C F:/reverse-agent-issue236-sprint-b1-clean-validation-v4 diff --cached --check",
+      "command_id": "issue236v5.projection_diff_check",
+      "command": "git -C F:/reverse-agent-issue236-sprint-b1-clean-validation-v5 diff --cached --check",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -301,8 +309,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v4.projection_focused",
-      "command": "powershell -NoProfile -Command \"Set-Location 'F:/reverse-agent-issue236-sprint-b1-clean-validation-v4'; python -m pytest tests/test_project_gate.py tests/test_ci_responsibility.py -q\"",
+      "command_id": "issue236v5.projection_focused",
+      "command": "powershell -NoProfile -Command \"Set-Location 'F:/reverse-agent-issue236-sprint-b1-clean-validation-v5'; python -m pytest tests/test_project_gate.py tests/test_ci_responsibility.py -q\"",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -312,8 +320,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v4.compare_platform_v1_failure_sets",
-      "command": "python -c \"import re,subprocess,sys; e={'tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_single_decision_commit_in_range','tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_commit_precedes_implementation','tests/platform_v1/test_task3c_v4_repairs.py::TestTaskApiApiKeyWiring::test_trusted_host_http_handler_receives_lease_provider','tests/platform_v1/test_task3c_v6_production_relay.py::TestCombinedTrustedHostInstalledOpenCodeE2E::test_real_task_api_opencode_relay_fake_provider_end_to_end'}; run=lambda cwd:subprocess.run([sys.executable,'-m','pytest','tests/platform_v1','-q'],cwd=cwd,capture_output=True,text=True,encoding='utf-8',errors='replace'); b=run('F:/reverse-agent-issue236-sprint-b1-canonical-baseline-v4'); c=run('F:/reverse-agent-issue236-sprint-b1-clean-validation-v4'); p=lambda r:set(re.findall(r'^FAILED\\s+(\\S+)',r.stdout+'\\n'+r.stderr,re.M)); bs=p(b); cs=p(c); print({'baseline_rc':b.returncode,'projection_rc':c.returncode,'baseline':sorted(bs),'projection':sorted(cs),'expected':sorted(e)}); sys.exit(0 if b.returncode==1 and c.returncode==1 and bs==cs==e else 28)\"",
+      "command_id": "issue236v5.compare_platform_v1_failure_sets",
+      "command": "python -c \"import re,subprocess,sys; e={'tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_single_decision_commit_in_range','tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_commit_precedes_implementation','tests/platform_v1/test_task3c_v4_repairs.py::TestTaskApiApiKeyWiring::test_trusted_host_http_handler_receives_lease_provider','tests/platform_v1/test_task3c_v6_production_relay.py::TestCombinedTrustedHostInstalledOpenCodeE2E::test_real_task_api_opencode_relay_fake_provider_end_to_end'}; run=lambda cwd:subprocess.run([sys.executable,'-m','pytest','tests/platform_v1','-q'],cwd=cwd,capture_output=True,text=True,encoding='utf-8',errors='replace'); b=run('F:/reverse-agent-issue236-sprint-b1-canonical-baseline-v5'); c=run('F:/reverse-agent-issue236-sprint-b1-clean-validation-v5'); p=lambda r:set(re.findall(r'^FAILED\\s+(\\S+)',r.stdout+'\\n'+r.stderr,re.M)); bs=p(b); cs=p(c); print({'baseline_rc':b.returncode,'projection_rc':c.returncode,'baseline':sorted(bs),'projection':sorted(cs),'expected':sorted(e)}); sys.exit(0 if b.returncode==1 and c.returncode==1 and bs==cs==e else 28)\"",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -323,8 +331,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v4.push_branch",
-      "command": "git push origin owner/issue236-sprint-b1-ci-isolation-r2-v4",
+      "command_id": "issue236v5.push_branch",
+      "command": "git push origin owner/issue236-sprint-b1-ci-isolation-r2-v5",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -335,8 +343,8 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue236v4.remote_tracking_head",
-      "command": "git rev-parse origin/owner/issue236-sprint-b1-ci-isolation-r2-v4",
+      "command_id": "issue236v5.remote_tracking_head",
+      "command": "git rev-parse origin/owner/issue236-sprint-b1-ci-isolation-r2-v5",
       "phase": "status",
       "required": true,
       "expected_exit_codes": [0],
@@ -346,7 +354,7 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue236v4.status_final",
+      "command_id": "issue236v5.status_final",
       "command": "git status --short",
       "phase": "status",
       "required": true,
@@ -397,19 +405,10 @@
   ],
   "forbidden_operations": [
     "opencode_invocation",
-    "opencode_auth_probe",
-    "opencode_models",
-    "opencode_run",
-    "auth_login",
-    "auth_logout",
     "model_api_invocation",
     "provider_network_call",
     "real_user_credential_file_discovery",
     "real_user_credential_file_read",
-    "real_user_credential_value_read",
-    "real_user_credential_value_print",
-    "real_user_credential_value_hash",
-    "real_user_credential_value_length_or_measurement",
     "live_connection_probe",
     "credential_relay_lease",
     "task_execute",
@@ -425,27 +424,24 @@
     "clean",
     "stash",
     "amend",
+    "restore",
     "tag_or_release",
     "direct_push_main"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
     "model_api_invocation_allowed": false,
-    "opencode_invocation_allowed": false,
-    "codex_invocation_allowed": false,
-    "openhands_invocation_allowed": false,
     "external_reverse_tool_invocation_allowed": false,
     "unknown_binary_execution_allowed": false,
     "destructive_operations_allowed": false,
     "network_access_default_allowed": false,
-    "package_installation_allowed": false,
     "direct_push_to_main_allowed": false,
     "merge_allowed": false,
     "force_push_allowed": false,
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
     "local_network_exceptions": [
-      "git push origin owner/issue236-sprint-b1-ci-isolation-r2-v4"
+      "git push origin owner/issue236-sprint-b1-ci-isolation-r2-v5"
     ],
     "ci_network_exceptions": []
   }
