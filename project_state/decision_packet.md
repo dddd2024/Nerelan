@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260818_issue236_sprint_b1_ci_isolation_r2_v6",
-  "round_id": "round_20260818_issue236_sprint_b1_ci_isolation_r2_v6",
+  "decision_id": "decision_20260818_issue240_sprint_b1_platform_fixture_closeout_r2_v1",
+  "round_id": "round_20260818_issue240_sprint_b1_platform_fixture_closeout_r2_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,47 +14,55 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260818_issue236_sprint_b1_ci_isolation_r2_v5",
-  "follows_last_round_id": "round_20260818_issue236_sprint_b1_ci_isolation_r2_v5",
-  "previous_audit_outcome": "ISSUE236_V5_PRODUCT_DELTA_ZERO_REGRESSION_BUT_PUBLICATION_AFTER_FAILED_REQUIRED_VALIDATION_AND_EXACT_PIN_UNIQUENESS_GAP",
-  "supersedes_decision_id": "decision_20260818_issue236_sprint_b1_ci_isolation_r2_v5",
-  "superseded_branch_must_not_execute": "owner/issue236-sprint-b1-ci-isolation-r2-v5",
-  "workstream_id": "issue236-sprint-b1-ci-isolation-r2-v6",
-  "source_issue": 236,
+  "follows_last_decision_id": "decision_20260818_issue236_sprint_b1_ci_isolation_r2_v6",
+  "follows_last_round_id": "round_20260818_issue236_sprint_b1_ci_isolation_r2_v6",
+  "previous_audit_outcome": "SPRINT_B1_V6_IMPLEMENTATION_ACCEPTED_ZERO_REGRESSION_BUT_PLATFORM_FIXTURE_DEBT_BLOCKS_CI_CONVERGENCE",
+  "supersedes_decision_id": "decision_20260818_issue236_sprint_b1_ci_isolation_r2_v6",
+  "superseded_branch_must_not_execute": "owner/issue236-sprint-b1-ci-isolation-r2-v6",
+  "workstream_id": "issue240-sprint-b1-platform-fixture-closeout-r2-v1",
+  "source_issue": 240,
   "parent_issue": 233,
-  "required_branch": "owner/issue236-sprint-b1-ci-isolation-r2-v6",
-  "starting_head": "bda02c402a0bcdad337225b1a683fa20b6df96f7",
-  "activation_base_sha": "bda02c402a0bcdad337225b1a683fa20b6df96f7",
-  "predecessor_candidate_head": "bda02c402a0bcdad337225b1a683fa20b6df96f7",
-  "predecessor_candidate_publication_compliant": false,
+  "required_branch": "owner/issue240-sprint-b1-platform-fixture-closeout-r2-v1",
+  "starting_head": "b21ce5b2b1dad0b339172ed34567b65c3e3f36bb",
+  "activation_base_sha": "b21ce5b2b1dad0b339172ed34567b65c3e3f36bb",
+  "predecessor_candidate_head": "b21ce5b2b1dad0b339172ed34567b65c3e3f36bb",
+  "predecessor_candidate_publication_compliant": true,
   "predecessor_candidate_content_reusable": true,
   "canonical_planning_sha": "74bad91c3721045342e83f0ecd1c06e9ae7cf670",
-  "authority_worktree": "F:/reverse-agent-issue236-sprint-b1-ci-isolation-r2-v6",
-  "canonical_baseline_worktree": "F:/reverse-agent-issue236-sprint-b1-canonical-baseline-v6",
-  "clean_validation_worktree": "F:/reverse-agent-issue236-sprint-b1-clean-validation-v6",
+  "authority_worktree": "F:/reverse-agent-issue240-sprint-b1-platform-fixture-closeout-r2-v1",
+  "clean_validation_worktree": "F:/reverse-agent-issue240-sprint-b1-clean-validation-v1",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
-  "recovery_from_noncompliant_publication": true,
   "product_change_commit_limit": 1,
   "authority_worktree_full_materialization_required": true,
   "sparse_checkout_disable_is_bootstrap_materialization_only": true,
   "repair_scope_exact_paths": [
-    "tests/test_ci_responsibility.py"
+    "tests/platform_v1/test_merge_intent.py",
+    "tests/platform_v1/test_task3c_v4_repairs.py",
+    "tests/platform_v1/test_task3c_v6_production_relay.py"
   ],
-  "state_gate_workflow_frozen_from_predecessor": true,
-  "pull_request_state_gate_paths_filter_required": true,
-  "ordinary_platform_v1_product_pr_must_not_trigger_state_gate_by_product_path": true,
-  "explicit_governance_source_surfaces_must_remain_state_gate_triggers": true,
-  "required_dependency_pin_operator": "==",
-  "required_dependency_entry_count": 1,
-  "dependency_version_literal_must_not_be_hardcoded_in_test": true,
-  "platform_v1_runtime_behavior_must_not_change": true,
-  "platform_v1_acceptance_mode": "canonical_baseline_delta",
-  "canonical_baseline_failure_set_must_equal_projection_failure_set": true,
-  "canonical_baseline_failure_set_must_equal_expected_known_debt": true,
-  "known_canonical_platform_v1_failure_nodeids": [
+  "accepted_b1_projection_paths": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/state-gate.yml",
+    "tests/test_ci_responsibility.py",
+    "tests/test_project_gate.py"
+  ],
+  "clean_projection_expected_paths": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/state-gate.yml",
+    "tests/platform_v1/test_merge_intent.py",
+    "tests/platform_v1/test_task3c_v4_repairs.py",
+    "tests/platform_v1/test_task3c_v6_production_relay.py",
+    "tests/test_ci_responsibility.py",
+    "tests/test_project_gate.py"
+  ],
+  "platform_v1_acceptance_mode": "clean_projection_green",
+  "runtime_behavior_must_not_change": true,
+  "decision_history_assumption_must_support_clean_product_landings": true,
+  "trusted_host_runtime_fail_closed_semantics_must_not_weaken": true,
+  "known_predecessor_platform_v1_failure_nodeids": [
     "tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_bytes_unchanged_since_commit",
     "tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_commit_precedes_implementation",
     "tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_single_decision_commit_in_range",
@@ -71,18 +79,18 @@
   "bootstrap_exception_commands": [
     "git -C F:/reverse-agent-planning-smoke status --short",
     "git -C F:/reverse-agent-planning-smoke fetch origin owner/repository-modernization-v2-planning",
-    "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue236-sprint-b1-ci-isolation-r2-v6",
+    "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue240-sprint-b1-platform-fixture-closeout-r2-v1",
     "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/repository-modernization-v2-planning",
-    "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/issue236-sprint-b1-ci-isolation-r2-v6",
-    "powershell -NoProfile -Command \"$b=(git -C F:/reverse-agent-planning-smoke branch --list owner/issue236-sprint-b1-ci-isolation-r2-v6);if($b){'ISSUE236_V6_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};if(Test-Path -LiteralPath 'F:/reverse-agent-issue236-sprint-b1-ci-isolation-r2-v6'){'ISSUE236_V6_WORKTREE_ALREADY_EXISTS';exit 24};if(Test-Path -LiteralPath 'F:/reverse-agent-issue236-sprint-b1-canonical-baseline-v6'){'ISSUE236_V6_BASELINE_WORKTREE_ALREADY_EXISTS';exit 23};if(Test-Path -LiteralPath 'F:/reverse-agent-issue236-sprint-b1-clean-validation-v6'){'ISSUE236_V6_PROJECTION_WORKTREE_ALREADY_EXISTS';exit 22};'ISSUE236_V6_BOOTSTRAP_TARGETS_ABSENT'\"",
-    "git -C F:/reverse-agent-planning-smoke worktree add --track -b owner/issue236-sprint-b1-ci-isolation-r2-v6 F:/reverse-agent-issue236-sprint-b1-ci-isolation-r2-v6 origin/owner/issue236-sprint-b1-ci-isolation-r2-v6",
-    "git -C F:/reverse-agent-issue236-sprint-b1-ci-isolation-r2-v6 sparse-checkout disable",
-    "Set-Location F:/reverse-agent-issue236-sprint-b1-ci-isolation-r2-v6",
+    "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/issue240-sprint-b1-platform-fixture-closeout-r2-v1",
+    "powershell -NoProfile -Command \"$b=(git -C F:/reverse-agent-planning-smoke branch --list owner/issue240-sprint-b1-platform-fixture-closeout-r2-v1);if($b){'ISSUE240_V1_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};if(Test-Path -LiteralPath 'F:/reverse-agent-issue240-sprint-b1-platform-fixture-closeout-r2-v1'){'ISSUE240_V1_WORKTREE_ALREADY_EXISTS';exit 24};if(Test-Path -LiteralPath 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v1'){'ISSUE240_V1_PROJECTION_WORKTREE_ALREADY_EXISTS';exit 23};'ISSUE240_V1_BOOTSTRAP_TARGETS_ABSENT'\"",
+    "git -C F:/reverse-agent-planning-smoke worktree add --track -b owner/issue240-sprint-b1-platform-fixture-closeout-r2-v1 F:/reverse-agent-issue240-sprint-b1-platform-fixture-closeout-r2-v1 origin/owner/issue240-sprint-b1-platform-fixture-closeout-r2-v1",
+    "git -C F:/reverse-agent-issue240-sprint-b1-platform-fixture-closeout-r2-v1 sparse-checkout disable",
+    "Set-Location F:/reverse-agent-issue240-sprint-b1-platform-fixture-closeout-r2-v1",
     "git status --short",
     "git rev-parse HEAD",
     "git rev-parse HEAD^",
-    "git merge-base HEAD bda02c402a0bcdad337225b1a683fa20b6df96f7",
-    "powershell -NoProfile -Command \"$r='F:/reverse-agent-issue236-sprint-b1-ci-isolation-r2-v6';$req=@('pyproject.toml','.github/workflows/state-gate.yml','tests/test_ci_responsibility.py','project_state/decision_packet.md');foreach($p in $req){if(-not (Test-Path -LiteralPath (Join-Path $r $p))){Write-Output ('MISSING:'+$p);exit 28}};$d=@(git -C $r diff HEAD --name-status);if($d.Count -ne 0){$d|Select-Object -First 20;exit 29};$s=@(git -C $r ls-files -v | Where-Object { $_ -match '^S ' });if($s.Count -ne 0){$s|Select-Object -First 20;exit 30};'ISSUE236_V6_FULL_WORKTREE_MATERIALIZED'\"",
+    "git merge-base HEAD b21ce5b2b1dad0b339172ed34567b65c3e3f36bb",
+    "powershell -NoProfile -Command \"$r='F:/reverse-agent-issue240-sprint-b1-platform-fixture-closeout-r2-v1';$req=@('pyproject.toml','.github/workflows/state-gate.yml','tests/test_ci_responsibility.py','tests/platform_v1/test_merge_intent.py','tests/platform_v1/test_task3c_v4_repairs.py','tests/platform_v1/test_task3c_v6_production_relay.py','project_state/decision_packet.md');foreach($p in $req){if(-not (Test-Path -LiteralPath (Join-Path $r $p))){Write-Output ('MISSING:'+$p);exit 28}};$d=@(git -C $r diff HEAD --name-status);if($d.Count -ne 0){$d|Select-Object -First 20;exit 29};$s=@(git -C $r ls-files -v | Where-Object { $_ -match '^S ' });if($s.Count -ne 0){$s|Select-Object -First 20;exit 30};'ISSUE240_V1_FULL_WORKTREE_MATERIALIZED'\"",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
@@ -90,7 +98,7 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "issue236v6.status_before",
+      "command_id": "issue240v1.status_before",
       "command": "git status --short",
       "phase": "status",
       "required": true,
@@ -101,40 +109,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v6.focused_tests",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_ci_responsibility.py -q",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue236v6.governance_regressions",
-      "command": "python -m pytest tests/test_control_plane_transition.py tests/test_repository_hygiene.py tests/test_project_state.py tests/test_decision_preflight.py -q",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue236v6.diff_check",
-      "command": "git diff --check",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["diff_validation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue236v6.changed_paths",
+      "command_id": "issue240v1.changed_paths",
       "command": "git diff --name-only",
       "phase": "validation",
       "required": true,
@@ -145,9 +120,53 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v6.stage_exact_scope",
-      "command": "git add tests/test_ci_responsibility.py",
-      "phase": "publication",
+      "command_id": "issue240v1.diff_check",
+      "command": "git diff --check",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["diff_validation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue240v1.projection_create",
+      "command": "git worktree add --detach F:/reverse-agent-issue240-sprint-b1-clean-validation-v1 74bad91c3721045342e83f0ecd1c06e9ae7cf670",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue240v1.projection_sparse_disable",
+      "command": "git -C F:/reverse-agent-issue240-sprint-b1-clean-validation-v1 sparse-checkout disable",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_sync"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue240v1.projection_materialization_verify",
+      "command": "powershell -NoProfile -Command \"$r='F:/reverse-agent-issue240-sprint-b1-clean-validation-v1';$req=@('pyproject.toml','.github/workflows/state-gate.yml','tests/test_project_gate.py','tests/platform_v1/test_merge_intent.py','project_state/decision_packet.md');foreach($p in $req){if(-not (Test-Path -LiteralPath (Join-Path $r $p))){exit 31}};$d=@(git -C $r diff HEAD --name-status);if($d.Count -ne 0){exit 32};$s=@(git -C $r ls-files -v | Where-Object { $_ -match '^S ' });if($s.Count -ne 0){exit 33};'ISSUE240_V1_PROJECTION_FULLY_MATERIALIZED'\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue240v1.projection_overlay_b1",
+      "command": "git -C F:/reverse-agent-issue240-sprint-b1-clean-validation-v1 checkout b21ce5b2b1dad0b339172ed34567b65c3e3f36bb -- .github/workflows/state-gate.yml .github/workflows/ci.yml tests/test_project_gate.py tests/test_ci_responsibility.py",
+      "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
@@ -156,7 +175,96 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v6.staged_paths",
+      "command_id": "issue240v1.projection_copy_fixture_repairs",
+      "command": "powershell -NoProfile -Command \"$src='F:/reverse-agent-issue240-sprint-b1-platform-fixture-closeout-r2-v1';$dst='F:/reverse-agent-issue240-sprint-b1-clean-validation-v1';$paths=@('tests/platform_v1/test_merge_intent.py','tests/platform_v1/test_task3c_v4_repairs.py','tests/platform_v1/test_task3c_v6_production_relay.py');foreach($p in $paths){Copy-Item -LiteralPath (Join-Path $src $p) -Destination (Join-Path $dst $p) -Force};git -C $dst add -- $paths\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_test_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue240v1.projection_paths",
+      "command": "git -C F:/reverse-agent-issue240-sprint-b1-clean-validation-v1 diff --cached --name-only",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue240v1.projection_exact_paths",
+      "command": "powershell -NoProfile -Command \"$r='F:/reverse-agent-issue240-sprint-b1-clean-validation-v1';$expected=@('.github/workflows/ci.yml','.github/workflows/state-gate.yml','tests/platform_v1/test_merge_intent.py','tests/platform_v1/test_task3c_v4_repairs.py','tests/platform_v1/test_task3c_v6_production_relay.py','tests/test_ci_responsibility.py','tests/test_project_gate.py')|Sort-Object;$actual=@(git -C $r diff --cached --name-only)|Sort-Object;if(Compare-Object $expected $actual){$actual;exit 34};'ISSUE240_V1_EXACT_SEVEN_FILE_PROJECTION'\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue240v1.projection_diff_check",
+      "command": "git -C F:/reverse-agent-issue240-sprint-b1-clean-validation-v1 diff --cached --check",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["diff_validation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue240v1.projection_known_five",
+      "command": "powershell -NoProfile -Command \"Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v1'; python -m pytest tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_bytes_unchanged_since_commit tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_commit_precedes_implementation tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_single_decision_commit_in_range tests/platform_v1/test_task3c_v4_repairs.py::TestTaskApiApiKeyWiring::test_trusted_host_http_handler_receives_lease_provider tests/platform_v1/test_task3c_v6_production_relay.py::TestCombinedTrustedHostInstalledOpenCodeE2E::test_real_task_api_opencode_relay_fake_provider_end_to_end -q\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue240v1.projection_platform_v1",
+      "command": "powershell -NoProfile -Command \"Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v1'; python -m pytest tests/platform_v1 -q\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue240v1.projection_b1_focused",
+      "command": "powershell -NoProfile -Command \"Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v1'; python -m pytest tests/test_project_gate.py tests/test_ci_responsibility.py tests/test_control_plane_transition.py tests/test_repository_hygiene.py tests/test_project_state.py tests/test_decision_preflight.py -q\"",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue240v1.stage_exact_scope",
+      "command": "git add tests/platform_v1/test_merge_intent.py tests/platform_v1/test_task3c_v4_repairs.py tests/platform_v1/test_task3c_v6_production_relay.py",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_test_mutation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue240v1.staged_paths",
       "command": "git diff --cached --name-only",
       "phase": "validation",
       "required": true,
@@ -167,7 +275,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v6.staged_diff_check",
+      "command_id": "issue240v1.staged_diff_check",
       "command": "git diff --cached --check",
       "phase": "validation",
       "required": true,
@@ -178,8 +286,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v6.commit_repair",
-      "command": "git commit -m \"Require unique exact dependency pins\"",
+      "command_id": "issue240v1.commit_repair",
+      "command": "git commit -m \"Repair Platform V1 current fixtures after B1\"",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -190,7 +298,7 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue236v6.head_after_commit",
+      "command_id": "issue240v1.head_after_commit",
       "command": "git rev-parse HEAD",
       "phase": "status",
       "required": true,
@@ -201,129 +309,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue236v6.baseline_create",
-      "command": "git worktree add --detach F:/reverse-agent-issue236-sprint-b1-canonical-baseline-v6 74bad91c3721045342e83f0ecd1c06e9ae7cf670",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue236v6.baseline_sparse_disable",
-      "command": "git -C F:/reverse-agent-issue236-sprint-b1-canonical-baseline-v6 sparse-checkout disable",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_sync"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue236v6.baseline_materialization_verify",
-      "command": "powershell -NoProfile -Command \"$r='F:/reverse-agent-issue236-sprint-b1-canonical-baseline-v6';$req=@('pyproject.toml','reverse_agent/project_gate.py','tests/platform_v1/test_merge_intent.py','project_state/decision_packet.md');foreach($p in $req){if(-not (Test-Path -LiteralPath (Join-Path $r $p))){exit 31}};$d=@(git -C $r diff HEAD --name-status);if($d.Count -ne 0){exit 32};$s=@(git -C $r ls-files -v | Where-Object { $_ -match '^S ' });if($s.Count -ne 0){exit 33};'ISSUE236_V6_BASELINE_FULLY_MATERIALIZED'\"",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue236v6.projection_create",
-      "command": "git worktree add --detach F:/reverse-agent-issue236-sprint-b1-clean-validation-v6 74bad91c3721045342e83f0ecd1c06e9ae7cf670",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue236v6.projection_sparse_disable",
-      "command": "git -C F:/reverse-agent-issue236-sprint-b1-clean-validation-v6 sparse-checkout disable",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_sync"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue236v6.projection_materialization_verify",
-      "command": "powershell -NoProfile -Command \"$r='F:/reverse-agent-issue236-sprint-b1-clean-validation-v6';$req=@('pyproject.toml','reverse_agent/project_gate.py','tests/test_project_gate.py','project_state/decision_packet.md');foreach($p in $req){if(-not (Test-Path -LiteralPath (Join-Path $r $p))){exit 34}};$d=@(git -C $r diff HEAD --name-status);if($d.Count -ne 0){exit 35};$s=@(git -C $r ls-files -v | Where-Object { $_ -match '^S ' });if($s.Count -ne 0){exit 36};'ISSUE236_V6_PROJECTION_FULLY_MATERIALIZED'\"",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue236v6.projection_overlay",
-      "command": "git -C F:/reverse-agent-issue236-sprint-b1-clean-validation-v6 checkout owner/issue236-sprint-b1-ci-isolation-r2-v6 -- .github/workflows/state-gate.yml .github/workflows/ci.yml tests/test_project_gate.py tests/test_ci_responsibility.py",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_test_mutation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue236v6.projection_paths",
-      "command": "git -C F:/reverse-agent-issue236-sprint-b1-clean-validation-v6 diff --cached --name-only",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue236v6.projection_diff_check",
-      "command": "git -C F:/reverse-agent-issue236-sprint-b1-clean-validation-v6 diff --cached --check",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["diff_validation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue236v6.projection_focused",
-      "command": "powershell -NoProfile -Command \"Set-Location 'F:/reverse-agent-issue236-sprint-b1-clean-validation-v6'; python -m pytest tests/test_project_gate.py tests/test_ci_responsibility.py -q\"",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue236v6.compare_platform_v1_failure_sets",
-      "command": "python -c \"import re,subprocess,sys; e={'tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_bytes_unchanged_since_commit','tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_commit_precedes_implementation','tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_single_decision_commit_in_range','tests/platform_v1/test_task3c_v4_repairs.py::TestTaskApiApiKeyWiring::test_trusted_host_http_handler_receives_lease_provider','tests/platform_v1/test_task3c_v6_production_relay.py::TestCombinedTrustedHostInstalledOpenCodeE2E::test_real_task_api_opencode_relay_fake_provider_end_to_end'}; run=lambda cwd:subprocess.run([sys.executable,'-m','pytest','tests/platform_v1','-q'],cwd=cwd,capture_output=True,text=True,encoding='utf-8',errors='replace'); b=run('F:/reverse-agent-issue236-sprint-b1-canonical-baseline-v6'); c=run('F:/reverse-agent-issue236-sprint-b1-clean-validation-v6'); p=lambda r:set(re.findall(r'^FAILED\\s+(\\S+)',r.stdout+'\\n'+r.stderr,re.M)); bs=p(b); cs=p(c); print({'baseline_rc':b.returncode,'projection_rc':c.returncode,'baseline':sorted(bs),'projection':sorted(cs),'expected':sorted(e)}); sys.exit(0 if b.returncode==1 and c.returncode==1 and bs==cs==e else 28)\"",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue236v6.push_branch",
-      "command": "git push origin owner/issue236-sprint-b1-ci-isolation-r2-v6",
+      "command_id": "issue240v1.push_branch",
+      "command": "git push origin owner/issue240-sprint-b1-platform-fixture-closeout-r2-v1",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -334,8 +321,8 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue236v6.remote_tracking_head",
-      "command": "git rev-parse origin/owner/issue236-sprint-b1-ci-isolation-r2-v6",
+      "command_id": "issue240v1.remote_tracking_head",
+      "command": "git rev-parse origin/owner/issue240-sprint-b1-platform-fixture-closeout-r2-v1",
       "phase": "status",
       "required": true,
       "expected_exit_codes": [0],
@@ -345,7 +332,7 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue236v6.status_final",
+      "command_id": "issue240v1.status_final",
       "command": "git status --short",
       "phase": "status",
       "required": true,
@@ -357,7 +344,9 @@
     }
   ],
   "allowed_mutated_paths": [
-    "tests/test_ci_responsibility.py",
+    "tests/platform_v1/test_merge_intent.py",
+    "tests/platform_v1/test_task3c_v4_repairs.py",
+    "tests/platform_v1/test_task3c_v6_production_relay.py",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
@@ -375,9 +364,9 @@
     ".github/workflows/state-gate.yml",
     ".github/workflows/ci.yml",
     "tests/test_project_gate.py",
+    "tests/test_ci_responsibility.py",
     "pyproject.toml",
     "reverse_agent/platform_v1/**",
-    "tests/platform_v1/**",
     "project_state/mainline_merge_intents/**",
     "project_state/schemas/**"
   ],
@@ -386,9 +375,9 @@
     ".github/workflows/state-gate.yml",
     ".github/workflows/ci.yml",
     "tests/test_project_gate.py",
+    "tests/test_ci_responsibility.py",
     "pyproject.toml",
     "reverse_agent/**",
-    "tests/platform_v1/**",
     "frontend/**",
     "docs/**",
     "AGENTS.md",
@@ -433,7 +422,7 @@
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
     "local_network_exceptions": [
-      "git push origin owner/issue236-sprint-b1-ci-isolation-r2-v6"
+      "git push origin owner/issue240-sprint-b1-platform-fixture-closeout-r2-v1"
     ],
     "ci_network_exceptions": []
   }
