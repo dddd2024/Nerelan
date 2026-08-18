@@ -1,3 +1,4 @@
+import fnmatch
 import re
 from pathlib import Path
 import tomllib
@@ -7,6 +8,38 @@ WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 STATE_GATE_PATH = WORKFLOWS_DIR / "state-gate.yml"
 CI_PATH = WORKFLOWS_DIR / "ci.yml"
 PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
+
+STATE_GATE_GATEWAYS = [
+    "project_state/**",
+    ".github/workflows/**",
+    ".codex-skills/**",
+    "docs/prompts/**",
+    "reverse_agent/control_plane/**",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/project_state.py",
+    "reverse_agent/decision_preflight.py",
+    "reverse_agent/post_final_evidence_sync.py",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/project_ci.py",
+    "reverse_agent/project_jobs.py",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/architecture/report_truth.py",
+]
+
+PRODUCT_SOURCE_SAMPLES = [
+    "reverse_agent/platform_v1/task_service.py",
+]
+
+PRODUCT_TEST_SAMPLES = [
+    "tests/platform_v1/test_task_service.py",
+]
+
+GOVERNANCE_SAMPLES = [
+    "reverse_agent/control_plane/transition.py",
+    "reverse_agent/project_gate.py",
+    "project_state/decision_packet.md",
+    ".github/workflows/ci.yml",
+]
 
 
 def _read_state_gate() -> str:
@@ -22,24 +55,123 @@ def _read_pyproject() -> dict:
         return tomllib.load(handle)
 
 
+def _extract_event_block(content: str, event_name: str) -> str | None:
+    lines = content.splitlines()
+    start = None
+    start_indent = None
+    for i, line in enumerate(lines):
+        if line.startswith(f"  {event_name}:"):
+            start = i
+            start_indent = len(line) - len(line.lstrip(" "))
+            break
+    if start is None:
+        return None
+    block_lines = [lines[start]]
+    for j in range(start + 1, len(lines)):
+        line = lines[j]
+        if not line.strip():
+            block_lines.append(line)
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        if indent <= start_indent and line.strip() and not line.strip().startswith("#"):
+            break
+        block_lines.append(line)
+    return "\n".join(block_lines)
+
+
+def _extract_paths_from_block(block: str) -> list[str]:
+    paths = []
+    for line in block.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- "):
+            match = re.match(r'^-\s*["\']?(.*?)["\']?\s*$', stripped)
+            if match:
+                paths.append(match.group(1))
+    return paths
+
+
+def _path_matches(patterns: list[str], path: str) -> bool:
+    for pattern in patterns:
+        if fnmatch.fnmatch(path, pattern):
+            return True
+    return False
+
+
+def test_state_gate_push_event_has_paths_filter() -> None:
+    content = _read_state_gate()
+    push_block = _extract_event_block(content, "push")
+    assert push_block is not None
+    paths = _extract_paths_from_block(push_block)
+    assert paths, "push event block must contain paths filter"
+    for required in STATE_GATE_GATEWAYS:
+        assert required in paths, f"push.paths missing: {required}"
+
+
+def test_state_gate_pull_request_event_has_paths_filter() -> None:
+    content = _read_state_gate()
+    pr_block = _extract_event_block(content, "pull_request")
+    assert pr_block is not None
+    paths = _extract_paths_from_block(pr_block)
+    assert paths, "pull_request event block must contain paths filter"
+    for required in STATE_GATE_GATEWAYS:
+        assert required in paths, f"pull_request.paths missing: {required}"
+
+
 def test_state_gate_push_no_broad_product_paths() -> None:
     content = _read_state_gate()
     assert "reverse_agent/**" not in content
     assert "tests/**" not in content
 
 
-def test_state_gate_still_has_governance_paths() -> None:
-    content = _read_state_gate()
-    assert "project_state/**" in content
-    assert ".github/workflows/**" in content
-    assert ".codex-skills/**" in content
-    assert "docs/prompts/**" in content
-
-
 def test_state_gate_pull_request_target_bootstrap_job_present() -> None:
     content = _read_state_gate()
     assert "pull_request_target:" in content
     assert "bootstrap-authority:" in content
+
+
+def test_state_gate_product_source_path_does_not_match() -> None:
+    content = _read_state_gate()
+    push_block = _extract_event_block(content, "push")
+    pr_block = _extract_event_block(content, "pull_request")
+    push_paths = _extract_paths_from_block(push_block)
+    pr_paths = _extract_paths_from_block(pr_block)
+    for sample in PRODUCT_SOURCE_SAMPLES:
+        assert not _path_matches(push_paths, sample), (
+            f"product source {sample} must NOT trigger push State Gate"
+        )
+        assert not _path_matches(pr_paths, sample), (
+            f"product source {sample} must NOT trigger pull_request State Gate"
+        )
+
+
+def test_state_gate_product_test_path_does_not_match() -> None:
+    content = _read_state_gate()
+    push_block = _extract_event_block(content, "push")
+    pr_block = _extract_event_block(content, "pull_request")
+    push_paths = _extract_paths_from_block(push_block)
+    pr_paths = _extract_paths_from_block(pr_block)
+    for sample in PRODUCT_TEST_SAMPLES:
+        assert not _path_matches(push_paths, sample), (
+            f"product test {sample} must NOT trigger push State Gate"
+        )
+        assert not _path_matches(pr_paths, sample), (
+            f"product test {sample} must NOT trigger pull_request State Gate"
+        )
+
+
+def test_state_gate_governance_paths_do_match() -> None:
+    content = _read_state_gate()
+    push_block = _extract_event_block(content, "push")
+    pr_block = _extract_event_block(content, "pull_request")
+    push_paths = _extract_paths_from_block(push_block)
+    pr_paths = _extract_paths_from_block(pr_block)
+    for sample in GOVERNANCE_SAMPLES:
+        assert _path_matches(push_paths, sample), (
+            f"governance path {sample} must trigger push State Gate"
+        )
+        assert _path_matches(pr_paths, sample), (
+            f"governance path {sample} must trigger pull_request State Gate"
+        )
 
 
 def test_ci_platform_v1_blocking_gate_present() -> None:
@@ -71,16 +203,41 @@ def test_pyproject_required_dependency_packages() -> None:
     assert "langgraph-checkpoint-sqlite" in names
 
 
-def test_pyproject_dependencies_are_explicitly_pinned() -> None:
+def _normalize_package_name(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _find_dependency_entry(
+    dependencies: list[str], normalized_name: str
+) -> str | None:
+    for dep in dependencies:
+        match = re.match(r"^([A-Za-z0-9_.-]+)", dep)
+        if match and _normalize_package_name(match.group(1)) == normalized_name:
+            return dep
+    return None
+
+
+def _assert_exact_pin_policy(
+    dependencies: list[str], package_name: str
+) -> None:
+    entry = _find_dependency_entry(dependencies, package_name)
+    assert entry is not None, f"{package_name} dependency entry missing"
+    assert "==" in entry, f"{package_name} must use == exact pin, got: {entry}"
+    version_part = entry.split("==", 1)[1]
+    version_part = re.split(r"[,;\s]", version_part, maxsplit=1)[0].strip()
+    assert version_part, f"{package_name} has empty version after =="
+
+
+def test_langgraph_exact_pin_policy() -> None:
     pyproject = _read_pyproject()
     dependencies = pyproject["project"]["dependencies"]
-    for dep in dependencies:
-        assert any(
-            operator in dep for operator in ("==", ">=", "<=", ">", "<", "!=", "~=")
-        ), f"dependency not pinned: {dep}"
-    names = _extract_package_names(dependencies)
-    assert "langgraph" in names
-    assert "langgraph-checkpoint-sqlite" in names
+    _assert_exact_pin_policy(dependencies, "langgraph")
+
+
+def test_langgraph_checkpoint_sqlite_exact_pin_policy() -> None:
+    pyproject = _read_pyproject()
+    dependencies = pyproject["project"]["dependencies"]
+    _assert_exact_pin_policy(dependencies, "langgraph-checkpoint-sqlite")
 
 
 def test_pyproject_test_extra_pytest_range() -> None:
