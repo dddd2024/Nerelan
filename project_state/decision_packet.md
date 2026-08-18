@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260818_issue240_sprint_b1_deterministic_ci_closeout_r2_v3",
-  "round_id": "round_20260818_issue240_sprint_b1_deterministic_ci_closeout_r2_v3",
+  "decision_id": "decision_20260818_issue240_sprint_b1_github_native_ci_r2_v4",
+  "round_id": "round_20260818_issue240_sprint_b1_github_native_ci_r2_v4",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,31 +14,33 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260818_issue240_sprint_b1_deterministic_ci_closeout_r2_v2",
-  "follows_last_round_id": "round_20260818_issue240_sprint_b1_deterministic_ci_closeout_r2_v2",
-  "previous_audit_outcome": "ISSUE240_V2_PARTIAL_CONTENT_REUSABLE_PUBLICATION_NONCOMPLIANT_REQUIRED_PROJECTION_FAILED_AND_FORBIDDEN_AMEND",
-  "supersedes_decision_id": "decision_20260818_issue240_sprint_b1_deterministic_ci_closeout_r2_v2",
-  "superseded_branch_must_not_execute": "owner/issue240-sprint-b1-deterministic-ci-closeout-r2-v2",
-  "workstream_id": "issue240-sprint-b1-deterministic-ci-closeout-r2-v3",
+  "follows_last_decision_id": "decision_20260818_issue240_sprint_b1_deterministic_ci_closeout_r2_v3",
+  "follows_last_round_id": "round_20260818_issue240_sprint_b1_deterministic_ci_closeout_r2_v3",
+  "previous_audit_outcome": "ISSUE240_V3_LOCAL_ACCEPTED_GITHUB_NATIVE_CLEAN_CANDIDATE_REJECTED_CI_LINUX_AND_OWNER_LANDING_ROUTE_GAPS",
+  "supersedes_decision_id": "decision_20260818_issue240_sprint_b1_deterministic_ci_closeout_r2_v3",
+  "superseded_branch_must_not_execute": "owner/issue240-sprint-b1-deterministic-ci-closeout-r2-v3",
+  "workstream_id": "issue240-sprint-b1-github-native-ci-r2-v4",
   "source_issue": 240,
   "parent_issue": 233,
-  "required_branch": "owner/issue240-sprint-b1-deterministic-ci-closeout-r2-v3",
-  "starting_head": "6d513f0bd680dadf0019af1b56c85dc1683cb6b2",
-  "activation_base_sha": "6d513f0bd680dadf0019af1b56c85dc1683cb6b2",
-  "predecessor_candidate_head": "a15e01e36ddfcf67360c1932f67ad651fa65317b",
-  "predecessor_candidate_publication_compliant": false,
+  "diagnostic_pr": 241,
+  "diagnostic_clean_candidate_sha": "1a2e8ba9e5bf9f395fc5e1fafebf99e4386c6eef",
+  "diagnostic_pr_must_remain_unmerged": true,
+  "required_branch": "owner/issue240-sprint-b1-github-native-ci-r2-v4",
+  "starting_head": "3e7987413d7693cebe253935dd17d89fb530a5db",
+  "activation_base_sha": "3e7987413d7693cebe253935dd17d89fb530a5db",
+  "predecessor_candidate_head": "a62f6846f5e8b9edd7327438bed8a42d9d11f4c9",
+  "predecessor_candidate_publication_compliant": true,
+  "predecessor_candidate_github_native_landable": false,
   "predecessor_candidate_content_reusable": true,
   "predecessor_reusable_paths": [
     ".github/workflows/ci.yml",
     "tests/test_ci_responsibility.py",
     "tests/platform_v1/test_task3c_v4_repairs.py"
   ],
-  "predecessor_nonreusable_paths": [
-    "tests/platform_v1/test_merge_intent.py"
-  ],
   "canonical_planning_sha": "74bad91c3721045342e83f0ecd1c06e9ae7cf670",
-  "authority_worktree": "F:/reverse-agent-issue240-sprint-b1-deterministic-ci-closeout-r2-v3",
-  "clean_validation_worktree": "F:/reverse-agent-issue240-sprint-b1-clean-validation-v3",
+  "accepted_b1_candidate_sha": "b21ce5b2b1dad0b339172ed34567b65c3e3f36bb",
+  "authority_worktree": "F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v4",
+  "clean_validation_worktree": "F:/reverse-agent-issue240-sprint-b1-clean-validation-v4",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
@@ -46,9 +48,19 @@
   "product_change_commit_limit": 1,
   "authority_worktree_full_materialization_required": true,
   "sparse_checkout_disable_is_bootstrap_materialization_only": true,
+  "runtime_behavior_must_not_change": true,
+  "runtime_paths_read_only": true,
+  "test_only_cross_platform_repairs_required": true,
+  "github_native_linux_evidence_is_authoritative_for_blocking_tier": true,
+  "state_gate_owner_clean_landing_route_gap_is_followup_not_b1_local_scope": true,
+  "path_a_snapshot_must_not_be_fabricated": true,
+  "owner_will_publish_and_land_after_local_acceptance": true,
   "repair_scope_exact_paths": [
     ".github/workflows/ci.yml",
     "tests/test_ci_responsibility.py",
+    "tests/platform_v1/test_durable_execution.py",
+    "tests/platform_v1/test_durable_execution_v5.py",
+    "tests/platform_v1/test_opencode_executor.py",
     "tests/platform_v1/test_task3c_v4_repairs.py"
   ],
   "accepted_b1_projection_paths": [
@@ -60,23 +72,35 @@
   "clean_projection_expected_paths": [
     ".github/workflows/ci.yml",
     ".github/workflows/state-gate.yml",
+    "tests/platform_v1/test_durable_execution.py",
+    "tests/platform_v1/test_durable_execution_v5.py",
+    "tests/platform_v1/test_opencode_executor.py",
     "tests/platform_v1/test_task3c_v4_repairs.py",
     "tests/test_ci_responsibility.py",
     "tests/test_project_gate.py"
+  ],
+  "github_native_blocking_nodes_to_repair": [
+    "tests/platform_v1/test_durable_execution.py::test_v4_opencode_single_resume_prepare_zero",
+    "tests/platform_v1/test_durable_execution_v5.py::test_dispatch_executor_never_called_opencode_resume_pre_planner",
+    "tests/platform_v1/test_opencode_executor.py::test_auth_list_probe_returns_sanitized_metadata_when_success",
+    "tests/platform_v1/test_task3c_v4_repairs.py::TestTaskApiApiKeyWiring::test_trusted_host_http_handler_receives_lease_provider"
   ],
   "deterministic_platform_v1_deselected_nodeids": [
     "tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_bytes_unchanged_since_commit",
     "tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_commit_precedes_implementation",
     "tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_single_decision_commit_in_range",
-    "tests/platform_v1/test_task3c_v6_production_relay.py::TestCombinedTrustedHostInstalledOpenCodeE2E::test_real_task_api_opencode_relay_fake_provider_end_to_end"
+    "tests/platform_v1/test_task3c_v6_production_relay.py::TestCombinedTrustedHostInstalledOpenCodeE2E::test_real_task_api_opencode_relay_fake_provider_end_to_end",
+    "tests/platform_v1/test_task3c_v4_repairs.py::TestInstalledOpenCodeFakeProviderSmoke::test_installed_opencode_fake_provider_end_to_end",
+    "tests/platform_v1/test_task3c_v5_opencode_probe.py::TestDirectFakeProviderControl::test_opencode_direct_fake_provider",
+    "tests/platform_v1/test_task3c_v5_opencode_probe.py::TestRelayFakeProviderRun::test_opencode_relay_fake_provider"
   ],
   "governance_history_nodes_are_nonblocking_in_product_ci": true,
-  "installed_opencode_e2e_is_nonblocking_in_b1": true,
+  "installed_opencode_nodes_are_nonblocking_in_provider_free_ci": true,
   "repository_wide_diagnostic_must_remain_nonblocking": true,
-  "test_merge_intent_file_must_remain_canonical_in_clean_projection": true,
-  "runtime_behavior_must_not_change": true,
-  "trusted_host_runtime_fail_closed_semantics_must_not_weaken": true,
+  "broad_file_deselection_forbidden": true,
   "opencode_must_not_be_invoked": true,
+  "real_provider_must_not_be_invoked": true,
+  "credential_access_forbidden": true,
   "bootstrap_exception_files": [
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
@@ -87,20 +111,20 @@
   "bootstrap_exception_commands": [
     "git -C F:/reverse-agent-planning-smoke status --short",
     "git -C F:/reverse-agent-planning-smoke fetch origin owner/repository-modernization-v2-planning",
-    "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue240-sprint-b1-deterministic-ci-closeout-r2-v2",
     "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue240-sprint-b1-deterministic-ci-closeout-r2-v3",
+    "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue240-sprint-b1-github-native-ci-r2-v4",
     "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/repository-modernization-v2-planning",
-    "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/issue240-sprint-b1-deterministic-ci-closeout-r2-v2",
     "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/issue240-sprint-b1-deterministic-ci-closeout-r2-v3",
-    "powershell -NoProfile -Command \"$b=(git -C F:/reverse-agent-planning-smoke branch --list owner/issue240-sprint-b1-deterministic-ci-closeout-r2-v3);if($b){'ISSUE240_V3_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};if(Test-Path -LiteralPath 'F:/reverse-agent-issue240-sprint-b1-deterministic-ci-closeout-r2-v3'){'ISSUE240_V3_WORKTREE_ALREADY_EXISTS';exit 24};if(Test-Path -LiteralPath 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v3'){'ISSUE240_V3_PROJECTION_WORKTREE_ALREADY_EXISTS';exit 23};'ISSUE240_V3_BOOTSTRAP_TARGETS_ABSENT'\"",
-    "git -C F:/reverse-agent-planning-smoke worktree add --track -b owner/issue240-sprint-b1-deterministic-ci-closeout-r2-v3 F:/reverse-agent-issue240-sprint-b1-deterministic-ci-closeout-r2-v3 origin/owner/issue240-sprint-b1-deterministic-ci-closeout-r2-v3",
-    "git -C F:/reverse-agent-issue240-sprint-b1-deterministic-ci-closeout-r2-v3 sparse-checkout disable",
-    "Set-Location F:/reverse-agent-issue240-sprint-b1-deterministic-ci-closeout-r2-v3",
+    "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/issue240-sprint-b1-github-native-ci-r2-v4",
+    "powershell -NoProfile -Command \"$b=(git -C F:/reverse-agent-planning-smoke branch --list owner/issue240-sprint-b1-github-native-ci-r2-v4);if($b){'ISSUE240_V4_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};if(Test-Path -LiteralPath 'F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v4'){'ISSUE240_V4_WORKTREE_ALREADY_EXISTS';exit 24};if(Test-Path -LiteralPath 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v4'){'ISSUE240_V4_PROJECTION_WORKTREE_ALREADY_EXISTS';exit 23};'ISSUE240_V4_BOOTSTRAP_TARGETS_ABSENT'\"",
+    "git -C F:/reverse-agent-planning-smoke worktree add --track -b owner/issue240-sprint-b1-github-native-ci-r2-v4 F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v4 origin/owner/issue240-sprint-b1-github-native-ci-r2-v4",
+    "git -C F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v4 sparse-checkout disable",
+    "Set-Location F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v4",
     "git status --short",
     "git rev-parse HEAD",
     "git rev-parse HEAD^",
-    "git merge-base HEAD 6d513f0bd680dadf0019af1b56c85dc1683cb6b2",
-    "powershell -NoProfile -Command \"$r='F:/reverse-agent-issue240-sprint-b1-deterministic-ci-closeout-r2-v3';$req=@('pyproject.toml','.github/workflows/ci.yml','.github/workflows/state-gate.yml','tests/test_ci_responsibility.py','tests/test_project_gate.py','tests/platform_v1/test_merge_intent.py','tests/platform_v1/test_task3c_v4_repairs.py','tests/platform_v1/test_task3c_v6_production_relay.py','project_state/decision_packet.md');foreach($p in $req){if(-not (Test-Path -LiteralPath (Join-Path $r $p))){Write-Output ('MISSING:'+$p);exit 28}};$d=@(git -C $r diff HEAD --name-status);if($d.Count -ne 0){$d|Select-Object -First 20;exit 29};$s=@(git -C $r ls-files -v | Where-Object { $_ -match '^S ' });if($s.Count -ne 0){$s|Select-Object -First 20;exit 30};'ISSUE240_V3_FULL_WORKTREE_MATERIALIZED'\"",
+    "git merge-base HEAD 3e7987413d7693cebe253935dd17d89fb530a5db",
+    "powershell -NoProfile -Command \"$r='F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v4';$req=@('pyproject.toml','.github/workflows/ci.yml','.github/workflows/state-gate.yml','tests/test_ci_responsibility.py','tests/test_project_gate.py','tests/platform_v1/test_merge_intent.py','tests/platform_v1/test_durable_execution.py','tests/platform_v1/test_durable_execution_v5.py','tests/platform_v1/test_opencode_executor.py','tests/platform_v1/test_task3c_v4_repairs.py','tests/platform_v1/test_task3c_v5_opencode_probe.py','tests/platform_v1/test_task3c_v6_production_relay.py','project_state/decision_packet.md');foreach($p in $req){if(-not (Test-Path -LiteralPath (Join-Path $r $p))){Write-Output ('MISSING:'+$p);exit 28}};$d=@(git -C $r diff HEAD --name-status);if($d.Count -ne 0){$d|Select-Object -First 20;exit 29};$s=@(git -C $r ls-files -v | Where-Object { $_ -match '^S ' });if($s.Count -ne 0){$s|Select-Object -First 20;exit 30};'ISSUE240_V4_FULL_WORKTREE_MATERIALIZED'\"",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
@@ -108,8 +132,8 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "issue240v3.import_reusable_predecessor_content",
-      "command": "git checkout a15e01e36ddfcf67360c1932f67ad651fa65317b -- .github/workflows/ci.yml tests/test_ci_responsibility.py tests/platform_v1/test_task3c_v4_repairs.py",
+      "command_id": "issue240v4.import_v3_content",
+      "command": "git checkout a62f6846f5e8b9edd7327438bed8a42d9d11f4c9 -- .github/workflows/ci.yml tests/test_ci_responsibility.py tests/platform_v1/test_task3c_v4_repairs.py",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
@@ -119,7 +143,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v3.status_after_import",
+      "command_id": "issue240v4.status_after_import",
       "command": "git status --short",
       "phase": "status",
       "required": true,
@@ -130,7 +154,18 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v3.diff_check",
+      "command_id": "issue240v4.changed_paths",
+      "command": "git diff --name-only",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue240v4.diff_check",
       "command": "git diff --check",
       "phase": "validation",
       "required": true,
@@ -141,8 +176,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v3.projection_create",
-      "command": "git worktree add --detach F:/reverse-agent-issue240-sprint-b1-clean-validation-v3 74bad91c3721045342e83f0ecd1c06e9ae7cf670",
+      "command_id": "issue240v4.projection_create",
+      "command": "git worktree add --detach F:/reverse-agent-issue240-sprint-b1-clean-validation-v4 74bad91c3721045342e83f0ecd1c06e9ae7cf670",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -152,8 +187,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v3.projection_sparse_disable",
-      "command": "git -C F:/reverse-agent-issue240-sprint-b1-clean-validation-v3 sparse-checkout disable",
+      "command_id": "issue240v4.projection_sparse_disable",
+      "command": "git -C F:/reverse-agent-issue240-sprint-b1-clean-validation-v4 sparse-checkout disable",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -163,19 +198,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v3.projection_materialization_verify",
-      "command": "powershell -NoProfile -Command \"$r='F:/reverse-agent-issue240-sprint-b1-clean-validation-v3';$req=@('pyproject.toml','.github/workflows/ci.yml','.github/workflows/state-gate.yml','tests/test_project_gate.py','tests/platform_v1/test_merge_intent.py','tests/platform_v1/test_task3c_v4_repairs.py','project_state/decision_packet.md');foreach($p in $req){if(-not (Test-Path -LiteralPath (Join-Path $r $p))){exit 31}};$d=@(git -C $r diff HEAD --name-status);if($d.Count -ne 0){exit 32};$s=@(git -C $r ls-files -v | Where-Object { $_ -match '^S ' });if($s.Count -ne 0){exit 33};'ISSUE240_V3_PROJECTION_FULLY_MATERIALIZED'\"",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue240v3.projection_overlay_b1",
-      "command": "git -C F:/reverse-agent-issue240-sprint-b1-clean-validation-v3 checkout b21ce5b2b1dad0b339172ed34567b65c3e3f36bb -- .github/workflows/state-gate.yml .github/workflows/ci.yml tests/test_project_gate.py tests/test_ci_responsibility.py",
+      "command_id": "issue240v4.projection_overlay_b1",
+      "command": "git -C F:/reverse-agent-issue240-sprint-b1-clean-validation-v4 checkout b21ce5b2b1dad0b339172ed34567b65c3e3f36bb -- .github/workflows/state-gate.yml .github/workflows/ci.yml tests/test_project_gate.py tests/test_ci_responsibility.py",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -185,8 +209,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v3.projection_copy_v3_content",
-      "command": "powershell -NoProfile -Command \"$src='F:/reverse-agent-issue240-sprint-b1-deterministic-ci-closeout-r2-v3';$dst='F:/reverse-agent-issue240-sprint-b1-clean-validation-v3';$paths=@('.github/workflows/ci.yml','tests/test_ci_responsibility.py','tests/platform_v1/test_task3c_v4_repairs.py');foreach($p in $paths){Copy-Item -LiteralPath (Join-Path $src $p) -Destination (Join-Path $dst $p) -Force};git -C $dst add -- $paths\"",
+      "command_id": "issue240v4.projection_copy_v4",
+      "command": "powershell -NoProfile -Command \"$src='F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v4';$dst='F:/reverse-agent-issue240-sprint-b1-clean-validation-v4';$paths=@('.github/workflows/ci.yml','tests/test_ci_responsibility.py','tests/platform_v1/test_durable_execution.py','tests/platform_v1/test_durable_execution_v5.py','tests/platform_v1/test_opencode_executor.py','tests/platform_v1/test_task3c_v4_repairs.py');foreach($p in $paths){Copy-Item -LiteralPath (Join-Path $src $p) -Destination (Join-Path $dst $p) -Force};git -C $dst add -- $paths\"",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -196,8 +220,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v3.projection_exact_paths",
-      "command": "powershell -NoProfile -Command \"$r='F:/reverse-agent-issue240-sprint-b1-clean-validation-v3';$expected=@('.github/workflows/ci.yml','.github/workflows/state-gate.yml','tests/platform_v1/test_task3c_v4_repairs.py','tests/test_ci_responsibility.py','tests/test_project_gate.py')|Sort-Object;$actual=@(git -C $r diff --cached --name-only)|Sort-Object;if(Compare-Object $expected $actual){$actual;exit 34};'ISSUE240_V3_EXACT_FIVE_FILE_PROJECTION'\"",
+      "command_id": "issue240v4.projection_exact_paths",
+      "command": "powershell -NoProfile -Command \"$r='F:/reverse-agent-issue240-sprint-b1-clean-validation-v4';$expected=@('.github/workflows/ci.yml','.github/workflows/state-gate.yml','tests/platform_v1/test_durable_execution.py','tests/platform_v1/test_durable_execution_v5.py','tests/platform_v1/test_opencode_executor.py','tests/platform_v1/test_task3c_v4_repairs.py','tests/test_ci_responsibility.py','tests/test_project_gate.py')|Sort-Object;$actual=@(git -C $r diff --cached --name-only)|Sort-Object;if(Compare-Object $expected $actual){$actual;exit 34};'ISSUE240_V4_EXACT_EIGHT_FILE_PROJECTION'\"",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -207,8 +231,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v3.projection_diff_check",
-      "command": "git -C F:/reverse-agent-issue240-sprint-b1-clean-validation-v3 diff --cached --check",
+      "command_id": "issue240v4.projection_diff_check",
+      "command": "git -C F:/reverse-agent-issue240-sprint-b1-clean-validation-v4 diff --cached --check",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -218,8 +242,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v3.projection_trusted_host_fixture",
-      "command": "powershell -NoProfile -Command \"Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v3'; python -m pytest tests/platform_v1/test_task3c_v4_repairs.py::TestTaskApiApiKeyWiring::test_trusted_host_http_handler_receives_lease_provider -q\"",
+      "command_id": "issue240v4.projection_repair_four",
+      "command": "powershell -NoProfile -Command \"Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v4'; python -m pytest tests/platform_v1/test_durable_execution.py::test_v4_opencode_single_resume_prepare_zero tests/platform_v1/test_durable_execution_v5.py::test_dispatch_executor_never_called_opencode_resume_pre_planner tests/platform_v1/test_opencode_executor.py::test_auth_list_probe_returns_sanitized_metadata_when_success tests/platform_v1/test_task3c_v4_repairs.py::TestTaskApiApiKeyWiring::test_trusted_host_http_handler_receives_lease_provider -q\"",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -229,8 +253,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v3.projection_platform_v1_blocking",
-      "command": "powershell -NoProfile -Command \"Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v3'; python -m pytest tests/platform_v1 -q --deselect=tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_bytes_unchanged_since_commit --deselect=tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_commit_precedes_implementation --deselect=tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_single_decision_commit_in_range --deselect=tests/platform_v1/test_task3c_v6_production_relay.py::TestCombinedTrustedHostInstalledOpenCodeE2E::test_real_task_api_opencode_relay_fake_provider_end_to_end\"",
+      "command_id": "issue240v4.projection_platform_v1_blocking",
+      "command": "powershell -NoProfile -Command \"Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v4'; python -m pytest tests/platform_v1 -q --deselect=tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_bytes_unchanged_since_commit --deselect=tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_commit_precedes_implementation --deselect=tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_single_decision_commit_in_range --deselect=tests/platform_v1/test_task3c_v6_production_relay.py::TestCombinedTrustedHostInstalledOpenCodeE2E::test_real_task_api_opencode_relay_fake_provider_end_to_end --deselect=tests/platform_v1/test_task3c_v4_repairs.py::TestInstalledOpenCodeFakeProviderSmoke::test_installed_opencode_fake_provider_end_to_end --deselect=tests/platform_v1/test_task3c_v5_opencode_probe.py::TestDirectFakeProviderControl::test_opencode_direct_fake_provider --deselect=tests/platform_v1/test_task3c_v5_opencode_probe.py::TestRelayFakeProviderRun::test_opencode_relay_fake_provider\"",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -240,8 +264,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v3.projection_b1_focused",
-      "command": "powershell -NoProfile -Command \"Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v3'; python -m pytest tests/test_project_gate.py tests/test_ci_responsibility.py -q\"",
+      "command_id": "issue240v4.projection_b1_focused",
+      "command": "powershell -NoProfile -Command \"Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v4'; python -m pytest tests/test_project_gate.py tests/test_ci_responsibility.py -q\"",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -251,8 +275,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v3.governance_regressions",
-      "command": "python -m pytest tests/test_control_plane_transition.py tests/test_repository_hygiene.py tests/test_project_state.py tests/test_decision_preflight.py -q",
+      "command_id": "issue240v4.projection_governance_regression",
+      "command": "powershell -NoProfile -Command \"Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v4'; python -m pytest tests/test_control_plane_transition.py tests/test_repository_hygiene.py tests/test_project_state.py tests/test_decision_preflight.py -q\"",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -262,64 +286,56 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v3.stage_exact_scope",
-      "command": "git add .github/workflows/ci.yml tests/test_ci_responsibility.py tests/platform_v1/test_task3c_v4_repairs.py",
+      "command_id": "issue240v4.stage_exact",
+      "command": "git add -- .github/workflows/ci.yml tests/test_ci_responsibility.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_durable_execution_v5.py tests/platform_v1/test_opencode_executor.py tests/platform_v1/test_task3c_v4_repairs.py",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["repository_test_mutation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue240v3.staged_paths",
-      "command": "git diff --cached --name-only",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue240v3.staged_diff_check",
-      "command": "git diff --cached --check",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["diff_validation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue240v3.commit_recovery",
-      "command": "git commit -m \"Reclassify B1 governance history checks\"",
-      "phase": "publication",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["local_commit"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence",
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue240v3.head_after_commit",
-      "command": "git rev-parse HEAD",
-      "phase": "status",
+      "command_id": "issue240v4.staged_exact_verify",
+      "command": "powershell -NoProfile -Command \"$expected=@('.github/workflows/ci.yml','tests/test_ci_responsibility.py','tests/platform_v1/test_durable_execution.py','tests/platform_v1/test_durable_execution_v5.py','tests/platform_v1/test_opencode_executor.py','tests/platform_v1/test_task3c_v4_repairs.py')|Sort-Object;$actual=@(git diff --cached --name-only)|Sort-Object;if(Compare-Object $expected $actual){$actual;exit 35};'ISSUE240_V4_EXACT_SIX_STAGED'\"",
+      "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["repository_observation"],
       "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "required_evidence_source": "local_command_evidence",
+      "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue240v3.push_branch",
-      "command": "git push origin owner/issue240-sprint-b1-deterministic-ci-closeout-r2-v3",
+      "command_id": "issue240v4.staged_diff_check",
+      "command": "git diff --cached --check",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["diff_validation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue240v4.commit",
+      "command": "git commit -m \"Close B1 GitHub-native CI responsibility gaps\"",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["commit"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue240v4.push",
+      "command": "git push origin owner/issue240-sprint-b1-github-native-ci-r2-v4",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -330,18 +346,19 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue240v3.remote_tracking_head",
-      "command": "git rev-parse origin/owner/issue240-sprint-b1-deterministic-ci-closeout-r2-v3",
-      "phase": "status",
+      "command_id": "issue240v4.verify_remote",
+      "command": "git fetch origin owner/issue240-sprint-b1-github-native-ci-r2-v4 && git rev-parse HEAD && git rev-parse origin/owner/issue240-sprint-b1-github-native-ci-r2-v4",
+      "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation"
+      "operations": ["repository_observation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue240v3.status_final",
+      "command_id": "issue240v4.final_status",
       "command": "git status --short",
       "phase": "status",
       "required": true,
@@ -355,14 +372,10 @@
   "allowed_mutated_paths": [
     ".github/workflows/ci.yml",
     "tests/test_ci_responsibility.py",
+    "tests/platform_v1/test_durable_execution.py",
+    "tests/platform_v1/test_durable_execution_v5.py",
+    "tests/platform_v1/test_opencode_executor.py",
     "tests/platform_v1/test_task3c_v4_repairs.py",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
-  ],
-  "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
@@ -373,20 +386,41 @@
     ".github/workflows/state-gate.yml",
     "tests/test_project_gate.py",
     "tests/platform_v1/test_merge_intent.py",
+    "tests/platform_v1/test_task3c_v5_opencode_probe.py",
     "tests/platform_v1/test_task3c_v6_production_relay.py",
+    "reverse_agent/platform_v1/durable_execution.py",
+    "reverse_agent/platform_v1/opencode_executor.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/trusted_host.py",
+    "reverse_agent/platform_v1/run_store.py",
     "pyproject.toml",
-    "reverse_agent/**",
-    "project_state/mainline_merge_intents/**",
-    "project_state/schemas/**"
+    "project_state/decision_packet.md"
+  ],
+  "generated_artifact_paths": [
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
   ],
   "forbidden_mutated_paths": [
-    "project_state/decision_packet.md",
+    "reverse_agent/**",
     ".github/workflows/state-gate.yml",
     "tests/test_project_gate.py",
     "tests/platform_v1/test_merge_intent.py",
+    "tests/platform_v1/test_task3c_v5_opencode_probe.py",
     "tests/platform_v1/test_task3c_v6_production_relay.py",
+    "project_state/decision_packet.md",
+    "project_state/current_state.json",
+    "project_state/state_manifest.json",
+    "project_state/artifact_index.json",
+    "project_state/schemas/**",
+    "project_state/rounds/**",
+    "project_state/audits/**",
     "pyproject.toml",
-    "reverse_agent/**",
+    "requirements*.txt",
+    "poetry.lock",
+    "uv.lock",
     "frontend/**",
     "docs/**",
     "AGENTS.md",
@@ -399,15 +433,13 @@
     "provider_network_call",
     "real_user_credential_file_discovery",
     "real_user_credential_file_read",
-    "live_connection_probe",
-    "credential_relay_lease",
-    "task_execute",
-    "product_setup_mutation",
-    "real_task_store_access",
+    "credential_access",
+    "product_setup",
+    "real_taskstore_execution",
     "dependency_install",
-    "package_lock_mutation",
-    "pr_create",
+    "pull_request_creation",
     "merge",
+    "branch_protection_mutation",
     "force_push",
     "rebase",
     "reset",
@@ -424,16 +456,13 @@
     "external_reverse_tool_invocation_allowed": false,
     "unknown_binary_execution_allowed": false,
     "destructive_operations_allowed": false,
-    "network_access_default_allowed": false,
-    "direct_push_to_main_allowed": false,
-    "merge_allowed": false,
-    "force_push_allowed": false,
-    "rebase_during_execution_allowed": false,
-    "tag_or_release_allowed": false,
-    "local_network_exceptions": [
-      "git push origin owner/issue240-sprint-b1-deterministic-ci-closeout-r2-v3"
-    ],
-    "ci_network_exceptions": []
-  }
+    "credential_access_allowed": false,
+    "live_provider_access_allowed": false,
+    "github_issue_comment_allowed": false,
+    "github_pr_creation_allowed": false,
+    "github_merge_allowed": false
+  },
+  "success_terminal": "SPRINT_B1_GITHUB_NATIVE_CI_RECOVERY_V4_READY_FOR_OWNER_AUDIT",
+  "blocked_terminal": "SPRINT_B1_GITHUB_NATIVE_CI_RECOVERY_V4_BLOCKED_WITH_EXACT_EVIDENCE"
 }
 ```
