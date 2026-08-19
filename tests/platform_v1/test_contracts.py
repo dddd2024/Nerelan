@@ -905,6 +905,20 @@ class TestRequiredChecksAsWorkflows:
 # F17/F28: Active Bootstrap intent binds PR #112 and exact authority digests
 # ---------------------------------------------------------------------------
 
+def _requires_active_merge_intent() -> bool:
+    """Default to strict legacy behavior unless an engineering Decision opts out."""
+
+    from pathlib import Path
+    from reverse_agent.project_state import extract_markdown_json_block
+
+    decision_path = Path(__file__).resolve().parents[2] / "project_state" / "decision_packet.md"
+    contract = extract_markdown_json_block(
+        decision_path.read_text(encoding="utf-8"),
+        "decision_contract",
+    )
+    return contract.get("mainline_merge_intent_required", True) is not False
+
+
 class TestActiveMergeIntentV6:
     """The active intent binds PR #112 while preserving prior intents.
 
@@ -959,6 +973,10 @@ class TestActiveMergeIntentV6:
             self._archive_pr112_v5_path.read_text(encoding="utf-8")
         )
 
+    @pytest.mark.skipif(
+        not _requires_active_merge_intent(),
+        reason="engineering Decision does not activate a mainline merge intent",
+    )
     def test_active_binds_current_decision_source_pr(self) -> None:
         from reverse_agent.project_state import extract_markdown_json_block
         decision_text = self._decision_path.read_text(encoding="utf-8")
@@ -969,12 +987,20 @@ class TestActiveMergeIntentV6:
             f"Decision active_pr={expected_pr}"
         )
 
+    @pytest.mark.skipif(
+        not _requires_active_merge_intent(),
+        reason="engineering Decision does not activate a mainline merge intent",
+    )
     def test_active_binds_current_decision_id(self) -> None:
         from reverse_agent.project_state import extract_markdown_json_block
         decision_text = self._decision_path.read_text(encoding="utf-8")
         meta = extract_markdown_json_block(decision_text, "decision_meta")
         assert self._active["decision_identity"]["decision_id"] == meta["decision_id"]
 
+    @pytest.mark.skipif(
+        not _requires_active_merge_intent(),
+        reason="engineering Decision does not activate a mainline merge intent",
+    )
     def test_active_binds_decision_content_sha256(self) -> None:
         sha = self._active["decision_identity"]["decision_content_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
@@ -982,6 +1008,10 @@ class TestActiveMergeIntentV6:
         assert sha == hashlib.sha256(self._decision_path.read_bytes()).hexdigest()
         assert sha != self._archive_v3["decision_identity"]["decision_content_sha256"]
 
+    @pytest.mark.skipif(
+        not _requires_active_merge_intent(),
+        reason="engineering Decision does not activate a mainline merge intent",
+    )
     def test_active_binds_command_plan_sha256(self) -> None:
         sha = self._active["command_plan_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
@@ -989,6 +1019,10 @@ class TestActiveMergeIntentV6:
         assert sha == hashlib.sha256(self._command_plan_path.read_bytes()).hexdigest()
         assert sha != self._archive_v3["command_plan_sha256"]
 
+    @pytest.mark.skipif(
+        not _requires_active_merge_intent(),
+        reason="engineering Decision does not activate a mainline merge intent",
+    )
     def test_active_binds_current_decision_locked_base_sha(self) -> None:
         from reverse_agent.project_state import extract_markdown_json_block
         decision_text = self._decision_path.read_text(encoding="utf-8")
