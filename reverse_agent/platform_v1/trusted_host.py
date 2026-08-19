@@ -41,6 +41,12 @@ from .run_store import TaskStore
 from .task_runtime import ExecutorRouter
 from .task_service import _handler_factory as _task_handler_factory
 from .durable_execution import DurableExecutionService
+from .autonomy import AutonomyService
+from .capability_registry import CapabilityRegistry
+from .control_store import PlatformControlStore
+from .goal_service import GoalService
+from .publication_controller import PublicationController
+from .unattended_coordinator import UnattendedCoordinator
 
 
 class CombinedTrustedHost:
@@ -76,6 +82,20 @@ class CombinedTrustedHost:
         self._execution_authority_sha = execution_authority_sha
         self._planning_sha = planning_sha
         self._auth_list_probe = auth_list_probe
+        self._control_store = PlatformControlStore(self._task_store)
+        self._capability_registry = CapabilityRegistry(
+            pack_dir=os.environ.get("REVERSE_AGENT_CAPABILITY_PACK_DIR") or None
+        )
+        self._autonomy_service = AutonomyService(
+            control_store=self._control_store,
+            capabilities=self._capability_registry,
+        )
+        self._goal_service = GoalService(
+            store=self._task_store,
+            control_store=self._control_store,
+        )
+        self._publication_controller: PublicationController | None = None
+        self._coordinator: UnattendedCoordinator | None = None
 
         self._model_control_host = model_control_host
         self._model_control_port = model_control_port
@@ -221,6 +241,28 @@ class CombinedTrustedHost:
         live_github = self._github_adapter
         if live_github is None:
             live_github = LiveGitHubAdapter()
+        self._publication_controller = PublicationController(
+            store=self._task_store,
+            control_store=self._control_store,
+            autonomy=self._autonomy_service,
+        )
+        workspace_root = os.environ.get("REVERSE_AGENT_TASK_WORKSPACE_ROOT", "").strip()
+        if not workspace_root:
+            workspace_root = os.path.join(
+                os.path.dirname(os.path.abspath(self._task_store.db_path)) or ".",
+                "task_workspaces",
+            )
+        self._coordinator = UnattendedCoordinator(
+            store=self._task_store,
+            control_store=self._control_store,
+            autonomy=self._autonomy_service,
+            router=self._router,
+            workspace_root=workspace_root,
+            lease_provider=self._lease_provider_factory(),
+            binding_resolver=binding_resolver,
+            execution_authority_sha=self._execution_authority_sha,
+            planning_sha=self._planning_sha,
+        )
         task_handler = _task_handler_factory(
             self._task_store,
             self._router,
@@ -230,6 +272,12 @@ class CombinedTrustedHost:
             github_adapter=live_github,
             execution_authority_sha=self._execution_authority_sha,
             planning_sha=self._planning_sha,
+            control_store=self._control_store,
+            goal_service=self._goal_service,
+            autonomy_service=self._autonomy_service,
+            capability_registry=self._capability_registry,
+            publication_controller=self._publication_controller,
+            coordinator=self._coordinator,
         )
         self._task_server = ThreadingHTTPServer(
             (self._task_api_host, tap), task_handler
@@ -241,9 +289,18 @@ class CombinedTrustedHost:
             t = threading.Thread(target=server.serve_forever, daemon=True)
             t.start()
             self._threads.append(t)
+        if os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and self._coordinator:
+            self._coordinator.start()
 
     def stop(self) -> None:
-        for server in (self._model_server, self._task_server, getattr(self, "_relay_server_inner", None)):
+        if self._coordinator:
+            self._coordinator.stop()
+        servers = (
+            self._model_server,
+            self._task_server,
+            getattr(self, "_relay_server_inner", None),
+        )
+        for server in servers:
             if server:
                 try:
                     server.shutdown()
@@ -252,6 +309,15 @@ class CombinedTrustedHost:
         for t in self._threads:
             t.join(timeout=3.0)
         self._threads.clear()
+        for server in servers:
+            if server:
+                try:
+                    server.server_close()
+                except Exception:
+                    pass
+        self._model_server = None
+        self._task_server = None
+        self._relay_server_inner = None
         self._relay_manager.release_all()
 
 

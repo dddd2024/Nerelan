@@ -15,7 +15,7 @@ $shortcut = $wsh.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $launcher
 $shortcut.WorkingDirectory = $projectDir
 $shortcut.IconLocation = "$env:SystemRoot\System32\shell32.dll,220"
-$shortcut.Description = "Reverse Agent Flag Solver GUI"
+$shortcut.Description = "Reverse Agent unattended multi-agent platform"
 $shortcut.Save()
 
 Write-Output "Shortcut created: $shortcutPath"

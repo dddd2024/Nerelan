@@ -4,45 +4,46 @@ Repository operating guide for agents, maintainers, and reviewers working in `dd
 
 ## Repository purpose
 
-`reverse-agent` currently provides a **minimal AI development integration baseline** around GitHub, Codex, deterministic checks, independent review, and human merge. It is not a generic AI software-development platform.
+`reverse-agent` provides a **local-first governed multi-Agent development platform** around persistent goals, bounded autonomous windows, OpenCode execution, LangGraph orchestration, deterministic checks, independent review, and GitHub publication.
 
 ```text
-approved specification
--> approved immutable GitHub Work Item snapshot
--> Codex implementation
--> deterministic GitHub Actions
--> independent review
--> human merge
+natural-language goal
+-> persistent specification, plan, and dependent tasks
+-> approved immutable authority and autonomy policy
+-> durable multi-Agent execution and restart recovery
+-> deterministic validation and sanitized evidence
+-> allowlisted Draft PR
+-> independent exact-head acceptance
 ```
 
-Repository-owned custom capability is limited to thin risk classification, bounded path/operation policy, high-risk approval boundaries, deterministic acceptance checks, and future domain-specific adapters.
+Repository-owned custom capability remains thin: authority and risk classification, bounded path/operation policy, autonomy budgets, durable claims/idempotency, evidence confinement, exact-path Draft publication, and deterministic acceptance. Planning, orchestration, execution, UI patterns, and repository truth reuse mature projects.
 
-## Current non-goals
+## Current non-goals and hard boundaries
 
 ```text
-generic LangGraph orchestration platform
-generic Agent Registry or multi-agent organization
-generic Web agent control console
 GitHub Issue/PR state replication
-generic checkpoint/retry/reconciliation platform
-Open SWE/OpenHands control-plane product
+forking or copying OpenHands/OpenCode/LangGraph runtimes
+an unbounded plugin package manager
+browser-side shell, filesystem, credential, or policy authority
+automatic mark-ready, merge, tag, release, or deployment outside separately authorized Path-B work
 hostile-binary, reverse-solving, crash, patch, malware, or firmware product work
 ```
 
 Security and binary directions remain extension candidates, not current implementation scope.
 
-## Platform V1 — bounded OpenHands Agent Canvas + Codex ACP direction
+## Platform V2 — unattended multi-Agent product direction
 
-The current selected bounded Platform V1 integration direction is **OpenHands Agent Canvas + Codex ACP**. This is a thin adapter layer (`reverse_agent/platform_v1/`) that binds the repository's governance layer to the pinned OpenHands Agent Canvas + Codex ACP platform surface.
+The active product direction is a thin adapter layer in `reverse_agent/platform_v1/` that binds governance to reusable mature surfaces:
 
 ```text
-do not fork OpenHands
-do not copy its frontend or Agent Loop
-do not build a second control platform
-do not auto-merge
+GitHub Spec Kit-compatible planning artifacts
+LangGraph team topology and checkpoints
+OpenCode repository execution and model bindings
+OpenHands Agent Canvas presentation patterns
+GitHub Draft PR publication and check truth
 ```
 
-The adapter does not implement an executor, agent loop, sandbox, database, or frontend. Live compatibility probes require a trusted host with explicit opt-in. The current status is `PR97_CODE_REWORK_COMPLETE_AWAITING_TRUSTED_HOST_LIVE_PROBE` — the full vertical slice is not yet accepted.
+The trusted host owns a single TaskStore database for task, goal, window, receipt, claim, run, and publication truth. The unattended coordinator starts only with `REVERSE_AGENT_AUTONOMOUS=1` and performs no work until an owner activates a bounded window. Live model/API probes require a separate explicit R3 authority; provider-free startup and CI make zero model calls.
 
 ## Two authority paths
 

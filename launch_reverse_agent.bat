@@ -1,9 +1,5 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-
-if exist ".venv\Scripts\python.exe" (
-  ".venv\Scripts\python.exe" app.py
-) else (
-  python app.py
-)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0dev-up.ps1" -RepoDir "%~dp0" -SourceDir "%~dp0"
+if errorlevel 1 pause

@@ -1,4 +1,4 @@
-# Minimal AI Development Integration Plan
+# Governed Unattended Multi-Agent Platform Plan
 
 ```text
 STATUS: ACTIVE
@@ -7,22 +7,21 @@ EXECUTION_AUTHORITY: NONE
 SUPERSEDES_AS_TOP_LEVEL_PLAN: #18, #25
 ```
 
-This is the single active top-level roadmap for `reverse-agent`. It is planning reference only and never authorizes commands, file changes, closeout, or merge.
+This is the single active top-level roadmap for `reverse-agent`. It is planning reference only and never authorizes commands, file changes, closeout, or merge. The active product outcome is a local-first, unattended multi-Agent platform built as a thin trust layer around mature projects.
 
 ## Active development stack
 
 ```text
-approved specification
--> candidate GitHub Issue from the R1 template
--> owner/maintainer approval
--> immutable Work Item authority snapshot
--> Codex implementation
--> deterministic GitHub Actions
--> independent review
--> human merge
+natural-language goal
+-> persistent specification, plan, and dependent tasks
+-> immutable authority plus owner-activated autonomous window
+-> durable multi-Agent execution, reconciliation, and resume
+-> deterministic validation and sanitized evidence
+-> allowlisted Draft PR
+-> independent exact-head acceptance
 ```
 
-The repository does not build a generic AI software-development platform. Repository-owned capability is limited to thin risk classification, bounded path/operation policy, high-risk approval boundaries, deterministic acceptance checks, and future domain-specific adapters.
+Repository-owned capability remains a thin trust layer: risk and authority classification, bounded path/operation policy, autonomous-window budgets, durable claims/idempotency, evidence confinement, exact-path Draft publication, and deterministic acceptance. Spec Kit, LangGraph, OpenCode, OpenHands Agent Canvas, and GitHub provide the mature planning, orchestration, execution, presentation, and repository surfaces.
 
 ## Two authority paths
 
@@ -106,32 +105,30 @@ All earlier roadmaps are non-active and classified as `HISTORICAL_REFERENCE`, `C
 | `reverse_agent_unified_architecture_and_trust_roadmap.md` | SUPERSEDED |
 | `trustworthy_hostile_binary_analysis_long_term_plan.md` | EXTENSION_CANDIDATE |
 
-## Extension candidates
+## Extension candidates (deferred)
 
 The following remain deferred until several real R1 pilots succeed:
 
 ```text
-Spec Kit repository bootstrap
 Open SWE self-hosting
-persistent LangGraph runtime
-Web control console
 security or binary product extensions
 Trust Layer
 Binary Evidence Firewall
 ```
 
-## Platform V1 — bounded OpenHands Agent Canvas + Codex ACP direction
+## Platform V2 — implemented integration direction
 
-The current selected bounded Platform V1 integration direction is **OpenHands Agent Canvas + Codex ACP**. This is a thin adapter layer that binds the repository's governance layer (risk classification, path/operation policy, trusted evidence, deterministic acceptance) to the pinned OpenHands Agent Canvas + Codex ACP platform surface.
+Platform V2 binds the repository governance layer to reusable mature surfaces while keeping all authority server-side:
 
 ```text
-do not fork OpenHands
-do not copy its frontend or Agent Loop
-do not build a second control platform
-do not auto-merge
+Spec Kit-compatible Goal -> Specification -> Plan -> Tasks artifacts
+LangGraph sequential and parallel team topology with checkpoints
+OpenCode execution and model bindings
+OpenHands Agent Canvas presentation patterns
+GitHub Draft PR publication and check truth
 ```
 
-The adapter does not implement an executor, agent loop, sandbox, database, or frontend. Live compatibility probes require a trusted host with explicit opt-in. The current status is `PR97_CODE_REWORK_COMPLETE_AWAITING_TRUSTED_HOST_LIVE_PROBE` — the full vertical slice is not yet accepted. This section is planning reference only and does not authorize commands, file changes, or merge.
+The TaskStore is the single durable source for tasks, goals, windows, receipts, claims, runs, and publication state. The trusted coordinator is explicitly enabled and remains inert without an owner-confirmed bounded window. Draft publication excludes mark-ready and merge. Live provider experiments require separate R3 authority; provider-free CI makes zero model calls. This section is planning reference only and does not authorize commands, file changes, or merge.
 
 ## After acceptance
 
