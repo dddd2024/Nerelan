@@ -18,7 +18,7 @@ export function HomePage() {
   const statusQuery = usePlatformStatus();
   const goalsQuery = useGoals();
   const startGoal = useStartGoal();
-  const goals = goalsQuery.data ?? [];
+  const goals = useMemo(() => goalsQuery.data ?? [], [goalsQuery.data]);
   const [selectedId, setSelectedId] = useState<string | undefined>();
 
   useEffect(() => {

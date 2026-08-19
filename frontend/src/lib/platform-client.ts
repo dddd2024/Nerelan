@@ -194,7 +194,7 @@ export async function startGoal(input: StartGoalInput): Promise<PlatformGoal> {
   await request<PlatformGoal>(`/api/goals/${created.id}/approve`, {
     method: "POST", body: JSON.stringify({ expected_revision: created.revision }),
   });
-  let status = await fetchPlatformStatus();
+  const status = await fetchPlatformStatus();
   let window = status.autonomy.active_window;
   if (!window || !window.repositories.includes(input.repository)) {
     const starts = new Date();
