@@ -34,6 +34,11 @@ from .run_store import (
 from .task_execution import TaskExecutionError, TaskExecutionService
 from .task_runtime import ExecutorRuntimeError, ExecutorRouter
 from .durable_execution import DurableExecutionService, DurableResumeError
+from .autonomy import AutonomyService, window_to_dict
+from .capability_registry import CapabilityRegistry
+from .control_store import PlatformControlStore
+from .goal_service import GoalService, goal_to_dict
+from .publication_controller import PublicationController
 
 _MAX_BODY_BYTES = 256 * 1024
 _TASKS_LIMIT = 100
@@ -237,6 +242,12 @@ class _TaskHandler(BaseHTTPRequestHandler):
     github_adapter: Any | None = None
     execution_authority_sha: str = ""
     planning_sha: str = ""
+    control_store: PlatformControlStore
+    goal_service: GoalService
+    autonomy_service: AutonomyService
+    capability_registry: CapabilityRegistry
+    publication_controller: PublicationController
+    coordinator: Any | None = None
 
     server_version = "reverse-agent-task-service/1"
 
@@ -257,6 +268,46 @@ class _TaskHandler(BaseHTTPRequestHandler):
             return
         try:
             segments = self._segments()
+            if segments == ["api", "platform", "status"]:
+                self._send_json(HTTPStatus.OK, self._platform_status_response())
+                return
+            if segments == ["api", "capabilities"]:
+                self._send_json(HTTPStatus.OK, self.capability_registry.response())
+                return
+            if segments == ["api", "goals"]:
+                goals = self.control_store.list_goals()
+                self._send_json(
+                    HTTPStatus.OK,
+                    {"goals": [goal_to_dict(goal) for goal in goals], "total": len(goals)},
+                )
+                return
+            if len(segments) == 3 and segments[:2] == ["api", "goals"]:
+                try:
+                    detail = self.goal_service.detail(segments[2])
+                except TaskStoreError:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "goal not found"})
+                    return
+                self._send_json(HTTPStatus.OK, detail)
+                return
+            if segments == ["api", "windows"]:
+                windows = self.control_store.list_windows()
+                self._send_json(
+                    HTTPStatus.OK,
+                    {"windows": [window_to_dict(window) for window in windows], "total": len(windows)},
+                )
+                return
+            if (
+                len(segments) == 4
+                and segments[:2] == ["api", "windows"]
+                and segments[3] == "summary"
+            ):
+                try:
+                    summary = self.autonomy_service.summary(segments[2])
+                except TaskStoreError:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "window not found"})
+                    return
+                self._send_json(HTTPStatus.OK, summary)
+                return
             if len(segments) == 2 and segments == ["api", "tasks"]:
                 self._send_json(HTTPStatus.OK, self._list_tasks_response())
                 return
@@ -342,6 +393,78 @@ class _TaskHandler(BaseHTTPRequestHandler):
             return
         try:
             segments = self._segments()
+            if segments == ["api", "goals"]:
+                goal = self.goal_service.create(self._read_json())
+                self._send_json(HTTPStatus.CREATED, goal_to_dict(goal))
+                return
+            if len(segments) == 4 and segments[:2] == ["api", "goals"]:
+                payload = self._read_json(optional=True)
+                action = segments[3]
+                revision = self._expected_revision(payload)
+                if action == "plan":
+                    result = self.goal_service.plan(
+                        segments[2],
+                        expected_revision=revision,
+                        acceptance_criteria=payload.get("acceptance_criteria", ()),
+                        tasks=payload.get("tasks", ()),
+                    )
+                    response = goal_to_dict(result.goal)
+                    response["planner"] = result.planner
+                    response["spec_kit_available"] = result.spec_kit_available
+                    self._send_json(HTTPStatus.OK, response)
+                    return
+                if action == "approve":
+                    goal = self.goal_service.approve(
+                        segments[2], expected_revision=revision,
+                        policy_ref=str(payload.get("policy_ref", "")),
+                    )
+                    self._send_json(HTTPStatus.OK, goal_to_dict(goal))
+                    return
+                if action == "amend":
+                    goal = self.goal_service.amend(
+                        segments[2], expected_revision=revision,
+                        objective=str(payload.get("objective", "")),
+                    )
+                    self._send_json(HTTPStatus.OK, goal_to_dict(goal))
+                    return
+                if action == "launch":
+                    goal = self.goal_service.launch(
+                        segments[2], expected_revision=revision,
+                        window_id=str(payload.get("window_id", "")),
+                    )
+                    self._send_json(HTTPStatus.OK, self.goal_service.detail(goal.id))
+                    return
+            if segments == ["api", "windows", "activate"]:
+                window = self.autonomy_service.activate(self._read_json())
+                self._send_json(HTTPStatus.CREATED, window_to_dict(window))
+                return
+            if (
+                len(segments) == 4
+                and segments[:2] == ["api", "windows"]
+                and segments[3] == "stop"
+            ):
+                payload = self._read_json(optional=True)
+                window = self.control_store.stop_window(
+                    segments[2], reason=str(payload.get("reason", "owner_stopped"))
+                )
+                self._send_json(HTTPStatus.OK, window_to_dict(window))
+                return
+            if (
+                len(segments) == 4
+                and segments[:2] == ["api", "tasks"]
+                and segments[3] == "publish"
+            ):
+                payload = self._read_json()
+                publication = self.publication_controller.publish(
+                    segments[2],
+                    window_id=str(payload.get("window_id", "")),
+                    base_branch=str(payload.get("base_branch", "")),
+                    allowed_paths=payload.get("allowed_paths", ()),
+                    title=str(payload.get("title", "")),
+                    body=str(payload.get("body", "")),
+                )
+                self._send_json(HTTPStatus.OK, publication.__dict__)
+                return
             if segments == ["api", "tasks"]:
                 payload = self._read_json()
                 task = self._create_task_from_payload(payload, require_repository_for_opencode=True)
@@ -550,11 +673,38 @@ class _TaskHandler(BaseHTTPRequestHandler):
             orchestration_mode=orchestration_mode,
         )
 
+    @staticmethod
+    def _expected_revision(payload: Mapping[str, Any]) -> int:
+        try:
+            revision = int(payload.get("expected_revision", 0))
+        except (TypeError, ValueError) as exc:
+            raise TaskStoreError("expected_revision_invalid") from exc
+        if revision < 1:
+            raise TaskStoreError("expected_revision_invalid")
+        return revision
+
     def _list_tasks_response(self) -> dict[str, Any]:
         tasks = self.store.list_tasks(limit=_TASKS_LIMIT)
         return {
             "tasks": [self._task_response(t) for t in tasks],
             "total": self.store.count_tasks(),
+        }
+
+    def _platform_status_response(self) -> dict[str, Any]:
+        coordinator = getattr(self, "coordinator", None)
+        return {
+            "service": "reverse-agent-platform-v2",
+            "autonomy": self.autonomy_service.status(),
+            "coordinator": coordinator.status() if coordinator is not None else {
+                "enabled": False,
+                "active_window_id": "",
+                "last_error": "",
+                "mode": "manual_api_only",
+            },
+            "task_count": self.store.count_tasks(),
+            "goal_count": len(self.control_store.list_goals()),
+            "capability_count": len(self.capability_registry.list()),
+            "live_model_calls": bool(getattr(self, "live_enabled", False)),
         }
 
     def _task_response(self, task: Any) -> dict[str, Any]:
@@ -701,6 +851,12 @@ def _handler_factory(
     github_adapter: Any | None = None,
     execution_authority_sha: str = "",
     planning_sha: str = "",
+    control_store: PlatformControlStore | None = None,
+    goal_service: GoalService | None = None,
+    autonomy_service: AutonomyService | None = None,
+    capability_registry: CapabilityRegistry | None = None,
+    publication_controller: PublicationController | None = None,
+    coordinator: Any | None = None,
 ) -> type[_TaskHandler]:
     class ConfiguredHandler(_TaskHandler):
         pass
@@ -716,6 +872,23 @@ def _handler_factory(
     ConfiguredHandler.github_adapter = github_adapter
     ConfiguredHandler.execution_authority_sha = execution_authority_sha
     ConfiguredHandler.planning_sha = planning_sha
+    configured_control = control_store or PlatformControlStore(store)
+    configured_capabilities = capability_registry or CapabilityRegistry(
+        pack_dir=os.environ.get("REVERSE_AGENT_CAPABILITY_PACK_DIR") or None
+    )
+    configured_autonomy = autonomy_service or AutonomyService(
+        control_store=configured_control, capabilities=configured_capabilities
+    )
+    ConfiguredHandler.control_store = configured_control
+    ConfiguredHandler.capability_registry = configured_capabilities
+    ConfiguredHandler.autonomy_service = configured_autonomy
+    ConfiguredHandler.goal_service = goal_service or GoalService(
+        store=store, control_store=configured_control
+    )
+    ConfiguredHandler.publication_controller = publication_controller or PublicationController(
+        store=store, control_store=configured_control, autonomy=configured_autonomy
+    )
+    ConfiguredHandler.coordinator = coordinator
     return ConfiguredHandler
 
 
