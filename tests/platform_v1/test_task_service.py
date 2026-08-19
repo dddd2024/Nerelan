@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 import threading
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -68,6 +69,60 @@ def test_create_and_read_task(task_server) -> None:
     assert status == 200
     assert got["id"] == tid
     assert got["events"][0]["type"] == "DISCOVERED"
+
+
+def test_platform_status_capabilities_and_goal_window_flow(task_server) -> None:
+    base, _ = task_server
+    status, platform = _req(base, "GET", "/api/platform/status")
+    assert status == 200
+    assert platform["service"] == "reverse-agent-platform-v2"
+    assert platform["coordinator"]["enabled"] is False
+    status, capabilities = _req(base, "GET", "/api/capabilities")
+    assert status == 200
+    assert capabilities["total"] >= 6
+
+    status, goal = _req(base, "POST", "/api/goals", {
+        "objective": "Deliver a provider-free platform check",
+        "repository": "dddd2024/reverse-agent",
+        "idempotency_key": "http-goal-window-v1",
+        "executor_kind": "deterministic_fixture",
+        "orchestration_mode": "single",
+    })
+    assert status == 201
+    goal_id = goal["id"]
+    status, planned = _req(base, "POST", f"/api/goals/{goal_id}/plan", {
+        "expected_revision": 1,
+        "tasks": [{"id": "T001", "title": "check", "instruction": "run fixture"}],
+    })
+    assert status == 200
+    assert planned["status"] == "PLANNED"
+    status, approved = _req(base, "POST", f"/api/goals/{goal_id}/approve", {
+        "expected_revision": 1,
+    })
+    assert status == 200
+    assert approved["status"] == "APPROVED"
+
+    now = datetime.now(timezone.utc)
+    status, window = _req(base, "POST", "/api/windows/activate", {
+        "policy_id": "http-window-v1", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=1)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 2, "max_retries": 0,
+        "confirmation": "ACTIVATE",
+    })
+    assert status == 201
+    status, launched = _req(base, "POST", f"/api/goals/{goal_id}/launch", {
+        "expected_revision": 1, "window_id": window["id"],
+    })
+    assert status == 200
+    assert launched["status"] == "RUNNING"
+    assert len(launched["task_links"]) == 1
+    status, listed = _req(base, "GET", "/api/goals")
+    assert status == 200 and listed["total"] == 1
+    status, summary = _req(base, "GET", f"/api/windows/{window['id']}/summary")
+    assert status == 200
+    assert summary["budget"]["tasks_remaining"] == 2
 
 
 def test_task_api_round_trips_explicit_binding_ref(task_server) -> None:
