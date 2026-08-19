@@ -1953,6 +1953,7 @@ class DurableExecutionService:
             _handoff_digest,
             _validate_plan_handoff,
             _validate_review_handoff,
+            redact_secrets,
         )
         from reverse_agent.workflows.team_graph import (
             TeamGraphError,
@@ -2146,11 +2147,15 @@ class DurableExecutionService:
             )
         except TeamGraphError as exc:
             last = role_results[-1] if role_results else {}
+            role_detail = redact_secrets(str(last.get("detail", "")))[:1024]
+            detail = str(exc)
+            if role_detail:
+                detail = f"{detail}:{role_detail}"
             return {
                 "success": False,
                 "val_exit": -1,
                 "classification": last.get("classification", "failed"),
-                "detail": str(exc),
+                "detail": detail,
                 "roles_executed": roles_executed,
                 "role_results": role_results,
                 "digest": "",
@@ -3222,6 +3227,7 @@ class DurableExecutionService:
             _handoff_digest,
             _remove_handoff,
             handoff_dir,
+            redact_secrets,
         )
         from reverse_agent.workflows.team_graph import TeamGraphError
 
@@ -3271,6 +3277,44 @@ class DurableExecutionService:
         wt_path = run.worktree_path or workspace_root
         prepared_path = Path(wt_path)
         handoff = handoff_dir(prepared_path) if prepared_path.exists() else None
+
+        # A restarted host must reconstruct the complete executor context from
+        # the durable run identity.  Passing only a Path works for lightweight
+        # test doubles, but the real OpenCode executor requires the persisted
+        # base SHA, execution ID, and locally resolved CLI identity before it
+        # can dispatch the remaining role.
+        prepared_for_executor: Any = prepared_path
+        reconstruct = getattr(executor, "reconstruct_prepared_context", None)
+        if callable(reconstruct):
+            try:
+                prepared_for_executor = reconstruct(
+                    worktree_path=wt_path,
+                    base_sha=run.repository_base_sha,
+                    execution_id=run.execution_id,
+                    opencode_exe=getattr(executor, "_opencode_exe", None),
+                )
+            except Exception as exc:
+                detail = "resume_prepared_context_invalid:" + redact_secrets(
+                    f"{exc.__class__.__name__}:{exc}"
+                )[:1024]
+                self.store._fenced_classify_failure(
+                    lease.run_id,
+                    task_id,
+                    classification="resume_context_invalid",
+                    detail=detail,
+                    owner=lease.owner,
+                    epoch=lease.epoch,
+                )
+                final = self.store.get_task(task_id)
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=final.execution_id,
+                    success=False,
+                    validation_command_id="",
+                    validation_exit_code=-1,
+                    failure_classification="resume_context_invalid",
+                    failure_detail=detail,
+                )
 
         baseline_product = _collect_product_diff(prepared_path) if prepared_path.exists() else ()
         self.store._fenced_set_changed_files(
@@ -3360,7 +3404,7 @@ class DurableExecutionService:
             result = self._execute_single_role(
                 role=role,
                 task_id=task_id,
-                prepared=prepared_path,
+                prepared=prepared_for_executor,
                 handoff=handoff or Path(wt_path) / ".handoff",
                 executor=executor,
                 baseline=baseline_product,
