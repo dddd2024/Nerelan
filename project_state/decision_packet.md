@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260819_issue246_durable_resume_repair_r2_v2",
-  "round_id": "round_20260819_issue246_durable_resume_repair_r2_v2",
+  "decision_id": "decision_20260819_issue246_durable_resume_clean_candidate_r2_v3",
+  "round_id": "round_20260819_issue246_durable_resume_clean_candidate_r2_v3",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,23 +14,29 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260819_issue246_durable_resume_repair_r2_v1",
-  "follows_last_round_id": "round_20260819_issue246_durable_resume_repair_r2_v1",
-  "previous_audit_outcome": "ISSUE246_R2_V1_BLOCKED_PRE_EXECUTION_INVALID_EXECUTION_SURFACE_NO_PRODUCT_MUTATION",
-  "workstream_id": "issue246-durable-resume-repair-r2-v2",
+  "follows_last_decision_id": "decision_20260819_issue246_durable_resume_repair_r2_v2",
+  "follows_last_round_id": "round_20260819_issue246_durable_resume_repair_r2_v2",
+  "previous_audit_outcome": "ISSUE246_V2_PRODUCT_TESTS_PASS_PR247_GOVERNANCE_CONTAMINATION_REQUIRES_CLEAN_CANDIDATE",
+  "workstream_id": "issue246-durable-resume-clean-candidate-r2-v3",
   "source_issue": 246,
   "parent_issue": 245,
-  "required_branch": "owner/issue246-durable-resume-repair-r2-v2",
-  "starting_head": "c6ff71fe45f1b45ddb928fa18bd6d85daad488f4",
-  "activation_base_sha": "c6ff71fe45f1b45ddb928fa18bd6d85daad488f4",
+  "required_branch": "owner/issue246-durable-resume-clean-candidate-r2-v3",
+  "starting_head": "75b3a842b4ff43d257331da133f7040e1c6810bf",
+  "activation_base_sha": "75b3a842b4ff43d257331da133f7040e1c6810bf",
   "integration_base_ref": "owner/repository-modernization-v2-planning",
   "canonical_planning_sha": "7d04395b0a67b86f6512b44c5cd3bc6009ca56fd",
-  "authority_worktree": "F:/reverse-agent-issue246-durable-resume-repair-r2-v2",
+  "authority_worktree": "F:/reverse-agent-issue246-durable-resume-clean-candidate-r2-v3",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
-  "product_change_commit_limit": 1,
+  "product_change_commit_limit": 0,
+  "accepted_source_commit": "93fde56beb8c65b062d9ca3e373e2ea09b2b23b4",
+  "accepted_source_parent": "75b3a842b4ff43d257331da133f7040e1c6810bf",
+  "clean_candidate_branch": "owner/issue246-durable-resume-clean-candidate-v3",
+  "clean_candidate_base_sha": "7d04395b0a67b86f6512b44c5cd3bc6009ca56fd",
+  "clean_candidate_commit_limit": 1,
+  "superseded_pr": 247,
   "normal_push_attempt_limit": 1,
   "draft_pr_creation_limit": 1,
   "live_model_call_limit": 0,
@@ -43,16 +49,16 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
-    "git -C F:/reverse-agent-issue245-sprint-c-sequential-recovery-r3-v1 fetch origin owner/issue246-durable-resume-repair-r2-v2",
-    "git -C F:/reverse-agent-issue245-sprint-c-sequential-recovery-r3-v1 rev-parse origin/owner/issue246-durable-resume-repair-r2-v2",
-    "$b=(git -C F:/reverse-agent-issue245-sprint-c-sequential-recovery-r3-v1 branch --list owner/issue246-durable-resume-repair-r2-v2);if($b){'ISSUE246_V2_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};if(Test-Path -LiteralPath 'F:/reverse-agent-issue246-durable-resume-repair-r2-v2'){'ISSUE246_V2_WORKTREE_ALREADY_EXISTS';exit 24};'ISSUE246_V2_BOOTSTRAP_TARGETS_ABSENT'",
-    "git -C F:/reverse-agent-issue245-sprint-c-sequential-recovery-r3-v1 worktree add --track -b owner/issue246-durable-resume-repair-r2-v2 F:/reverse-agent-issue246-durable-resume-repair-r2-v2 origin/owner/issue246-durable-resume-repair-r2-v2",
-    "git -C F:/reverse-agent-issue246-durable-resume-repair-r2-v2 sparse-checkout disable",
-    "Set-Location F:/reverse-agent-issue246-durable-resume-repair-r2-v2",
+    "git -C F:/reverse-agent-issue245-sprint-c-sequential-recovery-r3-v1 fetch origin owner/issue246-durable-resume-clean-candidate-r2-v3",
+    "git -C F:/reverse-agent-issue245-sprint-c-sequential-recovery-r3-v1 rev-parse origin/owner/issue246-durable-resume-clean-candidate-r2-v3",
+    "$b=(git -C F:/reverse-agent-issue245-sprint-c-sequential-recovery-r3-v1 branch --list owner/issue246-durable-resume-clean-candidate-r2-v3);if($b){'ISSUE246_V3_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};if(Test-Path -LiteralPath 'F:/reverse-agent-issue246-durable-resume-clean-candidate-r2-v3'){'ISSUE246_V3_WORKTREE_ALREADY_EXISTS';exit 24};'ISSUE246_V3_BOOTSTRAP_TARGETS_ABSENT'",
+    "git -C F:/reverse-agent-issue245-sprint-c-sequential-recovery-r3-v1 worktree add --track -b owner/issue246-durable-resume-clean-candidate-r2-v3 F:/reverse-agent-issue246-durable-resume-clean-candidate-r2-v3 origin/owner/issue246-durable-resume-clean-candidate-r2-v3",
+    "git -C F:/reverse-agent-issue246-durable-resume-clean-candidate-r2-v3 sparse-checkout disable",
+    "Set-Location F:/reverse-agent-issue246-durable-resume-clean-candidate-r2-v3",
     "git status --short",
     "git rev-parse HEAD",
     "git rev-parse HEAD^",
-    "git merge-base HEAD c6ff71fe45f1b45ddb928fa18bd6d85daad488f4",
+    "git merge-base HEAD 75b3a842b4ff43d257331da133f7040e1c6810bf",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
@@ -60,9 +66,9 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "issue246.verify_exact_base",
-      "command": "$local=(git rev-parse c6ff71fe45f1b45ddb928fa18bd6d85daad488f4);$merge=(git merge-base HEAD c6ff71fe45f1b45ddb928fa18bd6d85daad488f4);if($local -ne 'c6ff71fe45f1b45ddb928fa18bd6d85daad488f4' -or $merge -ne 'c6ff71fe45f1b45ddb928fa18bd6d85daad488f4'){exit 51};'ISSUE246_V2_EXACT_BASE_VERIFIED'",
-      "phase": "validation",
+      "command_id": "issue246v3.verify_inputs",
+      "command": "$authority=(git rev-parse HEAD);$source=(git rev-parse 93fde56beb8c65b062d9ca3e373e2ea09b2b23b4);$base=(git rev-parse 7d04395b0a67b86f6512b44c5cd3bc6009ca56fd);if($authority -eq '' -or $source -ne '93fde56beb8c65b062d9ca3e373e2ea09b2b23b4' -or $base -ne '7d04395b0a67b86f6512b44c5cd3bc6009ca56fd'){exit 51};'ISSUE246_V3_INPUTS_VERIFIED'",
+      "phase": "status",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
@@ -71,30 +77,30 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue246.provider_free_regression",
-      "command": "python -m pytest tests/test_team_graph.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_task_service.py -q",
-      "phase": "validation",
+      "command_id": "issue246v3.create_clean_candidate",
+      "command": "$branch='owner/issue246-durable-resume-clean-candidate-v3';$path='F:/reverse-agent-issue246-durable-resume-clean-candidate-v3';if(git branch --list $branch){exit 52};if(Test-Path -LiteralPath $path){exit 53};git worktree add -b $branch $path 7d04395b0a67b86f6512b44c5cd3bc6009ca56fd",
+      "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["run_checks"],
+      "operations": ["repository_sync", "worktree_create"],
       "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue246.diff_check",
-      "command": "git diff --check",
-      "phase": "validation",
+      "command_id": "issue246v3.replay_exact_product_commit",
+      "command": "git -C F:/reverse-agent-issue246-durable-resume-clean-candidate-v3 cherry-pick 93fde56beb8c65b062d9ca3e373e2ea09b2b23b4",
+      "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["diff_validation"],
+      "operations": ["exact_commit_replay", "commit"],
       "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue246.verify_scope",
-      "command": "$expected=@('reverse_agent/platform_v1/durable_execution.py','tests/platform_v1/test_durable_execution.py','tests/platform_v1/test_task_service.py');$actual=@(git diff --name-only HEAD^..HEAD)|Sort-Object;if(Compare-Object ($expected|Sort-Object) $actual){exit 52};'ISSUE246_V2_EXACT_PRODUCT_COMMIT_SCOPE_VERIFIED'",
+      "command_id": "issue246v3.verify_clean_candidate",
+      "command": "$p='F:/reverse-agent-issue246-durable-resume-clean-candidate-v3';$head=(git -C $p rev-parse HEAD);$parent=(git -C $p rev-parse HEAD^);$expected=@('reverse_agent/platform_v1/durable_execution.py','tests/platform_v1/test_durable_execution.py','tests/platform_v1/test_task_service.py');$actual=@(git -C $p diff --name-only 7d04395b0a67b86f6512b44c5cd3bc6009ca56fd..HEAD)|Sort-Object;if($parent -ne '7d04395b0a67b86f6512b44c5cd3bc6009ca56fd' -or (Compare-Object ($expected|Sort-Object) $actual)){exit 54};foreach($x in $expected){$a=(git -C $p rev-parse ('HEAD:'+$x));$b=(git rev-parse ('93fde56beb8c65b062d9ca3e373e2ea09b2b23b4:'+$x));if($a -ne $b){exit 55}};Write-Output ('ISSUE246_V3_CLEAN_CANDIDATE='+$head)",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -104,20 +110,41 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue246.commit_exact",
-      "command": "git add -- reverse_agent/platform_v1/durable_execution.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_task_service.py; git commit -m \"fix: reconstruct durable reviewer context\"",
-      "phase": "implementation",
+      "command_id": "issue246v3.provider_free_regression",
+      "command": "Set-Location F:/reverse-agent-issue246-durable-resume-clean-candidate-v3; python -m pytest tests/test_team_graph.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_task_service.py -q",
+      "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["stage_exact_paths", "commit"],
+      "operations": ["run_checks"],
       "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_only_after_validation": true
+      "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue246.push_once",
-      "command": "git push origin HEAD:refs/heads/owner/issue246-durable-resume-repair-r2-v2",
+      "command_id": "issue246v3.ci_baseline_regression",
+      "command": "Set-Location F:/reverse-agent-issue246-durable-resume-clean-candidate-v3; python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["run_checks"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue246v3.diff_check",
+      "command": "git -C F:/reverse-agent-issue246-durable-resume-clean-candidate-v3 diff --check 7d04395b0a67b86f6512b44c5cd3bc6009ca56fd..HEAD",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["diff_validation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue246v3.push_clean_candidate_once",
+      "command": "git -C F:/reverse-agent-issue246-durable-resume-clean-candidate-v3 push origin HEAD:refs/heads/owner/issue246-durable-resume-clean-candidate-v3",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -128,8 +155,8 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue246.create_draft_pr",
-      "command": "github connector create draft PR from owner/issue246-durable-resume-repair-r2-v2 to owner/repository-modernization-v2-planning",
+      "command_id": "issue246v3.create_clean_draft_pr",
+      "command": "github connector create draft PR from owner/issue246-durable-resume-clean-candidate-v3 to owner/repository-modernization-v2-planning",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -140,15 +167,16 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue246.final_status",
-      "command": "git status --short",
-      "phase": "status",
+      "command_id": "issue246v3.close_superseded_pr247",
+      "command": "github connector close PR 247 after clean Draft PR creation",
+      "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "operations": ["pull_request_close", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_only_after_validation": true
     }
   ],
   "allowed_mutated_paths": [
@@ -230,26 +258,25 @@
     "github_merge_allowed": false,
     "publication_allowed": true
   },
-  "success_terminal": "ISSUE246_DURABLE_RESUME_REPAIR_CANDIDATE_PUBLISHED_FOR_EXACT_HEAD_CI",
-  "blocked_terminal": "ISSUE246_DURABLE_RESUME_REPAIR_BLOCKED_WITH_EXACT_EVIDENCE"
+  "success_terminal": "ISSUE246_DURABLE_RESUME_CLEAN_CANDIDATE_PUBLISHED_FOR_EXACT_HEAD_CI",
+  "blocked_terminal": "ISSUE246_DURABLE_RESUME_CLEAN_CANDIDATE_BLOCKED_WITH_EXACT_EVIDENCE"
 }
 ```
 
 ## Goal
 
-Repair the `POST_CODER` durable resume path so a restarted host reconstructs the complete persisted OpenCode prepared context and launches only Reviewer.
+Publish an exact clean candidate for the accepted `POST_CODER` durable resume repair without carrying transition-governance commits into the product PR.
 
 ## Acceptance
 
-1. The complete prepared context is reconstructed from persisted run identity before Reviewer dispatch.
-2. Planner and Coder are not replayed; Reviewer is invoked exactly once in provider-free regression.
-3. Worktree, base SHA, execution ID, CLI identity, binding/policy, Coder snapshot and lease fencing remain fail-closed.
-4. Pre-launch executor exceptions retain a bounded actionable classification/detail without raw provider output.
-5. Required provider-free tests and `git diff --check` pass.
-6. Exactly one product commit is pushed to the exact feature branch and one Draft PR is created.
+1. Clean candidate parent is the exact planning SHA `7d04395b...`.
+2. Its only changed paths are the three accepted source/test paths, and each resulting blob equals source commit `93fde56b...`.
+3. Provider-free recovery tests, HTTP routing test, CI governance baseline tests, and `git diff --check` pass in the clean candidate.
+4. Exactly one clean candidate commit and one normal push are made; one replacement Draft PR is created.
+5. PR #247 is closed only after the replacement Draft PR exists; it is never merged.
 
 ## Execution policy
 
 - No live model, OpenCode, provider, auth-store or credential access is permitted.
-- Generated gate files are evidence only and must not be included in the product commit.
+- Generated gate files and the Decision remain on the separate authority branch and must not enter the clean candidate.
 - Landing/merge requires a separate exact-head Decision after CI succeeds.
