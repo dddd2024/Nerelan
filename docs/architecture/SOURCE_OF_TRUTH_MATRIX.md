@@ -58,6 +58,14 @@ R2/R3 fail closed. No Issue body, label, comment, roadmap, or PR body can author
 | Transition/R2-R3 command authority | `project_state/gates/command_plan.json` | Path B only | Generated from the active Decision |
 | Narrow feature-branch/Draft-PR publication | Approved Work Item snapshot | Path A | Exact non-main branch and exact Draft PR only |
 | Runtime logs/artifacts | Local filesystem or Actions Artifact | n/a | Not tracked source state except the one-time transition exception |
+| Goal specification and plan | `platform_goals` in TaskStore SQLite | runtime | Revisioned digest; amendment invalidates the prior plan |
+| Task/run/checkpoint truth | TaskStore SQLite | runtime | Single store; durable leases and checkpoint fencing |
+| Autonomous window policy | `platform_autonomous_windows` in TaskStore SQLite | runtime | Owner-confirmed, time/repository/capability/budget bounded |
+| Operation authorization receipts | `platform_operation_receipts` in TaskStore SQLite | runtime | Sanitized input digest, decision, reason, remaining budget |
+| Coordinator claim ownership | `platform_coordinator_claims` in TaskStore SQLite | runtime | Atomic WIP/task-budget enforcement and epoch fencing |
+| Draft publication state | `platform_publications` in TaskStore SQLite + GitHub readback | runtime | Idempotent; allowlisted paths; no mark-ready or merge |
+| Capability metadata | built-in registry plus owner-selected JSON Pack manifests | runtime | Metadata only; no package execution or credential fields |
+| Provider credentials | Model Control store and execution-scoped relay | runtime | Never Goal/TaskStore/browser/log/evidence truth |
 | JSON contracts | `reverse_agent/architecture/contracts.py` | n/a | Existing `GitHubWorkItem.immutable_observation_ref` is retained |
 | Legacy `project_state/**` | Read-only compatibility evidence | n/a | Cannot independently authorize work |
 

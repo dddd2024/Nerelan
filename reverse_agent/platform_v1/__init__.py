@@ -1,9 +1,8 @@
-"""Platform V1 thin adapter: OpenHands Agent Canvas + Codex ACP vertical slice.
+"""Platform V2 governed, durable multi-Agent control plane.
 
-This package provides only the thin policy/evidence/acceptance adapter between
-the reverse-agent governance layer and the pinned OpenHands Agent Canvas +
-Codex ACP platform surface. It does not implement a second executor, agent
-loop, sandbox, database, or frontend.
+The package keeps TaskStore as execution truth and adds persistent Goals,
+owner-activated autonomous windows, dependency-aware coordination, capability
+metadata, and allowlisted Draft publication around mature components.
 """
 
 from __future__ import annotations
@@ -16,12 +15,15 @@ from .contracts import (
 )
 from .run_store import TaskStore, TaskStoreError
 from .task_runtime import DeterministicFixtureExecutor, ExecutorRouter
+from .control_store import PlatformControlStore
+from .goal_service import GoalService
 
 __all__ = [
     "DeterministicFixtureExecutor",
     "ExecutionBinding",
-    "ExecutionBinding",
     "ExecutionEvidence",
+    "GoalService",
+    "PlatformControlStore",
     "PlatformAcceptanceResult",
     "PlatformWorkItem",
     "TaskStore",

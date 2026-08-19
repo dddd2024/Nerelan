@@ -260,6 +260,12 @@ export function NewTaskComposer({
 
           {isOpenCode ? (
             <div className="w-full mt-3">
+              <p
+                data-testid="opencode-model-note"
+                className="mb-3 rounded-md border border-ra-border bg-ra-base/40 px-3 py-2 text-xs leading-5 text-ra-text-tertiary"
+              >
+                实际模型由所选 OpenCode 绑定决定；启动参数仅用于空绑定兼容。
+              </p>
               <div className="w-full mb-3">
                 <label
                   htmlFor="task-opencode-binding"
