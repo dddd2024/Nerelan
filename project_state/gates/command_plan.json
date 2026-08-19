@@ -1,34 +1,12 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260808_pr134_frontend_opencode_devup_landing_v1",
-  "round_id": "round_20260808_pr134_frontend_opencode_devup_landing_v1",
+  "decision_id": "decision_20260819_issue250_ci_repair_r2_v6",
+  "round_id": "round_20260819_issue250_ci_repair_r2_v6",
   "commands": [
     {
-      "command_id": "observation.git_status",
-      "command": "git status --short",
-      "phase": "status",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "sync.fetch_main",
-      "command": "git fetch origin main",
-      "phase": "bootstrap",
+      "command_id": "issue250v6.verify_exact_state",
+      "command": "verify origin/main equals 706991ad0cb826d7c963a8ddfb7e770e97cdf60b and record every PR 254 exact-head workflow conclusion and failed assertion",
+      "phase": "validation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
@@ -49,9 +27,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "sync.fetch_pr134_branch",
-      "command": "git fetch origin owner/issue133-frontend-opencode-devup-v1",
-      "phase": "bootstrap",
+      "command_id": "issue250v6.bind_active_command_plan",
+      "command": "generate the deterministic active command plan, stage only project_state/gates/command_plan.json, and commit it before product replay",
+      "phase": "implementation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
@@ -59,30 +37,9 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_observation",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "sync.inspect_remote_decision",
-      "command": "git show origin/owner/issue133-frontend-opencode-devup-v1:project_state/decision_packet.md",
-      "phase": "bootstrap",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
+        "generate_governance_artifact",
+        "stage_authorized_paths",
+        "commit"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -94,75 +51,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "sync.switch_branch",
-      "command": "git switch owner/issue133-frontend-opencode-devup-v1",
-      "phase": "bootstrap",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_sync"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "sync.fast_forward_pr134_branch",
-      "command": "git merge --ff-only origin/owner/issue133-frontend-opencode-devup-v1",
-      "phase": "bootstrap",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_sync"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "observation.git_head",
-      "command": "git rev-parse HEAD",
-      "phase": "status",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "observation.git_main",
-      "command": "git rev-parse origin/main",
-      "phase": "status",
+      "command_id": "issue250v6.reuse_exact_product_commits",
+      "command": "git cherry-pick b80372c74fc3b5eea0cfd8bdb3491b638e2a2feb 58f1d2388b1d6393213a3640b10e91f4d95440fd",
+      "phase": "implementation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
@@ -170,7 +61,7 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_observation"
+        "commit_replay"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -182,52 +73,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.merge_base",
-      "command": "git merge-base HEAD origin/main",
-      "phase": "status",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "observation.active_intent_hash_before",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/active.json').Hash.ToLower()\"",
-      "phase": "status",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "mutation.archive_pr132_intent",
-      "command": "powershell -NoProfile -Command \"Copy-Item 'project_state/mainline_merge_intents/active.json' 'project_state/mainline_merge_intents/archive/pr132_v7.json'\"",
+      "command_id": "issue250v6.close_trusted_host_sockets",
+      "command": "use apply_patch to make CombinedTrustedHost.stop close every HTTP server socket after shutdown and add a deterministic same-port reuse regression test",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -236,31 +83,8 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "governance_artifact_mutation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/archive/pr132_v7.json"
-      ]
-    },
-    {
-      "command_id": "observation.archive_hash_after",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/mainline_merge_intents/archive/pr132_v7.json').Hash.ToLower()\"",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
+        "bounded_source_edit",
+        "bounded_test_contract_edit"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -272,9 +96,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.decision_sha256",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/decision_packet.md').Hash.ToLower()\"",
-      "phase": "status",
+      "command_id": "issue250v6.install_frontend_lockfile",
+      "command": "npm ci --prefix frontend",
+      "phase": "implementation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -282,9 +106,10 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_observation"
+        "dependency_install",
+        "network_access"
       ],
-      "network_access": false,
+      "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
@@ -294,30 +119,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "observation.command_plan_sha256",
-      "command": "powershell -NoProfile -Command \"(Get-FileHash -Algorithm SHA256 'project_state/gates/command_plan.json').Hash.ToLower()\"",
-      "phase": "status",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "test.mainline_landing",
-      "command": "python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
+      "command_id": "issue250v6.frontend_validation",
+      "command": "npm --prefix frontend run lint && npm --prefix frontend test -- --run && npm --prefix frontend run typecheck && npm --prefix frontend run build",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -338,8 +141,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.platform_v1",
-      "command": "python -m pytest tests/platform_v1 -q",
+      "command_id": "issue250v6.backend_validation",
+      "command": "python -m pytest tests/platform_v1/test_goal_service.py tests/platform_v1/test_autonomy.py tests/platform_v1/test_unattended_coordinator.py tests/platform_v1/test_publication_controller.py tests/platform_v1/test_capability_registry.py tests/platform_v1/test_task_service.py tests/test_freshness.py -q",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -360,8 +163,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.gate_regression",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q",
+      "command_id": "issue250v6.platform_validation",
+      "command": "run the Issue 250 Platform blocking suite with the seven provider or historical-decision tests deselected exactly as CI",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -382,8 +185,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "validation.diff_check",
-      "command": "git diff --check a1d09d4ae8887405721efe9871881db788c5820a..HEAD",
+      "command_id": "issue250v6.repository_validation",
+      "command": "run the Issue 250 repository baseline suite, freshness check, transition-lint, git diff --check, and exact scope inspection",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -392,28 +195,8 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "diff_validation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "validation.path_list",
-      "command": "git diff --name-only f6c9bad0cfad9f380a917f1a8f8c14eb58a52466..HEAD",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
+        "run_checks",
+        "diff_validation",
         "repository_observation"
       ],
       "network_access": false,
@@ -426,8 +209,31 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.push_branch",
-      "command": "git push origin owner/issue133-frontend-opencode-devup-v1",
+      "command_id": "issue250v6.commit_socket_repair",
+      "command": "git add only reverse_agent/platform_v1/trusted_host.py tests/platform_v1/test_trusted_host.py and commit the verified socket lifecycle repair",
+      "phase": "publication",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "stage_authorized_paths",
+        "commit"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue250v6.push_once",
+      "command": "git push origin HEAD:refs/heads/owner/issue250-platform-completion-v6",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -449,7 +255,72 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.python -m reverse_agent.project_gate startup-snapshot --state-di",
+      "command_id": "issue250v6.replace_draft_pr",
+      "command": "close PR 254 as superseded, create one Draft PR from owner/issue250-platform-completion-v6 to main, and comment Issue 250",
+      "phase": "publication",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "pull_request_close",
+        "pull_request_create",
+        "issue_comment",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.017a7e9198b76587560eb540d34243d956777377c7499449d4c45757899099f0",
+      "command": "git worktree add -b owner/issue250-platform-completion-v6 F:/reverse-agent-issue250-platform-completion-v6 706991ad0cb826d7c963a8ddfb7e770e97cdf60b",
+      "phase": "status",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.65a43cae31e438c3a34a24d090603cf68e472a58252426ae6242bf370042fe09",
+      "command": "edit and commit only project_state/decision_packet.md as the immutable activation commit",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.8b36eaeb3ce665a698059342f0a478e3329fbe30d9dd5973c09b9a061f2c2091",
       "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
       "phase": "gate",
       "required": true,
@@ -469,7 +340,7 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.python -m reverse_agent.project_gate transition-command-plan --s",
+      "command_id": "bootstrap.748384806c2774ade5d9fec7d422f87ac5614c30035911ccf10bab2019aede3a",
       "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
       "phase": "gate",
       "required": true,
@@ -489,7 +360,7 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.python -m reverse_agent.project_gate transition-lint --state-dir",
+      "command_id": "bootstrap.06e93636c7597d91a7cd0967908dfb4d618dcdc78d2640bf238a6300acdcf4d2",
       "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
       "phase": "gate",
       "required": true,
@@ -509,7 +380,7 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.python -m reverse_agent.project_gate transition-preflight --stat",
+      "command_id": "bootstrap.677fc095a0ccb225c87b5528ad9885b37484c464961934f364a72d07e89bdcb3",
       "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
       "phase": "gate",
       "required": true,
