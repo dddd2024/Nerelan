@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -2975,6 +2976,126 @@ def test_post_coder_reviewer_mutation_still_rejected_after_restore(tmp_path) -> 
     assert outcome.failure_classification == "reviewer_product_mutation"
     task_rev = store2.get_task(task.id)
     assert task_rev.failure_classification == "reviewer_product_mutation"
+
+
+def test_post_coder_resume_reconstructs_real_prepared_context_before_reviewer(
+    tmp_path,
+) -> None:
+    """Regression for issue #246.
+
+    The first host accepts POST_CODER and crashes.  The second host uses the
+    production ``OpenCodeExecutor.reconstruct_prepared_context`` helper but a
+    provider-free role implementation.  Reviewer must receive every field
+    required by the real ``execute_role_prepared`` interface, while Planner
+    and Coder remain skipped.
+    """
+    from reverse_agent.platform_v1.opencode_executor import OpenCodeExecutor
+
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="issue-246-complete-resume-context",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    wt_dir = _init_git_worktree(tmp_path, "wt_issue246")
+    set_crash_after_checkpoint("POST_CODER")
+
+    first = FakeExecutor()
+
+    class FirstRouter(ExecutorRouter):
+        def create_executor(
+            self, *, executor_kind: str = "opencode", **kwargs: Any
+        ) -> FakeExecutor:
+            return first
+
+        def dispatch_execute(self, *args: Any, **kwargs: Any) -> Any:
+            raise NotImplementedError()
+
+    service = DurableExecutionService(
+        store=store,
+        router=FirstRouter(),
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    )
+    with pytest.raises(_CrashSimulated):
+        service.execute_durable_sequential_team(
+            task_id=task.id,
+            workspace_root=str(wt_dir),
+            lease_owner="worker-1",
+        )
+    reset_crash_seam()
+
+    run_id = store._conn.execute(
+        "SELECT run_id FROM durable_runs WHERE task_id = ?",
+        (task.id,),
+    ).fetchone()["run_id"]
+    run_before = store._get_durable_run(run_id)
+    assert run_before.accepted_checkpoint == "POST_CODER"
+
+    class ContextRequiredReviewer(FakeExecutor):
+        def __init__(self) -> None:
+            super().__init__()
+            self._opencode_exe = sys.executable
+            self.reconstructed: list[dict[str, Any]] = []
+
+        def reconstruct_prepared_context(self, **kwargs: Any) -> Any:
+            prepared = OpenCodeExecutor.reconstruct_prepared_context(**kwargs)
+            self.reconstructed.append({
+                "worktree": str(prepared.worktree),
+                "base_sha": prepared.base_sha,
+                "execution_id": prepared.execution_id,
+                "cli_path": prepared.cli_path,
+                "is_cmd": prepared.is_cmd,
+            })
+            return prepared
+
+        def execute_role_prepared(
+            self,
+            prepared: Any,
+            store: Any,
+            *,
+            role_context: Any = None,
+            event_callback: Any = None,
+        ) -> Any:
+            assert prepared.base_sha == run_before.repository_base_sha
+            assert prepared.execution_id == run_before.execution_id
+            assert prepared.cli_path == sys.executable
+            assert prepared.is_cmd is False
+            return super().execute_role_prepared(
+                prepared,
+                store,
+                role_context=role_context,
+                event_callback=event_callback,
+            )
+
+    reviewer = ContextRequiredReviewer()
+
+    class ResumeRouter(ExecutorRouter):
+        def create_executor(
+            self, executor_kind: str, **kwargs: Any
+        ) -> ContextRequiredReviewer:
+            return reviewer
+
+        def dispatch_execute(self, *args: Any, **kwargs: Any) -> Any:
+            raise NotImplementedError()
+
+    store2 = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
+    _expire_and_reconcile(store2, task.id)
+    resumed = DurableExecutionService(
+        store=store2,
+        router=ResumeRouter(),
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    ).resume_sequential_team(task_id=task.id, lease_owner="worker-2")
+
+    assert resumed.success is True
+    assert reviewer.call_count == {"reviewer": 1}
+    assert len(reviewer.reconstructed) == 1
+    assert reviewer.reconstructed[0]["worktree"] == run_before.worktree_path
+    run_after = store2._get_durable_run(run_id)
+    assert run_after.accepted_checkpoint == "POST_VALIDATION"
+    assert store2.get_task(task.id).status == "READY_FOR_REVIEW"
 
 # ===================================================================
 # Single-mode durable execution tests (Issue #230 Sprint A)
