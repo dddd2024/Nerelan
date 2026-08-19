@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import subprocess
 import tempfile
 import threading
@@ -86,6 +87,39 @@ def test_trusted_planning_sha_propagated_non_empty(tmp_path) -> None:
         planning_sha=host._planning_sha,
     )
     assert handler_cls.planning_sha == "planning_sha_abc123"
+
+
+def test_stop_closes_all_server_sockets_and_allows_exact_port_reuse(tmp_path) -> None:
+    first_dir = tmp_path / "first"
+    first_dir.mkdir()
+    first = CombinedTrustedHost(task_store=_make_store(first_dir))
+    first.start(model_control_port=0, task_api_port=0)
+    assert first._model_server is not None
+    assert first._task_server is not None
+    model_port = first._model_server.server_address[1]
+    task_port = first._task_server.server_address[1]
+    relay_port = first._relay_server_port
+
+    first.stop()
+
+    relay_probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        relay_probe.bind(("127.0.0.1", relay_port))
+    finally:
+        relay_probe.close()
+
+    second_dir = tmp_path / "second"
+    second_dir.mkdir()
+    second = CombinedTrustedHost(task_store=_make_store(second_dir))
+    try:
+        second.start(
+            model_control_port=model_port,
+            task_api_port=task_port,
+        )
+        assert second.model_control_url.endswith(f":{model_port}")
+        assert second.task_api_url.endswith(f":{task_port}")
+    finally:
+        second.stop()
 
 
 def test_request_cannot_override_trusted_identity(tmp_path) -> None:

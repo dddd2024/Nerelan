@@ -295,7 +295,12 @@ class CombinedTrustedHost:
     def stop(self) -> None:
         if self._coordinator:
             self._coordinator.stop()
-        for server in (self._model_server, self._task_server, getattr(self, "_relay_server_inner", None)):
+        servers = (
+            self._model_server,
+            self._task_server,
+            getattr(self, "_relay_server_inner", None),
+        )
+        for server in servers:
             if server:
                 try:
                     server.shutdown()
@@ -304,6 +309,15 @@ class CombinedTrustedHost:
         for t in self._threads:
             t.join(timeout=3.0)
         self._threads.clear()
+        for server in servers:
+            if server:
+                try:
+                    server.server_close()
+                except Exception:
+                    pass
+        self._model_server = None
+        self._task_server = None
+        self._relay_server_inner = None
         self._relay_manager.release_all()
 
 
