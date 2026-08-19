@@ -1,0 +1,29 @@
+name: Mature component freshness
+
+on:
+  pull_request:
+    paths:
+      - "governance/freshness-registry.json"
+      - "renovate.json"
+      - "pyproject.toml"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "reverse_agent/freshness.py"
+      - ".github/workflows/freshness.yml"
+  schedule:
+    - cron: "17 21 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Validate component registry
+        run: python -m reverse_agent.freshness --registry governance/freshness-registry.json --repository-root .

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "dependencyDashboard": true,
+  "schedule": ["before 6am on monday"],
+  "timezone": "Asia/Shanghai",
+  "rangeStrategy": "pin",
+  "labels": ["dependencies", "r2"],
+  "prConcurrentLimit": 3,
+  "packageRules": [
+    {
+      "matchManagers": ["npm"],
+      "groupName": "frontend mature components",
+      "automerge": false
+    },
+    {
+      "matchManagers": ["pep621"],
+      "groupName": "python orchestration components",
+      "automerge": false
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    }
+  ]
+}
