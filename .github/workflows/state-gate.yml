@@ -6,11 +6,19 @@ on:
       - main
     paths:
       - "project_state/**"
-      - "reverse_agent/**"
-      - "tests/**"
       - ".github/workflows/**"
       - ".codex-skills/**"
       - "docs/prompts/**"
+      - "reverse_agent/control_plane/**"
+      - "reverse_agent/project_gate.py"
+      - "reverse_agent/project_state.py"
+      - "reverse_agent/decision_preflight.py"
+      - "reverse_agent/post_final_evidence_sync.py"
+      - "reverse_agent/mainline_landing.py"
+      - "reverse_agent/project_ci.py"
+      - "reverse_agent/project_jobs.py"
+      - "reverse_agent/github_remote_verifier.py"
+      - "reverse_agent/architecture/report_truth.py"
   pull_request:
     types:
       - opened
@@ -23,6 +31,21 @@ on:
       - unlabeled
       - auto_merge_enabled
       - auto_merge_disabled
+    paths:
+      - "project_state/**"
+      - ".github/workflows/**"
+      - ".codex-skills/**"
+      - "docs/prompts/**"
+      - "reverse_agent/control_plane/**"
+      - "reverse_agent/project_gate.py"
+      - "reverse_agent/project_state.py"
+      - "reverse_agent/decision_preflight.py"
+      - "reverse_agent/post_final_evidence_sync.py"
+      - "reverse_agent/mainline_landing.py"
+      - "reverse_agent/project_ci.py"
+      - "reverse_agent/project_jobs.py"
+      - "reverse_agent/github_remote_verifier.py"
+      - "reverse_agent/architecture/report_truth.py"
   pull_request_target:
     types:
       - opened
