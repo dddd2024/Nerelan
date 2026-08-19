@@ -820,6 +820,72 @@ def test_sequential_task_execute_dispatches_to_sequential_team_method_once(
     assert svc.execute_sequential_team_calls == 1
 
 
+def test_http_resume_sequential_routes_to_durable_recovery_once(
+    tmp_path, monkeypatch
+) -> None:
+    """The public resume route must preserve the sequential durable path.
+
+    This is provider-free: a tracing service replaces durable execution and
+    proves that the API dispatches exactly one sequential resume, never the
+    single-mode path.
+    """
+    from http.server import ThreadingHTTPServer
+    import reverse_agent.platform_v1.task_service as task_service_module
+
+    store = TaskStore(db_path=str(tmp_path / "resume-route.sqlite3"))
+    task = store.create_task(
+        title="issue-246-http-resume",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    store._acquire_durable_lease(
+        task_id=task.id,
+        execution_id=f"exec-{task.id}",
+        lease_owner="expired-worker",
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    )
+
+    calls = []
+
+    class TracingDurableExecutionService:
+        def __init__(self, **kwargs):
+            self.store = kwargs["store"]
+
+        def resume_single(self, **kwargs):
+            raise AssertionError("single resume must not be selected")
+
+        def resume_sequential_team(self, **kwargs):
+            calls.append(kwargs)
+            return object()
+
+    monkeypatch.setattr(
+        task_service_module,
+        "DurableExecutionService",
+        TracingDurableExecutionService,
+    )
+    handler_cls = _handler_factory(
+        store,
+        ExecutorRouter(),
+        allowed_origin="http://localhost:5173",
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    )
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        status, body = _req(base, "POST", f"/api/tasks/{task.id}/resume")
+        assert status == 200
+        assert body["id"] == task.id
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert calls == [{"task_id": task.id, "lease_owner": "task-api-resume"}]
+
+
 def test_single_task_execute_does_not_call_sequential_team(tmp_path) -> None:
     from reverse_agent.platform_v1.task_execution import TaskExecutionService
     from reverse_agent.platform_v1.task_runtime import (
