@@ -49,6 +49,10 @@ from reverse_agent.platform_v1.task_service import _handler_factory
 from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 
 
+_TRUSTED_HOST_FAKE_EXEC_AUTH = "test-trusted-host-fake-execution-authority-sha"
+_TRUSTED_HOST_FAKE_PLANNING_SHA = "test-trusted-host-fake-planning-sha"
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -444,7 +448,11 @@ class TestTaskApiApiKeyWiring:
 
         fake_srv, received = _start_fake_provider(port)
         try:
-            host = CombinedTrustedHost(store=store)
+            host = CombinedTrustedHost(
+                store=store,
+                execution_authority_sha=_TRUSTED_HOST_FAKE_EXEC_AUTH,
+                planning_sha=_TRUSTED_HOST_FAKE_PLANNING_SHA,
+            )
             host.start()
             try:
                 task_store = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
@@ -586,6 +594,8 @@ class TestTaskApiApiKeyWiring:
                     allowed_origin="http://127.0.0.1:4173",
                     lease_provider=host._lease_provider_factory(),
                     binding_resolver=resolver,
+                    execution_authority_sha=_TRUSTED_HOST_FAKE_EXEC_AUTH,
+                    planning_sha=_TRUSTED_HOST_FAKE_PLANNING_SHA,
                 )
                 assert handler_cls.lease_provider is not None
 

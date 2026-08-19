@@ -389,10 +389,16 @@ def test_dispatch_executor_never_called_fixture_first_run(tmp_path) -> None:
     assert poison_count[0] == 0
 
 
-def test_dispatch_executor_never_called_opencode_resume_pre_planner(tmp_path) -> None:
+def test_dispatch_executor_never_called_opencode_resume_pre_planner(
+    tmp_path, monkeypatch
+) -> None:
     """Poison _dispatch_executor; opencode PRE_PLANNER resume still works."""
     reset_crash_seam()
     store = _make_store(tmp_path)
+    monkeypatch.setattr(
+        "reverse_agent.platform_v1.opencode_executor.resolve_opencode_cli",
+        lambda exe=None: ("synthetic-opencode", False),
+    )
 
     poison_count = [0]
 
