@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260819_issue246_clean_candidate_publication_r2_v4",
-  "round_id": "round_20260819_issue246_clean_candidate_publication_r2_v4",
+  "decision_id": "decision_20260819_issue246_clean_candidate_landing_r2_v5",
+  "round_id": "round_20260819_issue246_clean_candidate_landing_r2_v5",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,18 +14,18 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260819_issue246_durable_resume_clean_candidate_r2_v3",
-  "follows_last_round_id": "round_20260819_issue246_durable_resume_clean_candidate_r2_v3",
-  "previous_audit_outcome": "ISSUE246_V3_CLEAN_CANDIDATE_READY_BUT_LOCAL_BASELINE_BLOCKED_BY_SHALLOW_BOUNDARY_NO_PUBLICATION",
-  "workstream_id": "issue246-clean-candidate-publication-r2-v4",
+  "follows_last_decision_id": "decision_20260819_issue246_clean_candidate_publication_r2_v4",
+  "follows_last_round_id": "round_20260819_issue246_clean_candidate_publication_r2_v4",
+  "previous_audit_outcome": "ISSUE246_PR248_EXACT_HEAD_BASELINE_SUCCESS_CLEAN_CANDIDATE_READY_TO_LAND",
+  "workstream_id": "issue246-clean-candidate-landing-r2-v5",
   "source_issue": 246,
   "parent_issue": 245,
-  "required_branch": "owner/issue246-clean-candidate-publication-r2-v4",
-  "starting_head": "29c64cb77026ebb495d98d77f5399e133f723f2d",
-  "activation_base_sha": "29c64cb77026ebb495d98d77f5399e133f723f2d",
+  "required_branch": "owner/issue246-clean-candidate-landing-r2-v5",
+  "starting_head": "4bd4bac4e7621c3b22b847432aab4fc2a8f11d73",
+  "activation_base_sha": "4bd4bac4e7621c3b22b847432aab4fc2a8f11d73",
   "integration_base_ref": "owner/repository-modernization-v2-planning",
   "canonical_planning_sha": "7d04395b0a67b86f6512b44c5cd3bc6009ca56fd",
-  "authority_worktree": "F:/reverse-agent-issue246-clean-candidate-publication-r2-v4",
+  "authority_worktree": "F:/reverse-agent-issue246-clean-candidate-landing-r2-v5",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
@@ -39,8 +39,14 @@
   "accepted_clean_candidate_sha": "221a5f7feb59441e84378edff4ae4d9619b24726",
   "bounded_history_deepen": 256,
   "superseded_pr": 247,
-  "normal_push_attempt_limit": 1,
-  "draft_pr_creation_limit": 1,
+  "landing_pr": 248,
+  "github_ci_run_id": 32217605241,
+  "github_ci_job_id": 95961935888,
+  "allowed_merge_method": "merge",
+  "expected_pr_head": "221a5f7feb59441e84378edff4ae4d9619b24726",
+  "expected_pr_base": "7d04395b0a67b86f6512b44c5cd3bc6009ca56fd",
+  "normal_push_attempt_limit": 0,
+  "draft_pr_creation_limit": 0,
   "live_model_call_limit": 0,
   "provider_network_call_limit": 0,
   "bootstrap_exception_files": [
@@ -51,16 +57,16 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
-    "git -C F:/reverse-agent-issue245-sprint-c-sequential-recovery-r3-v1 fetch origin owner/issue246-clean-candidate-publication-r2-v4",
-    "git -C F:/reverse-agent-issue245-sprint-c-sequential-recovery-r3-v1 rev-parse origin/owner/issue246-clean-candidate-publication-r2-v4",
-    "$b=(git -C F:/reverse-agent-issue245-sprint-c-sequential-recovery-r3-v1 branch --list owner/issue246-clean-candidate-publication-r2-v4);if($b){'ISSUE246_V4_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};if(Test-Path -LiteralPath 'F:/reverse-agent-issue246-clean-candidate-publication-r2-v4'){'ISSUE246_V4_WORKTREE_ALREADY_EXISTS';exit 24};'ISSUE246_V4_BOOTSTRAP_TARGETS_ABSENT'",
-    "git -C F:/reverse-agent-issue245-sprint-c-sequential-recovery-r3-v1 worktree add --track -b owner/issue246-clean-candidate-publication-r2-v4 F:/reverse-agent-issue246-clean-candidate-publication-r2-v4 origin/owner/issue246-clean-candidate-publication-r2-v4",
-    "git -C F:/reverse-agent-issue246-clean-candidate-publication-r2-v4 sparse-checkout disable",
-    "Set-Location F:/reverse-agent-issue246-clean-candidate-publication-r2-v4",
+    "git -C F:/reverse-agent-issue245-sprint-c-sequential-recovery-r3-v1 fetch origin owner/issue246-clean-candidate-landing-r2-v5",
+    "git -C F:/reverse-agent-issue245-sprint-c-sequential-recovery-r3-v1 rev-parse origin/owner/issue246-clean-candidate-landing-r2-v5",
+    "$b=(git -C F:/reverse-agent-issue245-sprint-c-sequential-recovery-r3-v1 branch --list owner/issue246-clean-candidate-landing-r2-v5);if($b){'ISSUE246_V5_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};if(Test-Path -LiteralPath 'F:/reverse-agent-issue246-clean-candidate-landing-r2-v5'){'ISSUE246_V5_WORKTREE_ALREADY_EXISTS';exit 24};'ISSUE246_V5_BOOTSTRAP_TARGETS_ABSENT'",
+    "git -C F:/reverse-agent-issue245-sprint-c-sequential-recovery-r3-v1 worktree add --track -b owner/issue246-clean-candidate-landing-r2-v5 F:/reverse-agent-issue246-clean-candidate-landing-r2-v5 origin/owner/issue246-clean-candidate-landing-r2-v5",
+    "git -C F:/reverse-agent-issue246-clean-candidate-landing-r2-v5 sparse-checkout disable",
+    "Set-Location F:/reverse-agent-issue246-clean-candidate-landing-r2-v5",
     "git status --short",
     "git rev-parse HEAD",
     "git rev-parse HEAD^",
-    "git merge-base HEAD 29c64cb77026ebb495d98d77f5399e133f723f2d",
+    "git merge-base HEAD 4bd4bac4e7621c3b22b847432aab4fc2a8f11d73",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
@@ -68,20 +74,9 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "issue246v4.verify_clean_candidate",
-      "command": "$p='F:/reverse-agent-issue246-durable-resume-clean-candidate-v3';$head=(git -C $p rev-parse HEAD);$parent=(git -C $p rev-parse HEAD^);$expected=@('reverse_agent/platform_v1/durable_execution.py','tests/platform_v1/test_durable_execution.py','tests/platform_v1/test_task_service.py');$actual=@(git -C $p diff --name-only 7d04395b0a67b86f6512b44c5cd3bc6009ca56fd..HEAD)|Sort-Object;if($head -ne '221a5f7feb59441e84378edff4ae4d9619b24726' -or $parent -ne '7d04395b0a67b86f6512b44c5cd3bc6009ca56fd' -or (Compare-Object ($expected|Sort-Object) $actual)){exit 51};foreach($x in $expected){$a=(git -C $p rev-parse ('HEAD:'+$x));$b=(git rev-parse ('93fde56beb8c65b062d9ca3e373e2ea09b2b23b4:'+$x));if($a -ne $b){exit 52}};$remote=@(git ls-remote origin refs/heads/owner/issue246-durable-resume-clean-candidate-v3);if($LASTEXITCODE -ne 0){exit $LASTEXITCODE};if($remote.Count -ne 0){exit 53};'ISSUE246_V4_CLEAN_CANDIDATE_VERIFIED_REMOTE_ABSENT'",
+      "command_id": "issue246v5.fetch_landing_inputs",
+      "command": "git fetch origin owner/repository-modernization-v2-planning owner/issue246-durable-resume-clean-candidate-v3",
       "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "diff_validation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
-    },
-    {
-      "command_id": "issue246v4.deepen_planning_history_once",
-      "command": "git fetch --deepen=256 origin owner/repository-modernization-v2-planning",
-      "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
@@ -90,68 +85,89 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue246v4.verify_history_and_ci_baseline",
-      "command": "Set-Location F:/reverse-agent-issue246-durable-resume-clean-candidate-v3; python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q",
+      "command_id": "issue246v5.verify_candidate_and_pr",
+      "command": "$base=(git rev-parse origin/owner/repository-modernization-v2-planning);$candidate=(git rev-parse origin/owner/issue246-durable-resume-clean-candidate-v3);$parent=(git rev-parse ($candidate+'^'));$j=(gh pr view 248 --repo dddd2024/reverse-agent --json state,isDraft,baseRefName,baseRefOid,headRefName,headRefOid,mergeable,mergeStateStatus,statusCheckRollup|ConvertFrom-Json);$checks=@($j.statusCheckRollup);$baseline=@($checks|Where-Object{$_.workflowName -eq 'CI' -and $_.name -eq 'baseline' -and $_.conclusion -eq 'SUCCESS'});if($base -ne '7d04395b0a67b86f6512b44c5cd3bc6009ca56fd' -or $candidate -ne '221a5f7feb59441e84378edff4ae4d9619b24726' -or $parent -ne $base -or $j.state -ne 'OPEN' -or -not $j.isDraft -or $j.baseRefName -ne 'owner/repository-modernization-v2-planning' -or $j.baseRefOid -ne $base -or $j.headRefOid -ne $candidate -or $j.mergeable -ne 'MERGEABLE' -or $baseline.Count -ne 1){exit 51};'ISSUE246_V5_PR248_EXACT_HEAD_ACCEPTED'",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["run_checks"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "operations": ["repository_observation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue246v4.final_candidate_checks",
-      "command": "git -C F:/reverse-agent-issue246-durable-resume-clean-candidate-v3 diff --check 7d04395b0a67b86f6512b44c5cd3bc6009ca56fd..HEAD; if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}; git -C F:/reverse-agent-issue246-durable-resume-clean-candidate-v3 status --short",
+      "command_id": "issue246v5.verify_ci_run",
+      "command": "$r=(gh run view 32217605241 --repo dddd2024/reverse-agent --json status,conclusion,headSha,jobs|ConvertFrom-Json);$job=@($r.jobs|Where-Object{$_.databaseId -eq 95961935888 -and $_.name -eq 'baseline' -and $_.conclusion -eq 'success'});if($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.headSha -ne '221a5f7feb59441e84378edff4ae4d9619b24726' -or $job.Count -ne 1){exit 52};'ISSUE246_V5_EXACT_CI_SUCCESS_VERIFIED'",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["diff_validation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "operations": ["repository_observation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue246v4.push_clean_candidate_once",
-      "command": "git -C F:/reverse-agent-issue246-durable-resume-clean-candidate-v3 push origin HEAD:refs/heads/owner/issue246-durable-resume-clean-candidate-v3",
+      "command_id": "issue246v5.remote_cas_reobserve",
+      "command": "git fetch origin owner/repository-modernization-v2-planning; if($LASTEXITCODE -ne 0){exit $LASTEXITCODE};$remote=(git rev-parse origin/owner/repository-modernization-v2-planning);if($remote -ne '7d04395b0a67b86f6512b44c5cd3bc6009ca56fd'){exit 53};'ISSUE246_V5_REMOTE_CAS_MATCH'",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["push", "network_access"],
+      "operations": ["repository_observation", "network_access"],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue246v4.create_clean_draft_pr",
-      "command": "github connector create draft PR from owner/issue246-durable-resume-clean-candidate-v3 to owner/repository-modernization-v2-planning",
+      "command_id": "issue246v5.mark_ready",
+      "command": "github connector mark PR 248 ready for review",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["pull_request_create", "network_access"],
+      "operations": ["mark_ready", "network_access"],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue246v4.close_superseded_pr247",
-      "command": "github connector close PR 247 after clean Draft PR creation",
+      "command_id": "issue246v5.merge_expected_head",
+      "command": "github connector merge PR 248 method merge expected_head 221a5f7feb59441e84378edff4ae4d9619b24726",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["pull_request_close", "network_access"],
+      "operations": ["merge", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue246v5.post_merge_readback",
+      "command": "$j=(gh pr view 248 --repo dddd2024/reverse-agent --json state,mergedAt,mergeCommit,headRefOid,baseRefName|ConvertFrom-Json);git fetch origin owner/repository-modernization-v2-planning;if($LASTEXITCODE -ne 0){exit $LASTEXITCODE};$remote=(git rev-parse origin/owner/repository-modernization-v2-planning);if($j.state -ne 'MERGED' -or $j.headRefOid -ne '221a5f7feb59441e84378edff4ae4d9619b24726' -or $j.mergeCommit.oid -ne $remote){exit 54};Write-Output ('ISSUE246_V5_MERGED='+$remote)",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue246v5.close_source_issue",
+      "command": "github connector comment and close issue 246 as completed",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["issue_comment", "issue_close", "network_access"],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "allowed_only_after_validation": true
     }
   ],
   "allowed_mutated_paths": [
-    "reverse_agent/platform_v1/durable_execution.py",
-    "tests/platform_v1/test_durable_execution.py",
-    "tests/platform_v1/test_task_service.py",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
@@ -174,6 +190,8 @@
   ],
   "forbidden_mutated_paths": [
     ".github/**",
+    "reverse_agent/**",
+    "tests/**",
     "frontend/**",
     "docs/**",
     "AGENTS.md",
@@ -189,8 +207,6 @@
     "project_state/audits/**"
   ],
   "forbidden_operations": [
-    "merge",
-    "mark_ready",
     "auto_merge",
     "force_push",
     "rebase",
@@ -223,29 +239,30 @@
     "unknown_binary_execution_allowed": false,
     "destructive_operations_allowed": false,
     "github_issue_comment_allowed": true,
-    "github_pr_creation_allowed": true,
-    "github_merge_allowed": false,
+    "github_pr_creation_allowed": false,
+    "github_mark_ready_allowed": true,
+    "github_merge_allowed": true,
     "publication_allowed": true
   },
-  "success_terminal": "ISSUE246_DURABLE_RESUME_CLEAN_CANDIDATE_PUBLISHED_FOR_EXACT_HEAD_CI",
-  "blocked_terminal": "ISSUE246_DURABLE_RESUME_CLEAN_CANDIDATE_BLOCKED_WITH_EXACT_EVIDENCE"
+  "success_terminal": "ISSUE246_DURABLE_RESUME_REPAIR_LANDED_AND_REMOTE_VERIFIED",
+  "blocked_terminal": "ISSUE246_DURABLE_RESUME_REPAIR_LANDING_BLOCKED_WITH_EXACT_EVIDENCE"
 }
 ```
 
 ## Goal
 
-Validate and publish the exact clean candidate after resolving the local shallow-history verification limitation without changing candidate content.
+Land PR #248 by exact-head protected merge after re-observing the clean candidate, successful baseline, and unchanged planning base.
 
 ## Acceptance
 
-1. Existing clean candidate is exactly `221a5f7f...`, with parent `7d04395b...`, only three accepted paths, and blobs equal to source `93fde56b...`.
-2. The candidate branch is absent remotely before publication and remains locally clean.
-3. One bounded `--deepen=256` fetch of the exact planning branch restores sufficient ancestry for the CI governance baseline tests.
-4. CI governance baseline tests and `git diff --check` pass without candidate mutation.
-5. Exactly one normal push and one replacement Draft PR are created; PR #247 is then closed without merge.
+1. PR #248 remains Draft, MERGEABLE, based on exact planning SHA `7d04395b...`, with exact head `221a5f7f...`.
+2. GitHub CI run `32217605241`, job `95961935888`, is successful on that exact head.
+3. Remote planning CAS is re-observed immediately before publication and remains `7d04395b...`.
+4. The PR is marked ready and merged with method `merge` and expected-head protection.
+5. Post-merge PR and remote planning readback agree on the merge commit; issue #246 is then closed completed.
 
 ## Execution policy
 
 - No live model, OpenCode, provider, auth-store or credential access is permitted.
-- Generated gate files and the Decision remain on the separate authority branch and must not enter the clean candidate.
-- Landing/merge requires a separate exact-head Decision after CI succeeds.
+- No repository product, test, workflow, documentation, package, candidate branch, or planning branch direct-push mutation is permitted.
+- Only PR #248 mark-ready/merge, post-merge readback, and issue #246 bookkeeping are authorized publication actions.
