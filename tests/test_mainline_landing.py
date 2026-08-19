@@ -19,6 +19,7 @@ from reverse_agent.github_remote_verifier import (
 )
 from reverse_agent.mainline_landing import (
     CANONICAL_WORKFLOW_POLICY,
+    CURRENT_PREMERGE_WORKFLOW_POLICY,
     _validate_intent,
     canonical_digest,
     emit_mainline_integration_receipt,
@@ -68,6 +69,7 @@ def _future_repo(
     bad_plan: bool = False,
     plan_decision_id: str | None = None,
     decision_artifact: str | None = None,
+    schema_version: int = 1,
 ) -> dict[str, Any]:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -125,8 +127,12 @@ def _future_repo(
             ["git", "show", "HEAD:project_state/gates/command_plan.json"], cwd=repo
         )
     ).hexdigest()
+    if schema_version == 1:
+        workflow_policy = CANONICAL_WORKFLOW_POLICY
+    else:
+        workflow_policy = CURRENT_PREMERGE_WORKFLOW_POLICY
     intent = {
-        "schema_version": 1,
+        "schema_version": schema_version,
         "intent_id": "intent_pr67_v1",
         "repository": "dddd2024/reverse-agent",
         "source_pr": 67,
@@ -138,7 +144,7 @@ def _future_repo(
         },
         "command_plan_sha256": "0" * 64 if bad_plan else plan_digest,
         "merge_tree_policy": "equal_to_accepted_head_tree",
-        "required_workflows": list(CANONICAL_WORKFLOW_POLICY),
+        "required_workflows": list(workflow_policy),
         "expires_at": "2026-08-28T00:00:00Z",
     }
     intent_path = repo / "project_state" / "mainline_merge_intents" / "active.json"
@@ -160,7 +166,7 @@ def _future_repo(
     }
     observations = []
     for index, (name, (workflow_file, event)) in enumerate(
-        CANONICAL_WORKFLOW_POLICY.items(), 1
+        workflow_policy.items(), 1
     ):
         observations.append(
             {
@@ -174,7 +180,7 @@ def _future_repo(
             }
         )
     attestation = {
-        "schema_version": 1,
+        "schema_version": schema_version,
         "attestation_id": "attestation_pr67_v1",
         "repository": "dddd2024/reverse-agent",
         "source_pr": 67,
@@ -758,6 +764,11 @@ def test_production_pre_merge_simulation(tmp_path: Path) -> None:
         "accepted_exact_head_sha": head,
         "allowed_merge_method": "merge",
     }
+    intent_schema_version = int(intent.get("schema_version") or 1)
+    if intent_schema_version == 1:
+        sim_workflow_policy = CANONICAL_WORKFLOW_POLICY
+    else:
+        sim_workflow_policy = CURRENT_PREMERGE_WORKFLOW_POLICY
     observations = [
         {
             "name": name,
@@ -769,12 +780,12 @@ def test_production_pre_merge_simulation(tmp_path: Path) -> None:
             "conclusion": "success",
         }
         for index, (name, (workflow_file, event)) in enumerate(
-            CANONICAL_WORKFLOW_POLICY.items(),
+            sim_workflow_policy.items(),
             1,
         )
     ]
     attestation = {
-        "schema_version": 1,
+        "schema_version": intent_schema_version,
         "attestation_id": "issue71_local_simulation_only",
         "repository": "dddd2024/reverse-agent",
         "source_pr": source_pr,
@@ -970,3 +981,216 @@ def test_production_verifier_accepts_empty_base64_content() -> None:
         expected_content=b"",
     )
     assert result["verified"] is True
+
+
+# ---------------------------------------------------------------------------
+# Issue #259 regression tests: three-run current pre-merge policy vs four-run historical
+# ---------------------------------------------------------------------------
+
+
+def test_v2_three_run_happy_path_passes(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    result = _validate(bundle)
+    assert result["gate_status"] == "PASSED", result
+
+
+def test_v2_missing_ci_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["attestation"]["workflow_observations"] = bundle[
+        "attestation"
+    ]["workflow_observations"][1:]
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("workflow_names" in item for item in result["blocking_reasons"])
+    assert any("CI" in item for item in result["blocking_reasons"])
+
+
+def test_v2_missing_decision_preflight_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["attestation"]["workflow_observations"] = (
+        [bundle["attestation"]["workflow_observations"][0]]
+        + bundle["attestation"]["workflow_observations"][2:]
+    )
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("workflow_names" in item for item in result["blocking_reasons"])
+    assert any("Decision Preflight" in item for item in result["blocking_reasons"])
+
+
+def test_v2_missing_state_gate_pull_request_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["attestation"]["workflow_observations"] = bundle[
+        "attestation"
+    ]["workflow_observations"][:2]
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("workflow_names" in item for item in result["blocking_reasons"])
+    assert any("State Gate (pull_request)" in item for item in result["blocking_reasons"])
+
+
+def test_v2_wrong_head_sha_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["attestation"]["workflow_observations"][0]["head_sha"] = "0" * 40
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("remote_workflow:CI" in item for item in result["blocking_reasons"])
+
+
+def test_v2_wrong_workflow_event_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["attestation"]["workflow_observations"][0]["event"] = "push"
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("remote_workflow:CI" in item for item in result["blocking_reasons"])
+
+
+def test_v2_workflow_failure_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["attestation"]["workflow_observations"][1]["conclusion"] = "failure"
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("remote_workflow:Decision Preflight" in item for item in result["blocking_reasons"])
+
+
+def test_v2_duplicate_run_id_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["attestation"]["workflow_observations"][1]["run_id"] = bundle[
+        "attestation"
+    ]["workflow_observations"][0]["run_id"]
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("workflow_run_uniqueness" in item for item in result["blocking_reasons"])
+
+
+def test_v2_push_state_gate_cannot_be_pre_merge_evidence(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    for obs in bundle["attestation"]["workflow_observations"]:
+        obs["name"] = "State Gate (push)"
+        obs["event"] = "push"
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("workflow_names" in item for item in result["blocking_reasons"])
+
+
+def test_v2_current_policy_does_not_require_state_gate_push(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    assert bundle["intent"]["required_workflows"] == list(CURRENT_PREMERGE_WORKFLOW_POLICY)
+    assert "State Gate (push)" not in bundle["intent"]["required_workflows"]
+    assert len(bundle["attestation"]["workflow_observations"]) == 3
+    assert all(
+        "State Gate (push)" not in obs.get("name", "")
+        for obs in bundle["attestation"]["workflow_observations"]
+    )
+    result = _validate(bundle)
+    assert result["gate_status"] == "PASSED", result
+
+
+def test_v1_four_run_still_passes(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=1)
+    result = _validate(bundle)
+    assert result["gate_status"] == "PASSED", result
+
+
+def test_v1_and_v2_use_distinct_workflow_policies() -> None:
+    assert len(CANONICAL_WORKFLOW_POLICY) == 4
+    assert "State Gate (push)" in CANONICAL_WORKFLOW_POLICY
+    assert len(CURRENT_PREMERGE_WORKFLOW_POLICY) == 3
+    assert "State Gate (push)" not in CURRENT_PREMERGE_WORKFLOW_POLICY
+
+
+def test_v1_attestation_rejects_v2_three_observation_count(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=1)
+    bundle["attestation"]["workflow_observations"] = bundle[
+        "attestation"
+    ]["workflow_observations"][:3]
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("workflow_observation_fields" in item for item in result["blocking_reasons"])
+
+
+def test_v2_attestation_rejects_four_observations(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    extra_obs = {
+        "name": "State Gate (push)",
+        "run_id": 9999,
+        "workflow_file": ".github/workflows/state-gate.yml",
+        "event": "push",
+        "run_attempt": 1,
+        "head_sha": bundle["head"],
+        "conclusion": "success",
+    }
+    bundle["attestation"]["workflow_observations"].append(extra_obs)
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("workflow_observation_fields" in item for item in result["blocking_reasons"])
+
+
+def test_v2_owner_approval_checks_still_fail_closed(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["attestation"]["_remote_author"] = "attacker"
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("approval_remote_identity" in item for item in result["blocking_reasons"])
+
+
+def test_v2_approval_payload_digest_still_fail_closed(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["attestation"]["human_r2_approval"]["approval_content_digest"] = (
+        "sha256:" + "0" * 64
+    )
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("approval_content_digest" in item for item in result["blocking_reasons"])
+
+
+def test_v2_attestation_digest_still_fail_closed(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["attestation"]["content_digest"] = "sha256:" + "0" * 64
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("attestation_content_digest" in item for item in result["blocking_reasons"])
+
+
+def test_v2_merge_topology_checks_still_fail_closed(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["merge"] = bundle["head"]
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("merge_structure" in item for item in result["blocking_reasons"])
+
+
+def test_v2_merge_tree_policy_still_fail_closed(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    (bundle["repo"] / "merge-only.txt").write_text("unexpected\n", encoding="utf-8")
+    _git(bundle["repo"], "add", "merge-only.txt")
+    _git(bundle["repo"], "commit", "--amend", "--no-edit")
+    bundle["merge"] = _git(bundle["repo"], "rev-parse", "HEAD")
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("merge_tree_policy" in item for item in result["blocking_reasons"])
+
+
+def test_v2_output_only_receipt_semantics(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    before = _git(bundle["repo"], "rev-parse", "HEAD")
+    validation = _validate(bundle)
+    receipt = emit_mainline_integration_receipt(validation, emitted_at=NOW)
+    after = _git(bundle["repo"], "rev-parse", "HEAD")
+    assert receipt["receipt_status"] == "EMITTED"
+    assert before == after
+
+
+def test_v2_wrong_locked_base_still_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["attestation"]["locked_base_sha"] = "0" * 40
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("first_parent_identity" in item for item in result["blocking_reasons"])
+
+
+def test_v2_wrong_accepted_head_still_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["attestation"]["accepted_exact_head_sha"] = "0" * 40
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("second_parent_identity" in item for item in result["blocking_reasons"])
