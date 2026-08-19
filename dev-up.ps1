@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Start the reverse-agent Platform V1 one-command development stack.
+  Start the reverse-agent Platform V2 one-command local stack.
 
 .DESCRIPTION
   Starts, health-checks, and reports three loopback services:
@@ -309,6 +309,7 @@ $combinedTrustedHostEnv = [ordered]@{
   "REVERSE_AGENT_TASK_SERVICE_ORIGIN" = $FrontendUrl
   "REVERSE_AGENT_REPO_DIR" = $sourceDir
   "REVERSE_AGENT_OPENCODE_MODEL" = $OpenCodeModel
+  "REVERSE_AGENT_AUTONOMOUS" = "1"
 }
 
 $combinedProc = Start-ServiceProcess `
@@ -375,6 +376,7 @@ $record = [ordered]@{
     task_api_url = $TaskApiUrl
     model_control_url = $ModelControlUrl
     executor = "opencode"
+    unattended_coordinator = "enabled"
     open_code_model = $OpenCodeModel
   }
 }
@@ -385,6 +387,7 @@ Write-Output "Model Control: ${ModelControlUrl}"
 Write-Output "Task API:      ${TaskApiUrl}"
 Write-Output "Frontend:      ${FrontendUrl}"
 Write-Output "Executor:      opencode"
+Write-Output "Coordinator:   enabled (requires an owner-activated window)"
 Write-Output "Model:         ${OpenCodeModel}"
 Write-Output "Runtime state: ${pidFile}"
 
