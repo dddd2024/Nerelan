@@ -2205,7 +2205,10 @@ def test_auth_list_probe_returns_sanitized_metadata_when_success() -> None:
             args=argv, returncode=0, stdout=raw_stdout, stderr=""
         )
 
-    meta = execute_opencode_auth_list_probe(subprocess_run=fake_run)
+    meta = execute_opencode_auth_list_probe(
+        subprocess_run=fake_run,
+        opencode_exe="synthetic-opencode",
+    )
     assert meta == {"sensetime": "api"}
     lowered = json.dumps(meta).lower()
     for forbidden in ("apikey", "token", "authorization", "cookie",

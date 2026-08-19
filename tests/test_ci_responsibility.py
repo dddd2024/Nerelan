@@ -178,7 +178,127 @@ def test_state_gate_governance_paths_do_match() -> None:
 def test_ci_platform_v1_blocking_gate_present() -> None:
     content = _read_ci()
     assert "Platform V1 blocking gate" in content
-    assert "python -m pytest tests/platform_v1 -q" in content
+    assert "python -m pytest tests/platform_v1" in content
+
+
+_EXACT_DESELECTED_NODE_IDS: list[str] = [
+    (
+        "tests/platform_v1/test_merge_intent.py"
+        "::TestDecisionImmutability"
+        "::test_decision_bytes_unchanged_since_commit"
+    ),
+    (
+        "tests/platform_v1/test_merge_intent.py"
+        "::TestDecisionImmutability"
+        "::test_decision_commit_precedes_implementation"
+    ),
+    (
+        "tests/platform_v1/test_merge_intent.py"
+        "::TestDecisionImmutability"
+        "::test_single_decision_commit_in_range"
+    ),
+    (
+        "tests/platform_v1/test_task3c_v6_production_relay.py"
+        "::TestCombinedTrustedHostInstalledOpenCodeE2E"
+        "::test_real_task_api_opencode_relay_fake_provider_end_to_end"
+    ),
+    (
+        "tests/platform_v1/test_task3c_v4_repairs.py"
+        "::TestInstalledOpenCodeFakeProviderSmoke"
+        "::test_installed_opencode_fake_provider_end_to_end"
+    ),
+    (
+        "tests/platform_v1/test_task3c_v5_opencode_probe.py"
+        "::TestDirectFakeProviderControl"
+        "::test_opencode_direct_fake_provider"
+    ),
+    (
+        "tests/platform_v1/test_task3c_v5_opencode_probe.py"
+        "::TestRelayFakeProviderRun"
+        "::test_opencode_relay_fake_provider"
+    ),
+]
+
+
+def _extract_platform_v1_blocking_command(content: str) -> str | None:
+    marker = "Platform V1 blocking gate"
+    idx = content.find(marker)
+    assert idx != -1, "Platform V1 blocking gate section missing"
+    section = content[idx:]
+    for line in section.splitlines()[1:]:
+        if line.strip().startswith("run:"):
+            return line.split("run:", 1)[1].strip()
+    return None
+
+
+def _extract_deselected_nodes(cmd: str) -> set[str]:
+    nodes: set[str] = set()
+    for part in cmd.split():
+        if part.startswith("--deselect="):
+            nodes.add(part.split("=", 1)[1])
+    return nodes
+
+
+def test_ci_platform_v1_blocking_gate_deselects_exact_seven_nodes() -> None:
+    content = _read_ci()
+    cmd = _extract_platform_v1_blocking_command(content)
+    assert cmd is not None
+    deselected = _extract_deselected_nodes(cmd)
+    assert deselected == set(_EXACT_DESELECTED_NODE_IDS), (
+        f"Platform V1 blocking gate deselected set must exactly match the 7 "
+        f"reclassified node IDs; got {sorted(deselected)}"
+    )
+
+
+def test_ci_platform_v1_blocking_gate_exactly_seven_deselects() -> None:
+    content = _read_ci()
+    cmd = _extract_platform_v1_blocking_command(content)
+    assert cmd is not None
+    deselected = _extract_deselected_nodes(cmd)
+    assert len(deselected) == 7, (
+        f"Platform V1 blocking gate must contain exactly 7 --deselect node IDs, "
+        f"got {len(deselected)}"
+    )
+
+
+def test_ci_platform_v1_blocking_gate_does_not_broad_ignore_relay_file() -> None:
+    content = _read_ci()
+    cmd = _extract_platform_v1_blocking_command(content)
+    assert cmd is not None
+    deselected = _extract_deselected_nodes(cmd)
+    relay_node = (
+        "tests/platform_v1/test_task3c_v6_production_relay.py"
+        "::TestCombinedTrustedHostInstalledOpenCodeE2E"
+        "::test_real_task_api_opencode_relay_fake_provider_end_to_end"
+    )
+    assert relay_node in deselected
+    assert deselected != {"tests/platform_v1/test_task3c_v6_production_relay.py"}, (
+        "must not broad-ignore test_task3c_v6_production_relay.py"
+    )
+    assert all(
+        ":" in n.split("/")[-1] or "::" in n
+        for n in deselected
+        if n.endswith("test_task3c_v6_production_relay.py")
+    ), "relay-file deselections must be exact node IDs, not whole-file"
+
+
+def test_ci_platform_v1_blocking_gate_does_not_broad_ignore_merge_intent_file() -> None:
+    content = _read_ci()
+    cmd = _extract_platform_v1_blocking_command(content)
+    assert cmd is not None
+    deselected = _extract_deselected_nodes(cmd)
+    merge_intent_file_deselects = [
+        n for n in deselected
+        if n.startswith("tests/platform_v1/test_merge_intent.py")
+    ]
+    assert len(merge_intent_file_deselects) == 3
+    assert "tests/platform_v1/test_merge_intent.py" not in deselected, (
+        "must not broad-ignore test_merge_intent.py"
+    )
+    for node in merge_intent_file_deselects:
+        assert "::" in node, (
+            f"merge-intent deselection must be an exact node ID, got {node!r}"
+        )
 
 
 def test_ci_repository_wide_diagnostic_nonblocking() -> None:
