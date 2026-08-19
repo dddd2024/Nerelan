@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260819_issue240_sprint_b1_github_native_ci_r2_v5",
-  "round_id": "round_20260819_issue240_sprint_b1_github_native_ci_r2_v5",
+  "decision_id": "decision_20260819_issue240_sprint_b1_github_native_ci_r2_v6",
+  "round_id": "round_20260819_issue240_sprint_b1_github_native_ci_r2_v6",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,33 +14,36 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260818_issue240_sprint_b1_github_native_ci_r2_v4",
-  "follows_last_round_id": "round_20260818_issue240_sprint_b1_github_native_ci_r2_v4",
-  "previous_audit_outcome": "ISSUE240_V4_SUPERSEDED_BEFORE_LOCAL_EXECUTION_OUTER_POWERSHELL_EXPANSION_BROKE_BOOTSTRAP_GUARD",
-  "supersedes_decision_id": "decision_20260818_issue240_sprint_b1_github_native_ci_r2_v4",
-  "superseded_branch_must_not_execute": "owner/issue240-sprint-b1-github-native-ci-r2-v4",
-  "workstream_id": "issue240-sprint-b1-github-native-ci-r2-v5",
+  "follows_last_decision_id": "decision_20260819_issue240_sprint_b1_github_native_ci_r2_v5",
+  "follows_last_round_id": "round_20260819_issue240_sprint_b1_github_native_ci_r2_v5",
+  "previous_audit_outcome": "ISSUE240_V5_LOCAL_ACCEPTED_GITHUB_NATIVE_CLEAN_CANDIDATE_REJECTED_SINGLE_MISAPPLIED_TRUSTED_HOST_IDENTITY_TEST_SEAM",
+  "supersedes_decision_id": "decision_20260819_issue240_sprint_b1_github_native_ci_r2_v5",
+  "superseded_branch_must_not_execute": "owner/issue240-sprint-b1-github-native-ci-r2-v5",
+  "workstream_id": "issue240-sprint-b1-github-native-ci-r2-v6",
   "source_issue": 240,
   "parent_issue": 233,
-  "diagnostic_pr": 241,
-  "diagnostic_clean_candidate_sha": "1a2e8ba9e5bf9f395fc5e1fafebf99e4386c6eef",
+  "diagnostic_pr": 242,
+  "diagnostic_clean_candidate_sha": "3e148b6db6b90b8121b289189ab6796b25e376d7",
   "diagnostic_pr_must_remain_unmerged": true,
-  "required_branch": "owner/issue240-sprint-b1-github-native-ci-r2-v5",
-  "starting_head": "0723c7679f988fbb915e3fe4814b9ef17e8be969",
-  "activation_base_sha": "0723c7679f988fbb915e3fe4814b9ef17e8be969",
-  "predecessor_candidate_head": "a62f6846f5e8b9edd7327438bed8a42d9d11f4c9",
+  "required_branch": "owner/issue240-sprint-b1-github-native-ci-r2-v6",
+  "starting_head": "74529d8d5c4bb28cf2775bf9dd5bdf77ec3f4777",
+  "activation_base_sha": "74529d8d5c4bb28cf2775bf9dd5bdf77ec3f4777",
+  "predecessor_candidate_head": "99d74e7840994e1e8d648469aea6e66c4b2dbfd7",
   "predecessor_candidate_publication_compliant": true,
   "predecessor_candidate_github_native_landable": false,
   "predecessor_candidate_content_reusable": true,
   "predecessor_reusable_paths": [
     ".github/workflows/ci.yml",
     "tests/test_ci_responsibility.py",
+    "tests/platform_v1/test_durable_execution.py",
+    "tests/platform_v1/test_durable_execution_v5.py",
+    "tests/platform_v1/test_opencode_executor.py",
     "tests/platform_v1/test_task3c_v4_repairs.py"
   ],
   "canonical_planning_sha": "74bad91c3721045342e83f0ecd1c06e9ae7cf670",
   "accepted_b1_candidate_sha": "b21ce5b2b1dad0b339172ed34567b65c3e3f36bb",
-  "authority_worktree": "F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v5",
-  "clean_validation_worktree": "F:/reverse-agent-issue240-sprint-b1-clean-validation-v5",
+  "authority_worktree": "F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v6",
+  "clean_validation_worktree": "F:/reverse-agent-issue240-sprint-b1-clean-validation-v6",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
@@ -85,6 +88,9 @@
     "tests/platform_v1/test_opencode_executor.py::test_auth_list_probe_returns_sanitized_metadata_when_success",
     "tests/platform_v1/test_task3c_v4_repairs.py::TestTaskApiApiKeyWiring::test_trusted_host_http_handler_receives_lease_provider"
   ],
+  "v6_exact_semantic_repair_target": "tests/platform_v1/test_task3c_v4_repairs.py::TestTaskApiApiKeyWiring::test_trusted_host_http_handler_receives_lease_provider",
+  "v6_misapplied_predecessor_constructor_edit_must_be_reverted": true,
+  "v6_correct_target_constructor_must_receive_synthetic_authority_identity": true,
   "deterministic_platform_v1_deselected_nodeids": [
     "tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_bytes_unchanged_since_commit",
     "tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_commit_precedes_implementation",
@@ -111,22 +117,20 @@
   "bootstrap_exception_commands": [
     "git -C F:/reverse-agent-planning-smoke status --short",
     "git -C F:/reverse-agent-planning-smoke fetch origin owner/repository-modernization-v2-planning",
-    "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue240-sprint-b1-deterministic-ci-closeout-r2-v3",
-    "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue240-sprint-b1-github-native-ci-r2-v4",
     "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue240-sprint-b1-github-native-ci-r2-v5",
+    "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue240-sprint-b1-github-native-ci-r2-v6",
     "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/repository-modernization-v2-planning",
-    "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/issue240-sprint-b1-deterministic-ci-closeout-r2-v3",
-    "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/issue240-sprint-b1-github-native-ci-r2-v4",
     "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/issue240-sprint-b1-github-native-ci-r2-v5",
-    "$b=(git -C F:/reverse-agent-planning-smoke branch --list owner/issue240-sprint-b1-github-native-ci-r2-v5);if($b){'ISSUE240_V5_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};if(Test-Path -LiteralPath 'F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v5'){'ISSUE240_V5_WORKTREE_ALREADY_EXISTS';exit 24};if(Test-Path -LiteralPath 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v5'){'ISSUE240_V5_PROJECTION_WORKTREE_ALREADY_EXISTS';exit 23};'ISSUE240_V5_BOOTSTRAP_TARGETS_ABSENT'",
-    "git -C F:/reverse-agent-planning-smoke worktree add --track -b owner/issue240-sprint-b1-github-native-ci-r2-v5 F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v5 origin/owner/issue240-sprint-b1-github-native-ci-r2-v5",
-    "git -C F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v5 sparse-checkout disable",
-    "Set-Location F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v5",
+    "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/issue240-sprint-b1-github-native-ci-r2-v6",
+    "$b=(git -C F:/reverse-agent-planning-smoke branch --list owner/issue240-sprint-b1-github-native-ci-r2-v6);if($b){'ISSUE240_V6_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};if(Test-Path -LiteralPath 'F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v6'){'ISSUE240_V6_WORKTREE_ALREADY_EXISTS';exit 24};if(Test-Path -LiteralPath 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v6'){'ISSUE240_V6_PROJECTION_WORKTREE_ALREADY_EXISTS';exit 23};'ISSUE240_V6_BOOTSTRAP_TARGETS_ABSENT'",
+    "git -C F:/reverse-agent-planning-smoke worktree add --track -b owner/issue240-sprint-b1-github-native-ci-r2-v6 F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v6 origin/owner/issue240-sprint-b1-github-native-ci-r2-v6",
+    "git -C F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v6 sparse-checkout disable",
+    "Set-Location F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v6",
     "git status --short",
     "git rev-parse HEAD",
     "git rev-parse HEAD^",
-    "git merge-base HEAD 0723c7679f988fbb915e3fe4814b9ef17e8be969",
-    "$r='F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v5';$req=@('pyproject.toml','.github/workflows/ci.yml','.github/workflows/state-gate.yml','tests/test_ci_responsibility.py','tests/test_project_gate.py','tests/platform_v1/test_merge_intent.py','tests/platform_v1/test_durable_execution.py','tests/platform_v1/test_durable_execution_v5.py','tests/platform_v1/test_opencode_executor.py','tests/platform_v1/test_task3c_v4_repairs.py','tests/platform_v1/test_task3c_v5_opencode_probe.py','tests/platform_v1/test_task3c_v6_production_relay.py','project_state/decision_packet.md');foreach($p in $req){if(-not (Test-Path -LiteralPath (Join-Path $r $p))){Write-Output ('MISSING:'+$p);exit 28}};$d=@(git -C $r diff HEAD --name-status);if($d.Count -ne 0){$d|Select-Object -First 20;exit 29};$s=@(git -C $r ls-files -v | Where-Object { $_ -match '^S ' });if($s.Count -ne 0){$s|Select-Object -First 20;exit 30};'ISSUE240_V5_FULL_WORKTREE_MATERIALIZED'",
+    "git merge-base HEAD 74529d8d5c4bb28cf2775bf9dd5bdf77ec3f4777",
+    "$r='F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v6';$req=@('pyproject.toml','.github/workflows/ci.yml','.github/workflows/state-gate.yml','tests/test_ci_responsibility.py','tests/test_project_gate.py','tests/platform_v1/test_merge_intent.py','tests/platform_v1/test_durable_execution.py','tests/platform_v1/test_durable_execution_v5.py','tests/platform_v1/test_opencode_executor.py','tests/platform_v1/test_task3c_v4_repairs.py','tests/platform_v1/test_task3c_v5_opencode_probe.py','tests/platform_v1/test_task3c_v6_production_relay.py','project_state/decision_packet.md');foreach($p in $req){if(-not (Test-Path -LiteralPath (Join-Path $r $p))){Write-Output ('MISSING:'+$p);exit 28}};$d=@(git -C $r diff HEAD --name-status);if($d.Count -ne 0){$d|Select-Object -First 20;exit 29};$s=@(git -C $r ls-files -v | Where-Object { $_ -match '^S ' });if($s.Count -ne 0){$s|Select-Object -First 20;exit 30};'ISSUE240_V6_FULL_WORKTREE_MATERIALIZED'",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
@@ -134,8 +138,8 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "issue240v5.import_v3_content",
-      "command": "git checkout a62f6846f5e8b9edd7327438bed8a42d9d11f4c9 -- .github/workflows/ci.yml tests/test_ci_responsibility.py tests/platform_v1/test_task3c_v4_repairs.py",
+      "command_id": "issue240v6.import_v5_content",
+      "command": "git checkout 99d74e7840994e1e8d648469aea6e66c4b2dbfd7 -- .github/workflows/ci.yml tests/test_ci_responsibility.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_durable_execution_v5.py tests/platform_v1/test_opencode_executor.py tests/platform_v1/test_task3c_v4_repairs.py",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
@@ -145,7 +149,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v5.status_after_import",
+      "command_id": "issue240v6.status_after_import",
       "command": "git status --short",
       "phase": "status",
       "required": true,
@@ -156,7 +160,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v5.changed_paths",
+      "command_id": "issue240v6.changed_paths",
       "command": "git diff --name-only",
       "phase": "validation",
       "required": true,
@@ -167,7 +171,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v5.diff_check",
+      "command_id": "issue240v6.diff_check",
       "command": "git diff --check",
       "phase": "validation",
       "required": true,
@@ -178,8 +182,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v5.projection_create",
-      "command": "git worktree add --detach F:/reverse-agent-issue240-sprint-b1-clean-validation-v5 74bad91c3721045342e83f0ecd1c06e9ae7cf670",
+      "command_id": "issue240v6.projection_create",
+      "command": "git worktree add --detach F:/reverse-agent-issue240-sprint-b1-clean-validation-v6 74bad91c3721045342e83f0ecd1c06e9ae7cf670",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -189,8 +193,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v5.projection_sparse_disable",
-      "command": "git -C F:/reverse-agent-issue240-sprint-b1-clean-validation-v5 sparse-checkout disable",
+      "command_id": "issue240v6.projection_sparse_disable",
+      "command": "git -C F:/reverse-agent-issue240-sprint-b1-clean-validation-v6 sparse-checkout disable",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -200,8 +204,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v5.projection_overlay_b1",
-      "command": "git -C F:/reverse-agent-issue240-sprint-b1-clean-validation-v5 checkout b21ce5b2b1dad0b339172ed34567b65c3e3f36bb -- .github/workflows/state-gate.yml .github/workflows/ci.yml tests/test_project_gate.py tests/test_ci_responsibility.py",
+      "command_id": "issue240v6.projection_overlay_b1",
+      "command": "git -C F:/reverse-agent-issue240-sprint-b1-clean-validation-v6 checkout b21ce5b2b1dad0b339172ed34567b65c3e3f36bb -- .github/workflows/state-gate.yml .github/workflows/ci.yml tests/test_project_gate.py tests/test_ci_responsibility.py",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -211,8 +215,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v5.projection_copy_v5",
-      "command": "$src='F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v5';$dst='F:/reverse-agent-issue240-sprint-b1-clean-validation-v5';$paths=@('.github/workflows/ci.yml','tests/test_ci_responsibility.py','tests/platform_v1/test_durable_execution.py','tests/platform_v1/test_durable_execution_v5.py','tests/platform_v1/test_opencode_executor.py','tests/platform_v1/test_task3c_v4_repairs.py');foreach($p in $paths){Copy-Item -LiteralPath (Join-Path $src $p) -Destination (Join-Path $dst $p) -Force};git -C $dst add -- $paths",
+      "command_id": "issue240v6.projection_copy_v6",
+      "command": "$src='F:/reverse-agent-issue240-sprint-b1-github-native-ci-r2-v6';$dst='F:/reverse-agent-issue240-sprint-b1-clean-validation-v6';$paths=@('.github/workflows/ci.yml','tests/test_ci_responsibility.py','tests/platform_v1/test_durable_execution.py','tests/platform_v1/test_durable_execution_v5.py','tests/platform_v1/test_opencode_executor.py','tests/platform_v1/test_task3c_v4_repairs.py');foreach($p in $paths){Copy-Item -LiteralPath (Join-Path $src $p) -Destination (Join-Path $dst $p) -Force};git -C $dst add -- $paths",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -222,8 +226,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v5.projection_exact_paths",
-      "command": "$r='F:/reverse-agent-issue240-sprint-b1-clean-validation-v5';$expected=@('.github/workflows/ci.yml','.github/workflows/state-gate.yml','tests/platform_v1/test_durable_execution.py','tests/platform_v1/test_durable_execution_v5.py','tests/platform_v1/test_opencode_executor.py','tests/platform_v1/test_task3c_v4_repairs.py','tests/test_ci_responsibility.py','tests/test_project_gate.py')|Sort-Object;$actual=@(git -C $r diff --cached --name-only)|Sort-Object;if(Compare-Object $expected $actual){$actual;exit 34};'ISSUE240_V5_EXACT_EIGHT_FILE_PROJECTION'",
+      "command_id": "issue240v6.projection_exact_paths",
+      "command": "$r='F:/reverse-agent-issue240-sprint-b1-clean-validation-v6';$expected=@('.github/workflows/ci.yml','.github/workflows/state-gate.yml','tests/platform_v1/test_durable_execution.py','tests/platform_v1/test_durable_execution_v5.py','tests/platform_v1/test_opencode_executor.py','tests/platform_v1/test_task3c_v4_repairs.py','tests/test_ci_responsibility.py','tests/test_project_gate.py')|Sort-Object;$actual=@(git -C $r diff --cached --name-only)|Sort-Object;if(Compare-Object $expected $actual){$actual;exit 34};'ISSUE240_V6_EXACT_EIGHT_FILE_PROJECTION'",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -233,8 +237,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v5.projection_diff_check",
-      "command": "git -C F:/reverse-agent-issue240-sprint-b1-clean-validation-v5 diff --cached --check",
+      "command_id": "issue240v6.projection_diff_check",
+      "command": "git -C F:/reverse-agent-issue240-sprint-b1-clean-validation-v6 diff --cached --check",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -244,8 +248,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v5.projection_repair_four",
-      "command": "Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v5'; python -m pytest tests/platform_v1/test_durable_execution.py::test_v4_opencode_single_resume_prepare_zero tests/platform_v1/test_durable_execution_v5.py::test_dispatch_executor_never_called_opencode_resume_pre_planner tests/platform_v1/test_opencode_executor.py::test_auth_list_probe_returns_sanitized_metadata_when_success tests/platform_v1/test_task3c_v4_repairs.py::TestTaskApiApiKeyWiring::test_trusted_host_http_handler_receives_lease_provider -q",
+      "command_id": "issue240v6.projection_repair_four",
+      "command": "Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v6'; python -m pytest tests/platform_v1/test_durable_execution.py::test_v4_opencode_single_resume_prepare_zero tests/platform_v1/test_durable_execution_v5.py::test_dispatch_executor_never_called_opencode_resume_pre_planner tests/platform_v1/test_opencode_executor.py::test_auth_list_probe_returns_sanitized_metadata_when_success tests/platform_v1/test_task3c_v4_repairs.py::TestTaskApiApiKeyWiring::test_trusted_host_http_handler_receives_lease_provider -q",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -255,8 +259,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v5.projection_platform_v1_blocking",
-      "command": "Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v5'; python -m pytest tests/platform_v1 -q --deselect=tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_bytes_unchanged_since_commit --deselect=tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_commit_precedes_implementation --deselect=tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_single_decision_commit_in_range --deselect=tests/platform_v1/test_task3c_v6_production_relay.py::TestCombinedTrustedHostInstalledOpenCodeE2E::test_real_task_api_opencode_relay_fake_provider_end_to_end --deselect=tests/platform_v1/test_task3c_v4_repairs.py::TestInstalledOpenCodeFakeProviderSmoke::test_installed_opencode_fake_provider_end_to_end --deselect=tests/platform_v1/test_task3c_v5_opencode_probe.py::TestDirectFakeProviderControl::test_opencode_direct_fake_provider --deselect=tests/platform_v1/test_task3c_v5_opencode_probe.py::TestRelayFakeProviderRun::test_opencode_relay_fake_provider",
+      "command_id": "issue240v6.projection_platform_v1_blocking",
+      "command": "Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v6'; python -m pytest tests/platform_v1 -q --deselect=tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_bytes_unchanged_since_commit --deselect=tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_decision_commit_precedes_implementation --deselect=tests/platform_v1/test_merge_intent.py::TestDecisionImmutability::test_single_decision_commit_in_range --deselect=tests/platform_v1/test_task3c_v6_production_relay.py::TestCombinedTrustedHostInstalledOpenCodeE2E::test_real_task_api_opencode_relay_fake_provider_end_to_end --deselect=tests/platform_v1/test_task3c_v4_repairs.py::TestInstalledOpenCodeFakeProviderSmoke::test_installed_opencode_fake_provider_end_to_end --deselect=tests/platform_v1/test_task3c_v5_opencode_probe.py::TestDirectFakeProviderControl::test_opencode_direct_fake_provider --deselect=tests/platform_v1/test_task3c_v5_opencode_probe.py::TestRelayFakeProviderRun::test_opencode_relay_fake_provider",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -266,8 +270,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v5.projection_b1_focused",
-      "command": "Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v5'; python -m pytest tests/test_project_gate.py tests/test_ci_responsibility.py -q",
+      "command_id": "issue240v6.projection_b1_focused",
+      "command": "Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v6'; python -m pytest tests/test_project_gate.py tests/test_ci_responsibility.py -q",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -277,8 +281,8 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v5.projection_governance_regression",
-      "command": "Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v5'; python -m pytest tests/test_control_plane_transition.py tests/test_repository_hygiene.py tests/test_project_state.py tests/test_decision_preflight.py -q",
+      "command_id": "issue240v6.projection_governance_regression",
+      "command": "Set-Location 'F:/reverse-agent-issue240-sprint-b1-clean-validation-v6'; python -m pytest tests/test_control_plane_transition.py tests/test_repository_hygiene.py tests/test_project_state.py tests/test_decision_preflight.py -q",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -288,7 +292,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue240v5.stage_exact",
+      "command_id": "issue240v6.stage_exact",
       "command": "git add -- .github/workflows/ci.yml tests/test_ci_responsibility.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_durable_execution_v5.py tests/platform_v1/test_opencode_executor.py tests/platform_v1/test_task3c_v4_repairs.py",
       "phase": "publication",
       "required": true,
@@ -300,8 +304,8 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue240v5.staged_exact_verify",
-      "command": "$expected=@('.github/workflows/ci.yml','tests/test_ci_responsibility.py','tests/platform_v1/test_durable_execution.py','tests/platform_v1/test_durable_execution_v5.py','tests/platform_v1/test_opencode_executor.py','tests/platform_v1/test_task3c_v4_repairs.py')|Sort-Object;$actual=@(git diff --cached --name-only)|Sort-Object;if(Compare-Object $expected $actual){$actual;exit 35};'ISSUE240_V5_EXACT_SIX_STAGED'",
+      "command_id": "issue240v6.staged_exact_verify",
+      "command": "$expected=@('.github/workflows/ci.yml','tests/test_ci_responsibility.py','tests/platform_v1/test_durable_execution.py','tests/platform_v1/test_durable_execution_v5.py','tests/platform_v1/test_opencode_executor.py','tests/platform_v1/test_task3c_v4_repairs.py')|Sort-Object;$actual=@(git diff --cached --name-only)|Sort-Object;if(Compare-Object $expected $actual){$actual;exit 35};'ISSUE240_V6_EXACT_SIX_STAGED'",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -312,7 +316,7 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue240v5.staged_diff_check",
+      "command_id": "issue240v6.staged_diff_check",
       "command": "git diff --cached --check",
       "phase": "publication",
       "required": true,
@@ -324,7 +328,7 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue240v5.commit",
+      "command_id": "issue240v6.commit",
       "command": "git commit -m \"Close B1 GitHub-native CI responsibility gaps\"",
       "phase": "publication",
       "required": true,
@@ -336,8 +340,8 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue240v5.push",
-      "command": "git push origin owner/issue240-sprint-b1-github-native-ci-r2-v5",
+      "command_id": "issue240v6.push",
+      "command": "git push origin owner/issue240-sprint-b1-github-native-ci-r2-v6",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -348,8 +352,8 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue240v5.verify_remote",
-      "command": "git fetch origin owner/issue240-sprint-b1-github-native-ci-r2-v5; if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}; git rev-parse HEAD; if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}; git rev-parse origin/owner/issue240-sprint-b1-github-native-ci-r2-v5",
+      "command_id": "issue240v6.verify_remote",
+      "command": "git fetch origin owner/issue240-sprint-b1-github-native-ci-r2-v6; if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}; git rev-parse HEAD; if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}; git rev-parse origin/owner/issue240-sprint-b1-github-native-ci-r2-v6",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -360,7 +364,7 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue240v5.final_status",
+      "command_id": "issue240v6.final_status",
       "command": "git status --short",
       "phase": "status",
       "required": true,
@@ -464,7 +468,7 @@
     "github_pr_creation_allowed": false,
     "github_merge_allowed": false
   },
-  "success_terminal": "SPRINT_B1_GITHUB_NATIVE_CI_RECOVERY_V5_READY_FOR_OWNER_AUDIT",
-  "blocked_terminal": "SPRINT_B1_GITHUB_NATIVE_CI_RECOVERY_V5_BLOCKED_WITH_EXACT_EVIDENCE"
+  "success_terminal": "SPRINT_B1_GITHUB_NATIVE_CI_RECOVERY_V6_READY_FOR_OWNER_AUDIT",
+  "blocked_terminal": "SPRINT_B1_GITHUB_NATIVE_CI_RECOVERY_V6_BLOCKED_WITH_EXACT_EVIDENCE"
 }
 ```
