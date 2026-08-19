@@ -50,6 +50,8 @@ describe("real-executor task plane with Connection/Binding architecture", () => 
     renderWithProviders(<ComposerMount submit={mockSubmit} />);
 
     expect(screen.getByTestId("executor-option-opencode")).toBeInTheDocument();
+    const notes = screen.getAllByTestId("opencode-model-note");
+    expect(notes.length).toBe(1);
 
     fireEvent.change(screen.getByTestId("task-title-input"), {
       target: { value: "real opencode task" },
