@@ -85,6 +85,13 @@ def _parse_decision_contract() -> dict:
     return result
 
 
+def _requires_active_merge_intent() -> bool:
+    """Keep historical/landing checks strict; engineering Decisions opt out explicitly."""
+
+    contract = _parse_decision_contract()
+    return contract.get("mainline_merge_intent_required", True) is not False
+
+
 # ---------------------------------------------------------------------------
 # Active intent (dynamically bound to current Decision via parser)
 # ---------------------------------------------------------------------------
@@ -93,6 +100,10 @@ class TestActiveMergeIntent:
     def test_active_file_exists(self) -> None:
         assert ACTIVE_PATH.exists(), f"active.json not found at {ACTIVE_PATH}"
 
+    @pytest.mark.skipif(
+        not _requires_active_merge_intent(),
+        reason="engineering Decision does not activate a mainline merge intent",
+    )
     def test_active_binds_current_decision_source_pr(self) -> None:
         data = _load_json(ACTIVE_PATH)
         contract = _parse_decision_contract()
@@ -105,6 +116,10 @@ class TestActiveMergeIntent:
         data = _load_json(ACTIVE_PATH)
         assert data["source_pr"] != 0, "active intent must not retain source_pr=0"
 
+    @pytest.mark.skipif(
+        not _requires_active_merge_intent(),
+        reason="engineering Decision does not activate a mainline merge intent",
+    )
     def test_active_binds_current_decision_locked_base_sha(self) -> None:
         data = _load_json(ACTIVE_PATH)
         contract = _parse_decision_contract()
@@ -115,12 +130,20 @@ class TestActiveMergeIntent:
         data = _load_json(ACTIVE_PATH)
         assert data["allowed_merge_method"] == "merge"
 
+    @pytest.mark.skipif(
+        not _requires_active_merge_intent(),
+        reason="engineering Decision does not activate a mainline merge intent",
+    )
     def test_active_binds_current_decision_id(self) -> None:
         data = _load_json(ACTIVE_PATH)
         meta = _parse_decision_meta()
         expected_id = meta["decision_id"]
         assert data["decision_identity"]["decision_id"] == expected_id
 
+    @pytest.mark.skipif(
+        not _requires_active_merge_intent(),
+        reason="engineering Decision does not activate a mainline merge intent",
+    )
     def test_active_decision_content_sha256_is_64_hex(self) -> None:
         data = _load_json(ACTIVE_PATH)
         sha = data["decision_identity"]["decision_content_sha256"]
@@ -128,6 +151,10 @@ class TestActiveMergeIntent:
         assert all(c in "0123456789abcdef" for c in sha)
         assert sha == hashlib.sha256(DECISION_PATH.read_bytes()).hexdigest()
 
+    @pytest.mark.skipif(
+        not _requires_active_merge_intent(),
+        reason="engineering Decision does not activate a mainline merge intent",
+    )
     def test_active_command_plan_sha256_is_64_hex(self) -> None:
         data = _load_json(ACTIVE_PATH)
         sha = data["command_plan_sha256"]
@@ -157,6 +184,10 @@ class TestActiveMergeIntent:
         assert meta["status"] == "APPROVED"
         assert isinstance(meta.get("skill_profiles"), list)
 
+    @pytest.mark.skipif(
+        not _requires_active_merge_intent(),
+        reason="engineering Decision does not activate a mainline merge intent",
+    )
     def test_decision_contract_unique_and_valid(self) -> None:
         contract = _parse_decision_contract()
         assert isinstance(contract["active_pr"], int)
@@ -613,8 +644,11 @@ class TestDecisionImmutability:
         contract = _parse_decision_contract()
         active = _load_json(ACTIVE_PATH)
         assert meta["decision_id"].startswith("decision_")
-        assert isinstance(contract["active_pr"], int) and contract["active_pr"] > 0
         assert len(contract["activation_base_sha"]) == 40
         assert all(c in "0123456789abcdef" for c in contract["activation_base_sha"])
-        assert contract["active_pr"] == active["source_pr"]
-        assert contract["activation_base_sha"] == active["locked_base_sha"]
+        if _requires_active_merge_intent():
+            assert isinstance(contract["active_pr"], int) and contract["active_pr"] > 0
+            assert contract["active_pr"] == active["source_pr"]
+            assert contract["activation_base_sha"] == active["locked_base_sha"]
+        else:
+            assert "active_pr" not in contract
