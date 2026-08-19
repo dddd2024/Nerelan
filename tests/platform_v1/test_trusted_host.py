@@ -1038,3 +1038,21 @@ def test_host_default_startup_does_not_probe_and_keeps_executor_managed(tmp_path
         )["external_session_status"] == "executor_managed"
     finally:
         host.stop()
+
+
+def test_host_starts_inert_unattended_coordinator_only_when_explicitly_enabled(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("REVERSE_AGENT_AUTONOMOUS", "1")
+    host = CombinedTrustedHost(
+        task_store=_make_store(tmp_path),
+        execution_authority_sha="auth-platform-v2",
+        planning_sha="plan-platform-v2",
+    )
+    try:
+        host.start(model_control_port=0, task_api_port=0)
+        assert host._coordinator is not None
+        status = host._coordinator.status()
+        assert status["enabled"] is True
+        assert status["active_window_id"] == ""
+        assert status["executions"] == 0
+    finally:
+        host.stop()

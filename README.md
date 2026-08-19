@@ -1,85 +1,93 @@
 # Reverse Agent
 
-Reverse Agent is a governance and control-plane tooling repository for a **minimal AI-assisted development integration baseline**. The repository does not build a generic AI software-development platform; it provides thin risk classification, bounded path/operation policy, a high-risk approval boundary, and deterministic acceptance checks around mature development tools.
+Reverse Agent is a local-first, governed multi-Agent development platform. Give it a final goal; it persists a specification and plan, decomposes work into dependent tasks, coordinates reusable Agent runtimes, survives restarts, validates results, and can prepare an allowlisted Draft PR for review.
 
-## Active development stack
+The product deliberately reuses mature components:
 
-```text
-approved specification
--> approved immutable GitHub Work Item snapshot
--> Codex implementation
--> deterministic GitHub Actions
--> independent review
--> human merge
+- GitHub Spec Kit-compatible `Goal → Specification → Plan → Tasks` artifacts;
+- LangGraph topology and checkpoints for sequential or parallel teams;
+- OpenCode as the repository executor and model-session adapter;
+- OpenHands Agent Canvas patterns for the dark web workspace;
+- GitHub as repository, checks, review, and publication truth.
+
+Repository-owned code is the thin trust layer: authority snapshots, autonomy policies, durable claims, idempotency, evidence, secret confinement, exact-path publication, and deterministic acceptance.
+
+## Start the platform
+
+Requirements: Python 3.13+, Node.js, an existing `frontend/node_modules`, Git, GitHub CLI, and OpenCode. The launcher does not install packages or invoke a model during startup.
+
+```powershell
+.\dev-up.ps1
 ```
 
-## Two authority paths
-
-The project defines two distinct authority paths. No source is globally higher when it is not applicable to the selected path.
-
-### Path A — ordinary R0/R1 authority
-
-For ordinary R0/R1 work (after the one-time transition round that established this baseline), authority is:
+Or double-click `launch_reverse_agent.bat`. The launcher starts loopback-only services and opens `http://127.0.0.1:4173`:
 
 ```text
-approved Work Item Issue body (R1 template)
-  + Issue allowed_paths / forbidden_operations / acceptance_criteria
-  + deterministic checks (pytest, git diff --check, GitHub Actions)
+Frontend       127.0.0.1:4173
+Model Control  127.0.0.1:8765
+Task API       127.0.0.1:8766
+Coordinator    enabled, inert until an owner activates a bounded window
 ```
 
-The Work Item Issue body is the primary authority for R0/R1. Issue comments and PR comments are **never** authority. `project_state/decision_packet.md` and `project_state/gates/command_plan.json` are **not** used for ordinary R0/R1.
+Stop only the processes recorded by this launch:
 
-### Path B — transition / R2-R3 authority
+```powershell
+.\dev-down.ps1
+```
 
-For transition rounds (when `transition_kernel_required=true`) and R2/R3 operations, authority is:
+## Product workflow
 
 ```text
-bounded Decision in project_state/decision_packet.md
-  + generated command_plan.json
-  + transition-preflight PRE_EXECUTION_AUTHORIZED
+natural-language goal
+-> persistent specification and editable plan
+-> owner approval and bounded autonomous window
+-> dependency-aware multi-Agent execution
+-> durable checkpoint / reconciliation / resume
+-> deterministic validation and sanitized evidence
+-> allowlisted task branch and Draft PR
+-> governed exact-head review and acceptance
 ```
 
-R2/R3 operations fail closed. No Issue, Issue comment, PR comment, or roadmap document can authorize R2/R3 work.
+The browser never receives shell authority, direct filesystem access, raw provider credentials, or merge authority. The coordinator is off unless the trusted host enables it, and it remains inert without an active owner-confirmed window. Draft publication never force-pushes, rebases, marks ready, merges, tags, releases, or deploys.
 
-## Current scope and non-goals
+## Platform APIs
 
-The current product scope is a **minimal integration layer** around mature development tools while product extensions remain undecided. The following are **not active implementation scope**:
+The loopback Task API exposes:
 
-```text
-generic LangGraph orchestration platform
-generic Agent Registry
-generic multi-agent organization
-generic Web agent control console
-GitHub Issue/PR state replication
-generic checkpoint/retry/reconciliation platform
-Open SWE fork or OpenHands control-plane product
-specific hostile-binary, reverse-solving, crash, patch, malware, or firmware product work
+- `/api/goals` for persistent goal planning, approval, amendment, and launch;
+- `/api/windows` for owner-activated time, repository, capability, WIP, task, and retry budgets;
+- `/api/platform/status` and `/api/capabilities` for product readiness;
+- `/api/tasks` for execution truth, events, changed files, validation, and evidence;
+- `/api/tasks/{id}/publish` for idempotent allowlisted Draft-PR publication.
+
+Provider-free tests cover the entire control path. Real model/API probes are separate R3 operations and are never part of ordinary startup or CI.
+
+## Authority model
+
+Two authority paths remain fail-closed:
+
+- Path A: approved immutable GitHub Work Item snapshots for ordinary R0/R1 work.
+- Path B: approved Decision, generated Command Plan, and `PRE_EXECUTION_AUTHORIZED` for R2/R3 work.
+
+An autonomous window is execution policy, not repository-development authority. It cannot expand its own repositories, capabilities, duration, budgets, or publication boundary.
+
+## Verification
+
+```powershell
+python -m pytest -q
+npm --prefix frontend run typecheck
+npm --prefix frontend test
+npm --prefix frontend run build
+python -m reverse_agent.freshness --registry governance/freshness-registry.json --repository-root .
+git diff --check
 ```
 
-Security and binary direction remain **extension candidates**, not current implementation scope.
-
-## Platform V1 — bounded OpenHands Agent Canvas + Codex ACP direction
-
-The current selected bounded Platform V1 integration direction is **OpenHands Agent Canvas + Codex ACP**. This is a thin adapter layer (`reverse_agent/platform_v1/`) that binds the repository's governance layer (risk classification, path/operation policy, trusted evidence, deterministic acceptance) to the pinned OpenHands Agent Canvas + Codex ACP platform surface.
-
-```text
-do not fork OpenHands
-do not copy its frontend or Agent Loop
-do not build a second control platform
-do not auto-merge
-```
-
-The adapter does not implement an executor, agent loop, sandbox, database, or frontend. Live compatibility probes (Agent Canvas startup, Agent Server health, Codex ACP authentication, restart recovery) require a trusted host with explicit opt-in and are not executable in the provider-free CI environment. The current status is `PR97_CODE_REWORK_COMPLETE_AWAITING_TRUSTED_HOST_LIVE_PROBE` — the full vertical slice is not yet accepted.
+Renovate proposes dependency updates without automerge. The freshness registry records the owner, upstream source, pinned/compatible version, evidence path, and review age for mature platform components.
 
 ## Reference documents
 
-- [AGENTS.md](AGENTS.md) — repository operating guide for agents and contributors
-- [docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md](docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md) — single active top-level roadmap
-- [docs/architecture/SOURCE_OF_TRUTH_MATRIX.md](docs/architecture/SOURCE_OF_TRUTH_MATRIX.md) — authoritative source for each class of fact
-- [.github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml](.github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml) — R1 Work Item Issue template
-
-## Legacy documentation (not the current workflow)
-
-The active development stack and authority paths above define the current workflow. The following legacy artifact is retained as historical reference only and is **not** the default current workflow:
-
-- [docs/run_closeout.md](docs/run_closeout.md) — legacy engineering-round closeout documentation. The `run-closeout` command and `project_state/decision_packet.md`-as-sole-authority model described there are superseded for ordinary R0/R1 work by the Work Item Issue body authority (Path A) defined above.
+- [AGENTS.md](AGENTS.md) — repository authority, risk, publication, and stop rules
+- [active roadmap](docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md)
+- [source-of-truth matrix](docs/architecture/SOURCE_OF_TRUTH_MATRIX.md)
+- [R1 Work Item template](.github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml)
+- [legacy `run-closeout` reference](docs/run_closeout.md) — historical compatibility only

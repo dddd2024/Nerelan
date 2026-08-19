@@ -46,3 +46,7 @@ codex_login*
 # Known managed runtime scratch (classification only; never cleanup authority)
 task_workspaces/
 .platform_v1_runtime/
+
+# Legacy provider-free tests may materialize nested fixture repositories at the
+# selected workspace root. They are runtime scratch, never product source.
+task-[0-9]*-*/
