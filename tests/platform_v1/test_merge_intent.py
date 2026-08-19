@@ -30,6 +30,7 @@ ARCHIVE_PR112_V3_PATH = INTENTS_DIR / "archive" / "pr112_v3.json"
 ARCHIVE_PR112_V4_PATH = INTENTS_DIR / "archive" / "pr112_v4.json"
 ARCHIVE_PR112_V5_PATH = INTENTS_DIR / "archive" / "pr112_v5.json"
 ARCHIVE_PR112_V6_PATH = INTENTS_DIR / "archive" / "pr112_v6.json"
+ARCHIVE_PR257_PATH = INTENTS_DIR / "archive" / "pr257_v1.json"
 DECISION_PATH = REPO_ROOT / "project_state" / "decision_packet.md"
 COMMAND_PLAN_PATH = REPO_ROOT / "project_state" / "gates" / "command_plan.json"
 
@@ -57,6 +58,7 @@ EXPECTED_PR112_V3_GIT_BLOB = "3c246c1377df2504bb95fbd4d9865860b017b049"
 EXPECTED_PR112_V4_GIT_BLOB = "78104b6ae6746b0b5bf3b409f7dd2054ca23fcd9"
 EXPECTED_PR112_V5_GIT_BLOB = "64e555a98a1b748b2e320abb4559922bdc0d3649"
 EXPECTED_PR112_V6_GIT_BLOB = "ed960c0e117051e8915b457028e4c0e5f0c3e07c"
+EXPECTED_PR257_V1_GIT_BLOB = "972fcbec132fffc089d9e20bec0d4dc7eed2b31b"
 
 
 def _load_json(path: Path) -> dict:
@@ -570,6 +572,43 @@ class TestArchivedPR112V6Intent:
             "decision_20260804_issue111_pr112_bootstrap_path_tree_seal_v6"
         )
         assert data["locked_base_sha"] == EXPECTED_BOOTSTRAP_BASE_SHA
+
+
+# ---------------------------------------------------------------------------
+# Archived PR257 v1 intent (exact pre-binding active bytes)
+# ---------------------------------------------------------------------------
+
+class TestArchivedPR257V1Intent:
+    def test_archive_pr257_v1_file_exists(self) -> None:
+        assert ARCHIVE_PR257_PATH.exists(), (
+            f"pr257_v1.json not found at {ARCHIVE_PR257_PATH}"
+        )
+
+    def test_archive_pr257_v1_is_exact_pre_binding_active_blob(self) -> None:
+        payload = ARCHIVE_PR257_PATH.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == EXPECTED_PR257_V1_GIT_BLOB
+
+    def test_archive_pr257_v1_preserves_identity_and_base(self) -> None:
+        data = _load_json(ARCHIVE_PR257_PATH)
+        assert data["schema_version"] == 1
+        assert data["source_pr"] == 257
+        assert data["intent_id"] == "pr257_issue250_platform_v2_landing_v1"
+        assert data["decision_identity"]["decision_id"] == (
+            "decision_20260819_issue250_platform_v2_landing_r2_v9"
+        )
+        assert data["locked_base_sha"] == (
+            "706991ad0cb826d7c963a8ddfb7e770e97cdf60b"
+        )
+
+    def test_archive_pr257_v1_preserves_four_run_policy(self) -> None:
+        data = _load_json(ARCHIVE_PR257_PATH)
+        assert data["required_workflows"] == [
+            "CI",
+            "Decision Preflight",
+            "State Gate (pull_request)",
+            "State Gate (push)",
+        ]
 
 
 # ---------------------------------------------------------------------------

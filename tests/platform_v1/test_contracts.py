@@ -981,6 +981,7 @@ class TestActiveMergeIntentV6:
         self._archive_pr112_v3_path = intents_dir / "archive" / "pr112_v3.json"
         self._archive_pr112_v4_path = intents_dir / "archive" / "pr112_v4.json"
         self._archive_pr112_v5_path = intents_dir / "archive" / "pr112_v5.json"
+        self._archive_pr257_path = intents_dir / "archive" / "pr257_v1.json"
         self._decision_path = repo_root / "project_state" / "decision_packet.md"
         self._command_plan_path = repo_root / "project_state" / "gates" / "command_plan.json"
         self._active = json.loads(self._active_path.read_text(encoding="utf-8"))
@@ -1008,6 +1009,9 @@ class TestActiveMergeIntentV6:
         )
         self._archive_pr112_v5 = json.loads(
             self._archive_pr112_v5_path.read_text(encoding="utf-8")
+        )
+        self._archive_pr257 = json.loads(
+            self._archive_pr257_path.read_text(encoding="utf-8")
         )
 
     @pytest.mark.skipif(
@@ -1114,6 +1118,44 @@ class TestActiveMergeIntentV6:
     def test_active_has_bounded_expiry(self) -> None:
         expires = self._active.get("expires_at", "")
         assert expires and expires.endswith("Z")
+
+    def test_active_intent_id_matches_bound_pr(self) -> None:
+        data = self._active
+        assert str(data["source_pr"]) in data["intent_id"], (
+            f"intent_id={data['intent_id']} must reference source_pr={data['source_pr']}"
+        )
+
+    def test_archive_pr257_preserves_previous_landing_identity(self) -> None:
+        assert self._archive_pr257["schema_version"] == 1
+        assert self._archive_pr257["source_pr"] == 257
+        assert self._archive_pr257["intent_id"] == (
+            "pr257_issue250_platform_v2_landing_v1"
+        )
+        assert self._archive_pr257["decision_identity"]["decision_id"] == (
+            "decision_20260819_issue250_platform_v2_landing_r2_v9"
+        )
+        assert self._archive_pr257["locked_base_sha"] == (
+            "706991ad0cb826d7c963a8ddfb7e770e97cdf60b"
+        )
+
+    def test_archive_pr257_is_exact_pre_binding_active_blob(self) -> None:
+        payload = self._archive_pr257_path.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "972fcbec132fffc089d9e20bec0d4dc7eed2b31b"
+        )
+
+    def test_active_binds_exact_pr_not_issue_number(self) -> None:
+        """Post-binding: the active intent must carry the real PR number."""
+        from reverse_agent.project_state import extract_markdown_json_block
+        decision_text = self._decision_path.read_text(encoding="utf-8")
+        contract = extract_markdown_json_block(decision_text, "decision_contract")
+        if not _active_intent_binds_current_decision():
+            assert _contract_defers_pr_binding()
+            return
+        assert contract.get("issue_number_must_not_substitute_for_pr_number") is True
+        assert self._active["source_pr"] != contract["source_issue"]
+        assert self._active["source_pr"] > 0
 
     def test_archive_v1_exists_and_preserves_v1_decision_id(self) -> None:
         assert self._archive_v1["decision_identity"]["decision_id"] == (

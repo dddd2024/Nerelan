@@ -750,6 +750,63 @@ def test_committed_active_intent_rejects_stale_authority(
     assert observed[expected_failure] == "FAIL"
 
 
+@pytest.mark.skipif(
+    not _committed_decision_requires_active_merge_intent(),
+    reason="engineering Decision does not activate a mainline merge intent",
+)
+def test_committed_active_intent_rejects_issue_number_substitution() -> None:
+    """The Issue number must never substitute for the exact GitHub PR number."""
+    intent = json.loads(
+        _committed_blob("project_state/mainline_merge_intents/active.json")
+    )
+    decision_blob = _committed_blob("project_state/decision_packet.md")
+    contract_matches = re.findall(
+        rb"```json decision_contract\r?\n(.*?)\r?\n```",
+        decision_blob,
+        re.DOTALL,
+    )
+    assert len(contract_matches) == 1
+    contract = json.loads(contract_matches[0])
+    issue_number = int(contract["source_issue"])
+    assert intent["source_pr"] > 0
+    assert intent["source_pr"] != issue_number
+
+    if not _committed_active_intent_binds_current_decision():
+        pytest.skip("exact PR number binding commit not landed yet")
+
+    substituted = dict(intent)
+    substituted["source_pr"] = issue_number
+    checks = _validate_intent(
+        substituted,
+        repo_root=REPO_ROOT,
+        accepted_head="HEAD",
+        source_pr=intent["source_pr"],
+        locked_base=intent["locked_base_sha"],
+        now=NOW,
+    )
+    observed = {check["name"]: check["status"] for check in checks}
+    assert observed["intent_source_pr"] == "FAIL", checks
+
+
+def test_committed_pr257_archived_intent_preserves_exact_v1_authority() -> None:
+    """The archived PR257 v1 intent must preserve its four-run binding verbatim."""
+    intent = json.loads(
+        _committed_blob(
+            "project_state/mainline_merge_intents/archive/pr257_v1.json"
+        )
+    )
+    assert intent["schema_version"] == 1
+    assert intent["intent_id"] == "pr257_issue250_platform_v2_landing_v1"
+    assert intent["source_pr"] == 257
+    assert intent["locked_base_sha"] == "706991ad0cb826d7c963a8ddfb7e770e97cdf60b"
+    assert (
+        intent["decision_identity"]["decision_id"]
+        == "decision_20260819_issue250_platform_v2_landing_r2_v9"
+    )
+    assert intent["required_workflows"] == list(CANONICAL_WORKFLOW_POLICY)
+    assert intent["expires_at"] == "2026-08-20T23:59:59Z"
+
+
 def test_future_replacement_decision_without_matching_intent_fails(
     tmp_path: Path,
 ) -> None:
