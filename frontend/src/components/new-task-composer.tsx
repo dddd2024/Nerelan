@@ -3,7 +3,9 @@ import { Plus, Send, X } from "lucide-react";
 import { PermissionSelector } from "@/components/permission-selector";
 import { AuthorizationSummary } from "@/components/authorization-summary";
 import { CustomPolicyEditor } from "@/components/custom-policy-editor";
-import { useModelProfiles } from "@/hooks/use-model-profiles";
+import { useBindings } from "@/hooks/use-model-access";
+import { useRepositories } from "@/hooks/use-repositories";
+import type { Repository } from "@/hooks/use-repositories";
 import type { CreateTaskInput } from "@/hooks/use-tasks";
 import { profileToPolicy } from "@/lib/profile-mapper";
 import type { PolicyContract, PermissionMode } from "@/types";
@@ -21,7 +23,7 @@ const EXECUTOR_OPTIONS: ExecutorOption[] = [
   {
     value: "opencode",
     label: "OpenCode (真实执行)",
-    description: "OpenCode · Host configured model",
+    description: "OpenCode · 通过绑定选择模型",
   },
   {
     value: "deterministic_fixture",
@@ -36,56 +38,65 @@ interface NewTaskComposerProps {
   onSubmit?: (input: CreateTaskInput) => void | Promise<void>;
 }
 
-/**
- * OpenHands 1.8.0 NewConversation / InteractiveChatBox adaptation.
- *
- * The composer binds each new task to an executor. In OpenCode mode the
- * task is executed by the host-configured OpenCode session; the frontend
- * does not require, send, or display a model-control profile id for
- * OpenCode. In deterministic_fixture mode the existing mock/provider-free
- * path remains explicit and requires a model profile for compatibility.
- */
 export function NewTaskComposer({
   open,
   onClose,
   onSubmit,
 }: NewTaskComposerProps) {
   const [title, setTitle] = useState("");
-  const [modelProfileId, setModelProfileId] = useState("coding-default");
   const [executorChoice, setExecutorChoice] = useState<ExecutorChoice>("opencode");
+  const isOpenCode = executorChoice === "opencode";
+  const [selectedBindingId, setSelectedBindingId] = useState("");
+  const [selectedRepositoryUrl, setSelectedRepositoryUrl] = useState("");
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(
     "ASK_FOR_APPROVAL",
   );
   const [customPolicy, setCustomPolicy] = useState<PolicyContract | null>(null);
   const [showCustomEditor, setShowCustomEditor] = useState(false);
-  const profilesQuery = useModelProfiles();
-  const enabledProfiles = useMemo(
-    () => (profilesQuery.data ?? []).filter((profile) => profile.enabled),
-    [profilesQuery.data],
+  const bindingsQuery = useBindings();
+  const reposQuery = useRepositories({ enabled: isOpenCode });
+  const opencodeBindings = useMemo(
+    () =>
+      (bindingsQuery.data ?? []).filter(
+        (b) => b.enabled && b.executorId === "opencode",
+      ),
+    [bindingsQuery.data],
+  );
+  const repositories: Repository[] = useMemo(
+    () => (Array.isArray(reposQuery.data) ? reposQuery.data : []),
+    [reposQuery.data],
   );
   const [dataReceived, setDataReceived] = useState(false);
+  const [repoDataReceived, setRepoDataReceived] = useState(false);
   const [userInteracted, setUserInteracted] = useState(false);
-  const isOpenCode = executorChoice === "opencode";
 
   useEffect(() => {
     if (dataReceived || userInteracted) {
       return;
     }
-    if (profilesQuery.data === undefined) {
+    if (bindingsQuery.data === undefined) {
       return;
     }
-    const enabled = (profilesQuery.data).filter((profile) => profile.enabled);
-    if (enabled.length > 0) {
-      const requestedDefault = enabled.find((profile) => profile.isDefault);
-      const fallback = requestedDefault ?? enabled[0];
-      if (fallback) {
-        setModelProfileId(fallback.id);
-      }
-    } else {
-      setModelProfileId("");
+    const usable = opencodeBindings.length > 0 ? opencodeBindings[0] : null;
+    if (usable) {
+      setSelectedBindingId(usable.bindingId);
     }
     setDataReceived(true);
-  }, [profilesQuery.data, dataReceived, userInteracted]);
+  }, [
+    bindingsQuery.data,
+    opencodeBindings,
+    dataReceived,
+    userInteracted,
+  ]);
+
+  useEffect(() => {
+    if (repoDataReceived || userInteracted) return;
+    if (reposQuery.data === undefined) return;
+    if (repositories.length > 0) {
+      setSelectedRepositoryUrl(repositories[0].html_url);
+    }
+    setRepoDataReceived(true);
+  }, [reposQuery.data, repositories, repoDataReceived, userInteracted]);
 
   const handlePermissionChange = useCallback(
     (mode: PermissionMode) => {
@@ -111,14 +122,40 @@ export function NewTaskComposer({
     setShowCustomEditor(false);
   }, []);
 
+  const handleRepositoryChange = useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      setUserInteracted(true);
+      const url = event.target.value;
+      setSelectedRepositoryUrl(url);
+    },
+    [],
+  );
+
   if (!open) return null;
 
   const policy: PolicyContract = customPolicy
     ? customPolicy
     : profileToPolicy(permissionMode);
+
+  const hasValidOpenCodeBinding =
+    isOpenCode &&
+    opencodeBindings.length > 0 &&
+    opencodeBindings.some((b) => b.bindingId === selectedBindingId);
+
+  const hasSelectedRepository =
+    isOpenCode && Boolean(selectedRepositoryUrl.trim());
+
   const canSubmit = isOpenCode
-    ? Boolean(title.trim())
-    : Boolean(title.trim() && modelProfileId);
+    ? Boolean(title.trim() && hasValidOpenCodeBinding && hasSelectedRepository)
+    : Boolean(title.trim());
+
+  const selectedBinding = opencodeBindings.find(
+    (b) => b.bindingId === selectedBindingId,
+  );
+
+  const selectedRepository = repositories.find(
+    (r) => r.html_url === selectedRepositoryUrl,
+  );
 
   return (
     <div
@@ -204,7 +241,10 @@ export function NewTaskComposer({
                     name="task-executor"
                     value={option.value}
                     checked={executorChoice === option.value}
-                    onChange={() => setExecutorChoice(option.value)}
+                    onChange={() => {
+                      setExecutorChoice(option.value);
+                      setUserInteracted(true);
+                    }}
                     className="mt-0.5"
                   />
                   <span className="flex flex-col">
@@ -216,62 +256,138 @@ export function NewTaskComposer({
                 </label>
               ))}
             </div>
-            {isOpenCode && (
-              <p
-                data-testid="opencode-model-note"
-                className="mt-1 text-xs text-ra-text-tertiary"
-              >
-                模型由本机 OpenCode 配置提供
-              </p>
-            )}
           </div>
 
-          <div className="w-full mt-3">
-            <label
-              htmlFor="task-model-profile"
-              className="block text-xs text-ra-text-tertiary mb-1"
-            >
-              模型配置
-            </label>
-            <div className="flex flex-col gap-1">
-              <select
-                id="task-model-profile"
-                aria-label="模型配置"
-                value={modelProfileId}
-                onChange={(event) => {
-                  setUserInteracted(true);
-                  setModelProfileId(event.target.value);
-                }}
-                disabled={
-                  isOpenCode || profilesQuery.isLoading || enabledProfiles.length === 0
-                }
-                data-testid="task-model-profile-select"
-                className={cn(
-                  "w-full rounded-md border border-ra-border bg-ra-input",
-                  "px-3 py-1.5 text-sm text-ra-text",
-                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-                  "disabled:cursor-not-allowed disabled:opacity-50",
+          {isOpenCode ? (
+            <div className="w-full mt-3">
+              <div className="w-full mb-3">
+                <label
+                  htmlFor="task-opencode-binding"
+                  className="block text-xs text-ra-text-tertiary mb-1"
+                >
+                  OpenCode 绑定
+                </label>
+                <div className="flex flex-col gap-1">
+                  <select
+                    id="task-opencode-binding"
+                    aria-label="OpenCode 绑定"
+                    value={selectedBindingId}
+                    onChange={(event) => {
+                      setUserInteracted(true);
+                      setSelectedBindingId(event.target.value);
+                    }}
+                    disabled={bindingsQuery.isLoading || opencodeBindings.length === 0}
+                    data-testid="task-opencode-binding-select"
+                    className={cn(
+                      "w-full rounded-md border border-ra-border bg-ra-input",
+                      "px-3 py-1.5 text-sm text-ra-text",
+                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+                      "disabled:cursor-not-allowed disabled:opacity-50",
+                    )}
+                  >
+                    {bindingsQuery.isLoading && <option value="">正在加载…</option>}
+                    {!bindingsQuery.isLoading && opencodeBindings.length === 0 && (
+                      <option value="">
+                        请先在设置中创建 OpenCode 绑定
+                      </option>
+                    )}
+                    {opencodeBindings.map((binding) => (
+                      <option key={binding.bindingId} value={binding.bindingId}>
+                        {binding.name} · {binding.modelId}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {bindingsQuery.isError && (
+                  <p role="alert" className="mt-1 text-xs text-red-300">
+                    绑定加载失败
+                  </p>
                 )}
-              >
-                {profilesQuery.isLoading && <option value="">正在加载…</option>}
-                {!profilesQuery.isLoading && enabledProfiles.length === 0 && (
-                  <option value="">请先在设置中创建模型配置</option>
+                {!bindingsQuery.isLoading && opencodeBindings.length === 0 && (
+                  <p className="mt-1 text-xs text-amber-300" data-testid="no-binding-hint">
+                    没有可用的 OpenCode 绑定，请前往设置创建。
+                  </p>
                 )}
-                {enabledProfiles.map((profile) => (
-                  <option key={profile.id} value={profile.id}>
-                    {profile.name} · {profile.modelId}
-                  </option>
-                ))}
-              </select>
+                {selectedBinding && (
+                  <p className="mt-1 text-xs text-ra-text-tertiary" data-testid="selected-binding-info">
+                    已选：{selectedBinding.name} · {selectedBinding.modelId}
+                  </p>
+                )}
+              </div>
+
+              <div className="w-full">
+                <label
+                  htmlFor="task-opencode-repository"
+                  className="block text-xs text-ra-text-tertiary mb-1"
+                >
+                  GitHub 仓库
+                </label>
+                <div className="flex flex-col gap-1">
+                  <select
+                    id="task-opencode-repository"
+                    aria-label="GitHub 仓库"
+                    value={selectedRepositoryUrl}
+                    onChange={handleRepositoryChange}
+                    disabled={
+                      reposQuery.isLoading || repositories.length === 0
+                    }
+                    data-testid="task-opencode-repository-select"
+                    className={cn(
+                      "w-full rounded-md border border-ra-border bg-ra-input",
+                      "px-3 py-1.5 text-sm text-ra-text",
+                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+                      "disabled:cursor-not-allowed disabled:opacity-50",
+                    )}
+                  >
+                    {reposQuery.isLoading && (
+                      <option value="">正在加载仓库列表…</option>
+                    )}
+                    {!reposQuery.isLoading && repositories.length === 0 && (
+                      <option value="">
+                        无法加载仓库列表，请确认 GitHub 登录状态
+                      </option>
+                    )}
+                    {repositories.map((repo) => (
+                      <option
+                        key={repo.full_name}
+                        value={repo.html_url}
+                      >
+                        {repo.full_name}{repo.is_private ? " (私有)" : " (公开)"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {reposQuery.isError && (
+                  <p
+                    role="alert"
+                    className="mt-1 text-xs text-red-300"
+                    data-testid="repository-discovery-error"
+                  >
+                    仓库发现失败：{reposQuery.error?.message ?? "未知错误"}。请确认 GitHub CLI 已登录。
+                  </p>
+                )}
+                {!reposQuery.isLoading && repositories.length === 0 && (
+                  <p
+                    className="mt-1 text-xs text-amber-300"
+                    data-testid="no-repositories-hint"
+                  >
+                    未找到可用的 GitHub 仓库，请确认 GitHub 登录状态。
+                  </p>
+                )}
+                {selectedRepository && (
+                  <p
+                    className="mt-1 text-xs text-ra-text-tertiary"
+                    data-testid="selected-repository-info"
+                  >
+                    已选：{selectedRepository.full_name} ·{" "}
+                    {selectedRepository.visibility}
+                  </p>
+                )}
+              </div>
             </div>
-            {profilesQuery.isError && (
-              <p role="alert" className="mt-1 text-xs text-red-300">
-                {profilesQuery.error instanceof Error
-                  ? profilesQuery.error.message
-                  : "模型配置加载失败"}
-              </p>
-            )}
-          </div>
+          ) : (
+            <div className="w-full mt-3" />
+          )}
 
           <div className="flex flex-col gap-2 w-full mt-3">
             <PermissionSelector
@@ -297,7 +413,8 @@ export function NewTaskComposer({
                 void onSubmit?.({
                   title: title.trim(),
                   executorKind: executorChoice,
-                  modelProfileId,
+                  bindingRef: isOpenCode ? selectedBindingId : undefined,
+                  repository: isOpenCode ? selectedRepositoryUrl : undefined,
                   permissionProfile: permissionMode,
                   policy,
                   idempotencyKey,

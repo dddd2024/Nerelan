@@ -62,6 +62,14 @@
   --ra-status-error: #ff684e;
   --ra-panel-bg: #171717;
   --ra-panel-input: #27272a;
+
+  /* Agent Canvas v1.6.1 presentation compatibility aliases.
+     These map the pinned source fork onto the existing reverse-agent palette;
+     they are aliases, not a second theme or runtime design system. */
+  --oh-border: var(--ra-border);
+  --oh-muted: var(--ra-text-secondary);
+  --oh-surface: var(--ra-workspace);
+  --oh-surface-raised: var(--ra-sidebar);
 }
 
 /* Dark mode by default (OpenHands uses darkMode: "class") */

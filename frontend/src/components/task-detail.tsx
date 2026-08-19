@@ -23,6 +23,8 @@ import {
 } from "@/lib/format";
 import { profileToPolicy } from "@/lib/profile-mapper";
 import type { PolicyContract, Task } from "@/types";
+import { AgentCanvasWorkbenchFrame } from "@/vendor/agent-canvas-v1.6.1/agent-canvas-workbench-frame";
+import { ResizeHandle } from "@/vendor/agent-canvas-v1.6.1/resize-handle";
 
 type WorkspacePane = "changes" | "evidence" | "authority";
 type MobilePane = "activity" | WorkspacePane;
@@ -37,7 +39,7 @@ const RIGHT_TABS: {
   { id: "authority", label: "Authority", icon: ShieldCheck },
 ];
 
-interface RightPanelTabsProps {
+interface RightPanelProps {
   rightTab: WorkspacePane;
   setRightTab: (tab: WorkspacePane) => void;
   displayTask: Task;
@@ -62,61 +64,65 @@ function renderWorkspacePane(
 }
 
 /** Right-side navigation and content for the desktop two-pane workspace. */
-function RightPanelTabs({
+function RightPanelTabList({
   rightTab,
   setRightTab,
+}: Pick<RightPanelProps, "rightTab" | "setRightTab">) {
+  return (
+    <div
+      role="tablist"
+      aria-label="工作区分区"
+      className="flex min-h-10 items-center gap-0.5 px-1.5"
+    >
+      {RIGHT_TABS.map((tab) => {
+        const TabIcon = tab.icon;
+        const selected = rightTab === tab.id;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            id={`tab-${tab.id}`}
+            aria-selected={selected}
+            aria-controls={`tabpanel-${tab.id}`}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => setRightTab(tab.id)}
+            className={cn(
+              "flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+              selected
+                ? "bg-ra-tertiary text-ra-text"
+                : "text-ra-text-tertiary hover:text-ra-text hover:bg-ra-tertiary/50",
+            )}
+            data-testid={`right-tab-${tab.id}`}
+          >
+            <TabIcon className="h-4 w-4" aria-hidden="true" />
+            <span>{tab.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function RightPanelContent({
+  rightTab,
   displayTask,
   policy,
-}: RightPanelTabsProps) {
+}: Omit<RightPanelProps, "setRightTab">) {
   return (
-    <>
-      <div
-        role="tablist"
-        aria-label="工作区分区"
-        className="flex items-center gap-1 p-1 border-b border-ra-border"
-      >
-        {RIGHT_TABS.map((tab) => {
-          const TabIcon = tab.icon;
-          const selected = rightTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              id={`tab-${tab.id}`}
-              aria-selected={selected}
-              aria-controls={`tabpanel-${tab.id}`}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => setRightTab(tab.id)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium",
-                "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-                selected
-                  ? "bg-ra-tertiary text-ra-text"
-                  : "text-ra-text-tertiary hover:text-ra-text hover:bg-ra-tertiary/50",
-              )}
-              data-testid={`right-tab-${tab.id}`}
-            >
-              <TabIcon className="h-4 w-4" aria-hidden="true" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
+    <div
+      role="tabpanel"
+      id={`tabpanel-${rightTab}`}
+      aria-labelledby={`tab-${rightTab}`}
+      className="h-full overflow-y-auto custom-scrollbar"
+      data-testid="right-panel-content"
+      data-active-pane={rightTab}
+    >
+      <div className="p-4">
+        {renderWorkspacePane(rightTab, displayTask, policy)}
       </div>
-
-      <div
-        role="tabpanel"
-        id={`tabpanel-${rightTab}`}
-        aria-labelledby={`tab-${rightTab}`}
-        className="h-[calc(100%-48px)] overflow-y-auto custom-scrollbar"
-        data-testid="right-panel-content"
-        data-active-pane={rightTab}
-      >
-        <div className="p-4">
-          {renderWorkspacePane(rightTab, displayTask, policy)}
-        </div>
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -138,6 +144,47 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
   const breakpoint = useBreakpoint();
   const isDesktop = breakpoint === "desktop";
   const splitContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const splitContainer = splitContainerRef.current;
+      if (!splitContainer) return;
+      const rect = splitContainer.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      setLeftWidth(clampWidth(((event.clientX - rect.left) / rect.width) * 100));
+    };
+    const stopDragging = () => setIsDragging(false);
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", stopDragging);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", stopDragging);
+    };
+  }, [isDragging]);
+
+  const handleResizeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    switch (event.key) {
+      case "ArrowLeft":
+        setLeftWidth((width) => clampWidth(width - 5));
+        event.preventDefault();
+        break;
+      case "ArrowRight":
+        setLeftWidth((width) => clampWidth(width + 5));
+        event.preventDefault();
+        break;
+      case "Home":
+        setLeftWidth(30);
+        event.preventDefault();
+        break;
+      case "End":
+        setLeftWidth(80);
+        event.preventDefault();
+        break;
+    }
+  };
 
   const displayTask = task ?? null;
 
@@ -289,50 +336,47 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
       </dl>
 
       {isDesktop ? (
-        <div
-          ref={splitContainerRef}
-          data-testid="desktop-split-container"
-          className="flex flex-row flex-1 overflow-hidden"
-        >
-          <div
-            id="desktop-left-panel"
-            data-testid="desktop-left-panel"
-            className="flex flex-col bg-ra-workspace overflow-hidden flex-1 md:flex-none transition-all duration-300 ease-in-out"
-            style={{
-              width: `${leftWidth}%`,
-              transitionProperty: isDragging ? "none" : "all",
-            }}
-          >
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
-              <ActivityStream events={displayTask.activity} />
+        <AgentCanvasWorkbenchFrame
+          containerRef={splitContainerRef}
+          leftWidth={leftWidth}
+          isDragging={isDragging}
+          primaryHeader={
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="text-sm font-medium text-ra-text">Activity</span>
+              <span className="text-xs text-[var(--oh-muted)]">
+                {displayTask.activity.length} events
+              </span>
             </div>
-          </div>
-
-          <ResizeHandle
-            leftWidth={leftWidth}
-            onWidthChange={setLeftWidth}
-            splitContainerRef={splitContainerRef}
-            onDraggingChange={setIsDragging}
-          />
-
-          <div
-            id="desktop-right-panel"
-            data-testid="desktop-right-panel"
-            className="flex flex-col overflow-hidden bg-ra-sidebar flex-1 md:flex-none transition-all duration-300 ease-in-out"
-            style={{
-              width: `calc(${100 - leftWidth}% - 4px)`,
-              minWidth: "240px",
-              transitionProperty: isDragging ? "none" : "all",
-            }}
-          >
-            <RightPanelTabs
+          }
+          primaryPane={<ActivityStream events={displayTask.activity} />}
+          resizeHandle={
+            <ResizeHandle
+              onMouseDown={(event) => {
+                event.preventDefault();
+                setIsDragging(true);
+              }}
+              onKeyDown={handleResizeKeyDown}
+              value={leftWidth}
+              min={30}
+              max={80}
+              controls="desktop-left-panel desktop-right-panel"
+              isDragging={isDragging}
+            />
+          }
+          secondaryTabs={
+            <RightPanelTabList
               rightTab={rightTab}
               setRightTab={setRightTab}
+            />
+          }
+          secondaryPane={
+            <RightPanelContent
+              rightTab={rightTab}
               displayTask={displayTask}
               policy={policy}
             />
-          </div>
-        </div>
+          }
+        />
       ) : (
         <div className="flex flex-col flex-1 overflow-hidden">
           <div
@@ -441,104 +485,8 @@ function MobileTab({
   );
 }
 
-interface ResizeHandleProps {
-  leftWidth: number;
-  onWidthChange: (width: number) => void;
-  splitContainerRef: React.RefObject<HTMLDivElement | null>;
-  onDraggingChange: (dragging: boolean) => void;
-}
-
 function clampWidth(width: number) {
   return Math.max(30, Math.min(80, width));
-}
-
-/** Mouse- and keyboard-operable separator for the desktop workspace split. */
-function ResizeHandle({
-  leftWidth,
-  onWidthChange,
-  splitContainerRef,
-  onDraggingChange,
-}: ResizeHandleProps) {
-  const [isDragging, setIsDragging] = useState(false);
-
-  useEffect(() => {
-    if (!isDragging) return;
-
-    const handleMouseMove = (event: MouseEvent) => {
-      const splitContainer = splitContainerRef.current;
-      if (!splitContainer) return;
-
-      const rect = splitContainer.getBoundingClientRect();
-      if (rect.width <= 0) return;
-
-      const nextWidth = ((event.clientX - rect.left) / rect.width) * 100;
-      onWidthChange(clampWidth(nextWidth));
-    };
-
-    const stopDragging = () => {
-      setIsDragging(false);
-      onDraggingChange(false);
-    };
-
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", stopDragging);
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", stopDragging);
-      onDraggingChange(false);
-    };
-  }, [isDragging, onDraggingChange, onWidthChange, splitContainerRef]);
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    switch (event.key) {
-      case "ArrowLeft":
-        onWidthChange(clampWidth(leftWidth - 5));
-        event.preventDefault();
-        break;
-      case "ArrowRight":
-        onWidthChange(clampWidth(leftWidth + 5));
-        event.preventDefault();
-        break;
-      case "Home":
-        onWidthChange(30);
-        event.preventDefault();
-        break;
-      case "End":
-        onWidthChange(80);
-        event.preventDefault();
-        break;
-    }
-  };
-
-  return (
-    <div
-      className="relative w-1 bg-transparent cursor-ew-resize shrink-0 group"
-      onMouseDown={(event) => {
-        event.preventDefault();
-        setIsDragging(true);
-        onDraggingChange(true);
-      }}
-      role="button"
-      tabIndex={0}
-      aria-label="开始拖动调整面板大小"
-      data-testid="resize-handle-container"
-    >
-      <div
-        role="slider"
-        aria-orientation="vertical"
-        aria-label="调整面板大小"
-        aria-controls="desktop-left-panel desktop-right-panel"
-        aria-valuemin={30}
-        aria-valuemax={80}
-        aria-valuenow={Math.round(leftWidth)}
-        tabIndex={0}
-        onKeyDown={handleKeyDown}
-        className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-ra-border group-hover:bg-ra-border-foreground focus:outline-none focus-visible:w-1 focus-visible:bg-ra-accent"
-        data-testid="resize-handle"
-      />
-      <div className="absolute inset-y-0 -left-1 -right-1" aria-hidden="true" />
-    </div>
-  );
 }
 
 function Meta({ label, value }: { label: string; value: string }) {

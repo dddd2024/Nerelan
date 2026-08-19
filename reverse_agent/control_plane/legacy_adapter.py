@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -41,8 +42,12 @@ def is_transition_decision(contract: Mapping[str, Any]) -> bool:
     return contract.get("transition_kernel_required") is True
 
 
-def detect_control_plane_mode(path: Path) -> str:
-    """Return one deterministic mode token, rejecting malformed authority."""
+def detect_control_plane_mode(
+    path: Path,
+    *,
+    event: Mapping[str, Any] | None = None,
+) -> str:
+    """Select Decision routing or fail-closed ordinary Path-A routing."""
 
     decision, contract = load_transition_decision(path)
     if not decision.decision_id:
@@ -58,7 +63,14 @@ def detect_control_plane_mode(path: Path) -> str:
     flag = contract.get("transition_kernel_required", False)
     if not isinstance(flag, bool):
         raise ValueError("transition_kernel_required_must_be_boolean")
-    return "transition" if flag else "legacy"
+    decision_mode = "transition" if flag else "legacy"
+    if event is None or not isinstance(event.get("pull_request"), Mapping):
+        return decision_mode
+    head_ref = str((event["pull_request"].get("head") or {}).get("ref") or "")
+    required_branch = str(contract.get("required_branch") or "")
+    if required_branch and head_ref == required_branch:
+        return decision_mode
+    return "path_a_r1"
 
 
 def load_legacy_command_plan(path: Path) -> TransitionCommandPlan:
@@ -173,6 +185,20 @@ def _parse_structured_command(raw: Mapping[str, Any], *, bootstrap_exception: bo
     )
 
 
+def _bootstrap_command_id(canonical: str) -> str:
+    """Deterministic bounded identity for a bootstrap command.
+
+    SHA-256 over the full canonical command prevents two distinct bootstrap
+    commands sharing a long raw prefix from colliding.  Avoids ``hash()``
+    (not cross-process stable), random numbers, and timestamps.
+    """
+
+    return (
+        "bootstrap."
+        + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    )
+
+
 def _bootstrap_command_phase(command: str) -> str:
     if command.startswith("python -m pytest"):
         return "test"
@@ -225,7 +251,7 @@ def build_transition_command_plan(
             diagnostic_only=False,
             allowed_only_after_validation=False,
             bootstrap_exception=True,
-            command_id=f"bootstrap.{command[:64]}",
+            command_id=_bootstrap_command_id(canonical_command(command)),
             required_evidence_source=normalize_evidence_source("local_provenance"),
             authority_origin="bootstrap_exception",
         )

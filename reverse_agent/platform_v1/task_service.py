@@ -31,7 +31,9 @@ from .run_store import (
     TaskStore,
     TaskStoreError,
 )
+from .task_execution import TaskExecutionError, TaskExecutionService
 from .task_runtime import ExecutorRuntimeError, ExecutorRouter
+from .durable_execution import DurableExecutionService, DurableResumeError
 
 _MAX_BODY_BYTES = 256 * 1024
 _TASKS_LIMIT = 100
@@ -68,20 +70,6 @@ FAILURE_CLASSIFICATION_TO_TEST_STATUS: dict[str, str] = {
 }
 
 
-def _build_executor_kwargs(task: Mapping[str, Any]) -> dict[str, Any]:
-    """Build executor-specific kwargs from the task and environment."""
-    kwargs: dict[str, Any] = {}
-    executor_kind = str(_map_task_field(task, "executor_kind", ""))
-    if executor_kind == "opencode":
-        model_id = str(_map_task_field(task, "model_profile_ref", "")) or os.environ.get(
-            "REVERSE_AGENT_OPENCODE_MODEL", ""
-        )
-        kwargs["model_id"] = model_id
-        kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
-        kwargs["base_ref"] = str(_map_task_field(task, "branch", ""))
-    return kwargs
-
-
 class _EventView:
     """Attribute-access wrapper around an event dict for uniform response formatting."""
 
@@ -113,10 +101,12 @@ def _map_task_status_to_frontend_state(status: str) -> str:
 def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
     state = _map_task_status_to_frontend_state(str(_map_task_field(task, "status", "")))
     failure_class = str(_map_task_field(task, "failure_classification", "") or "")
+    validation_exit_code = _map_task_field(task, "validation_exit_code", None)
     blocker = ""
     next_action = ""
+    test_status = _derive_test_status(validation_exit_code, _map_task_field(task, "status", ""), failure_class)
     if state == "READY_FOR_HUMAN":
-        next_action = "Owner review of fixture-validated result"
+        next_action = "Owner review of validated result"
     elif failure_class:
         blocker = _map_task_field(task, "failure_detail", failure_class) or failure_class
         next_action = "Investigate failure classification"
@@ -142,12 +132,29 @@ def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
             _map_task_seq(task, "evidence_refs") or _map_task_seq(task, "evidence")
         ),
         "authorityStatus": "APPROVED",
-        "testStatus": FAILURE_CLASSIFICATION_TO_TEST_STATUS.get(failure_class, "PENDING"),
+        "testStatus": test_status,
         "workflowStatus": "PENDING",
         "executor": "fixture/provider-free"
         if _map_task_field(task, "executor_kind", "") == "deterministic_fixture"
         else _map_task_field(task, "executor_kind", ""),
     }
+
+
+def _derive_test_status(
+    validation_exit_code: Any,
+    status: str,
+    failure_class: str,
+) -> str:
+    if validation_exit_code is not None:
+        try:
+            return "PASS" if int(validation_exit_code) == 0 else "FAIL"
+        except (ValueError, TypeError):
+            pass
+    if status == "VALIDATING":
+        return "RUNNING"
+    if failure_class:
+        return FAILURE_CLASSIFICATION_TO_TEST_STATUS.get(failure_class, "PENDING")
+    return "PENDING"
 
 
 def _map_task_field(task: Mapping[str, Any], key: str, default: Any) -> Any:
@@ -225,6 +232,11 @@ class _TaskHandler(BaseHTTPRequestHandler):
     router: ExecutorRouter
     allowed_origin: str
     live_enabled: bool
+    lease_provider: Callable | None = None
+    binding_resolver: Any | None = None
+    github_adapter: Any | None = None
+    execution_authority_sha: str = ""
+    planning_sha: str = ""
 
     server_version = "reverse-agent-task-service/1"
 
@@ -288,6 +300,36 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     return
                 self._send_json(HTTPStatus.OK, self._task_response(task))
                 return
+            if len(segments) == 2 and segments == ["api", "repositories"]:
+                adapter = getattr(self, "github_adapter", None)
+                if adapter is None:
+                    self._send_json(
+                        HTTPStatus.SERVICE_UNAVAILABLE,
+                        {"error": "github_adapter_unavailable"},
+                    )
+                    return
+                try:
+                    repos = adapter.discover_repositories()
+                except Exception as exc:
+                    self._send_json(
+                        HTTPStatus.INTERNAL_SERVER_ERROR,
+                        {"error": "repository_discovery_failed"},
+                    )
+                    return
+                repo_list = []
+                for repo in repos:
+                    if hasattr(repo, "to_dict"):
+                        repo_list.append(repo.to_dict())
+                    elif isinstance(repo, Mapping):
+                        repo_list.append({
+                            "full_name": str(repo.get("full_name", "")),
+                            "html_url": str(repo.get("html_url", "")),
+                            "is_private": bool(repo.get("is_private", False)),
+                            "visibility": str(repo.get("visibility", "")),
+                            "default_branch": str(repo.get("default_branch", "")),
+                        })
+                self._send_json(HTTPStatus.OK, {"repositories": repo_list, "total": len(repo_list)})
+                return
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "route not found"})
         except Exception:
             self._send_json(
@@ -302,7 +344,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
             segments = self._segments()
             if segments == ["api", "tasks"]:
                 payload = self._read_json()
-                task = self._create_task_from_payload(payload)
+                task = self._create_task_from_payload(payload, require_repository_for_opencode=True)
                 self._send_json(HTTPStatus.CREATED, self._task_response(task))
                 return
             if (
@@ -315,17 +357,6 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 )
                 payload = self._read_json(optional=True)
                 command_id = str(payload.get("validation_command_id", "")) if payload else ""
-                try:
-                    task = self.store.get_task(segments[2])
-                except TaskStoreError:
-                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
-                    return
-                if task.status != "QUEUED":
-                    self._send_json(
-                        HTTPStatus.CONFLICT,
-                        {"error": "task_not_queued:%s" % task.status},
-                    )
-                    return
                 if not workspace_root:
                     try:
                         db_path = self.store.db_path
@@ -333,71 +364,152 @@ class _TaskHandler(BaseHTTPRequestHandler):
                         workspace_root = os.path.join(db_dir, "task_workspaces")
                     except Exception:
                         workspace_root = os.path.join(
-                            tempfile.gettempdir(), "issue128_task_workspaces"
+                            tempfile.gettempdir(), "issue151_task_workspaces"
                         )
                     os.makedirs(workspace_root, exist_ok=True)
-                executor_kind = task.executor_kind
-                running_status = "RUNNING" if executor_kind != "deterministic_fixture" else "RUNNING_FIXTURE"
-                review_status = "READY_FOR_REVIEW" if executor_kind != "deterministic_fixture" else "READY_FOR_REVIEW_FIXTURE"
-                task = self.store.transition_to(task.id, "PREPARING_WORKSPACE")
-                task = self.store.transition_to(task.id, running_status)
-                self.store.add_event(
-                    task.id,
-                    event_type="EXECUTOR_RUNNING",
-                    title="Executor running",
-                    description="Executor %s started" % executor_kind,
-                    metadata={"executor_kind": executor_kind},
-                )
-                executor_kwargs: dict[str, Any] = _build_executor_kwargs(task)
                 try:
-                    result = self._run_executor(
-                        task=task,
-                        workspace_root=workspace_root,
-                        validation_command_id=command_id or "git_diff_check",
-                        executor_kwargs=executor_kwargs,
-                    )
-                except ExecutorRuntimeError as exc:
-                    self.store.classify_failure(
-                        task.id,
-                        classification="blocked",
-                        detail=str(exc),
-                    )
-                    task = self.store.get_task(task.id)
-                    self._send_json(HTTPStatus.BAD_REQUEST, self._task_response(task))
+                    task = self.store.get_task(segments[2])
+                except TaskStoreError:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
                     return
-                if result["success"]:
-                    task = self.store.transition_to(task.id, "VALIDATING")
-                    task = self.store.transition_to(task.id, review_status)
-                    self.store.add_event(
-                        task.id,
-                        event_type="VALIDATED",
-                        title="Validation passed",
-                        description=f"{result['validation_command_id']} passed",
-                        metadata={"validation_exit_code": result["validation_exit_code"]},
+                if task.orchestration_mode == "sequential_team":
+                    dur_svc = DurableExecutionService(
+                        store=self.store,
+                        router=self.router,
+                        lease_provider=getattr(self, "lease_provider", None),
+                        binding_resolver=getattr(self, "binding_resolver", None),
+                        execution_authority_sha=getattr(
+                            self, "execution_authority_sha", ""
+                        ),
+                        planning_sha=getattr(
+                            self, "planning_sha", ""
+                        ),
                     )
+                    try:
+                        outcome = dur_svc.execute_durable_sequential_team(
+                            task_id=segments[2],
+                            workspace_root=workspace_root,
+                            lease_owner="task-api",
+                        )
+                    except TaskExecutionError as exc:
+                        if "task_not_found" in str(exc):
+                            self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
+                            return
+                        self._send_json(HTTPStatus.CONFLICT, {"error": str(exc)})
+                        return
+                    except ExecutorRuntimeError as exc:
+                        self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                        return
+                    task = self.store.get_task(segments[2])
+                    self._send_json(HTTPStatus.OK, self._task_response(task))
+                    return
+                elif task.orchestration_mode == "single":
+                    dur_svc = DurableExecutionService(
+                        store=self.store,
+                        router=self.router,
+                        lease_provider=getattr(self, "lease_provider", None),
+                        binding_resolver=getattr(self, "binding_resolver", None),
+                        execution_authority_sha=getattr(
+                            self, "execution_authority_sha", ""
+                        ),
+                        planning_sha=getattr(
+                            self, "planning_sha", ""
+                        ),
+                    )
+                    try:
+                        outcome = dur_svc.execute_durable_single(
+                            task_id=segments[2],
+                            workspace_root=workspace_root,
+                            lease_owner="task-api",
+                        )
+                    except TaskExecutionError as exc:
+                        if "task_not_found" in str(exc):
+                            self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
+                            return
+                        self._send_json(HTTPStatus.CONFLICT, {"error": str(exc)})
+                        return
+                    except ExecutorRuntimeError as exc:
+                        self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                        return
+                    task = self.store.get_task(segments[2])
+                    self._send_json(HTTPStatus.OK, self._task_response(task))
+                    return
                 else:
-                    classification = (
-                        "blocked"
-                        if "unapproved" in result.get("error", "")
-                        else result.get("failure_classification", "failed")
+                    execution_service = TaskExecutionService(
+                        store=self.store,
+                        router=self.router,
+                        lease_provider=getattr(self, "lease_provider", None),
+                        binding_resolver=getattr(self, "binding_resolver", None),
                     )
-                    if classification == "":
-                        classification = "failed"
-                    self.store.classify_failure(
-                        task.id,
-                        classification=classification,
-                        detail=result.get("error", "execution failed"),
-                    )
-                    self.store.add_event(
-                        task.id,
-                        event_type="EXECUTOR_FINISHED",
-                        title="Executor finished",
-                        description=result.get("error", "execution failed"),
-                        metadata={
-                            "validation_exit_code": result["validation_exit_code"],
-                        },
-                    )
-                task = self.store.get_task(task.id)
+                    try:
+                        outcome = execution_service.execute(
+                            task_id=segments[2],
+                            workspace_root=workspace_root,
+                            validation_command_id=command_id or "git_diff_check",
+                        )
+                    except TaskExecutionError as exc:
+                        if "task_not_found" in str(exc):
+                            self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
+                            return
+                        self._send_json(HTTPStatus.CONFLICT, {"error": str(exc)})
+                        return
+                    except ExecutorRuntimeError as exc:
+                        self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                        return
+                    task = self.store.get_task(segments[2])
+                    self._send_json(HTTPStatus.OK, self._task_response(task))
+                    return
+            if (
+                len(segments) == 4
+                and segments[:2] == ["api", "tasks"]
+                and segments[3] == "resume"
+            ):
+                try:
+                    task = self.store.get_task(segments[2])
+                except TaskStoreError:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
+                    return
+                if task.orchestration_mode not in ("sequential_team", "single"):
+                    self._send_json(HTTPStatus.CONFLICT, {
+                        "error": f"not_durable_mode:{task.orchestration_mode}"
+                    })
+                    return
+                run = self.store._find_active_durable_run(segments[2])
+                if run is None:
+                    self._send_json(HTTPStatus.CONFLICT, {
+                        "error": "no_active_durable_run_to_resume"
+                    })
+                    return
+                dur_svc = DurableExecutionService(
+                    store=self.store,
+                    router=self.router,
+                    lease_provider=getattr(self, "lease_provider", None),
+                    binding_resolver=getattr(self, "binding_resolver", None),
+                    execution_authority_sha=getattr(
+                        self, "execution_authority_sha", ""
+                    ),
+                    planning_sha=getattr(
+                        self, "planning_sha", ""
+                    ),
+                )
+                try:
+                    if task.orchestration_mode == "single":
+                        outcome = dur_svc.resume_single(
+                            task_id=segments[2],
+                            lease_owner="task-api-resume",
+                        )
+                    else:
+                        outcome = dur_svc.resume_sequential_team(
+                            task_id=segments[2],
+                            lease_owner="task-api-resume",
+                        )
+                except DurableResumeError as exc:
+                    self._send_json(HTTPStatus.CONFLICT, {"error": str(exc)})
+                    return
+                except TaskExecutionError as exc:
+                    self._send_json(HTTPStatus.CONFLICT, {"error": str(exc)})
+                    return
+                task = self.store.get_task(segments[2])
                 self._send_json(HTTPStatus.OK, self._task_response(task))
                 return
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "route not found"})
@@ -411,92 +523,31 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 {"error": "internal task service error"},
             )
 
-    def _run_executor(
-        self,
-        *,
-        task: Any,
-        workspace_root: str,
-        validation_command_id: str | None,
-        executor_kwargs: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        kw = executor_kwargs or {}
-        result = self.router.dispatch_execute(
-            task_id=task.id,
-            store=self.store,
-            executor_kind=task.executor_kind,
-            workspace_root=workspace_root,
-            event_callback=self._store_event_callback,
-            **kw,
-        )
-        self.store.set_changed_files(task.id, result.changed_files)
-        self.store.set_validation_result(
-            task.id,
-            command_id=result.validation_command_id,
-            exit_code=result.validation_exit_code,
-            output_digest=result.validation_output_digest,
-        )
-        self.store.add_evidence(
-            task.id,
-            category="Validation",
-            label=result.validation_command_id,
-            value=str(result.validation_exit_code),
-            status="pass" if result.validation_exit_code == 0 else "fail",
-            detail=result.validation_output_summary,
-            raw_json_digest=result.validation_output_digest,
-        )
-        executor_detail = (
-            "fixture/provider-free executor"
-            if task.executor_kind == "deterministic_fixture"
-            else task.executor_kind
-        )
-        self.store.add_evidence(
-            task.id,
-            category="Executor",
-            label="executor_kind",
-            value=task.executor_kind,
-            status="pass",
-            detail=executor_detail,
-        )
-        return {
-            "success": result.success,
-            "validation_command_id": result.validation_command_id,
-            "validation_exit_code": result.validation_exit_code,
-            "validation_output_digest": result.validation_output_digest,
-            "changed_files": result.changed_files,
-            "error": result.error,
-            "failure_classification": getattr(result, "failure_classification", ""),
-        }
-
-    def _store_event_callback(self, task_id: str, event: dict[str, Any]) -> None:
-        try:
-            self.store.add_event(
-                task_id,
-                event_type=event.get("type", "EXECUTOR_FINISHED"),
-                title=event.get("title", "Executor event"),
-                description=event.get("description", ""),
-                raw_log=event.get("raw_log", ""),
-                metadata=event.get("metadata"),
-            )
-        except Exception:
-            pass
-
-    def _create_task_from_payload(self, payload: dict[str, Any]) -> Any:
+    def _create_task_from_payload(self, payload: dict[str, Any], *, require_repository_for_opencode: bool = False) -> Any:
         title = str(payload.get("title", "")).strip()
         if not title:
             raise TaskStoreError("title_required")
         executor_kind = str(payload.get("executor_kind", "deterministic_fixture"))
         if executor_kind not in ("deterministic_fixture", "opencode"):
             raise TaskStoreError(f"unsupported_executor_kind:{executor_kind}")
+        repository = str(payload.get("repository", "")).strip()
+        if require_repository_for_opencode and executor_kind == "opencode" and not repository:
+            raise TaskStoreError("repository_required_for_opencode")
+        if not repository:
+            repository = "dddd2024/reverse-agent"
+        orchestration_mode = str(payload.get("orchestration_mode", "single"))
         return self.store.create_task(
             title=title,
-            repository=str(payload.get("repository", "dddd2024/reverse-agent")),
+            repository=repository,
             executor_kind=executor_kind,
             model_profile_ref=str(payload.get("model_profile_ref", "")),
+            binding_ref=str(payload.get("binding_ref", "")),
             permission_profile=str(payload.get("permission_profile", "ASK_FOR_APPROVAL")),
             policy_ref=str(payload.get("policy_ref", "")),
             workspace=str(payload.get("workspace", "")),
             branch=str(payload.get("branch", "")),
             idempotency_key=str(payload.get("idempotency_key", "")),
+            orchestration_mode=orchestration_mode,
         )
 
     def _list_tasks_response(self) -> dict[str, Any]:
@@ -527,10 +578,12 @@ class _TaskHandler(BaseHTTPRequestHandler):
             "executor_kind": task.executor_kind,
             "execution_id": task.execution_id,
             "model_profile_ref": task.model_profile_ref,
+            "binding_ref": task.binding_ref,
             "permission_profile": task.permission_profile,
             "policy_ref": task.policy_ref,
             "workspace": task.workspace,
             "branch": task.branch,
+            "orchestration_mode": task.orchestration_mode,
             "created_at": task.created_at,
             "updated_at": task.updated_at,
             "failure_classification": task.failure_classification,
@@ -627,11 +680,27 @@ class _TaskHandler(BaseHTTPRequestHandler):
             self.send_header("Vary", "Origin")
 
 
+class _CallableWrapper:
+    """Non-descriptor wrapper so callable class attributes are not converted
+    to bound methods when accessed from handler instances.
+    """
+    def __init__(self, fn: Callable) -> None:
+        self._fn = fn
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self._fn(*args, **kwargs)
+
+
 def _handler_factory(
     store: TaskStore,
     router: ExecutorRouter,
     *,
     allowed_origin: str,
+    lease_provider: Callable | None = None,
+    binding_resolver: Any | None = None,
+    github_adapter: Any | None = None,
+    execution_authority_sha: str = "",
+    planning_sha: str = "",
 ) -> type[_TaskHandler]:
     class ConfiguredHandler(_TaskHandler):
         pass
@@ -640,6 +709,13 @@ def _handler_factory(
     ConfiguredHandler.router = router
     ConfiguredHandler.allowed_origin = allowed_origin
     ConfiguredHandler.live_enabled = False
+    ConfiguredHandler.lease_provider = (
+        _CallableWrapper(lease_provider) if lease_provider else None
+    )
+    ConfiguredHandler.binding_resolver = binding_resolver
+    ConfiguredHandler.github_adapter = github_adapter
+    ConfiguredHandler.execution_authority_sha = execution_authority_sha
+    ConfiguredHandler.planning_sha = planning_sha
     return ConfiguredHandler
 
 
@@ -683,6 +759,9 @@ class TaskService:
         store: TaskStore | None = None,
         router: ExecutorRouter | None = None,
         allowed_origin: str = "http://localhost:4173",
+        github_adapter: Any | None = None,
+        execution_authority_sha: str = "",
+        planning_sha: str = "",
     ) -> None:
         if store is not None:
             self.store = store
@@ -691,6 +770,9 @@ class TaskService:
             self.store = TaskStore(db_path=db_path)
         self.router = router or ExecutorRouter()
         self.allowed_origin = allowed_origin
+        self.github_adapter = github_adapter
+        self.execution_authority_sha = execution_authority_sha
+        self.planning_sha = planning_sha
 
     def start(
         self,
@@ -708,6 +790,9 @@ class TaskService:
                 self.store,
                 self.router,
                 allowed_origin=self.allowed_origin,
+                github_adapter=self.github_adapter,
+                execution_authority_sha=self.execution_authority_sha,
+                planning_sha=self.planning_sha,
             ),
         )
         thread = Thread(target=server.serve_forever, daemon=True)
@@ -721,6 +806,7 @@ def run_task_service(
     port: int | None = None,
     store: TaskStore | None = None,
     allowed_origin: str | None = None,
+    github_adapter: Any | None = None,
 ) -> None:
     bind_host = validate_bind_host(
         host or os.environ.get("REVERSE_AGENT_TASK_SERVICE_HOST", "127.0.0.1")
@@ -740,6 +826,7 @@ def run_task_service(
             svc_store,
             ExecutorRouter(),
             allowed_origin=origin,
+            github_adapter=github_adapter,
         ),
     )
     server.serve_forever()

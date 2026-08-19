@@ -256,8 +256,81 @@ class DevelopmentWorkflowState(TypedDict, total=False):
     risk_policy_snapshot: dict[str, Any]
     caller_supplied_risk_policy_snapshot: dict[str, Any]
     authorization_result: dict[str, Any]
+    team_assignments: list[dict[str, Any]]
+    team_execution_result: dict[str, Any]
     acceptance_result: dict[str, Any]
     node_trace: list[str]
+
+
+@dataclass(frozen=True)
+class WorkerAssignment:
+    worker_id: str
+    role: str
+    task_id: str
+    workspace_root: str
+
+    def __post_init__(self) -> None:
+        _text(self.worker_id, "worker_id")
+        _text(self.role, "role")
+        _text(self.task_id, "task_id")
+        _text(self.workspace_root, "workspace_root")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "worker_id": self.worker_id,
+            "role": self.role,
+            "task_id": self.task_id,
+            "workspace_root": self.workspace_root,
+        }
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any]) -> "WorkerAssignment":
+        return cls(
+            worker_id=_text(payload.get("worker_id"), "worker_id"),
+            role=_text(payload.get("role"), "role"),
+            task_id=_text(payload.get("task_id"), "task_id"),
+            workspace_root=_text(payload.get("workspace_root"), "workspace_root"),
+        )
+
+
+@dataclass(frozen=True)
+class WorkerExecutionResult:
+    worker_id: str
+    task_id: str
+    execution_id: str
+    success: bool
+    validation_exit_code: int
+    evidence_ids: tuple[str, ...] = ()
+    failure_classification: str = ""
+    failure_detail: str = ""
+    reasons: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "worker_id": self.worker_id,
+            "task_id": self.task_id,
+            "execution_id": self.execution_id,
+            "success": self.success,
+            "validation_exit_code": self.validation_exit_code,
+            "evidence_ids": list(self.evidence_ids),
+            "failure_classification": self.failure_classification,
+            "failure_detail": self.failure_detail,
+            "reasons": list(self.reasons),
+        }
+
+
+@dataclass(frozen=True)
+class TeamExecutionResult:
+    accepted: bool
+    worker_results: tuple[WorkerExecutionResult, ...]
+    reasons: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "accepted": self.accepted,
+            "worker_results": [wr.to_dict() for wr in self.worker_results],
+            "reasons": list(self.reasons),
+        }
 
 
 @dataclass(frozen=True)

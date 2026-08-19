@@ -5,6 +5,7 @@ export interface BackendTaskCreatePayload {
   repository?: string;
   executor_kind?: ExecutorKind;
   model_profile_ref?: string;
+  binding_ref?: string;
   permission_profile?: string;
   policy_ref?: string;
   workspace?: string;
@@ -44,6 +45,30 @@ export interface BackendTaskEventsResponse extends Record<string, unknown> {
 
 const API_BASE =
   import.meta.env.VITE_TASK_API_BASE ?? "http://127.0.0.1:8766";
+
+const _VALID_TEST_STATUSES = new Set([
+  "PASS",
+  "FAIL",
+  "RUNNING",
+  "PENDING",
+] as const);
+
+function _deriveTestStatus(raw: Record<string, unknown>): string {
+  const validationExitCode = (raw as { validation_exit_code?: unknown }).validation_exit_code;
+  if (typeof validationExitCode === "number" && !Number.isNaN(validationExitCode)) {
+    return validationExitCode === 0 ? "PASS" : "FAIL";
+  }
+  const status = String((raw as { status?: string }).status ?? "");
+  if (status === "VALIDATING") {
+    return "RUNNING";
+  }
+  const ft = raw.frontend_task as Record<string, unknown> | undefined;
+  const testStatus = String((ft ?? raw).testStatus ?? "");
+  if (_VALID_TEST_STATUSES.has(testStatus as "PASS" | "FAIL" | "RUNNING" | "PENDING")) {
+    return testStatus;
+  }
+  return "PENDING";
+}
 
 function _isMock() {
   const mode = import.meta.env.MODE;
@@ -115,6 +140,10 @@ function _normalizeTask(raw: Record<string, unknown>) {
       (source.modelProfileId as string | undefined) ??
       (raw.model_profile_ref as string | undefined) ??
       undefined,
+    bindingRef:
+      (source.bindingRef as string | undefined) ??
+      (raw.binding_ref as string | undefined) ??
+      undefined,
     branch: String(source.branch ?? raw.branch ?? id),
     activity: activity.map((e: Record<string, unknown>, i: number) => ({
       id: String(e.id ?? `a-${i}`),
@@ -142,7 +171,7 @@ function _normalizeTask(raw: Record<string, unknown>) {
       rawJson: String((ev as { raw_json_digest?: string }).raw_json_digest ?? ""),
     })),
     authorityStatus: (source.authorityStatus as string) ?? "APPROVED",
-    testStatus: (source.testStatus as string) ?? "PENDING",
+    testStatus: _deriveTestStatus(raw),
     workflowStatus: (source.workflowStatus as string) ?? "PENDING",
     executor:
       (source.executor as string | undefined) ??
@@ -316,14 +345,18 @@ export async function createTask(
 
   const body: Record<string, unknown> = {
     title: (input as { title?: string }).title ?? "untitled",
-    repository: (input as { repository?: string }).repository ?? "dddd2024/reverse-agent",
     executor_kind: executorKind,
     model_profile_ref: (input as { model_profile_ref?: string }).model_profile_ref ?? "",
+    binding_ref: (input as { binding_ref?: string }).binding_ref ?? "",
     permission_profile: (input as { permission_profile?: string }).permission_profile ?? "ASK_FOR_APPROVAL",
     policy_ref: (input as { policy_ref?: string }).policy_ref ?? "",
     workspace: (input as { workspace?: string }).workspace ?? "",
     branch: (input as { branch?: string }).branch ?? "",
   };
+  const repoValue = (input as { repository?: string }).repository;
+  if (repoValue) {
+    body.repository = repoValue;
+  }
   if ((input as { idempotency_key?: string }).idempotency_key) {
     body.idempotency_key = (input as { idempotency_key?: string }).idempotency_key;
   }

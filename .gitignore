@@ -42,3 +42,7 @@ project_state/triage_*/
 codex_login*
 *.token
 *.api_key
+
+# Known managed runtime scratch (classification only; never cleanup authority)
+task_workspaces/
+.platform_v1_runtime/

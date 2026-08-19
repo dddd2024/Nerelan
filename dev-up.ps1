@@ -300,34 +300,35 @@ $frontendEnv = [ordered]@{
   "VITE_INLINE_CONFIG" = "server.port=${FrontendPort};server.host=127.0.0.1;server.strictPort=true"
 }
 
-$modelProc = Start-ServiceProcess `
-  -name "model-control" `
-  -cmd $py -serviceArgs @("-m", "reverse_agent.model_access.service") `
-  -env $modelControlEnv -cwd $repoDir -logDir $runtimeDir
-
-Start-Sleep -Milliseconds 1500
-
-if (-not $modelProc.HasExited) {
-  if (-not (Wait-ServiceReady -url "$ModelControlUrl/api/model-profiles")) {
-    Fail-Closed "Model Control did not become healthy at ${ModelControlUrl}"
-  }
-} else {
-  Fail-Closed "Model Control exited before health check"
+$combinedTrustedHostEnv = [ordered]@{
+  "REVERSE_AGENT_MODEL_CONTROL_HOST" = "127.0.0.1"
+  "REVERSE_AGENT_MODEL_CONTROL_PORT" = [string]$ModelControlPort
+  "REVERSE_AGENT_MODEL_CONTROL_ORIGIN" = $FrontendUrl
+  "REVERSE_AGENT_TASK_SERVICE_HOST" = "127.0.0.1"
+  "REVERSE_AGENT_TASK_SERVICE_PORT" = [string]$TaskApiPort
+  "REVERSE_AGENT_TASK_SERVICE_ORIGIN" = $FrontendUrl
+  "REVERSE_AGENT_REPO_DIR" = $sourceDir
+  "REVERSE_AGENT_OPENCODE_MODEL" = $OpenCodeModel
 }
 
-$taskProc = Start-ServiceProcess `
-  -name "task-api" `
-  -cmd $py -serviceArgs @("-m", "reverse_agent.platform_v1.task_service") `
-  -env $taskApiEnv -cwd $repoDir -logDir $runtimeDir
+$combinedProc = Start-ServiceProcess `
+  -name "combined-trusted-host" `
+  -cmd $py -serviceArgs @("-m", "reverse_agent.platform_v1.trusted_host") `
+  -env $combinedTrustedHostEnv -cwd $repoDir -logDir $runtimeDir
 
-Start-Sleep -Milliseconds 1500
+Start-Sleep -Milliseconds 2000
 
-if (-not $taskProc.HasExited) {
-  if (-not (Wait-ServiceReady -url "${TaskApiUrl}/api/tasks")) {
+if (-not $combinedProc.HasExited) {
+  $mcHealthy = Wait-ServiceReady -url "$ModelControlUrl/api/model-profiles"
+  $taskHealthy = Wait-ServiceReady -url "${TaskApiUrl}/api/tasks"
+  if (-not $mcHealthy) {
+    Fail-Closed "Model Control did not become healthy at ${ModelControlUrl}"
+  }
+  if (-not $taskHealthy) {
     Fail-Closed "Task API did not become healthy at ${TaskApiUrl}"
   }
 } else {
-  Fail-Closed "Task API exited before health check"
+  Fail-Closed "Combined trusted host exited before health check"
 }
 
 $frontendProc = Start-ServiceProcess `
@@ -346,8 +347,7 @@ if (-not $frontendProc.HasExited) {
 }
 
 $urlMap = [ordered]@{
-  "model-control" = $ModelControlUrl
-  "task-api" = $TaskApiUrl
+  "combined-trusted-host" = $ModelControlUrl
   "frontend-vite" = $FrontendUrl
 }
 

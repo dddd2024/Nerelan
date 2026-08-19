@@ -1,6 +1,7 @@
 """Task contract and store tests for the server-owned TaskStore."""
 
 import os
+import sqlite3
 import tempfile
 
 import pytest
@@ -37,6 +38,137 @@ def test_idempotency_key_collision_different_request_raises() -> None:
     store.create_task(title="first", idempotency_key="k-x")
     with pytest.raises(DuplicateTaskError):
         store.create_task(title="second", idempotency_key="k-x")
+
+
+def test_binding_ref_is_explicit_durable_task_truth() -> None:
+    store = TaskStore(":memory:")
+
+    task = store.create_task(
+        title="bound",
+        executor_kind="opencode",
+        binding_ref="coding-fast",
+        model_profile_ref="legacy-profile",
+    )
+
+    assert task.binding_ref == "coding-fast"
+    assert task.model_profile_ref == "legacy-profile"
+    assert store.get_task(task.id).binding_ref == "coding-fast"
+
+
+def test_binding_ref_requires_explicit_opencode_executor() -> None:
+    store = TaskStore(":memory:")
+
+    with pytest.raises(TaskStoreError, match="binding_ref_requires_opencode_executor"):
+        store.create_task(title="wrong executor", binding_ref="coding-fast")
+
+
+def test_fresh_database_binding_ref_column_is_non_null_with_empty_default() -> None:
+    store = TaskStore(":memory:")
+
+    columns = {
+        row["name"]: row
+        for row in store._conn.execute("PRAGMA table_info(tasks)").fetchall()
+    }
+
+    assert columns["binding_ref"]["notnull"] == 1
+    assert columns["binding_ref"]["dflt_value"] == "''"
+    assert store.create_task(title="legacy-compatible").binding_ref == ""
+
+
+def _create_legacy_task_database(path: str) -> str:
+    task_id = "task-legacy-binding-migration"
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            """
+            CREATE TABLE tasks (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                repository TEXT NOT NULL,
+                status TEXT NOT NULL,
+                executor_kind TEXT NOT NULL,
+                execution_id TEXT NOT NULL,
+                model_profile_ref TEXT NOT NULL,
+                permission_profile TEXT NOT NULL,
+                policy_ref TEXT NOT NULL,
+                workspace TEXT NOT NULL,
+                branch TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                failure_classification TEXT NOT NULL,
+                failure_detail TEXT NOT NULL,
+                validation_command_id TEXT NOT NULL,
+                validation_exit_code INTEGER,
+                validation_output_digest TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO tasks VALUES (
+                ?, 'legacy row', 'dddd2024/reverse-agent', 'QUEUED',
+                'opencode', ?, 'legacy/model', 'ASK_FOR_APPROVAL', '', '', '',
+                '2026-08-10T00:00:00Z', '2026-08-10T00:00:00Z', '', '', '',
+                NULL, '', ''
+            )
+            """,
+            (task_id, f"exec-{task_id}"),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    return task_id
+
+
+def test_legacy_database_migrates_binding_ref_without_losing_rows(tmp_path) -> None:
+    db_path = str(tmp_path / "legacy.sqlite3")
+    task_id = _create_legacy_task_database(db_path)
+
+    store = TaskStore(db_path)
+    try:
+        migrated = store.get_task(task_id)
+        assert migrated.title == "legacy row"
+        assert migrated.model_profile_ref == "legacy/model"
+        assert migrated.binding_ref == ""
+    finally:
+        store._conn.close()
+
+
+def test_binding_ref_migration_is_idempotent_on_second_initialization(tmp_path) -> None:
+    db_path = str(tmp_path / "legacy-twice.sqlite3")
+    task_id = _create_legacy_task_database(db_path)
+
+    first = TaskStore(db_path)
+    first._conn.close()
+    second = TaskStore(db_path)
+    try:
+        columns = [
+            row["name"]
+            for row in second._conn.execute("PRAGMA table_info(tasks)").fetchall()
+        ]
+        assert columns.count("binding_ref") == 1
+        assert second.get_task(task_id).binding_ref == ""
+    finally:
+        second._conn.close()
+
+
+def test_idempotency_key_rejects_materially_different_binding_ref() -> None:
+    store = TaskStore(":memory:")
+    store.create_task(
+        title="bound",
+        executor_kind="opencode",
+        binding_ref="coding-fast",
+        idempotency_key="binding-key",
+    )
+
+    with pytest.raises(DuplicateTaskError, match="different_request"):
+        store.create_task(
+            title="bound",
+            executor_kind="opencode",
+            binding_ref="coding-safe",
+            idempotency_key="binding-key",
+        )
 
 
 def test_find_by_idempotency_key_returns_existing() -> None:
@@ -165,3 +297,284 @@ def test_invalid_event_type_rejected() -> None:
     task = store.create_task(title="t")
     with pytest.raises(TaskStoreError):
         store.add_event(task.id, event_type="NOT_VALID", title="x")
+
+
+# ---------------------------------------------------------------------------
+# Concurrency probe: two threads, one shared TaskStore, two distinct tasks
+# ---------------------------------------------------------------------------
+
+def test_taskstore_concurrent_writes_two_threads(tmp_path) -> None:
+    """One shared TaskStore must tolerate two worker threads that each append
+    one event and one evidence row to their own task, synchronized only by
+    a ``threading.Barrier(2)``. No production lock may be required merely for
+    style if this probe stays stable.
+    """
+    import threading
+
+    db_path = str(tmp_path / "probe.sqlite3")
+    store = TaskStore(db_path=db_path)
+    task_a = store.create_task(title="probe-a", idempotency_key="probe-a")
+    task_b = store.create_task(title="probe-b", idempotency_key="probe-b")
+    assert task_a.id != task_b.id
+
+    barrier = threading.Barrier(2, timeout=10)
+    exceptions: list[Exception] = []
+
+    def worker(task, *, task_label: str) -> None:
+        try:
+            barrier.wait(10)
+            store.add_event(
+                task.id,
+                event_type="EXECUTOR_RUNNING",
+                title=f"Probe {task_label} running",
+                description="concurrent probe event",
+                metadata={"worker": task_label},
+            )
+            store.add_evidence(
+                task.id,
+                category="Probe",
+                label=task_label,
+                value="concurrent",
+                status="info",
+                detail="concurrent-write-probe",
+                raw_json_digest="probe",
+            )
+            read = store.get_task(task.id)
+            assert read.id == task.id
+            assert any(e["type"] == "DISCOVERED" for e in read.events)
+            assert any(e["type"] == "EXECUTOR_RUNNING" for e in read.events)
+            assert any(ev["label"] == task_label for ev in read.evidence_refs)
+        except Exception as exc:
+            exceptions.append(exc)
+
+    t1 = threading.Thread(target=worker, args=(task_a,), kwargs={"task_label": "A"})
+    t2 = threading.Thread(target=worker, args=(task_b,), kwargs={"task_label": "B"})
+    t1.start()
+    t2.start()
+    t1.join(15)
+    t2.join(15)
+    assert not exceptions, [str(e) for e in exceptions]
+
+    ta = store.get_task(task_a.id)
+    tb = store.get_task(task_b.id)
+    assert any(e["type"] == "DISCOVERED" for e in ta.events)
+    assert any(e["type"] == "EXECUTOR_RUNNING" for e in ta.events)
+    assert len(ta.evidence_refs) >= 1
+    assert any(e["type"] == "DISCOVERED" for e in tb.events)
+    assert any(e["type"] == "EXECUTOR_RUNNING" for e in tb.events)
+    assert len(tb.evidence_refs) >= 1
+
+
+def test_create_task_and_execute_does_not_hold_store_lock_across_runner() -> None:
+    """A blocked external runner must not prevent independent store reads."""
+    import threading
+
+    store = TaskStore(":memory:")
+    runner_entered = threading.Event()
+    release_runner = threading.Event()
+    read_completed = threading.Event()
+    execution_errors: list[Exception] = []
+
+    def runner(task_id: str, runner_store: TaskStore) -> dict[str, object]:
+        assert runner_store is store
+        assert store.get_task(task_id).status == "RUNNING_FIXTURE"
+        runner_entered.set()
+        assert release_runner.wait(5), "runner release timed out"
+        return {"success": True}
+
+    def execute() -> None:
+        try:
+            store.create_task_and_execute(
+                create_kwargs={"title": "lock-boundary"},
+                executor_runner=runner,
+            )
+        except Exception as exc:
+            execution_errors.append(exc)
+
+    execution_thread = threading.Thread(target=execute)
+    execution_thread.start()
+    assert runner_entered.wait(5), "executor runner did not start"
+
+    read_thread = threading.Thread(
+        target=lambda: (store.count_tasks(), read_completed.set())
+    )
+    read_thread.start()
+    read_thread.join(1)
+    completed_before_release = read_completed.is_set()
+
+    release_runner.set()
+    execution_thread.join(5)
+    read_thread.join(5)
+
+    assert completed_before_release, "TaskStore read blocked behind executor runtime"
+    assert not execution_errors
+
+
+# ---------------------------------------------------------------------------
+# Issue #192: orchestration_mode durable Task truth
+# ---------------------------------------------------------------------------
+
+def test_fresh_taskstore_default_orchestration_mode_is_single() -> None:
+    store = TaskStore(":memory:")
+    task = store.create_task(title="default mode")
+    assert task.orchestration_mode == "single"
+    assert store.get_task(task.id).orchestration_mode == "single"
+
+
+def test_orchestration_mode_schema_fresh_database() -> None:
+    store = TaskStore(":memory:")
+    columns = {
+        row["name"]: row
+        for row in store._conn.execute("PRAGMA table_info(tasks)").fetchall()
+    }
+    assert "orchestration_mode" in columns
+    assert columns["orchestration_mode"]["notnull"] == 1
+    assert columns["orchestration_mode"]["dflt_value"] == "'single'"
+
+
+def _create_legacy_task_database_without_orchestration_mode(path: str) -> str:
+    task_id = "task-legacy-no-orchestration-mode"
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            """
+            CREATE TABLE tasks (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                repository TEXT NOT NULL,
+                status TEXT NOT NULL,
+                executor_kind TEXT NOT NULL,
+                execution_id TEXT NOT NULL,
+                model_profile_ref TEXT NOT NULL,
+                binding_ref TEXT NOT NULL DEFAULT '',
+                permission_profile TEXT NOT NULL,
+                policy_ref TEXT NOT NULL,
+                workspace TEXT NOT NULL,
+                branch TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                failure_classification TEXT NOT NULL,
+                failure_detail TEXT NOT NULL,
+                validation_command_id TEXT NOT NULL,
+                validation_exit_code INTEGER,
+                validation_output_digest TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO tasks VALUES (
+                ?, 'legacy pre-mode row', 'dddd2024/reverse-agent', 'QUEUED',
+                'deterministic_fixture', ?, 'model/prof', '', 'ASK_FOR_APPROVAL', '',
+                '', '', '2026-08-10T00:00:00Z', '2026-08-10T00:00:00Z', '',
+                '', '', NULL, '', ''
+            )
+            """,
+            (task_id, f"exec-{task_id}"),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    return task_id
+
+
+def test_legacy_database_migrates_orchestration_mode_without_losing_rows(
+    tmp_path,
+) -> None:
+    db_path = str(tmp_path / "legacy-no-mode.sqlite3")
+    task_id = _create_legacy_task_database_without_orchestration_mode(db_path)
+    store = TaskStore(db_path)
+    try:
+        migrated = store.get_task(task_id)
+        assert migrated.title == "legacy pre-mode row"
+        assert migrated.orchestration_mode == "single"
+        assert store.count_tasks() == 1
+    finally:
+        store._conn.close()
+
+
+def test_legacy_database_orchestration_mode_migration_idempotent(tmp_path) -> None:
+    db_path = str(tmp_path / "legacy-mode-twice.sqlite3")
+    task_id = _create_legacy_task_database_without_orchestration_mode(db_path)
+    first = TaskStore(db_path)
+    first._conn.close()
+    second = TaskStore(db_path)
+    try:
+        columns = [
+            row["name"]
+            for row in second._conn.execute("PRAGMA table_info(tasks)").fetchall()
+        ]
+        assert columns.count("orchestration_mode") == 1
+        assert second.get_task(task_id).orchestration_mode == "single"
+    finally:
+        second._conn.close()
+
+
+def test_create_readback_sequential_team_persists() -> None:
+    store = TaskStore(":memory:")
+    task = store.create_task(
+        title="seq task",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    assert task.orchestration_mode == "sequential_team"
+    read = store.get_task(task.id)
+    assert read.orchestration_mode == "sequential_team"
+
+
+def test_invalid_orchestration_mode_fails_closed() -> None:
+    store = TaskStore(":memory:")
+    with pytest.raises(TaskStoreError, match="unsupported_orchestration_mode"):
+        store.create_task(
+            title="bad",
+            executor_kind="opencode",
+            orchestration_mode="parallel",
+        )
+
+
+def test_sequential_team_requires_opencode_executor() -> None:
+    store = TaskStore(":memory:")
+    with pytest.raises(
+        TaskStoreError, match="sequential_team_requires_opencode_executor"
+    ):
+        store.create_task(
+            title="bad",
+            executor_kind="deterministic_fixture",
+            orchestration_mode="sequential_team",
+        )
+
+
+def test_idempotency_same_key_same_orchestration_mode_returns_same_task() -> None:
+    store = TaskStore(":memory:")
+    t1 = store.create_task(
+        title="seq",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+        idempotency_key="mode-key-1",
+    )
+    t2 = store.create_task(
+        title="seq",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+        idempotency_key="mode-key-1",
+    )
+    assert t2.id == t1.id
+    assert store.count_tasks() == 1
+
+
+def test_idempotency_same_key_different_orchestration_mode_raises() -> None:
+    store = TaskStore(":memory:")
+    store.create_task(
+        title="t",
+        executor_kind="opencode",
+        orchestration_mode="single",
+        idempotency_key="mode-key-2",
+    )
+    with pytest.raises(DuplicateTaskError, match="different_request"):
+        store.create_task(
+            title="t",
+            executor_kind="opencode",
+            orchestration_mode="sequential_team",
+            idempotency_key="mode-key-2",
+        )

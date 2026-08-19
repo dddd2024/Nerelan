@@ -5,32 +5,47 @@ import { NewTaskComposer } from "@/components/new-task-composer";
 import { resetDefaultModelControlClientForTests } from "@/lib/model-control-client";
 import { renderWithProviders } from "./test-utils";
 
-function ComposerMount({ submit }: { submit: (input: unknown) => void }) {
-  return (
-    <NewTaskComposer open={true} onClose={() => undefined} onSubmit={submit} />
-  );
+const FAKE_REPOS = [
+  {
+    full_name: "dddd2024/reverse-agent",
+    html_url: "https://github.com/dddd2024/reverse-agent",
+    is_private: false,
+    visibility: "public",
+    default_branch: "main",
+  },
+];
+
+function makeQueryClient(repos = FAKE_REPOS) {
+  const qc = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0, staleTime: Infinity },
+    },
+  });
+  qc.setQueryData(["repositories"], repos);
+  return qc;
 }
 
-function QueryClientComposerMount({
-  queryClient,
+function ComposerMount({
   submit,
+  queryClient,
 }: {
-  queryClient: QueryClient;
   submit: (input: unknown) => void;
+  queryClient?: QueryClient;
 }) {
+  const qc = queryClient ?? makeQueryClient();
   return (
-    <QueryClientProvider client={queryClient}>
-      <ComposerMount submit={submit} />
+    <QueryClientProvider client={qc}>
+      <NewTaskComposer open={true} onClose={() => undefined} onSubmit={submit} />
     </QueryClientProvider>
   );
 }
 
-describe("real-executor task plane", () => {
+describe("real-executor task plane with Connection/Binding architecture", () => {
   beforeEach(() => {
     resetDefaultModelControlClientForTests();
   });
 
-  it("Test A: normal real-mode submission sends OpenCode; useCreateTask overrides model_profile_ref to empty", async () => {
+  it("Test A: OpenCode submission requires an enabled OpenCode Binding and includes bindingRef and repository", async () => {
     const mockSubmit = vi.fn();
     renderWithProviders(<ComposerMount submit={mockSubmit} />);
 
@@ -39,6 +54,16 @@ describe("real-executor task plane", () => {
     fireEvent.change(screen.getByTestId("task-title-input"), {
       target: { value: "real opencode task" },
     });
+
+    await waitFor(() => {
+      expect((screen.getByTestId("task-opencode-binding-select") as HTMLSelectElement).value).toBe("coding-binding");
+    }, { timeout: 3000 });
+    await waitFor(() => {
+      expect((screen.getByTestId("task-opencode-repository-select") as HTMLSelectElement).value).toBe(
+        "https://github.com/dddd2024/reverse-agent",
+      );
+    }, { timeout: 3000 });
+
     fireEvent.click(screen.getByTestId("submit-new-task"));
 
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1), {
@@ -47,13 +72,17 @@ describe("real-executor task plane", () => {
 
     const input = mockSubmit.mock.calls[0][0] as {
       executorKind?: string;
+      bindingRef?: string;
       title?: string;
+      repository?: string;
     };
     expect(input.title).toBe("real opencode task");
     expect(input.executorKind).toBe("opencode");
+    expect(input.bindingRef).toBe("coding-binding");
+    expect(input.repository).toBe("https://github.com/dddd2024/reverse-agent");
   });
 
-  it("Test A-API: useCreateTask builds opencode payload with empty model_profile_ref", async () => {
+  it("Test A-API: useCreateTask builds opencode payload with binding_ref and repository, not model_profile_ref", async () => {
     const mockFetch: ReturnType<typeof vi.fn> = vi.fn();
     vi.stubGlobal("fetch", mockFetch);
     vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
@@ -68,10 +97,11 @@ describe("real-executor task plane", () => {
           JSON.stringify({
             id: "task-opencode-api-001",
             title: "opencode task",
-            repository: "dddd2024/reverse-agent",
+            repository: "https://github.com/dddd2024/reverse-agent",
             status: "QUEUED",
             executor_kind: "opencode",
             execution_id: "exec-opencode-api-001",
+            binding_ref: "coding-binding",
             frontend_task: {
               id: "task-opencode-api-001",
               title: "opencode task",
@@ -89,9 +119,11 @@ describe("real-executor task plane", () => {
           JSON.stringify({
             id: "task-opencode-api-001",
             title: "opencode task",
+            repository: "https://github.com/dddd2024/reverse-agent",
             status: "READY_FOR_REVIEW",
             executor_kind: "opencode",
             execution_id: "exec-opencode-api-001",
+            binding_ref: "coding-binding",
             frontend_task: {
               state: "READY_FOR_HUMAN",
               executor: "opencode",
@@ -106,9 +138,11 @@ describe("real-executor task plane", () => {
           JSON.stringify({
             id: "task-opencode-api-001",
             title: "opencode task",
+            repository: "https://github.com/dddd2024/reverse-agent",
             status: "READY_FOR_REVIEW",
             executor_kind: "opencode",
             execution_id: "exec-opencode-api-001",
+            binding_ref: "coding-binding",
             frontend_task: {
               state: "READY_FOR_HUMAN",
               executor: "opencode",
@@ -123,11 +157,7 @@ describe("real-executor task plane", () => {
 
     const { useCreateTask } = await import("@/hooks/use-tasks");
 
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false, gcTime: 0, staleTime: Infinity },
-      },
-    });
+    const queryClient = makeQueryClient();
 
     let resultTask: unknown;
     function RenderMutation() {
@@ -139,6 +169,8 @@ describe("real-executor task plane", () => {
             void mutation.mutateAsync({
               title: "opencode task",
               executorKind: "opencode",
+              bindingRef: "coding-binding",
+              repository: "https://github.com/dddd2024/reverse-agent",
               idempotencyKey: "opencode-key-api-001",
             }).then((r) => {
               resultTask = r;
@@ -160,56 +192,31 @@ describe("real-executor task plane", () => {
     await waitFor(() => expect(resultTask).toBeDefined(), { timeout: 5000 });
 
     expect(capturedPayload?.executor_kind).toBe("opencode");
-    expect(capturedPayload?.model_profile_ref).toBe("");
+    expect(capturedPayload?.binding_ref).toBe("coding-binding");
+    expect(capturedPayload?.repository).toBe("https://github.com/dddd2024/reverse-agent");
   });
 
-  it("Test B: OpenCode submit is not disabled when no model profile is available", async () => {
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false, gcTime: 0, staleTime: Infinity },
-      },
-    });
-    queryClient.setQueryData(["model-profiles"], []);
+  it("Test B: OpenCode submit is disabled when no enabled Binding or repository is available", async () => {
+    const queryClient = makeQueryClient([]);
+    queryClient.setQueryData(["bindings"], []);
 
     const mockSubmit = vi.fn();
     renderWithProviders(
-      <QueryClientComposerMount queryClient={queryClient} submit={mockSubmit} />,
+      <ComposerMount queryClient={queryClient} submit={mockSubmit} />,
     );
 
     fireEvent.change(screen.getByTestId("task-title-input"), {
-      target: { value: "no profiles available" },
+      target: { value: "no binding available" },
     });
 
     const submitButton = screen.getByTestId("submit-new-task") as HTMLButtonElement;
-    expect(submitButton).not.toBeDisabled();
+    expect(submitButton).toBeDisabled();
 
     fireEvent.click(screen.getByTestId("submit-new-task"));
-
-    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1), {
-      timeout: 1000,
-    });
-
-    const input = mockSubmit.mock.calls[0][0] as {
-      executorKind?: string;
-      modelProfileId?: string;
-    };
-    expect(input.executorKind).toBe("opencode");
-    expect(input.modelProfileId).toBe("");
+    expect(mockSubmit).not.toHaveBeenCalled();
   });
 
-  it("Test D: exactly one opencode-model-note exists in OpenCode mode", async () => {
-    const mockSubmit = vi.fn();
-    renderWithProviders(<ComposerMount submit={mockSubmit} />);
-
-    fireEvent.change(screen.getByTestId("task-title-input"), {
-      target: { value: "opencode mode" },
-    });
-
-    const notes = screen.getAllByTestId("opencode-model-note");
-    expect(notes.length).toBe(1);
-  });
-
-  it("Test C: explicit fixture selection sends deterministic_fixture with the model profile", async () => {
+  it("Test C: explicit fixture selection sends deterministic_fixture without ModelProfile, Binding, or Repository", async () => {
     const mockSubmit = vi.fn();
     renderWithProviders(<ComposerMount submit={mockSubmit} />);
 
@@ -221,6 +228,8 @@ describe("real-executor task plane", () => {
       target: { value: "fixture mode task" },
     });
     fireEvent.click(screen.getByTestId("executor-option-deterministic_fixture"));
+
+    expect(screen.queryByLabelText("模型配置")).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByTestId("submit-new-task")).not.toBeDisabled();
@@ -235,10 +244,14 @@ describe("real-executor task plane", () => {
     const submitted = mockSubmit.mock.calls[0][0] as {
       executorKind?: string;
       modelProfileId?: string;
+      bindingRef?: string;
+      repository?: string;
       title?: string;
     };
     expect(submitted.executorKind).toBe("deterministic_fixture");
-    expect(submitted.modelProfileId).toBe("coding-default");
+    expect(submitted.modelProfileId).toBeUndefined();
+    expect(submitted.bindingRef).toBeUndefined();
+    expect(submitted.repository).toBeUndefined();
     expect(submitted.title).toBe("fixture mode task");
   });
 });

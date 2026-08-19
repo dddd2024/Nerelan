@@ -14,11 +14,23 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlsplit
 from urllib.request import Request, urlopen
 
-from .contracts import ModelProfile, ProbeResult
+from .contracts import Connection, ModelProfile, ProbeResult
 from .store import ModelProfileStore
 
 ProbeTransport = Callable[[str, dict[str, str], float], tuple[int, bytes]]
 _MAX_BODY_BYTES = 1_048_576
+_PROBE_PAYLOAD_FORBIDDEN_FIELDS = frozenset({
+    "api_key", "apiKey",
+    "token",
+    "base_url", "baseUrl",
+    "provider",
+    "auth_method", "authMethod",
+    "connection_id", "connectionId",
+    "name",
+    "enabled",
+    "model_id", "modelId",
+    "api_key_env", "apiKeyEnv",
+})
 
 
 def _default_transport(
@@ -29,20 +41,19 @@ def _default_transport(
         return int(response.status), response.read(_MAX_BODY_BYTES)
 
 
-def probe_openai_compatible(
+def _do_probe(
     *,
-    profile: ModelProfile,
-    api_key: str | None,
+    url: str,
+    headers: dict[str, str],
     live_enabled: bool,
-    transport: ProbeTransport | None = None,
-    timeout: float = 10.0,
+    transport: ProbeTransport | None,
+    timeout: float,
 ) -> ProbeResult:
-    """Probe an OpenAI-compatible ``/models`` endpoint.
+    """Internal reusable ``/models`` probe primitive.
 
-    Live network access is fail-closed and requires an explicit host opt-in.
-    The returned result never includes the submitted API key.
+    Live network access is fail-closed. The returned result never carries any
+    credential, Authorization header or upstream request body.
     """
-
     if not live_enabled:
         return ProbeResult(
             ok=False,
@@ -50,11 +61,6 @@ def probe_openai_compatible(
             message="Live model probes require REVERSE_AGENT_MODEL_CONTROL_LIVE=1",
             latency_ms=None,
         )
-
-    url = f"{profile.base_url.rstrip('/')}/models"
-    headers = {"Accept": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
 
     started = perf_counter()
     try:
@@ -112,6 +118,114 @@ def probe_openai_compatible(
         )
 
 
+def probe_openai_compatible(
+    *,
+    profile: ModelProfile,
+    api_key: str | None,
+    live_enabled: bool,
+    transport: ProbeTransport | None = None,
+    timeout: float = 10.0,
+) -> ProbeResult:
+    """Probe an OpenAI-compatible ``/models`` endpoint.
+
+    Legacy wrapper — kept for backward compatibility with existing ModelProfile
+    probe consumers.  Reuses the shared ``_do_probe`` primitive so Connection
+    and ModelProfile probes cannot diverge.
+    """
+    url = f"{profile.base_url.rstrip('/')}/models"
+    headers = {"Accept": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return _do_probe(
+        url=url,
+        headers=headers,
+        live_enabled=live_enabled,
+        transport=transport,
+        timeout=timeout,
+    )
+
+
+def probe_saved_connection(
+    *,
+    store: ModelProfileStore,
+    connection_id: str,
+    payload: dict[str, Any],
+    live_enabled: bool,
+    transport: ProbeTransport | None = None,
+    timeout: float = 10.0,
+) -> ProbeResult:
+    """Probe a saved Connection's ``/models`` endpoint.
+
+    Saved-Connection only semantics:
+      - The probe body must be empty or ``{}``. Any non-empty payload, including
+        credential/config overrides, is rejected (fail closed).
+      - The Connection metadata comes from the trusted store, not from the
+        request.
+      - API-key secrets are resolved server-side via ``resolve_connection_secret``.
+      - No credential, environment-variable name or Authorization header is
+        ever returned to the client.
+      - Disabled connections, missing API-key secrets, and unsupported auth
+        methods fail closed without invoking transport.
+    """
+    # Fail closed: reject any non-empty probe payload / config override.
+    if payload:
+        conflicting = sorted(k for k in payload if k in _PROBE_PAYLOAD_FORBIDDEN_FIELDS)
+        if conflicting:
+            raise ValueError(
+                "probe payload must not contain configuration overrides"
+            )
+        raise ValueError("probe payload must be an empty JSON object")
+
+    try:
+        connection = Connection.from_mapping(
+            store.get_connection_public(connection_id)
+        )
+    except KeyError:
+        return ProbeResult(
+            ok=False,
+            status="not_found",
+            message="Connection not found",
+            latency_ms=None,
+        )
+
+    if not connection.enabled:
+        return ProbeResult(
+            ok=False,
+            status="disabled",
+            message="Connection is disabled",
+            latency_ms=None,
+        )
+
+    if connection.auth_method == "api_key":
+        secret = store.resolve_connection_secret(connection_id)
+        if not secret:
+            return ProbeResult(
+                ok=False,
+                status="credential_missing",
+                message="API key is not configured",
+                latency_ms=None,
+            )
+        headers = {"Accept": "application/json", "Authorization": f"Bearer {secret}"}
+    elif connection.auth_method == "none":
+        headers = {"Accept": "application/json"}
+    else:
+        return ProbeResult(
+            ok=False,
+            status="unsupported_auth_method",
+            message="Probing this authentication method is not yet supported",
+            latency_ms=None,
+        )
+
+    url = f"{connection.base_url.rstrip('/')}/models"
+    return _do_probe(
+        url=url,
+        headers=headers,
+        live_enabled=live_enabled,
+        transport=transport,
+        timeout=timeout,
+    )
+
+
 class _ModelControlHandler(BaseHTTPRequestHandler):
     store = ModelProfileStore()
     live_enabled = False
@@ -141,6 +255,33 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
             if segments == ["api", "model-profiles"]:
                 self._send_json(HTTPStatus.OK, self.store.list_public())
                 return
+            if segments == ["api", "connections"]:
+                self._send_json(HTTPStatus.OK, self.store.list_connections_public())
+                return
+            if len(segments) == 3 and segments[:2] == ["api", "connections"]:
+                self._send_json(
+                    HTTPStatus.OK,
+                    self.store.get_connection_public(segments[2]),
+                )
+                return
+            if segments == ["api", "executors"]:
+                self._send_json(HTTPStatus.OK, self.store.list_executors_public())
+                return
+            if len(segments) == 3 and segments[:2] == ["api", "executors"]:
+                self._send_json(
+                    HTTPStatus.OK,
+                    self.store.get_executor_public(segments[2]),
+                )
+                return
+            if segments == ["api", "bindings"]:
+                self._send_json(HTTPStatus.OK, self.store.list_bindings_public())
+                return
+            if len(segments) == 3 and segments[:2] == ["api", "bindings"]:
+                self._send_json(
+                    HTTPStatus.OK,
+                    self.store.get_binding_public(segments[2]),
+                )
+                return
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "route not found"})
         except Exception as error:  # handler boundary
             self._send_exception(error)
@@ -155,6 +296,22 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
                 payload["id"] = segments[2]
                 self._send_json(HTTPStatus.OK, self.store.upsert(payload))
                 return
+            if len(segments) == 3 and segments[:2] == ["api", "connections"]:
+                payload = self._read_json()
+                payload["connection_id"] = segments[2]
+                self._send_json(
+                    HTTPStatus.OK,
+                    self.store.upsert_connection(payload),
+                )
+                return
+            if len(segments) == 3 and segments[:2] == ["api", "bindings"]:
+                payload = self._read_json()
+                payload["binding_id"] = segments[2]
+                self._send_json(
+                    HTTPStatus.OK,
+                    self.store.upsert_binding(payload),
+                )
+                return
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "route not found"})
         except Exception as error:  # handler boundary
             self._send_exception(error)
@@ -166,6 +323,14 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
             segments = self._segments()
             if len(segments) == 3 and segments[:2] == ["api", "model-profiles"]:
                 self.store.delete(segments[2])
+                self._send_json(HTTPStatus.OK, {"deleted": True})
+                return
+            if len(segments) == 3 and segments[:2] == ["api", "connections"]:
+                self.store.delete_connection(segments[2])
+                self._send_json(HTTPStatus.OK, {"deleted": True})
+                return
+            if len(segments) == 3 and segments[:2] == ["api", "bindings"]:
+                self.store.delete_binding(segments[2])
                 self._send_json(HTTPStatus.OK, {"deleted": True})
                 return
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "route not found"})
@@ -199,6 +364,20 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
                 result = probe_openai_compatible(
                     profile=self.store.get_profile(segments[2]),
                     api_key=secret,
+                    live_enabled=self.live_enabled,
+                )
+                self._send_json(HTTPStatus.OK, result.to_dict())
+                return
+            if (
+                len(segments) == 4
+                and segments[:2] == ["api", "connections"]
+                and segments[3] == "test"
+            ):
+                payload = self._read_json(optional=True)
+                result = probe_saved_connection(
+                    store=self.store,
+                    connection_id=segments[2],
+                    payload=payload,
                     live_enabled=self.live_enabled,
                 )
                 self._send_json(HTTPStatus.OK, result.to_dict())

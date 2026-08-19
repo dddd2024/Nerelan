@@ -74,6 +74,14 @@ describe("OpenHands-style workspace shell", () => {
         conversationPanelOpen={false}
       />,
     );
+    expect(screen.getByTestId("sidebar")).toHaveAttribute(
+      "data-agent-canvas-source",
+      "v1.6.1",
+    );
+    expect(screen.getByTestId("sidebar")).toHaveAttribute(
+      "data-presentation-boundary",
+      "slot-adapter",
+    );
     expect(screen.getByTestId("sidebar-logo")).toBeInTheDocument();
     expect(screen.getByLabelText("reverse-agent")).toBeInTheDocument();
     expect(screen.getByTestId("new-task-button")).toBeInTheDocument();
@@ -166,6 +174,14 @@ describe("Task detail (OpenHands ConversationMain adaptation)", () => {
   it("renders resizable workspace with activity stream and tab panel", async () => {
     const user = userEvent.setup();
     renderWithProviders(<TaskDetail task={FIXTURE_TASK} isLoading={false} isError={false} />);
+    expect(screen.getByTestId("desktop-split-container")).toHaveAttribute(
+      "data-agent-canvas-source",
+      "v1.6.1",
+    );
+    expect(screen.getByTestId("resize-handle-container")).toHaveAttribute(
+      "data-agent-canvas-source",
+      "v1.6.1",
+    );
     expect(screen.getByTestId("activity-stream")).toBeInTheDocument();
     expect(screen.getByTestId("right-panel-content")).toBeInTheDocument();
     const changesTab = screen.getByTestId("right-tab-changes");
