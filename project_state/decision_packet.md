@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260819_issue240_sprint_b1_owner_clean_landing_r2_v1",
-  "round_id": "round_20260819_issue240_sprint_b1_owner_clean_landing_r2_v1",
+  "decision_id": "decision_20260819_issue240_sprint_b1_owner_clean_landing_r2_v2",
+  "round_id": "round_20260819_issue240_sprint_b1_owner_clean_landing_r2_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,10 +14,10 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260819_issue240_sprint_b1_github_native_ci_r2_v7",
-  "follows_last_round_id": "round_20260819_issue240_sprint_b1_github_native_ci_r2_v7",
-  "previous_audit_outcome": "ISSUE240_V7_LOCAL_AND_GITHUB_NATIVE_BLOCKING_ACCEPTED_STATE_GATE_ONLY_SNAPSHOT_MISSING_CONFIRMED",
-  "workstream_id": "issue240-sprint-b1-owner-clean-landing-r2-v1",
+  "follows_last_decision_id": "decision_20260819_issue240_sprint_b1_owner_clean_landing_r2_v1",
+  "follows_last_round_id": "round_20260819_issue240_sprint_b1_owner_clean_landing_r2_v1",
+  "previous_audit_outcome": "ISSUE240_B1_LANDING_V1_BLOCKED_PRE_PUBLICATION_INVALID_EVIDENCE_SOURCE_TOKEN_NO_CANONICAL_PUSH_ATTEMPTED",
+  "workstream_id": "issue240-sprint-b1-owner-clean-landing-r2-v2",
   "source_issue": 240,
   "parent_issue": 233,
   "diagnostic_pr": 244,
@@ -29,10 +29,10 @@
   "github_state_gate_run_id": 32212264769,
   "github_state_gate_only_blocker": "snapshot_missing",
   "path_a_snapshot_must_not_be_fabricated": true,
-  "required_branch": "owner/issue240-sprint-b1-owner-clean-landing-r2-v1",
-  "starting_head": "1c6743b4580cc4280724751c38dff05fa572570d",
-  "activation_base_sha": "1c6743b4580cc4280724751c38dff05fa572570d",
-  "authority_worktree": "F:/reverse-agent-issue240-sprint-b1-owner-clean-landing-r2-v1",
+  "required_branch": "owner/issue240-sprint-b1-owner-clean-landing-r2-v2",
+  "starting_head": "e6e537e26fa8a39641c32d047f44041d475048a4",
+  "activation_base_sha": "e6e537e26fa8a39641c32d047f44041d475048a4",
+  "authority_worktree": "F:/reverse-agent-issue240-sprint-b1-owner-clean-landing-r2-v2",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_publication": true,
@@ -74,18 +74,18 @@
     "git -C F:/reverse-agent-planning-smoke status --short",
     "git -C F:/reverse-agent-planning-smoke fetch origin owner/repository-modernization-v2-planning",
     "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue240-sprint-b1-clean-candidate-v7",
-    "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue240-sprint-b1-owner-clean-landing-r2-v1",
+    "git -C F:/reverse-agent-planning-smoke fetch origin owner/issue240-sprint-b1-owner-clean-landing-r2-v2",
     "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/repository-modernization-v2-planning",
     "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/issue240-sprint-b1-clean-candidate-v7",
-    "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/issue240-sprint-b1-owner-clean-landing-r2-v1",
-    "$b=(git -C F:/reverse-agent-planning-smoke branch --list owner/issue240-sprint-b1-owner-clean-landing-r2-v1);if($b){'ISSUE240_B1_LANDING_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};if(Test-Path -LiteralPath 'F:/reverse-agent-issue240-sprint-b1-owner-clean-landing-r2-v1'){'ISSUE240_B1_LANDING_WORKTREE_ALREADY_EXISTS';exit 24};'ISSUE240_B1_LANDING_BOOTSTRAP_TARGETS_ABSENT'",
-    "git -C F:/reverse-agent-planning-smoke worktree add --track -b owner/issue240-sprint-b1-owner-clean-landing-r2-v1 F:/reverse-agent-issue240-sprint-b1-owner-clean-landing-r2-v1 origin/owner/issue240-sprint-b1-owner-clean-landing-r2-v1",
-    "git -C F:/reverse-agent-issue240-sprint-b1-owner-clean-landing-r2-v1 sparse-checkout disable",
-    "Set-Location F:/reverse-agent-issue240-sprint-b1-owner-clean-landing-r2-v1",
+    "git -C F:/reverse-agent-planning-smoke rev-parse origin/owner/issue240-sprint-b1-owner-clean-landing-r2-v2",
+    "$b=(git -C F:/reverse-agent-planning-smoke branch --list owner/issue240-sprint-b1-owner-clean-landing-r2-v2);if($b){'ISSUE240_B1_LANDING_V2_LOCAL_BRANCH_ALREADY_EXISTS';exit 25};if(Test-Path -LiteralPath 'F:/reverse-agent-issue240-sprint-b1-owner-clean-landing-r2-v2'){'ISSUE240_B1_LANDING_V2_WORKTREE_ALREADY_EXISTS';exit 24};'ISSUE240_B1_LANDING_V2_BOOTSTRAP_TARGETS_ABSENT'",
+    "git -C F:/reverse-agent-planning-smoke worktree add --track -b owner/issue240-sprint-b1-owner-clean-landing-r2-v2 F:/reverse-agent-issue240-sprint-b1-owner-clean-landing-r2-v2 origin/owner/issue240-sprint-b1-owner-clean-landing-r2-v2",
+    "git -C F:/reverse-agent-issue240-sprint-b1-owner-clean-landing-r2-v2 sparse-checkout disable",
+    "Set-Location F:/reverse-agent-issue240-sprint-b1-owner-clean-landing-r2-v2",
     "git status --short",
     "git rev-parse HEAD",
     "git rev-parse HEAD^",
-    "git merge-base HEAD 1c6743b4580cc4280724751c38dff05fa572570d",
+    "git merge-base HEAD e6e537e26fa8a39641c32d047f44041d475048a4",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
@@ -134,7 +134,7 @@
       "execution_surface": "local",
       "operations": ["repository_observation", "network_access"],
       "network_access": true,
-      "required_evidence_source": "github_exact_head_evidence"
+      "required_evidence_source": "repository_state_attestation"
     },
     {
       "command_id": "issue240b1landing.verify_state_gate_route_gap",
@@ -145,7 +145,7 @@
       "execution_surface": "local",
       "operations": ["repository_observation", "network_access"],
       "network_access": true,
-      "required_evidence_source": "github_exact_head_evidence"
+      "required_evidence_source": "repository_state_attestation"
     },
     {
       "command_id": "issue240b1landing.remote_cas_reobserve",
@@ -185,14 +185,14 @@
     },
     {
       "command_id": "issue240b1landing.close_diagnostic_pr",
-      "command": "$state=(gh pr view 244 --repo dddd2024/reverse-agent --json state --jq .state);if($state -eq 'OPEN'){gh pr close 244 --repo dddd2024/reverse-agent --comment 'Owner-clean candidate landed by exact normal fast-forward under decision_20260819_issue240_sprint_b1_owner_clean_landing_r2_v1; closing diagnostic PR without merge.';if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}};'ISSUE240_B1_LANDING_DIAGNOSTIC_PR_CLOSED'",
+      "command": "$state=(gh pr view 244 --repo dddd2024/reverse-agent --json state --jq .state);if($state -eq 'OPEN'){gh pr close 244 --repo dddd2024/reverse-agent --comment 'Owner-clean candidate landed by exact normal fast-forward under decision_20260819_issue240_sprint_b1_owner_clean_landing_r2_v2; closing diagnostic PR without merge.';if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}};'ISSUE240_B1_LANDING_DIAGNOSTIC_PR_CLOSED'",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["pull_request_close", "network_access"],
       "network_access": true,
-      "required_evidence_source": "github_readback",
+      "required_evidence_source": "repository_state_attestation",
       "allowed_only_after_validation": true
     },
     {
