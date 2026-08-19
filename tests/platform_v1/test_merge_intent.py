@@ -30,6 +30,7 @@ ARCHIVE_PR112_V3_PATH = INTENTS_DIR / "archive" / "pr112_v3.json"
 ARCHIVE_PR112_V4_PATH = INTENTS_DIR / "archive" / "pr112_v4.json"
 ARCHIVE_PR112_V5_PATH = INTENTS_DIR / "archive" / "pr112_v5.json"
 ARCHIVE_PR112_V6_PATH = INTENTS_DIR / "archive" / "pr112_v6.json"
+ARCHIVE_PR257_PATH = INTENTS_DIR / "archive" / "pr257_v1.json"
 DECISION_PATH = REPO_ROOT / "project_state" / "decision_packet.md"
 COMMAND_PLAN_PATH = REPO_ROOT / "project_state" / "gates" / "command_plan.json"
 
@@ -57,6 +58,7 @@ EXPECTED_PR112_V3_GIT_BLOB = "3c246c1377df2504bb95fbd4d9865860b017b049"
 EXPECTED_PR112_V4_GIT_BLOB = "78104b6ae6746b0b5bf3b409f7dd2054ca23fcd9"
 EXPECTED_PR112_V5_GIT_BLOB = "64e555a98a1b748b2e320abb4559922bdc0d3649"
 EXPECTED_PR112_V6_GIT_BLOB = "ed960c0e117051e8915b457028e4c0e5f0c3e07c"
+EXPECTED_PR257_V1_GIT_BLOB = "972fcbec132fffc089d9e20bec0d4dc7eed2b31b"
 
 
 def _load_json(path: Path) -> dict:
@@ -92,6 +94,32 @@ def _requires_active_merge_intent() -> bool:
     return contract.get("mainline_merge_intent_required", True) is not False
 
 
+def _active_intent_binds_current_decision() -> bool:
+    """True once the post-publication binding commit lands the active intent.
+
+    Issue #259 v3 defers the exact GitHub-assigned Draft PR number binding to a
+    single post-publication commit; before that commit the active intent still
+    preserves the previous landing's schema-v1 four-run binding.
+    """
+
+    data = _load_json(ACTIVE_PATH)
+    meta = _parse_decision_meta()
+    identity = data.get("decision_identity", {})
+    return identity.get("decision_id") == meta.get("decision_id")
+
+
+def _contract_defers_pr_binding() -> bool:
+    """True when the Decision defers exact PR binding until after Draft PR creation."""
+
+    contract = _parse_decision_contract()
+    return (
+        "active_pr" not in contract
+        and contract.get("active_pr_binding_mode")
+        == "post_draft_pr_exact_remote_number"
+        and contract.get("issue_number_must_not_substitute_for_pr_number") is True
+    )
+
+
 # ---------------------------------------------------------------------------
 # Active intent (dynamically bound to current Decision via parser)
 # ---------------------------------------------------------------------------
@@ -107,10 +135,19 @@ class TestActiveMergeIntent:
     def test_active_binds_current_decision_source_pr(self) -> None:
         data = _load_json(ACTIVE_PATH)
         contract = _parse_decision_contract()
-        expected_pr = contract["active_pr"]
-        assert data["source_pr"] == expected_pr, (
-            f"active source_pr={data['source_pr']} != Decision active_pr={expected_pr}"
+        source_issue = contract.get("source_issue")
+        assert data["source_pr"] > 0
+        assert data["source_pr"] != source_issue, (
+            f"active source_pr={data['source_pr']} must not substitute "
+            f"source_issue={source_issue}"
         )
+        if "active_pr" in contract:
+            expected_pr = contract["active_pr"]
+            assert data["source_pr"] == expected_pr, (
+                f"active source_pr={data['source_pr']} != Decision active_pr={expected_pr}"
+            )
+        else:
+            assert _contract_defers_pr_binding()
 
     def test_active_does_not_have_source_pr_zero(self) -> None:
         data = _load_json(ACTIVE_PATH)
@@ -123,6 +160,10 @@ class TestActiveMergeIntent:
     def test_active_binds_current_decision_locked_base_sha(self) -> None:
         data = _load_json(ACTIVE_PATH)
         contract = _parse_decision_contract()
+        if not _active_intent_binds_current_decision():
+            assert _contract_defers_pr_binding()
+            assert data["schema_version"] == 1
+            return
         expected_base = contract["activation_base_sha"]
         assert data["locked_base_sha"] == expected_base
 
@@ -137,6 +178,13 @@ class TestActiveMergeIntent:
     def test_active_binds_current_decision_id(self) -> None:
         data = _load_json(ACTIVE_PATH)
         meta = _parse_decision_meta()
+        if not _active_intent_binds_current_decision():
+            assert _contract_defers_pr_binding()
+            assert data["schema_version"] == 1
+            assert (
+                data["decision_identity"]["decision_id"] != meta["decision_id"]
+            ), "pre-binding interim must preserve the previous landing decision"
+            return
         expected_id = meta["decision_id"]
         assert data["decision_identity"]["decision_id"] == expected_id
 
@@ -149,7 +197,11 @@ class TestActiveMergeIntent:
         sha = data["decision_identity"]["decision_content_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
-        assert sha == hashlib.sha256(DECISION_PATH.read_bytes()).hexdigest()
+        if _active_intent_binds_current_decision():
+            assert sha == hashlib.sha256(DECISION_PATH.read_bytes()).hexdigest()
+        else:
+            assert _contract_defers_pr_binding()
+            assert sha != hashlib.sha256(DECISION_PATH.read_bytes()).hexdigest()
 
     @pytest.mark.skipif(
         not _requires_active_merge_intent(),
@@ -160,15 +212,24 @@ class TestActiveMergeIntent:
         sha = data["command_plan_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
-        assert sha == hashlib.sha256(COMMAND_PLAN_PATH.read_bytes()).hexdigest()
+        if _active_intent_binds_current_decision():
+            assert sha == hashlib.sha256(COMMAND_PLAN_PATH.read_bytes()).hexdigest()
+        else:
+            assert _contract_defers_pr_binding()
+            assert sha != hashlib.sha256(COMMAND_PLAN_PATH.read_bytes()).hexdigest()
 
-    def test_active_required_workflows_include_all_four(self) -> None:
+    def test_active_required_workflows_match_schema_policy(self) -> None:
         data = _load_json(ACTIVE_PATH)
         workflows = data["required_workflows"]
         assert "CI" in workflows
         assert "Decision Preflight" in workflows
         assert "State Gate (pull_request)" in workflows
-        assert "State Gate (push)" in workflows
+        if int(data.get("schema_version") or 1) == 1:
+            assert "State Gate (push)" in workflows
+            assert len(workflows) == 4
+        else:
+            assert "State Gate (push)" not in workflows
+            assert len(workflows) == 3
 
     def test_active_has_bounded_expiry(self) -> None:
         data = _load_json(ACTIVE_PATH)
@@ -190,13 +251,19 @@ class TestActiveMergeIntent:
     )
     def test_decision_contract_unique_and_valid(self) -> None:
         contract = _parse_decision_contract()
-        assert isinstance(contract["active_pr"], int)
         assert isinstance(contract["activation_base_sha"], str)
         assert isinstance(contract["required_branch"], str)
         assert isinstance(contract["starting_head"], str)
         assert contract["allowed_merge_method"] == "merge"
         assert contract["risk_tier"] == "R2"
         assert contract["decision_commit_must_precede_implementation"] is True
+        if "active_pr" in contract:
+            assert isinstance(contract["active_pr"], int)
+        else:
+            assert _contract_defers_pr_binding()
+            assert isinstance(
+                contract.get("post_publication_binding_commit_limit"), int
+            )
 
     def test_decision_id_format_matches_production(self) -> None:
         meta = _parse_decision_meta()
@@ -508,6 +575,43 @@ class TestArchivedPR112V6Intent:
 
 
 # ---------------------------------------------------------------------------
+# Archived PR257 v1 intent (exact pre-binding active bytes)
+# ---------------------------------------------------------------------------
+
+class TestArchivedPR257V1Intent:
+    def test_archive_pr257_v1_file_exists(self) -> None:
+        assert ARCHIVE_PR257_PATH.exists(), (
+            f"pr257_v1.json not found at {ARCHIVE_PR257_PATH}"
+        )
+
+    def test_archive_pr257_v1_is_exact_pre_binding_active_blob(self) -> None:
+        payload = ARCHIVE_PR257_PATH.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == EXPECTED_PR257_V1_GIT_BLOB
+
+    def test_archive_pr257_v1_preserves_identity_and_base(self) -> None:
+        data = _load_json(ARCHIVE_PR257_PATH)
+        assert data["schema_version"] == 1
+        assert data["source_pr"] == 257
+        assert data["intent_id"] == "pr257_issue250_platform_v2_landing_v1"
+        assert data["decision_identity"]["decision_id"] == (
+            "decision_20260819_issue250_platform_v2_landing_r2_v9"
+        )
+        assert data["locked_base_sha"] == (
+            "706991ad0cb826d7c963a8ddfb7e770e97cdf60b"
+        )
+
+    def test_archive_pr257_v1_preserves_four_run_policy(self) -> None:
+        data = _load_json(ARCHIVE_PR257_PATH)
+        assert data["required_workflows"] == [
+            "CI",
+            "Decision Preflight",
+            "State Gate (pull_request)",
+            "State Gate (push)",
+        ]
+
+
+# ---------------------------------------------------------------------------
 # v4 active intent differs from v3 archive
 # ---------------------------------------------------------------------------
 
@@ -647,8 +751,17 @@ class TestDecisionImmutability:
         assert len(contract["activation_base_sha"]) == 40
         assert all(c in "0123456789abcdef" for c in contract["activation_base_sha"])
         if _requires_active_merge_intent():
-            assert isinstance(contract["active_pr"], int) and contract["active_pr"] > 0
-            assert contract["active_pr"] == active["source_pr"]
-            assert contract["activation_base_sha"] == active["locked_base_sha"]
+            if "active_pr" in contract:
+                assert isinstance(contract["active_pr"], int) and contract["active_pr"] > 0
+                assert contract["active_pr"] == active["source_pr"]
+                assert contract["activation_base_sha"] == active["locked_base_sha"]
+            else:
+                assert _contract_defers_pr_binding()
+                assert active["source_pr"] != contract["source_issue"]
+                if (
+                    active["decision_identity"]["decision_id"]
+                    == meta["decision_id"]
+                ):
+                    assert active["locked_base_sha"] == contract["activation_base_sha"]
         else:
             assert "active_pr" not in contract

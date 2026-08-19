@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "merge_approval_attestation_v2.schema.json",
+  "title": "Merge Approval Attestation V2 - Current Pre-Merge Three-Run Policy",
+  "description": "Schema version 2: current pre-merge attestation requiring exactly three exact-head workflow observations (CI, Decision Preflight, State Gate pull_request). State Gate (push) is post-merge landing evidence only. Schema version 1 remains the four-run historical policy.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "attestation_id",
+    "repository",
+    "source_pr",
+    "locked_base_sha",
+    "accepted_exact_head_sha",
+    "allowed_merge_method",
+    "intent_digest",
+    "workflow_observations",
+    "human_r2_approval",
+    "authorization_status",
+    "expires_at",
+    "superseded_by",
+    "content_digest"
+  ],
+  "properties": {
+    "schema_version": {"const": 2},
+    "attestation_id": {"type": "string", "minLength": 1},
+    "repository": {"const": "dddd2024/reverse-agent"},
+    "source_pr": {"type": "integer", "minimum": 1},
+    "locked_base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "accepted_exact_head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "allowed_merge_method": {"const": "merge"},
+    "intent_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "workflow_observations": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "run_id",
+          "workflow_file",
+          "event",
+          "run_attempt",
+          "head_sha",
+          "conclusion"
+        ],
+        "properties": {
+          "name": {"enum": ["CI", "Decision Preflight", "State Gate (pull_request)"]},
+          "run_id": {"type": "integer", "minimum": 1},
+          "workflow_file": {"type": "string"},
+          "event": {"enum": ["pull_request"]},
+          "run_attempt": {"type": "integer", "minimum": 1},
+          "head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+          "conclusion": {"enum": ["success"]}
+        }
+      }
+    },
+    "human_r2_approval": {"type": "object"},
+    "authorization_status": {"const": "active"},
+    "expires_at": {"type": "string"},
+    "superseded_by": {"type": ["string", "null"]},
+    "content_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "_remote_comment_id": {"type": "integer"},
+    "_remote_author": {"type": "string"}
+  }
+}

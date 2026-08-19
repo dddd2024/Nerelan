@@ -36,6 +36,22 @@ CANONICAL_WORKFLOW_POLICY: dict[str, tuple[str, str]] = {
     "State Gate (push)": (".github/workflows/state-gate.yml", "push"),
 }
 
+CURRENT_PREMERGE_WORKFLOW_POLICY: dict[str, tuple[str, str]] = {
+    "CI": (".github/workflows/ci.yml", "pull_request"),
+    "Decision Preflight": (
+        ".github/workflows/decision-preflight.yml",
+        "pull_request",
+    ),
+    "State Gate (pull_request)": (
+        ".github/workflows/state-gate.yml",
+        "pull_request",
+    ),
+}
+
+CURRENT_POSTMERGE_WORKFLOW_POLICY: dict[str, tuple[str, str]] = {
+    "State Gate (push)": (".github/workflows/state-gate.yml", "push"),
+}
+
 
 def canonical_digest(payload: Mapping[str, Any], *, omit: tuple[str, ...] = ()) -> str:
     filtered = {key: value for key, value in payload.items() if key not in omit}
@@ -284,9 +300,31 @@ def _validate_intent(
         "required_workflows",
         "expires_at",
     }
+    schema_version = int(intent.get("schema_version") or 1)
+    if schema_version == 1:
+        workflow_policy = CANONICAL_WORKFLOW_POLICY
+    elif schema_version == 2:
+        workflow_policy = CURRENT_PREMERGE_WORKFLOW_POLICY
+    else:
+        return [
+            _check("intent_schema_version", False, f"unsupported_version={schema_version}"),
+            _check("intent_fields", False, "unsupported_version"),
+            _check("intent_repository", False, "unsupported_version"),
+            _check("intent_source_pr", False, "unsupported_version"),
+            _check("intent_locked_base", False, "unsupported_version"),
+            _check("intent_merge_method", False, "unsupported_version"),
+            _check("intent_decision_fields", False, "unsupported_version"),
+            _check("intent_decision_id", False, "unsupported_version"),
+            _check("intent_decision_digest", False, "unsupported_version"),
+            _check("intent_command_plan_identity", False, "unsupported_version"),
+            _check("intent_command_plan_digest", False, "unsupported_version"),
+            _check("intent_merge_tree_policy", False, "unsupported_version"),
+            _check("intent_workflow_policy", False, "unsupported_version"),
+            _check("intent_expiry", False, "unsupported_version"),
+        ]
     return [
         _check("intent_fields", set(intent) == intent_fields, f"observed={sorted(intent)}"),
-        _check("intent_schema_version", intent.get("schema_version") == 1, f"observed={intent.get('schema_version')}"),
+        _check("intent_schema_version", schema_version in {1, 2}, f"observed={schema_version}"),
         _check("intent_repository", intent.get("repository") == "dddd2024/reverse-agent", f"observed={intent.get('repository')}"),
         _check("intent_source_pr", intent.get("source_pr") == source_pr, f"observed={intent.get('source_pr')} expected={source_pr}"),
         _check("intent_locked_base", intent.get("locked_base_sha") == locked_base, f"observed={intent.get('locked_base_sha')} expected={locked_base}"),
@@ -297,7 +335,7 @@ def _validate_intent(
         _check("intent_command_plan_identity", command_plan.get("decision_id") == accepted_decision.get("decision_id") and command_plan.get("round_id") == accepted_decision.get("round_id"), f"plan={command_plan.get('decision_id')}/{command_plan.get('round_id')} decision={accepted_decision.get('decision_id')}/{accepted_decision.get('round_id')}"),
         _check("intent_command_plan_digest", _sha256(intent.get("command_plan_sha256")) and intent.get("command_plan_sha256") == plan_digest, f"observed={intent.get('command_plan_sha256')} expected={plan_digest}"),
         _check("intent_merge_tree_policy", intent.get("merge_tree_policy") == "equal_to_accepted_head_tree", f"observed={intent.get('merge_tree_policy')}"),
-        _check("intent_workflow_policy", required == list(CANONICAL_WORKFLOW_POLICY), f"observed={required}"),
+        _check("intent_workflow_policy", required == list(workflow_policy), f"observed={required}"),
         _check("intent_expiry", not_expired, f"expires_at={expiry} now={now.isoformat()}"),
     ]
 
@@ -333,6 +371,35 @@ def _validate_attestation(
     except ValueError:
         active_time = False
     remote_comment_id = int(attestation.get("_remote_comment_id") or 0)
+    schema_version = int(attestation.get("schema_version") or 1)
+    if schema_version == 1:
+        workflow_policy = CANONICAL_WORKFLOW_POLICY
+        required_observation_count = 4
+    elif schema_version == 2:
+        workflow_policy = CURRENT_PREMERGE_WORKFLOW_POLICY
+        required_observation_count = 3
+    else:
+        return [
+            _check("attestation_schema_version", False, f"unsupported_version={schema_version}"),
+            _check("attestation_fields", False, "unsupported_version"),
+            _check("attestation_repository", False, "unsupported_version"),
+            _check("attestation_source_pr", False, "unsupported_version"),
+            _check("attestation_base", False, "unsupported_version"),
+            _check("attestation_head", False, "unsupported_version"),
+            _check("attestation_method", False, "unsupported_version"),
+            _check("attestation_intent_digest", False, "unsupported_version"),
+            _check("attestation_content_digest", False, "unsupported_version"),
+            _check("attestation_status", False, "unsupported_version"),
+            _check("attestation_expiry", False, "unsupported_version"),
+            _check("workflow_names", False, "unsupported_version"),
+            _check("workflow_run_uniqueness", False, "unsupported_version"),
+            _check("workflow_observation_fields", False, "unsupported_version"),
+            _check("approval_remote_identity", False, "unsupported_version"),
+            _check("approval_fields", False, "unsupported_version"),
+            _check("approval_approver", False, "unsupported_version"),
+            _check("approval_payload", False, "unsupported_version"),
+            _check("approval_content_digest", False, "unsupported_version"),
+        ]
     attestation_fields = {
         "schema_version",
         "attestation_id",
@@ -363,7 +430,7 @@ def _validate_attestation(
     checks.extend(
         [
             _check("attestation_fields", set(attestation) == attestation_fields, f"observed={sorted(attestation)}"),
-            _check("attestation_schema_version", attestation.get("schema_version") == 1, f"observed={attestation.get('schema_version')}"),
+            _check("attestation_schema_version", schema_version in {1, 2}, f"observed={schema_version}"),
             _check("attestation_repository", attestation.get("repository") == "dddd2024/reverse-agent", f"observed={attestation.get('repository')}"),
             _check("attestation_source_pr", attestation.get("source_pr") == source_pr, f"observed={attestation.get('source_pr')} expected={source_pr}"),
             _check("attestation_base", attestation.get("locked_base_sha") == locked_base, f"observed={attestation.get('locked_base_sha')}"),
@@ -373,9 +440,9 @@ def _validate_attestation(
             _check("attestation_content_digest", attestation.get("content_digest") == canonical_digest(attestation, omit=("content_digest", "_remote_comment_id", "_remote_author")), f"observed={attestation.get('content_digest')}"),
             _check("attestation_status", attestation.get("authorization_status") == "active" and not attestation.get("superseded_by"), f"status={attestation.get('authorization_status')} superseded_by={attestation.get('superseded_by')}"),
             _check("attestation_expiry", active_time, f"expires_at={attestation.get('expires_at')}"),
-            _check("workflow_names", observed_names == list(CANONICAL_WORKFLOW_POLICY), f"observed={observed_names}"),
-            _check("workflow_run_uniqueness", len(run_ids) == len(set(run_ids)) == len(CANONICAL_WORKFLOW_POLICY), f"run_ids={run_ids}"),
-            _check("workflow_observation_fields", len(observations) == 4 and all(isinstance(item, Mapping) and set(item) == observation_fields for item in observations), f"count={len(observations)}"),
+            _check("workflow_names", observed_names == list(workflow_policy), f"observed={observed_names}"),
+            _check("workflow_run_uniqueness", len(run_ids) == len(set(run_ids)) == len(workflow_policy), f"run_ids={run_ids}"),
+            _check("workflow_observation_fields", len(observations) == required_observation_count and all(isinstance(item, Mapping) and set(item) == observation_fields for item in observations), f"count={len(observations)}"),
             _check("approval_remote_identity", remote_comment_id > 0 and approval.get("approval_object_id") == remote_comment_id and attestation.get("_remote_author") in {"dddd2024"}, f"comment={remote_comment_id} author={attestation.get('_remote_author')}"),
             _check("approval_fields", set(approval) == {"approver", "approval_object_id", "approval_payload", "approval_content_digest"}, f"observed={sorted(approval)}"),
             _check("approval_approver", approval.get("approver") == attestation.get("_remote_author") == "dddd2024", f"observed={approval.get('approver')}"),
@@ -389,12 +456,12 @@ def _validate_attestation(
         expected_base_sha=locked_base,
     )
     checks.append(_check("remote_pr_binding", bool(pr.get("verified")), str(pr.get("reason") or "verified")))
-    for index, name in enumerate(CANONICAL_WORKFLOW_POLICY):
+    for index, name in enumerate(workflow_policy):
         if index >= len(observations) or not isinstance(observations[index], Mapping):
             checks.append(_check(f"remote_workflow:{name}", False, "missing"))
             continue
         observation = observations[index]
-        expected_file, expected_event = CANONICAL_WORKFLOW_POLICY[name]
+        expected_file, expected_event = workflow_policy[name]
         locally_bound = (
             observation.get("name") == name
             and observation.get("workflow_file") == expected_file

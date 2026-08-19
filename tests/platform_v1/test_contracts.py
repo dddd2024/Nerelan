@@ -919,6 +919,43 @@ def _requires_active_merge_intent() -> bool:
     return contract.get("mainline_merge_intent_required", True) is not False
 
 
+def _active_intent_binds_current_decision() -> bool:
+    """True once the post-publication binding commit lands the active intent."""
+
+    from pathlib import Path
+    from reverse_agent.project_state import extract_markdown_json_block
+
+    repo_root = Path(__file__).resolve().parents[2]
+    active_path = repo_root / "project_state" / "mainline_merge_intents" / "active.json"
+    decision_path = repo_root / "project_state" / "decision_packet.md"
+    active = json.loads(active_path.read_text(encoding="utf-8"))
+    meta = extract_markdown_json_block(
+        decision_path.read_text(encoding="utf-8"),
+        "decision_meta",
+    )
+    identity = active.get("decision_identity", {})
+    return identity.get("decision_id") == meta.get("decision_id")
+
+
+def _contract_defers_pr_binding() -> bool:
+    """True when the Decision defers exact PR binding until after Draft PR creation."""
+
+    from pathlib import Path
+    from reverse_agent.project_state import extract_markdown_json_block
+
+    decision_path = Path(__file__).resolve().parents[2] / "project_state" / "decision_packet.md"
+    contract = extract_markdown_json_block(
+        decision_path.read_text(encoding="utf-8"),
+        "decision_contract",
+    )
+    return (
+        "active_pr" not in contract
+        and contract.get("active_pr_binding_mode")
+        == "post_draft_pr_exact_remote_number"
+        and contract.get("issue_number_must_not_substitute_for_pr_number") is True
+    )
+
+
 class TestActiveMergeIntentV6:
     """The active intent binds PR #112 while preserving prior intents.
 
@@ -944,6 +981,7 @@ class TestActiveMergeIntentV6:
         self._archive_pr112_v3_path = intents_dir / "archive" / "pr112_v3.json"
         self._archive_pr112_v4_path = intents_dir / "archive" / "pr112_v4.json"
         self._archive_pr112_v5_path = intents_dir / "archive" / "pr112_v5.json"
+        self._archive_pr257_path = intents_dir / "archive" / "pr257_v1.json"
         self._decision_path = repo_root / "project_state" / "decision_packet.md"
         self._command_plan_path = repo_root / "project_state" / "gates" / "command_plan.json"
         self._active = json.loads(self._active_path.read_text(encoding="utf-8"))
@@ -972,6 +1010,9 @@ class TestActiveMergeIntentV6:
         self._archive_pr112_v5 = json.loads(
             self._archive_pr112_v5_path.read_text(encoding="utf-8")
         )
+        self._archive_pr257 = json.loads(
+            self._archive_pr257_path.read_text(encoding="utf-8")
+        )
 
     @pytest.mark.skipif(
         not _requires_active_merge_intent(),
@@ -981,11 +1022,20 @@ class TestActiveMergeIntentV6:
         from reverse_agent.project_state import extract_markdown_json_block
         decision_text = self._decision_path.read_text(encoding="utf-8")
         contract = extract_markdown_json_block(decision_text, "decision_contract")
-        expected_pr = contract["active_pr"]
-        assert self._active["source_pr"] == expected_pr, (
-            f"active source_pr={self._active['source_pr']} != "
-            f"Decision active_pr={expected_pr}"
+        source_issue = contract.get("source_issue")
+        assert self._active["source_pr"] > 0
+        assert self._active["source_pr"] != source_issue, (
+            f"active source_pr={self._active['source_pr']} must not substitute "
+            f"source_issue={source_issue}"
         )
+        if "active_pr" in contract:
+            expected_pr = contract["active_pr"]
+            assert self._active["source_pr"] == expected_pr, (
+                f"active source_pr={self._active['source_pr']} != "
+                f"Decision active_pr={expected_pr}"
+            )
+        else:
+            assert _contract_defers_pr_binding()
 
     @pytest.mark.skipif(
         not _requires_active_merge_intent(),
@@ -995,6 +1045,14 @@ class TestActiveMergeIntentV6:
         from reverse_agent.project_state import extract_markdown_json_block
         decision_text = self._decision_path.read_text(encoding="utf-8")
         meta = extract_markdown_json_block(decision_text, "decision_meta")
+        if not _active_intent_binds_current_decision():
+            assert _contract_defers_pr_binding()
+            assert self._active["schema_version"] == 1
+            assert (
+                self._active["decision_identity"]["decision_id"]
+                != meta["decision_id"]
+            ), "pre-binding interim must preserve the previous landing decision"
+            return
         assert self._active["decision_identity"]["decision_id"] == meta["decision_id"]
 
     @pytest.mark.skipif(
@@ -1005,7 +1063,11 @@ class TestActiveMergeIntentV6:
         sha = self._active["decision_identity"]["decision_content_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
-        assert sha == hashlib.sha256(self._decision_path.read_bytes()).hexdigest()
+        if _active_intent_binds_current_decision():
+            assert sha == hashlib.sha256(self._decision_path.read_bytes()).hexdigest()
+        else:
+            assert _contract_defers_pr_binding()
+            assert sha != hashlib.sha256(self._decision_path.read_bytes()).hexdigest()
         assert sha != self._archive_v3["decision_identity"]["decision_content_sha256"]
 
     @pytest.mark.skipif(
@@ -1016,7 +1078,11 @@ class TestActiveMergeIntentV6:
         sha = self._active["command_plan_sha256"]
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
-        assert sha == hashlib.sha256(self._command_plan_path.read_bytes()).hexdigest()
+        if _active_intent_binds_current_decision():
+            assert sha == hashlib.sha256(self._command_plan_path.read_bytes()).hexdigest()
+        else:
+            assert _contract_defers_pr_binding()
+            assert sha != hashlib.sha256(self._command_plan_path.read_bytes()).hexdigest()
         assert sha != self._archive_v3["command_plan_sha256"]
 
     @pytest.mark.skipif(
@@ -1027,6 +1093,10 @@ class TestActiveMergeIntentV6:
         from reverse_agent.project_state import extract_markdown_json_block
         decision_text = self._decision_path.read_text(encoding="utf-8")
         contract = extract_markdown_json_block(decision_text, "decision_contract")
+        if not _active_intent_binds_current_decision():
+            assert _contract_defers_pr_binding()
+            assert self._active["schema_version"] == 1
+            return
         expected_base = contract["activation_base_sha"]
         assert self._active["locked_base_sha"] == expected_base
 
@@ -1038,11 +1108,54 @@ class TestActiveMergeIntentV6:
         assert "CI" in workflows
         assert "Decision Preflight" in workflows
         assert "State Gate (pull_request)" in workflows
-        assert "State Gate (push)" in workflows
+        if int(self._active.get("schema_version") or 1) == 1:
+            assert "State Gate (push)" in workflows
+            assert len(workflows) == 4
+        else:
+            assert "State Gate (push)" not in workflows
+            assert len(workflows) == 3
 
     def test_active_has_bounded_expiry(self) -> None:
         expires = self._active.get("expires_at", "")
         assert expires and expires.endswith("Z")
+
+    def test_active_intent_id_matches_bound_pr(self) -> None:
+        data = self._active
+        assert str(data["source_pr"]) in data["intent_id"], (
+            f"intent_id={data['intent_id']} must reference source_pr={data['source_pr']}"
+        )
+
+    def test_archive_pr257_preserves_previous_landing_identity(self) -> None:
+        assert self._archive_pr257["schema_version"] == 1
+        assert self._archive_pr257["source_pr"] == 257
+        assert self._archive_pr257["intent_id"] == (
+            "pr257_issue250_platform_v2_landing_v1"
+        )
+        assert self._archive_pr257["decision_identity"]["decision_id"] == (
+            "decision_20260819_issue250_platform_v2_landing_r2_v9"
+        )
+        assert self._archive_pr257["locked_base_sha"] == (
+            "706991ad0cb826d7c963a8ddfb7e770e97cdf60b"
+        )
+
+    def test_archive_pr257_is_exact_pre_binding_active_blob(self) -> None:
+        payload = self._archive_pr257_path.read_bytes()
+        header = f"blob {len(payload)}\0".encode("ascii")
+        assert hashlib.sha1(header + payload).hexdigest() == (
+            "972fcbec132fffc089d9e20bec0d4dc7eed2b31b"
+        )
+
+    def test_active_binds_exact_pr_not_issue_number(self) -> None:
+        """Post-binding: the active intent must carry the real PR number."""
+        from reverse_agent.project_state import extract_markdown_json_block
+        decision_text = self._decision_path.read_text(encoding="utf-8")
+        contract = extract_markdown_json_block(decision_text, "decision_contract")
+        if not _active_intent_binds_current_decision():
+            assert _contract_defers_pr_binding()
+            return
+        assert contract.get("issue_number_must_not_substitute_for_pr_number") is True
+        assert self._active["source_pr"] != contract["source_issue"]
+        assert self._active["source_pr"] > 0
 
     def test_archive_v1_exists_and_preserves_v1_decision_id(self) -> None:
         assert self._archive_v1["decision_identity"]["decision_id"] == (
