@@ -541,6 +541,20 @@ def _committed_blob(path: str) -> bytes:
     )
 
 
+def _committed_decision_requires_active_merge_intent() -> bool:
+    """Only landing Decisions bind the global active merge-intent artifact."""
+
+    decision_blob = _committed_blob("project_state/decision_packet.md")
+    contract_matches = re.findall(
+        rb"```json decision_contract\r?\n(.*?)\r?\n```",
+        decision_blob,
+        re.DOTALL,
+    )
+    assert len(contract_matches) == 1
+    contract = json.loads(contract_matches[0])
+    return contract.get("mainline_merge_intent_required", True) is not False
+
+
 def test_committed_pr67_archived_intent_preserves_exact_v5_authority() -> None:
     """The archived PR67 intent must preserve its historical v5 binding verbatim."""
     intent = json.loads(
@@ -595,6 +609,10 @@ def test_committed_pr93_archived_intent_preserves_exact_v10_authority() -> None:
     assert intent["expires_at"] == "2026-08-09T23:59:59Z"
 
 
+@pytest.mark.skipif(
+    not _committed_decision_requires_active_merge_intent(),
+    reason="engineering Decision does not activate a mainline merge intent",
+)
 def test_committed_active_intent_binds_exact_current_authority() -> None:
     """The active merge intent must bind the current Decision and command plan."""
     intent = json.loads(
@@ -693,6 +711,10 @@ def test_future_replacement_decision_without_matching_intent_fails(
     assert any("intent_decision_id" in item for item in result["blocking_reasons"])
 
 
+@pytest.mark.skipif(
+    not _committed_decision_requires_active_merge_intent(),
+    reason="engineering Decision does not activate a mainline merge intent",
+)
 def test_production_pre_merge_simulation(tmp_path: Path) -> None:
     repo = tmp_path / "simulation"
     subprocess.run(
