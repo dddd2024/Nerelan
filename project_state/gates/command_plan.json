@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260819_issue250_platform_v2_landing_r2_v9",
-  "round_id": "round_20260819_issue250_platform_v2_landing_r2_v9",
+  "decision_id": "decision_20260819_issue250_state_gate_recovery_r2_v1",
+  "round_id": "round_20260819_issue250_state_gate_recovery_r2_v1",
   "commands": [
     {
-      "command_id": "issue250v9.verify_accepted_exact_head",
-      "command": "verify PR 256 exact head/base, all required workflow SUCCESS, MERGEABLE/CLEAN, no review threads, and accepted audit comment 5339864239",
+      "command_id": "issue250recovery.observe_failure",
+      "command": "verify exact merged main, PR 257 evidence, green main CI and Model Access, and State Gate run 32237446072 blocked because the structured pre-merge attestation was absent",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -27,8 +27,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue250v9.bind_landing_authority",
-      "command": "generate and commit the active Command Plan, archive PR 134 intent, and create PR 257 active merge intent bound to this immutable Decision and plan",
+      "command_id": "issue250recovery.bind_landing_authority",
+      "command": "generate and commit the active Command Plan, archive PR 257 intent, and create PR 258 active merge intent bound to this immutable Decision and plan",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -52,30 +52,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue250v9.reuse_exact_v7_product_commits",
-      "command": "git cherry-pick 52eaf44c 9d1ef3ba 58c1b0ec",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "commit_replay"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue250v9.final_validation",
-      "command": "prove product equivalence, run active merge-intent and landing tests, final transition lint/preflight, freshness and git diff --check",
+      "command_id": "issue250recovery.validate_governance_only_candidate",
+      "command": "prove there are no product changes, run active merge-intent and mainline landing tests, final transition lint/preflight, and git diff --check",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -98,8 +76,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue250v9.publish_exact_draft_pr",
-      "command": "push branch once, close PR 256, create exactly one Draft PR expected as 257, and stop if GitHub assigns another number",
+      "command_id": "issue250recovery.publish_exact_draft_pr",
+      "command": "push branch once, create exactly one Draft PR expected as 258, and stop if GitHub assigns another number",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -109,9 +87,7 @@
       "execution_surface": "local",
       "operations": [
         "push",
-        "pull_request_close",
         "pull_request_create",
-        "issue_comment",
         "network_access"
       ],
       "network_access": true,
@@ -124,8 +100,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue250v9.accept_and_land",
-      "command": "wait for all required PR 257 exact-head workflows, audit/comment exact head, reobserve base/head/checks/mergeable state, then owner-controlled mark-ready and merge once with merge method merge and expected-head protection",
+      "command_id": "issue250recovery.attest_exact_head",
+      "command": "after required PR 258 exact-head workflows and independent audit succeed, post one audit comment, create one inert attestation placeholder, then update that exact comment once to the canonical active MAINLINE_MERGE_APPROVAL_ATTESTATION bound to workflow run IDs and its own remote object ID",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -136,6 +112,30 @@
       "operations": [
         "repository_observation",
         "issue_comment",
+        "issue_comment_update",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue250recovery.land_once",
+      "command": "reobserve attestation, base, head, checks, mergeable state and review threads, then owner-controlled mark-ready and merge once with merge method merge and expected-head protection",
+      "phase": "publication",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation",
         "mark_ready",
         "merge",
         "network_access"
@@ -150,8 +150,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue250v9.post_merge_verify",
-      "command": "verify PR 257 merged, origin/main equals mergeCommit.oid, wait for main push checks, and close Issue 250 completed",
+      "command_id": "issue250recovery.post_merge_verify",
+      "command": "verify PR 258 merged, origin/main equals mergeCommit.oid, and wait for exact main push CI, Model Access and State Gate SUCCESS without retroactively claiming PR 257 State Gate passed",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -161,7 +161,6 @@
       "execution_surface": "local",
       "operations": [
         "repository_observation",
-        "issue_close",
         "network_access"
       ],
       "network_access": true,
@@ -174,8 +173,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.c341b64cd9aded6c6558a2eff5f17407615071c5e33859777d1d746cdb58cf5c",
-      "command": "git worktree add -b owner/issue250-platform-completion-v9-landing F:/reverse-agent-issue250-platform-completion-v9-landing 706991ad0cb826d7c963a8ddfb7e770e97cdf60b",
+      "command_id": "bootstrap.ac5e72229a99da6fb94308119a5ab34a11202b47ded65f5e1e61fd96a7c2a088",
+      "command": "git worktree add -b owner/issue250-state-gate-recovery-v1 F:/reverse-agent-issue250-state-gate-recovery-v1 4b95cf719244f25f095a0936c7a97e44c57a0482",
       "phase": "status",
       "required": true,
       "required_evidence_source": "local_command_evidence",
