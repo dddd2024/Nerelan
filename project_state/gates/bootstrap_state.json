@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260808_pr134_frontend_opencode_devup_landing_v1",
-  "round_id": "round_20260808_pr134_frontend_opencode_devup_landing_v1",
-  "expired_at": "2026-08-08T11:01:56+00:00"
+  "decision_id": "decision_20260819_issue259_state_gate_attestation_lifecycle_r2_v1",
+  "round_id": "round_20260819_issue259_state_gate_attestation_lifecycle_r2_v1",
+  "expired_at": "2026-08-19T10:23:41+00:00"
 }
