@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "components": [
+    {
+      "id": "langgraph",
+      "current_version": "1.0.10",
+      "source_url": "https://github.com/langchain-ai/langgraph/releases",
+      "owner": "@dddd2024",
+      "checked_at": "2026-08-19",
+      "max_age_days": 30,
+      "evidence_paths": ["pyproject.toml"]
+    },
+    {
+      "id": "langgraph-checkpoint-sqlite",
+      "current_version": "3.1.0",
+      "source_url": "https://github.com/langchain-ai/langgraph/releases",
+      "owner": "@dddd2024",
+      "checked_at": "2026-08-19",
+      "max_age_days": 30,
+      "evidence_paths": ["pyproject.toml"]
+    },
+    {
+      "id": "openhands-agent-canvas",
+      "current_version": "1.6.1",
+      "source_url": "https://github.com/All-Hands-AI/agent-sdk",
+      "owner": "@dddd2024",
+      "checked_at": "2026-08-19",
+      "max_age_days": 30,
+      "evidence_paths": ["frontend/src/vendor/agent-canvas-v1.6.1"]
+    },
+    {
+      "id": "github-spec-kit",
+      "current_version": "compatible",
+      "source_url": "https://github.com/github/spec-kit/releases",
+      "owner": "@dddd2024",
+      "checked_at": "2026-08-19",
+      "max_age_days": 30,
+      "evidence_paths": ["reverse_agent/platform_v1/capability_registry.py"]
+    }
+  ]
+}

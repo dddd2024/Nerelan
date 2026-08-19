@@ -9,6 +9,7 @@ DEV_UP = ROOT / "dev-up.ps1"
 DEV_DOWN = ROOT / "dev-down.ps1"
 COMPOSER = ROOT / "frontend/src/components/new-task-composer.tsx"
 FRONTEND_TEST = ROOT / "frontend/tests/real-executor-task-plane.test.tsx"
+LAUNCHER = ROOT / "launch_reverse_agent.bat"
 
 
 def _text(path: Path) -> str:
@@ -19,6 +20,7 @@ _DEV_UP = _text(DEV_UP)
 _DEV_DOWN = _text(DEV_DOWN)
 _COMPOSER = _text(COMPOSER)
 _FRONTEND_TEST = _text(FRONTEND_TEST)
+_LAUNCHER = _text(LAUNCHER)
 
 
 def test_dev_up_uses_loopback_ports_only() -> None:
@@ -42,6 +44,17 @@ def test_repo_dir_is_provided() -> None:
 
 def test_opencode_model_is_provided() -> None:
     assert '"REVERSE_AGENT_OPENCODE_MODEL"' in _DEV_UP
+
+
+def test_unattended_coordinator_is_enabled_but_requires_runtime_window() -> None:
+    assert '"REVERSE_AGENT_AUTONOMOUS" = "1"' in _DEV_UP
+    assert "owner-activated window" in _DEV_UP
+
+
+def test_desktop_launcher_starts_platform_stack_not_legacy_solver() -> None:
+    lowered = _LAUNCHER.lower()
+    assert "dev-up.ps1" in lowered
+    assert "app.py" not in lowered
 
 
 def test_frontend_api_bases_are_set() -> None:
