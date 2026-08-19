@@ -49,6 +49,10 @@ from reverse_agent.platform_v1.task_service import _handler_factory
 from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 
 
+_TRUSTED_HOST_FAKE_EXEC_AUTH = "test-trusted-host-fake-execution-authority-sha"
+_TRUSTED_HOST_FAKE_PLANNING_SHA = "test-trusted-host-fake-planning-sha"
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -550,7 +554,11 @@ class TestTaskApiApiKeyWiring:
         try:
             mc_port = _free_port()
             task_port = _free_port()
-            host = CombinedTrustedHost(store=store)
+            host = CombinedTrustedHost(
+                store=store,
+                execution_authority_sha=_TRUSTED_HOST_FAKE_EXEC_AUTH,
+                planning_sha=_TRUSTED_HOST_FAKE_PLANNING_SHA,
+            )
             host.start(model_control_port=mc_port, task_api_port=task_port)
             assert host.model_control_url == f"http://127.0.0.1:{mc_port}"
             try:
@@ -561,21 +569,90 @@ class TestTaskApiApiKeyWiring:
                     binding_ref="http-binding",
                 )
 
-                class _CaptureRouter(ExecutorRouter):
-                    def dispatch_execute(self, **kwargs: Any):
-                        assert "lease_provider" in kwargs
-                        lp = kwargs["lease_provider"]
-                        resolution = kwargs["binding_resolution"]
-                        handle = lp(resolution)
-                        assert handle._release_callback is not None
-                        handle.release()
+                class _Prepared:
+                    def __init__(self, worktree: Path, execution_id: str) -> None:
+                        self.worktree = worktree
+                        self.execution_id = execution_id
+
+                class _ProviderFreeExecutor:
+                    def prepare_worktree_once(
+                        self,
+                        task_id: str,
+                        workspace_root: Path,
+                        callback: Any = None,
+                    ) -> _Prepared:
+                        worktree = workspace_root / f"provider-free-{task_id}"
+                        worktree.mkdir(parents=True, exist_ok=True)
+                        subprocess.run(
+                            ["git", "init", "-q"],
+                            cwd=worktree,
+                            check=True,
+                            capture_output=True,
+                        )
+                        (worktree / "README.md").write_text(
+                            "provider-free lease wiring test\n", encoding="utf-8"
+                        )
+                        subprocess.run(
+                            ["git", "add", "README.md"],
+                            cwd=worktree,
+                            check=True,
+                            capture_output=True,
+                        )
+                        subprocess.run(
+                            [
+                                "git",
+                                "-c",
+                                "user.email=test@local",
+                                "-c",
+                                "user.name=Test",
+                                "commit",
+                                "-q",
+                                "-m",
+                                "init",
+                            ],
+                            cwd=worktree,
+                            check=True,
+                            capture_output=True,
+                        )
+                        return _Prepared(worktree, f"provider-free-{task_id}")
+
+                    def execute_role_prepared(
+                        self,
+                        prepared: _Prepared,
+                        store: Any,
+                        *,
+                        role_context: Any = None,
+                        event_callback: Any = None,
+                    ) -> ExecutorResult:
+                        (prepared.worktree / "product.py").write_text(
+                            "VALUE = 1\n", encoding="utf-8"
+                        )
                         return ExecutorResult(
                             success=True,
                             validation_exit_code=0,
                             validation_command_id="git_diff_check",
                             validation_output_digest="",
                             validation_output_summary="",
+                            changed_files=[{
+                                "path": "product.py",
+                                "status": "added",
+                                "additions": 1,
+                                "deletions": 0,
+                                "diff_digest": "",
+                            }],
+                            execution_id=prepared.execution_id,
                         )
+
+                class _CaptureRouter(ExecutorRouter):
+                    def create_executor(self, **kwargs: Any) -> _ProviderFreeExecutor:
+                        assert "lease_provider" in kwargs
+                        assert "binding_resolution" in kwargs
+                        handle = kwargs["lease_provider"](
+                            kwargs["binding_resolution"]
+                        )
+                        assert handle._release_callback is not None
+                        handle.release()
+                        return _ProviderFreeExecutor()
 
                 from reverse_agent.platform_v1.binding_resolver import BindingResolver
                 resolver = BindingResolver(base_url=host.model_control_url)
@@ -586,6 +663,8 @@ class TestTaskApiApiKeyWiring:
                     allowed_origin="http://127.0.0.1:4173",
                     lease_provider=host._lease_provider_factory(),
                     binding_resolver=resolver,
+                    execution_authority_sha=_TRUSTED_HOST_FAKE_EXEC_AUTH,
+                    planning_sha=_TRUSTED_HOST_FAKE_PLANNING_SHA,
                 )
                 assert handler_cls.lease_provider is not None
 
@@ -629,6 +708,7 @@ class TestTaskApiApiKeyWiring:
 
                 final = task_store.get_task(task_id)
                 assert final.status == "READY_FOR_REVIEW"
+                assert received == []
             finally:
                 http_srv.shutdown()
                 host.stop()

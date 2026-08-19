@@ -3522,11 +3522,15 @@ def test_v4_opencode_single_prepare_once_no_dispatch(tmp_path) -> None:
     assert "wt-test" in run["worktree_path"]
 
 
-def test_v4_opencode_single_resume_prepare_zero(tmp_path) -> None:
+def test_v4_opencode_single_resume_prepare_zero(tmp_path, monkeypatch) -> None:
     """Audit Finding A+B: resume must NOT call prepare_worktree_once again.
     It must reconstruct PreparedWorkspaceContext from persisted identity."""
     reset_crash_seam()
     store = _make_store(tmp_path)
+    monkeypatch.setattr(
+        "reverse_agent.platform_v1.opencode_executor.resolve_opencode_cli",
+        lambda exe=None: ("synthetic-opencode", False),
+    )
 
     class FakeOpenCodeExecutor:
         def __init__(self, **kwargs):
