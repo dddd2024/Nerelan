@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260821_issue272_product_ux2b_opencode_server_r2_v4_landing",
-  "round_id": "round_20260821_issue272_product_ux2b_opencode_server_r2_v4_landing",
+  "decision_id": "decision_20260821_issue276_durable_parallel_task_batches_r2_v3",
+  "round_id": "round_20260821_issue276_durable_parallel_task_batches_r2_v3",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260821_issue272_product_ux2b_opencode_server_r2_v4_landing expected=decision_20260821_issue272_product_ux2b_opencode_server_r2_v4_landing"
+      "detail": "observed=decision_20260821_issue276_durable_parallel_task_batches_r2_v3 expected=decision_20260821_issue276_durable_parallel_task_batches_r2_v3"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260821_issue272_product_ux2b_opencode_server_r2_v4_landing expected=round_20260821_issue272_product_ux2b_opencode_server_r2_v4_landing"
+      "detail": "observed=round_20260821_issue276_durable_parallel_task_batches_r2_v3 expected=round_20260821_issue276_durable_parallel_task_batches_r2_v3"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=owner/issue272-product-ux2b-opencode-server-r2-v4-landing expected=owner/issue272-product-ux2b-opencode-server-r2-v4-landing"
+      "detail": "observed=owner/issue276-durable-parallel-task-batches-r2-v3 expected=owner/issue276-durable-parallel-task-batches-r2-v3"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=29faccd89a86b4313df66151652e2bd5724f141b merge_base=29faccd89a86b4313df66151652e2bd5724f141b"
+      "detail": "base=3d2fa35d1baeec3f2b52706746e54d7f0eb0af46 merge_base=3d2fa35d1baeec3f2b52706746e54d7f0eb0af46"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=89bd736e86c3587c838a76bbacc2d002d582d965"
+      "detail": "decision_commit=250e3c702a6304d0329b0e281af8222ff2a5eebe"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260821_issue272_product_ux2b_opencode_server_r2_v4_landing/round_20260821_issue272_product_ux2b_opencode_server_r2_v4_landing"
+      "detail": "plan=decision_20260821_issue276_durable_parallel_task_batches_r2_v3/round_20260821_issue276_durable_parallel_task_batches_r2_v3"
     },
     {
       "name": "command_plan_contract",
