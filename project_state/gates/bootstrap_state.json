@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260819_issue259_state_gate_attestation_lifecycle_r2_v3",
-  "round_id": "round_20260819_issue259_state_gate_attestation_lifecycle_r2_v3",
-  "expired_at": "2026-08-19T12:18:30+00:00"
+  "decision_id": "decision_20260820_issue268_product_ux2a_usage_budgets_r2_v2",
+  "round_id": "round_20260820_issue268_product_ux2a_usage_budgets_r2_v2",
+  "expired_at": "2026-08-20T11:59:51+00:00"
 }

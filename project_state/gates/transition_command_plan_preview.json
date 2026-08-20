@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260819_issue259_state_gate_attestation_lifecycle_r2_v3",
-  "round_id": "round_20260819_issue259_state_gate_attestation_lifecycle_r2_v3",
+  "decision_id": "decision_20260820_issue268_product_ux2a_usage_budgets_r2_v2",
+  "round_id": "round_20260820_issue268_product_ux2a_usage_budgets_r2_v2",
   "commands": [
     {
-      "command_id": "issue259v3.verify_owner_authority",
-      "command": "fetch and verify origin/main remains 4b95cf719244f25f095a0936c7a97e44c57a0482; verify the v3 branch contains exactly the owner activation Decision as its first new commit; verify PR 261 is closed unmerged and audit comments 5341050328 and 5341081559 exist",
+      "command_id": "issue268v2.verify_owner_authority",
+      "command": "verify GitHub Issue 268 remains unchanged and open; verify origin/main equals aa5972a2c216a775089fbb52a5efa160f4884eb8; verify the exact target branch is created from that base and no remote target branch or open pull request already exists",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -27,8 +27,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue259v3.run_transition_gates",
-      "command": "run startup-snapshot, transition-command-plan, transition-lint, and transition-preflight --mode pre; require PRE_EXECUTION_AUTHORIZED before source mutation",
+      "command_id": "issue268v2.run_transition_gates",
+      "command": "run startup-snapshot, transition-command-plan, transition-lint, and transition-preflight --mode pre; require PRE_EXECUTION_AUTHORIZED with zero blockers before any product source or test mutation",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -50,8 +50,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue259v3.implement_lifecycle_contract",
-      "command": "implement lifecycle-scoped mainline landing: preserve historical schema-v1 four-run semantics; add schema-v2 current three-run pre-merge intent and attestation semantics; keep State Gate(push) post-merge only; migrate active Platform V1 contract tests to dispatch by schema version without weakening historical v1 checks",
+      "command_id": "issue268v2.implement_usage_budget_contract",
+      "command": "implement append-only idempotent numeric OpenCode usage observations in the existing TaskStore; migrate autonomous windows in place; atomically reserve token and cost budget during BEGIN IMMEDIATE task admission; reconcile once; stop future dispatch on overrun or unknown usage; expose honest enforcement classes and numeric provenance through the existing API and Agent Runs UI",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -76,8 +76,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue259v3.prepublication_validation",
-      "command": "run Issue 259 focused regressions, historical integration-baseline checks, CI-responsibility, decision-preflight, architecture contracts, Platform V1 migration tests that do not require the future GitHub-assigned PR number, transition-lint, and git diff --check",
+      "command_id": "issue268v2.focused_validation",
+      "command": "python -m pytest tests/platform_v1/test_autonomy.py tests/platform_v1/test_unattended_coordinator.py tests/platform_v1/test_opencode_executor.py tests/platform_v1/test_run_read_model.py tests/platform_v1/test_task_service.py -q",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -86,8 +86,7 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "run_checks",
-        "diff_validation"
+        "run_checks"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -99,8 +98,76 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue259v3.publish_single_draft",
-      "command": "push the successor candidate once and create exactly one Draft PR with base=main; read the PR number assigned by GitHub; do not guess or precompute it and do not use Issue 259 as source_pr",
+      "command_id": "issue268v2.platform_regression",
+      "command": "run the exact Platform V1 blocking gate command committed in .github/workflows/ci.yml, including only its seven exact-node deselections for Decision immutability and installed-OpenCode fake-provider probes; also run tests/test_ci_responsibility.py to prove the deselection set is exact and not broadened",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue268v2.frontend_validation",
+      "command": "run npm --prefix frontend test -- runs.test.tsx, npm --prefix frontend run typecheck, and npm --prefix frontend run build:mock using the repository's existing installed dependencies only",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue268v2.final_local_validation",
+      "command": "run repository blocking CI-equivalent tests that are compatible with a pre-publication head, transition-lint, transition-preflight --mode pre, and git diff --check; require all checks green without model, provider, credential, runner, package-install, or network execution",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks",
+        "diff_validation",
+        "repository_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue268v2.publish_single_draft",
+      "command": "push owner/issue260-product-ux2a-usage-budgets-r2-v2 exactly once and create exactly one Draft PR with base=main; record the immutable Decision, exact checks, exact head, and honest enforcement boundary in the PR body",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -124,58 +191,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue259v3.bind_exact_pr_number",
-      "command": "using only the already-observed GitHub-assigned Draft PR number, create exactly one bounded post-publication binding commit: archive the committed PR 257 v1 active intent byte-for-byte into archive/pr257_v1.json; create schema-v2 active intent bound to the actual Draft PR number, locked base, current Decision and current Command Plan; add regression coverage proving Issue-number substitution fails closed; never edit the immutable Decision",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "bounded_governance_mutation",
-        "bounded_test_mutation",
-        "stage_authorized_paths",
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue259v3.final_blocking_validation",
-      "command": "on the final PR-bound local head run tests/platform_v1/test_contracts.py and tests/platform_v1/test_merge_intent.py plus all Issue 259 focused suites and the repository blocking CI-equivalent command; require all blocking tests green; run transition-lint, transition-preflight --mode pre, and git diff --check; any failure stops publication",
+      "command_id": "issue268v2.observe_exact_head_checks",
+      "command": "observe the fresh GitHub Actions results for the exact Draft PR head without rerun or mutation; stop for independent exact-head audit and separate R2 landing authority",
       "phase": "validation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "run_checks",
-        "diff_validation",
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue259v3.publish_final_bound_head",
-      "command": "push the single final PR-binding commit once, verify remote branch equals local final head, and observe fresh exact-head CI, Decision Preflight, and State Gate(pull_request) run IDs; do not rerun stale runs as approval evidence",
-      "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
@@ -183,13 +201,12 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "push",
         "repository_observation",
         "network_access"
       ],
       "network_access": true,
       "diagnostic_only": false,
-      "allowed_only_after_validation": true,
+      "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
@@ -197,9 +214,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.3531729f8f464d24f5f094ad99e10dc8624b26074bba72a7355e9d95f07447c9",
-      "command": "git worktree add F:/reverse-agent-issue259-state-gate-attestation-lifecycle-r2-v3 origin/owner/issue259-state-gate-attestation-lifecycle-r2-v3",
-      "phase": "status",
+      "command_id": "bootstrap.93567954450066849449d863614f35ffb1c543007ffec80bb14b4bd600d5e43a",
+      "command": "create owner/issue260-product-ux2a-usage-budgets-r2-v2 from exact main aa5972a2c216a775089fbb52a5efa160f4884eb8 in an isolated canonical-LF checkout",
+      "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -217,8 +234,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.720c6c82432f1957909b8a06866668c56cd60fb6d3f4cea788996f1b939d8131",
-      "command": "verify the owner-published immutable Decision activation commit is the first new commit after 4b95cf719244f25f095a0936c7a97e44c57a0482 and do not edit project_state/decision_packet.md",
+      "command_id": "bootstrap.3f19d1e56647035f273398370f707fcadc64051a3d38156040d71c187a1d4bc1",
+      "command": "commit this immutable Decision as the first new commit after aa5972a2c216a775089fbb52a5efa160f4884eb8 before product mutation",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
