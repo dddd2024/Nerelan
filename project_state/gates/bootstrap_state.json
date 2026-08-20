@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260821_issue272_product_ux2b_opencode_server_r2_v4_landing",
-  "round_id": "round_20260821_issue272_product_ux2b_opencode_server_r2_v4_landing",
-  "expired_at": "2026-08-20T17:11:05+00:00"
+  "decision_id": "decision_20260821_issue276_durable_parallel_task_batches_r2_v3",
+  "round_id": "round_20260821_issue276_durable_parallel_task_batches_r2_v3",
+  "expired_at": "2026-08-20T18:27:37+00:00"
 }

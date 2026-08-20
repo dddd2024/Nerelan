@@ -10,7 +10,7 @@ from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
 from reverse_agent.platform_v1.control_store import PlatformControlStore
 from reverse_agent.platform_v1.goal_service import GoalService
 from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
-from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+from reverse_agent.platform_v1.task_runtime import ExecutorResult, ExecutorRouter
 from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
 
 
@@ -71,6 +71,298 @@ def test_coordinator_respects_dependencies_and_restart_does_not_duplicate(tmp_pa
     summary = autonomy.summary(window.id)
     assert summary["window"]["tasks_started"] == 2
     assert summary["window"]["tasks_completed"] == 2
+
+
+def _parallel_goal(goals, window_id, *, key, count=2):
+    goal = goals.create({
+        "objective": f"Run {count} independent tasks concurrently",
+        "idempotency_key": key,
+        "executor_kind": "deterministic_fixture",
+        "orchestration_mode": "single",
+    })
+    goals.plan(goal.id, expected_revision=1, tasks=[
+        {
+            "id": f"T{index:03d}",
+            "title": f"worker {index}",
+            "instruction": f"run worker {index}",
+        }
+        for index in range(1, count + 1)
+    ])
+    goals.approve(goal.id, expected_revision=1)
+    goals.launch(goal.id, expected_revision=1, window_id=window_id)
+    return goal
+
+
+def test_coordinator_uses_langgraph_send_for_real_parallel_batch(tmp_path):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "parallel-batch", "policy_revision": 1,
+        "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"],
+        "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 2, "max_tasks": 10, "max_retries": 1,
+        "confirmation": "ACTIVATE",
+    })
+    goal = _parallel_goal(goals, window.id, key="parallel-goal")
+    barrier = threading.Barrier(2)
+    worker_threads: set[int] = set()
+    worker_lock = threading.Lock()
+
+    def execute(task_id):
+        with worker_lock:
+            worker_threads.add(threading.get_ident())
+        barrier.wait(timeout=5)
+        return _ready_fixture(store, task_id)
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path, task_executor=execute,
+    )
+    assert coordinator.tick() == 2
+    assert len(worker_threads) == 2
+    assert control.get_goal(goal.id).status == "COMPLETED"
+    status = coordinator.status()
+    assert status["last_batch"]["accepted"] is True
+    assert status["last_batch"]["size"] == 2
+    assert status["last_batch"]["task_ids"] == sorted(
+        link["task_id"] for link in control.list_goal_tasks(goal.id)
+    )
+
+
+def test_parallel_batch_admission_shrinks_before_dispatch_on_budget_limit(tmp_path):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    window = _budget_window(
+        autonomy, policy_id="parallel-admission-budget",
+        max_tokens=100, reservation=60,
+    )
+    goals = GoalService(store=store, control_store=control)
+    _parallel_goal(goals, window.id, key="parallel-budget-goal")
+    calls: list[str] = []
+
+    def execute(task_id):
+        calls.append(task_id)
+        return _ready_fixture(store, task_id)
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path, task_executor=execute,
+    )
+    assert coordinator.tick() == 1
+    assert len(calls) == 1
+    assert coordinator.status()["last_batch"]["size"] == 1
+    assert control.window_budget_summary(window.id)["active_reservation_count"] == 0
+    assert coordinator.tick() == 1
+    assert len(calls) == 2
+
+
+def test_parallel_batch_never_exceeds_window_wip_one(tmp_path):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "parallel-wip-one", "policy_revision": 1,
+        "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"],
+        "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 2, "max_retries": 0,
+        "confirmation": "ACTIVATE",
+    })
+    _parallel_goal(goals, window.id, key="parallel-wip-one-goal")
+    calls: list[str] = []
+
+    def execute(task_id):
+        calls.append(task_id)
+        return _ready_fixture(store, task_id)
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path, task_executor=execute,
+    )
+    assert coordinator.tick() == 1
+    assert coordinator.status()["last_batch"]["size"] == 1
+    assert len(calls) == 1
+    assert coordinator.tick() == 1
+    assert len(calls) == 2
+
+
+def test_parallel_batch_isolates_worker_exception_and_claim_finalization(tmp_path):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "parallel-mixed", "policy_revision": 1,
+        "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"],
+        "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 2, "max_tasks": 10, "max_retries": 1,
+        "confirmation": "ACTIVATE",
+    })
+    goal = _parallel_goal(goals, window.id, key="parallel-mixed-goal")
+    good_id, bad_id = [
+        link["task_id"] for link in control.list_goal_tasks(goal.id)
+    ]
+    barrier = threading.Barrier(2)
+
+    def execute(task_id):
+        barrier.wait(timeout=5)
+        if task_id == bad_id:
+            raise RuntimeError("bounded-worker-failure")
+        return _ready_fixture(store, task_id)
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path, task_executor=execute,
+    )
+    assert coordinator.tick() == 1
+    assert store.get_task(good_id).status == "READY_FOR_REVIEW_FIXTURE"
+    assert store.get_task(bad_id).status == "QUEUED"
+    claims = {
+        row["task_id"]: row["status"]
+        for row in control._conn.execute(
+            "SELECT task_id, status FROM platform_coordinator_claims"
+        ).fetchall()
+    }
+    assert claims == {good_id: "COMPLETE", bad_id: "FAILED"}
+    assert control.window_budget_summary(window.id)["active_reservation_count"] == 0
+    assert coordinator.status()["last_batch"]["accepted"] is False
+
+
+def test_parallel_restart_reclaims_interrupted_task_once_with_retained_budget(tmp_path):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "parallel-restart", "policy_revision": 1,
+        "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"],
+        "capabilities": ["execute_task", "resume_task"],
+        "max_concurrent_tasks": 2, "max_tasks": 1, "max_retries": 1,
+        "max_token_units": 100, "per_task_token_reservation": 60,
+        "provider_quota_state": "OBSERVED", "confirmation": "ACTIVATE",
+    })
+    goals = GoalService(store=store, control_store=control)
+    goal = _parallel_goal(goals, window.id, key="parallel-restart-goal", count=1)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    epoch_one, _ = control.claim_task(
+        window_id=window.id, task_id=task_id, owner="old-owner", lease_ms=60_000
+    )
+    control._conn.execute(
+        "UPDATE platform_coordinator_claims SET expires_at_ms = 0 WHERE task_id = ?",
+        (task_id,),
+    )
+    store.set_state(task_id, "INTERRUPTED")
+    assert control.reconcile_expired_budget_reservations() == (
+        f"budget_reservation_retained:{task_id}",
+    )
+    calls: list[str] = []
+
+    def resume(task_id):
+        calls.append(task_id)
+        assert store.get_task(task_id).status == "INTERRUPTED"
+        store.transition_to(task_id, "RUNNING_FIXTURE")
+        store.transition_to(task_id, "VALIDATING")
+        store.transition_to(task_id, "READY_FOR_REVIEW_FIXTURE")
+        return SimpleNamespace(success=True)
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path,
+        task_executor=resume, owner="new-owner",
+    )
+    assert coordinator.tick() == 1
+    assert calls == [task_id]
+    claim = control._conn.execute(
+        "SELECT owner, epoch, status FROM platform_coordinator_claims WHERE task_id = ?",
+        (task_id,),
+    ).fetchone()
+    assert dict(claim) == {
+        "owner": "new-owner", "epoch": epoch_one + 1, "status": "COMPLETE"
+    }
+    summary = control.get_window(window.id)
+    assert summary.tasks_started == 1
+    assert summary.retries_used == 1
+    assert summary.tasks_completed == 1
+    assert control.window_budget_summary(window.id)["active_reservation_count"] == 0
+
+
+def test_parallel_batch_reuses_shared_connection_durable_fixture_runs_repeatedly(tmp_path):
+    store = TaskStore(str(tmp_path / "parallel-durable.sqlite3"))
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "parallel-durable", "policy_revision": 1,
+        "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"],
+        "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 2, "max_tasks": 20, "max_retries": 1,
+        "confirmation": "ACTIVATE",
+    })
+    executor_barrier = threading.Barrier(2, timeout=5)
+
+    class BarrierFixtureExecutor:
+        def execute(
+            self, task_id, task_store, *, workspace_root="", event_callback=None
+        ):
+            executor_barrier.wait()
+            return ExecutorResult(
+                success=True,
+                validation_exit_code=0,
+                validation_command_id="git_diff_check",
+                validation_output_digest="barrier-fixture",
+                validation_output_summary="provider-free barrier completed",
+                changed_files=[],
+                execution_id=f"exec-{task_id}",
+            )
+
+    router = ExecutorRouter()
+    router.register("deterministic_fixture", lambda **_: BarrierFixtureExecutor())
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy,
+        router=router, workspace_root=tmp_path / "workspaces",
+        execution_authority_sha="a" * 64, planning_sha="b" * 64,
+    )
+    all_task_ids: list[str] = []
+    for iteration in range(10):
+        goal = _parallel_goal(
+            goals, window.id, key=f"parallel-durable-goal-{iteration}"
+        )
+        all_task_ids.extend(
+            link["task_id"] for link in control.list_goal_tasks(goal.id)
+        )
+        assert coordinator.tick() == 2
+        assert control.get_goal(goal.id).status == "COMPLETED"
+    runs = store._conn.execute(
+        "SELECT task_id, accepted_checkpoint FROM durable_runs ORDER BY task_id"
+    ).fetchall()
+    assert len(runs) == 20
+    assert {row["task_id"] for row in runs} == set(all_task_ids)
+    assert {row["accepted_checkpoint"] for row in runs} == {"POST_VALIDATION"}
+    assert store._conn.execute(
+        "SELECT COUNT(*) AS c FROM durable_checkpoint_history"
+    ).fetchone()["c"] == 100
 
 
 def test_coordinator_is_inert_without_active_window(tmp_path):

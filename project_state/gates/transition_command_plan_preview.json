@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260821_issue272_product_ux2b_opencode_server_r2_v4_landing",
-  "round_id": "round_20260821_issue272_product_ux2b_opencode_server_r2_v4_landing",
+  "decision_id": "decision_20260821_issue276_durable_parallel_task_batches_r2_v3",
+  "round_id": "round_20260821_issue276_durable_parallel_task_batches_r2_v3",
   "commands": [
     {
-      "command_id": "issue272v4landing.verify_validated_product",
-      "command": "verify origin/main remains 29faccd89a86b4313df66151652e2bd5724f141b; verify PR 274 remains Draft at head ec1835f7644c36f4fd69f3ffbd2c61432520126f and base 29faccd89a86b4313df66151652e2bd5724f141b; verify exact-head CI, Decision Preflight and State Gate run IDs 32394440620, 32394440688 and 32394440627 are SUCCESS; verify PR 273 and rejection comment 5358486097 remain immutable negative evidence; verify zero unresolved review threads and that the landing target branch and Draft PR do not yet exist",
+      "command_id": "issue276v3.verify_baseline_and_stops",
+      "command": "verify main and local base remain 3d2fa35d1baeec3f2b52706746e54d7f0eb0af46; verify Issue 276 V1 comment 5359824526 and V2 comment 5359968290; verify both predecessors have zero product commit push or PR; preserve their transaction and pre-PR coupling evidence",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -27,8 +27,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue272v4landing.run_transition_gates",
-      "command": "run startup-snapshot, transition-command-plan, transition-lint and transition-preflight --mode pre; require PRE_EXECUTION_AUTHORIZED with zero blockers before product or merge-intent mutation",
+      "command_id": "issue276v3.run_transition_gates",
+      "command": "run startup-snapshot transition-command-plan transition-lint and transition-preflight --mode pre; require PRE_EXECUTION_AUTHORIZED before product mutation",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -50,18 +50,19 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue272v4landing.replay_validated_product",
-      "command": "git cherry-pick 6664d53c9603794c7e04bd0c338fd0db80331b23 ec1835f7644c36f4fd69f3ffbd2c61432520126f; prove all nine product and test path objects equal validated PR 274 and make no source edit",
+      "command_id": "issue276v3.implement_validated_v2_product",
+      "command": "recover the bounded V2 product intent only: add TaskStore-owned reentrant lock coverage to shared-connection durable transaction entrypoints without locking external executors; adapt coordinator admission to existing LangGraph Send over distinct durable tasks; add repeated barrier budget WIP failure restart and checkpoint regressions and architecture documentation; retain one store and existing modes",
       "phase": "implementation",
       "required": true,
-      "required_evidence_source": "repository_state_attestation",
+      "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
         0
       ],
       "execution_surface": "local",
       "operations": [
-        "commit_replay",
-        "repository_observation"
+        "bounded_source_edit",
+        "bounded_test_edit",
+        "bounded_documentation_edit"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -73,8 +74,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue272v4landing.prepublication_validation",
-      "command": "before the landing PR number exists run the four-file PRODUCT-UX-2B focused test set, CI responsibility, unchanged frontend test typecheck and mock build, transition-lint, transition-preflight --mode pre, worktree-publication-readiness and git diff --check; prove all nine product objects equal PR 274; defer active-intent binding tests until the actual Draft PR number is committed",
+      "command_id": "issue276v3.prepublication_validation",
+      "command": "run focused and repeated concurrency durable tests; run the CI Platform blocking gate with its ordinary seven deselections plus only the four exact pre_pr_intent_assertions_deferred entries; require 1101 or more passing tests and no other failure; run CI responsibility unchanged frontend transition lint preflight readiness and diff checks; zero live calls",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -97,8 +98,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue272v4landing.publish_initial_draft",
-      "command": "push owner/issue272-product-ux2b-opencode-server-r2-v4-landing once and create exactly one Draft PR with base=main; read the actual GitHub-assigned PR number without guessing; transient checks against inherited PR 271 active intent are not acceptance evidence",
+      "command_id": "issue276v3.publish_initial_draft",
+      "command": "after prepublication validation passes push owner/issue276-durable-parallel-task-batches-r2-v3 once and create exactly one Draft PR to main; read its actual number without guessing",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -122,8 +123,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue272v4landing.bind_actual_pr",
-      "command": "using only the observed GitHub-assigned Draft PR number, copy the committed schema-v2 PR 271 active intent byte-for-byte to project_state/mainline_merge_intents/archive/pr271_v2.json and replace active.json with schema version 2 bound to the actual landing PR, locked base, this immutable Decision, committed Command Plan, merge method merge, exact three pre-merge workflows and expiry 2026-08-28T23:59:59Z; commit exactly once without editing the Decision",
+      "command_id": "issue276v3.bind_actual_pr",
+      "command": "archive committed PR 275 schema-v2 active intent byte-for-byte as archive/pr275_v2.json and replace active.json with schema v2 bound to the observed PR locked base this Decision committed Plan merge method merge exact three workflows and expiry 2026-08-28T23:59:59Z; commit once without Decision edit",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -146,32 +147,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue272v4landing.final_bound_validation",
-      "command": "on the final PR-bound head prove all nine validated product objects remain identical and archived PR 271 bytes plus schema-v2 active intent fields and digests are exact; run the four-file focused set, exact Platform V1 blocking gate, mainline landing and merge-intent tests, CI responsibility, unchanged frontend checks, transition-lint, transition-preflight --mode pre, worktree-publication-readiness and git diff --check; any failure stops publication",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "run_checks",
-        "diff_validation",
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue272v4landing.publish_bound_head",
-      "command": "push the single post-publication binding commit once; verify remote branch equals local final head; close PR 274 as superseded by the landing PR; observe fresh exact-final-head CI, Decision Preflight and State Gate pull_request runs without rerun",
+      "command_id": "issue276v3.final_bound_validation_and_push",
+      "command": "after actual PR binding run the full CI Platform blocking gate with only the ordinary seven CI deselections and require all four formerly deferred assertions pass; rerun focused repeated CI responsibility frontend transition readiness and diff checks; push the single binding commit once and observe fresh exact-head CI Decision Preflight and State Gate",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -180,8 +157,8 @@
       ],
       "execution_surface": "local",
       "operations": [
+        "run_checks",
         "push",
-        "pull_request_close",
         "repository_observation",
         "network_access"
       ],
@@ -195,8 +172,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue272v4landing.attest_and_land",
-      "command": "after fresh exact-final-head workflows succeed, perform a clean detached exact-head audit including both PR 273 blockers and record ACCEPTED on the landing PR; immediately reobserve base head checks MERGEABLE CLEAN and zero unresolved threads; publish one schema-v2 mainline merge approval attestation comment bound to its actual comment ID, exact three workflow run IDs, intent digest, head and base; then owner-controlled mark-ready and merge exactly once with merge method merge and expected-head protection",
+      "command_id": "issue276v3.audit_attest_land",
+      "command": "after workflows succeed perform clean detached exact-head audit and ACCEPTED comment; reobserve base head checks MERGEABLE CLEAN zero threads; publish schema-v2 approval attestation bound to actual comment and run IDs; owner mark-ready and merge once with merge and expected-head protection",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -221,8 +198,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue272v4landing.post_merge_verify",
-      "command": "verify the landing PR is merged and origin/main equals mergeCommit.oid; wait for State Gate push and required main checks; run mainline-merge-validation against the merge and remote attestation; close Issue 272 completed only after all post-merge evidence is green",
+      "command_id": "issue276v3.post_merge_verify",
+      "command": "verify merge commit and origin/main; wait for State Gate push and main checks; run mainline-merge-validation; close Issue 276 only after all evidence is green",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -245,8 +222,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.41568141360f1b8593ca8740c0890cc20afe979b857b41d1b6cf5c7e19790dce",
-      "command": "create owner/issue272-product-ux2b-opencode-server-r2-v4-landing from exact main 29faccd89a86b4313df66151652e2bd5724f141b in an isolated canonical-LF checkout",
+      "command_id": "bootstrap.67d6fbfaf9a191bcc558ff0c75de2491b5fd96f4bcb75b81f09ab07aef85fae2",
+      "command": "create owner/issue276-durable-parallel-task-batches-r2-v3 from exact main 3d2fa35d1baeec3f2b52706746e54d7f0eb0af46 in an isolated canonical-LF checkout",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -265,8 +242,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.00ae0487e112f456bfeea866e1706a72936ace03994ebb8e3912bdf76852fbf2",
-      "command": "commit this immutable landing Decision as the first new commit after 29faccd89a86b4313df66151652e2bd5724f141b before product or merge-intent mutation",
+      "command_id": "bootstrap.8206524a029604b6390e734e8cfff9f05d145f09d9acd08db7bea65ea9bdd648",
+      "command": "commit this immutable V3 Decision as the first new commit after 3d2fa35d1baeec3f2b52706746e54d7f0eb0af46 before product or merge-intent mutation",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",

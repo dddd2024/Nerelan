@@ -1,0 +1,20 @@
+{
+  "schema_version": 2,
+  "intent_id": "pr275_issue272_product_ux2b_opencode_server_landing_v2",
+  "repository": "dddd2024/reverse-agent",
+  "source_pr": 275,
+  "locked_base_sha": "29faccd89a86b4313df66151652e2bd5724f141b",
+  "allowed_merge_method": "merge",
+  "decision_identity": {
+    "decision_id": "decision_20260821_issue272_product_ux2b_opencode_server_r2_v4_landing",
+    "decision_content_sha256": "3c58557136cf0c1168e8436dc5102afc7eb2bfe4d541c194ac6cb1483290b215"
+  },
+  "command_plan_sha256": "cd6fdfbb079e7bf3ee4ae8a9abbf2bf0d70d4fe278efa4ad82b0a12704565cae",
+  "merge_tree_policy": "equal_to_accepted_head_tree",
+  "required_workflows": [
+    "CI",
+    "Decision Preflight",
+    "State Gate (pull_request)"
+  ],
+  "expires_at": "2026-08-28T23:59:59Z"
+}

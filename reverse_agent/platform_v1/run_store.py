@@ -22,6 +22,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from functools import wraps
 from threading import RLock
 from typing import Any, Mapping, Sequence
 
@@ -204,6 +205,24 @@ class DuplicateTaskError(TaskStoreError):
 
 class InvalidTransitionError(TaskStoreError):
     """Raised when a requested status transition is not allowed."""
+
+
+def _with_store_lock(method):
+    """Serialize one shared SQLite connection without covering executors.
+
+    Durable helpers are private entry points called directly by
+    ``DurableExecutionService``. They must obey the same TaskStore-owned
+    connection boundary as public methods. The lock is re-entrant because
+    fenced helpers intentionally call other locked store methods after their
+    transaction commits.
+    """
+
+    @wraps(method)
+    def locked(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+
+    return locked
 
 
 def _row_to_task(conn: sqlite3.Connection, row: sqlite3.Row) -> Task:
@@ -1214,6 +1233,7 @@ class TaskStore:
     # Durable run management (Level-1)
     # ------------------------------------------------------------------
 
+    @_with_store_lock
     def _acquire_durable_lease(
         self,
         *,
@@ -1362,6 +1382,7 @@ class TaskStore:
                 raise TaskStoreError(f"durable_run_not_found:{run_id}")
             return _row_to_durable_run(row)
 
+    @_with_store_lock
     def _atomic_fenced_update(
         self,
         run_id: str,
@@ -1865,6 +1886,7 @@ class TaskStore:
                 (checkpoint_db_path, _utc_now(), run_id),
             )
 
+    @_with_store_lock
     def _recover_durable_lease(
         self, run_id: str, lease_owner: str,
         *, expiry_ms: int = 300000,
@@ -2190,6 +2212,7 @@ class TaskStore:
                     f"reconcile_external_operation_failed:{exc}"
                 ) from exc
 
+    @_with_store_lock
     def _reconcile_expired_runs(
         self,
         *,
@@ -2323,6 +2346,7 @@ class TaskStore:
     # Fenced durable-path Task/business mutations
     # ------------------------------------------------------------------
 
+    @_with_store_lock
     def _fenced_transition_to(
         self,
         run_id: str,
@@ -2380,6 +2404,7 @@ class TaskStore:
                 f"fenced_transition_to_failed:{exc}"
             ) from exc
 
+    @_with_store_lock
     def _fenced_set_changed_files(
         self,
         run_id: str,
@@ -2430,6 +2455,7 @@ class TaskStore:
                 f"fenced_set_changed_files_failed:{exc}"
             ) from exc
 
+    @_with_store_lock
     def _fenced_add_event(
         self,
         run_id: str,
@@ -2488,6 +2514,7 @@ class TaskStore:
                 f"fenced_add_event_failed:{exc}"
             ) from exc
 
+    @_with_store_lock
     def _fenced_add_evidence(
         self,
         run_id: str,
@@ -2683,6 +2710,7 @@ class TaskStore:
                     f"fenced_usage_snapshot_failed:{type(exc).__name__}"
                 ) from exc
 
+    @_with_store_lock
     def _fenced_classify_failure(
         self,
         run_id: str,
@@ -2744,6 +2772,7 @@ class TaskStore:
                 f"fenced_classify_failure_failed:{exc}"
             ) from exc
 
+    @_with_store_lock
     def _fenced_set_task_validation(
         self,
         run_id: str,
@@ -2784,6 +2813,7 @@ class TaskStore:
                 f"fenced_set_task_validation_failed:{exc}"
             ) from exc
 
+    @_with_store_lock
     def _fenced_terminalize(
         self,
         run_id: str,
