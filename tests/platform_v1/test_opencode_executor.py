@@ -167,6 +167,8 @@ def test_server_executor_stream_usage_is_idempotent_and_secret_confined(
 
     def fake_server(**kwargs):
         assert kwargs["child_env"]["OPENCODE_DISABLE_AUTOUPDATE"] == "true"
+        assert kwargs["provider_id"] == "p"
+        assert kwargs["model_id"] == "m"
         assert kwargs["usage_observer"](message) is False
         assert kwargs["usage_observer"](message) is False
         return ServerTransportResult(
@@ -230,8 +232,17 @@ def test_server_executor_reservation_threshold_returns_confirmed_abort(
         def append_usage_observation(self, task_id, **kwargs):
             return backing.append_usage_observation(task_id, **kwargs)
 
-        def active_usage_reservation(self, task_id):
-            return {"token_units": 15, "cost_micro_units": 0, "claim_epoch": 1}
+        def active_usage_budget_snapshot(self, task_id):
+            summary = backing.usage_summary(task_id)
+            return {
+                "token_units": 15,
+                "cost_micro_units": 0,
+                "claim_epoch": 1,
+                "observed_token_units": summary["total_token_units"],
+                "observed_cost_micro_units": summary["cost_micro_units"],
+                "unknown_observation_count": summary["unknown_observation_count"],
+                "observation_count": summary["observation_count"],
+            }
 
     def fake_server(**kwargs):
         crossed = kwargs["usage_observer"]({
@@ -282,6 +293,229 @@ def test_server_executor_reservation_threshold_returns_confirmed_abort(
     assert result.failure_classification == "stream_budget_abort_confirmed"
     assert sum(event["type"] == "BUDGET_THRESHOLD_REACHED" for event in events) == 1
     assert sum(event["type"] == "STREAM_ABORT_CONFIRMED" for event in events) == 1
+
+
+def test_server_executor_threshold_uses_cumulative_task_usage(
+    tmp_path, monkeypatch
+) -> None:
+    import reverse_agent.platform_v1.opencode_executor as exec_mod
+
+    _init_git_repo(tmp_path)
+    backing = TaskStore(":memory:")
+    task = backing.create_task(
+        title="cumulative server budget",
+        executor_kind="opencode",
+        model_profile_ref="p/m",
+    )
+    backing.append_usage_observation(
+        task.id,
+        observation_id="prior-planner",
+        execution_id="exec-cumulative",
+        role="planner",
+        model_id="p/m",
+        provider_id="p",
+        source_kind="assistant_message",
+        source_id="prior-message",
+        status="OBSERVED",
+        input_units=60,
+        output_units=0,
+        reasoning_units=0,
+        cache_read_units=0,
+        cache_write_units=0,
+        cost_micro_units=0,
+    )
+
+    class StoreProxy:
+        def get_task(self, task_id):
+            return backing.get_task(task_id)
+
+        def append_usage_observation(self, task_id, **kwargs):
+            return backing.append_usage_observation(task_id, **kwargs)
+
+        def active_usage_budget_snapshot(self, task_id):
+            summary = backing.usage_summary(task_id)
+            return {
+                "token_units": 100,
+                "cost_micro_units": 0,
+                "claim_epoch": 1,
+                "observed_token_units": summary["total_token_units"],
+                "observed_cost_micro_units": summary["cost_micro_units"],
+                "unknown_observation_count": summary["unknown_observation_count"],
+                "observation_count": summary["observation_count"],
+            }
+
+    crossed: list[bool] = []
+
+    def fake_server(**kwargs):
+        crossed.append(kwargs["usage_observer"]({
+            "id": "coder-message",
+            "sessionID": "coder-session",
+            "role": "assistant",
+            "time": {"completed": 1},
+            "cost": 0,
+            "tokens": {
+                "input": 50,
+                "output": 0,
+                "reasoning": 0,
+                "cache": {"read": 0, "write": 0},
+            },
+        }))
+        return ServerTransportResult(
+            success=False,
+            failure_classification="stream_budget_abort_confirmed",
+            abort_state="STREAM_ABORT_CONFIRMED",
+            server_version="test-1",
+            session_digest="session-digest",
+            usage_event_count=1,
+        )
+
+    monkeypatch.setattr(exec_mod, "run_managed_server_role", fake_server)
+    events: list[dict[str, object]] = []
+    result = OpenCodeExecutor(
+        model_id="p/m",
+        opencode_exe="/fake/opencode",
+        transport_kind="server",
+    )._run_executor_core(
+        task_id=task.id,
+        store=StoreProxy(),
+        worktree=tmp_path,
+        base_sha="base",
+        execution_id="exec-cumulative",
+        cli_path="/fake/opencode",
+        is_cmd=False,
+        event_callback=lambda _task_id, event: events.append(event),
+        role_context=exec_mod.RoleContext(
+            role="coder", task_id=task.id, workspace=tmp_path
+        ),
+    )
+
+    assert crossed == [True]
+    assert backing.usage_summary(task.id)["total_token_units"] == 110
+    assert result.success is False
+    assert result.failure_classification == "stream_budget_abort_confirmed"
+    threshold = [event for event in events if event["type"] == "BUDGET_THRESHOLD_REACHED"]
+    assert len(threshold) == 1
+    assert threshold[0]["metadata"]["observed_token_units"] == 110
+    assert threshold[0]["metadata"]["threshold_reason"] == "TOKEN_LIMIT"
+
+
+@pytest.mark.parametrize(
+    "snapshot,classification",
+    [
+        (
+            {
+                "token_units": 100,
+                "cost_micro_units": 0,
+                "claim_epoch": 1,
+                "observed_token_units": 20,
+                "observed_cost_micro_units": 0,
+                "unknown_observation_count": 1,
+                "observation_count": 2,
+            },
+            "stream_budget_usage_unknown_before_dispatch",
+        ),
+        (
+            {
+                "token_units": 100,
+                "cost_micro_units": 0,
+                "claim_epoch": 1,
+                "observed_token_units": 100,
+                "observed_cost_micro_units": 0,
+                "unknown_observation_count": 0,
+                "observation_count": 1,
+            },
+            "stream_budget_exhausted_before_dispatch",
+        ),
+    ],
+)
+def test_server_executor_unsafe_budget_baseline_stops_before_dispatch(
+    tmp_path, monkeypatch, snapshot, classification
+) -> None:
+    import reverse_agent.platform_v1.opencode_executor as exec_mod
+
+    _init_git_repo(tmp_path)
+    backing = TaskStore(":memory:")
+    task = backing.create_task(
+        title="unsafe baseline", executor_kind="opencode", model_profile_ref="p/m"
+    )
+
+    class StoreProxy:
+        def get_task(self, task_id):
+            return backing.get_task(task_id)
+
+        def active_usage_budget_snapshot(self, task_id):
+            return dict(snapshot)
+
+    dispatches: list[str] = []
+
+    def fake_server(**kwargs):
+        dispatches.append("server")
+        raise AssertionError("unsafe baseline must stop before server dispatch")
+
+    monkeypatch.setattr(exec_mod, "run_managed_server_role", fake_server)
+    result = OpenCodeExecutor(
+        model_id="p/m",
+        opencode_exe="/fake/opencode",
+        transport_kind="server",
+    )._run_executor_core(
+        task_id=task.id,
+        store=StoreProxy(),
+        worktree=tmp_path,
+        base_sha="base",
+        execution_id="exec-pre-dispatch",
+        cli_path="/fake/opencode",
+        is_cmd=False,
+        event_callback=None,
+        role_context=exec_mod.RoleContext(
+            role="coder", task_id=task.id, workspace=tmp_path
+        ),
+    )
+
+    assert dispatches == []
+    assert result.success is False
+    assert result.failure_classification == classification
+
+
+def test_server_executor_unqualified_model_fails_before_dispatch(
+    tmp_path, monkeypatch
+) -> None:
+    import reverse_agent.platform_v1.opencode_executor as exec_mod
+
+    _init_git_repo(tmp_path)
+    store = TaskStore(":memory:")
+    task = store.create_task(
+        title="unqualified model",
+        executor_kind="opencode",
+        model_profile_ref="configured-model",
+    )
+    dispatches: list[str] = []
+
+    def fake_server(**kwargs):
+        dispatches.append("server")
+        raise AssertionError("unqualified model must not launch the server")
+
+    monkeypatch.setattr(exec_mod, "run_managed_server_role", fake_server)
+    result = OpenCodeExecutor(
+        model_id="configured-model",
+        opencode_exe="/fake/opencode",
+        transport_kind="server",
+    )._run_executor_core(
+        task_id=task.id,
+        store=store,
+        worktree=tmp_path,
+        base_sha="base",
+        execution_id="exec-model",
+        cli_path="/fake/opencode",
+        is_cmd=False,
+        event_callback=None,
+        role_context=exec_mod.RoleContext(
+            role="coder", task_id=task.id, workspace=tmp_path
+        ),
+    )
+
+    assert dispatches == []
+    assert result.success is False
+    assert result.failure_classification == "server_model_provider_required"
 
 
 # ---------------------------------------------------------------------------

@@ -1439,26 +1439,57 @@ class OpenCodeExecutor:
                 config_content,
                 role,
             )
-            provider_id, _, provider_model_id = model_for_server.partition("/")
-            if not provider_model_id:
-                provider_id = ""
-                provider_model_id = model_for_server
+            provider_id, separator, provider_model_id = model_for_server.partition("/")
+            if not separator or not provider_id or not provider_model_id:
+                raise OpenCodeServerTransportError("server_model_provider_required")
 
-            reservation_reader = getattr(store, "active_usage_reservation", None)
-            reservation = (
-                reservation_reader(task_id)
-                if callable(reservation_reader)
-                else {"token_units": 0, "cost_micro_units": 0, "claim_epoch": 0}
+            snapshot_reader = getattr(store, "active_usage_budget_snapshot", None)
+            if not callable(snapshot_reader):
+                raise OpenCodeServerTransportError("server_budget_snapshot_unavailable")
+            initial_snapshot = snapshot_reader(task_id)
+            if not isinstance(initial_snapshot, Mapping):
+                raise OpenCodeServerTransportError("server_budget_snapshot_invalid")
+            token_limit = max(0, int(initial_snapshot.get("token_units", 0)))
+            cost_limit = max(0, int(initial_snapshot.get("cost_micro_units", 0)))
+            claim_epoch = max(0, int(initial_snapshot.get("claim_epoch", 0)))
+            observed_tokens = max(
+                0, int(initial_snapshot.get("observed_token_units", 0))
             )
-            token_limit = max(0, int(reservation.get("token_units", 0)))
-            cost_limit = max(0, int(reservation.get("cost_micro_units", 0)))
+            observed_cost = max(
+                0, int(initial_snapshot.get("observed_cost_micro_units", 0))
+            )
+            unknown_count = max(
+                0, int(initial_snapshot.get("unknown_observation_count", 0))
+            )
+            enforced = bool(token_limit or cost_limit)
+            if enforced and unknown_count:
+                return self._server_failure_result(
+                    task_id=task_id,
+                    worktree=worktree,
+                    execution_id=execution_id,
+                    role=role,
+                    event_callback=event_callback,
+                    classification="stream_budget_usage_unknown_before_dispatch",
+                    abort_state="NOT_REQUESTED",
+                )
+            if enforced and (
+                (token_limit > 0 and observed_tokens >= token_limit)
+                or (cost_limit > 0 and observed_cost >= cost_limit)
+            ):
+                return self._server_failure_result(
+                    task_id=task_id,
+                    worktree=worktree,
+                    execution_id=execution_id,
+                    role=role,
+                    event_callback=event_callback,
+                    classification="stream_budget_exhausted_before_dispatch",
+                    abort_state="NOT_REQUESTED",
+                )
             seen: set[str] = set()
-            observed_tokens = 0
-            observed_cost = 0
             threshold_emitted = False
 
             def _observe_usage(info: Mapping[str, Any]) -> bool:
-                nonlocal observed_tokens, observed_cost, threshold_emitted
+                nonlocal observed_tokens, observed_cost, unknown_count, threshold_emitted
                 observations = _extract_usage_observations(
                     json.dumps({"message": dict(info)}, ensure_ascii=True),
                     task_id=task_id,
@@ -1470,27 +1501,44 @@ class OpenCodeExecutor:
                     observation_id = str(observation["observation_id"])
                     if observation_id in seen:
                         continue
-                    seen.add(observation_id)
                     _persist_usage_observations(store, task_id, [observation])
-                    if observation.get("status") != "OBSERVED":
-                        continue
-                    observed_tokens += sum(
-                        int(observation.get(key) or 0)
-                        for key in (
-                            "input_units",
-                            "output_units",
-                            "reasoning_units",
-                            "cache_read_units",
-                            "cache_write_units",
-                        )
+                    seen.add(observation_id)
+                current = snapshot_reader(task_id)
+                if not isinstance(current, Mapping):
+                    raise OpenCodeServerTransportError(
+                        "server_budget_snapshot_invalid"
                     )
-                    observed_cost += int(observation.get("cost_micro_units") or 0)
+                observed_tokens = max(
+                    0, int(current.get("observed_token_units", 0))
+                )
+                observed_cost = max(
+                    0, int(current.get("observed_cost_micro_units", 0))
+                )
+                unknown_count = max(
+                    0, int(current.get("unknown_observation_count", 0))
+                )
+                reservation_changed = enforced and (
+                    int(current.get("claim_epoch", 0)) != claim_epoch
+                    or int(current.get("token_units", 0)) != token_limit
+                    or int(current.get("cost_micro_units", 0)) != cost_limit
+                )
                 threshold = (
-                    (token_limit > 0 and observed_tokens >= token_limit)
+                    (enforced and unknown_count > 0)
+                    or reservation_changed
+                    or (token_limit > 0 and observed_tokens >= token_limit)
                     or (cost_limit > 0 and observed_cost >= cost_limit)
                 )
                 if threshold and not threshold_emitted:
                     threshold_emitted = True
+                    threshold_reason = (
+                        "USAGE_UNKNOWN"
+                        if unknown_count
+                        else "RESERVATION_CHANGED"
+                        if reservation_changed
+                        else "TOKEN_LIMIT"
+                        if token_limit > 0 and observed_tokens >= token_limit
+                        else "COST_LIMIT"
+                    )
                     _emit(event_callback, task_id, {
                         "type": "BUDGET_THRESHOLD_REACHED",
                         "title": "Streaming budget threshold reached",
@@ -1502,6 +1550,9 @@ class OpenCodeExecutor:
                             "observed_cost_micro_units": observed_cost,
                             "reserved_token_units": token_limit,
                             "reserved_cost_micro_units": cost_limit,
+                            "unknown_observation_count": unknown_count,
+                            "threshold_reason": threshold_reason,
+                            "claim_epoch": claim_epoch,
                             "enforcement_class": "STREAM_STEP_BOUNDARY",
                         },
                     })
@@ -1519,7 +1570,7 @@ class OpenCodeExecutor:
                     "model": model_for_server,
                     "worktree": str(worktree),
                     "prompt_transport": "loopback_json",
-                    "stream_enforcement": bool(token_limit or cost_limit),
+                    "stream_enforcement": enforced,
                     **binding_metadata,
                 },
             })

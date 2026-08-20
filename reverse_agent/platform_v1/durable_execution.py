@@ -357,6 +357,19 @@ class _DurableFencedExecutorStore:
             epoch=self._epoch,
         )
 
+    def active_usage_budget_snapshot(self, task_id: str) -> dict[str, int]:
+        if task_id != self._task_id:
+            raise TaskStoreError(
+                f"durable_single_fenced_budget_snapshot:{task_id}:"
+                f"expected:{self._task_id}"
+            )
+        return self._store._fenced_active_usage_budget_snapshot(
+            self._run_id,
+            self._task_id,
+            owner=self._owner,
+            epoch=self._epoch,
+        )
+
 
 class _DurableFencedCallback:
     """Event callback that forwards to durable ExecutionService fenced APIs.

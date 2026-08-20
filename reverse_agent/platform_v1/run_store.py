@@ -1073,14 +1073,26 @@ class TaskStore:
             "per_role": [roles[key] for key in sorted(roles)],
         }
 
-    def active_usage_reservation(self, task_id: str) -> dict[str, int]:
-        """Return the exact active coordinator reservation, if one exists.
+    def active_usage_budget_snapshot(self, task_id: str) -> dict[str, int]:
+        """Return one numeric task/window budget snapshot for stream enforcement.
 
-        Direct/manual task execution has no coordinator claim and therefore
-        receives zero limits. Zero means "not stream-enforced", never an
-        observed usage value.
+        Observations are summed across every retained claim epoch for the
+        active task/window. This is the same window-wide accounting boundary
+        used by final reservation reconciliation, so planner/coder/reviewer
+        roles and retries cannot each receive the full reservation again.
+        Direct/manual execution has no active coordinator claim and returns
+        the closed zero snapshot.
         """
 
+        zero = {
+            "token_units": 0,
+            "cost_micro_units": 0,
+            "claim_epoch": 0,
+            "observed_token_units": 0,
+            "observed_cost_micro_units": 0,
+            "unknown_observation_count": 0,
+            "observation_count": 0,
+        }
         with self._lock:
             tables = {
                 str(row["name"])
@@ -1094,10 +1106,11 @@ class TaskStore:
                 "platform_coordinator_claims",
                 "platform_budget_reservations",
             }:
-                return {"token_units": 0, "cost_micro_units": 0, "claim_epoch": 0}
+                return dict(zero)
             row = self._conn.execute(
                 "SELECT reservation.reserved_token_units, "
-                "reservation.reserved_cost_micro_units, claim.epoch "
+                "reservation.reserved_cost_micro_units, claim.epoch, "
+                "claim.window_id "
                 "FROM platform_coordinator_claims AS claim "
                 "JOIN platform_budget_reservations AS reservation "
                 "ON reservation.task_id = claim.task_id "
@@ -1108,12 +1121,39 @@ class TaskStore:
                 (task_id,),
             ).fetchone()
             if row is None:
-                return {"token_units": 0, "cost_micro_units": 0, "claim_epoch": 0}
+                return dict(zero)
+            usage = self._conn.execute(
+                "SELECT COUNT(*) AS observation_count, "
+                "COALESCE(SUM(CASE WHEN status = 'UNKNOWN' THEN 1 ELSE 0 END), 0) "
+                "AS unknown_count, "
+                "COALESCE(SUM(CASE WHEN status = 'OBSERVED' THEN "
+                "COALESCE(input_units, 0) + COALESCE(output_units, 0) + "
+                "COALESCE(reasoning_units, 0) + COALESCE(cache_read_units, 0) + "
+                "COALESCE(cache_write_units, 0) ELSE 0 END), 0) AS token_units, "
+                "COALESCE(SUM(CASE WHEN status = 'OBSERVED' THEN "
+                "COALESCE(cost_micro_units, 0) ELSE 0 END), 0) AS cost_units "
+                "FROM task_usage_observations WHERE task_id = ? AND window_id = ?",
+                (task_id, str(row["window_id"])),
+            ).fetchone()
             return {
                 "token_units": int(row["reserved_token_units"]),
                 "cost_micro_units": int(row["reserved_cost_micro_units"]),
                 "claim_epoch": int(row["epoch"]),
+                "observed_token_units": int(usage["token_units"]),
+                "observed_cost_micro_units": int(usage["cost_units"]),
+                "unknown_observation_count": int(usage["unknown_count"]),
+                "observation_count": int(usage["observation_count"]),
             }
+
+    def active_usage_reservation(self, task_id: str) -> dict[str, int]:
+        """Compatibility projection of the exact active reservation limits."""
+
+        snapshot = self.active_usage_budget_snapshot(task_id)
+        return {
+            "token_units": snapshot["token_units"],
+            "cost_micro_units": snapshot["cost_micro_units"],
+            "claim_epoch": snapshot["claim_epoch"],
+        }
 
     @staticmethod
     def _row_to_usage_observation(row: Any) -> UsageObservation:
@@ -2602,6 +2642,45 @@ class TaskStore:
                     pass
                 raise TaskStoreError(
                     f"fenced_usage_reservation_failed:{type(exc).__name__}"
+                ) from exc
+
+    def _fenced_active_usage_budget_snapshot(
+        self,
+        run_id: str,
+        task_id: str,
+        *,
+        owner: str,
+        epoch: int,
+    ) -> dict[str, int]:
+        """Read cumulative budget truth only for the current durable lease."""
+
+        with self._lock:
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN")
+                self._fenced_validate_lease(cur, run_id, owner, epoch)
+                bound = cur.execute(
+                    "SELECT task_id FROM durable_runs WHERE run_id = ?",
+                    (run_id,),
+                ).fetchone()
+                if bound is None or bound["task_id"] != task_id:
+                    raise TaskStoreError("fenced_usage_task_mismatch")
+                result = self.active_usage_budget_snapshot(task_id)
+                cur.execute("COMMIT")
+                return result
+            except TaskStoreError:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError(
+                    f"fenced_usage_snapshot_failed:{type(exc).__name__}"
                 ) from exc
 
     def _fenced_classify_failure(
