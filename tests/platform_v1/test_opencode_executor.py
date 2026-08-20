@@ -31,6 +31,7 @@ from reverse_agent.platform_v1.opencode_executor import (
     _write_prompt_file,
 )
 from reverse_agent.platform_v1.run_store import TaskStore
+from reverse_agent.platform_v1.opencode_server_transport import ServerTransportResult
 from reverse_agent.platform_v1.task_runtime import (
     ExecutorRuntimeError,
     ExecutorRouter,
@@ -127,6 +128,160 @@ def test_usage_extraction_marks_ambiguous_values_unknown(tokens, cost) -> None:
     assert observations[0]["status"] == "UNKNOWN"
     assert observations[0]["input_units"] is None
     assert "SECRET-SENTINEL" not in json.dumps(observations)
+
+
+def _init_git_repo(path: Path) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.email", "test@local"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=path, check=True)
+    (path / "seed.txt").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "seed.txt"], cwd=path, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "seed"], cwd=path, check=True)
+
+
+def test_server_executor_stream_usage_is_idempotent_and_secret_confined(
+    tmp_path, monkeypatch
+) -> None:
+    import reverse_agent.platform_v1.opencode_executor as exec_mod
+
+    _init_git_repo(tmp_path)
+    store = TaskStore(":memory:")
+    task = store.create_task(
+        title="server transport", executor_kind="opencode", model_profile_ref="p/m"
+    )
+    events: list[dict[str, object]] = []
+    message = {
+        "id": "message-one",
+        "sessionID": "session-one",
+        "role": "assistant",
+        "time": {"completed": 1},
+        "cost": 0.000002,
+        "tokens": {
+            "input": 1,
+            "output": 2,
+            "reasoning": 3,
+            "cache": {"read": 4, "write": 5},
+        },
+        "password": "SECRET_SENTINEL",
+    }
+
+    def fake_server(**kwargs):
+        assert kwargs["child_env"]["OPENCODE_DISABLE_AUTOUPDATE"] == "true"
+        assert kwargs["usage_observer"](message) is False
+        assert kwargs["usage_observer"](message) is False
+        return ServerTransportResult(
+            success=True,
+            server_version="test-1",
+            session_digest="session-digest",
+            usage_event_count=2,
+        )
+
+    monkeypatch.setattr(exec_mod, "run_managed_server_role", fake_server)
+    executor = OpenCodeExecutor(
+        model_id="p/m",
+        opencode_exe="/fake/opencode",
+        transport_kind="server",
+    )
+    result = executor._run_executor_core(
+        task_id=task.id,
+        store=store,
+        worktree=tmp_path,
+        base_sha="base",
+        execution_id="exec-server",
+        cli_path="/fake/opencode",
+        is_cmd=False,
+        event_callback=lambda _task_id, event: events.append(event),
+        role_context=exec_mod.RoleContext(
+            role="executor", task_id=task.id, workspace=tmp_path
+        ),
+    )
+
+    assert result.success is True
+    summary = store.usage_summary(task.id)
+    assert summary["observation_count"] == 1
+    assert summary["total_token_units"] == 15
+    serialized = json.dumps(
+        {
+            "rows": [dict(row) for row in store._conn.execute(
+                "SELECT * FROM task_usage_observations"
+            )],
+            "events": events,
+        }
+    )
+    assert "SECRET_SENTINEL" not in serialized
+    assert any(event["metadata"].get("transport_kind") == "server" for event in events)
+
+
+def test_server_executor_reservation_threshold_returns_confirmed_abort(
+    tmp_path, monkeypatch
+) -> None:
+    import reverse_agent.platform_v1.opencode_executor as exec_mod
+
+    _init_git_repo(tmp_path)
+    backing = TaskStore(":memory:")
+    task = backing.create_task(
+        title="server budget", executor_kind="opencode", model_profile_ref="p/m"
+    )
+
+    class StoreProxy:
+        def get_task(self, task_id):
+            return backing.get_task(task_id)
+
+        def append_usage_observation(self, task_id, **kwargs):
+            return backing.append_usage_observation(task_id, **kwargs)
+
+        def active_usage_reservation(self, task_id):
+            return {"token_units": 15, "cost_micro_units": 0, "claim_epoch": 1}
+
+    def fake_server(**kwargs):
+        crossed = kwargs["usage_observer"]({
+            "id": "message-budget",
+            "sessionID": "session-budget",
+            "role": "assistant",
+            "time": {"completed": 1},
+            "cost": 0,
+            "tokens": {
+                "input": 1,
+                "output": 2,
+                "reasoning": 3,
+                "cache": {"read": 4, "write": 5},
+            },
+        })
+        assert crossed is True
+        return ServerTransportResult(
+            success=False,
+            failure_classification="stream_budget_abort_confirmed",
+            abort_state="STREAM_ABORT_CONFIRMED",
+            server_version="test-1",
+            session_digest="session-digest",
+            usage_event_count=1,
+        )
+
+    monkeypatch.setattr(exec_mod, "run_managed_server_role", fake_server)
+    events: list[dict[str, object]] = []
+    executor = OpenCodeExecutor(
+        model_id="p/m",
+        opencode_exe="/fake/opencode",
+        transport_kind="server",
+    )
+    result = executor._run_executor_core(
+        task_id=task.id,
+        store=StoreProxy(),
+        worktree=tmp_path,
+        base_sha="base",
+        execution_id="exec-budget",
+        cli_path="/fake/opencode",
+        is_cmd=False,
+        event_callback=lambda _task_id, event: events.append(event),
+        role_context=exec_mod.RoleContext(
+            role="executor", task_id=task.id, workspace=tmp_path
+        ),
+    )
+
+    assert result.success is False
+    assert result.failure_classification == "stream_budget_abort_confirmed"
+    assert sum(event["type"] == "BUDGET_THRESHOLD_REACHED" for event in events) == 1
+    assert sum(event["type"] == "STREAM_ABORT_CONFIRMED" for event in events) == 1
 
 
 # ---------------------------------------------------------------------------

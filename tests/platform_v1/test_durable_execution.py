@@ -3819,6 +3819,65 @@ def test_v4_stale_epoch_cannot_mutate_taskstore(tmp_path) -> None:
         store._fenced_transition_to(run_id, task.id, "VALIDATING", "w1", 1)
 
 
+def test_stream_usage_append_is_epoch_fenced_and_replay_idempotent(tmp_path) -> None:
+    from reverse_agent.platform_v1.durable_execution import (
+        _DurableFencedExecutorStore,
+    )
+
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="stream usage fence",
+        executor_kind="opencode",
+        orchestration_mode="single",
+    )
+    store.transition_to(task.id, "PREPARING_WORKSPACE")
+    store.transition_to(task.id, "RUNNING")
+    lease1 = store._acquire_durable_lease(
+        task_id=task.id,
+        execution_id=task.execution_id,
+        lease_owner="usage-w1",
+    )
+    facade1 = _DurableFencedExecutorStore(
+        store, lease1.run_id, task.id, lease1.owner, lease1.epoch
+    )
+    observation = {
+        "observation_id": "usage-fenced-one",
+        "execution_id": task.execution_id,
+        "role": "executor",
+        "model_id": "provider/model",
+        "provider_id": "provider",
+        "source_kind": "assistant_message",
+        "source_id": "msg-digest",
+        "status": "OBSERVED",
+        "input_units": 1,
+        "output_units": 2,
+        "reasoning_units": 3,
+        "cache_read_units": 4,
+        "cache_write_units": 5,
+        "cost_micro_units": 6,
+    }
+    first = facade1.append_usage_observation(task.id, **observation)
+    replay = facade1.append_usage_observation(task.id, **observation)
+    assert first.id == replay.id
+    assert store.usage_summary(task.id)["observation_count"] == 1
+
+    lease2 = store._recover_durable_lease(lease1.run_id, "usage-w2")
+    with pytest.raises(TaskStoreError, match="lease_fenced"):
+        facade1.append_usage_observation(
+            task.id,
+            **{**observation, "observation_id": "usage-stale-second"},
+        )
+    facade2 = _DurableFencedExecutorStore(
+        store, lease2.run_id, task.id, lease2.owner, lease2.epoch
+    )
+    accepted = facade2.append_usage_observation(
+        task.id,
+        **{**observation, "observation_id": "usage-current-second"},
+    )
+    assert accepted.id == "usage-current-second"
+    assert store.usage_summary(task.id)["observation_count"] == 2
+
+
 def test_v4_stale_epoch_cannot_record_or_reconcile_external_op(tmp_path) -> None:
     """Audit Finding C: stale owner/epoch cannot record or reconcile
     external operations."""

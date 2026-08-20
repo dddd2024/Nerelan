@@ -1073,6 +1073,48 @@ class TaskStore:
             "per_role": [roles[key] for key in sorted(roles)],
         }
 
+    def active_usage_reservation(self, task_id: str) -> dict[str, int]:
+        """Return the exact active coordinator reservation, if one exists.
+
+        Direct/manual task execution has no coordinator claim and therefore
+        receives zero limits. Zero means "not stream-enforced", never an
+        observed usage value.
+        """
+
+        with self._lock:
+            tables = {
+                str(row["name"])
+                for row in self._conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table' AND "
+                    "name IN ('platform_coordinator_claims', "
+                    "'platform_budget_reservations')"
+                ).fetchall()
+            }
+            if tables != {
+                "platform_coordinator_claims",
+                "platform_budget_reservations",
+            }:
+                return {"token_units": 0, "cost_micro_units": 0, "claim_epoch": 0}
+            row = self._conn.execute(
+                "SELECT reservation.reserved_token_units, "
+                "reservation.reserved_cost_micro_units, claim.epoch "
+                "FROM platform_coordinator_claims AS claim "
+                "JOIN platform_budget_reservations AS reservation "
+                "ON reservation.task_id = claim.task_id "
+                "AND reservation.window_id = claim.window_id "
+                "AND reservation.claim_epoch = claim.epoch "
+                "WHERE claim.task_id = ? AND claim.status = 'ACTIVE' "
+                "AND reservation.state = 'ACTIVE'",
+                (task_id,),
+            ).fetchone()
+            if row is None:
+                return {"token_units": 0, "cost_micro_units": 0, "claim_epoch": 0}
+            return {
+                "token_units": int(row["reserved_token_units"]),
+                "cost_micro_units": int(row["reserved_cost_micro_units"]),
+                "claim_epoch": int(row["epoch"]),
+            }
+
     @staticmethod
     def _row_to_usage_observation(row: Any) -> UsageObservation:
         return UsageObservation(
@@ -2453,6 +2495,114 @@ class TaskStore:
             raise TaskStoreError(
                 f"fenced_add_evidence_failed:{exc}"
             ) from exc
+
+    def _fenced_append_usage_observation(
+        self,
+        run_id: str,
+        task_id: str,
+        *,
+        observation_id: str,
+        execution_id: str,
+        role: str,
+        model_id: str,
+        provider_id: str,
+        source_kind: str,
+        source_id: str,
+        status: str,
+        input_units: int | None = None,
+        output_units: int | None = None,
+        reasoning_units: int | None = None,
+        cache_read_units: int | None = None,
+        cache_write_units: int | None = None,
+        cost_micro_units: int | None = None,
+        owner: str,
+        epoch: int,
+    ) -> UsageObservation:
+        """Atomically fence and append one sanitized usage observation."""
+
+        with self._lock:
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                self._fenced_validate_lease(cur, run_id, owner, epoch)
+                bound = cur.execute(
+                    "SELECT task_id FROM durable_runs WHERE run_id = ?",
+                    (run_id,),
+                ).fetchone()
+                if bound is None or bound["task_id"] != task_id:
+                    raise TaskStoreError("fenced_usage_task_mismatch")
+                result = self.append_usage_observation(
+                    task_id,
+                    observation_id=observation_id,
+                    execution_id=execution_id,
+                    role=role,
+                    model_id=model_id,
+                    provider_id=provider_id,
+                    source_kind=source_kind,
+                    source_id=source_id,
+                    status=status,
+                    input_units=input_units,
+                    output_units=output_units,
+                    reasoning_units=reasoning_units,
+                    cache_read_units=cache_read_units,
+                    cache_write_units=cache_write_units,
+                    cost_micro_units=cost_micro_units,
+                )
+                cur.execute("COMMIT")
+                return result
+            except TaskStoreError:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError(
+                    f"fenced_append_usage_failed:{type(exc).__name__}"
+                ) from exc
+
+    def _fenced_active_usage_reservation(
+        self,
+        run_id: str,
+        task_id: str,
+        *,
+        owner: str,
+        epoch: int,
+    ) -> dict[str, int]:
+        """Read a reservation only while the durable owner/epoch is current."""
+
+        with self._lock:
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN")
+                self._fenced_validate_lease(cur, run_id, owner, epoch)
+                bound = cur.execute(
+                    "SELECT task_id FROM durable_runs WHERE run_id = ?",
+                    (run_id,),
+                ).fetchone()
+                if bound is None or bound["task_id"] != task_id:
+                    raise TaskStoreError("fenced_usage_task_mismatch")
+                result = self.active_usage_reservation(task_id)
+                cur.execute("COMMIT")
+                return result
+            except TaskStoreError:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError(
+                    f"fenced_usage_reservation_failed:{type(exc).__name__}"
+                ) from exc
 
     def _fenced_classify_failure(
         self,
