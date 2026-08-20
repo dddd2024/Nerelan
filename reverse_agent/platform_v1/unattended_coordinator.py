@@ -84,16 +84,23 @@ class UnattendedCoordinator:
 
     def reconcile(self) -> tuple[str, ...]:
         durable = self._durable_service()
+        reconciled: list[str] = []
         try:
             result = durable.reconcile_expired_runs()
         except Exception as exc:
             self._last_error = f"reconcile_failed:{type(exc).__name__}"
-            return ()
-        if result is None:
-            return ()
+            result = None
         if isinstance(result, (list, tuple)):
-            return tuple(str(value) for value in result)
-        return (str(result),)
+            reconciled.extend(str(value) for value in result)
+        elif result is not None:
+            reconciled.append(str(result))
+        try:
+            reconciled.extend(
+                self.control_store.reconcile_expired_budget_reservations()
+            )
+        except Exception as exc:
+            self._last_error = f"budget_reconcile_failed:{type(exc).__name__}"
+        return tuple(reconciled)
 
     def tick(self) -> int:
         self._ticks += 1
@@ -124,7 +131,8 @@ class UnattendedCoordinator:
             except TaskStoreError as exc:
                 if str(exc) in {
                     "window_wip_limit_reached", "window_task_budget_exhausted",
-                    "window_retry_budget_exhausted", "task_already_claimed"
+                    "window_retry_budget_exhausted", "window_token_budget_exhausted",
+                    "window_cost_budget_exhausted", "task_already_claimed"
                 }:
                     break
                 self._last_error = str(exc)
