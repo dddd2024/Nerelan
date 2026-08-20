@@ -27,6 +27,7 @@ from reverse_agent.architecture.contracts import (
     WorkerExecutionResult,
 )
 from reverse_agent.platform_v1.opencode_executor import handoff_dir as _handoff_dir, _collect_product_diff as _collect_product_diff
+from reverse_agent.platform_v1.control_store import PlatformControlStore
 from reverse_agent.platform_v1.durable_execution import (
     ACCEPTED_CHECKPOINTS,
     CHECKPOINT_ORDER,
@@ -3817,6 +3818,171 @@ def test_v4_stale_epoch_cannot_mutate_taskstore(tmp_path) -> None:
         )
     with pytest.raises(TaskStoreError):
         store._fenced_transition_to(run_id, task.id, "VALIDATING", "w1", 1)
+
+
+def test_stream_usage_append_is_epoch_fenced_and_replay_idempotent(tmp_path) -> None:
+    from reverse_agent.platform_v1.durable_execution import (
+        _DurableFencedExecutorStore,
+    )
+
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="stream usage fence",
+        executor_kind="opencode",
+        orchestration_mode="single",
+    )
+    store.transition_to(task.id, "PREPARING_WORKSPACE")
+    store.transition_to(task.id, "RUNNING")
+    lease1 = store._acquire_durable_lease(
+        task_id=task.id,
+        execution_id=task.execution_id,
+        lease_owner="usage-w1",
+    )
+    facade1 = _DurableFencedExecutorStore(
+        store, lease1.run_id, task.id, lease1.owner, lease1.epoch
+    )
+    observation = {
+        "observation_id": "usage-fenced-one",
+        "execution_id": task.execution_id,
+        "role": "executor",
+        "model_id": "provider/model",
+        "provider_id": "provider",
+        "source_kind": "assistant_message",
+        "source_id": "msg-digest",
+        "status": "OBSERVED",
+        "input_units": 1,
+        "output_units": 2,
+        "reasoning_units": 3,
+        "cache_read_units": 4,
+        "cache_write_units": 5,
+        "cost_micro_units": 6,
+    }
+    first = facade1.append_usage_observation(task.id, **observation)
+    replay = facade1.append_usage_observation(task.id, **observation)
+    assert first.id == replay.id
+    assert store.usage_summary(task.id)["observation_count"] == 1
+    assert facade1.active_usage_budget_snapshot(task.id) == {
+        "token_units": 0,
+        "cost_micro_units": 0,
+        "claim_epoch": 0,
+        "observed_token_units": 0,
+        "observed_cost_micro_units": 0,
+        "unknown_observation_count": 0,
+        "observation_count": 0,
+    }
+
+    lease2 = store._recover_durable_lease(lease1.run_id, "usage-w2")
+    with pytest.raises(TaskStoreError, match="lease_fenced"):
+        facade1.append_usage_observation(
+            task.id,
+            **{**observation, "observation_id": "usage-stale-second"},
+        )
+    with pytest.raises(TaskStoreError, match="lease_fenced"):
+        facade1.active_usage_budget_snapshot(task.id)
+    facade2 = _DurableFencedExecutorStore(
+        store, lease2.run_id, task.id, lease2.owner, lease2.epoch
+    )
+    accepted = facade2.append_usage_observation(
+        task.id,
+        **{**observation, "observation_id": "usage-current-second"},
+    )
+    assert accepted.id == "usage-current-second"
+    assert store.usage_summary(task.id)["observation_count"] == 2
+
+
+def test_active_budget_snapshot_sums_task_window_across_claim_epochs(tmp_path) -> None:
+    store = _make_store(tmp_path)
+    PlatformControlStore(store)
+    task = store.create_task(
+        title="window cumulative usage",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    now = "2026-08-21T00:00:00+00:00"
+    store._conn.execute(
+        "INSERT INTO platform_coordinator_claims "
+        "(task_id, window_id, owner, epoch, expires_at_ms, status, created_at, updated_at) "
+        "VALUES (?, 'window-cumulative', 'worker-one', 1, 9999999999999, "
+        "'ACTIVE', ?, ?)",
+        (task.id, now, now),
+    )
+    store._conn.execute(
+        "INSERT INTO platform_budget_reservations "
+        "(task_id, claim_epoch, window_id, reserved_token_units, "
+        "reserved_cost_micro_units, state, observed_token_units, "
+        "observed_cost_micro_units, created_at, updated_at, reconciled_at) "
+        "VALUES (?, 1, 'window-cumulative', 100, 1000, 'ACTIVE', NULL, NULL, ?, ?, '')",
+        (task.id, now, now),
+    )
+    store.append_usage_observation(
+        task.id,
+        observation_id="usage-epoch-one",
+        execution_id="exec-window",
+        role="planner",
+        model_id="provider/model",
+        provider_id="provider",
+        source_kind="assistant_message",
+        source_id="message-one",
+        status="OBSERVED",
+        input_units=60,
+        output_units=0,
+        reasoning_units=0,
+        cache_read_units=0,
+        cache_write_units=0,
+        cost_micro_units=400,
+    )
+    store._conn.execute(
+        "UPDATE platform_coordinator_claims SET owner = 'worker-two', epoch = 2 "
+        "WHERE task_id = ?",
+        (task.id,),
+    )
+    store._conn.execute(
+        "UPDATE platform_budget_reservations SET claim_epoch = 2 WHERE task_id = ?",
+        (task.id,),
+    )
+    store.append_usage_observation(
+        task.id,
+        observation_id="usage-epoch-two",
+        execution_id="exec-window",
+        role="coder",
+        model_id="provider/model",
+        provider_id="provider",
+        source_kind="assistant_message",
+        source_id="message-two",
+        status="OBSERVED",
+        input_units=50,
+        output_units=0,
+        reasoning_units=0,
+        cache_read_units=0,
+        cache_write_units=0,
+        cost_micro_units=700,
+    )
+    store.append_usage_observation(
+        task.id,
+        observation_id="usage-unknown",
+        execution_id="exec-window",
+        role="reviewer",
+        model_id="provider/model",
+        provider_id="provider",
+        source_kind="assistant_message",
+        source_id="message-unknown",
+        status="UNKNOWN",
+    )
+
+    assert store.active_usage_budget_snapshot(task.id) == {
+        "token_units": 100,
+        "cost_micro_units": 1000,
+        "claim_epoch": 2,
+        "observed_token_units": 110,
+        "observed_cost_micro_units": 1100,
+        "unknown_observation_count": 1,
+        "observation_count": 3,
+    }
+    assert store.active_usage_reservation(task.id) == {
+        "token_units": 100,
+        "cost_micro_units": 1000,
+        "claim_epoch": 2,
+    }
 
 
 def test_v4_stale_epoch_cannot_record_or_reconcile_external_op(tmp_path) -> None:

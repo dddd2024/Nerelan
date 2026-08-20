@@ -73,6 +73,9 @@ def _build_executor_kwargs(
             kwargs["model_id"] = model_id
         kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
         kwargs["base_ref"] = str(_map_task_field(task, "branch", ""))
+        kwargs["transport_kind"] = os.environ.get(
+            "REVERSE_AGENT_OPENCODE_TRANSPORT", "cli"
+        ).strip() or "cli"
         if lease_provider is not None:
             kwargs["lease_provider"] = lease_provider
     return kwargs

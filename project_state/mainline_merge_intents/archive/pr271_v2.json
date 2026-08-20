@@ -1,0 +1,20 @@
+{
+  "schema_version": 2,
+  "intent_id": "pr271_issue268_product_ux2a_usage_budgets_landing_v2",
+  "repository": "dddd2024/reverse-agent",
+  "source_pr": 271,
+  "locked_base_sha": "aa5972a2c216a775089fbb52a5efa160f4884eb8",
+  "allowed_merge_method": "merge",
+  "decision_identity": {
+    "decision_id": "decision_20260820_issue268_product_ux2a_usage_budgets_r2_v5_landing",
+    "decision_content_sha256": "272ae27f815087388d7c3d5a57e9f44cdaf36637c0a647ec5bf79f7525dd0067"
+  },
+  "command_plan_sha256": "e8450e53b0e814c3e2e7c88a85db82888987eb91bb2aef8ecfeac8e215807038",
+  "merge_tree_policy": "equal_to_accepted_head_tree",
+  "required_workflows": [
+    "CI",
+    "Decision Preflight",
+    "State Gate (pull_request)"
+  ],
+  "expires_at": "2026-08-27T23:59:59Z"
+}

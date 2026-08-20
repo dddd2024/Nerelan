@@ -268,8 +268,9 @@ class _DurableFencedExecutorStore:
     capabilities are exposed:
 
     - get_task(task_id)  : must match the bound task_id exactly
-    - add_evidence(...)  : internally invokes _fenced_add_evidence with
-                           the bound run_id/task_id/owner/epoch
+    - add_evidence(...)  : fenced evidence persistence
+    - append_usage_observation(...) : fenced sanitized usage persistence
+    - active_usage_reservation(...) : fenced reservation observation
 
     NO __getattr__ passthrough. All other TaskStore methods
     (set_state, transition_to, set_changed_files, set_validation_result,
@@ -329,6 +330,46 @@ class _DurableFencedExecutorStore:
             epoch=self._epoch,
         )
 
+    def append_usage_observation(self, task_id: str, **observation: Any) -> Any:
+        if task_id != self._task_id:
+            raise TaskStoreError(
+                f"durable_single_fenced_usage:{task_id}:"
+                f"expected:{self._task_id}"
+            )
+        return self._store._fenced_append_usage_observation(
+            self._run_id,
+            self._task_id,
+            **observation,
+            owner=self._owner,
+            epoch=self._epoch,
+        )
+
+    def active_usage_reservation(self, task_id: str) -> dict[str, int]:
+        if task_id != self._task_id:
+            raise TaskStoreError(
+                f"durable_single_fenced_reservation:{task_id}:"
+                f"expected:{self._task_id}"
+            )
+        return self._store._fenced_active_usage_reservation(
+            self._run_id,
+            self._task_id,
+            owner=self._owner,
+            epoch=self._epoch,
+        )
+
+    def active_usage_budget_snapshot(self, task_id: str) -> dict[str, int]:
+        if task_id != self._task_id:
+            raise TaskStoreError(
+                f"durable_single_fenced_budget_snapshot:{task_id}:"
+                f"expected:{self._task_id}"
+            )
+        return self._store._fenced_active_usage_budget_snapshot(
+            self._run_id,
+            self._task_id,
+            owner=self._owner,
+            epoch=self._epoch,
+        )
+
 
 class _DurableFencedCallback:
     """Event callback that forwards to durable ExecutionService fenced APIs.
@@ -360,7 +401,8 @@ class _DurableFencedCallback:
                 description=event.get("description", ""),
                 raw_log=event.get("raw_log", ""),
                 metadata=event.get("metadata"),
-                owner=self._owner, epoch=self._epoch,
+                owner=self._owner,
+                epoch=self._epoch,
             )
         except Exception:
             pass
@@ -1917,6 +1959,9 @@ class DurableExecutionService:
                 kwargs["model_id"] = model_id
             kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
             kwargs["base_ref"] = getattr(task, "branch", "") or ""
+            kwargs["transport_kind"] = os.environ.get(
+                "REVERSE_AGENT_OPENCODE_TRANSPORT", "cli"
+            ).strip() or "cli"
             if self.lease_provider is not None:
                 kwargs["lease_provider"] = self.lease_provider
         return kwargs
@@ -3852,6 +3897,9 @@ def _build_resume_executor_kwargs(
             kwargs["model_id"] = model_id
         kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
         kwargs["base_ref"] = getattr(stored_task, "branch", "") or ""
+        kwargs["transport_kind"] = os.environ.get(
+            "REVERSE_AGENT_OPENCODE_TRANSPORT", "cli"
+        ).strip() or "cli"
         if lease_provider is not None:
             kwargs["lease_provider"] = lease_provider
     return kwargs

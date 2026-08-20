@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260820_issue268_product_ux2a_usage_budgets_r2_v5_landing",
-  "round_id": "round_20260820_issue268_product_ux2a_usage_budgets_r2_v5_landing",
+  "decision_id": "decision_20260821_issue272_product_ux2b_opencode_server_r2_v4_landing",
+  "round_id": "round_20260821_issue272_product_ux2b_opencode_server_r2_v4_landing",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,29 +14,25 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260819_issue259_state_gate_attestation_lifecycle_r2_v3",
-  "follows_last_round_id": "round_20260819_issue259_state_gate_attestation_lifecycle_r2_v3",
-  "previous_audit_outcome": "ISSUE268_V4_LANDING_BLOCKED_PREBINDING_PLATFORM_GATE_INCOMPATIBLE_WITH_SCHEMA_V2_ACTIVE_INTENT",
-  "superseded_local_landing_decision_id": "decision_20260820_issue268_product_ux2a_usage_budgets_r2_v4_landing",
-  "superseded_local_landing_round_id": "round_20260820_issue268_product_ux2a_usage_budgets_r2_v4_landing",
-  "superseded_local_landing_branch": "owner/issue268-product-ux2a-usage-budgets-r2-v4-landing",
-  "superseded_local_landing_decision_commit": "8a099adf03cc42f5ae4acc279fa924dde08b2b3d",
-  "superseded_local_landing_published": false,
-  "workstream_id": "issue268-product-ux2a-usage-budgets-r2-v5-landing",
-  "source_issue": 268,
-  "accepted_product_pr": 270,
-  "accepted_product_head": "7c8335a80a8eb5fe5e7cd42d59b7d2004dd36040",
-  "accepted_product_tree": "99dbc76681ea00547a5166fbebc095743e7db700",
-  "accepted_audit_comment_id": 5356762115,
-  "accepted_ci_run_id": 32375246606,
-  "accepted_decision_preflight_run_id": 32375246626,
-  "accepted_state_gate_run_id": 32375246840,
-  "superseded_implementation_pr": 269,
-  "required_branch": "owner/issue268-product-ux2a-usage-budgets-r2-v5-landing",
-  "starting_head": "aa5972a2c216a775089fbb52a5efa160f4884eb8",
-  "activation_base_sha": "aa5972a2c216a775089fbb52a5efa160f4884eb8",
+  "follows_last_decision_id": "decision_20260820_issue268_product_ux2a_usage_budgets_r2_v5_landing",
+  "follows_last_round_id": "round_20260820_issue268_product_ux2a_usage_budgets_r2_v5_landing",
+  "previous_audit_outcome": "PR274_EXACT_HEAD_EC1835F7_CLEAN_LOCAL_AUDIT_NO_FINDINGS_REMOTE_THREE_RUNS_SUCCESS_PENDING_SEPARATE_LANDING_AUTHORITY",
+  "workstream_id": "issue272-product-ux2b-opencode-server-r2-v4-landing",
+  "source_issue": 272,
+  "validated_product_pr": 274,
+  "validated_product_head": "ec1835f7644c36f4fd69f3ffbd2c61432520126f",
+  "validated_product_tree": "5138e0188d339cb90b1bc7ba5416ba3ed2239069",
+  "validated_ci_run_id": 32394440620,
+  "validated_decision_preflight_run_id": 32394440688,
+  "validated_state_gate_run_id": 32394440627,
+  "rejected_product_pr": 273,
+  "rejected_product_head": "0e33f3d143a6122f0a20580911caed7c88b48342",
+  "rejected_audit_comment_id": 5358486097,
+  "required_branch": "owner/issue272-product-ux2b-opencode-server-r2-v4-landing",
+  "starting_head": "29faccd89a86b4313df66151652e2bd5724f141b",
+  "activation_base_sha": "29faccd89a86b4313df66151652e2bd5724f141b",
   "integration_base_ref": "main",
-  "base_sha": "aa5972a2c216a775089fbb52a5efa160f4884eb8",
+  "base_sha": "29faccd89a86b4313df66151652e2bd5724f141b",
   "allowed_merge_method": "merge",
   "mainline_merge_intent_required": true,
   "active_pr_binding_mode": "post_draft_pr_exact_remote_number",
@@ -75,8 +71,8 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
-    "create owner/issue268-product-ux2a-usage-budgets-r2-v5-landing from exact main aa5972a2c216a775089fbb52a5efa160f4884eb8 in an isolated canonical-LF checkout",
-    "commit this immutable landing Decision as the first new commit after aa5972a2c216a775089fbb52a5efa160f4884eb8 before product or merge-intent mutation",
+    "create owner/issue272-product-ux2b-opencode-server-r2-v4-landing from exact main 29faccd89a86b4313df66151652e2bd5724f141b in an isolated canonical-LF checkout",
+    "commit this immutable landing Decision as the first new commit after 29faccd89a86b4313df66151652e2bd5724f141b before product or merge-intent mutation",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
@@ -84,138 +80,89 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "issue268v5landing.verify_accepted_product",
-      "command": "verify origin/main remains aa5972a2c216a775089fbb52a5efa160f4884eb8; verify PR 270 remains Draft at accepted head 7c8335a80a8eb5fe5e7cd42d59b7d2004dd36040 and base aa5972a2c216a775089fbb52a5efa160f4884eb8; verify exact-head CI, Decision Preflight and State Gate run IDs 32375246606, 32375246626 and 32375246840 are SUCCESS; verify accepted audit comment 5356762115 and zero unresolved review threads; verify the landing target branch and Draft PR do not yet exist",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
+      "command_id": "issue272v4landing.verify_validated_product",
+      "command": "verify origin/main remains 29faccd89a86b4313df66151652e2bd5724f141b; verify PR 274 remains Draft at head ec1835f7644c36f4fd69f3ffbd2c61432520126f and base 29faccd89a86b4313df66151652e2bd5724f141b; verify exact-head CI, Decision Preflight and State Gate run IDs 32394440620, 32394440688 and 32394440627 are SUCCESS; verify PR 273 and rejection comment 5358486097 remain immutable negative evidence; verify zero unresolved review threads and that the landing target branch and Draft PR do not yet exist",
+      "phase": "validation", "required": true, "expected_exit_codes": [0],
+      "execution_surface": "local", "operations": ["repository_observation", "network_access"],
+      "network_access": true, "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue268v5landing.run_transition_gates",
-      "command": "run startup-snapshot, transition-command-plan, transition-lint, and transition-preflight --mode pre; require PRE_EXECUTION_AUTHORIZED with zero blockers before product or merge-intent mutation",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks", "generate_governance_artifact"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "command_id": "issue272v4landing.run_transition_gates",
+      "command": "run startup-snapshot, transition-command-plan, transition-lint and transition-preflight --mode pre; require PRE_EXECUTION_AUTHORIZED with zero blockers before product or merge-intent mutation",
+      "phase": "validation", "required": true, "expected_exit_codes": [0],
+      "execution_surface": "local", "operations": ["run_checks", "generate_governance_artifact"],
+      "network_access": false, "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue268v5landing.replay_accepted_product",
-      "command": "git cherry-pick c5f30ee6b8869160c89e937eaee233415b01aaf6 7c8335a80a8eb5fe5e7cd42d59b7d2004dd36040; prove all 15 product/test/frontend path objects equal accepted PR 270 and make no source edit",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["commit_replay", "repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation"
+      "command_id": "issue272v4landing.replay_validated_product",
+      "command": "git cherry-pick 6664d53c9603794c7e04bd0c338fd0db80331b23 ec1835f7644c36f4fd69f3ffbd2c61432520126f; prove all nine product and test path objects equal validated PR 274 and make no source edit",
+      "phase": "implementation", "required": true, "expected_exit_codes": [0],
+      "execution_surface": "local", "operations": ["commit_replay", "repository_observation"],
+      "network_access": false, "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue268v5landing.prepublication_validation",
-      "command": "before the landing PR number exists run only the Issue 268 focused backend set, frontend Agent Runs test, frontend typecheck, frontend mock build, transition-lint, transition-preflight --mode pre, and git diff --check; prove accepted product object identity; defer the exact Platform V1 blocking gate and all active-intent binding tests until after the actual Draft PR number is committed",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks", "diff_validation", "repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "command_id": "issue272v4landing.prepublication_validation",
+      "command": "before the landing PR number exists run the four-file PRODUCT-UX-2B focused test set, CI responsibility, unchanged frontend test typecheck and mock build, transition-lint, transition-preflight --mode pre, worktree-publication-readiness and git diff --check; prove all nine product objects equal PR 274; defer active-intent binding tests until the actual Draft PR number is committed",
+      "phase": "validation", "required": true, "expected_exit_codes": [0],
+      "execution_surface": "local", "operations": ["run_checks", "diff_validation", "repository_observation"],
+      "network_access": false, "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue268v5landing.publish_initial_draft",
-      "command": "push owner/issue268-product-ux2a-usage-budgets-r2-v5-landing once and create exactly one Draft PR with base=main; read the actual GitHub-assigned PR number without guessing; transient checks against the inherited PR 264 active intent are not acceptance evidence",
-      "phase": "publication",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["push", "pull_request_create", "repository_observation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_only_after_validation": true
+      "command_id": "issue272v4landing.publish_initial_draft",
+      "command": "push owner/issue272-product-ux2b-opencode-server-r2-v4-landing once and create exactly one Draft PR with base=main; read the actual GitHub-assigned PR number without guessing; transient checks against inherited PR 271 active intent are not acceptance evidence",
+      "phase": "publication", "required": true, "expected_exit_codes": [0],
+      "execution_surface": "local", "operations": ["push", "pull_request_create", "repository_observation", "network_access"],
+      "network_access": true, "required_evidence_source": "repository_state_attestation", "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue268v5landing.bind_actual_pr",
-      "command": "using only the observed GitHub-assigned Draft PR number, copy the committed schema-v2 PR 264 active intent byte-for-byte to project_state/mainline_merge_intents/archive/pr264_v2.json and replace active.json with schema version 2 bound to the actual landing PR, locked base, this immutable Decision, committed Command Plan, merge method merge, exact three pre-merge workflows and a bounded future expiry; commit exactly once without editing the Decision",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["bounded_governance_mutation", "stage_authorized_paths", "commit"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "command_id": "issue272v4landing.bind_actual_pr",
+      "command": "using only the observed GitHub-assigned Draft PR number, copy the committed schema-v2 PR 271 active intent byte-for-byte to project_state/mainline_merge_intents/archive/pr271_v2.json and replace active.json with schema version 2 bound to the actual landing PR, locked base, this immutable Decision, committed Command Plan, merge method merge, exact three pre-merge workflows and expiry 2026-08-28T23:59:59Z; commit exactly once without editing the Decision",
+      "phase": "implementation", "required": true, "expected_exit_codes": [0],
+      "execution_surface": "local", "operations": ["bounded_governance_mutation", "stage_authorized_paths", "commit"],
+      "network_access": false, "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue268v5landing.final_bound_validation",
-      "command": "on the final PR-bound head prove all 15 accepted product objects remain identical; prove archived PR 264 bytes and schema-v2 active intent fields/digests; run focused backend, exact Platform V1 blocking gate, mainline landing and merge-intent tests, CI responsibility, transition-lint, transition-preflight --mode pre, worktree-publication-readiness, and git diff --check; any failure stops publication",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["run_checks", "diff_validation", "repository_observation"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "command_id": "issue272v4landing.final_bound_validation",
+      "command": "on the final PR-bound head prove all nine validated product objects remain identical and archived PR 271 bytes plus schema-v2 active intent fields and digests are exact; run the four-file focused set, exact Platform V1 blocking gate, mainline landing and merge-intent tests, CI responsibility, unchanged frontend checks, transition-lint, transition-preflight --mode pre, worktree-publication-readiness and git diff --check; any failure stops publication",
+      "phase": "validation", "required": true, "expected_exit_codes": [0],
+      "execution_surface": "local", "operations": ["run_checks", "diff_validation", "repository_observation"],
+      "network_access": false, "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue268v5landing.publish_bound_head",
-      "command": "push the single post-publication binding commit once; verify remote branch equals local final head; close PR 270 as superseded by the landing PR; observe fresh exact-final-head CI, Decision Preflight and State Gate pull_request runs without rerun",
-      "phase": "publication",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["push", "pull_request_close", "repository_observation", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_only_after_validation": true
+      "command_id": "issue272v4landing.publish_bound_head",
+      "command": "push the single post-publication binding commit once; verify remote branch equals local final head; close PR 274 as superseded by the landing PR; observe fresh exact-final-head CI, Decision Preflight and State Gate pull_request runs without rerun",
+      "phase": "publication", "required": true, "expected_exit_codes": [0],
+      "execution_surface": "local", "operations": ["push", "pull_request_close", "repository_observation", "network_access"],
+      "network_access": true, "required_evidence_source": "repository_state_attestation", "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue268v5landing.attest_and_land",
-      "command": "after fresh exact-final-head workflows succeed, perform a clean-worktree exact-head audit and record ACCEPTED; immediately reobserve base/head/checks/MERGEABLE/CLEAN and zero unresolved threads; publish one schema-v2 mainline merge approval attestation comment bound to the actual comment ID, exact three workflow run IDs, intent digest, head and base; then owner-controlled mark-ready and merge exactly once with merge method merge and expected-head protection",
-      "phase": "publication",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "issue_comment", "mark_ready", "merge", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_only_after_validation": true
+      "command_id": "issue272v4landing.attest_and_land",
+      "command": "after fresh exact-final-head workflows succeed, perform a clean detached exact-head audit including both PR 273 blockers and record ACCEPTED on the landing PR; immediately reobserve base head checks MERGEABLE CLEAN and zero unresolved threads; publish one schema-v2 mainline merge approval attestation comment bound to its actual comment ID, exact three workflow run IDs, intent digest, head and base; then owner-controlled mark-ready and merge exactly once with merge method merge and expected-head protection",
+      "phase": "publication", "required": true, "expected_exit_codes": [0],
+      "execution_surface": "local", "operations": ["repository_observation", "issue_comment", "mark_ready", "merge", "network_access"],
+      "network_access": true, "required_evidence_source": "repository_state_attestation", "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue268v5landing.post_merge_verify",
-      "command": "verify the landing PR is merged and origin/main equals mergeCommit.oid; wait for State Gate push and required main checks; run mainline-merge-validation against the merge and remote attestation; close Issue 268 completed only after all post-merge evidence is green",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation", "issue_close", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation"
+      "command_id": "issue272v4landing.post_merge_verify",
+      "command": "verify the landing PR is merged and origin/main equals mergeCommit.oid; wait for State Gate push and required main checks; run mainline-merge-validation against the merge and remote attestation; close Issue 272 completed only after all post-merge evidence is green",
+      "phase": "validation", "required": true, "expected_exit_codes": [0],
+      "execution_surface": "local", "operations": ["repository_observation", "issue_close", "network_access"],
+      "network_access": true, "required_evidence_source": "repository_state_attestation"
     }
   ],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
-    "reverse_agent/platform_v1/run_store.py",
-    "reverse_agent/platform_v1/control_store.py",
-    "reverse_agent/platform_v1/autonomy.py",
-    "reverse_agent/platform_v1/unattended_coordinator.py",
+    "reverse_agent/platform_v1/durable_execution.py",
     "reverse_agent/platform_v1/opencode_executor.py",
-    "reverse_agent/platform_v1/run_read_model.py",
-    "reverse_agent/platform_v1/task_service.py",
-    "tests/platform_v1/test_autonomy.py",
-    "tests/platform_v1/test_unattended_coordinator.py",
+    "reverse_agent/platform_v1/opencode_server_transport.py",
+    "reverse_agent/platform_v1/run_store.py",
+    "reverse_agent/platform_v1/task_execution.py",
+    "tests/platform_v1/test_durable_execution.py",
     "tests/platform_v1/test_opencode_executor.py",
-    "tests/platform_v1/test_run_read_model.py",
-    "tests/platform_v1/test_task_service.py",
-    "frontend/src/lib/platform-client.ts",
-    "frontend/src/routes/runs.tsx",
-    "frontend/tests/runs.test.tsx",
+    "tests/platform_v1/test_opencode_server_transport.py",
+    "tests/platform_v1/test_task_execution.py",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr264_v2.json",
+    "project_state/mainline_merge_intents/archive/pr271_v2.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
@@ -236,53 +183,18 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "forbidden_mutated_paths": [
-    "project_state/current_state.json",
-    "project_state/state_manifest.json",
-    "project_state/artifact_index.json",
-    "project_state/rounds/**",
-    "project_state/audits/**",
-    "project_state/integration_baselines/**",
-    "project_state/mainline_recoveries/**",
-    "project_state/schemas/**",
-    "requirements*.txt",
-    "pyproject.toml",
-    ".github/**",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/github_remote_verifier.py",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/decision_preflight.py",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "frontend/pnpm-lock.yaml",
-    "frontend/yarn.lock",
-    "docs/**",
-    "AGENTS.md"
+    "project_state/current_state.json", "project_state/state_manifest.json", "project_state/artifact_index.json",
+    "project_state/rounds/**", "project_state/audits/**", "project_state/integration_baselines/**",
+    "project_state/mainline_recoveries/**", "project_state/schemas/**", "requirements*.txt", "pyproject.toml", ".github/**",
+    "reverse_agent/project_gate.py", "reverse_agent/github_remote_verifier.py", "reverse_agent/mainline_landing.py",
+    "reverse_agent/decision_preflight.py", "frontend/**", "docs/**", "AGENTS.md"
   ],
   "forbidden_operations": [
-    "direct_push_main",
-    "auto_merge",
-    "force_push",
-    "rebase",
-    "reset",
-    "clean",
-    "stash",
-    "amend",
-    "restore",
-    "dependency_install",
-    "live_model_call",
-    "opencode_invocation",
-    "provider_network_call",
-    "credential_access",
-    "auth_store_read",
-    "runner_dispatch",
-    "tag_or_release",
-    "deployment",
-    "worktree_deletion",
-    "history_rewrite",
-    "source_edit",
-    "raw_event_persistence",
-    "secret_redaction_weakening",
-    "second_taskstore_or_budget_database"
+    "direct_push_main", "auto_merge", "force_push", "rebase", "reset", "clean", "stash", "amend", "restore",
+    "dependency_install", "live_model_call", "opencode_invocation", "provider_network_call", "credential_access", "auth_store_read",
+    "runner_dispatch", "tag_or_release", "deployment", "worktree_deletion", "history_rewrite", "source_edit",
+    "non_loopback_transport", "remote_endpoint_from_untrusted_payload", "raw_event_persistence", "prompt_or_response_persistence",
+    "secret_redaction_weakening", "second_taskstore_or_budget_database", "network_attack_or_offensive_security_work"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -296,13 +208,13 @@
     "dependency_install_allowed": false,
     "network_access_default_allowed": false,
     "local_network_exceptions": [
-      "verify origin/main remains aa5972a2c216a775089fbb52a5efa160f4884eb8; verify PR 270 remains Draft at accepted head 7c8335a80a8eb5fe5e7cd42d59b7d2004dd36040 and base aa5972a2c216a775089fbb52a5efa160f4884eb8; verify exact-head CI, Decision Preflight and State Gate run IDs 32375246606, 32375246626 and 32375246840 are SUCCESS; verify accepted audit comment 5356762115 and zero unresolved review threads; verify the landing target branch and Draft PR do not yet exist",
-      "push owner/issue268-product-ux2a-usage-budgets-r2-v5-landing once and create exactly one Draft PR with base=main; read the actual GitHub-assigned PR number without guessing; transient checks against the inherited PR 264 active intent are not acceptance evidence",
-      "push the single post-publication binding commit once; verify remote branch equals local final head; close PR 270 as superseded by the landing PR; observe fresh exact-final-head CI, Decision Preflight and State Gate pull_request runs without rerun",
-      "after fresh exact-final-head workflows succeed, perform a clean-worktree exact-head audit and record ACCEPTED; immediately reobserve base/head/checks/MERGEABLE/CLEAN and zero unresolved threads; publish one schema-v2 mainline merge approval attestation comment bound to the actual comment ID, exact three workflow run IDs, intent digest, head and base; then owner-controlled mark-ready and merge exactly once with merge method merge and expected-head protection",
-      "verify the landing PR is merged and origin/main equals mergeCommit.oid; wait for State Gate push and required main checks; run mainline-merge-validation against the merge and remote attestation; close Issue 268 completed only after all post-merge evidence is green"
+      "verify origin/main remains 29faccd89a86b4313df66151652e2bd5724f141b; verify PR 274 remains Draft at head ec1835f7644c36f4fd69f3ffbd2c61432520126f and base 29faccd89a86b4313df66151652e2bd5724f141b; verify exact-head CI Decision Preflight and State Gate run IDs 32394440620 32394440688 and 32394440627 are SUCCESS; verify PR 273 and rejection comment 5358486097 remain immutable negative evidence; verify zero unresolved review threads and that the landing target branch and Draft PR do not yet exist",
+      "push owner/issue272-product-ux2b-opencode-server-r2-v4-landing once and create exactly one Draft PR with base=main; read the actual GitHub-assigned PR number without guessing; transient checks against inherited PR 271 active intent are not acceptance evidence",
+      "push the single post-publication binding commit once; verify remote branch equals local final head; close PR 274 as superseded by the landing PR; observe fresh exact-final-head CI Decision Preflight and State Gate pull_request runs without rerun",
+      "after fresh exact-final-head workflows succeed perform a clean detached exact-head audit including both PR 273 blockers and record ACCEPTED on the landing PR; immediately reobserve base head checks MERGEABLE CLEAN and zero unresolved threads; publish one schema-v2 mainline merge approval attestation comment bound to its actual comment ID exact three workflow run IDs intent digest head and base; then owner-controlled mark-ready and merge exactly once with merge method merge and expected-head protection",
+      "verify the landing PR is merged and origin/main equals mergeCommit.oid; wait for State Gate push and required main checks; run mainline-merge-validation against the merge and remote attestation; close Issue 272 completed only after all post-merge evidence is green"
     ],
-    "ci_network_exceptions": [],
+    "ci_network_exceptions": ["provider-free fake HTTP and SSE fixtures bound only to 127.0.0.1"],
     "remote_observation_read_only_allowed": true,
     "github_issue_comment_allowed": true,
     "github_issue_close_allowed": true,
@@ -318,32 +230,34 @@
   ],
   "authorized_risk_paths": [],
   "authorized_risk_tier": "R2",
-  "success_terminal": "ISSUE268_PRODUCT_UX2A_USAGE_BUDGETS_MERGED_MAIN_GREEN_ISSUE_CLOSED",
-  "blocked_terminal": "ISSUE268_PRODUCT_UX2A_R2_V5_LANDING_BLOCKED_WITH_EXACT_EVIDENCE"
+  "success_terminal": "ISSUE272_PRODUCT_UX2B_OPENCODE_SERVER_MERGED_MAIN_GREEN_ISSUE_CLOSED",
+  "blocked_terminal": "ISSUE272_PRODUCT_UX2B_R2_V4_LANDING_BLOCKED_WITH_EXACT_EVIDENCE"
 }
 ```
 
 ## Goal
 
-Land the independently accepted Issue #268 PRODUCT-UX-2A product through a self-contained Path-B candidate whose immutable Decision, generated Command Plan, schema-v2 active merge intent, exact product objects, owner approval attestation and post-merge evidence remain valid on merged `main`.
+Land the validated Issue #272 PRODUCT-UX-2B OpenCode Server/SSE transport through a self-contained Path-B candidate whose immutable Decision, generated Command Plan, schema-v2 active merge intent, exact product objects, independent audit, owner approval attestation and post-merge evidence remain valid on merged `main`.
 
 ## Acceptance
 
-1. This owner landing Decision is the first new commit after exact `main@aa5972a2c216a775089fbb52a5efa160f4884eb8`; no mutation or publication occurs before a generated Command Plan and `PRE_EXECUTION_AUTHORIZED` preflight.
-2. The 15 accepted product/test/frontend path objects exactly equal PR #270 head `7c8335a80a8eb5fe5e7cd42d59b7d2004dd36040`; there is no source edit, dependency, workflow, package, lockfile, secret, provider, model, OpenCode or second-store change.
-3. The actual GitHub-assigned landing PR number is observed after the first Draft publication. The committed PR #264 schema-v2 active intent is archived byte-for-byte, and the final schema-v2 `active.json` binds the actual landing PR, exact base, this Decision digest, committed Command Plan digest, merge method `merge`, exact three pre-merge workflows and a live expiry.
-4. The final bound head passes focused backend, exact Platform V1 blocking gate, mainline landing/merge-intent regressions, CI-responsibility, frontend checks, transition lint/preflight, publication readiness and diff checks. Fresh exact-head CI, Decision Preflight and State Gate pull_request runs are `SUCCESS`.
-5. A clean detached exact-head audit accepts the final bound head and is recorded as a PR comment. There are no unresolved review threads, head/base drift, or non-clean merge state.
-6. Owner `dddd2024` publishes exactly one schema-v2 merge approval attestation comment whose self-referential approval object ID, canonical digests, exact three workflow observations, accepted head and locked base validate against remote truth.
-7. Owner-controlled mark-ready and merge occur once using merge method `merge` and expected-head protection. There is no auto-merge, direct-main push, force push, rebase, history rewrite, squash or deployment.
-8. Post-merge verification proves the PR merge commit, new `origin/main`, State Gate push and required main checks. `mainline-merge-validation` passes against the committed intent and remote attestation before Issue #268 is closed completed.
+1. This owner landing Decision is the first new commit after exact `main@29faccd89a86b4313df66151652e2bd5724f141b`; no product, merge-intent mutation or publication occurs before generated authority and `PRE_EXECUTION_AUTHORIZED`.
+2. The nine product/test path objects exactly equal PR #274 head `ec1835f7644c36f4fd69f3ffbd2c61432520126f`; replay commits `6664d53c` and `ec1835f7` without source edits, dependencies, workflows, frontend, credential, provider, live model, OpenCode or second-store changes.
+3. The final code retains authenticated loopback-only OpenCode Server/SSE transport, exact session filtering, sanitized usage persistence, cumulative task/window budget enforcement across roles and claim epochs, pre-dispatch UNKNOWN/exhausted stops, stale lease fencing, provider-qualified model confinement, bounded abort and deterministic disposal.
+4. The actual GitHub-assigned landing PR number is observed after first Draft publication. The committed PR #271 schema-v2 active intent is archived byte-for-byte, and final `active.json` binds the actual landing PR, locked base, Decision digest, Command Plan digest, merge method `merge`, exact three pre-merge workflows and expiry.
+5. The final bound head passes focused tests, exact Platform V1 blocking gate, mainline landing and merge-intent tests, CI responsibility, unchanged frontend checks, transition lint/preflight, publication readiness and diff checks. Fresh exact-head CI, Decision Preflight and State Gate pull_request runs are SUCCESS.
+6. A clean detached exact-head audit reproduces both PR #273 blockers as fixed, finds no new blocker and records ACCEPTED on the landing PR. There are no unresolved review threads, head/base drift or non-clean merge state.
+7. Owner `dddd2024` publishes exactly one schema-v2 merge approval attestation whose self-referential approval object ID, canonical digests, exact three workflow observations, accepted head and locked base validate against remote truth.
+8. Owner-controlled mark-ready and merge occur once using merge method `merge` and expected-head protection. There is no auto-merge, direct-main push, force push, rebase, history rewrite, squash or deployment.
+9. Post-merge verification proves the PR merge commit, new `origin/main`, State Gate push and required main checks. `mainline-merge-validation` passes against committed intent and remote attestation before Issue #272 is closed completed.
+10. No live OpenCode/model/provider call, credential/auth-store read, dependency install, runner dispatch, non-loopback request, network attack, tag, release or deployment occurs.
 
 ## Execution policy
 
-- Treat PR #270 and audit comment `5356762115` as immutable accepted product evidence. PR #269 remains immutable negative evidence.
+- Treat PR #273 and rejection comment `5358486097` as immutable negative evidence. PR #274 is validated candidate evidence but receives no acceptance mutation under its exhausted V3 authority.
 - Do not edit this Decision after activation and do not guess the landing PR number.
-- Replay only commits `c5f30ee6b8869160c89e937eaee233415b01aaf6` and `7c8335a80a8eb5fe5e7cd42d59b7d2004dd36040`; compare all 15 accepted product objects before each publication.
-- First publish the single Draft PR, observe its actual number, then make exactly one PR-binding governance commit and one final push.
-- Treat checks on the unbound first Draft head as transient, never as landing acceptance. Use only fresh runs on the final bound head.
-- Publish the owner attestation only after exact-head audit acceptance and immediate remote re-observation. Mark-ready and merge immediately afterward with expected-head protection.
+- Replay only commits `6664d53c9603794c7e04bd0c338fd0db80331b23` and `ec1835f7644c36f4fd69f3ffbd2c61432520126f`; compare all nine product objects before each publication.
+- First publish one Draft PR, observe its actual number, then make exactly one PR-binding governance commit and one final push.
+- Treat checks on the unbound first Draft head as transient. Use only fresh runs on the final PR-bound head for audit, attestation and merge.
+- Publish owner attestation only after exact-head audit acceptance and immediate remote re-observation. Mark-ready and merge immediately afterward with expected-head protection.
 - Preserve all unrelated runtime/untracked content. Stop on any base/head/check/digest/thread/mergeability mismatch or exhausted publication limit.
