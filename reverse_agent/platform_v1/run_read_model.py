@@ -72,12 +72,21 @@ class RunReadModel:
     def _run_summary(self, task: Any) -> dict[str, Any]:
         goal_id = ""
         goal_title = ""
+        window_id = ""
         try:
             goal_id = self.control_store.goal_id_for_task(task.id)
-            goal_title = self.control_store.get_goal(goal_id).title
+            goal = self.control_store.get_goal(goal_id)
+            goal_title = goal.title
+            window_id = goal.window_id
         except TaskStoreError:
             pass
         publication = self.control_store.get_publication(task.id)
+        budget = None
+        if window_id:
+            try:
+                budget = self.control_store.window_budget_summary(window_id)
+            except TaskStoreError:
+                budget = None
         return {
             "task_id": task.id,
             "title": task.title,
@@ -91,6 +100,9 @@ class RunReadModel:
             "failure_classification": task.failure_classification,
             "goal_id": goal_id,
             "goal_title": goal_title,
+            "window_id": window_id,
+            "usage": self.store.usage_summary(task.id),
+            "budget": budget,
             "publication": (
                 {
                     "status": publication.status,

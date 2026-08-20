@@ -2,8 +2,12 @@
 goal links and publications, and mutating the store changes the view with no
 read-model write path."""
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
+from reverse_agent.platform_v1.autonomy import AutonomyService
+from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
 from reverse_agent.platform_v1.control_store import PlatformControlStore
 from reverse_agent.platform_v1.run_read_model import RunReadModel
 from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
@@ -141,3 +145,62 @@ def test_run_read_model_exposes_no_write_api(read_model) -> None:
         if not name.startswith("_") and callable(getattr(model, name))
     }
     assert public == {"list_runs", "run_detail"}
+
+
+def test_run_view_exposes_numeric_usage_role_provenance_and_window_budget(read_model) -> None:
+    model, store, control = read_model
+    goal, task = _seed_goal_with_task(control, store, "rm-usage")
+    control.save_goal_plan(
+        goal.id,
+        expected_revision=1,
+        spec_markdown="# spec",
+        plan_markdown="# plan",
+        tasks=[{"id": "T001"}],
+        acceptance_criteria=["usage visible"],
+    )
+    control.approve_goal(goal.id, expected_revision=1)
+    now = datetime.now(timezone.utc)
+    autonomy = AutonomyService(
+        control_store=control, capabilities=CapabilityRegistry()
+    )
+    window = autonomy.activate({
+        "policy_id": "read-model-usage", "policy_revision": 1,
+        "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"],
+        "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 2, "max_retries": 0,
+        "max_token_units": 1000, "per_task_token_reservation": 400,
+        "confirmation": "ACTIVATE",
+    })
+    control.mark_goal_running(goal.id, revision=1, window_id=window.id)
+    control.claim_task(
+        window_id=window.id, task_id=task.id, owner="read-model", lease_ms=60_000
+    )
+    store.append_usage_observation(
+        task.id,
+        observation_id="usage-read-model-coder",
+        execution_id="exec-read-model",
+        role="coder",
+        model_id="provider/model",
+        provider_id="provider",
+        source_kind="assistant_message",
+        source_id="msg-read-model",
+        status="OBSERVED",
+        input_units=100,
+        output_units=20,
+        reasoning_units=10,
+        cache_read_units=30,
+        cache_write_units=0,
+        cost_micro_units=2500,
+    )
+    run = model.list_runs()["runs"][0]
+    assert run["window_id"] == window.id
+    assert run["usage"]["total_token_units"] == 160
+    assert run["usage"]["cost_micro_units"] == 2500
+    assert run["usage"]["per_role"][0]["role"] == "coder"
+    assert run["usage"]["provenance_ids"] == ["usage-read-model-coder"]
+    assert run["budget"]["enforcement_class"] == "HARD_ADMISSION_ENFORCED"
+    assert run["budget"]["reserved_token_units"] == 400
+    assert run["budget"]["remaining_token_units"] == 600
