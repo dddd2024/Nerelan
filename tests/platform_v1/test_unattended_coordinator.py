@@ -85,14 +85,24 @@ def test_coordinator_is_inert_without_active_window(tmp_path):
     assert coordinator.status()["active_window_id"] == ""
 
 
-def _budget_window(service: AutonomyService, *, policy_id: str, max_tokens: int, reservation: int):
+def _budget_window(
+    service: AutonomyService,
+    *,
+    policy_id: str,
+    max_tokens: int,
+    reservation: int,
+    max_tasks: int = 10,
+    max_retries: int = 2,
+):
     now = datetime.now(timezone.utc)
     return service.activate({
         "policy_id": policy_id, "policy_revision": 1, "owner_identity": "owner",
         "starts_at": (now - timedelta(seconds=2)).isoformat(),
         "expires_at": (now + timedelta(hours=1)).isoformat(),
         "repositories": ["dddd2024/reverse-agent"], "capabilities": ["execute_task"],
-        "max_concurrent_tasks": 2, "max_tasks": 10, "max_retries": 2,
+        "max_concurrent_tasks": 2,
+        "max_tasks": max_tasks,
+        "max_retries": max_retries,
         "max_token_units": max_tokens,
         "per_task_token_reservation": reservation,
         "provider_quota_state": "OBSERVED",
@@ -138,11 +148,21 @@ def test_crash_reuses_reservation_and_completion_is_exactly_once():
     store = TaskStore(":memory:")
     control = PlatformControlStore(store)
     service = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
-    window = _budget_window(service, policy_id="crash-budget", max_tokens=100, reservation=60)
+    window = _budget_window(
+        service,
+        policy_id="crash-budget",
+        max_tokens=100,
+        reservation=60,
+        max_tasks=1,
+        max_retries=1,
+    )
     task = store.create_task(title="crash", executor_kind="opencode")
     epoch_one, _ = control.claim_task(
         window_id=window.id, task_id=task.id, owner="owner-one", lease_ms=60_000
     )
+    first_claim_window = control.get_window(window.id)
+    assert first_claim_window.tasks_started == 1
+    assert first_claim_window.retries_used == 0
     control._conn.execute(
         "UPDATE platform_coordinator_claims SET expires_at_ms = 0 WHERE task_id = ?",
         (task.id,),
@@ -155,6 +175,9 @@ def test_crash_reuses_reservation_and_completion_is_exactly_once():
         window_id=window.id, task_id=task.id, owner="owner-two", lease_ms=60_000
     )
     assert epoch_two == epoch_one + 1
+    retry_window = control.get_window(window.id)
+    assert retry_window.tasks_started == 1
+    assert retry_window.retries_used == 1
     budget = control.window_budget_summary(window.id)
     assert budget["reserved_token_units"] == 60
     assert budget["active_reservation_count"] == 1
@@ -192,6 +215,21 @@ def test_crash_reuses_reservation_and_completion_is_exactly_once():
     assert control._conn.execute(
         "SELECT COUNT(*) AS c FROM platform_usage_charges"
     ).fetchone()["c"] == 1
+    with pytest.raises(TaskStoreError, match="window_retry_budget_exhausted"):
+        control.claim_task(
+            window_id=window.id,
+            task_id=task.id,
+            owner="owner-three",
+            lease_ms=60_000,
+        )
+    fresh_task = store.create_task(title="fresh after retry", executor_kind="opencode")
+    with pytest.raises(TaskStoreError, match="window_task_budget_exhausted"):
+        control.claim_task(
+            window_id=window.id,
+            task_id=fresh_task.id,
+            owner="owner-three",
+            lease_ms=60_000,
+        )
 
 
 def test_admission_denial_performs_zero_executor_dispatches(tmp_path):
