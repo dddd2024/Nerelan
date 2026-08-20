@@ -19,6 +19,9 @@ const DRAWER_LABEL = "导航";
 const SIDEBAR_ITEMS: { to: string; label: string }[] = [
   { to: "/", label: "首页" },
   { to: "/tasks", label: "任务" },
+  { to: "/inbox", label: "收件箱" },
+  { to: "/roadmap", label: "路线图" },
+  { to: "/runs", label: "Agent 运行" },
   { to: "/settings", label: "设置" },
 ];
 

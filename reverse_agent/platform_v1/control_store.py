@@ -23,6 +23,7 @@ GOAL_STATES = frozenset(
 )
 WINDOW_STATES = frozenset({"ACTIVE", "COMPLETED", "EXPIRED", "STOPPED", "BLOCKED"})
 PUBLICATION_STATES = frozenset({"PENDING", "COMMIT_CREATED", "PUSHED", "COMPLETE", "FAILED"})
+INBOX_STATES = frozenset({"CAPTURED", "PROMOTED", "DISMISSED"})
 SENSITIVE_KEY_PARTS = ("secret", "token", "password", "authorization", "api_key", "apikey")
 
 
@@ -141,6 +142,32 @@ class PublicationRecord:
     updated_at: str
 
 
+@dataclass(frozen=True)
+class InboxItemRecord:
+    """Display-only capture state; grants no execution authority."""
+
+    id: str
+    title: str
+    objective: str
+    repository: str
+    status: str
+    promoted_goal_id: str
+    created_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class RoadmapPhaseRecord:
+    """Display metadata only; status is always derived from member goals."""
+
+    id: str
+    title: str
+    position: int
+    description: str
+    created_at: str
+    updated_at: str
+
+
 class PlatformControlStore:
     """Control-plane extension backed by the exact TaskStore SQLite database."""
 
@@ -248,6 +275,30 @@ class PlatformControlStore:
                     failure_classification TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS platform_inbox_items (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    objective TEXT NOT NULL,
+                    repository TEXT NOT NULL DEFAULT 'dddd2024/reverse-agent',
+                    status TEXT NOT NULL DEFAULT 'CAPTURED',
+                    promoted_goal_id TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS platform_roadmap_phases (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    position INTEGER NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS platform_roadmap_phase_goals (
+                    phase_id TEXT NOT NULL REFERENCES platform_roadmap_phases(id),
+                    goal_id TEXT NOT NULL REFERENCES platform_goals(id),
+                    attached_at TEXT NOT NULL,
+                    PRIMARY KEY(phase_id, goal_id)
                 );
                 """
             )
@@ -861,6 +912,157 @@ class PlatformControlStore:
                 raise TaskStoreError("publication_requires_durable_run")
             return dict(row)
 
+    # Inbox display state ----------------------------------------------
+
+    def capture_inbox_item(
+        self,
+        *,
+        title: str,
+        objective: str,
+        repository: str = "dddd2024/reverse-agent",
+    ) -> InboxItemRecord:
+        title = title.strip()
+        objective = objective.strip()
+        repository = repository.strip() or "dddd2024/reverse-agent"
+        if not title or not objective:
+            raise TaskStoreError("inbox_item_title_and_objective_required")
+        reject_sensitive_keys({"title": title, "objective": objective})
+        now = _utc_now()
+        item_id = _id("inbox")
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO platform_inbox_items "
+                "(id, title, objective, repository, status, promoted_goal_id, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, 'CAPTURED', '', ?, ?)",
+                (item_id, title, objective, repository, now, now),
+            )
+        return self.get_inbox_item(item_id)
+
+    def get_inbox_item(self, item_id: str) -> InboxItemRecord:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM platform_inbox_items WHERE id = ?", (item_id,)
+            ).fetchone()
+            if row is None:
+                raise TaskStoreError(f"inbox_item_not_found:{item_id}")
+            return self._row_to_inbox_item(row)
+
+    def list_inbox_items(
+        self, *, status: str | None = None, limit: int = 200
+    ) -> tuple[InboxItemRecord, ...]:
+        with self._lock:
+            if status is not None:
+                if status not in INBOX_STATES:
+                    raise TaskStoreError(f"invalid_inbox_status:{status}")
+                rows = self._conn.execute(
+                    "SELECT * FROM platform_inbox_items WHERE status = ? "
+                    "ORDER BY created_at DESC LIMIT ?",
+                    (status, max(1, min(limit, 500))),
+                ).fetchall()
+            else:
+                rows = self._conn.execute(
+                    "SELECT * FROM platform_inbox_items ORDER BY created_at DESC LIMIT ?",
+                    (max(1, min(limit, 500)),),
+                ).fetchall()
+            return tuple(self._row_to_inbox_item(row) for row in rows)
+
+    def mark_inbox_item_promoted(self, item_id: str, *, goal_id: str) -> InboxItemRecord:
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE platform_inbox_items SET status = 'PROMOTED', promoted_goal_id = ?, "
+                "updated_at = ? WHERE id = ? AND status = 'CAPTURED'",
+                (goal_id, _utc_now(), item_id),
+            )
+            if cur.rowcount != 1:
+                existing = self.get_inbox_item(item_id)
+                if existing.status == "PROMOTED" and existing.promoted_goal_id == goal_id:
+                    return existing
+                raise TaskStoreError(f"inbox_item_not_promotable:{item_id}:{existing.status}")
+        return self.get_inbox_item(item_id)
+
+    def dismiss_inbox_item(self, item_id: str) -> InboxItemRecord:
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE platform_inbox_items SET status = 'DISMISSED', updated_at = ? "
+                "WHERE id = ? AND status = 'CAPTURED'",
+                (_utc_now(), item_id),
+            )
+            if cur.rowcount != 1:
+                existing = self.get_inbox_item(item_id)
+                if existing.status == "DISMISSED":
+                    return existing
+                raise TaskStoreError(f"inbox_item_not_dismissable:{item_id}:{existing.status}")
+        return self.get_inbox_item(item_id)
+
+    # Roadmap display metadata -----------------------------------------
+
+    def create_roadmap_phase(
+        self,
+        *,
+        title: str,
+        position: int,
+        description: str = "",
+    ) -> RoadmapPhaseRecord:
+        title = title.strip()
+        description = description.strip()
+        if not title:
+            raise TaskStoreError("roadmap_phase_title_required")
+        reject_sensitive_keys({"title": title, "description": description})
+        now = _utc_now()
+        phase_id = _id("phase")
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO platform_roadmap_phases "
+                "(id, title, position, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (phase_id, title, int(position), description, now, now),
+            )
+        return self.get_roadmap_phase(phase_id)
+
+    def get_roadmap_phase(self, phase_id: str) -> RoadmapPhaseRecord:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM platform_roadmap_phases WHERE id = ?", (phase_id,)
+            ).fetchone()
+            if row is None:
+                raise TaskStoreError(f"roadmap_phase_not_found:{phase_id}")
+            return self._row_to_roadmap_phase(row)
+
+    def list_roadmap_phases(self, *, limit: int = 100) -> tuple[RoadmapPhaseRecord, ...]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM platform_roadmap_phases ORDER BY position ASC, created_at ASC LIMIT ?",
+                (max(1, min(limit, 500)),),
+            ).fetchall()
+            return tuple(self._row_to_roadmap_phase(row) for row in rows)
+
+    def attach_goal_to_phase(self, phase_id: str, goal_id: str) -> None:
+        self.get_roadmap_phase(phase_id)
+        self.get_goal(goal_id)
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR IGNORE INTO platform_roadmap_phase_goals (phase_id, goal_id, attached_at) "
+                "VALUES (?, ?, ?)",
+                (phase_id, goal_id, _utc_now()),
+            )
+
+    def detach_goal_from_phase(self, phase_id: str, goal_id: str) -> None:
+        with self._lock:
+            cur = self._conn.execute(
+                "DELETE FROM platform_roadmap_phase_goals WHERE phase_id = ? AND goal_id = ?",
+                (phase_id, goal_id),
+            )
+            if cur.rowcount != 1:
+                raise TaskStoreError("roadmap_phase_goal_not_attached")
+
+    def list_phase_goal_ids(self, phase_id: str) -> tuple[str, ...]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT goal_id FROM platform_roadmap_phase_goals WHERE phase_id = ? "
+                "ORDER BY attached_at ASC",
+                (phase_id,),
+            ).fetchall()
+            return tuple(str(row["goal_id"]) for row in rows)
+
     # Serialization ----------------------------------------------------
 
     @staticmethod
@@ -908,4 +1110,19 @@ class PlatformControlStore:
             pr_number=int(row["pr_number"]), pr_url=row["pr_url"], request_digest=row["request_digest"],
             failure_classification=row["failure_classification"], created_at=row["created_at"],
             updated_at=row["updated_at"],
+        )
+
+    @staticmethod
+    def _row_to_inbox_item(row: Any) -> InboxItemRecord:
+        return InboxItemRecord(
+            id=row["id"], title=row["title"], objective=row["objective"], repository=row["repository"],
+            status=row["status"], promoted_goal_id=row["promoted_goal_id"],
+            created_at=row["created_at"], updated_at=row["updated_at"],
+        )
+
+    @staticmethod
+    def _row_to_roadmap_phase(row: Any) -> RoadmapPhaseRecord:
+        return RoadmapPhaseRecord(
+            id=row["id"], title=row["title"], position=int(row["position"]),
+            description=row["description"], created_at=row["created_at"], updated_at=row["updated_at"],
         )

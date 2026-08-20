@@ -9,6 +9,9 @@ import { TasksPage } from "@/routes/tasks";
 import { TaskDetailPage } from "@/routes/task-detail";
 import { ApprovalsPage } from "@/routes/approvals";
 import { SettingsPage } from "@/routes/settings";
+import { InboxPage } from "@/routes/inbox";
+import { RoadmapPage } from "@/routes/roadmap";
+import { RunsPage } from "@/routes/runs";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,6 +39,9 @@ createRoot(rootEl).render(
             <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
             <Route path="/approvals" element={<ApprovalsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/inbox" element={<InboxPage />} />
+            <Route path="/roadmap" element={<RoadmapPage />} />
+            <Route path="/runs" element={<RunsPage />} />
             <Route path="*" element={<Navigate to="/tasks" replace />} />
           </Routes>
         </AppShell>
