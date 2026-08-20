@@ -148,3 +148,56 @@ Proven paths:
 by #151. No `multi_agent` executor kind was introduced. No
 `frontend/**`, `.github/**`, `project_state/**`, or provider/credential
 configuration was changed.
+
+## 11. Durable unattended parallel task batches (#276)
+
+The production parallel unit is an independent TaskStore task, not another
+task orchestration mode. `single` and `sequential_team` continue to describe
+the topology *inside* one task. The unattended coordinator now turns the
+active window's already-defined WIP limit into real concurrency:
+
+```text
+Goal DAG runnable tasks
+  -> policy authorization per task
+  -> atomic claim + budget reservation per task
+  -> one admitted batch
+  -> existing LangGraph build_team_graph / Send fan-out
+       -> durable task A (single or sequential_team)
+       -> durable task B (single or sequential_team)
+  -> deterministic TeamExecutionResult join
+  -> independent claim completion/abandonment and Goal refresh
+```
+
+The coordinator does not create a Python executor pool, queue, scheduler,
+`executor_kind="multi_agent"`, or `orchestration_mode="parallel_team"`.
+LangGraph owns branch scheduling and join mechanics. Every branch reuses the
+existing task execution service selected by that task's concrete executor and
+inner orchestration mode.
+
+Claims are acquired before a task enters the graph. Consequently WIP, task,
+retry, token and cost admission remains a trusted-store decision, and a
+budget-denied candidate receives zero executor dispatches. A sibling failure
+does not roll back a completed task: each branch finalizes only its own fenced
+claim and reservation.
+
+Crash recovery stays per task. A process crash leaves the accepted durable
+checkpoint, durable-run lease, coordinator claim and budget reservation in the
+existing database. Reconciliation marks eligible work `INTERRUPTED`; a new
+claim epoch reuses the retained reservation and the established `resume_single`
+or `resume_sequential_team` path. There is no aggregate batch database or
+second durable workflow truth.
+
+### Shared connection lock boundary
+
+TaskStore intentionally owns one SQLite connection and one re-entrant lock.
+The durable private entry points that start explicit transactions are invoked
+directly by `DurableExecutionService`, so they enter the same TaskStore lock as
+public operations. This serializes only connection-critical SQLite sections.
+The lock is not held by the coordinator around executor execution, LangGraph
+branches, model runtime, validation runtime, or other external work; independent
+workers therefore still overlap while their durable writes remain valid.
+
+Provider-free repeated two-worker fixture tests prove both sides of the
+contract: native LangGraph fan-out overlaps independent workers, and twenty
+durable runs sharing one TaskStore connection each reach `POST_VALIDATION`
+without overlapping SQLite transactions or losing checkpoint history.
