@@ -1,10 +1,10 @@
-# Decision Packet
+# Decision: PRODUCT-UX-3/4 Spec Kit planning, project knowledge, and Pack catalog
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260821_issue276_durable_parallel_task_batches_r2_v3",
-  "round_id": "round_20260821_issue276_durable_parallel_task_batches_r2_v3",
+  "decision_id": "decision_20260821_issue260_product_ux34_speckit_knowledge_pack_r2_v1",
+  "round_id": "round_20260821_issue260_product_ux34_speckit_knowledge_pack_r2_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,16 +14,17 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260821_issue272_product_ux2b_opencode_server_r2_v4_landing",
-  "follows_last_round_id": "round_20260821_issue272_product_ux2b_opencode_server_r2_v4_landing",
-  "previous_audit_outcome": "ISSUE276_V2_PRE_PR_SCHEMA_V2_INTENT_COUPLING_BLOCKED_COMMENT_5359968290_ZERO_PRODUCT_COMMIT_ZERO_PUSH",
-  "workstream_id": "issue276-durable-parallel-task-batches-r2-v3",
-  "source_issue": 276,
-  "required_branch": "owner/issue276-durable-parallel-task-batches-r2-v3",
-  "starting_head": "3d2fa35d1baeec3f2b52706746e54d7f0eb0af46",
-  "activation_base_sha": "3d2fa35d1baeec3f2b52706746e54d7f0eb0af46",
+  "follows_last_decision_id": "decision_20260821_issue276_durable_parallel_task_batches_r2_v3",
+  "follows_last_round_id": "round_20260821_issue276_durable_parallel_task_batches_r2_v3",
+  "previous_audit_outcome": "ISSUE276_DURABLE_LANGGRAPH_PARALLEL_TASK_BATCH_MERGED_MAIN_GREEN_ISSUE_CLOSED",
+  "workstream_id": "issue260-product-ux34-speckit-knowledge-pack-r2-v1",
+  "source_issue": 260,
+  "related_issues": [177, 253],
+  "required_branch": "owner/issue260-product-ux34-speckit-knowledge-pack-r2-v1",
+  "starting_head": "33095219607936ccf7157580776dbfc498da6ddc",
+  "activation_base_sha": "33095219607936ccf7157580776dbfc498da6ddc",
   "integration_base_ref": "main",
-  "base_sha": "3d2fa35d1baeec3f2b52706746e54d7f0eb0af46",
+  "base_sha": "33095219607936ccf7157580776dbfc498da6ddc",
   "allowed_merge_method": "merge",
   "mainline_merge_intent_required": true,
   "active_pr_binding_mode": "post_draft_pr_exact_remote_number",
@@ -39,18 +40,13 @@
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
-  "product_change_commit_limit": 2,
-  "generated_governance_commit_limit": 2,
-  "normal_push_attempt_limit": 2,
-  "draft_pr_creation_limit": 1,
-  "mark_ready_attempt_limit": 1,
-  "merge_attempt_limit": 1,
-  "dependency_install_limit": 0,
   "live_model_call_limit": 0,
   "provider_network_call_limit": 0,
+  "specify_cli_invocation_limit": 0,
+  "semantic_embedding_call_limit": 0,
   "pr_creation_allowed": true,
   "issue_comment_allowed": true,
-  "issue_close_allowed": true,
+  "issue_close_allowed": false,
   "mark_ready_allowed": true,
   "merge_allowed": true,
   "direct_push_to_main_allowed": false,
@@ -59,13 +55,16 @@
   "tag_or_release_allowed": false,
   "deployment_allowed": false,
   "bootstrap_exception_files": [
-    "project_state/decision_packet.md", "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json", "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json", "project_state/gates/transition_preflight_result.json"
+    "project_state/decision_packet.md",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
-    "create owner/issue276-durable-parallel-task-batches-r2-v3 from exact main 3d2fa35d1baeec3f2b52706746e54d7f0eb0af46 in an isolated canonical-LF checkout",
-    "commit this immutable V3 Decision as the first new commit after 3d2fa35d1baeec3f2b52706746e54d7f0eb0af46 before product or merge-intent mutation",
+    "create owner/issue260-product-ux34-speckit-knowledge-pack-r2-v1 from exact main 33095219607936ccf7157580776dbfc498da6ddc in an isolated canonical-LF checkout",
+    "commit this immutable Decision as the first new commit after 33095219607936ccf7157580776dbfc498da6ddc before product or merge-intent mutation",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
@@ -73,147 +72,187 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "issue276v3.verify_baseline_and_stops",
-      "command": "verify main and local base remain 3d2fa35d1baeec3f2b52706746e54d7f0eb0af46; verify Issue 276 V1 comment 5359824526 and V2 comment 5359968290; verify both predecessors have zero product commit push or PR; preserve their transaction and pre-PR coupling evidence",
+      "command_id": "issue260ux34.verify_baseline_and_upstreams",
+      "command": "verify exact main 33095219607936ccf7157580776dbfc498da6ddc and reobserve GitHub Spec Kit v0.16.5 spec plan tasks and bundle contracts plus installed LangGraph SQLite Store availability without installing or invoking them",
       "phase": "validation", "required": true, "expected_exit_codes": [0], "execution_surface": "local",
       "operations": ["repository_observation", "network_access"], "network_access": true,
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue276v3.run_transition_gates",
+      "command_id": "issue260ux34.run_transition_gates",
       "command": "run startup-snapshot transition-command-plan transition-lint and transition-preflight --mode pre; require PRE_EXECUTION_AUTHORIZED before product mutation",
       "phase": "validation", "required": true, "expected_exit_codes": [0], "execution_surface": "local",
       "operations": ["run_checks", "generate_governance_artifact"], "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue276v3.implement_validated_v2_product",
-      "command": "recover the bounded V2 product intent only: add TaskStore-owned reentrant lock coverage to shared-connection durable transaction entrypoints without locking external executors; adapt coordinator admission to existing LangGraph Send over distinct durable tasks; add repeated barrier budget WIP failure restart and checkpoint regressions and architecture documentation; retain one store and existing modes",
+      "command_id": "issue260ux34.implement_product",
+      "command": "implement provider-free Spec Kit v0.16.5-compatible inspectable spec plan tasks artifacts and review-before-launch; reuse the existing TaskStore connection through LangGraph SqliteStore for append-only advisory project knowledge with provenance; evolve the existing capability registry into a metadata-only Pack contract and compatibility catalog with one deterministic fixture Pack; add bounded APIs frontend pages tests docs and freshness binding",
       "phase": "implementation", "required": true, "expected_exit_codes": [0], "execution_surface": "local",
-      "operations": ["bounded_source_edit", "bounded_test_edit", "bounded_documentation_edit"], "network_access": false,
+      "operations": ["bounded_source_edit", "bounded_test_edit", "bounded_documentation_edit", "bounded_packaging_edit"], "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue276v3.prepublication_validation",
-      "command": "run focused and repeated concurrency durable tests; run the CI Platform blocking gate with its ordinary seven deselections plus only the four exact pre_pr_intent_assertions_deferred entries; require 1101 or more passing tests and no other failure; run CI responsibility unchanged frontend transition lint preflight readiness and diff checks; zero live calls",
+      "command_id": "issue260ux34.validate_backend",
+      "command": "run focused goal knowledge capability Task API control store autonomy and coordinator tests including idempotency revision invalidation advisory authority provenance secret rejection Pack incompatibility no-activation and same-connection restart proofs",
       "phase": "validation", "required": true, "expected_exit_codes": [0], "execution_surface": "local",
       "operations": ["run_checks", "diff_validation", "repository_observation"], "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue276v3.publish_initial_draft",
-      "command": "after prepublication validation passes push owner/issue276-durable-parallel-task-batches-r2-v3 once and create exactly one Draft PR to main; read its actual number without guessing",
+      "command_id": "issue260ux34.validate_frontend",
+      "command": "run frontend typecheck tests and production build proving planning review knowledge and Pack catalog surfaces use only loopback sanitized API truth",
+      "phase": "validation", "required": true, "expected_exit_codes": [0], "execution_surface": "local",
+      "operations": ["run_checks", "diff_validation"], "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue260ux34.prepublication_validation",
+      "command": "run the CI Platform blocking gate with its ordinary seven deselections plus only the four exact pre_pr_intent_assertions_deferred entries and require 1105 or more passing tests with no other failure; run CI responsibility transition lint preflight readiness and diff checks; zero live model provider Specify CLI embedding credential dependency install or workflow change",
+      "phase": "validation", "required": true, "expected_exit_codes": [0], "execution_surface": "local",
+      "operations": ["run_checks", "diff_validation", "repository_observation"], "network_access": false,
+      "required_evidence_source": "local_command_evidence"
+    },
+    {
+      "command_id": "issue260ux34.publish_initial_draft",
+      "command": "after all prepublication validation passes push owner/issue260-product-ux34-speckit-knowledge-pack-r2-v1 once and create exactly one Draft PR to main; read its actual number without guessing",
       "phase": "publication", "required": true, "expected_exit_codes": [0], "execution_surface": "local",
       "operations": ["push", "pull_request_create", "repository_observation", "network_access"], "network_access": true,
       "required_evidence_source": "repository_state_attestation", "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue276v3.bind_actual_pr",
-      "command": "archive committed PR 275 schema-v2 active intent byte-for-byte as archive/pr275_v2.json and replace active.json with schema v2 bound to the observed PR locked base this Decision committed Plan merge method merge exact three workflows and expiry 2026-08-28T23:59:59Z; commit once without Decision edit",
+      "command_id": "issue260ux34.bind_actual_pr",
+      "command": "archive committed PR 277 schema-v2 active intent byte-for-byte as archive/pr277_v2.json and replace active.json with schema v2 bound to the observed PR locked base this Decision committed Plan merge method merge exact three workflows and expiry 2026-08-29T23:59:59Z; commit once without Decision edit",
       "phase": "implementation", "required": true, "expected_exit_codes": [0], "execution_surface": "local",
       "operations": ["bounded_governance_mutation", "stage_authorized_paths", "commit"], "network_access": false,
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue276v3.final_bound_validation_and_push",
-      "command": "after actual PR binding run the full CI Platform blocking gate with only the ordinary seven CI deselections and require all four formerly deferred assertions pass; rerun focused repeated CI responsibility frontend transition readiness and diff checks; push the single binding commit once and observe fresh exact-head CI Decision Preflight and State Gate",
+      "command_id": "issue260ux34.final_bound_validation_and_push",
+      "command": "after actual PR binding run the full CI Platform blocking gate with only the ordinary seven CI deselections and require all four formerly deferred assertions pass; rerun focused frontend CI responsibility transition readiness and diff checks; push the single binding commit once and observe fresh exact-head CI Decision Preflight and State Gate",
       "phase": "publication", "required": true, "expected_exit_codes": [0], "execution_surface": "local",
       "operations": ["run_checks", "push", "repository_observation", "network_access"], "network_access": true,
       "required_evidence_source": "repository_state_attestation", "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue276v3.audit_attest_land",
-      "command": "after workflows succeed perform clean detached exact-head audit and ACCEPTED comment; reobserve base head checks MERGEABLE CLEAN zero threads; publish schema-v2 approval attestation bound to actual comment and run IDs; owner mark-ready and merge once with merge and expected-head protection",
+      "command_id": "issue260ux34.audit_attest_land",
+      "command": "after exact-head workflows succeed perform clean detached audit and ACCEPTED comment; reobserve base head checks MERGEABLE CLEAN zero blocking reviews and threads; publish schema-v2 approval attestation bound to actual comment and run IDs; owner mark-ready and merge once with merge and expected-head protection",
       "phase": "publication", "required": true, "expected_exit_codes": [0], "execution_surface": "local",
       "operations": ["repository_observation", "issue_comment", "mark_ready", "merge", "network_access"], "network_access": true,
       "required_evidence_source": "repository_state_attestation", "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue276v3.post_merge_verify",
-      "command": "verify merge commit and origin/main; wait for State Gate push and main checks; run mainline-merge-validation; close Issue 276 only after all evidence is green",
+      "command_id": "issue260ux34.post_merge_verify",
+      "command": "verify merge commit tree and origin main; wait for State Gate push and main CI; require mainline-merge-validation and integration receipt PASSED; comment exact evidence on Issues 177 253 and 260 without closing their longer-lived tracks",
       "phase": "validation", "required": true, "expected_exit_codes": [0], "execution_surface": "local",
-      "operations": ["repository_observation", "issue_close", "network_access"], "network_access": true,
+      "operations": ["repository_observation", "issue_comment", "network_access"], "network_access": true,
       "required_evidence_source": "repository_state_attestation"
     }
   ],
   "allowed_mutated_paths": [
-    "project_state/decision_packet.md", "reverse_agent/platform_v1/run_store.py",
-    "reverse_agent/platform_v1/unattended_coordinator.py", "tests/platform_v1/test_durable_execution.py",
-    "tests/platform_v1/test_unattended_coordinator.py", "docs/architecture/LANGGRAPH_TEAM_RUNTIME.md",
-    "project_state/mainline_merge_intents/active.json", "project_state/mainline_merge_intents/archive/pr275_v2.json",
-    "project_state/gates/command_plan.json", "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json", "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
-  ],
-  "reference_paths": [
-    "project_state/decision_packet.md", "project_state/schemas/mainline_merge_intent_v2.schema.json",
-    "project_state/schemas/merge_approval_attestation_v2.schema.json", "reverse_agent/workflows/team_graph.py",
-    "reverse_agent/platform_v1/durable_execution.py", "reverse_agent/platform_v1/control_store.py", "AGENTS.md"
-  ],
-  "generated_artifact_paths": [
-    "project_state/gates/command_plan.json", "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json", "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/decision_packet.md",
+    "reverse_agent/platform_v1/control_store.py",
+    "reverse_agent/platform_v1/goal_service.py",
+    "reverse_agent/platform_v1/knowledge_service.py",
+    "reverse_agent/platform_v1/capability_registry.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/packs/platform-engineering-fixture.json",
+    "tests/platform_v1/test_goal_service.py",
+    "tests/platform_v1/test_knowledge_service.py",
+    "tests/platform_v1/test_capability_registry.py",
+    "tests/platform_v1/test_task_service.py",
+    "frontend/src/lib/platform-client.ts",
+    "frontend/src/hooks/use-platform.ts",
+    "frontend/src/components/goal-composer.tsx",
+    "frontend/src/components/goal-progress.tsx",
+    "frontend/src/components/app-shell.tsx",
+    "frontend/src/routes/home.tsx",
+    "frontend/src/routes/knowledge.tsx",
+    "frontend/src/routes/packs.tsx",
+    "frontend/src/entry.client.tsx",
+    "frontend/tests/platform-home.test.tsx",
+    "frontend/tests/knowledge.test.tsx",
+    "frontend/tests/packs.test.tsx",
+    "frontend/tests/accessibility.test.tsx",
+    "frontend/tests/responsive.test.tsx",
+    "governance/freshness-registry.json",
+    "pyproject.toml",
+    "docs/architecture/SPEC_KIT_KNOWLEDGE_PACK_CONTRACT.md",
+    "README.md",
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr277_v2.json"
   ],
   "forbidden_mutated_paths": [
-    "project_state/current_state.json", "project_state/state_manifest.json", "project_state/artifact_index.json",
-    "project_state/rounds/**", "project_state/audits/**", "project_state/integration_baselines/**",
-    "project_state/mainline_recoveries/**", "project_state/schemas/**", "requirements*.txt", "pyproject.toml", ".github/**",
-    "reverse_agent/project_gate.py", "reverse_agent/github_remote_verifier.py", "reverse_agent/mainline_landing.py",
-    "reverse_agent/decision_preflight.py", "reverse_agent/platform_v1/control_store.py", "reverse_agent/platform_v1/durable_execution.py",
-    "reverse_agent/platform_v1/task_execution.py", "reverse_agent/workflows/**", "reverse_agent/architecture/**", "frontend/**", "AGENTS.md"
+    ".github/**", "AGENTS.md", "reverse_agent/platform_v1/run_store.py",
+    "reverse_agent/platform_v1/unattended_coordinator.py", "reverse_agent/platform_v1/opencode_executor.py",
+    "reverse_agent/platform_v1/opencode_server_transport.py", "reverse_agent/workflows/**",
+    "project_state/rounds/**"
   ],
+  "reference_paths": [
+    "docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md",
+    "docs/architecture/LANGGRAPH_TEAM_RUNTIME.md"
+  ],
+  "generated_artifact_paths": ["project_state/gates/**"],
   "forbidden_operations": [
     "direct_push_main", "auto_merge", "force_push", "rebase", "reset", "clean", "stash", "amend", "restore",
-    "dependency_install", "live_model_call", "opencode_invocation", "provider_network_call", "credential_access", "auth_store_read",
-    "runner_dispatch", "tag_or_release", "deployment", "worktree_deletion", "history_rewrite", "intent_schema_downgrade",
-    "lock_held_across_external_executor", "per_worker_taskstore", "custom_production_thread_pool", "new_scheduler", "new_queue",
-    "second_taskstore_or_budget_database", "executor_kind_multi_agent", "orchestration_mode_parallel_team",
-    "network_attack_or_offensive_security_work"
+    "dependency_install", "workflow_change", "live_model_call", "provider_network_call", "specify_cli_invocation",
+    "semantic_embedding_call", "credential_access", "auth_store_read", "runner_dispatch", "tag_or_release", "deployment",
+    "worktree_deletion", "history_rewrite", "second_database", "second_task_store", "custom_planning_framework",
+    "custom_package_manager", "dynamic_pack_code_execution", "pack_self_authorization", "raw_secret_persistence",
+    "attack_or_hostile_binary_work"
   ],
   "capability_policy": {
-    "runner_dispatch_allowed": false, "model_api_invocation_allowed": false, "opencode_invocation_allowed": false,
-    "live_provider_access_allowed": false, "credential_access_allowed": false, "external_reverse_tool_invocation_allowed": false,
-    "unknown_binary_execution_allowed": false, "destructive_operations_allowed": false, "dependency_install_allowed": false,
+    "runner_dispatch_allowed": false,
+    "model_api_invocation_allowed": false,
+    "external_reverse_tool_invocation_allowed": false,
+    "unknown_binary_execution_allowed": false,
+    "destructive_operations_allowed": false,
+    "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
+    "direct_push_to_main_allowed": false,
+    "merge_allowed": true,
+    "force_push_allowed": false,
+    "rebase_during_execution_allowed": false,
+    "tag_or_release_allowed": false,
     "local_network_exceptions": [
-      "verify main and local base remain 3d2fa35d1baeec3f2b52706746e54d7f0eb0af46; verify Issue 276 V1 comment 5359824526 and V2 comment 5359968290; verify both predecessors have zero product commit push or PR; preserve their transaction and pre-PR coupling evidence",
-      "after prepublication validation passes push owner/issue276-durable-parallel-task-batches-r2-v3 once and create exactly one Draft PR to main; read its actual number without guessing",
-      "after actual PR binding run the full CI Platform blocking gate with only the ordinary seven CI deselections and require all four formerly deferred assertions pass; rerun focused repeated CI responsibility frontend transition readiness and diff checks; push the single binding commit once and observe fresh exact-head CI Decision Preflight and State Gate",
-      "after workflows succeed perform clean detached exact-head audit and ACCEPTED comment; reobserve base head checks MERGEABLE CLEAN zero threads; publish schema-v2 approval attestation bound to actual comment and run IDs; owner mark-ready and merge once with merge and expected-head protection",
-      "verify merge commit and origin/main; wait for State Gate push and main checks; run mainline-merge-validation; close Issue 276 only after all evidence is green"
+      "verify exact main 33095219607936ccf7157580776dbfc498da6ddc and reobserve GitHub Spec Kit v0.16.5 spec plan tasks and bundle contracts plus installed LangGraph SQLite Store availability without installing or invoking them",
+      "after all prepublication validation passes push owner/issue260-product-ux34-speckit-knowledge-pack-r2-v1 once and create exactly one Draft PR to main; read its actual number without guessing",
+      "after actual PR binding run the full CI Platform blocking gate with only the ordinary seven CI deselections and require all four formerly deferred assertions pass; rerun focused frontend CI responsibility transition readiness and diff checks; push the single binding commit once and observe fresh exact-head CI Decision Preflight and State Gate",
+      "after exact-head workflows succeed perform clean detached audit and ACCEPTED comment; reobserve base head checks MERGEABLE CLEAN zero blocking reviews and threads; publish schema-v2 approval attestation bound to actual comment and run IDs; owner mark-ready and merge once with merge and expected-head protection",
+      "verify merge commit tree and origin main; wait for State Gate push and main CI; require mainline-merge-validation and integration receipt PASSED; comment exact evidence on Issues 177 253 and 260 without closing their longer-lived tracks"
     ],
-    "ci_network_exceptions": [], "remote_observation_read_only_allowed": true,
-    "github_issue_comment_allowed": true, "github_issue_close_allowed": true, "github_pr_creation_allowed": true,
-    "github_mark_ready_allowed": true, "github_merge_allowed": true, "publication_allowed": true
+    "ci_network_exceptions": [],
+    "remote_observation_read_only_allowed": true
   },
   "path_risk_floor": [
     {"pattern": ".github/workflows/**", "minimum_risk": "R2"},
+    {"pattern": "pyproject.toml", "minimum_risk": "R2"},
     {"pattern": "**/secrets/**", "minimum_risk": "R3"}
   ],
-  "authorized_risk_paths": [], "authorized_risk_tier": "R2",
-  "success_terminal": "ISSUE276_DURABLE_LANGGRAPH_PARALLEL_TASK_BATCH_MERGED_MAIN_GREEN_ISSUE_CLOSED",
-  "blocked_terminal": "ISSUE276_DURABLE_PARALLEL_TASK_BATCH_R2_V3_BLOCKED_WITH_EXACT_EVIDENCE"
+  "authorized_risk_paths": ["pyproject.toml"],
+  "authorized_risk_tier": "R2",
+  "success_terminal": "ISSUE260_PRODUCT_UX34_SPECKIT_KNOWLEDGE_PACK_MERGED_MAIN_GREEN",
+  "blocked_terminal": "ISSUE260_PRODUCT_UX34_SPECKIT_KNOWLEDGE_PACK_R2_V1_BLOCKED_WITH_EXACT_EVIDENCE"
 }
 ```
 
 ## Goal
 
-Under a non-circular pre-PR validation contract, repair the shared-connection durable transaction lock boundary and make bounded unattended concurrency real through the accepted LangGraph `Send` fan-out over atomically admitted independent TaskStore tasks.
+Land the next productization slice without widening execution authority: Spec Kit v0.16.5-compatible planning artifacts become reviewable before launch; project memory uses the already-pinned LangGraph SQLite Store on the one TaskStore connection and remains advisory; Pack discovery becomes a strict metadata and compatibility catalog derived from the existing registry and Spec Kit Bundle concepts.
 
 ## Acceptance
 
-1. V3 starts fresh from exact main; V1/V2 remain immutable negative evidence with zero product commit or publication.
-2. Shared durable SQLite transaction entrypoints use the one TaskStore RLock; external executor work remains concurrent and twenty provider-free durable runs reach POST_VALIDATION with 100 checkpoints.
-3. Coordinator admission, native Send fan-out, deterministic join, WIP, dependency, budget, mixed failure, claim fencing and restart recovery regressions pass without a second store/mode/executor/scheduler.
-4. Before the PR number exists, the ordinary CI Platform gate may additionally deselect only the four exact PR-binding assertions listed in `pre_pr_intent_assertions_deferred`; no other failure is accepted.
-5. After actual schema-v2 PR binding, the full ordinary Platform gate passes with only CI's seven standard deselections, including all four formerly deferred assertions.
-6. Focused, repeated, CI responsibility, unchanged frontend, transition, readiness and diff checks pass with zero live calls, dependency/workflow/credential change or attack work.
-7. Fresh exact-head CI/Decision/State Gate, detached audit, schema-v2 attestation, expected-head merge, push State Gate and mainline validation pass before Issue #276 closes.
+1. Goal planning persists inspectable `spec.md`, `plan.md`, and `tasks.md`-compatible artifacts, per-artifact digests, contract/version identity, clarification readiness, knowledge references, and deterministic revision invalidation without a model call or Spec Kit CLI invocation.
+2. Browser creation stops at a reviewable PLANNED goal; execution begins only after a separate explicit owner launch action. Existing server-side approval, window, TaskStore, LangGraph, executor, policy, and evidence paths remain the execution authority.
+3. Project knowledge is stored through pinned `langgraph-checkpoint-sqlite==3.1.0` `SqliteStore` on the existing TaskStore SQLite connection under the TaskStore RLock. Entries are append-only, versioned, provenance-bound, secret-rejecting, advisory, and never execution authority.
+4. The existing CapabilityRegistry loads a strict bounded Pack manifest with Pack-vs-Skill distinction, multiple declared capabilities, Spec Kit Bundle reference, requirements, verifier/eval metadata, deterministic compatibility preview, and one packaged fixture Pack. Loading never installs or executes code, contacts a provider, or activates/grants Pack operations.
+5. Loopback APIs and frontend provide planning review, project knowledge, and Pack catalog surfaces using sanitized durable readback; no raw credential, shell, filesystem, merge, Pack activation, or model authority reaches the browser.
+6. Focused backend/frontend/full Platform gates, typecheck, build, readiness, exact-head CI/Decision/State Gate, detached audit, schema-v2 attestation, expected-head merge, push State Gate, mainline validation, and integration receipt all pass.
 
 ## Execution policy
 
-- Recover only the bounded V2 product intent after V3 preflight. Never downgrade or guess active intent identity.
-- TaskStore remains the sole durable truth; lock SQLite critical sections only and never external executor runtime.
-- Do not edit this Decision after activation. Publish once before and once after exact PR binding.
-- Preserve unrelated content and stop on any scope, test, gate, remote, digest, thread or mergeability mismatch.
+- No package installation or dependency version change is authorized. The only packaging mutation is inclusion of the fixture JSON already owned by this repository.
+- No Spec Kit source is copied, no `specify` process is invoked, and no generated planning content is represented as repository execution authority.
+- No embeddings or semantic model calls are used. Knowledge retrieval is deterministic metadata/text filtering over the mature LangGraph SQLite Store.
+- Pack manifests request metadata and requirements only. They cannot grant capabilities, install dependencies, import code, execute commands, access credentials, or mutate policy.
+- Generated gate evidence remains local and non-stageable. Preserve every unrelated worktree and runtime directory.
