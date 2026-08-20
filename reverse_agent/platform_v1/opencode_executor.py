@@ -37,6 +37,10 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from .binding_resolver import OpenCodeBindingResolution
+from .opencode_server_transport import (
+    OpenCodeServerTransportError,
+    run_managed_server_role,
+)
 from .task_runtime import (
     ExecutorCallback,
     ExecutorResult,
@@ -1052,6 +1056,7 @@ class OpenCodeExecutor:
         opencode_exe: str | None = None,
         timeout: int = 300,
         use_auto: bool = True,
+        transport_kind: str = "cli",
         lease_provider: LeaseProvider | None = None,
     ) -> None:
         self._binding_resolution = binding_resolution
@@ -1085,6 +1090,9 @@ class OpenCodeExecutor:
         self._opencode_exe = opencode_exe
         self._timeout = timeout
         self._use_auto = use_auto
+        if transport_kind not in {"cli", "server"}:
+            raise ExecutorRuntimeError("opencode_transport_kind_invalid")
+        self._transport_kind = transport_kind
 
     def execute(
         self,
@@ -1146,6 +1154,18 @@ class OpenCodeExecutor:
             str(worktree),
             role_context,
         )
+        if self._transport_kind == "server":
+            return self._run_server_executor_core(
+                task_id=task_id,
+                store=store,
+                worktree=worktree,
+                execution_id=execution_id,
+                cli_path=cli_path,
+                is_cmd=is_cmd,
+                event_callback=event_callback,
+                role_context=role_context,
+                prompt=prompt,
+            )
         prompt_file = _write_prompt_file(prompt)
 
         binding_metadata = self._binding_event_metadata()
@@ -1383,6 +1403,291 @@ class OpenCodeExecutor:
             execution_id=execution_id,
             process_exit_code=exit_code,
             failure_classification="deterministic_validation_failure",
+        )
+
+    def _run_server_executor_core(
+        self,
+        *,
+        task_id: str,
+        store: Any,
+        worktree: Path,
+        execution_id: str,
+        cli_path: str,
+        is_cmd: bool,
+        event_callback: ExecutorCallback | None,
+        role_context: RoleContext,
+        prompt: str,
+    ) -> ExecutorResult:
+        """Run one role through an executor-owned OpenCode HTTP/SSE server."""
+
+        binding_metadata = self._binding_event_metadata()
+        lease_handle: ExecutionLeaseHandle | None = None
+        model_for_server = self._model_id
+        try:
+            if self._binding_resolution is not None and self._binding_resolution.relay_required:
+                lease_handle = self._lease_provider(self._binding_resolution)
+                model_for_server = lease_handle.model_id
+            role = role_context.role
+            config_content: str | None = None
+            if self._binding_resolution is not None:
+                config_content = build_binding_config_content(
+                    self._binding_resolution,
+                    lease=lease_handle,
+                )
+            child_env = build_role_child_env(
+                self._parent_env,
+                config_content,
+                role,
+            )
+            provider_id, _, provider_model_id = model_for_server.partition("/")
+            if not provider_model_id:
+                provider_id = ""
+                provider_model_id = model_for_server
+
+            reservation_reader = getattr(store, "active_usage_reservation", None)
+            reservation = (
+                reservation_reader(task_id)
+                if callable(reservation_reader)
+                else {"token_units": 0, "cost_micro_units": 0, "claim_epoch": 0}
+            )
+            token_limit = max(0, int(reservation.get("token_units", 0)))
+            cost_limit = max(0, int(reservation.get("cost_micro_units", 0)))
+            seen: set[str] = set()
+            observed_tokens = 0
+            observed_cost = 0
+            threshold_emitted = False
+
+            def _observe_usage(info: Mapping[str, Any]) -> bool:
+                nonlocal observed_tokens, observed_cost, threshold_emitted
+                observations = _extract_usage_observations(
+                    json.dumps({"message": dict(info)}, ensure_ascii=True),
+                    task_id=task_id,
+                    execution_id=execution_id,
+                    role=role,
+                    fallback_model_id=model_for_server,
+                )
+                for observation in observations:
+                    observation_id = str(observation["observation_id"])
+                    if observation_id in seen:
+                        continue
+                    seen.add(observation_id)
+                    _persist_usage_observations(store, task_id, [observation])
+                    if observation.get("status") != "OBSERVED":
+                        continue
+                    observed_tokens += sum(
+                        int(observation.get(key) or 0)
+                        for key in (
+                            "input_units",
+                            "output_units",
+                            "reasoning_units",
+                            "cache_read_units",
+                            "cache_write_units",
+                        )
+                    )
+                    observed_cost += int(observation.get("cost_micro_units") or 0)
+                threshold = (
+                    (token_limit > 0 and observed_tokens >= token_limit)
+                    or (cost_limit > 0 and observed_cost >= cost_limit)
+                )
+                if threshold and not threshold_emitted:
+                    threshold_emitted = True
+                    _emit(event_callback, task_id, {
+                        "type": "BUDGET_THRESHOLD_REACHED",
+                        "title": "Streaming budget threshold reached",
+                        "description": "Requesting bounded OpenCode session abort",
+                        "metadata": {
+                            "execution_id": execution_id,
+                            "role": role,
+                            "observed_token_units": observed_tokens,
+                            "observed_cost_micro_units": observed_cost,
+                            "reserved_token_units": token_limit,
+                            "reserved_cost_micro_units": cost_limit,
+                            "enforcement_class": "STREAM_STEP_BOUNDARY",
+                        },
+                    })
+                return threshold
+
+            _emit(event_callback, task_id, {
+                "type": "EXECUTOR_RUNNING",
+                "title": "OpenCode Server started",
+                "description": "Authenticated loopback SSE transport launched",
+                "metadata": {
+                    "execution_id": execution_id,
+                    "executor_kind": "opencode",
+                    "transport_kind": "server",
+                    "role": role,
+                    "model": model_for_server,
+                    "worktree": str(worktree),
+                    "prompt_transport": "loopback_json",
+                    "stream_enforcement": bool(token_limit or cost_limit),
+                    **binding_metadata,
+                },
+            })
+            result = run_managed_server_role(
+                cli_path=cli_path,
+                is_cmd=is_cmd,
+                cwd=str(worktree),
+                child_env=child_env,
+                timeout=float(self._timeout),
+                title=f"reverse-agent {role} {task_id}"[:128],
+                prompt=prompt,
+                provider_id=provider_id,
+                model_id=provider_model_id,
+                agent="",
+                usage_observer=_observe_usage,
+            )
+        except OpenCodeServerTransportError as exc:
+            classification = str(exc)
+            if not classification.startswith("server_"):
+                classification = "server_transport_failed"
+            return self._server_failure_result(
+                task_id=task_id,
+                worktree=worktree,
+                execution_id=execution_id,
+                role=role_context.role,
+                event_callback=event_callback,
+                classification=classification,
+                abort_state="NOT_REQUESTED",
+            )
+        except Exception:
+            return self._server_failure_result(
+                task_id=task_id,
+                worktree=worktree,
+                execution_id=execution_id,
+                role=role_context.role,
+                event_callback=event_callback,
+                classification="server_transport_internal_failure",
+                abort_state="NOT_REQUESTED",
+            )
+        finally:
+            if lease_handle is not None:
+                try:
+                    lease_handle.release()
+                except Exception:
+                    pass
+
+        _emit(event_callback, task_id, {
+            "type": (
+                "STREAM_ABORT_CONFIRMED"
+                if result.abort_state == "STREAM_ABORT_CONFIRMED"
+                else "STREAM_ABORT_UNKNOWN"
+                if result.abort_state == "STREAM_ABORT_UNKNOWN"
+                else "EXECUTOR_FINISHED"
+            ),
+            "title": (
+                "OpenCode Server role finished"
+                if result.success
+                else "OpenCode Server role stopped"
+            ),
+            "description": result.failure_classification or "session.idle observed",
+            "metadata": {
+                "execution_id": execution_id,
+                "transport_kind": "server",
+                "role": role_context.role,
+                "abort_state": result.abort_state,
+                "server_version": result.server_version,
+                "session_provenance": result.session_digest,
+                "usage_event_count": result.usage_event_count,
+                "provider_hard_cutoff_claimed": False,
+            },
+        })
+        if not result.success:
+            return self._server_failure_result(
+                task_id=task_id,
+                worktree=worktree,
+                execution_id=execution_id,
+                role=role_context.role,
+                event_callback=None,
+                classification=result.failure_classification or "server_transport_failed",
+                abort_state=result.abort_state,
+            )
+        return self._validate_server_success(
+            task_id=task_id,
+            worktree=worktree,
+            execution_id=execution_id,
+            role=role_context.role,
+            event_callback=event_callback,
+        )
+
+    def _server_failure_result(
+        self,
+        *,
+        task_id: str,
+        worktree: Path,
+        execution_id: str,
+        role: str,
+        event_callback: ExecutorCallback | None,
+        classification: str,
+        abort_state: str,
+    ) -> ExecutorResult:
+        _emit(event_callback, task_id, {
+            "type": "EXECUTOR_FINISHED",
+            "title": "OpenCode Server transport failed",
+            "description": classification,
+            "metadata": {
+                "execution_id": execution_id,
+                "transport_kind": "server",
+                "role": role,
+                "failure_classification": classification,
+                "abort_state": abort_state,
+                "provider_hard_cutoff_claimed": False,
+            },
+        })
+        return ExecutorResult(
+            success=False,
+            validation_exit_code=-1,
+            validation_command_id="",
+            validation_output_digest="",
+            validation_output_summary="",
+            changed_files=_collect_changed_files(worktree),
+            error=f"opencode_server:{classification}",
+            workspace=str(worktree),
+            execution_id=execution_id,
+            process_exit_code=-1,
+            failure_classification=classification,
+        )
+
+    def _validate_server_success(
+        self,
+        *,
+        task_id: str,
+        worktree: Path,
+        execution_id: str,
+        role: str,
+        event_callback: ExecutorCallback | None,
+    ) -> ExecutorResult:
+        changed_files = _collect_changed_files(worktree)
+        val_proc = self._run_git(["git", "diff", "--check"], cwd=worktree, timeout=30)
+        val_output = val_proc.stdout
+        if val_proc.stderr:
+            val_output += "\n" + val_proc.stderr
+        val_digest = _digest(val_output)
+        val_output_redacted = redact_secrets(_sanitize_output(val_output, 2048))
+        _emit(event_callback, task_id, {
+            "type": "LOCAL_VALIDATED",
+            "title": "Local validation",
+            "description": "git_diff_check exit=%d" % val_proc.returncode,
+            "metadata": {
+                "execution_id": execution_id,
+                "validation_command_id": "git_diff_check",
+                "validation_exit_code": val_proc.returncode,
+                "role": role,
+                "transport_kind": "server",
+            },
+        })
+        return ExecutorResult(
+            success=val_proc.returncode == 0,
+            validation_exit_code=val_proc.returncode,
+            validation_command_id="git_diff_check",
+            validation_output_digest=val_digest,
+            validation_output_summary=val_output_redacted[:1024],
+            changed_files=changed_files,
+            workspace=str(worktree),
+            execution_id=execution_id,
+            process_exit_code=0,
+            failure_classification=(
+                "" if val_proc.returncode == 0 else "deterministic_validation_failure"
+            ),
         )
 
     def prepare_worktree_once(

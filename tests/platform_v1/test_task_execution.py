@@ -288,6 +288,37 @@ def test_legacy_opencode_task_keeps_environment_model_fallback(
     assert "binding_resolution" not in captured[0]
 
 
+def test_server_transport_selection_comes_from_trusted_process_env(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("REVERSE_AGENT_OPENCODE_TRANSPORT", "server")
+    store = TaskStore(db_path=str(tmp_path / "server-mode.sqlite3"))
+    task = store.create_task(
+        title="server mode",
+        executor_kind="opencode",
+        model_profile_ref="provider/model",
+    )
+    captured: list[dict[str, object]] = []
+
+    class _Router(ExecutorRouter):
+        def dispatch_execute(self, **kwargs):
+            captured.append(kwargs)
+            return ExecutorResult(
+                success=True,
+                validation_exit_code=0,
+                validation_command_id="git_diff_check",
+                validation_output_digest="digest",
+                validation_output_summary="",
+            )
+
+    outcome = TaskExecutionService(store=store, router=_Router()).execute(
+        task.id, workspace_root=str(tmp_path / "workspace")
+    )
+
+    assert outcome.success is True
+    assert captured[0]["transport_kind"] == "server"
+
+
 def test_execute_sequential_team_rejects_non_opencode_executor_kind(tmp_path) -> None:
     store, router, service = _service(tmp_path)
     task = store.create_task(
