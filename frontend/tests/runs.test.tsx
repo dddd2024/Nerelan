@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "./test-utils";
 import { RunsPage } from "@/routes/runs";
 
@@ -41,5 +41,31 @@ describe("Agent Runs page", () => {
     expect(
       screen.getByText(/由任务库、目标链接与发布记录派生的只读时间线/),
     ).toBeInTheDocument();
+  });
+
+  it("shows numeric usage and only draws a bar for hard admission", async () => {
+    renderWithProviders(<RunsPage />);
+    const observed = await screen.findByTestId("run-usage-task-demo-1");
+    expect(observed.textContent).toContain("Tokens 68,420");
+    expect(observed.textContent).toContain("Cost $0.8123");
+    expect(screen.getByTestId("run-enforcement-task-demo-1").textContent).toBe(
+      "派发前硬预算",
+    );
+    expect(within(observed).getByRole("progressbar")).toHaveAttribute(
+      "aria-valuemax",
+      "240000",
+    );
+    expect(screen.getByTestId("run-usage-overrun-task-demo-1").textContent).toContain(
+      "仅在完成后发现",
+    );
+
+    const unknown = screen.getByTestId("run-usage-task-demo-2");
+    expect(screen.getByTestId("run-enforcement-task-demo-2").textContent).toBe(
+      "用量未知，已停派发",
+    );
+    expect(within(unknown).queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.getByTestId("run-usage-unknown-task-demo-2").textContent).toContain(
+      "UNKNOWN 不是 0",
+    );
   });
 });
