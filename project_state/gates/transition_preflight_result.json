@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260820_issue268_product_ux2a_usage_budgets_r2_v5_landing",
-  "round_id": "round_20260820_issue268_product_ux2a_usage_budgets_r2_v5_landing",
+  "decision_id": "decision_20260820_issue272_product_ux2b_opencode_server_r2_v2",
+  "round_id": "round_20260820_issue272_product_ux2b_opencode_server_r2_v2",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260820_issue268_product_ux2a_usage_budgets_r2_v5_landing expected=decision_20260820_issue268_product_ux2a_usage_budgets_r2_v5_landing"
+      "detail": "observed=decision_20260820_issue272_product_ux2b_opencode_server_r2_v2 expected=decision_20260820_issue272_product_ux2b_opencode_server_r2_v2"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260820_issue268_product_ux2a_usage_budgets_r2_v5_landing expected=round_20260820_issue268_product_ux2a_usage_budgets_r2_v5_landing"
+      "detail": "observed=round_20260820_issue272_product_ux2b_opencode_server_r2_v2 expected=round_20260820_issue272_product_ux2b_opencode_server_r2_v2"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=owner/issue268-product-ux2a-usage-budgets-r2-v5-landing expected=owner/issue268-product-ux2a-usage-budgets-r2-v5-landing"
+      "detail": "observed=owner/issue272-product-ux2b-opencode-server-r2-v2 expected=owner/issue272-product-ux2b-opencode-server-r2-v2"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=aa5972a2c216a775089fbb52a5efa160f4884eb8 merge_base=aa5972a2c216a775089fbb52a5efa160f4884eb8"
+      "detail": "base=29faccd89a86b4313df66151652e2bd5724f141b merge_base=29faccd89a86b4313df66151652e2bd5724f141b"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=11bafe88687803e29bb2b96284c0d088318bc74e"
+      "detail": "decision_commit=84b08f2c7d6ff3feec65e9ae18b6fa980a17148e"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260820_issue268_product_ux2a_usage_budgets_r2_v5_landing/round_20260820_issue268_product_ux2a_usage_budgets_r2_v5_landing"
+      "detail": "plan=decision_20260820_issue272_product_ux2b_opencode_server_r2_v2/round_20260820_issue272_product_ux2b_opencode_server_r2_v2"
     },
     {
       "name": "command_plan_contract",
