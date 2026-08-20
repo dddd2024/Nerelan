@@ -3,31 +3,31 @@
   "artifact_name": "startup_snapshot.json",
   "gate_name": "startup-snapshot",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260819_issue259_state_gate_attestation_lifecycle_r2_v3",
-  "round_id": "round_20260819_issue259_state_gate_attestation_lifecycle_r2_v3",
+  "decision_id": "decision_20260820_issue268_product_ux2a_usage_budgets_r2_v3",
+  "round_id": "round_20260820_issue268_product_ux2a_usage_budgets_r2_v3",
   "mainline": "engineering_branch",
-  "generated_at": "2026-08-19T12:18:21.682692Z",
+  "generated_at": "2026-08-20T13:24:53.471176Z",
   "artifact_path": "project_state/gates/startup_snapshot.json",
   "startup_sequence": [
     {
-      "command": "Set-Location F:\\reverse-agent-issue259-state-gate-attestation-lifecycle-r2-v3",
+      "command": "Set-Location F:\\reverse-agent-issue268-product-ux2a-r2-v3",
       "exit_code": 0,
-      "stdout": "F:\\reverse-agent-issue259-state-gate-attestation-lifecycle-r2-v3"
+      "stdout": "F:\\reverse-agent-issue268-product-ux2a-r2-v3"
     },
     {
       "command": "Get-Location",
       "exit_code": 0,
-      "stdout": "F:\\reverse-agent-issue259-state-gate-attestation-lifecycle-r2-v3"
+      "stdout": "F:\\reverse-agent-issue268-product-ux2a-r2-v3"
     },
     {
-      "command": "Test-Path F:\\reverse-agent-issue259-state-gate-attestation-lifecycle-r2-v3",
+      "command": "Test-Path F:\\reverse-agent-issue268-product-ux2a-r2-v3",
       "exit_code": 0,
       "stdout": "True"
     },
     {
       "command": "git rev-parse --show-toplevel",
       "exit_code": 0,
-      "stdout": "F:/reverse-agent-issue259-state-gate-attestation-lifecycle-r2-v3"
+      "stdout": "F:/reverse-agent-issue268-product-ux2a-r2-v3"
     },
     {
       "command": "git status --short",
@@ -35,10 +35,10 @@
       "stdout_lines": []
     }
   ],
-  "repository_root": "F:/reverse-agent-issue259-state-gate-attestation-lifecycle-r2-v3",
-  "expected_repository_root": "F:\\reverse-agent-issue259-state-gate-attestation-lifecycle-r2-v3",
+  "repository_root": "F:/reverse-agent-issue268-product-ux2a-r2-v3",
+  "expected_repository_root": "F:\\reverse-agent-issue268-product-ux2a-r2-v3",
   "repository_root_matches": true,
-  "head_commit": "95d800072d1e",
+  "head_commit": "d132a80bd68a",
   "raw_git_status_short": [],
   "dirty_files": [],
   "worktree_classifier_schema_version": 1,

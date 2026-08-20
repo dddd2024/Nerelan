@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260819_issue259_state_gate_attestation_lifecycle_r2_v3",
-  "round_id": "round_20260819_issue259_state_gate_attestation_lifecycle_r2_v3",
+  "decision_id": "decision_20260820_issue268_product_ux2a_usage_budgets_r2_v3",
+  "round_id": "round_20260820_issue268_product_ux2a_usage_budgets_r2_v3",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260819_issue259_state_gate_attestation_lifecycle_r2_v3 expected=decision_20260819_issue259_state_gate_attestation_lifecycle_r2_v3"
+      "detail": "observed=decision_20260820_issue268_product_ux2a_usage_budgets_r2_v3 expected=decision_20260820_issue268_product_ux2a_usage_budgets_r2_v3"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260819_issue259_state_gate_attestation_lifecycle_r2_v3 expected=round_20260819_issue259_state_gate_attestation_lifecycle_r2_v3"
+      "detail": "observed=round_20260820_issue268_product_ux2a_usage_budgets_r2_v3 expected=round_20260820_issue268_product_ux2a_usage_budgets_r2_v3"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=owner/issue259-state-gate-attestation-lifecycle-r2-v3 expected=owner/issue259-state-gate-attestation-lifecycle-r2-v3"
+      "detail": "observed=owner/issue260-product-ux2a-usage-budgets-r2-v3 expected=owner/issue260-product-ux2a-usage-budgets-r2-v3"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=4b95cf719244f25f095a0936c7a97e44c57a0482 merge_base=4b95cf719244f25f095a0936c7a97e44c57a0482"
+      "detail": "base=aa5972a2c216a775089fbb52a5efa160f4884eb8 merge_base=aa5972a2c216a775089fbb52a5efa160f4884eb8"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=95d800072d1e31b8a14bf718a49333193a50ef52"
+      "detail": "decision_commit=d132a80bd68a1d617eebef6d6c07155074a35624"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260819_issue259_state_gate_attestation_lifecycle_r2_v3/round_20260819_issue259_state_gate_attestation_lifecycle_r2_v3"
+      "detail": "plan=decision_20260820_issue268_product_ux2a_usage_budgets_r2_v3/round_20260820_issue268_product_ux2a_usage_budgets_r2_v3"
     },
     {
       "name": "command_plan_contract",
