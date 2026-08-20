@@ -67,6 +67,56 @@ export interface StartGoalInput {
   autonomyHours: number;
 }
 
+export interface PlatformInboxItem {
+  id: string;
+  title: string;
+  objective: string;
+  repository: string;
+  status: "CAPTURED" | "PROMOTED" | "DISMISSED";
+  promoted_goal_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlatformRoadmapPhase {
+  id: string;
+  title: string;
+  position: number;
+  description: string;
+  derived_status: "PLANNED" | "RUNNING" | "BLOCKED" | "COMPLETED";
+  goals: Array<{
+    id: string;
+    title: string;
+    status: string;
+    repository: string;
+    updated_at: string;
+  }>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlatformAgentRun {
+  task_id: string;
+  title: string;
+  repository: string;
+  status: string;
+  state: string;
+  executor_kind: string;
+  orchestration_mode: string;
+  created_at: string;
+  updated_at: string;
+  failure_classification: string;
+  goal_id: string;
+  goal_title: string;
+  publication: {
+    status: string;
+    branch: string;
+    pr_number: number;
+    pr_url: string;
+    commit_sha: string;
+  } | null;
+}
+
 const API_BASE = import.meta.env.VITE_TASK_API_BASE ?? "http://127.0.0.1:8766";
 
 function isMock() {
@@ -117,6 +167,84 @@ const mockWindow: PlatformWindow = {
   tasks_started: 2,
   tasks_completed: 1,
 };
+
+let mockInboxItems: PlatformInboxItem[] = [
+  {
+    id: "inbox-demo-1",
+    title: "支持定时触发的无人值守窗口",
+    objective: "在自治窗口内按计划自动派发任务并保存检查点。",
+    repository: "dddd2024/reverse-agent",
+    status: "CAPTURED",
+    promoted_goal_id: "",
+    created_at: new Date(now.getTime() - 40 * 60_000).toISOString(),
+    updated_at: new Date(now.getTime() - 40 * 60_000).toISOString(),
+  },
+];
+
+const mockRoadmapPhases: PlatformRoadmapPhase[] = [
+  {
+    id: "phase-demo-1",
+    title: "P0 读模型",
+    position: 1,
+    description: "Inbox、Roadmap、Agent Runs 派生视图",
+    derived_status: "RUNNING",
+    goals: [
+      { id: "goal-demo-platform", title: "完善无人值守多 Agent 平台", status: "RUNNING", repository: "dddd2024/reverse-agent", updated_at: new Date(now.getTime() - 2 * 60_000).toISOString() },
+      { id: "goal-demo-budget", title: "预算与成本硬上限", status: "PLANNED", repository: "dddd2024/reverse-agent", updated_at: new Date(now.getTime() - 20 * 60_000).toISOString() },
+    ],
+    created_at: new Date(now.getTime() - 3 * 3600_000).toISOString(),
+    updated_at: new Date(now.getTime() - 2 * 60_000).toISOString(),
+  },
+  {
+    id: "phase-demo-2",
+    title: "P1 无人值守",
+    position: 2,
+    description: "定时触发与停止条件",
+    derived_status: "PLANNED",
+    goals: [],
+    created_at: new Date(now.getTime() - 3 * 3600_000).toISOString(),
+    updated_at: new Date(now.getTime() - 3 * 3600_000).toISOString(),
+  },
+];
+
+const mockRuns: PlatformAgentRun[] = [
+  {
+    task_id: "task-demo-1",
+    title: "[完善无人值守多 Agent 平台] T001 分析目标与代码库",
+    repository: "dddd2024/reverse-agent",
+    status: "READY_FOR_REVIEW",
+    state: "READY_FOR_HUMAN",
+    executor_kind: "opencode",
+    orchestration_mode: "sequential_team",
+    created_at: new Date(now.getTime() - 30 * 60_000).toISOString(),
+    updated_at: new Date(now.getTime() - 5 * 60_000).toISOString(),
+    failure_classification: "",
+    goal_id: "goal-demo-platform",
+    goal_title: "完善无人值守多 Agent 平台",
+    publication: {
+      status: "COMPLETE",
+      branch: "codex/goal-demo-platform",
+      pr_number: 97,
+      pr_url: "https://github.com/dddd2024/reverse-agent/pull/97",
+      commit_sha: "2e6dd422188c3c77928c4496049f763f81048ba7",
+    },
+  },
+  {
+    task_id: "task-demo-2",
+    title: "[完善无人值守多 Agent 平台] T002 实现协调与恢复链路",
+    repository: "dddd2024/reverse-agent",
+    status: "RUNNING",
+    state: "RUNNING",
+    executor_kind: "opencode",
+    orchestration_mode: "sequential_team",
+    created_at: new Date(now.getTime() - 25 * 60_000).toISOString(),
+    updated_at: new Date(now.getTime() - 60_000).toISOString(),
+    failure_classification: "",
+    goal_id: "goal-demo-platform",
+    goal_title: "完善无人值守多 Agent 平台",
+    publication: null,
+  },
+];
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -217,8 +345,101 @@ export async function startGoal(input: StartGoalInput): Promise<PlatformGoal> {
     });
   }
   await request<PlatformGoal>(`/api/goals/${created.id}/launch`, {
-    method: "POST",
-    body: JSON.stringify({ expected_revision: created.revision, window_id: window.id }),
+    method: "POST", body: JSON.stringify({ expected_revision: created.revision, window_id: window.id }),
   });
   return fetchGoal(created.id);
+}
+
+export async function fetchInbox(): Promise<PlatformInboxItem[]> {
+  if (isMock()) return mockInboxItems;
+  const result = await request<{ items: PlatformInboxItem[] }>("/api/inbox");
+  return result.items;
+}
+
+export async function captureInboxItem(input: { title?: string; objective: string; repository?: string }): Promise<PlatformInboxItem> {
+  if (isMock()) {
+    const timestamp = new Date().toISOString();
+    const item: PlatformInboxItem = {
+      id: `inbox-${Date.now()}`,
+      title: (input.title || input.objective).slice(0, 77),
+      objective: input.objective,
+      repository: input.repository || "dddd2024/reverse-agent",
+      status: "CAPTURED",
+      promoted_goal_id: "",
+      created_at: timestamp,
+      updated_at: timestamp,
+    };
+    mockInboxItems = [item, ...mockInboxItems];
+    return item;
+  }
+  return request<PlatformInboxItem>("/api/inbox", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function promoteInboxItem(itemId: string): Promise<{ item: PlatformInboxItem; goal: PlatformGoal }> {
+  if (isMock()) {
+    const item = mockInboxItems.find((entry) => entry.id === itemId);
+    if (!item) throw new Error("inbox item not found");
+    if (item.status === "PROMOTED" && item.promoted_goal_id) {
+      const goal = mockGoals.find((entry) => entry.id === item.promoted_goal_id) ?? mockGoal;
+      return { item, goal };
+    }
+    if (item.status !== "CAPTURED") throw new Error("inbox item not promotable");
+    const timestamp = new Date().toISOString();
+    const goal: PlatformGoal = {
+      ...mockGoal,
+      id: `goal-inbox-${Date.now()}`,
+      title: item.title,
+      objective: item.objective,
+      repository: item.repository,
+      status: "DRAFT",
+      revision: 1,
+      task_links: [],
+      created_at: timestamp,
+      updated_at: timestamp,
+    };
+    mockGoals = [goal, ...mockGoals];
+    item.status = "PROMOTED";
+    item.promoted_goal_id = goal.id;
+    item.updated_at = timestamp;
+    return { item, goal };
+  }
+  return request<{ item: PlatformInboxItem; goal: PlatformGoal }>(
+    `/api/inbox/${encodeURIComponent(itemId)}/promote`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+}
+
+export async function dismissInboxItem(itemId: string): Promise<PlatformInboxItem> {
+  if (isMock()) {
+    const item = mockInboxItems.find((entry) => entry.id === itemId);
+    if (!item) throw new Error("inbox item not found");
+    if (item.status !== "CAPTURED") throw new Error("inbox item not dismissable");
+    item.status = "DISMISSED";
+    item.updated_at = new Date().toISOString();
+    return item;
+  }
+  return request<PlatformInboxItem>(`/api/inbox/${encodeURIComponent(itemId)}/dismiss`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function fetchRoadmap(): Promise<PlatformRoadmapPhase[]> {
+  if (isMock()) return mockRoadmapPhases;
+  const result = await request<{ phases: PlatformRoadmapPhase[] }>("/api/roadmap");
+  return result.phases;
+}
+
+export async function fetchRuns(): Promise<PlatformAgentRun[]> {
+  if (isMock()) return mockRuns;
+  const result = await request<{ runs: PlatformAgentRun[] }>("/api/runs");
+  return result.runs;
+}
+
+export async function fetchRun(taskId: string): Promise<PlatformAgentRun> {
+  if (isMock()) return mockRuns.find((run) => run.task_id === taskId) ?? mockRuns[0];
+  return request<PlatformAgentRun>(`/api/runs/${encodeURIComponent(taskId)}`);
 }

@@ -273,3 +273,74 @@ export interface PolicyContract {
   autonomousWindow: AutonomousWindow;
   budgets: Budgets;
 }
+
+// ---------------------------------------------------------------------------
+// Platform P0 read models (Issue #265 / #260)
+// ---------------------------------------------------------------------------
+
+export type InboxItemStatus = "CAPTURED" | "PROMOTED" | "DISMISSED";
+
+export interface InboxItem {
+  id: string;
+  title: string;
+  objective: string;
+  repository: string;
+  status: InboxItemStatus;
+  promoted_goal_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type RoadmapPhaseStatus = "PLANNED" | "RUNNING" | "BLOCKED" | "COMPLETED";
+
+export interface RoadmapPhaseGoal {
+  id: string;
+  title: string;
+  status: string;
+  repository: string;
+  updated_at: string;
+}
+
+export interface RoadmapPhase {
+  id: string;
+  title: string;
+  position: number;
+  description: string;
+  derived_status: RoadmapPhaseStatus;
+  goals: RoadmapPhaseGoal[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentRunPublication {
+  status: string;
+  branch: string;
+  pr_number: number;
+  pr_url: string;
+  commit_sha: string;
+}
+
+export interface AgentRunEvent {
+  id: string;
+  task_id: string;
+  type: string;
+  timestamp: string;
+  title: string;
+  description: string;
+}
+
+export interface AgentRun {
+  task_id: string;
+  title: string;
+  repository: string;
+  status: string;
+  state: RunState;
+  executor_kind: string;
+  orchestration_mode: string;
+  created_at: string;
+  updated_at: string;
+  failure_classification: string;
+  goal_id: string;
+  goal_title: string;
+  publication: AgentRunPublication | null;
+}

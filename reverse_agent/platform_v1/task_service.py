@@ -38,24 +38,18 @@ from .autonomy import AutonomyService, window_to_dict
 from .capability_registry import CapabilityRegistry
 from .control_store import PlatformControlStore
 from .goal_service import GoalService, goal_to_dict
+from .inbox_service import InboxService, inbox_item_to_dict
 from .publication_controller import PublicationController
+from .roadmap_service import RoadmapService
+from .run_read_model import (
+    BACKEND_STATUS_TO_FRONTEND_STATE,
+    RunReadModel,
+    backend_status_to_frontend_state,
+)
 
 _MAX_BODY_BYTES = 256 * 1024
 _TASKS_LIMIT = 100
 _DEFAULT_TASK_DB_PATH = ".platform_v1_runtime/tasks.sqlite3"
-
-BACKEND_STATUS_TO_FRONTEND_STATE: dict[str, str] = {
-    "QUEUED": "WAITING_FOR_OWNER",
-    "PREPARING_WORKSPACE": "RUNNING",
-    "RUNNING": "RUNNING",
-    "RUNNING_FIXTURE": "RUNNING",
-    "VALIDATING": "RUNNING",
-    "READY_FOR_REVIEW": "READY_FOR_HUMAN",
-    "READY_FOR_REVIEW_FIXTURE": "READY_FOR_HUMAN",
-    "BLOCKED": "BLOCKED_EXTERNAL",
-    "FAILED": "FAILED_TERMINAL",
-    "CANCELLED": "FAILED_TERMINAL",
-}
 
 FAILURE_CLASSIFICATION_TO_TEST_STATUS: dict[str, str] = {
     "": "PENDING",
@@ -100,7 +94,7 @@ def _mapping(obj: Any, name: str) -> Mapping[str, Any]:
 
 
 def _map_task_status_to_frontend_state(status: str) -> str:
-    return BACKEND_STATUS_TO_FRONTEND_STATE.get(status, "WAITING_FOR_OWNER")
+    return backend_status_to_frontend_state(status)
 
 
 def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
@@ -247,6 +241,9 @@ class _TaskHandler(BaseHTTPRequestHandler):
     autonomy_service: AutonomyService
     capability_registry: CapabilityRegistry
     publication_controller: PublicationController
+    inbox_service: InboxService
+    roadmap_service: RoadmapService
+    run_read_model: RunReadModel
     coordinator: Any | None = None
 
     server_version = "reverse-agent-task-service/1"
@@ -280,6 +277,31 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     HTTPStatus.OK,
                     {"goals": [goal_to_dict(goal) for goal in goals], "total": len(goals)},
                 )
+                return
+            if segments == ["api", "inbox"]:
+                items = self.inbox_service.list_items()
+                self._send_json(
+                    HTTPStatus.OK,
+                    {
+                        "items": [inbox_item_to_dict(item) for item in items],
+                        "total": len(items),
+                    },
+                )
+                return
+            if segments == ["api", "roadmap"]:
+                phases = self.roadmap_service.list_phases()
+                self._send_json(HTTPStatus.OK, {"phases": phases, "total": len(phases)})
+                return
+            if segments == ["api", "runs"]:
+                self._send_json(HTTPStatus.OK, self.run_read_model.list_runs())
+                return
+            if len(segments) == 3 and segments[:2] == ["api", "runs"]:
+                try:
+                    detail = self.run_read_model.run_detail(segments[2])
+                except TaskStoreError:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "run not found"})
+                    return
+                self._send_json(HTTPStatus.OK, detail)
                 return
             if len(segments) == 3 and segments[:2] == ["api", "goals"]:
                 try:
@@ -393,6 +415,46 @@ class _TaskHandler(BaseHTTPRequestHandler):
             return
         try:
             segments = self._segments()
+            if segments == ["api", "inbox"]:
+                item = self.inbox_service.capture(self._read_json())
+                self._send_json(HTTPStatus.CREATED, inbox_item_to_dict(item))
+                return
+            if (
+                len(segments) == 4
+                and segments[:2] == ["api", "inbox"]
+                and segments[3] == "promote"
+            ):
+                result = self.inbox_service.promote(segments[2])
+                self._send_json(HTTPStatus.OK, result)
+                return
+            if (
+                len(segments) == 4
+                and segments[:2] == ["api", "inbox"]
+                and segments[3] == "dismiss"
+            ):
+                item = self.inbox_service.dismiss(segments[2])
+                self._send_json(HTTPStatus.OK, inbox_item_to_dict(item))
+                return
+            if segments == ["api", "roadmap"]:
+                phase = self.roadmap_service.create_phase(self._read_json())
+                self._send_json(HTTPStatus.CREATED, self.roadmap_service.get_phase(phase.id))
+                return
+            if (
+                len(segments) == 4
+                and segments[:2] == ["api", "roadmap"]
+                and segments[3] in {"attach", "detach"}
+            ):
+                payload = self._read_json()
+                goal_id = str(payload.get("goal_id", "")).strip()
+                if not goal_id:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": "goal_id_required"})
+                    return
+                if segments[3] == "attach":
+                    phase = self.roadmap_service.attach(segments[2], goal_id)
+                else:
+                    phase = self.roadmap_service.detach(segments[2], goal_id)
+                self._send_json(HTTPStatus.OK, phase)
+                return
             if segments == ["api", "goals"]:
                 goal = self.goal_service.create(self._read_json())
                 self._send_json(HTTPStatus.CREATED, goal_to_dict(goal))
@@ -887,6 +949,13 @@ def _handler_factory(
     )
     ConfiguredHandler.publication_controller = publication_controller or PublicationController(
         store=store, control_store=configured_control, autonomy=configured_autonomy
+    )
+    ConfiguredHandler.inbox_service = InboxService(
+        control_store=configured_control, goal_service=ConfiguredHandler.goal_service
+    )
+    ConfiguredHandler.roadmap_service = RoadmapService(control_store=configured_control)
+    ConfiguredHandler.run_read_model = RunReadModel(
+        store=store, control_store=configured_control
     )
     ConfiguredHandler.coordinator = coordinator
     return ConfiguredHandler

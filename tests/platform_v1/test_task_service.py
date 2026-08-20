@@ -1183,3 +1183,170 @@ def test_binding_ref_and_orchestration_mode_persisted_together(
     ).fetchone()
     assert raw["binding_ref"] == "coding-fast"
     assert raw["orchestration_mode"] == "sequential_team"
+
+
+# ---------------------------------------------------------------------------
+# Issue #265 / #260: Inbox, Roadmap and Agent Runs read-model endpoints
+# ---------------------------------------------------------------------------
+
+def test_inbox_capture_list_promote_dismiss_over_http(task_server) -> None:
+    base, _ = task_server
+    status, item = _req(base, "POST", "/api/inbox", {
+        "title": "Idea", "objective": "做一个无人值守平台",
+    })
+    assert status == 201
+    assert item["status"] == "CAPTURED"
+    assert item["promoted_goal_id"] == ""
+
+    status, listing = _req(base, "GET", "/api/inbox")
+    assert status == 200
+    assert listing["total"] == 1
+    assert listing["items"][0]["id"] == item["id"]
+
+    status, promoted = _req(base, "POST", f"/api/inbox/{item['id']}/promote")
+    assert status == 200
+    goal_id = promoted["goal"]["id"]
+    assert promoted["goal"]["status"] == "DRAFT"
+    assert promoted["item"]["promoted_goal_id"] == goal_id
+
+    status, again = _req(base, "POST", f"/api/inbox/{item['id']}/promote")
+    assert status == 200
+    assert again["goal"]["id"] == goal_id
+
+    status, goals = _req(base, "GET", "/api/goals")
+    assert status == 200
+    assert goals["total"] == 1
+
+    status, other = _req(base, "POST", "/api/inbox", {"objective": "第二个想法"})
+    assert status == 201
+    status, dismissed = _req(base, "POST", f"/api/inbox/{other['id']}/dismiss")
+    assert status == 200
+    assert dismissed["status"] == "DISMISSED"
+
+    status, history = _req(base, "GET", "/api/inbox")
+    assert history["total"] == 2
+
+    status, _ = _req(base, "POST", f"/api/inbox/{other['id']}/promote")
+    assert status == 409
+
+
+def test_inbox_capture_rejects_secret_fields_over_http(task_server) -> None:
+    base, _ = task_server
+    status, body = _req(base, "POST", "/api/inbox", {
+        "objective": "x", "api_key": "k" * 20,
+    })
+    assert status == 409
+    assert "sensitive_control_field_rejected" in body["error"]
+
+
+def test_roadmap_phase_lifecycle_and_derived_status_over_http(task_server) -> None:
+    base, _ = task_server
+    status, goal = _req(base, "POST", "/api/goals", {
+        "objective": "roadmap goal",
+        "idempotency_key": "roadmap-http-1",
+        "executor_kind": "deterministic_fixture",
+        "orchestration_mode": "single",
+    })
+    assert status == 201
+
+    status, phase = _req(base, "POST", "/api/roadmap", {
+        "title": "Phase 0", "position": 1, "description": "基础",
+    })
+    assert status == 201
+    assert phase["derived_status"] == "PLANNED"
+    assert phase["goals"] == []
+
+    status, attached = _req(base, "POST", f"/api/roadmap/{phase['id']}/attach", {
+        "goal_id": goal["id"],
+    })
+    assert status == 200
+    assert attached["goals"][0]["id"] == goal["id"]
+    assert attached["derived_status"] == "PLANNED"
+
+    status, planned = _req(base, "POST", f"/api/goals/{goal['id']}/plan", {
+        "expected_revision": 1,
+        "tasks": [{"id": "T001", "title": "t", "instruction": "i"}],
+    })
+    assert status == 200
+    status, approved = _req(base, "POST", f"/api/goals/{goal['id']}/approve", {
+        "expected_revision": 1,
+    })
+    assert status == 200
+
+    status, listing = _req(base, "GET", "/api/roadmap")
+    assert status == 200
+    assert listing["phases"][0]["derived_status"] == "PLANNED"
+    assert listing["phases"][0]["goals"][0]["status"] == "APPROVED"
+
+    status, _ = _req(base, "POST", f"/api/roadmap/{phase['id']}/detach", {
+        "goal_id": goal["id"],
+    })
+    assert status == 200
+    status, detached = _req(base, "GET", "/api/roadmap")
+    assert detached["phases"][0]["goals"] == []
+
+    status, _ = _req(base, "POST", f"/api/roadmap/{phase['id']}/attach", {})
+    assert status == 400
+
+
+def test_agent_runs_listing_and_detail_over_http(task_server) -> None:
+    base, _ = task_server
+    status, goal = _req(base, "POST", "/api/goals", {
+        "objective": "runs goal",
+        "idempotency_key": "runs-http-1",
+        "executor_kind": "deterministic_fixture",
+        "orchestration_mode": "single",
+    })
+    assert status == 201
+    status, launched_plan = _req(base, "POST", f"/api/goals/{goal['id']}/plan", {
+        "expected_revision": 1,
+        "tasks": [{"id": "T001", "title": "step", "instruction": "run"}],
+    })
+    assert status == 200
+    status, approved = _req(base, "POST", f"/api/goals/{goal['id']}/approve", {
+        "expected_revision": 1,
+    })
+    assert status == 200
+
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    status, window = _req(base, "POST", "/api/windows/activate", {
+        "policy_id": "runs-window-1", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=1)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 5, "max_retries": 0,
+        "confirmation": "ACTIVATE",
+    })
+    assert status == 201
+    status, launched = _req(base, "POST", f"/api/goals/{goal['id']}/launch", {
+        "expected_revision": 1, "window_id": window["id"],
+    })
+    assert status == 200
+    task_id = launched["task_links"][0]["task_id"]
+
+    status, runs = _req(base, "GET", "/api/runs")
+    assert status == 200
+    assert runs["total"] == 1
+    run = runs["runs"][0]
+    assert run["task_id"] == task_id
+    assert run["goal_id"] == goal["id"]
+    assert run["state"] in {"WAITING_FOR_OWNER", "RUNNING"}
+
+    status, detail = _req(base, "GET", f"/api/runs/{task_id}")
+    assert status == 200
+    assert detail["task_id"] == task_id
+    assert detail["events"][0]["type"] == "DISCOVERED"
+
+    status, missing = _req(base, "GET", "/api/runs/task-missing")
+    assert status == 404
+
+
+def test_new_read_model_routes_fail_closed_on_unknown_paths(task_server) -> None:
+    base, _ = task_server
+    status, _ = _req(base, "GET", "/api/inbox/extra/segments")
+    assert status == 404
+    status, _ = _req(base, "POST", "/api/inbox/x/unknown", {})
+    assert status == 404
+    status, _ = _req(base, "GET", "/api/roadmap/phase-x")
+    assert status == 404
