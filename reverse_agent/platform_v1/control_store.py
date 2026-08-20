@@ -783,13 +783,14 @@ class PlatformControlStore:
             ).fetchone()["c"]
             if int(active_count) >= int(window["max_concurrent_tasks"]):
                 raise TaskStoreError("window_wip_limit_reached")
-            if int(window["tasks_started"]) >= int(window["max_tasks"]):
-                raise TaskStoreError("window_task_budget_exhausted")
             task = cur.execute("SELECT status FROM tasks WHERE id = ?", (task_id,)).fetchone()
             if task is None or task["status"] not in {"QUEUED", "INTERRUPTED"}:
                 raise TaskStoreError("task_not_claimable")
-            if task["status"] == "INTERRUPTED" and int(window["retries_used"]) >= int(window["max_retries"]):
-                raise TaskStoreError("window_retry_budget_exhausted")
+            if task["status"] == "INTERRUPTED":
+                if int(window["retries_used"]) >= int(window["max_retries"]):
+                    raise TaskStoreError("window_retry_budget_exhausted")
+            elif int(window["tasks_started"]) >= int(window["max_tasks"]):
+                raise TaskStoreError("window_task_budget_exhausted")
             existing = cur.execute(
                 "SELECT * FROM platform_coordinator_claims WHERE task_id = ?", (task_id,)
             ).fetchone()
@@ -861,8 +862,8 @@ class PlatformControlStore:
                 )
             if task["status"] == "INTERRUPTED":
                 cur.execute(
-                    "UPDATE platform_autonomous_windows SET tasks_started = tasks_started + 1, "
-                    "retries_used = retries_used + 1, updated_at = ? WHERE id = ?",
+                    "UPDATE platform_autonomous_windows SET retries_used = retries_used + 1, "
+                    "updated_at = ? WHERE id = ?",
                     (_utc_now(), window_id),
                 )
             else:
