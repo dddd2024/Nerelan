@@ -804,6 +804,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
             "validation_exit_code": task.validation_exit_code,
             "validation_output_digest": task.validation_output_digest,
             "idempotency_key": task.idempotency_key,
+            "usage": self.store.usage_summary(task.id),
             "changed_files": list(changed),
             "evidence": list(evidence),
             "events": self._events_response(events),

@@ -165,6 +165,31 @@ class TaskEvent:
     metadata: Mapping[str, Any]
 
 
+@dataclass(frozen=True)
+class UsageObservation:
+    """Sanitized numeric model-usage fact; never contains a raw executor event."""
+
+    id: str
+    task_id: str
+    window_id: str
+    claim_epoch: int
+    execution_id: str
+    role: str
+    model_id: str
+    provider_id: str
+    source_kind: str
+    source_id: str
+    status: str
+    input_units: int | None
+    output_units: int | None
+    reasoning_units: int | None
+    cache_read_units: int | None
+    cache_write_units: int | None
+    cost_micro_units: int | None
+    payload_digest: str
+    created_at: str
+
+
 # ---------------------------------------------------------------------------
 # Store
 # ---------------------------------------------------------------------------
@@ -310,6 +335,31 @@ class TaskStore:
                 raw_json_digest TEXT NOT NULL,
                 seq INTEGER PRIMARY KEY AUTOINCREMENT
             );
+            CREATE TABLE IF NOT EXISTS task_usage_observations (
+                id TEXT PRIMARY KEY,
+                task_id TEXT NOT NULL REFERENCES tasks(id),
+                window_id TEXT NOT NULL DEFAULT '',
+                claim_epoch INTEGER NOT NULL DEFAULT 0,
+                execution_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                model_id TEXT NOT NULL,
+                provider_id TEXT NOT NULL,
+                source_kind TEXT NOT NULL,
+                source_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                input_units INTEGER,
+                output_units INTEGER,
+                reasoning_units INTEGER,
+                cache_read_units INTEGER,
+                cache_write_units INTEGER,
+                cost_micro_units INTEGER,
+                payload_digest TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_task_usage_task
+                ON task_usage_observations(task_id, created_at, id);
+            CREATE INDEX IF NOT EXISTS idx_task_usage_window
+                ON task_usage_observations(window_id, task_id, claim_epoch);
             CREATE TABLE IF NOT EXISTS durable_runs (
                 run_id TEXT PRIMARY KEY,
                 task_id TEXT NOT NULL REFERENCES tasks(id),
@@ -837,6 +887,204 @@ class TaskStore:
             )
             self._update_task_fields(task_id, {"updated_at": _utc_now()})
             return self.get_task(task_id)
+
+    # ------------------------------------------------------------------
+    # Sanitized model usage observations
+    # ------------------------------------------------------------------
+
+    def append_usage_observation(
+        self,
+        task_id: str,
+        *,
+        observation_id: str,
+        execution_id: str,
+        role: str,
+        model_id: str,
+        provider_id: str,
+        source_kind: str,
+        source_id: str,
+        status: str,
+        input_units: int | None = None,
+        output_units: int | None = None,
+        reasoning_units: int | None = None,
+        cache_read_units: int | None = None,
+        cache_write_units: int | None = None,
+        cost_micro_units: int | None = None,
+    ) -> UsageObservation:
+        """Append one numeric usage fact with replay-safe identity.
+
+        Only the explicit scalar fields above can enter SQLite. The caller has
+        no raw-event parameter, which keeps prompts, responses, tool payloads,
+        headers and adjacent secret sentinels outside the persistence surface.
+        """
+
+        import hashlib
+        import re
+
+        labels = {
+            "observation_id": observation_id,
+            "execution_id": execution_id,
+            "role": role,
+            "model_id": model_id,
+            "provider_id": provider_id,
+            "source_kind": source_kind,
+            "source_id": source_id,
+        }
+        safe_label = re.compile(r"^[A-Za-z0-9._:/@-]*$")
+        for name, value in labels.items():
+            if not isinstance(value, str) or len(value) > 256:
+                raise TaskStoreError(f"invalid_usage_label:{name}")
+            if name not in {"provider_id"} and not value:
+                raise TaskStoreError(f"invalid_usage_label:{name}")
+            if not safe_label.fullmatch(value) or "://" in value:
+                raise TaskStoreError(f"invalid_usage_label:{name}")
+        if status not in {"OBSERVED", "UNKNOWN"}:
+            raise TaskStoreError("invalid_usage_status")
+        metrics = {
+            "input_units": input_units,
+            "output_units": output_units,
+            "reasoning_units": reasoning_units,
+            "cache_read_units": cache_read_units,
+            "cache_write_units": cache_write_units,
+            "cost_micro_units": cost_micro_units,
+        }
+        if status == "OBSERVED":
+            for name, value in metrics.items():
+                if type(value) is not int or value < 0:
+                    raise TaskStoreError(f"invalid_usage_metric:{name}")
+        elif any(value is not None for value in metrics.values()):
+            raise TaskStoreError("unknown_usage_must_not_carry_numeric_zero")
+
+        digest_payload = {**labels, "status": status, **metrics}
+        payload_digest = hashlib.sha256(
+            json_dumps_stable(digest_payload).encode("utf-8")
+        ).hexdigest()
+        now = _utc_now()
+        with self._lock:
+            task = self._conn.execute(
+                "SELECT id FROM tasks WHERE id = ?", (task_id,)
+            ).fetchone()
+            if task is None:
+                raise TaskStoreError(f"task_not_found:{task_id}")
+            window_id = ""
+            claim_epoch = 0
+            claims_table = self._conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                "AND name = 'platform_coordinator_claims'"
+            ).fetchone()
+            if claims_table is not None:
+                claim = self._conn.execute(
+                    "SELECT window_id, epoch FROM platform_coordinator_claims "
+                    "WHERE task_id = ? AND status = 'ACTIVE'",
+                    (task_id,),
+                ).fetchone()
+                if claim is not None:
+                    window_id = str(claim["window_id"])
+                    claim_epoch = int(claim["epoch"])
+            try:
+                self._conn.execute(
+                    "INSERT INTO task_usage_observations "
+                    "(id, task_id, window_id, claim_epoch, execution_id, role, model_id, "
+                    "provider_id, source_kind, source_id, status, input_units, output_units, "
+                    "reasoning_units, cache_read_units, cache_write_units, cost_micro_units, "
+                    "payload_digest, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        observation_id, task_id, window_id, claim_epoch,
+                        execution_id, role, model_id, provider_id, source_kind,
+                        source_id, status, input_units, output_units,
+                        reasoning_units, cache_read_units, cache_write_units,
+                        cost_micro_units, payload_digest, now,
+                    ),
+                )
+            except sqlite3.IntegrityError as exc:
+                existing = self._conn.execute(
+                    "SELECT * FROM task_usage_observations WHERE id = ?",
+                    (observation_id,),
+                ).fetchone()
+                if existing is None or existing["payload_digest"] != payload_digest:
+                    raise TaskStoreError(
+                        f"usage_observation_identity_collision:{observation_id}"
+                    ) from exc
+                return self._row_to_usage_observation(existing)
+            row = self._conn.execute(
+                "SELECT * FROM task_usage_observations WHERE id = ?",
+                (observation_id,),
+            ).fetchone()
+            return self._row_to_usage_observation(row)
+
+    def list_usage_observations(self, task_id: str) -> tuple[UsageObservation, ...]:
+        with self._lock:
+            if self._conn.execute(
+                "SELECT 1 FROM tasks WHERE id = ?", (task_id,)
+            ).fetchone() is None:
+                raise TaskStoreError(f"task_not_found:{task_id}")
+            rows = self._conn.execute(
+                "SELECT * FROM task_usage_observations WHERE task_id = ? "
+                "ORDER BY created_at ASC, id ASC",
+                (task_id,),
+            ).fetchall()
+            return tuple(self._row_to_usage_observation(row) for row in rows)
+
+    def usage_summary(self, task_id: str) -> dict[str, Any]:
+        observations = self.list_usage_observations(task_id)
+        totals = {
+            "input_units": 0,
+            "output_units": 0,
+            "reasoning_units": 0,
+            "cache_read_units": 0,
+            "cache_write_units": 0,
+            "cost_micro_units": 0,
+        }
+        roles: dict[str, dict[str, Any]] = {}
+        unknown = 0
+        for observation in observations:
+            role_totals = roles.setdefault(
+                observation.role,
+                {
+                    "role": observation.role,
+                    **{key: 0 for key in totals},
+                    "observation_count": 0,
+                    "unknown_observation_count": 0,
+                    "provenance_ids": [],
+                },
+            )
+            role_totals["observation_count"] += 1
+            role_totals["provenance_ids"].append(observation.id)
+            if observation.status == "UNKNOWN":
+                unknown += 1
+                role_totals["unknown_observation_count"] += 1
+                continue
+            for key in totals:
+                value = int(getattr(observation, key) or 0)
+                totals[key] += value
+                role_totals[key] += value
+        return {
+            "status": "USAGE_UNKNOWN" if unknown or not observations else "OBSERVED",
+            **totals,
+            "total_token_units": sum(
+                totals[key] for key in (
+                    "input_units", "output_units", "reasoning_units",
+                    "cache_read_units", "cache_write_units",
+                )
+            ),
+            "observation_count": len(observations),
+            "unknown_observation_count": unknown,
+            "provenance_ids": [observation.id for observation in observations],
+            "per_role": [roles[key] for key in sorted(roles)],
+        }
+
+    @staticmethod
+    def _row_to_usage_observation(row: Any) -> UsageObservation:
+        return UsageObservation(
+            id=row["id"], task_id=row["task_id"], window_id=row["window_id"],
+            claim_epoch=int(row["claim_epoch"]), execution_id=row["execution_id"],
+            role=row["role"], model_id=row["model_id"], provider_id=row["provider_id"],
+            source_kind=row["source_kind"], source_id=row["source_id"], status=row["status"],
+            input_units=row["input_units"], output_units=row["output_units"],
+            reasoning_units=row["reasoning_units"], cache_read_units=row["cache_read_units"],
+            cache_write_units=row["cache_write_units"], cost_micro_units=row["cost_micro_units"],
+            payload_digest=row["payload_digest"], created_at=row["created_at"],
+        )
 
     def set_validation_result(
         self,

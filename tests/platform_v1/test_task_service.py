@@ -69,6 +69,7 @@ def test_create_and_read_task(task_server) -> None:
     assert status == 200
     assert got["id"] == tid
     assert got["events"][0]["type"] == "DISCOVERED"
+    assert got["usage"]["status"] == "USAGE_UNKNOWN"
 
 
 def test_platform_status_capabilities_and_goal_window_flow(task_server) -> None:
@@ -112,6 +113,7 @@ def test_platform_status_capabilities_and_goal_window_flow(task_server) -> None:
         "confirmation": "ACTIVATE",
     })
     assert status == 201
+    assert window["enforcement_class"] == "POST_RUN_OBSERVED"
     status, launched = _req(base, "POST", f"/api/goals/{goal_id}/launch", {
         "expected_revision": 1, "window_id": window["id"],
     })
@@ -123,6 +125,41 @@ def test_platform_status_capabilities_and_goal_window_flow(task_server) -> None:
     status, summary = _req(base, "GET", f"/api/windows/{window['id']}/summary")
     assert status == 200
     assert summary["budget"]["tasks_remaining"] == 2
+
+
+def test_runs_api_returns_sanitized_numeric_usage_without_raw_event_fields(task_server) -> None:
+    base, server = task_server
+    status, task = _req(base, "POST", "/api/tasks", {
+        "title": "usage api", "executor_kind": "deterministic_fixture",
+    })
+    assert status == 201
+    store = server.RequestHandlerClass.store
+    store.append_usage_observation(
+        task["id"],
+        observation_id="usage-api-visible",
+        execution_id="exec-api",
+        role="reviewer",
+        model_id="provider/model",
+        provider_id="provider",
+        source_kind="step_finish",
+        source_id="msg-api:part-api",
+        status="OBSERVED",
+        input_units=11,
+        output_units=3,
+        reasoning_units=2,
+        cache_read_units=5,
+        cache_write_units=1,
+        cost_micro_units=4321,
+    )
+    status, payload = _req(base, "GET", "/api/runs")
+    assert status == 200
+    run = next(item for item in payload["runs"] if item["task_id"] == task["id"])
+    assert run["usage"]["total_token_units"] == 22
+    assert run["usage"]["cost_micro_units"] == 4321
+    assert run["usage"]["per_role"][0]["role"] == "reviewer"
+    serialized = json.dumps(payload).lower()
+    for forbidden in ("prompt", "response", "authorization", "raw_event", "tool_payload"):
+        assert forbidden not in serialized
 
 
 def test_task_api_round_trips_explicit_binding_ref(task_server) -> None:

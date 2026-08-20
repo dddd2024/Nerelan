@@ -93,12 +93,14 @@ class AutonomyService:
         allowed = sum(1 for receipt in receipts if receipt.decision == "allowed")
         denied = sum(1 for receipt in receipts if receipt.decision == "denied")
         goals = self.control_store.list_window_goals(window_id)
+        usage_budget = self.control_store.window_budget_summary(window_id)
         return {
             "window": window_to_dict(window),
             "budget": {
                 "tasks_remaining": max(0, window.max_tasks - window.tasks_started),
                 "retries_remaining": max(0, window.max_retries - window.retries_used),
                 "wip_limit": window.max_concurrent_tasks,
+                **usage_budget,
             },
             "operations": {"allowed": allowed, "denied": denied, "total": len(receipts)},
             "goals": [
@@ -148,6 +150,30 @@ class AutonomyService:
         unavailable = [operation for operation in capabilities if not self.capabilities.supports_operation(operation)]
         if unavailable:
             raise TaskStoreError(f"unavailable_autonomy_capability:{','.join(unavailable)}")
+        max_token_units = self._optional_budget_int(payload, "max_token_units")
+        max_cost_micro_units = self._optional_budget_int(payload, "max_cost_micro_units")
+        per_task_token_reservation = self._optional_budget_int(
+            payload, "per_task_token_reservation"
+        )
+        per_task_cost_reservation = self._optional_budget_int(
+            payload, "per_task_cost_reservation"
+        )
+        for limit, reservation, name in (
+            (max_token_units, per_task_token_reservation, "token"),
+            (max_cost_micro_units, per_task_cost_reservation, "cost"),
+        ):
+            if bool(limit) != bool(reservation) or (limit and reservation > limit):
+                raise TaskStoreError(f"invalid_autonomy_budget_pair:{name}")
+        provider_quota_state = str(
+            payload.get("provider_quota_state", "NOT_CONFIGURED")
+        ).strip().upper()
+        if provider_quota_state not in {"NOT_CONFIGURED", "OBSERVED", "UNKNOWN"}:
+            raise TaskStoreError("invalid_provider_quota_state")
+        enforcement_class = (
+            "HARD_ADMISSION_ENFORCED"
+            if max_token_units or max_cost_micro_units
+            else "POST_RUN_OBSERVED"
+        )
         return {
             "window_id": str(payload.get("window_id", "")).strip(),
             "policy_id": policy_id,
@@ -160,6 +186,12 @@ class AutonomyService:
             "max_concurrent_tasks": self._bounded_int(payload, "max_concurrent_tasks", 1, 8),
             "max_tasks": self._bounded_int(payload, "max_tasks", 1, 100),
             "max_retries": self._bounded_int(payload, "max_retries", 0, 5),
+            "max_token_units": max_token_units,
+            "max_cost_micro_units": max_cost_micro_units,
+            "per_task_token_reservation": per_task_token_reservation,
+            "per_task_cost_reservation": per_task_cost_reservation,
+            "provider_quota_state": provider_quota_state,
+            "enforcement_class": enforcement_class,
         }
 
     @staticmethod
@@ -187,3 +219,12 @@ class AutonomyService:
         if value < minimum or value > maximum:
             raise TaskStoreError(f"invalid_autonomy_limit:{key}")
         return value
+
+    @staticmethod
+    def _optional_budget_int(payload: Mapping[str, Any], key: str) -> int:
+        raw = payload.get(key, 0)
+        if raw is None:
+            return 0
+        if type(raw) is not int or raw < 0 or raw > 10**15:
+            raise TaskStoreError(f"invalid_autonomy_budget:{key}")
+        return raw

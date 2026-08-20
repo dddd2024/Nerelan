@@ -26,6 +26,8 @@ from reverse_agent.platform_v1.opencode_executor import (
     redact_event,
     redact_secrets,
     resolve_opencode_cli,
+    _extract_usage_observations,
+    _persist_usage_observations,
     _write_prompt_file,
 )
 from reverse_agent.platform_v1.run_store import TaskStore
@@ -34,6 +36,97 @@ from reverse_agent.platform_v1.task_runtime import (
     ExecutorRouter,
     ExecutorResult,
 )
+
+
+def test_usage_extraction_is_numeric_idempotent_and_secret_confined() -> None:
+    sentinel = "SECRET-SENTINEL-NEVER-PERSIST"
+    exported = {
+        "message": {
+            "role": "assistant",
+            "id": "msg_usage_1",
+            "modelID": sentinel,
+            "providerID": sentinel,
+            "cost": 0.1234567,
+            "tokens": {
+                "input": 101,
+                "output": 23,
+                "reasoning": 7,
+                "cache": {"read": 50, "write": 3},
+            },
+            "prompt": sentinel,
+            "headers": {"authorization": sentinel},
+        },
+        "parts": [{
+            "type": "step-finish",
+            "id": "prt_usage_1",
+            "messageID": "msg_usage_1",
+            "cost": 0.1234567,
+            "tokens": {
+                "input": 101, "output": 23, "reasoning": 7,
+                "cache": {"read": 50, "write": 3},
+            },
+        }],
+        "tool_payload": sentinel,
+    }
+    stdout = json.dumps(exported) + "\n" + json.dumps(exported)
+    observations = _extract_usage_observations(
+        stdout,
+        task_id="task-usage-1",
+        execution_id="exec-usage-1",
+        role="coder",
+        fallback_model_id="openai/gpt-5.6",
+    )
+    assert len(observations) == 1
+    assert observations[0]["status"] == "OBSERVED"
+    assert observations[0]["model_id"] == "openai/gpt-5.6"
+    assert observations[0]["provider_id"] == "openai"
+    assert observations[0]["cost_micro_units"] == 123457
+    assert observations[0]["cache_read_units"] == 50
+    assert sentinel not in json.dumps(observations)
+
+    store = TaskStore(":memory:")
+    task = store.create_task(title="usage", executor_kind="opencode")
+    _persist_usage_observations(store, task.id, observations)
+    _persist_usage_observations(store, task.id, observations)
+    summary = store.usage_summary(task.id)
+    assert summary["observation_count"] == 1
+    assert summary["total_token_units"] == 184
+    assert summary["cost_micro_units"] == 123457
+    rows = [
+        dict(row)
+        for row in store._conn.execute("SELECT * FROM task_usage_observations")
+    ]
+    assert sentinel not in json.dumps(rows)
+
+
+@pytest.mark.parametrize(
+    "tokens,cost",
+    [
+        ({"input": True, "output": 1, "reasoning": 0, "cache": {"read": 0, "write": 0}}, 0),
+        ({"input": -1, "output": 1, "reasoning": 0, "cache": {"read": 0, "write": 0}}, 0),
+        ({"input": 1, "output": 1, "reasoning": 0, "cache": {"read": 0}}, 0),
+        ({"input": 1, "output": 1, "reasoning": 0, "cache": {"read": 0, "write": 0}}, "0.1"),
+    ],
+)
+def test_usage_extraction_marks_ambiguous_values_unknown(tokens, cost) -> None:
+    event = {
+        "type": "step-finish",
+        "id": "prt_bad_usage",
+        "messageID": "msg_bad_usage",
+        "tokens": tokens,
+        "cost": cost,
+        "token": "SECRET-SENTINEL",
+    }
+    observations = _extract_usage_observations(
+        json.dumps(event),
+        task_id="task-bad-usage",
+        execution_id="exec-bad-usage",
+        role="executor",
+        fallback_model_id="provider/model",
+    )
+    assert observations[0]["status"] == "UNKNOWN"
+    assert observations[0]["input_units"] is None
+    assert "SECRET-SENTINEL" not in json.dumps(observations)
 
 
 # ---------------------------------------------------------------------------

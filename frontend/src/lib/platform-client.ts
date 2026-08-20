@@ -38,6 +38,66 @@ export interface PlatformWindow {
   max_tasks: number;
   tasks_started: number;
   tasks_completed: number;
+  max_token_units: number;
+  max_cost_micro_units: number;
+  per_task_token_reservation: number;
+  per_task_cost_reservation: number;
+  provider_quota_state: "NOT_CONFIGURED" | "OBSERVED" | "UNKNOWN";
+  enforcement_class: UsageEnforcementClass;
+  observed_token_units: number;
+  observed_cost_micro_units: number;
+  unknown_observation_count: number;
+}
+
+export type UsageEnforcementClass =
+  | "HARD_ADMISSION_ENFORCED"
+  | "POST_RUN_OBSERVED"
+  | "USAGE_UNKNOWN";
+
+export interface PlatformUsageRole {
+  role: string;
+  input_units: number;
+  output_units: number;
+  reasoning_units: number;
+  cache_read_units: number;
+  cache_write_units: number;
+  cost_micro_units: number;
+  observation_count: number;
+  unknown_observation_count: number;
+  provenance_ids: string[];
+}
+
+export interface PlatformUsageSummary {
+  status: "OBSERVED" | "USAGE_UNKNOWN";
+  input_units: number;
+  output_units: number;
+  reasoning_units: number;
+  cache_read_units: number;
+  cache_write_units: number;
+  cost_micro_units: number;
+  total_token_units: number;
+  observation_count: number;
+  unknown_observation_count: number;
+  provenance_ids: string[];
+  per_role: PlatformUsageRole[];
+}
+
+export interface PlatformBudgetSummary {
+  enforcement_class: UsageEnforcementClass;
+  provider_quota_state: "NOT_CONFIGURED" | "OBSERVED" | "UNKNOWN";
+  max_token_units: number | null;
+  max_cost_micro_units: number | null;
+  per_task_token_reservation: number | null;
+  per_task_cost_reservation: number | null;
+  reserved_token_units: number;
+  reserved_cost_micro_units: number;
+  observed_token_units: number;
+  observed_cost_micro_units: number;
+  remaining_token_units: number | null;
+  remaining_cost_micro_units: number | null;
+  unknown_observation_count: number;
+  active_reservation_count: number;
+  stop_reason: string;
 }
 
 export interface PlatformStatus {
@@ -108,6 +168,9 @@ export interface PlatformAgentRun {
   failure_classification: string;
   goal_id: string;
   goal_title: string;
+  window_id: string;
+  usage: PlatformUsageSummary;
+  budget: PlatformBudgetSummary | null;
   publication: {
     status: string;
     branch: string;
@@ -166,6 +229,15 @@ const mockWindow: PlatformWindow = {
   max_tasks: 12,
   tasks_started: 2,
   tasks_completed: 1,
+  max_token_units: 240000,
+  max_cost_micro_units: 4000000,
+  per_task_token_reservation: 80000,
+  per_task_cost_reservation: 1200000,
+  provider_quota_state: "OBSERVED",
+  enforcement_class: "HARD_ADMISSION_ENFORCED",
+  observed_token_units: 68420,
+  observed_cost_micro_units: 812340,
+  unknown_observation_count: 0,
 };
 
 let mockInboxItems: PlatformInboxItem[] = [
@@ -207,6 +279,36 @@ const mockRoadmapPhases: PlatformRoadmapPhase[] = [
   },
 ];
 
+const mockHardBudget: PlatformBudgetSummary = {
+  enforcement_class: "HARD_ADMISSION_ENFORCED",
+  provider_quota_state: "OBSERVED",
+  max_token_units: 240000,
+  max_cost_micro_units: 4000000,
+  per_task_token_reservation: 80000,
+  per_task_cost_reservation: 1200000,
+  reserved_token_units: 80000,
+  reserved_cost_micro_units: 1200000,
+  observed_token_units: 68420,
+  observed_cost_micro_units: 812340,
+  remaining_token_units: 91580,
+  remaining_cost_micro_units: 1987660,
+  unknown_observation_count: 0,
+  active_reservation_count: 1,
+  stop_reason: "usage_reservation_overrun",
+};
+
+const mockUnknownBudget: PlatformBudgetSummary = {
+  ...mockHardBudget,
+  enforcement_class: "USAGE_UNKNOWN",
+  reserved_token_units: 0,
+  reserved_cost_micro_units: 0,
+  remaining_token_units: 171580,
+  remaining_cost_micro_units: 3187660,
+  unknown_observation_count: 1,
+  active_reservation_count: 0,
+  stop_reason: "usage_unknown",
+};
+
 const mockRuns: PlatformAgentRun[] = [
   {
     task_id: "task-demo-1",
@@ -221,6 +323,36 @@ const mockRuns: PlatformAgentRun[] = [
     failure_classification: "",
     goal_id: "goal-demo-platform",
     goal_title: "完善无人值守多 Agent 平台",
+    window_id: "window-demo",
+    usage: {
+      status: "OBSERVED",
+      input_units: 42000,
+      output_units: 5420,
+      reasoning_units: 3000,
+      cache_read_units: 18000,
+      cache_write_units: 0,
+      cost_micro_units: 812340,
+      total_token_units: 68420,
+      observation_count: 3,
+      unknown_observation_count: 0,
+      provenance_ids: ["usage-planner", "usage-coder", "usage-reviewer"],
+      per_role: [
+        {
+          role: "planner", input_units: 12000, output_units: 1020,
+          reasoning_units: 800, cache_read_units: 4000, cache_write_units: 0,
+          cost_micro_units: 182340, observation_count: 1,
+          unknown_observation_count: 0, provenance_ids: ["usage-planner"],
+        },
+        {
+          role: "coder", input_units: 30000, output_units: 4400,
+          reasoning_units: 2200, cache_read_units: 14000, cache_write_units: 0,
+          cost_micro_units: 630000, observation_count: 2,
+          unknown_observation_count: 0,
+          provenance_ids: ["usage-coder", "usage-reviewer"],
+        },
+      ],
+    },
+    budget: mockHardBudget,
     publication: {
       status: "COMPLETE",
       branch: "codex/goal-demo-platform",
@@ -242,6 +374,27 @@ const mockRuns: PlatformAgentRun[] = [
     failure_classification: "",
     goal_id: "goal-demo-platform",
     goal_title: "完善无人值守多 Agent 平台",
+    window_id: "window-demo",
+    usage: {
+      status: "USAGE_UNKNOWN",
+      input_units: 0,
+      output_units: 0,
+      reasoning_units: 0,
+      cache_read_units: 0,
+      cache_write_units: 0,
+      cost_micro_units: 0,
+      total_token_units: 0,
+      observation_count: 1,
+      unknown_observation_count: 1,
+      provenance_ids: ["usage-unknown"],
+      per_role: [{
+        role: "coder", input_units: 0, output_units: 0, reasoning_units: 0,
+        cache_read_units: 0, cache_write_units: 0, cost_micro_units: 0,
+        observation_count: 1, unknown_observation_count: 1,
+        provenance_ids: ["usage-unknown"],
+      }],
+    },
+    budget: mockUnknownBudget,
     publication: null,
   },
 ];

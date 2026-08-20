@@ -32,6 +32,7 @@ import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -1263,6 +1264,14 @@ class OpenCodeExecutor:
         stdout = proc.stdout or ""
         stderr = proc.stderr or ""
 
+        usage_observations = _extract_usage_observations(
+            stdout,
+            task_id=task_id,
+            execution_id=execution_id,
+            role=role_context.role,
+            fallback_model_id=model_for_cli,
+        )
+        _persist_usage_observations(store, task_id, usage_observations)
         events_raw, _json_error = self._parse_json_lines(stdout)
         executor_evidence = _build_executor_evidence(
             events_raw,
@@ -1880,6 +1889,238 @@ def _collect_final_product_files(worktree: Path) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 # JSON-line parsing with recursive redaction
 # ---------------------------------------------------------------------------
+
+_USAGE_LABEL_RE = re.compile(r"^[A-Za-z0-9._:/@-]{1,256}$")
+
+
+def _extract_usage_observations(
+    text: str,
+    *,
+    task_id: str,
+    execution_id: str,
+    role: str,
+    fallback_model_id: str,
+) -> list[dict[str, Any]]:
+    """Extract only documented numeric usage before evidence redaction.
+
+    The returned shape is deliberately closed: raw events and every
+    unrecognized sibling field are discarded. Assistant-message totals take
+    precedence over step-finish rows for the same message so an exported
+    message and its parts cannot double-charge.
+    """
+
+    candidates: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            event = json.loads(stripped)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            continue
+        if not isinstance(event, dict):
+            continue
+        message = event.get("message")
+        if isinstance(message, Mapping) and message.get("role") == "assistant":
+            candidates.append(
+                _usage_candidate(
+                    message,
+                    source_kind="assistant_message",
+                    fallback_model_id=fallback_model_id,
+                )
+            )
+            continue
+        if event.get("role") == "assistant" and (
+            "tokens" in event or "cost" in event
+        ):
+            candidates.append(
+                _usage_candidate(
+                    event,
+                    source_kind="assistant_message",
+                    fallback_model_id=fallback_model_id,
+                )
+            )
+            continue
+        part = event.get("part")
+        if isinstance(part, Mapping) and str(part.get("type", "")).replace("_", "-") == "step-finish":
+            candidates.append(
+                _usage_candidate(
+                    part,
+                    source_kind="step_finish",
+                    fallback_model_id=fallback_model_id,
+                )
+            )
+            continue
+        if str(event.get("type", "")).replace("_", "-") == "step-finish":
+            candidates.append(
+                _usage_candidate(
+                    event,
+                    source_kind="step_finish",
+                    fallback_model_id=fallback_model_id,
+                )
+            )
+
+    assistant_messages = {
+        candidate["message_identity"]
+        for candidate in candidates
+        if candidate["source_kind"] == "assistant_message"
+    }
+    observations: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        if (
+            candidate["source_kind"] == "step_finish"
+            and candidate["message_identity"] in assistant_messages
+        ):
+            continue
+        identity_material = "|".join(
+            (
+                task_id,
+                execution_id,
+                role,
+                candidate["source_kind"],
+                candidate["source_id"],
+            )
+        )
+        observation_id = "usage-" + hashlib.sha256(
+            identity_material.encode("utf-8")
+        ).hexdigest()
+        if observation_id in seen:
+            continue
+        seen.add(observation_id)
+        observations.append(
+            {
+                "observation_id": observation_id,
+                "execution_id": execution_id,
+                "role": _safe_usage_label(role, "executor"),
+                "model_id": candidate["model_id"],
+                "provider_id": candidate["provider_id"],
+                "source_kind": candidate["source_kind"],
+                "source_id": candidate["source_id"],
+                "status": candidate["status"],
+                "input_units": candidate.get("input_units"),
+                "output_units": candidate.get("output_units"),
+                "reasoning_units": candidate.get("reasoning_units"),
+                "cache_read_units": candidate.get("cache_read_units"),
+                "cache_write_units": candidate.get("cache_write_units"),
+                "cost_micro_units": candidate.get("cost_micro_units"),
+            }
+        )
+    return observations
+
+
+def _usage_candidate(
+    value: Mapping[str, Any],
+    *,
+    source_kind: str,
+    fallback_model_id: str,
+) -> dict[str, Any]:
+    fallback_provider = fallback_model_id.split("/", 1)[0] if "/" in fallback_model_id else ""
+    # Model provenance comes from the already validated executor binding, not
+    # from child-controlled output fields that could masquerade as an ID.
+    model_id = _safe_usage_label(fallback_model_id, "unknown")
+    provider_id = _safe_usage_label(
+        fallback_provider, "", allow_empty=True
+    )
+    message_raw = value.get("messageID", value.get("message_id", value.get("id", "")))
+    message_identity = _hashed_usage_identity(message_raw, "msg")
+    part_raw = value.get("id", value.get("partID", value.get("part_id", "")))
+    part_identity = _hashed_usage_identity(part_raw, "part")
+    numeric_public = {
+        "source_kind": source_kind,
+        "model_id": model_id,
+        "provider_id": provider_id,
+        "tokens": value.get("tokens") if isinstance(value.get("tokens"), Mapping) else None,
+        "cost": value.get("cost"),
+    }
+    derived = hashlib.sha256(
+        json.dumps(
+            numeric_public, ensure_ascii=True, sort_keys=True, separators=(",", ":"),
+            default=str,
+        ).encode("utf-8")
+    ).hexdigest()
+    if not message_identity:
+        message_identity = f"derived-{derived}"
+    if source_kind == "assistant_message":
+        source_id = message_identity
+    else:
+        if not part_identity:
+            part_identity = f"derived-{derived}"
+        source_id = f"{message_identity}:{part_identity}"
+    metrics = _normalize_usage_metrics(value.get("tokens"), value.get("cost"))
+    return {
+        "source_kind": source_kind,
+        "source_id": source_id,
+        "message_identity": message_identity,
+        "model_id": model_id,
+        "provider_id": provider_id,
+        **metrics,
+    }
+
+
+def _normalize_usage_metrics(tokens: Any, cost: Any) -> dict[str, Any]:
+    unknown = {"status": "UNKNOWN"}
+    if not isinstance(tokens, Mapping):
+        return unknown
+    cache = tokens.get("cache")
+    if not isinstance(cache, Mapping):
+        return unknown
+    raw_metrics = {
+        "input_units": tokens.get("input"),
+        "output_units": tokens.get("output"),
+        "reasoning_units": tokens.get("reasoning"),
+        "cache_read_units": cache.get("read"),
+        "cache_write_units": cache.get("write"),
+    }
+    if any(type(value) is not int or value < 0 for value in raw_metrics.values()):
+        return unknown
+    if isinstance(cost, bool) or not isinstance(cost, (int, float)):
+        return unknown
+    try:
+        decimal_cost = Decimal(str(cost))
+    except (InvalidOperation, ValueError):
+        return unknown
+    if not decimal_cost.is_finite() or decimal_cost < 0:
+        return unknown
+    cost_micro_units = int(
+        (decimal_cost * Decimal("1000000")).quantize(
+            Decimal("1"), rounding=ROUND_HALF_UP
+        )
+    )
+    return {"status": "OBSERVED", **raw_metrics, "cost_micro_units": cost_micro_units}
+
+
+def _safe_usage_label(value: Any, fallback: str, *, allow_empty: bool = False) -> str:
+    candidate = value if isinstance(value, str) else ""
+    if (
+        candidate
+        and _USAGE_LABEL_RE.fullmatch(candidate)
+        and "://" not in candidate
+    ):
+        return candidate
+    if fallback and _USAGE_LABEL_RE.fullmatch(fallback) and "://" not in fallback:
+        return fallback
+    return "" if allow_empty else "unknown"
+
+
+def _hashed_usage_identity(value: Any, prefix: str) -> str:
+    """Return deterministic provenance without persisting child-supplied IDs."""
+
+    if not isinstance(value, str) or not value or len(value) > 1024:
+        return ""
+    return f"{prefix}-" + hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _persist_usage_observations(
+    store: Any,
+    task_id: str,
+    observations: list[dict[str, Any]],
+) -> None:
+    append = getattr(store, "append_usage_observation", None)
+    if not callable(append):
+        return
+    for observation in observations:
+        append(task_id, **observation)
 
 def redact_event(event: dict[str, Any]) -> dict[str, Any]:
     """Recursively redact secret-like values from a parsed OpenCode JSON event."""
