@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260821_issue276_durable_parallel_task_batches_r2_v3",
-  "round_id": "round_20260821_issue276_durable_parallel_task_batches_r2_v3",
+  "decision_id": "decision_20260821_issue282_home_goal_truth_r1_v1",
+  "round_id": "round_20260821_issue282_home_goal_truth_r1_v1",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260821_issue276_durable_parallel_task_batches_r2_v3 expected=decision_20260821_issue276_durable_parallel_task_batches_r2_v3"
+      "detail": "observed=decision_20260821_issue282_home_goal_truth_r1_v1 expected=decision_20260821_issue282_home_goal_truth_r1_v1"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260821_issue276_durable_parallel_task_batches_r2_v3 expected=round_20260821_issue276_durable_parallel_task_batches_r2_v3"
+      "detail": "observed=round_20260821_issue282_home_goal_truth_r1_v1 expected=round_20260821_issue282_home_goal_truth_r1_v1"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=owner/issue276-durable-parallel-task-batches-r2-v3 expected=owner/issue276-durable-parallel-task-batches-r2-v3"
+      "detail": "observed=owner/issue282-home-goal-truth-r1-v1 expected=owner/issue282-home-goal-truth-r1-v1"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=3d2fa35d1baeec3f2b52706746e54d7f0eb0af46 merge_base=3d2fa35d1baeec3f2b52706746e54d7f0eb0af46"
+      "detail": "base=ecacfd94e5140151a97fb1d3d486cd992769271b merge_base=ecacfd94e5140151a97fb1d3d486cd992769271b"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=250e3c702a6304d0329b0e281af8222ff2a5eebe"
+      "detail": "decision_commit=db2b87598eecdaa4e599b996bbee4975fc0ab05f"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260821_issue276_durable_parallel_task_batches_r2_v3/round_20260821_issue276_durable_parallel_task_batches_r2_v3"
+      "detail": "plan=decision_20260821_issue282_home_goal_truth_r1_v1/round_20260821_issue282_home_goal_truth_r1_v1"
     },
     {
       "name": "command_plan_contract",

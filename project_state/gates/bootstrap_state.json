@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260821_issue276_durable_parallel_task_batches_r2_v3",
-  "round_id": "round_20260821_issue276_durable_parallel_task_batches_r2_v3",
-  "expired_at": "2026-08-20T18:27:37+00:00"
+  "decision_id": "decision_20260821_issue282_home_goal_truth_r1_v1",
+  "round_id": "round_20260821_issue282_home_goal_truth_r1_v1",
+  "expired_at": "2026-08-21T04:42:07+00:00"
 }
