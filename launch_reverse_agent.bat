@@ -1,5 +1,7 @@
 @echo off
 setlocal
-cd /d "%~dp0"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0dev-up.ps1" -RepoDir "%~dp0" -SourceDir "%~dp0"
+set "repoDir=%~dp0"
+set "repoDir=%repoDir:~0,-1%"
+cd /d "%repoDir%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%repoDir%\dev-up.ps1" -RepoDir "%repoDir%" -SourceDir "%repoDir%"
 if errorlevel 1 pause

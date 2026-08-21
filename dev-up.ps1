@@ -53,9 +53,20 @@ function Resolve-InputPath([string]$candidate) {
   if ([string]::IsNullOrWhiteSpace($candidate)) {
     return (Get-Location).Path
   }
-  $resolved = Resolve-Path -LiteralPath $candidate -ErrorAction SilentlyContinue
+  if ($candidate -match '[<>|?*"]') {
+    Write-Error "dev-up: invalid path characters detected in input path '$candidate'"
+    Write-Error "dev-up: this usually means cmd.exe quote parsing corrupted the argument."
+    Write-Error "dev-up: ensure launch_reverse_agent.bat strips the trailing backslash from %%~dp0."
+    exit 1
+  }
+  try {
+    $normalized = [IO.Path]::GetFullPath($candidate)
+  } catch {
+    $normalized = $candidate
+  }
+  $resolved = Resolve-Path -LiteralPath $normalized -ErrorAction SilentlyContinue
   if ($resolved) { return $resolved.Path }
-  return $candidate
+  return $normalized
 }
 
 function Stop-Owned-Children {
