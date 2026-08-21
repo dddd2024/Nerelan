@@ -88,3 +88,73 @@ def test_goal_rejects_secret_shaped_planning_fields():
             expected_revision=1,
             tasks=[{"id": "T001", "title": "bad", "instruction": "x", "api_token": "sentinel"}],
         )
+
+
+def _complete_goal_chain():
+    store, control, autonomy, goals = _services()
+    goal = goals.create({
+        "objective": "Converge goal state",
+        "repository": "dddd2024/reverse-agent",
+        "idempotency_key": "goal-converge-v1",
+        "executor_kind": "deterministic_fixture",
+        "orchestration_mode": "single",
+    })
+    goals.plan(goal.id, expected_revision=1)
+    approved = goals.approve(goal.id, expected_revision=1, policy_ref="owner-window-1")
+    assert approved.status == "APPROVED"
+    window = autonomy.activate(_window_payload())
+    running = goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    assert running.status == "RUNNING"
+    return store, control, autonomy, goals, goal
+
+
+def test_list_provides_authoritative_goal_state_with_task_links():
+    store, control, _, goals, goal = _complete_goal_chain()
+    links = control.list_goal_tasks(goal.id)
+    assert len(links) == 3
+    for link in links:
+        store.set_state(link["task_id"], "READY_FOR_REVIEW")
+
+    listed = goals.list()
+    listed_goal = next((g for g in listed if g["id"] == goal.id), None)
+    assert listed_goal is not None
+    assert listed_goal["status"] == "COMPLETED"
+    assert len(listed_goal["task_links"]) == 3
+    assert {link["status"] for link in listed_goal["task_links"]} == {"READY_FOR_REVIEW"}
+
+    detail = goals.detail(goal.id)
+    assert detail["status"] == listed_goal["status"]
+    assert [link["task_id"] for link in detail["task_links"]] == [
+        link["task_id"] for link in listed_goal["task_links"]
+    ]
+
+
+def test_list_and_detail_converge_when_linked_task_fails():
+    store, control, _, goals, goal = _complete_goal_chain()
+    links = control.list_goal_tasks(goal.id)
+    task_id = links[0]["task_id"]
+    store.set_state(task_id, "FAILED")
+
+    listed = goals.list()
+    listed_goal = next(g for g in listed if g["id"] == goal.id)
+    detail = goals.detail(goal.id)
+
+    assert listed_goal["status"] == "BLOCKED"
+    assert detail["status"] == "BLOCKED"
+    assert listed_goal["status"] == detail["status"]
+    assert any(link["task_id"] == task_id and link["status"] == "FAILED" for link in listed_goal["task_links"])
+
+
+def test_list_and_detail_converge_when_linked_task_is_blocked():
+    store, control, _, goals, goal = _complete_goal_chain()
+    links = control.list_goal_tasks(goal.id)
+    store.set_state(links[0]["task_id"], "BLOCKED")
+
+    listed = goals.list()
+    listed_goal = next(g for g in listed if g["id"] == goal.id)
+    detail = goals.detail(goal.id)
+
+    assert listed_goal["status"] == "BLOCKED"
+    assert detail["status"] == "BLOCKED"
+    assert listed_goal["status"] == detail["status"]
+    assert any(link["task_id"] == links[0]["task_id"] and link["status"] == "BLOCKED" for link in listed_goal["task_links"])
