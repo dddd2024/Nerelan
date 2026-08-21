@@ -14,8 +14,6 @@ function relativeTime(value: string) {
   return `${Math.floor(seconds / 86400)} 天前`;
 }
 
-const ACTIVE_STATUSES = new Set(["RUNNING"]);
-
 export function HomePage() {
   const statusQuery = usePlatformStatus();
   const goalsQuery = useGoals();
@@ -86,10 +84,6 @@ export function HomePage() {
           )}
         </section>
 
-        {detailGoal && ACTIVE_STATUSES.has(detailGoal.status) && (
-          <div className="mb-6 min-h-[28px]" data-testid="activity-stream-slot" aria-hidden="true" />
-        )}
-
         <section data-testid="recent-goals-section" aria-label="Recent goals" className="border-t border-ra-border/70 pt-8">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-medium text-ra-text">最近目标</h2>
@@ -115,7 +109,7 @@ export function HomePage() {
                     goal.status === "COMPLETED" && "border border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
                     goal.status === "RUNNING" && "border border-blue-500/40 bg-blue-500/10 text-blue-300",
                     goal.status === "BLOCKED" && "border border-red-500/40 bg-red-500/10 text-red-300",
-                    "border border-ra-border text-ra-text-secondary",
+                    goal.status !== "COMPLETED" && goal.status !== "RUNNING" && goal.status !== "BLOCKED" && "border border-ra-border text-ra-text-secondary",
                   )}>{goal.status}</span>
                 </div>
                 <p className="mt-2 flex items-center justify-between text-[11px] text-ra-text-tertiary">

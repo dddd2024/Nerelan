@@ -1,12 +1,18 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  focusManager,
+  onlineManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import { MemoryRouter, type MemoryRouterProps } from "react-router";
 import { type ReactNode, useState } from "react";
 import { render as rtlRender, type RenderOptions } from "@testing-library/react";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import * as platformClient from "@/lib/platform-client";
+import { __setMockGoalStatus } from "@/lib/platform-client";
 import { HomePage } from "@/routes/home";
-import { __setMockGoalStatus, fetchGoal } from "@/lib/platform-client";
 import type { PlatformGoal } from "@/lib/platform-client";
 
 const DEMO_ID = "goal-demo-platform";
@@ -36,20 +42,72 @@ const RUNNING_LINKS = [
   { task_id: "t3", plan_task_id: "T003", status: "QUEUED", title: "验证并准备证据" },
 ] as const;
 
-function makeClient(staleTime = 30_000) {
+const RUNNING_GOAL: PlatformGoal = {
+  id: DEMO_ID,
+  title: "完善无人值守多 Agent 平台",
+  objective: "目标 A",
+  status: "RUNNING",
+  repository: "dddd2024/reverse-agent",
+  revision: 1,
+  spec_markdown: "",
+  plan_markdown: "",
+  tasks: [],
+  acceptance_criteria: [],
+  artifact_digest: "",
+  executor_kind: "opencode",
+  orchestration_mode: "single",
+  binding_ref: "",
+  window_id: "",
+  task_links: [...RUNNING_LINKS],
+  created_at: ts,
+  updated_at: ts,
+};
+
+const SIBLING_GOALS = [
+  { id: "goal-two", title: "目标二", objective: "目标 B", status: "COMPLETED" as const, task_links: [] },
+  { id: "goal-three", title: "目标三", objective: "目标 C", status: "APPROVED" as const, task_links: [] },
+  { id: "goal-four", title: "目标四", objective: "目标 D", status: "DRAFT" as const, task_links: [] },
+];
+
+function makeGoal(status: PlatformGoal["status"], links: PlatformGoal["task_links"]) {
+  return {
+    ...RUNNING_GOAL,
+    status,
+    task_links: links,
+  };
+}
+
+function makeClient(options: { staleTime?: number } = {}) {
   return new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime } },
+    defaultOptions: {
+      queries: {
+        retry: false,
+        gcTime: Infinity,
+        staleTime: options.staleTime ?? 0,
+      },
+    },
   });
 }
 
-function Wrapper({ children, initialEntries, factory }: { children: ReactNode; initialEntries?: string[]; factory?: () => QueryClient }) {
-  const client = useState(() => (factory ?? makeClient)())[0];
+function Wrapper({
+  children,
+  initialEntries,
+  factory,
+}: { children: ReactNode; initialEntries?: string[]; factory: () => QueryClient }) {
+  const client = useState(factory)[0];
   const initial: MemoryRouterProps = { initialEntries: initialEntries ?? ["/"] };
-  return <QueryClientProvider client={client}><MemoryRouter {...initial}>{children}</MemoryRouter></QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      <MemoryRouter {...initial}>{children}</MemoryRouter>
+    </QueryClientProvider>
+  );
 }
 
-function render(ui: ReactNode, opts?: RenderOptions & { factory?: () => QueryClient; initialEntries?: string[] }) {
-  const { factory, initialEntries, ...restOpts } = opts ?? {};
+function render(
+  ui: ReactNode,
+  opts: RenderOptions & { factory: () => QueryClient; initialEntries?: string[] },
+) {
+  const { factory, initialEntries, ...restOpts } = opts;
   return rtlRender(
     ui as Parameters<typeof rtlRender>[0],
     {
@@ -61,72 +119,60 @@ function render(ui: ReactNode, opts?: RenderOptions & { factory?: () => QueryCli
   );
 }
 
-function seededClient(status: PlatformGoal["status"], links: readonly { task_id: string; plan_task_id: string; status: string; title: string }[]) {
-  const c = makeClient();
-  const base: PlatformGoal = {
-    id: DEMO_ID, title: "完善无人值守多 Agent 平台", objective: "目标 A", status,
-    repository: "dddd2024/reverse-agent", revision: 1, spec_markdown: "", plan_markdown: "",
-    tasks: [], acceptance_criteria: [], artifact_digest: "",
-    executor_kind: "opencode", orchestration_mode: "single", binding_ref: "", window_id: "",
-    task_links: [...links], created_at: ts, updated_at: ts,
-  };
+function seededHomeClient(): QueryClient {
+  const c = makeClient({ staleTime: 60_000 });
   c.setQueryData(["goals"], [
-    base,
-    { ...base, id: "goal-two", title: "目标二", objective: "目标 B", status: "COMPLETED", task_links: [] },
-    { ...base, id: "goal-three", title: "目标三", objective: "目标 C", status: "APPROVED", task_links: [] },
-    { ...base, id: "goal-four", title: "目标四", objective: "目标 D", status: "DRAFT", task_links: [] },
+    RUNNING_GOAL,
+    ...SIBLING_GOALS.map((sibling) => ({ ...RUNNING_GOAL, ...sibling })),
   ]);
-  c.setQueryData(["goals", DEMO_ID], base);
+  c.setQueryData(["goals", DEMO_ID], RUNNING_GOAL);
   return c;
 }
 
-async function homeReady(seed = true) {
-  render(<HomePage />, { factory: seed ? () => seededClient("RUNNING", RUNNING_LINKS) : makeClient });
+function seedPollingClientFull(): {
+  client: QueryClient;
+  goalSpy: Mock;
+  fetchSpy: Mock;
+} {
+  const goalSpy = vi.spyOn(platformClient, "fetchGoal" as never) as unknown as Mock;
+  goalSpy.mockImplementation(async () => ({ ...RUNNING_GOAL }));
+  const fetchSpy = vi.spyOn(globalThis, "fetch" as never) as unknown as Mock;
+  const c = makeClient({ staleTime: 0 });
+  c.setQueryData(["goals"], [
+    RUNNING_GOAL,
+    ...SIBLING_GOALS.map((sibling) => ({ ...RUNNING_GOAL, ...sibling })),
+  ]);
+  c.setQueryData(["goals", DEMO_ID], { ...RUNNING_GOAL });
+  return { client: c, goalSpy, fetchSpy };
+}
+
+async function homeReady() {
+  render(<HomePage />, { factory: () => seededHomeClient() });
   await waitFor(() => expect(screen.getByText("Agent progress")).toBeInTheDocument(), { timeout: 4000 });
 }
 
-function seedRunningGoalClient(): QueryClient {
-  const c = makeClient();
-  const base: PlatformGoal = {
-    id: DEMO_ID, title: "完善无人值守多 Agent 平台", objective: "目标 A", status: "RUNNING",
-    repository: "dddd2024/reverse-agent", revision: 1, spec_markdown: "", plan_markdown: "",
-    tasks: [], acceptance_criteria: [], artifact_digest: "",
-    executor_kind: "opencode", orchestration_mode: "single", binding_ref: "", window_id: "",
-    task_links: [...RUNNING_LINKS], created_at: ts, updated_at: ts,
-  };
-  c.setQueryData(["goals"], [
-    base,
-    { ...base, id: "goal-two", title: "目标二", objective: "目标 B", status: "COMPLETED", task_links: [] },
-    { ...base, id: "goal-three", title: "目标三", objective: "目标 C", status: "APPROVED", task_links: [] },
-    { ...base, id: "goal-four", title: "目标四", objective: "目标 D", status: "DRAFT", task_links: [] },
-  ]);
-  c.setQueryData(["goals", DEMO_ID], base);
-  return c;
+function getGoalDetailCacheData(client: QueryClient): PlatformGoal | undefined {
+  return client.getQueryData(["goals", DEMO_ID]) as PlatformGoal | undefined;
 }
 
-function goalTransitionTest(
-  terminalLinks: readonly { task_id: string; plan_task_id: string; status: string; title: string }[],
-  goalStatus: PlatformGoal["status"],
-  expectedText: string,
-) {
-  return async () => {
-    const client = seedRunningGoalClient();
-    render(<HomePage />, { factory: () => client });
-    await waitFor(() => expect(screen.getByText("Agent 正在执行")).toBeInTheDocument(), { timeout: 4000 });
-    __setMockGoalStatus(DEMO_ID, { status: goalStatus, task_links: [...terminalLinks] });
-    const updatedGoal = await fetchGoal(DEMO_ID);
-    client.setQueryData(["goals", DEMO_ID], () => structuredClone(updatedGoal));
-    void client.refetchQueries({ queryKey: ["goals", DEMO_ID] });
-    await vi.waitFor(() => {
-      expect(screen.getByText(expectedText)).toBeInTheDocument();
-    }, { timeout: 4000 });
-  };
+function hasTextInCurrentSection(text: string) {
+  const section = screen.getByTestId("current-execution-section");
+  const all = screen.getAllByText(text);
+  return all.some((el) => section.contains(el));
 }
 
 describe("Platform V2 Home Workspace V2", () => {
   beforeEach(() => {
     __setMockGoalStatus(DEMO_ID, { status: "RUNNING", task_links: [...RUNNING_LINKS] });
+    vi.spyOn(globalThis.navigator, "onLine", "get").mockReturnValue(true);
+    (globalThis as unknown as { __testUseGoalStaleTime?: number }).__testUseGoalStaleTime = 0;
   });
+
+  afterEach(() => {
+    delete (globalThis as unknown as { __testUseGoalStaleTime?: number }).__testUseGoalStaleTime;
+    vi.restoreAllMocks();
+  });
+
   it("renders the centered single-column layout: composer, current execution, recent goals", async () => {
     await homeReady();
     expect(screen.getByRole("heading", { name: "今天想完成什么？" })).toBeInTheDocument();
@@ -140,11 +186,12 @@ describe("Platform V2 Home Workspace V2", () => {
     expect(current.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
-  it("removes the permanent right rail and keeps recent goals capped at 3", async () => {
+  it("removes the permanent right rail, activity-stream placeholder, and keeps recent goals capped at 3", async () => {
     await homeReady();
     const main = screen.getByTestId("platform-home");
     expect(main.querySelector("[class*='grid-cols']")).toBeNull();
     expect(main.querySelector("aside")).toBeNull();
+    expect(main.querySelector('[data-testid="activity-stream-slot"]')).toBeNull();
     expect(screen.queryByText("Multi-agent workspace")).not.toBeInTheDocument();
     const recentSection = screen.getByTestId("recent-goals-section");
     const recentButtons = recentSection.querySelectorAll("button[type='button']");
@@ -173,68 +220,177 @@ describe("Platform V2 Home Workspace V2", () => {
     await waitFor(() => expect(screen.getAllByText("完成一个可以恢复的多 Agent 任务").length).toBeGreaterThan(0));
   });
 
-  it("advances RUNNING to completed/review state without a manual reload", goalTransitionTest(
-    COMPLETED_LINKS, "COMPLETED", "结果已验证",
-  ));
+  it("advances RUNNING to completed/review state via React Query polling without manual cache writes", async () => {
+    const { client, goalSpy } = seedPollingClientFull();
 
-  it("advances RUNNING to BLOCKED state without a manual reload", goalTransitionTest(
-    BLOCKED_LINKS, "BLOCKED", "需要处理阻塞",
-  ));
-
-  it("reconciles authoritative state immediately after window focus", async () => {
-    const client = seedRunningGoalClient();
     render(<HomePage />, { factory: () => client });
+
     await waitFor(() => expect(screen.getByText("Agent 正在执行")).toBeInTheDocument(), { timeout: 4000 });
+
+    const completedGoal = makeGoal("COMPLETED", [...COMPLETED_LINKS]);
     __setMockGoalStatus(DEMO_ID, { status: "COMPLETED", task_links: [...COMPLETED_LINKS] });
-    const updatedGoal = await fetchGoal(DEMO_ID);
-    globalThis.dispatchEvent(new Event("focus"));
-    client.setQueryData(["goals", DEMO_ID], () => structuredClone(updatedGoal));
-    void client.refetchQueries({ queryKey: ["goals", DEMO_ID] });
-    await vi.waitFor(() => {
-      expect(screen.getByText("结果已验证")).toBeInTheDocument();
-    }, { timeout: 4000 });
+    goalSpy.mockImplementation(async () => ({ ...completedGoal }));
+
+    await waitFor(() => {
+      const detailCache = getGoalDetailCacheData(client);
+      expect(detailCache?.status).toBe("COMPLETED");
+      expect(hasTextInCurrentSection("结果已验证")).toBe(true);
+      expect(goalSpy).toHaveBeenCalled();
+    }, { timeout: 6000 });
   });
 
-  it("reconciles authoritative state immediately after reconnect", async () => {
-    const client = seedRunningGoalClient();
+  it("advances RUNNING to BLOCKED state via React Query polling without manual cache writes", async () => {
+    const { client, goalSpy } = seedPollingClientFull();
+
     render(<HomePage />, { factory: () => client });
+
     await waitFor(() => expect(screen.getByText("Agent 正在执行")).toBeInTheDocument(), { timeout: 4000 });
-    __setMockGoalStatus(DEMO_ID, { status: "BLOCKED", task_links: [...CANCELLED_LINKS] });
-    const updatedGoal = await fetchGoal(DEMO_ID);
-    vi.spyOn(globalThis.navigator, "onLine", "get").mockReturnValue(true);
-    globalThis.dispatchEvent(new Event("online"));
-    client.setQueryData(["goals", DEMO_ID], () => structuredClone(updatedGoal));
-    void client.refetchQueries({ queryKey: ["goals", DEMO_ID] });
-    await vi.waitFor(() => {
-      expect(screen.getByText("需要处理阻塞")).toBeInTheDocument();
-      expect(screen.getByText("BLOCKED")).toBeInTheDocument();
-    }, { timeout: 4000 });
-    vi.restoreAllMocks();
+
+    const blockedGoal = makeGoal("BLOCKED", [...BLOCKED_LINKS]);
+    __setMockGoalStatus(DEMO_ID, { status: "BLOCKED", task_links: [...BLOCKED_LINKS] });
+    goalSpy.mockImplementation(async () => ({ ...blockedGoal }));
+
+    await waitFor(() => {
+      const detailCache = getGoalDetailCacheData(client);
+      expect(detailCache?.status).toBe("BLOCKED");
+      expect(hasTextInCurrentSection("需要处理阻塞")).toBe(true);
+      expect(goalSpy).toHaveBeenCalled();
+    }, { timeout: 6000 });
   });
 
-  it("uses the selected goal detail query for Current Execution", async () => {
-    const client = seedRunningGoalClient();
+  it("reconciles authoritative state via React Query focus refetch without manual cache writes", async () => {
+    const { client, goalSpy } = seedPollingClientFull();
+
     render(<HomePage />, { factory: () => client });
+
     await waitFor(() => expect(screen.getByText("Agent 正在执行")).toBeInTheDocument(), { timeout: 4000 });
+
+    const completedGoal = makeGoal("COMPLETED", [...COMPLETED_LINKS]);
     __setMockGoalStatus(DEMO_ID, { status: "COMPLETED", task_links: [...COMPLETED_LINKS] });
-    const updatedGoal = await fetchGoal(DEMO_ID);
-    client.setQueryData(["goals", DEMO_ID], () => structuredClone(updatedGoal));
-    void client.refetchQueries({ queryKey: ["goals", DEMO_ID] });
-    await vi.waitFor(() => {
-      expect(screen.getByTestId("current-execution-section")).toContainElement(screen.getByText("分析目标与代码库"));
-      expect(screen.getByTestId("current-execution-section")).toContainElement(screen.getByText("验证并准备证据"));
-      expect(screen.getByText("结果已验证")).toBeInTheDocument();
+    goalSpy.mockImplementation(async () => ({ ...completedGoal }));
+
+    await client.invalidateQueries({ queryKey: ["goals", DEMO_ID] });
+    goalSpy.mockReset();
+
+    focusManager.setFocused(false);
+    expect(focusManager.isFocused()).toBe(false);
+    focusManager.setFocused(true);
+    expect(focusManager.isFocused()).toBe(true);
+    document.dispatchEvent(new FocusEvent("focus", { relatedTarget: null }));
+
+    await waitFor(() => {
+      const detailCache = getGoalDetailCacheData(client);
+      expect(detailCache?.status).toBe("COMPLETED");
+      expect(hasTextInCurrentSection("结果已验证")).toBe(true);
+      expect(goalSpy).toHaveBeenCalledTimes(1);
     }, { timeout: 4000 });
   });
 
-  it("stops active-rate polling once the selected goal reaches a terminal state", goalTransitionTest(
-    COMPLETED_LINKS, "COMPLETED", "结果已验证",
-  ));
+  it("reconciles authoritative state via React Query reconnect refetch without manual cache writes", async () => {
+    const { client, goalSpy } = seedPollingClientFull();
+    const onlineGetter = vi.spyOn(globalThis.navigator, "onLine", "get");
+
+    render(<HomePage />, { factory: () => client });
+
+    await waitFor(() => expect(screen.getByText("Agent 正在执行")).toBeInTheDocument(), { timeout: 4000 });
+
+    const blockedGoal = makeGoal("BLOCKED", [...BLOCKED_LINKS]);
+    __setMockGoalStatus(DEMO_ID, { status: "BLOCKED", task_links: [...BLOCKED_LINKS] });
+    goalSpy.mockImplementation(async () => ({ ...blockedGoal }));
+
+    await client.invalidateQueries({ queryKey: ["goals", DEMO_ID] });
+    goalSpy.mockReset();
+
+    onlineGetter.mockReturnValue(false);
+    onlineManager.setOnline(false);
+    expect(onlineManager.isOnline()).toBe(false);
+    onlineGetter.mockReturnValue(true);
+    onlineManager.setOnline(true);
+    expect(onlineManager.isOnline()).toBe(true);
+    window.dispatchEvent(new Event("online"));
+
+    await waitFor(() => {
+      const detailCache = getGoalDetailCacheData(client);
+      expect(detailCache?.status).toBe("BLOCKED");
+      expect(hasTextInCurrentSection("需要处理阻塞")).toBe(true);
+      expect(goalSpy).toHaveBeenCalledTimes(1);
+    }, { timeout: 4000 });
+  });
+
+  it("uses the selected goal detail query for Current Execution via reconciliation", async () => {
+    const { client, goalSpy } = seedPollingClientFull();
+
+    render(<HomePage />, { factory: () => client });
+
+    await waitFor(() => expect(screen.getByText("Agent 正在执行")).toBeInTheDocument(), { timeout: 4000 });
+
+    const completedGoal = makeGoal("COMPLETED", [...COMPLETED_LINKS]);
+    __setMockGoalStatus(DEMO_ID, { status: "COMPLETED", task_links: [...COMPLETED_LINKS] });
+    goalSpy.mockImplementation(async () => ({ ...completedGoal }));
+
+    await waitFor(() => {
+      expect(hasTextInCurrentSection("分析目标与代码库")).toBe(true);
+      expect(hasTextInCurrentSection("验证并准备证据")).toBe(true);
+      expect(hasTextInCurrentSection("结果已验证")).toBe(true);
+      expect(goalSpy).toHaveBeenCalled();
+    }, { timeout: 6000 });
+  });
+
+  it("stops active-rate polling once the selected goal reaches a terminal state", async () => {
+    const { client, goalSpy } = seedPollingClientFull();
+
+    render(<HomePage />, { factory: () => client });
+
+    await waitFor(() => expect(screen.getByText("Agent 正在执行")).toBeInTheDocument(), { timeout: 4000 });
+
+    const completedGoal = makeGoal("COMPLETED", [...COMPLETED_LINKS]);
+    __setMockGoalStatus(DEMO_ID, { status: "COMPLETED", task_links: [...COMPLETED_LINKS] });
+    goalSpy.mockImplementation(async () => ({ ...completedGoal }));
+
+    await waitFor(() => {
+      const detailCache = getGoalDetailCacheData(client);
+      expect(detailCache?.status).toBe("COMPLETED");
+    }, { timeout: 6000 });
+
+    const fetchesDuringTerminal = goalSpy.mock.calls.length;
+
+    const cancelledGoal = makeGoal("CANCELLED" as PlatformGoal["status"], [...CANCELLED_LINKS]);
+    __setMockGoalStatus(DEMO_ID, { status: "CANCELLED" as PlatformGoal["status"], task_links: [...CANCELLED_LINKS] });
+    goalSpy.mockImplementation(async () => ({ ...cancelledGoal }));
+
+    await vi.waitFor(() => {
+      expect(goalSpy.mock.calls.length).toBe(fetchesDuringTerminal);
+    }, { timeout: 4000, interval: 100 });
+
+    expect(getGoalDetailCacheData(client)?.status).toBe("COMPLETED");
+    expect(screen.queryByText("需要处理阻塞")).not.toBeInTheDocument();
+  });
 
   it("keeps Recent Goals capped at 3 entries even with more goals", async () => {
     await homeReady();
     const recentSection = screen.getByTestId("recent-goals-section");
     const recentButtons = recentSection.querySelectorAll("button[type='button']");
     expect(recentButtons.length).toBeLessThanOrEqual(3);
+  });
+
+  it("keeps Recent Goals status badge colors for COMPLETED, RUNNING, and BLOCKED", async () => {
+    const c = makeClient({ staleTime: 60_000 });
+    c.setQueryData(["goals"], [
+      makeGoal("COMPLETED", [...COMPLETED_LINKS]),
+      makeGoal("RUNNING", [...RUNNING_LINKS]),
+      makeGoal("BLOCKED", [...BLOCKED_LINKS]),
+      { ...RUNNING_GOAL, id: "goal-four", title: "目标四", status: "DRAFT", task_links: [] },
+    ]);
+    c.setQueryData(["goals", DEMO_ID], makeGoal("RUNNING", [...RUNNING_LINKS]));
+
+    render(<HomePage />, { factory: () => c });
+    await waitFor(() => expect(screen.getByText("Agent progress")).toBeInTheDocument(), { timeout: 4000 });
+
+    const recentSection = screen.getByTestId("recent-goals-section");
+    const badges = recentSection.querySelectorAll("span");
+    const classes = Array.from(badges).map((el) => el.className);
+    expect(classes.some((cls) => cls.includes("emerald"))).toBe(true);
+    expect(classes.some((cls) => cls.includes("blue"))).toBe(true);
+    expect(classes.some((cls) => cls.includes("red"))).toBe(true);
   });
 });

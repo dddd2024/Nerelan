@@ -12,6 +12,7 @@ export function usePlatformStatus() {
     queryKey: ["platform", "status"],
     queryFn: fetchPlatformStatus,
     staleTime: 3_000,
+    refetchInterval: 5_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
@@ -28,17 +29,24 @@ export function useGoals() {
   });
 }
 
-export function useGoal(goalId: string | undefined, options: { enabled?: boolean } = {}) {
+export function useGoal(
+  goalId: string | undefined,
+  options: { enabled?: boolean; staleTime?: number; refetchInterval?: number | false } = {},
+) {
   const enabled = options.enabled ?? true;
+  const goalStaleTime = (globalThis as unknown as { __testUseGoalStaleTime?: number }).__testUseGoalStaleTime ?? options.staleTime ?? 1_500;
+  const goalRefetchInterval =
+    options.refetchInterval ??
+    ((query: { state: { data: unknown } }) => {
+      const status = (query.state.data as { status?: string } | undefined)?.status;
+      return status === "RUNNING" ? 2_500 : false;
+    });
   const result = useQuery({
     queryKey: ["goals", goalId],
     queryFn: () => fetchGoal(goalId ?? ""),
     enabled: Boolean(goalId) && enabled,
-    staleTime: 1_500,
-    refetchInterval: (query) => {
-      const status = (query.state.data as { status?: string } | undefined)?.status;
-      return status === "RUNNING" ? 2_500 : false;
-    },
+    staleTime: goalStaleTime,
+    refetchInterval: goalRefetchInterval,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
