@@ -1,23 +1,22 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260821_issue276_durable_parallel_task_batches_r2_v3",
-  "round_id": "round_20260821_issue276_durable_parallel_task_batches_r2_v3",
+  "decision_id": "decision_20260821_issue282_home_goal_truth_r1_v1",
+  "round_id": "round_20260821_issue282_home_goal_truth_r1_v1",
   "commands": [
     {
-      "command_id": "issue276v3.verify_baseline_and_stops",
-      "command": "verify main and local base remain 3d2fa35d1baeec3f2b52706746e54d7f0eb0af46; verify Issue 276 V1 comment 5359824526 and V2 comment 5359968290; verify both predecessors have zero product commit push or PR; preserve their transaction and pre-PR coupling evidence",
+      "command_id": "issue282v1.verify_origin_main_and_worktree",
+      "command": "verify origin/main == ecacfd94e5140151a97fb1d3d486cd992769271b, local branch == owner/issue282-home-goal-truth-r1-v1, and merge-base HEAD..origin/main == ecacfd94e5140151a97fb1d3d486cd992769271b; stop before any product mutation if any identity check fails",
       "phase": "validation",
       "required": true,
-      "required_evidence_source": "repository_state_attestation",
+      "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
         0
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_observation",
-        "network_access"
+        "repository_observation"
       ],
-      "network_access": true,
+      "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
@@ -27,7 +26,7 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue276v3.run_transition_gates",
+      "command_id": "issue282v1.run_transition_gates",
       "command": "run startup-snapshot transition-command-plan transition-lint and transition-preflight --mode pre; require PRE_EXECUTION_AUTHORIZED before product mutation",
       "phase": "validation",
       "required": true,
@@ -50,8 +49,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue276v3.implement_validated_v2_product",
-      "command": "recover the bounded V2 product intent only: add TaskStore-owned reentrant lock coverage to shared-connection durable transaction entrypoints without locking external executors; adapt coordinator admission to existing LangGraph Send over distinct durable tasks; add repeated barrier budget WIP failure restart and checkpoint regressions and architecture documentation; retain one store and existing modes",
+      "command_id": "issue282v1.implement_authoritative_goal_state_and_home_v2",
+      "command": "fix /api/goals to return authoritative task_links and reconciled goal status by reusing control_store.refresh_goal_status / list_goal_tasks in GoalService.list; redesign Home to a centered single-column layout with Goal Composer -> Current Execution (from authoritative selected goal) -> Recent Goals (<=3); reuse React Query and add focus/reconnect reconcile plus terminal polling backoff; no new polling state machine, no extra HTTP layer",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -61,8 +60,40 @@
       "execution_surface": "local",
       "operations": [
         "bounded_source_edit",
-        "bounded_test_edit",
-        "bounded_documentation_edit"
+        "bounded_test_edit"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json",
+        "project_state/gates/transition_preflight_result.json"
+      ],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "reverse_agent/platform_v1/goal_service.py",
+        "reverse_agent/platform_v1/task_service.py",
+        "frontend/src/routes/home.tsx",
+        "frontend/src/components/goal-progress.tsx",
+        "frontend/src/hooks/use-platform.ts",
+        "frontend/src/lib/platform-client.ts"
+      ]
+    },
+    {
+      "command_id": "issue282v1.add_deterministic_tests",
+      "command": "add backend tests proving /api/goals and /api/goals/{id} converge on goal status and task_links, all-READY_FOR_REVIEW -> COMPLETED, FAILED/BLOCKED/CANCELLED -> non-RUNNING; update frontend tests asserting no permanent right rail, Recent Goals <= 3, and Current Execution uses authoritative selected goal",
+      "phase": "implementation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "bounded_test_edit"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -71,11 +102,15 @@
       "bootstrap_exception": false,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
+      "allowed_mutated_paths": [
+        "tests/platform_v1/test_goal_service.py",
+        "tests/platform_v1/test_task_service.py",
+        "frontend/tests/platform-home.test.tsx"
+      ]
     },
     {
-      "command_id": "issue276v3.prepublication_validation",
-      "command": "run focused and repeated concurrency durable tests; run the CI Platform blocking gate with its ordinary seven deselections plus only the four exact pre_pr_intent_assertions_deferred entries; require 1101 or more passing tests and no other failure; run CI responsibility unchanged frontend transition lint preflight readiness and diff checks; zero live calls",
+      "command_id": "issue282v1.run_all_validation",
+      "command": "run relevant frontend tests, frontend typecheck, frontend mock build, provider-free Platform V1 blocking tests, transition lint/preflight, publication readiness, git diff --check; zero live model/provider calls",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -98,8 +133,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue276v3.publish_initial_draft",
-      "command": "after prepublication validation passes push owner/issue276-durable-parallel-task-batches-r2-v3 once and create exactly one Draft PR to main; read its actual number without guessing",
+      "command_id": "issue282v1.publish_initial_draft",
+      "command": "check changed-path allowlist, commit product changes once, push owner/issue282-home-goal-truth-r1-v1 once, and create exactly one Draft PR to main; do not mark ready, merge, close any issue, tag, release, or deploy",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -123,108 +158,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue276v3.bind_actual_pr",
-      "command": "archive committed PR 275 schema-v2 active intent byte-for-byte as archive/pr275_v2.json and replace active.json with schema v2 bound to the observed PR locked base this Decision committed Plan merge method merge exact three workflows and expiry 2026-08-28T23:59:59Z; commit once without Decision edit",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "bounded_governance_mutation",
-        "stage_authorized_paths",
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue276v3.final_bound_validation_and_push",
-      "command": "after actual PR binding run the full CI Platform blocking gate with only the ordinary seven CI deselections and require all four formerly deferred assertions pass; rerun focused repeated CI responsibility frontend transition readiness and diff checks; push the single binding commit once and observe fresh exact-head CI Decision Preflight and State Gate",
-      "phase": "publication",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "run_checks",
-        "push",
-        "repository_observation",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": true,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue276v3.audit_attest_land",
-      "command": "after workflows succeed perform clean detached exact-head audit and ACCEPTED comment; reobserve base head checks MERGEABLE CLEAN zero threads; publish schema-v2 approval attestation bound to actual comment and run IDs; owner mark-ready and merge once with merge and expected-head protection",
-      "phase": "publication",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation",
-        "issue_comment",
-        "mark_ready",
-        "merge",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": true,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue276v3.post_merge_verify",
-      "command": "verify merge commit and origin/main; wait for State Gate push and main checks; run mainline-merge-validation; close Issue 276 only after all evidence is green",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation",
-        "issue_close",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.67d6fbfaf9a191bcc558ff0c75de2491b5fd96f4bcb75b81f09ab07aef85fae2",
-      "command": "create owner/issue276-durable-parallel-task-batches-r2-v3 from exact main 3d2fa35d1baeec3f2b52706746e54d7f0eb0af46 in an isolated canonical-LF checkout",
-      "phase": "gate",
+      "command_id": "bootstrap.37b2087cd52f943dcd65501b0d00cf52a1648ab94fe6ab2d0e9598ee61bc8343",
+      "command": "git fetch origin main and verify origin/main == ecacfd94e5140151a97fb1d3d486cd992769271b; if not equal STOP with HARD_STOP_ISSUE282_REMOTE_MAIN_DRIFT",
+      "phase": "status",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -242,9 +178,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.8206524a029604b6390e734e8cfff9f05d145f09d9acd08db7bea65ea9bdd648",
-      "command": "commit this immutable V3 Decision as the first new commit after 3d2fa35d1baeec3f2b52706746e54d7f0eb0af46 before product or merge-intent mutation",
-      "phase": "gate",
+      "command_id": "bootstrap.cdbe82a2ed897fe2e879c37c6fa764824d7938e1ca742414be58eecb921a0e23",
+      "command": "git checkout -b owner/issue282-home-goal-truth-r1-v1 origin/main and commit this immutable Decision as the first new commit before product mutation",
+      "phase": "status",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
