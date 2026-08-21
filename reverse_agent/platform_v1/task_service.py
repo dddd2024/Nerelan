@@ -272,10 +272,10 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.OK, self.capability_registry.response())
                 return
             if segments == ["api", "goals"]:
-                goals = self.control_store.list_goals()
+                goals = self.goal_service.list()
                 self._send_json(
                     HTTPStatus.OK,
-                    {"goals": [goal_to_dict(goal) for goal in goals], "total": len(goals)},
+                    {"goals": goals, "total": len(goals)},
                 )
                 return
             if segments == ["api", "inbox"]:

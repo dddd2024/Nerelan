@@ -155,6 +155,15 @@ class GoalService:
             goal.id, revision=goal.revision, window_id=window_id
         )
 
+    def list(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        goals = self.control_store.list_goals(limit=limit)
+        payload: list[dict[str, Any]] = []
+        for goal in goals:
+            links = self.control_store.list_goal_tasks(goal.id)
+            refreshed = self.control_store.refresh_goal_status(goal.id)
+            payload.append(goal_to_dict(refreshed, links=links))
+        return payload
+
     def detail(self, goal_id: str) -> dict[str, Any]:
         goal = self.control_store.refresh_goal_status(goal_id)
         return goal_to_dict(goal, links=self.control_store.list_goal_tasks(goal_id))
