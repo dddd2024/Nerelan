@@ -1387,3 +1387,135 @@ def test_new_read_model_routes_fail_closed_on_unknown_paths(task_server) -> None
     assert status == 404
     status, _ = _req(base, "GET", "/api/roadmap/phase-x")
     assert status == 404
+
+
+def test_goal_http_list_and_detail_converge_on_task_status(task_server) -> None:
+    base, server = task_server
+    store = server.RequestHandlerClass.store
+
+    status, goal = _req(base, "POST", "/api/goals", {
+        "objective": "HTTP goal convergence",
+        "repository": "dddd2024/reverse-agent",
+        "idempotency_key": "http-goal-converge-v1",
+        "executor_kind": "deterministic_fixture",
+        "orchestration_mode": "single",
+    })
+    assert status == 201
+    goal_id = goal["id"]
+    _req(base, "POST", f"/api/goals/{goal_id}/plan", {"expected_revision": 1})
+    _req(base, "POST", f"/api/goals/{goal_id}/approve", {"expected_revision": 1})
+
+    now = datetime.now(timezone.utc)
+    status, window = _req(base, "POST", "/api/windows/activate", {
+        "policy_id": "http-converge-window", "policy_revision": 1,
+        "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=1)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 3, "max_retries": 0,
+        "confirmation": "ACTIVATE",
+    })
+    assert status == 201
+    status, launched = _req(base, "POST", f"/api/goals/{goal_id}/launch", {
+        "expected_revision": 1, "window_id": window["id"],
+    })
+    assert status == 200 and launched["status"] == "RUNNING"
+    assert len(launched["task_links"]) == 3
+
+    for link in launched["task_links"]:
+        store.set_state(link["task_id"], "READY_FOR_REVIEW")
+
+    status, listed = _req(base, "GET", "/api/goals")
+    assert status == 200
+    listed_goal = next(g for g in listed["goals"] if g["id"] == goal_id)
+    status, detail = _req(base, "GET", f"/api/goals/{goal_id}")
+    assert status == 200
+
+    assert listed_goal["status"] == "COMPLETED"
+    assert detail["status"] == "COMPLETED"
+    assert listed_goal["status"] == detail["status"]
+    assert len(listed_goal["task_links"]) == 3
+    assert {link["status"] for link in listed_goal["task_links"]} == {"READY_FOR_REVIEW"}
+    assert [link["task_id"] for link in listed_goal["task_links"]] == [
+        link["task_id"] for link in detail["task_links"]
+    ]
+
+
+def _launch_http_goal(base, goal_key_suffix):
+    status, goal = _req(base, "POST", "/api/goals", {
+        "objective": "HTTP convergence " + goal_key_suffix,
+        "repository": "dddd2024/reverse-agent",
+        "idempotency_key": "http-goal-" + goal_key_suffix + "-v1",
+        "executor_kind": "deterministic_fixture",
+        "orchestration_mode": "single",
+    })
+    assert status == 201
+    goal_id = goal["id"]
+    _req(base, "POST", f"/api/goals/{goal_id}/plan", {"expected_revision": 1})
+    _req(base, "POST", f"/api/goals/{goal_id}/approve", {"expected_revision": 1})
+    now = datetime.now(timezone.utc)
+    status, window = _req(base, "POST", "/api/windows/activate", {
+        "policy_id": "http-" + goal_key_suffix + "-window", "policy_revision": 1,
+        "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=1)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 3, "max_retries": 0,
+        "confirmation": "ACTIVATE",
+    })
+    assert status == 201
+    status, launched = _req(base, "POST", f"/api/goals/{goal_id}/launch", {
+        "expected_revision": 1, "window_id": window["id"],
+    })
+    assert status == 200
+    return goal_id, launched
+
+
+def test_goal_http_converges_to_blocked_on_failed_task(task_server) -> None:
+    base, server = task_server
+    store = server.RequestHandlerClass.store
+    goal_id, launched = _launch_http_goal(base, "failed")
+    links = launched["task_links"]
+    store.set_state(links[0]["task_id"], "FAILED")
+    status, listed = _req(base, "GET", "/api/goals")
+    listed_goal = next(g for g in listed["goals"] if g["id"] == goal_id)
+    status, detail = _req(base, "GET", f"/api/goals/{goal_id}")
+    assert listed_goal["status"] == "BLOCKED"
+    assert detail["status"] == "BLOCKED"
+    assert listed_goal["status"] == detail["status"]
+    assert any(link["task_id"] == links[0]["task_id"] and link["status"] == "FAILED"
+               for link in listed_goal["task_links"])
+
+
+def test_goal_http_converges_to_blocked_on_blocked_task(task_server) -> None:
+    base, server = task_server
+    store = server.RequestHandlerClass.store
+    goal_id, launched = _launch_http_goal(base, "blocked")
+    links = launched["task_links"]
+    store.set_state(links[0]["task_id"], "BLOCKED")
+    status, listed = _req(base, "GET", "/api/goals")
+    listed_goal = next(g for g in listed["goals"] if g["id"] == goal_id)
+    status, detail = _req(base, "GET", f"/api/goals/{goal_id}")
+    assert listed_goal["status"] == "BLOCKED"
+    assert detail["status"] == "BLOCKED"
+    assert listed_goal["status"] == detail["status"]
+    assert any(link["task_id"] == links[0]["task_id"] and link["status"] == "BLOCKED"
+               for link in listed_goal["task_links"])
+
+
+def test_goal_http_converges_to_blocked_on_cancelled_task(task_server) -> None:
+    base, server = task_server
+    store = server.RequestHandlerClass.store
+    goal_id, launched = _launch_http_goal(base, "cancelled")
+    links = launched["task_links"]
+    store.set_state(links[0]["task_id"], "CANCELLED")
+    status, listed = _req(base, "GET", "/api/goals")
+    listed_goal = next(g for g in listed["goals"] if g["id"] == goal_id)
+    status, detail = _req(base, "GET", f"/api/goals/{goal_id}")
+    assert listed_goal["status"] == "BLOCKED"
+    assert detail["status"] == "BLOCKED"
+    assert listed_goal["status"] == detail["status"]
+    assert any(link["task_id"] == links[0]["task_id"] and link["status"] == "CANCELLED"
+               for link in listed_goal["task_links"])
+    assert any(link["task_id"] == links[0]["task_id"] and link["status"] == "CANCELLED"
+               for link in detail["task_links"])

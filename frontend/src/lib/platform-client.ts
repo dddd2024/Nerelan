@@ -219,6 +219,15 @@ const mockGoal: PlatformGoal = {
 
 let mockGoals = [mockGoal];
 
+export function __setMockGoalStatus(goalId: string, override: Partial<PlatformGoal>) {
+  if (goalId === mockGoal.id) {
+    Object.assign(mockGoal, { task_links: [...(mockGoal.task_links ?? [])], ...override });
+  }
+  const target = mockGoals.find((goal) => goal.id === goalId);
+  if (target) Object.assign(target, { task_links: [...(target.task_links ?? [])], ...override });
+  else if (goalId === mockGoal.id) mockGoals = [mockGoal, ...mockGoals.filter((g) => g.id !== goalId)];
+}
+
 const mockWindow: PlatformWindow = {
   id: "window-demo",
   policy_id: "owner-ui-demo",

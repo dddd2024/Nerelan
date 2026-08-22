@@ -1,8 +1,8 @@
-import { Activity, Clock3, Layers3, ShieldCheck } from "lucide-react";
+import { Loader2, PlayCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { GoalComposer } from "@/components/goal-composer";
 import { GoalProgress } from "@/components/goal-progress";
-import { useGoals, usePlatformStatus, useStartGoal } from "@/hooks/use-platform";
+import { useGoal, useGoals, usePlatformStatus, useStartGoal } from "@/hooks/use-platform";
 import type { PlatformGoal } from "@/lib/platform-client";
 import { cn } from "@/lib/cn";
 
@@ -25,12 +25,11 @@ export function HomePage() {
     if (!selectedId && goals[0]) setSelectedId(goals[0].id);
   }, [goals, selectedId]);
 
-  const selected = useMemo(
-    () => goals.find((goal) => goal.id === selectedId) ?? goals[0],
-    [goals, selectedId],
-  );
+  const detailQuery = useGoal(selectedId);
+  const detailGoal = detailQuery.data;
+  const recent = useMemo(() => goals.slice(0, 3), [goals]);
   const platform = statusQuery.data;
-  const window = platform?.autonomy.active_window;
+  const activeWindow = platform?.autonomy.active_window;
 
   function handleStarted(goal: PlatformGoal) {
     setSelectedId(goal.id);
@@ -38,22 +37,34 @@ export function HomePage() {
 
   return (
     <main data-testid="platform-home" className="min-h-full bg-[var(--oh-surface)] px-4 py-7 sm:px-8 lg:px-12 lg:py-10">
-      <div className="mx-auto grid w-full max-w-[1180px] gap-10 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="min-w-0">
-          <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-ra-text-tertiary">Multi-agent workspace</p>
-              <h1 className="mt-2 text-3xl font-medium tracking-[-0.025em] text-ra-text sm:text-4xl">今天想完成什么？</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-ra-text-secondary">
-                给出最终目标。平台会生成规格与任务，协调 Agent，保存检查点，并把结果留给你审查。
-              </p>
-            </div>
-            <div className="flex items-center gap-2 rounded-full border border-ra-border bg-ra-light/70 px-3 py-1.5 text-xs text-ra-text-secondary">
+      <div className="mx-auto max-w-[1080px]">
+        <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-ra-text-tertiary">Agent workspace</p>
+            <h1 className="mt-2 text-3xl font-medium tracking-[-0.025em] text-ra-text sm:text-4xl">今天想完成什么？</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-ra-text-secondary">
+              给出最终目标。平台会生成规格与任务，协调 Agent，保存检查点，并把结果留给你审查。
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            {activeWindow && (
+              <span className="flex items-center gap-2 rounded-full border border-ra-border bg-ra-light/70 px-3 py-1.5 text-xs text-ra-text-secondary">
+                <Loader2 className={cn("h-3 w-3", activeWindow.status === "ACTIVE" && "animate-spin")} />
+                {activeWindow.tasks_completed}/{activeWindow.max_tasks}
+              </span>
+            )}
+            <span className="flex items-center gap-2 rounded-full border border-ra-border bg-ra-light/70 px-3 py-1.5 text-xs text-ra-text-secondary">
               <span className={cn("h-2 w-2 rounded-full", platform?.coordinator.enabled ? "bg-emerald-400" : "bg-amber-300")} />
               {platform?.coordinator.enabled ? "协调器在线" : "手动模式"}
-            </div>
-          </header>
+            </span>
+            <span className="flex items-center gap-2 rounded-full border border-ra-border bg-ra-light/70 px-3 py-1.5 text-xs text-ra-text-secondary">
+              <PlayCircle className="h-3 w-3" />
+              {platform?.capability_count ?? "—"} 能力
+            </span>
+          </div>
+        </header>
 
+        <section data-testid="goal-composer-section" className="mb-10">
           <GoalComposer
             busy={startGoal.isPending}
             onSubmit={(input) => startGoal.mutate(input, { onSuccess: handleStarted })}
@@ -61,64 +72,74 @@ export function HomePage() {
           {startGoal.isError && (
             <p role="alert" className="mt-3 text-sm text-red-300">{startGoal.error.message}</p>
           )}
-          <p className="mt-3 flex items-center gap-2 text-xs text-ra-text-tertiary">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            策略在服务端执行；浏览器不持有 shell、文件系统或模型凭据。
-          </p>
+        </section>
 
-          <div className="mt-10">
-            {selected ? (
-              <GoalProgress goal={selected} />
-            ) : (
-              <div className="border-t border-ra-border/70 py-12 text-center text-sm text-ra-text-tertiary">
-                第一个目标会在这里显示 Agent 的执行进度。
-              </div>
-            )}
+        <section data-testid="current-execution-section" aria-label="Current execution" className="mb-10">
+          {selectedId && detailQuery.isPending ? (
+            <div role="status" aria-live="polite" className="border-t border-ra-border/70 py-12 text-center text-sm text-ra-text-tertiary">
+              正在加载所选目标的执行进度…
+            </div>
+          ) : selectedId && detailQuery.isError ? (
+            <div className="border-t border-ra-border/70 py-10 text-center">
+              <p role="alert" className="text-sm text-red-300">当前所选目标的执行进度暂时无法加载，请重试。</p>
+              <button
+                type="button"
+                onClick={() => void detailQuery.refetch()}
+                disabled={detailQuery.isFetching}
+                className="mt-4 rounded-lg border border-ra-border px-3 py-2 text-xs text-ra-text-secondary transition hover:bg-ra-light/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent disabled:cursor-wait disabled:opacity-60"
+              >
+                {detailQuery.isFetching ? "正在重试…" : "重试加载当前目标"}
+              </button>
+            </div>
+          ) : detailGoal ? (
+            <GoalProgress goal={detailGoal} />
+          ) : !selectedId ? (
+            <div className="border-t border-ra-border/70 py-12 text-center text-sm text-ra-text-tertiary">
+              第一个目标会在这里显示 Agent 的执行进度。
+            </div>
+          ) : (
+            <div role="status" aria-live="polite" className="border-t border-ra-border/70 py-12 text-center text-sm text-ra-text-tertiary">
+              正在加载所选目标的执行进度…
+            </div>
+          )}
+        </section>
+
+        <section data-testid="recent-goals-section" aria-label="Recent goals" className="border-t border-ra-border/70 pt-8">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-sm font-medium text-ra-text">最近目标</h2>
+            <span className="text-xs text-ra-text-tertiary">{Math.min(goals.length, 3)} / {goals.length}</span>
           </div>
-        </div>
-
-        <aside className="border-t border-ra-border/70 pt-6 xl:border-l xl:border-t-0 xl:pl-7 xl:pt-1">
-          <div className="grid grid-cols-2 gap-4 border-b border-ra-border/70 pb-6 xl:grid-cols-1">
-            <div>
-              <p className="flex items-center gap-2 text-xs text-ra-text-tertiary"><Activity className="h-3.5 w-3.5" />自治窗口</p>
-              <p className="mt-2 text-sm text-ra-text">{window ? "运行中" : "未启用"}</p>
-              <p className="mt-1 text-xs text-ra-text-tertiary">
-                {window ? `${window.tasks_completed}/${window.max_tasks} 个任务完成` : "提交目标时可启用"}
-              </p>
-            </div>
-            <div>
-              <p className="flex items-center gap-2 text-xs text-ra-text-tertiary"><Layers3 className="h-3.5 w-3.5" />能力</p>
-              <p className="mt-2 text-sm text-ra-text">{platform?.capability_count ?? "—"} 个已就绪</p>
-              <p className="mt-1 text-xs text-ra-text-tertiary">规划 · 执行 · 验证 · Draft PR</p>
-            </div>
-          </div>
-
-          <div className="pt-6">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-medium text-ra-text">最近目标</h2>
-              <span className="text-xs text-ra-text-tertiary">{goals.length}</span>
-            </div>
-            <div className="space-y-1">
-              {goals.slice(0, 8).map((goal) => (
-                <button
-                  type="button"
-                  key={goal.id}
-                  onClick={() => setSelectedId(goal.id)}
-                  className={cn(
-                    "w-full rounded-xl px-3 py-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-                    selected?.id === goal.id ? "bg-ra-light text-ra-text" : "text-ra-text-secondary hover:bg-ra-light/50 hover:text-ra-text",
-                  )}
-                >
-                  <p className="line-clamp-2 text-sm leading-5">{goal.title}</p>
-                  <p className="mt-2 flex items-center justify-between text-[11px] text-ra-text-tertiary">
-                    <span>{goal.status}</span>
-                    <span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3" />{relativeTime(goal.updated_at)}</span>
+          <div className="space-y-2">
+            {recent.map((goal) => (
+              <button
+                type="button"
+                key={goal.id}
+                onClick={() => setSelectedId(goal.id)}
+                className={cn(
+                  "w-full rounded-xl border border-ra-border/70 px-4 py-3 text-left transition hover:bg-ra-light/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+                  detailGoal?.id === goal.id && "border-ra-accent/60 bg-ra-light",
+                )}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <p className="min-w-0 flex-1 text-sm leading-5 text-ra-text">
+                    <span className="line-clamp-1">{goal.title}</span>
                   </p>
-                </button>
-              ))}
-            </div>
+                  <span className={cn(
+                    "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                    goal.status === "COMPLETED" && "border border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+                    goal.status === "RUNNING" && "border border-blue-500/40 bg-blue-500/10 text-blue-300",
+                    goal.status === "BLOCKED" && "border border-red-500/40 bg-red-500/10 text-red-300",
+                    goal.status !== "COMPLETED" && goal.status !== "RUNNING" && goal.status !== "BLOCKED" && "border border-ra-border text-ra-text-secondary",
+                  )}>{goal.status}</span>
+                </div>
+                <p className="mt-2 flex items-center justify-between text-[11px] text-ra-text-tertiary">
+                  <span className="line-clamp-1">{goal.objective}</span>
+                  <span className="inline-flex shrink-0 items-center gap-1">{relativeTime(goal.updated_at)}</span>
+                </p>
+              </button>
+            ))}
           </div>
-        </aside>
+        </section>
       </div>
     </main>
   );

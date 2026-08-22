@@ -7,7 +7,7 @@ truth.  Planning is deterministic and editable; it makes no model call.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import re
 import shutil
 from typing import Any, Mapping, Sequence
@@ -155,9 +155,31 @@ class GoalService:
             goal.id, revision=goal.revision, window_id=window_id
         )
 
+    def list(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        goals = self.control_store.list_goals(limit=limit)
+        payload: list[dict[str, Any]] = []
+        for goal in goals:
+            payload.append(self._response_snapshot(goal.id))
+        return payload
+
     def detail(self, goal_id: str) -> dict[str, Any]:
+        return self._response_snapshot(goal_id)
+
+    def _response_snapshot(self, goal_id: str) -> dict[str, Any]:
+        """Build one coherent goal response after durable status reconciliation."""
+
         goal = self.control_store.refresh_goal_status(goal_id)
-        return goal_to_dict(goal, links=self.control_store.list_goal_tasks(goal_id))
+        links = self.control_store.list_goal_tasks(goal_id)
+        if links:
+            statuses = {str(link["status"]) for link in links}
+            if statuses <= {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"}:
+                status = "COMPLETED"
+            elif statuses & {"FAILED", "BLOCKED", "CANCELLED"}:
+                status = "BLOCKED"
+            else:
+                status = "RUNNING"
+            goal = replace(goal, status=status)
+        return goal_to_dict(goal, links=links)
 
     @staticmethod
     def _title_from_objective(objective: str) -> str:
