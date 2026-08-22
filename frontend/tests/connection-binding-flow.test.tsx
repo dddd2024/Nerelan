@@ -747,3 +747,185 @@ describe("Connection verify button state", () => {
     expect(screen.getByTestId("test-connection-button")).toBeDisabled();
   });
 });
+
+describe("auth-method-aware Connection verification UI", () => {
+  const executors = [{
+    executorId: "opencode",
+    name: "OpenCode",
+    operational: true,
+    capabilities: [],
+  }];
+
+  function renderConnection(
+    connection: Connection,
+    options: {
+      onConnectionSave?: (input: ConnectionInput) => Promise<void>;
+      connectionProbeResult?: {
+        ok: boolean;
+        status: string;
+        message: string;
+        latencyMs: number | null;
+      } | null;
+    } = {},
+  ) {
+    renderWithProviders(
+      <ConnectionBindingEditor
+        view="connection"
+        connection={connection}
+        binding={null}
+        creating={false}
+        connections={[connection]}
+        executors={executors}
+        busy={false}
+        onConnectionSave={options.onConnectionSave ?? (async () => undefined)}
+        onBindingSave={async () => undefined}
+        onConnectionDelete={async () => undefined}
+        onBindingDelete={async () => undefined}
+        onConnectionTest={async () => undefined}
+        connectionProbeResult={options.connectionProbeResult ?? null}
+        connectionProbePending={false}
+      />,
+    );
+  }
+
+  it.each(["account_login", "external_cli_session"] as const)(
+    "renders saved %s truthfully and disables generic verification before click",
+    (authMethod) => {
+      const connection: Connection = {
+        connectionId: `${authMethod.replaceAll("_", "-")}-ui`,
+        name: authMethod,
+        provider: "openai-compatible",
+        baseUrl: "https://api.example.com/v1",
+        authMethod,
+        enabled: true,
+        secretStatus: "not_applicable",
+        externalSessionStatus: "executor_managed",
+      };
+
+      renderConnection(connection);
+
+      expect(screen.getByLabelText("认证方式")).toHaveValue(authMethod);
+      expect(screen.queryByLabelText("API Key")).not.toBeInTheDocument();
+      expect(screen.getByTestId("test-connection-button")).toBeDisabled();
+      expect(
+        screen.getByTestId("connection-verification-capability"),
+      ).toHaveTextContent(/认证由 OpenCode \/ 外部会话管理/);
+    },
+  );
+
+  it("keeps saved no-auth Connection independently probeable without an API Key field", () => {
+    const connection: Connection = {
+      connectionId: "none-ui",
+      name: "No Auth",
+      provider: "openai-compatible",
+      baseUrl: "https://api.example.com/v1",
+      authMethod: "none",
+      enabled: true,
+      secretStatus: "not_applicable",
+      externalSessionStatus: "not_applicable",
+    };
+
+    renderConnection(connection);
+
+    expect(screen.getByLabelText("认证方式")).toHaveValue("none");
+    expect(screen.queryByLabelText("API Key")).not.toBeInTheDocument();
+    expect(screen.getByTestId("test-connection-button")).toBeEnabled();
+  });
+
+  it("disables verification before click when the saved API Key is missing", () => {
+    const connection: Connection = {
+      connectionId: "missing-ui",
+      name: "Missing Key",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      secretStatus: "missing",
+      externalSessionStatus: "not_applicable",
+    };
+
+    renderConnection(connection);
+
+    expect(screen.getByLabelText("认证方式")).toHaveValue("api_key");
+    expect(screen.getByLabelText("API Key")).toBeInTheDocument();
+    expect(screen.getByTestId("test-connection-button")).toBeDisabled();
+    expect(
+      screen.getByTestId("connection-verification-capability"),
+    ).toHaveTextContent(/请先配置并保存 API Key/);
+  });
+
+  it("disables verification before click for a disabled Connection", () => {
+    const connection: Connection = {
+      connectionId: "disabled-ui",
+      name: "Disabled",
+      provider: "openai-compatible",
+      baseUrl: "https://api.example.com/v1",
+      authMethod: "none",
+      enabled: false,
+      secretStatus: "not_applicable",
+      externalSessionStatus: "not_applicable",
+    };
+
+    renderConnection(connection);
+
+    expect(screen.getByTestId("test-connection-button")).toBeDisabled();
+    expect(
+      screen.getByTestId("connection-verification-capability"),
+    ).toHaveTextContent(/连接已禁用/);
+  });
+
+  it("clears an unsaved API Key when auth changes away from api_key", async () => {
+    const connection: Connection = {
+      connectionId: "clear-hidden-key-ui",
+      name: "Clear Hidden Key",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      secretStatus: "environment",
+      externalSessionStatus: "not_applicable",
+    };
+    const save = vi.fn(async (_input: ConnectionInput) => undefined);
+    const user = userEvent.setup();
+
+    renderConnection(connection, { onConnectionSave: save });
+
+    await user.type(screen.getByLabelText("API Key"), "unsaved-hidden-secret");
+    await user.selectOptions(screen.getByLabelText("认证方式"), "none");
+
+    expect(screen.queryByLabelText("API Key")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "保存连接" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+
+    const savedInput = save.mock.calls[0][0];
+    expect(savedInput.authMethod).toBe("none");
+    expect(savedInput.apiKey).toBeUndefined();
+  });
+
+  it("localizes backend capability prose instead of rendering raw English", () => {
+    const rawEnglish = "Probing this authentication method is not yet supported";
+    const connection: Connection = {
+      connectionId: "localized-probe-ui",
+      name: "Localized Probe",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      secretStatus: "environment",
+      externalSessionStatus: "not_applicable",
+    };
+
+    renderConnection(connection, {
+      connectionProbeResult: {
+        ok: false,
+        status: "unsupported_auth_method",
+        message: rawEnglish,
+        latencyMs: null,
+      },
+    });
+
+    const result = screen.getByTestId("connection-probe-result");
+    expect(result).toHaveTextContent("当前认证方式不支持独立连接验证");
+    expect(result).not.toHaveTextContent(rawEnglish);
+  });
+});
