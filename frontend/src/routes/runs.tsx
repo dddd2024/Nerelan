@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Activity,
   ChevronDown,
@@ -10,12 +10,15 @@ import {
   RefreshCw,
   UserRound,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  cancelRun,
   fetchRun,
   fetchRuns,
   type PlatformAgentRun,
   type PlatformAgentRunDetail,
+  type PlatformRunCancelControl,
+  PlatformClientError,
   type PlatformRunActivityEvent,
   type PlatformRunAgent,
 } from "@/lib/platform-client";
@@ -94,6 +97,13 @@ const CATEGORY_LABELS: Record<string, string> = {
   BLOCKED: "阻塞",
   OWNER_ACTION_REQUIRED: "需要 Owner 处理",
   PUBLICATION: "发布",
+};
+
+const CANCEL_REASON_LABELS: Record<string, string> = {
+  QUEUED_UNCLAIMED: "仅能取消尚未获取执行权的排队任务。",
+  EXECUTION_HISTORY_PRESENT: "已有执行记录，不能安全取消。",
+  STATUS_NOT_CANCELLABLE: "当前状态不支持取消；这不是停止运行中的进程。",
+  ALREADY_CANCELLED: "任务已取消。",
 };
 
 function formatUnits(value: number) {
@@ -189,13 +199,162 @@ function ActivityRow({ event }: { event: PlatformRunActivityEvent }) {
   );
 }
 
+function cancelReason(control?: PlatformRunCancelControl) {
+  if (!control) return "服务器未提供可用的取消能力。";
+  return CANCEL_REASON_LABELS[control.reason_code] ?? "当前任务不支持安全取消。";
+}
+
+function RunCancelControl({
+  taskId,
+  control,
+  confirming,
+  pending,
+  error,
+  onRequest,
+  onConfirm,
+  onBack,
+  onRetry,
+}: {
+  taskId: string;
+  control?: PlatformRunCancelControl;
+  confirming: boolean;
+  pending: boolean;
+  error: string;
+  onRequest: () => void;
+  onConfirm: () => void;
+  onBack: () => void;
+  onRetry: () => void;
+}) {
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const retryButtonRef = useRef<HTMLButtonElement>(null);
+  const available = control?.action === "CANCEL"
+    && control.scope === "QUEUE_ONLY"
+    && control.availability === "AVAILABLE";
+  const reason = cancelReason(control);
+
+  useEffect(() => {
+    if (confirming && !pending) confirmButtonRef.current?.focus();
+  }, [confirming, pending]);
+
+  useEffect(() => {
+    if (error && !pending) retryButtonRef.current?.focus();
+  }, [error, pending]);
+
+  const retry = () => {
+    onRetry();
+    cancelButtonRef.current?.focus();
+  };
+
+  return (
+    <section aria-labelledby={`run-control-heading-${taskId}`} data-testid={`run-control-${taskId}`} className="rounded-xl border border-ra-border/70 bg-ra-light/40 p-3">
+      <h3 id={`run-control-heading-${taskId}`} className="text-xs font-semibold uppercase tracking-wide text-ra-text-tertiary">运行控制</h3>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 text-xs text-ra-text-secondary">
+          <p>取消排队任务</p>
+          <p id={`run-cancel-help-${taskId}`} data-testid={`run-cancel-help-${taskId}`} className="mt-1 text-ra-text-tertiary">{reason}</p>
+        </div>
+        <button
+          type="button"
+          ref={cancelButtonRef}
+          data-testid={`run-cancel-${taskId}`}
+          disabled={!available || pending}
+          aria-describedby={`run-cancel-help-${taskId}`}
+          onClick={onRequest}
+          className="inline-flex min-h-10 items-center justify-center rounded-lg border border-ra-border px-3 py-2 text-xs font-medium text-ra-text-secondary hover:bg-ra-light disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+        >
+          {pending ? "正在取消排队任务…" : "取消排队任务"}
+        </button>
+      </div>
+      {confirming && available && !pending ? (
+        <div role="group" aria-label="确认取消排队任务" data-testid={`run-cancel-confirm-${taskId}`} className="mt-3 rounded-lg border border-ra-border bg-ra-base p-3 text-xs text-ra-text-secondary">
+          <p>这只会取消尚未获取执行权的排队任务，不会停止正在运行的 Agent。</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" ref={confirmButtonRef} onClick={onConfirm} className="inline-flex min-h-10 items-center justify-center rounded-lg bg-ra-accent px-3 py-2 font-medium text-ra-base focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">确认取消</button>
+            <button type="button" onClick={onBack} className="inline-flex min-h-10 items-center justify-center rounded-lg border border-ra-border px-3 py-2 text-ra-text-secondary hover:bg-ra-light focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">返回</button>
+          </div>
+        </div>
+      ) : null}
+      {error ? (
+        <div role="alert" data-testid={`run-cancel-error-${taskId}`} className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-ra-status-error/40 bg-ra-status-error/10 p-3 text-xs text-ra-status-error">
+          <span>{error}</span>
+          <button type="button" ref={retryButtonRef} onClick={retry} className="inline-flex min-h-9 items-center rounded-lg border border-ra-status-error/50 px-2.5 py-1.5 font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">重试</button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function RunDetail({ run, open }: { run: PlatformAgentRun; open: boolean }) {
+  const queryClient = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+  const [cancelError, setCancelError] = useState("");
+  const lifecycleRef = useRef({ taskId: run.task_id, open, generation: 0, mounted: true });
+  if (lifecycleRef.current.taskId !== run.task_id || lifecycleRef.current.open !== open) {
+    lifecycleRef.current = {
+      taskId: run.task_id,
+      open,
+      generation: lifecycleRef.current.generation + 1,
+      mounted: lifecycleRef.current.mounted,
+    };
+  }
+  const isCurrent = (generation?: number) => Boolean(
+    generation !== undefined
+      && lifecycleRef.current.mounted
+      && lifecycleRef.current.open
+      && lifecycleRef.current.taskId === run.task_id
+      && lifecycleRef.current.generation === generation,
+  );
   const detailQuery = useQuery<PlatformAgentRunDetail>({
     queryKey: ["run", run.task_id],
     queryFn: () => fetchRun(run.task_id),
     enabled: open,
     staleTime: 2_000,
     refetchInterval: open ? 4_000 : false,
+  });
+
+  useEffect(() => {
+    setConfirming(false);
+    setCancelError("");
+  }, [open, run.task_id]);
+
+  useEffect(() => {
+    lifecycleRef.current.mounted = true;
+    return () => {
+    lifecycleRef.current.mounted = false;
+    };
+  }, []);
+
+  const cancelMutation = useMutation({
+    mutationFn: () => cancelRun(run.task_id),
+    onMutate: () => {
+      setCancelError("");
+      return { generation: lifecycleRef.current.generation };
+    },
+    onSuccess: async (_result, _variables, context) => {
+      if (!isCurrent(context?.generation)) return;
+      setConfirming(false);
+      setCancelError("");
+      await Promise.all([
+        detailQuery.refetch(),
+        queryClient.refetchQueries({ queryKey: ["runs"] }),
+        queryClient.refetchQueries({ queryKey: ["goals"] }),
+      ]);
+    },
+    onError: async (error, _variables, context) => {
+      if (!isCurrent(context?.generation)) return;
+      setConfirming(false);
+      if (error instanceof PlatformClientError && error.status === 409) {
+        await Promise.all([
+          detailQuery.refetch(),
+          queryClient.refetchQueries({ queryKey: ["runs"] }),
+        ]).catch(() => undefined);
+        if (!isCurrent(context?.generation)) return;
+        setCancelError("取消请求与最新运行状态冲突，请刷新后重试。");
+        return;
+      }
+      setCancelError("取消请求未完成，请稍后重试。");
+    },
   });
 
   if (!open) return null;
@@ -207,10 +366,25 @@ function RunDetail({ run, open }: { run: PlatformAgentRun; open: boolean }) {
       ) : detailQuery.isError ? (
         <div role="alert" data-testid={`run-detail-error-${run.task_id}`} className="rounded-xl border border-dashed border-ra-border py-8 text-center">
           <p className="text-sm text-ra-text-secondary">暂时无法加载运行详情。</p>
-          <button type="button" onClick={() => void detailQuery.refetch()} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-ra-border px-3 py-1.5 text-xs text-ra-text-secondary hover:bg-ra-light focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />重试</button>
+          <button type="button" onClick={() => { setCancelError(""); setConfirming(false); void detailQuery.refetch(); }} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-ra-border px-3 py-1.5 text-xs text-ra-text-secondary hover:bg-ra-light focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />重试</button>
         </div>
       ) : (
-        <RunDetailContent run={detailQuery.data ?? { ...run, events: [], changed_files: [] }} />
+        <>
+          <RunCancelControl
+            taskId={run.task_id}
+            control={detailQuery.data?.controls?.cancel}
+            confirming={confirming}
+            pending={cancelMutation.isPending}
+            error={cancelError}
+            onRequest={() => { setCancelError(""); setConfirming(true); }}
+            onConfirm={() => { cancelMutation.mutate(); }}
+            onBack={() => { setCancelError(""); setConfirming(false); }}
+            onRetry={() => { setCancelError(""); setConfirming(false); cancelMutation.mutate(); }}
+          />
+          <div className="mt-5">
+            <RunDetailContent run={detailQuery.data ?? { ...run, events: [], changed_files: [] }} />
+          </div>
+        </>
       )}
     </div>
   );

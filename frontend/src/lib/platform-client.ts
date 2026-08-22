@@ -295,6 +295,29 @@ export interface PlatformAgentRun {
     pr_url: string;
     commit_sha: string;
   } | null;
+  controls?: PlatformRunControls;
+}
+
+export type PlatformRunCancelAvailability = "AVAILABLE" | "UNAVAILABLE" | "ALREADY_APPLIED";
+export type PlatformRunCancelReasonCode =
+  | "QUEUED_UNCLAIMED"
+  | "EXECUTION_HISTORY_PRESENT"
+  | "STATUS_NOT_CANCELLABLE"
+  | "ALREADY_CANCELLED";
+
+export interface PlatformRunCancelControl {
+  action: "CANCEL";
+  scope: "QUEUE_ONLY";
+  availability: PlatformRunCancelAvailability;
+  reason_code: PlatformRunCancelReasonCode;
+}
+
+export interface PlatformRunControls {
+  cancel: PlatformRunCancelControl;
+}
+
+export interface PlatformRunCancelResult {
+  status: "APPLIED" | "ALREADY_APPLIED";
 }
 
 export interface PlatformRunChangedFile {
@@ -559,6 +582,14 @@ const mockRuns: PlatformAgentRun[] = [
       pr_url: "https://github.com/dddd2024/reverse-agent/pull/97",
       commit_sha: "2e6dd422188c3c77928c4496049f763f81048ba7",
     },
+    controls: {
+      cancel: {
+        action: "CANCEL",
+        scope: "QUEUE_ONLY",
+        availability: "UNAVAILABLE",
+        reason_code: "STATUS_NOT_CANCELLABLE",
+      },
+    },
   },
   {
     task_id: "task-demo-2",
@@ -656,8 +687,59 @@ const mockRuns: PlatformAgentRun[] = [
     },
     budget: mockUnknownBudget,
     publication: null,
+    controls: {
+      cancel: {
+        action: "CANCEL",
+        scope: "QUEUE_ONLY",
+        availability: "UNAVAILABLE",
+        reason_code: "STATUS_NOT_CANCELLABLE",
+      },
+    },
   },
 ];
+
+mockRuns.push({
+  ...mockRuns[0],
+  task_id: "task-demo-queued",
+  title: "[完善无人值守多 Agent 平台] T003 等待派发",
+  status: "QUEUED",
+  state: "QUEUED",
+  created_at: new Date(now.getTime() - 2 * 60_000).toISOString(),
+  updated_at: new Date(now.getTime() - 60_000).toISOString(),
+  stage: "PLAN",
+  liveness: "WAITING",
+  last_activity_at: undefined,
+  current_activity: null,
+  current_agent: null,
+  agents: [],
+  events: [],
+  activity: [],
+  activity_total: 0,
+  changed_files: [],
+  change_summary: null,
+  validation: null,
+  publication: null,
+  controls: {
+    cancel: {
+      action: "CANCEL",
+      scope: "QUEUE_ONLY",
+      availability: "AVAILABLE",
+      reason_code: "QUEUED_UNCLAIMED",
+    },
+  },
+});
+
+export class PlatformClientError extends Error {
+  readonly status: number;
+  readonly code: string;
+
+  constructor(status: number, code: string) {
+    super("平台请求未完成");
+    this.name = "PlatformClientError";
+    this.status = status;
+    this.code = code;
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -666,7 +748,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   const text = await response.text();
   const payload = text ? (JSON.parse(text) as T & { error?: string }) : ({} as T & { error?: string });
-  if (!response.ok) throw new Error(payload.error || `平台请求失败 (${response.status})`);
+  if (!response.ok) {
+    const code = typeof payload.error === "string" ? payload.error : "platform_request_failed";
+    throw new PlatformClientError(response.status, code);
+  }
   return payload;
 }
 
@@ -847,7 +932,7 @@ export async function fetchRoadmap(): Promise<PlatformRoadmapPhase[]> {
 }
 
 export async function fetchRuns(): Promise<PlatformAgentRun[]> {
-  if (isMock()) return mockRuns;
+  if (isMock()) return mockRuns.map((run) => ({ ...run }));
   const result = await request<{ runs: PlatformAgentRun[] }>("/api/runs");
   return result.runs;
 }
@@ -862,4 +947,46 @@ export async function fetchRun(taskId: string): Promise<PlatformAgentRunDetail> 
     };
   }
   return request<PlatformAgentRunDetail>(`/api/runs/${encodeURIComponent(taskId)}`);
+}
+
+export async function cancelRun(taskId: string): Promise<PlatformRunCancelResult> {
+  if (isMock()) {
+    const run = mockRuns.find((entry) => entry.task_id === taskId);
+    if (!run) throw new PlatformClientError(404, "run_not_found");
+    const cancel = run.controls?.cancel;
+    if (cancel?.availability === "ALREADY_APPLIED") return { status: "ALREADY_APPLIED" };
+    if (cancel?.availability !== "AVAILABLE") {
+      throw new PlatformClientError(409, "queue_cancel_unavailable");
+    }
+    run.status = "CANCELLED";
+    run.state = "CANCELLED";
+    run.updated_at = new Date().toISOString();
+    run.liveness = "TERMINAL";
+    run.controls = {
+      cancel: {
+        action: "CANCEL",
+        scope: "QUEUE_ONLY",
+        availability: "ALREADY_APPLIED",
+        reason_code: "ALREADY_CANCELLED",
+      },
+    };
+    const event: PlatformRunActivityEvent = {
+      id: `${taskId}-queue-cancelled`,
+      task_id: taskId,
+      timestamp: run.updated_at,
+      category: "CHECKPOINT",
+      title: "排队任务已取消",
+      description: "尚未获取执行权的排队任务已取消。",
+      status: "COMPLETED",
+      stage: "PLAN",
+    };
+    run.events = [event];
+    run.activity = [event];
+    run.activity_total = 1;
+    return { status: "APPLIED" };
+  }
+  return request<PlatformRunCancelResult>(`/api/runs/${encodeURIComponent(taskId)}/cancel`, {
+    method: "POST",
+    body: "{}",
+  });
 }

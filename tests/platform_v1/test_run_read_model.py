@@ -632,3 +632,60 @@ def test_run_view_exposes_numeric_usage_role_provenance_and_window_budget(read_m
     assert run["budget"]["enforcement_class"] == "HARD_ADMISSION_ENFORCED"
     assert run["budget"]["reserved_token_units"] == 400
     assert run["budget"]["remaining_token_units"] == 600
+
+
+def test_queue_cancel_control_and_event_projection_are_bounded(read_model) -> None:
+    model, store, _ = read_model
+    task = store.create_task(title="queue cancel", executor_kind="deterministic_fixture")
+
+    before = store._conn.total_changes
+    detail = model.run_detail(task.id)
+    assert store._conn.total_changes == before
+    assert detail["controls"] == {
+        "cancel": {
+            "action": "CANCEL",
+            "scope": "QUEUE_ONLY",
+            "availability": "AVAILABLE",
+            "reason_code": "QUEUED_UNCLAIMED",
+        }
+    }
+
+    store.cancel_queued_task(task.id)
+    detail = model.run_detail(task.id)
+    assert detail["status"] == "CANCELLED"
+    assert detail["liveness"] == "TERMINAL"
+    assert detail["controls"]["cancel"]["availability"] == "ALREADY_APPLIED"
+    assert detail["controls"]["cancel"]["reason_code"] == "ALREADY_CANCELLED"
+    activity = detail["activity"][-1]
+    assert activity["type"] == "QUEUE_CANCELLED"
+    assert activity["title"] == "Queued task cancelled"
+    assert activity["category"] == "CHECKPOINT"
+    assert activity["stage"] == "PLAN"
+    assert activity["status"] == "COMPLETED"
+    assert activity["agent"] is None
+    assert activity["description"] == ""
+
+
+@pytest.mark.parametrize(
+    "status,expected_reason",
+    [
+        ("PREPARING_WORKSPACE", "STATUS_NOT_CANCELLABLE"),
+        ("RUNNING", "STATUS_NOT_CANCELLABLE"),
+        ("RUNNING_FIXTURE", "STATUS_NOT_CANCELLABLE"),
+        ("VALIDATING", "STATUS_NOT_CANCELLABLE"),
+        ("INTERRUPTED", "STATUS_NOT_CANCELLABLE"),
+        ("READY_FOR_REVIEW", "STATUS_NOT_CANCELLABLE"),
+        ("READY_FOR_REVIEW_FIXTURE", "STATUS_NOT_CANCELLABLE"),
+        ("BLOCKED", "STATUS_NOT_CANCELLABLE"),
+        ("FAILED", "STATUS_NOT_CANCELLABLE"),
+    ],
+)
+def test_queue_cancel_control_is_disabled_for_every_non_queue_status(
+    read_model, status: str, expected_reason: str
+) -> None:
+    model, store, _ = read_model
+    task = store.create_task(title="not queue cancellable", executor_kind="deterministic_fixture")
+    store.set_state(task.id, status)
+    control = model.run_detail(task.id)["controls"]["cancel"]
+    assert control["availability"] == "UNAVAILABLE"
+    assert control["reason_code"] == expected_reason
