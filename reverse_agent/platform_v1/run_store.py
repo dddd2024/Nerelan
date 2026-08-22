@@ -250,13 +250,19 @@ def _row_to_task(
         ).fetchall()
         event_count = len(event_rows)
     else:
-        bounded_event_limit = max(1, int(event_limit))
-        event_rows = conn.execute(
-            "SELECT id, task_id, type, timestamp, title, description, raw_log, "
-            "metadata FROM task_events WHERE task_id = ? ORDER BY seq DESC LIMIT ?",
-            (row["id"], bounded_event_limit),
-        ).fetchall()
-        event_rows.reverse()
+        bounded_event_limit = int(event_limit)
+        if bounded_event_limit == 0:
+            # Control-plane outcomes only need the task scalar fields and the
+            # exact count.  In particular, do not materialize any event row.
+            event_rows = []
+        else:
+            bounded_event_limit = max(1, bounded_event_limit)
+            event_rows = conn.execute(
+                "SELECT id, task_id, type, timestamp, title, description, raw_log, "
+                "metadata FROM task_events WHERE task_id = ? ORDER BY seq DESC LIMIT ?",
+                (row["id"], bounded_event_limit),
+            ).fetchall()
+            event_rows.reverse()
         count_row = conn.execute(
             "SELECT COUNT(*) AS c FROM task_events WHERE task_id = ?",
             (row["id"],),
@@ -801,8 +807,12 @@ class TaskStore:
         """
 
         with self._lock:
-            task = self.get_task(task_id)
-            reason = self._queue_cancel_reason_locked(task.id, task.status)
+            row = self._conn.execute(
+                "SELECT id, status FROM tasks WHERE id = ?", (task_id,)
+            ).fetchone()
+            if row is None:
+                raise TaskStoreError(f"task_not_found:{task_id}")
+            reason = self._queue_cancel_reason_locked(row["id"], str(row["status"]))
             if reason == "QUEUED_UNCLAIMED":
                 availability = "AVAILABLE"
             elif reason == "ALREADY_CANCELLED":
@@ -842,14 +852,14 @@ class TaskStore:
                     return QueueCancelOutcome(
                         status="ALREADY_APPLIED",
                         reason_code=reason,
-                        task=self.get_task(task_id),
+                        task=self.get_task(task_id, event_limit=0),
                     )
                 if reason != "QUEUED_UNCLAIMED":
                     cur.execute("COMMIT")
                     return QueueCancelOutcome(
                         status="UNAVAILABLE",
                         reason_code=reason,
-                        task=self.get_task(task_id),
+                        task=self.get_task(task_id, event_limit=0),
                     )
 
                 now = _utc_now()
@@ -871,7 +881,7 @@ class TaskStore:
                         return QueueCancelOutcome(
                             status="ALREADY_APPLIED",
                             reason_code="ALREADY_CANCELLED",
-                            task=self.get_task(task_id),
+                            task=self.get_task(task_id, event_limit=0),
                         )
                     return QueueCancelOutcome(
                         status="UNAVAILABLE",
@@ -880,7 +890,7 @@ class TaskStore:
                             if latest_status
                             else "EXECUTION_HISTORY_PRESENT"
                         ),
-                        task=self.get_task(task_id),
+                        task=self.get_task(task_id, event_limit=0),
                     )
 
                 self._append_event(
@@ -895,7 +905,7 @@ class TaskStore:
                 return QueueCancelOutcome(
                     status="APPLIED",
                     reason_code="QUEUED_UNCLAIMED",
-                    task=self.get_task(task_id),
+                    task=self.get_task(task_id, event_limit=0),
                 )
             except TaskStoreError:
                 try:

@@ -666,6 +666,83 @@ def test_queue_cancel_control_and_event_projection_are_bounded(read_model) -> No
     assert activity["description"] == ""
 
 
+def test_run_detail_and_queue_cancel_outcomes_never_load_unbounded_event_history(
+    read_model,
+) -> None:
+    model, store, _ = read_model
+
+    def seed_events(task_id: str) -> None:
+        # Seed past the read-model detail cap without tracing the setup writes.
+        with store._lock:
+            for index in range(MAX_DETAIL_EVENTS + 5):
+                store._append_event(
+                    task_id=task_id,
+                    event_type="DISCOVERED",
+                    title=f"seed-{index}",
+                    description="",
+                    metadata={},
+                )
+
+    def traced(call):
+        statements: list[str] = []
+        store._conn.set_trace_callback(statements.append)
+        try:
+            result = call()
+        finally:
+            store._conn.set_trace_callback(None)
+        return result, statements
+
+    def event_selects(statements: list[str]) -> list[str]:
+        return [
+            statement.upper()
+            for statement in statements
+            if "FROM TASK_EVENTS" in statement.upper()
+        ]
+
+    def assert_bounded_event_reads(statements: list[str]) -> None:
+        selects = event_selects(statements)
+        assert not any("ORDER BY SEQ ASC" in statement for statement in selects)
+        assert all(
+            "COUNT(*)" in statement or "LIMIT" in statement
+            for statement in selects
+        )
+
+    task = store.create_task(title="bounded detail", executor_kind="deterministic_fixture")
+    seed_events(task.id)
+    detail, detail_trace = traced(lambda: model.run_detail(task.id))
+    assert detail["events_truncated"] is True
+    assert len(detail["events"]) == MAX_DETAIL_EVENTS
+    detail_event_selects = event_selects(detail_trace)
+    assert detail_event_selects
+    assert_bounded_event_reads(detail_trace)
+    assert any("ORDER BY SEQ DESC" in statement and "LIMIT 100" in statement
+               for statement in detail_event_selects)
+
+    capability, capability_trace = traced(
+        lambda: store.queue_cancel_capability(task.id)
+    )
+    assert capability["availability"] == "AVAILABLE"
+    assert event_selects(capability_trace) == []
+
+    applied, applied_trace = traced(lambda: store.cancel_queued_task(task.id))
+    assert applied.status == "APPLIED"
+    assert_bounded_event_reads(applied_trace)
+
+    already, already_trace = traced(lambda: store.cancel_queued_task(task.id))
+    assert already.status == "ALREADY_APPLIED"
+    assert_bounded_event_reads(already_trace)
+
+    blocked = store.create_task(title="bounded conflict", executor_kind="deterministic_fixture")
+    seed_events(blocked.id)
+    store.set_state(blocked.id, "RUNNING")
+    unavailable, unavailable_trace = traced(
+        lambda: store.cancel_queued_task(blocked.id)
+    )
+    assert unavailable.status == "UNAVAILABLE"
+    assert unavailable.reason_code == "STATUS_NOT_CANCELLABLE"
+    assert_bounded_event_reads(unavailable_trace)
+
+
 @pytest.mark.parametrize(
     "status,expected_reason",
     [
