@@ -3,31 +3,31 @@
   "artifact_name": "startup_snapshot.json",
   "gate_name": "startup-snapshot",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260821_issue276_durable_parallel_task_batches_r2_v3",
-  "round_id": "round_20260821_issue276_durable_parallel_task_batches_r2_v3",
+  "decision_id": "decision_20260822_issue285_home_goal_truth_r2_v2_landing",
+  "round_id": "round_20260822_issue285_home_goal_truth_r2_v2_landing",
   "mainline": "engineering_branch",
-  "generated_at": "2026-08-20T18:22:40.472315Z",
+  "generated_at": "2026-08-22T03:51:46.591137Z",
   "artifact_path": "project_state/gates/startup_snapshot.json",
   "startup_sequence": [
     {
-      "command": "Set-Location F:\\reverse-agent-issue276-parallel-r2-v3",
+      "command": "Set-Location F:\\reverse-agent-issue285-home-goal-truth-r2-v2-landing",
       "exit_code": 0,
-      "stdout": "F:\\reverse-agent-issue276-parallel-r2-v3"
+      "stdout": "F:\\reverse-agent-issue285-home-goal-truth-r2-v2-landing"
     },
     {
       "command": "Get-Location",
       "exit_code": 0,
-      "stdout": "F:\\reverse-agent-issue276-parallel-r2-v3"
+      "stdout": "F:\\reverse-agent-issue285-home-goal-truth-r2-v2-landing"
     },
     {
-      "command": "Test-Path F:\\reverse-agent-issue276-parallel-r2-v3",
+      "command": "Test-Path F:\\reverse-agent-issue285-home-goal-truth-r2-v2-landing",
       "exit_code": 0,
       "stdout": "True"
     },
     {
       "command": "git rev-parse --show-toplevel",
       "exit_code": 0,
-      "stdout": "F:/reverse-agent-issue276-parallel-r2-v3"
+      "stdout": "F:/reverse-agent-issue285-home-goal-truth-r2-v2-landing"
     },
     {
       "command": "git status --short",
@@ -35,10 +35,10 @@
       "stdout_lines": []
     }
   ],
-  "repository_root": "F:/reverse-agent-issue276-parallel-r2-v3",
-  "expected_repository_root": "F:\\reverse-agent-issue276-parallel-r2-v3",
+  "repository_root": "F:/reverse-agent-issue285-home-goal-truth-r2-v2-landing",
+  "expected_repository_root": "F:\\reverse-agent-issue285-home-goal-truth-r2-v2-landing",
   "repository_root_matches": true,
-  "head_commit": "250e3c702a63",
+  "head_commit": "d05ce22d306e",
   "raw_git_status_short": [],
   "dirty_files": [],
   "worktree_classifier_schema_version": 1,
