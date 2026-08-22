@@ -206,6 +206,39 @@ describe("Platform V2 Home Workspace V2", () => {
     expect(currentSection).toContainElement(screen.getByText("验证并准备证据"));
   });
 
+  it("distinguishes selected-detail loading from the empty state", async () => {
+    const detailRequest = new Promise<PlatformGoal>(() => undefined);
+    const goalSpy = vi.spyOn(platformClient, "fetchGoal" as never) as unknown as Mock;
+    goalSpy.mockReturnValue(detailRequest);
+    const client = makeClient({ staleTime: 60_000 });
+    client.setQueryData(["goals"], [RUNNING_GOAL]);
+
+    render(<HomePage />, { factory: () => client });
+
+    expect(await screen.findByText("正在加载所选目标的执行进度…")).toHaveAttribute("role", "status");
+    expect(screen.queryByText("第一个目标会在这里显示 Agent 的执行进度。")).not.toBeInTheDocument();
+  });
+
+  it("shows an accessible selected-detail error and recovers through query retry", async () => {
+    const goalSpy = vi.spyOn(platformClient, "fetchGoal" as never) as unknown as Mock;
+    goalSpy.mockRejectedValueOnce(new Error("raw provider payload must stay hidden"));
+    goalSpy.mockResolvedValueOnce(RUNNING_GOAL);
+    const client = makeClient({ staleTime: 60_000 });
+    client.setQueryData(["goals"], [RUNNING_GOAL]);
+
+    render(<HomePage />, { factory: () => client });
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("当前所选目标的执行进度暂时无法加载，请重试。");
+    expect(alert).not.toHaveTextContent("raw provider payload must stay hidden");
+    const retry = screen.getByRole("button", { name: "重试加载当前目标" });
+    await userEvent.setup().click(retry);
+
+    await waitFor(() => expect(screen.getByText("Agent progress")).toBeInTheDocument());
+    expect(goalSpy).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("requires explicit autonomous-window confirmation before starting", async () => {
     await homeReady();
     const user = userEvent.setup();

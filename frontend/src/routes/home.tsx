@@ -75,11 +75,31 @@ export function HomePage() {
         </section>
 
         <section data-testid="current-execution-section" aria-label="Current execution" className="mb-10">
-          {detailGoal ? (
+          {selectedId && detailQuery.isPending ? (
+            <div role="status" aria-live="polite" className="border-t border-ra-border/70 py-12 text-center text-sm text-ra-text-tertiary">
+              正在加载所选目标的执行进度…
+            </div>
+          ) : selectedId && detailQuery.isError ? (
+            <div className="border-t border-ra-border/70 py-10 text-center">
+              <p role="alert" className="text-sm text-red-300">当前所选目标的执行进度暂时无法加载，请重试。</p>
+              <button
+                type="button"
+                onClick={() => void detailQuery.refetch()}
+                disabled={detailQuery.isFetching}
+                className="mt-4 rounded-lg border border-ra-border px-3 py-2 text-xs text-ra-text-secondary transition hover:bg-ra-light/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent disabled:cursor-wait disabled:opacity-60"
+              >
+                {detailQuery.isFetching ? "正在重试…" : "重试加载当前目标"}
+              </button>
+            </div>
+          ) : detailGoal ? (
             <GoalProgress goal={detailGoal} />
-          ) : (
+          ) : !selectedId ? (
             <div className="border-t border-ra-border/70 py-12 text-center text-sm text-ra-text-tertiary">
               第一个目标会在这里显示 Agent 的执行进度。
+            </div>
+          ) : (
+            <div role="status" aria-live="polite" className="border-t border-ra-border/70 py-12 text-center text-sm text-ra-text-tertiary">
+              正在加载所选目标的执行进度…
             </div>
           )}
         </section>

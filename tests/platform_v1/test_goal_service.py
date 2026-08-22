@@ -88,3 +88,40 @@ def test_goal_rejects_secret_shaped_planning_fields():
             expected_revision=1,
             tasks=[{"id": "T001", "title": "bad", "instruction": "x", "api_token": "sentinel"}],
         )
+
+
+@pytest.mark.parametrize("read_response", ["list", "detail"])
+def test_goal_response_status_uses_the_returned_link_snapshot(
+    monkeypatch, read_response
+):
+    store, control, autonomy, goals = _services()
+    goal = goals.create({
+        "objective": "Keep goal response truth coherent",
+        "idempotency_key": "goal-response-snapshot-v1-" + read_response,
+        "executor_kind": "deterministic_fixture",
+        "orchestration_mode": "single",
+    })
+    goals.plan(
+        goal.id,
+        expected_revision=1,
+        tasks=[{"id": "T001", "title": "step", "instruction": "run"}],
+    )
+    goals.approve(goal.id, expected_revision=1, policy_ref="owner-window-1")
+    window = autonomy.activate(_window_payload())
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+
+    original_refresh = control.refresh_goal_status
+
+    def refresh_then_change_task(goal_id):
+        refreshed = original_refresh(goal_id)
+        # Force the task transition into the gap between durable refresh and
+        # the links snapshot used to build this response.
+        store.set_state(task_id, "READY_FOR_REVIEW")
+        return refreshed
+
+    monkeypatch.setattr(control, "refresh_goal_status", refresh_then_change_task)
+    response = goals.list()[0] if read_response == "list" else goals.detail(goal.id)
+
+    assert response["status"] == "COMPLETED"
+    assert response["task_links"][0]["status"] == "READY_FOR_REVIEW"
