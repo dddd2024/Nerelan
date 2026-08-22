@@ -194,7 +194,13 @@ def _checkpoint_stage(checkpoint: str, role: str) -> str:
     return ""
 
 
-def _status_for_event(category: str, metadata: Mapping[str, Any]) -> str:
+def _status_for_event(
+    category: str,
+    metadata: Mapping[str, Any],
+    event_type: str = "",
+) -> str:
+    if event_type == "QUEUE_CANCELLED":
+        return "COMPLETED"
     explicit = _safe_text(metadata.get("status"), limit=32).upper()
     if explicit in {"ACTIVE", "WAITING", "RUNNING", "COMPLETED", "PASS", "FAIL", "BLOCKED"}:
         return explicit
@@ -213,6 +219,8 @@ def _status_for_event(category: str, metadata: Mapping[str, Any]) -> str:
 
 
 def _category_for_event(event_type: str, metadata: Mapping[str, Any]) -> str:
+    if event_type == "QUEUE_CANCELLED":
+        return "CHECKPOINT"
     explicit = _safe_text(
         metadata.get("activity_kind", metadata.get("category", "")), limit=64
     ).upper()
@@ -248,6 +256,8 @@ def _category_for_event(event_type: str, metadata: Mapping[str, Any]) -> str:
 def _event_stage(
     event_type: str, category: str, metadata: Mapping[str, Any]
 ) -> str:
+    if event_type == "QUEUE_CANCELLED":
+        return "PLAN"
     if category == "PLAN" or event_type == "DISCOVERED":
         return "PLAN"
     if category == "PUBLICATION":
@@ -322,12 +332,12 @@ def _event_projection(event: Mapping[str, Any], *, task: Any) -> dict[str, Any]:
     } if path else None
     test_payload = {
         "summary": command,
-        "status": _status_for_event(category, metadata),
+        "status": _status_for_event(category, metadata, event_type),
         "exit_code": exit_code,
     } if category == "TEST" else None
     command_payload = {
         "summary": command,
-        "status": _status_for_event(category, metadata),
+        "status": _status_for_event(category, metadata, event_type),
         "exit_code": exit_code,
     } if command else None
     return {
@@ -335,10 +345,14 @@ def _event_projection(event: Mapping[str, Any], *, task: Any) -> dict[str, Any]:
         "task_id": _safe_text(event.get("task_id", getattr(task, "id", "")), limit=128),
         "type": event_type,
         "timestamp": _time_text(event.get("timestamp")),
-        "title": _activity_title(category),
+        "title": (
+            "Queued task cancelled"
+            if event_type == "QUEUE_CANCELLED"
+            else _activity_title(category)
+        ),
         "description": "",
         "category": category,
-        "status": _status_for_event(category, metadata),
+        "status": _status_for_event(category, metadata, event_type),
         "stage": _event_stage(event_type, category, metadata),
         "agent_id": agent_id,
         "role": role,
@@ -506,6 +520,9 @@ class RunReadModel:
         detail["activity"] = projected_events[-MAX_ACTIVITY:]
         detail["activity_total"] = task.event_count
         detail["changed_files"] = self._changed_files(task.changed_files)
+        detail["controls"] = {
+            "cancel": self.store.queue_cancel_capability(task.id),
+        }
         return detail
 
     def _durable_run(self, task_id: str) -> Any | None:

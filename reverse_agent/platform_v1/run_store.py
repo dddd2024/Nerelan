@@ -55,6 +55,7 @@ VALID_EVENT_TYPES = frozenset({
     "EXECUTOR_RUNNING",
     "EXECUTOR_FINISHED",
     "LOCAL_VALIDATED",
+    "QUEUE_CANCELLED",
 })
 
 TRANSITION_RULES: dict[str, tuple[str, ...]] = {
@@ -168,6 +169,15 @@ class TaskEvent:
 
 
 @dataclass(frozen=True)
+class QueueCancelOutcome:
+    """Bounded result of the queue-only owner cancellation operation."""
+
+    status: str
+    reason_code: str
+    task: Task
+
+
+@dataclass(frozen=True)
 class UsageObservation:
     """Sanitized numeric model-usage fact; never contains a raw executor event."""
 
@@ -240,13 +250,19 @@ def _row_to_task(
         ).fetchall()
         event_count = len(event_rows)
     else:
-        bounded_event_limit = max(1, int(event_limit))
-        event_rows = conn.execute(
-            "SELECT id, task_id, type, timestamp, title, description, raw_log, "
-            "metadata FROM task_events WHERE task_id = ? ORDER BY seq DESC LIMIT ?",
-            (row["id"], bounded_event_limit),
-        ).fetchall()
-        event_rows.reverse()
+        bounded_event_limit = int(event_limit)
+        if bounded_event_limit == 0:
+            # Control-plane outcomes only need the task scalar fields and the
+            # exact count.  In particular, do not materialize any event row.
+            event_rows = []
+        else:
+            bounded_event_limit = max(1, bounded_event_limit)
+            event_rows = conn.execute(
+                "SELECT id, task_id, type, timestamp, title, description, raw_log, "
+                "metadata FROM task_events WHERE task_id = ? ORDER BY seq DESC LIMIT ?",
+                (row["id"], bounded_event_limit),
+            ).fetchall()
+            event_rows.reverse()
         count_row = conn.execute(
             "SELECT COUNT(*) AS c FROM task_events WHERE task_id = ?",
             (row["id"],),
@@ -781,6 +797,157 @@ class TaskStore:
                 )
             self._update_task_fields(task_id, {"status": status})
             return self.get_task(task_id)
+
+    def queue_cancel_capability(self, task_id: str) -> dict[str, str]:
+        """Return an advisory, bounded queue-cancellation descriptor.
+
+        This read never reconciles or mutates claims, leases, reservations,
+        durable runs, or publication records.  The POST operation repeats the
+        same checks under ``BEGIN IMMEDIATE`` before it changes task truth.
+        """
+
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id, status FROM tasks WHERE id = ?", (task_id,)
+            ).fetchone()
+            if row is None:
+                raise TaskStoreError(f"task_not_found:{task_id}")
+            reason = self._queue_cancel_reason_locked(row["id"], str(row["status"]))
+            if reason == "QUEUED_UNCLAIMED":
+                availability = "AVAILABLE"
+            elif reason == "ALREADY_CANCELLED":
+                availability = "ALREADY_APPLIED"
+            else:
+                availability = "UNAVAILABLE"
+            return {
+                "action": "CANCEL",
+                "scope": "QUEUE_ONLY",
+                "availability": availability,
+                "reason_code": reason,
+            }
+
+    def cancel_queued_task(self, task_id: str) -> QueueCancelOutcome:
+        """Atomically cancel only a never-claimed queued task.
+
+        All execution-history checks, the conditional status update, and the
+        fixed semantic event share one SQLite ``BEGIN IMMEDIATE`` transaction.
+        No claim, lease, reservation, publication, or worker state is cleaned
+        up by this operation.
+        """
+
+        with self._lock:
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                row = cur.execute(
+                    "SELECT status FROM tasks WHERE id = ?", (task_id,)
+                ).fetchone()
+                if row is None:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(f"task_not_found:{task_id}")
+                status = str(row["status"])
+                reason = self._queue_cancel_reason_locked(task_id, status)
+                if reason == "ALREADY_CANCELLED":
+                    cur.execute("COMMIT")
+                    return QueueCancelOutcome(
+                        status="ALREADY_APPLIED",
+                        reason_code=reason,
+                        task=self.get_task(task_id, event_limit=0),
+                    )
+                if reason != "QUEUED_UNCLAIMED":
+                    cur.execute("COMMIT")
+                    return QueueCancelOutcome(
+                        status="UNAVAILABLE",
+                        reason_code=reason,
+                        task=self.get_task(task_id, event_limit=0),
+                    )
+
+                now = _utc_now()
+                changed = cur.execute(
+                    "UPDATE tasks SET status = 'CANCELLED', updated_at = ? "
+                    "WHERE id = ? AND status = 'QUEUED'",
+                    (now, task_id),
+                )
+                if changed.rowcount != 1:
+                    # A concurrent writer won after the snapshot.  Re-read
+                    # inside the same write boundary and report only the
+                    # bounded outcome; never claim that cancellation won.
+                    latest = cur.execute(
+                        "SELECT status FROM tasks WHERE id = ?", (task_id,)
+                    ).fetchone()
+                    latest_status = str(latest["status"]) if latest else ""
+                    cur.execute("ROLLBACK")
+                    if latest_status == "CANCELLED":
+                        return QueueCancelOutcome(
+                            status="ALREADY_APPLIED",
+                            reason_code="ALREADY_CANCELLED",
+                            task=self.get_task(task_id, event_limit=0),
+                        )
+                    return QueueCancelOutcome(
+                        status="UNAVAILABLE",
+                        reason_code=(
+                            "STATUS_NOT_CANCELLABLE"
+                            if latest_status
+                            else "EXECUTION_HISTORY_PRESENT"
+                        ),
+                        task=self.get_task(task_id, event_limit=0),
+                    )
+
+                self._append_event(
+                    task_id=task_id,
+                    event_type="QUEUE_CANCELLED",
+                    title="Queued task cancelled",
+                    description="Queued task cancellation completed",
+                    raw_log="",
+                    metadata={},
+                )
+                cur.execute("COMMIT")
+                return QueueCancelOutcome(
+                    status="APPLIED",
+                    reason_code="QUEUED_UNCLAIMED",
+                    task=self.get_task(task_id, event_limit=0),
+                )
+            except TaskStoreError:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise
+            except Exception as exc:
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise TaskStoreError("queue_cancel_failed") from exc
+
+    def _queue_cancel_reason_locked(self, task_id: str, status: str) -> str:
+        if status == "CANCELLED":
+            return "ALREADY_CANCELLED"
+        if status != "QUEUED":
+            return "STATUS_NOT_CANCELLABLE"
+        if self._has_execution_history_locked(task_id):
+            return "EXECUTION_HISTORY_PRESENT"
+        return "QUEUED_UNCLAIMED"
+
+    def _has_execution_history_locked(self, task_id: str) -> bool:
+        for table in (
+            "platform_coordinator_claims",
+            "durable_runs",
+            "platform_budget_reservations",
+            "platform_publications",
+        ):
+            exists = self._conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                (table,),
+            ).fetchone()
+            if exists is None:
+                continue
+            if self._conn.execute(
+                f"SELECT 1 FROM {table} WHERE task_id = ? LIMIT 1",
+                (task_id,),
+            ).fetchone() is not None:
+                return True
+        return False
 
     def classify_failure(
         self,

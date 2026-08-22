@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from reverse_agent.platform_v1.run_store import TaskStore
+from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
 from reverse_agent.platform_v1.task_runtime import ExecutorRouter
 from reverse_agent.platform_v1.task_service import (
     TaskService,
@@ -54,6 +54,82 @@ def _req(base_url: str, method: str, path: str, body=None, origin=None):
     resp = conn.getresponse()
     data = resp.read()
     return resp.status, json.loads(data.decode()) if data else None
+
+
+def _ordered_sqlite_race(first, second):
+    """Run two operations on independent SQLite connections in a known order.
+
+    Both workers start together; the second waits only until the first has
+    committed or raised.  Separate connections and threads preserve the
+    SQLite arbitration boundary while making each winner order deterministic.
+    """
+
+    ready = threading.Barrier(2)
+    first_done = threading.Event()
+    results = {}
+    result_lock = threading.Lock()
+
+    def worker(name, operation, wait_for_first):
+        ready.wait()
+        if wait_for_first:
+            first_done.wait(timeout=10)
+        try:
+            value = operation()
+            result = ("ok", value)
+        except Exception as exc:  # assert the bounded failure in the caller
+            result = ("error", exc)
+        with result_lock:
+            results[name] = result
+        if not wait_for_first:
+            first_done.set()
+
+    threads = [
+        threading.Thread(target=worker, args=("first", first, False)),
+        threading.Thread(target=worker, args=("second", second, True)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+    assert all(not thread.is_alive() for thread in threads)
+    assert set(results) == {"first", "second"}
+    return results
+
+
+def _simultaneous_sqlite_race(first, second):
+    """Run two independent-connection operations after one shared barrier."""
+
+    ready = threading.Barrier(2)
+    results = {}
+    result_lock = threading.Lock()
+
+    def worker(name, operation):
+        ready.wait()
+        try:
+            result = ("ok", operation())
+        except Exception as exc:
+            result = ("error", exc)
+        with result_lock:
+            results[name] = result
+
+    threads = [
+        threading.Thread(target=worker, args=("first", first)),
+        threading.Thread(target=worker, args=("second", second)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+    assert all(not thread.is_alive() for thread in threads)
+    assert set(results) == {"first", "second"}
+    return results
+
+
+def _independent_store(server):
+    """Open a fresh TaskStore connection to the task-server database."""
+
+    store = TaskStore(db_path=server.RequestHandlerClass.store.db_path)
+    return store
 
 
 def test_create_and_read_task(task_server) -> None:
@@ -216,6 +292,673 @@ def test_list_tasks_and_events(task_server) -> None:
     assert status == 200
     assert events["task_id"] == tid
     assert events["events"][0]["type"] == "DISCOVERED"
+
+
+def test_queue_cancel_http_applies_once_and_exposes_run_activity(task_server) -> None:
+    base, server = task_server
+    status, created = _req(
+        base, "POST", "/api/tasks",
+        {"title": "queue cancel", "executor_kind": "deterministic_fixture"},
+    )
+    assert status == 201
+    task_id = created["id"]
+
+    status, detail = _req(base, "GET", f"/api/runs/{task_id}")
+    assert status == 200
+    assert detail["controls"]["cancel"] == {
+        "action": "CANCEL",
+        "scope": "QUEUE_ONLY",
+        "availability": "AVAILABLE",
+        "reason_code": "QUEUED_UNCLAIMED",
+    }
+
+    status, result = _req(base, "POST", f"/api/runs/{task_id}/cancel")
+    assert status == 200
+    assert result == {"status": "APPLIED"}
+    status, again = _req(base, "POST", f"/api/runs/{task_id}/cancel", {})
+    assert status == 200
+    assert again == {"status": "ALREADY_APPLIED"}
+
+    status, detail = _req(base, "GET", f"/api/runs/{task_id}")
+    assert status == 200
+    assert detail["status"] == "CANCELLED"
+    assert detail["controls"]["cancel"]["availability"] == "ALREADY_APPLIED"
+    assert detail["controls"]["cancel"]["reason_code"] == "ALREADY_CANCELLED"
+    assert [event["type"] for event in detail["events"]].count("QUEUE_CANCELLED") == 1
+    activity = detail["activity"][-1]
+    assert activity["category"] == "CHECKPOINT"
+    assert activity["stage"] == "PLAN"
+    assert activity["status"] == "COMPLETED"
+    assert activity["agent"] is None
+    assert activity["description"] == ""
+    assert server.RequestHandlerClass.store.get_task(task_id).status == "CANCELLED"
+
+
+def test_queue_cancel_http_concurrent_duplicates_commit_one_event(task_server) -> None:
+    base, server = task_server
+    _, created = _req(
+        base, "POST", "/api/tasks",
+        {"title": "concurrent queue cancel", "executor_kind": "deterministic_fixture"},
+    )
+    task_id = created["id"]
+    barrier = threading.Barrier(2)
+    results: list[tuple[int, dict]] = []
+    result_lock = threading.Lock()
+
+    def cancel() -> None:
+        barrier.wait()
+        result = _req(base, "POST", f"/api/runs/{task_id}/cancel")
+        with result_lock:
+            results.append(result)
+
+    workers = [threading.Thread(target=cancel) for _ in range(2)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=10)
+    assert all(not worker.is_alive() for worker in workers)
+    assert sorted(status for status, _ in results) == [200, 200]
+    assert sorted(body["status"] for _, body in results) == [
+        "ALREADY_APPLIED", "APPLIED",
+    ]
+    assert server.RequestHandlerClass.store._conn.execute(
+        "SELECT COUNT(*) AS c FROM task_events "
+        "WHERE task_id = ? AND type = 'QUEUE_CANCELLED'",
+        (task_id,),
+    ).fetchone()["c"] == 1
+
+
+def test_cancel_cancel_independent_sqlite_connections_have_one_winner(task_server) -> None:
+    base, server = task_server
+    _, created = _req(
+        base, "POST", "/api/tasks",
+        {"title": "independent cancel race", "executor_kind": "deterministic_fixture"},
+    )
+    task_id = created["id"]
+    db_path = server.RequestHandlerClass.store.db_path
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    first_store = TaskStore(db_path=db_path)
+    second_store = TaskStore(db_path=db_path)
+    PlatformControlStore(first_store)
+    PlatformControlStore(second_store)
+
+    first_order = _ordered_sqlite_race(
+        lambda: first_store.cancel_queued_task(task_id).status,
+        lambda: second_store.cancel_queued_task(task_id).status,
+    )
+    assert sorted(value for kind, value in first_order.values() if kind == "ok") == [
+        "ALREADY_APPLIED", "APPLIED",
+    ]
+    store = _independent_store(server)
+    assert store.get_task(task_id).status == "CANCELLED"
+    assert store._conn.execute(
+        "SELECT COUNT(*) AS c FROM task_events "
+        "WHERE task_id = ? AND type = 'QUEUE_CANCELLED'", (task_id,)
+    ).fetchone()["c"] == 1
+    assert store._conn.execute(
+        "SELECT COUNT(*) AS c FROM platform_coordinator_claims WHERE task_id = ?",
+        (task_id,),
+    ).fetchone()["c"] == 0
+    assert store._conn.execute(
+        "SELECT COUNT(*) AS c FROM platform_budget_reservations WHERE task_id = ?",
+        (task_id,),
+    ).fetchone()["c"] == 0
+
+
+def test_claim_cancel_independent_sqlite_connections_both_winner_orders(
+    task_server,
+) -> None:
+    base, server = task_server
+    db_path = server.RequestHandlerClass.store.db_path
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+
+    control_store = PlatformControlStore(TaskStore(db_path=db_path))
+    now = datetime.now(timezone.utc)
+    window = control_store.activate_window(
+        {
+            "window_id": "window-claim-cancel-race",
+            "policy_id": "claim-cancel-race-independent",
+            "policy_revision": 1,
+            "owner_identity": "owner",
+            "starts_at": (now - timedelta(seconds=1)).isoformat(),
+            "expires_at": (now + timedelta(hours=1)).isoformat(),
+            "repositories": ["dddd2024/reverse-agent"],
+            "capabilities": ["execute_task"],
+            "max_concurrent_tasks": 2,
+            "max_tasks": 2,
+            "max_retries": 0,
+        },
+        confirmation="ACTIVATE",
+    )
+    _, claim_first_task = _req(
+        base, "POST", "/api/tasks",
+        {"title": "claim first independent", "executor_kind": "deterministic_fixture"},
+    )
+    _, cancel_first_task = _req(
+        base, "POST", "/api/tasks",
+        {"title": "cancel first independent", "executor_kind": "deterministic_fixture"},
+    )
+
+    claim_store = TaskStore(db_path=db_path)
+    claim_control = PlatformControlStore(claim_store)
+    cancel_store = TaskStore(db_path=db_path)
+
+    def claim(task_id):
+        return claim_control.claim_task(
+            window_id=window.id, task_id=task_id,
+            owner="independent-claim", lease_ms=60_000,
+        )
+
+    def cancel(task_id):
+        return cancel_store.cancel_queued_task(task_id)
+
+    claim_first = _ordered_sqlite_race(
+        lambda: claim(claim_first_task["id"]),
+        lambda: cancel(claim_first_task["id"]),
+    )
+    assert claim_first["first"][0] == "ok"
+    assert claim_first["second"][0] == "ok"
+    assert claim_first["second"][1].status == "UNAVAILABLE"
+    assert claim_first["second"][1].reason_code == "EXECUTION_HISTORY_PRESENT"
+    state = _independent_store(server)
+    assert state.get_task(claim_first_task["id"]).status == "QUEUED"
+    assert state._conn.execute(
+        "SELECT COUNT(*) AS c FROM task_events "
+        "WHERE task_id = ? AND type = 'QUEUE_CANCELLED'",
+        (claim_first_task["id"],),
+    ).fetchone()["c"] == 0
+
+    cancel_first = _ordered_sqlite_race(
+        lambda: cancel(cancel_first_task["id"]),
+        lambda: claim(cancel_first_task["id"]),
+    )
+    assert cancel_first["first"][0] == "ok"
+    assert cancel_first["first"][1].status == "APPLIED"
+    assert cancel_first["second"][0] == "error"
+    assert isinstance(cancel_first["second"][1], Exception)
+    assert "task_not_claimable" in str(cancel_first["second"][1])
+    state = _independent_store(server)
+    assert state.get_task(cancel_first_task["id"]).status == "CANCELLED"
+    assert state._conn.execute(
+        "SELECT COUNT(*) AS c FROM task_events "
+        "WHERE task_id = ? AND type = 'QUEUE_CANCELLED'",
+        (cancel_first_task["id"],),
+    ).fetchone()["c"] == 1
+    assert state._conn.execute(
+        "SELECT COUNT(*) AS c FROM platform_coordinator_claims WHERE task_id = ?",
+        (cancel_first_task["id"],),
+    ).fetchone()["c"] == 0
+    assert state._conn.execute(
+        "SELECT COUNT(*) AS c FROM platform_budget_reservations WHERE task_id = ?",
+        (cancel_first_task["id"],),
+    ).fetchone()["c"] == 0
+    assert state._conn.execute(
+        "SELECT tasks_started FROM platform_autonomous_windows WHERE id = ?",
+        (window.id,),
+    ).fetchone()["tasks_started"] == 1
+
+
+def test_durable_cancel_independent_sqlite_connections_both_winner_orders(
+    task_server,
+) -> None:
+    base, server = task_server
+    db_path = server.RequestHandlerClass.store.db_path
+    _, durable_first_task = _req(
+        base, "POST", "/api/tasks",
+        {
+            "title": "durable first independent", "executor_kind": "opencode",
+            "repository": "repo", "orchestration_mode": "single",
+        },
+    )
+    _, cancel_first_task = _req(
+        base, "POST", "/api/tasks",
+        {
+            "title": "cancel first durable independent", "executor_kind": "opencode",
+            "repository": "repo", "orchestration_mode": "single",
+        },
+    )
+
+    durable_store = TaskStore(db_path=db_path)
+    cancel_store = TaskStore(db_path=db_path)
+
+    def acquire(task_id, owner):
+        return durable_store._acquire_durable_lease(
+            task_id=task_id, execution_id=f"exec-{task_id}",
+            lease_owner=owner, expiry_ms=60_000,
+        )
+
+    def cancel(task_id):
+        return cancel_store.cancel_queued_task(task_id)
+
+    durable_first = _ordered_sqlite_race(
+        lambda: acquire(durable_first_task["id"], "durable-first"),
+        lambda: cancel(durable_first_task["id"]),
+    )
+    assert durable_first["first"][0] == "ok"
+    assert durable_first["second"][0] == "ok"
+    assert durable_first["second"][1].status == "UNAVAILABLE"
+    assert durable_first["second"][1].reason_code == "STATUS_NOT_CANCELLABLE"
+    state = _independent_store(server)
+    assert state.get_task(durable_first_task["id"]).status == "PREPARING_WORKSPACE"
+    assert state._conn.execute(
+        "SELECT COUNT(*) AS c FROM durable_runs WHERE task_id = ?",
+        (durable_first_task["id"],),
+    ).fetchone()["c"] == 1
+    assert state._conn.execute(
+        "SELECT COUNT(*) AS c FROM task_events "
+        "WHERE task_id = ? AND type = 'QUEUE_CANCELLED'",
+        (durable_first_task["id"],),
+    ).fetchone()["c"] == 0
+
+    cancel_first = _ordered_sqlite_race(
+        lambda: cancel(cancel_first_task["id"]),
+        lambda: acquire(cancel_first_task["id"], "late-durable"),
+    )
+    assert cancel_first["first"][0] == "ok"
+    assert cancel_first["first"][1].status == "APPLIED"
+    assert cancel_first["second"][0] == "error"
+    assert "durable_claim_" in str(cancel_first["second"][1])
+    state = _independent_store(server)
+    assert state.get_task(cancel_first_task["id"]).status == "CANCELLED"
+    assert state._conn.execute(
+        "SELECT COUNT(*) AS c FROM durable_runs WHERE task_id = ?",
+        (cancel_first_task["id"],),
+    ).fetchone()["c"] == 0
+    assert state._conn.execute(
+        "SELECT COUNT(*) AS c FROM task_events "
+        "WHERE task_id = ? AND type = 'QUEUE_CANCELLED'",
+        (cancel_first_task["id"],),
+    ).fetchone()["c"] == 1
+
+
+def test_simultaneous_claim_cancel_independent_connections_preserve_invariants(
+    task_server,
+) -> None:
+    base, server = task_server
+    db_path = server.RequestHandlerClass.store.db_path
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+
+    setup_store = TaskStore(db_path=db_path)
+    setup_control = PlatformControlStore(setup_store)
+    now = datetime.now(timezone.utc)
+    window = setup_control.activate_window(
+        {
+            "window_id": "window-simultaneous-claim-cancel",
+            "policy_id": "simultaneous-claim-cancel",
+            "policy_revision": 1,
+            "owner_identity": "owner",
+            "starts_at": (now - timedelta(seconds=1)).isoformat(),
+            "expires_at": (now + timedelta(hours=1)).isoformat(),
+            "repositories": ["dddd2024/reverse-agent"],
+            "capabilities": ["execute_task"],
+            "max_concurrent_tasks": 1,
+            "max_tasks": 1,
+            "max_retries": 0,
+        },
+        confirmation="ACTIVATE",
+    )
+    _, created = _req(
+        base, "POST", "/api/tasks",
+        {"title": "simultaneous claim cancel", "executor_kind": "deterministic_fixture"},
+    )
+    task_id = created["id"]
+    claim_store = TaskStore(db_path=db_path)
+    claim_control = PlatformControlStore(claim_store)
+    cancel_store = TaskStore(db_path=db_path)
+    results = _simultaneous_sqlite_race(
+        lambda: claim_control.claim_task(
+            window_id=window.id, task_id=task_id,
+            owner="simultaneous-claim", lease_ms=60_000,
+        ),
+        lambda: cancel_store.cancel_queued_task(task_id),
+    )
+    state = _independent_store(server)
+    claim_row = state._conn.execute(
+        "SELECT status FROM platform_coordinator_claims WHERE task_id = ?",
+        (task_id,),
+    ).fetchone()
+    reservation_row = state._conn.execute(
+        "SELECT state FROM platform_budget_reservations WHERE task_id = ?",
+        (task_id,),
+    ).fetchone()
+    event_count = state._conn.execute(
+        "SELECT COUNT(*) AS c FROM task_events "
+        "WHERE task_id = ? AND type = 'QUEUE_CANCELLED'", (task_id,)
+    ).fetchone()["c"]
+    if results["first"][0] == "ok" and isinstance(results["first"][1], tuple):
+        assert results["second"][0] == "ok"
+        assert results["second"][1].status == "UNAVAILABLE"
+        assert state.get_task(task_id).status == "QUEUED"
+        assert claim_row is not None and claim_row["status"] == "ACTIVE"
+        assert reservation_row is not None and reservation_row["state"] == "ACTIVE"
+        assert event_count == 0
+    else:
+        cancel_result = next(
+            value for kind, value in results.values()
+            if kind == "ok" and hasattr(value, "status")
+        )
+        assert cancel_result.status == "APPLIED"
+        assert results["first"][0] == "error" or results["second"][0] == "error"
+        assert state.get_task(task_id).status == "CANCELLED"
+        assert claim_row is None
+        assert reservation_row is None
+        assert event_count == 1
+
+
+def test_simultaneous_durable_cancel_independent_connections_preserve_invariants(
+    task_server,
+) -> None:
+    base, server = task_server
+    db_path = server.RequestHandlerClass.store.db_path
+    _, created = _req(
+        base, "POST", "/api/tasks",
+        {
+            "title": "simultaneous durable cancel", "executor_kind": "opencode",
+            "repository": "repo", "orchestration_mode": "single",
+        },
+    )
+    task_id = created["id"]
+    durable_store = TaskStore(db_path=db_path)
+    cancel_store = TaskStore(db_path=db_path)
+    results = _simultaneous_sqlite_race(
+        lambda: durable_store._acquire_durable_lease(
+            task_id=task_id, execution_id=f"exec-{task_id}",
+            lease_owner="simultaneous-durable", expiry_ms=60_000,
+        ),
+        lambda: cancel_store.cancel_queued_task(task_id),
+    )
+    state = _independent_store(server)
+    run_count = state._conn.execute(
+        "SELECT COUNT(*) AS c FROM durable_runs WHERE task_id = ?", (task_id,)
+    ).fetchone()["c"]
+    event_count = state._conn.execute(
+        "SELECT COUNT(*) AS c FROM task_events "
+        "WHERE task_id = ? AND type = 'QUEUE_CANCELLED'", (task_id,)
+    ).fetchone()["c"]
+    if any(kind == "ok" and hasattr(value, "run_id") for kind, value in results.values()):
+        assert state.get_task(task_id).status == "PREPARING_WORKSPACE"
+        assert run_count == 1
+        assert event_count == 0
+    else:
+        cancel_result = next(
+            value for kind, value in results.values()
+            if kind == "ok" and hasattr(value, "status")
+        )
+        assert cancel_result.status == "APPLIED"
+        assert state.get_task(task_id).status == "CANCELLED"
+        assert run_count == 0
+        assert event_count == 1
+
+
+@pytest.mark.parametrize("body", [{"reason": "stop"}, {"force": True}, ["cancel"], None])
+def test_queue_cancel_http_rejects_non_empty_or_non_object_body(task_server, body) -> None:
+    base, _ = task_server
+    _, created = _req(
+        base, "POST", "/api/tasks",
+        {"title": "body contract", "executor_kind": "deterministic_fixture"},
+    )
+    task_id = created["id"]
+    if body is None:
+        # A literal JSON null is non-empty and must be rejected as well.
+        raw_body = b"null"
+        host, port = base.replace("http://", "").split(":", 1)
+        conn = http.client.HTTPConnection(host, int(port), timeout=10)
+        conn.request(
+            "POST", f"/api/runs/{task_id}/cancel", body=raw_body,
+            headers={
+                "Accept": "application/json", "Origin": "http://localhost:5173",
+                "Content-Type": "application/json",
+            },
+        )
+        response = conn.getresponse()
+        status = response.status
+        payload = json.loads(response.read().decode())
+    else:
+        status, payload = _req(base, "POST", f"/api/runs/{task_id}/cancel", body)
+    assert status == 400
+    assert payload == {"error": "cancel_request_must_be_empty"}
+
+
+def test_queue_cancel_http_is_fail_closed_for_active_status_and_unknown_run(task_server) -> None:
+    base, server = task_server
+    _, created = _req(
+        base, "POST", "/api/tasks",
+        {"title": "active cancel", "executor_kind": "deterministic_fixture"},
+    )
+    task_id = created["id"]
+    server.RequestHandlerClass.store.set_state(task_id, "RUNNING")
+    status, payload = _req(base, "POST", f"/api/runs/{task_id}/cancel")
+    assert status == 409
+    assert payload == {
+        "error": "queue_cancel_unavailable",
+        "reason_code": "STATUS_NOT_CANCELLABLE",
+    }
+    assert server.RequestHandlerClass.store.get_task(task_id).status == "RUNNING"
+
+    status, payload = _req(base, "POST", "/api/runs/missing-run/cancel")
+    assert status == 404
+    assert payload == {"error": "run_not_found"}
+
+
+@pytest.mark.parametrize(
+    "table,columns,values",
+    [
+        (
+            "platform_coordinator_claims",
+            "task_id,window_id,owner,epoch,expires_at_ms,status,created_at,updated_at",
+            ("{task}", "window-1", "worker", 1, 1, "COMPLETE", "now", "now"),
+        ),
+        (
+            "platform_budget_reservations",
+            "task_id,claim_epoch,window_id,reserved_token_units,reserved_cost_micro_units,state,observed_token_units,observed_cost_micro_units,created_at,updated_at,reconciled_at",
+            ("{task}", 1, "window-1", 10, 1, "RECONCILED", 10, 1, "now", "now", "now"),
+        ),
+        (
+            "platform_publications",
+            "id,task_id,repository,base_branch,branch,status,commit_sha,pr_number,pr_url,request_digest,failure_classification,created_at,updated_at",
+            ("publication-1", "{task}", "repo", "main", "branch", "FAILED", "", 0, "", "", "", "now", "now"),
+        ),
+    ],
+)
+def test_queue_cancel_rejects_any_historical_execution_evidence(
+    task_server, table: str, columns: str, values: tuple
+) -> None:
+    base, server = task_server
+    _, created = _req(
+        base, "POST", "/api/tasks",
+        {"title": "history evidence", "executor_kind": "deterministic_fixture"},
+    )
+    task_id = created["id"]
+    rendered_values = tuple(task_id if value == "{task}" else value for value in values)
+    placeholders = ",".join("?" for _ in rendered_values)
+    server.RequestHandlerClass.store._conn.execute(
+        f"INSERT INTO {table} ({columns}) VALUES ({placeholders})",
+        rendered_values,
+    )
+
+    status, payload = _req(base, "POST", f"/api/runs/{task_id}/cancel")
+    assert status == 409
+    assert payload == {
+        "error": "queue_cancel_unavailable",
+        "reason_code": "EXECUTION_HISTORY_PRESENT",
+    }
+    assert server.RequestHandlerClass.store.get_task(task_id).status == "QUEUED"
+
+
+def test_queue_cancel_rejects_durable_run_even_with_queued_status(task_server) -> None:
+    base, server = task_server
+    _, created = _req(
+        base, "POST", "/api/tasks",
+        {
+            "title": "durable history", "executor_kind": "opencode",
+            "orchestration_mode": "single", "repository": "repo",
+        },
+    )
+    task_id = created["id"]
+    store = server.RequestHandlerClass.store
+    lease = store._acquire_durable_lease(
+        task_id=task_id, execution_id=created["execution_id"],
+        lease_owner="durable-test", expiry_ms=60_000,
+    )
+    # Deliberately create an inconsistent fixture: history exists while the
+    # task is QUEUED.  The history check must still fail closed.
+    store._conn.execute(
+        "UPDATE tasks SET status = 'QUEUED' WHERE id = ?", (task_id,)
+    )
+    status, payload = _req(base, "POST", f"/api/runs/{task_id}/cancel")
+    assert status == 409
+    assert payload == {
+        "error": "queue_cancel_unavailable",
+        "reason_code": "EXECUTION_HISTORY_PRESENT",
+    }
+    assert store._get_durable_run(lease.run_id).run_id == lease.run_id
+    assert store.get_task(task_id).status == "QUEUED"
+
+
+def test_cancel_first_blocks_later_durable_acquisition_without_side_effects(task_server) -> None:
+    base, server = task_server
+    _, created = _req(
+        base, "POST", "/api/tasks",
+        {"title": "cancel then durable", "executor_kind": "opencode", "repository": "repo"},
+    )
+    task_id = created["id"]
+    store = server.RequestHandlerClass.store
+    status, result = _req(base, "POST", f"/api/runs/{task_id}/cancel")
+    assert status == 200 and result == {"status": "APPLIED"}
+    with pytest.raises(
+        TaskStoreError,
+        match="durable_claim_(wrong_task_status|task_not_active)",
+    ):
+        store._acquire_durable_lease(
+            task_id=task_id, execution_id=created["execution_id"],
+            lease_owner="late-durable", expiry_ms=60_000,
+        )
+    assert store.get_task(task_id).status == "CANCELLED"
+    assert store._conn.execute(
+        "SELECT COUNT(*) AS c FROM durable_runs WHERE task_id = ?", (task_id,)
+    ).fetchone()["c"] == 0
+
+
+def test_durable_first_blocks_cancel_without_representing_stop(task_server) -> None:
+    base, server = task_server
+    _, created = _req(
+        base, "POST", "/api/tasks",
+        {"title": "durable then cancel", "executor_kind": "opencode", "repository": "repo"},
+    )
+    task_id = created["id"]
+    store = server.RequestHandlerClass.store
+    lease = store._acquire_durable_lease(
+        task_id=task_id, execution_id=created["execution_id"],
+        lease_owner="early-durable", expiry_ms=60_000,
+    )
+    status, payload = _req(base, "POST", f"/api/runs/{task_id}/cancel")
+    assert status == 409
+    assert payload == {
+        "error": "queue_cancel_unavailable",
+        "reason_code": "STATUS_NOT_CANCELLABLE",
+    }
+    assert store.get_task(task_id).status == "PREPARING_WORKSPACE"
+    assert store._get_durable_run(lease.run_id).run_id == lease.run_id
+
+
+def test_claim_cancel_both_winner_orders_fail_closed(task_server) -> None:
+    base, server = task_server
+    store = server.RequestHandlerClass.store
+    control = server.RequestHandlerClass.control_store
+    autonomy = server.RequestHandlerClass.autonomy_service
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "claim-cancel-race", "policy_revision": 1,
+        "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=1)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"],
+        "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 2, "max_tasks": 2, "max_retries": 0,
+        "confirmation": "ACTIVATE",
+    })
+    _, first = _req(
+        base, "POST", "/api/tasks",
+        {"title": "claim first", "executor_kind": "deterministic_fixture"},
+    )
+    _, second = _req(
+        base, "POST", "/api/tasks",
+        {"title": "cancel first", "executor_kind": "deterministic_fixture"},
+    )
+
+    control.claim_task(
+        window_id=window.id, task_id=first["id"], owner="race-owner", lease_ms=60_000
+    )
+    status, payload = _req(base, "POST", f"/api/runs/{first['id']}/cancel")
+    assert status == 409
+    assert payload["error"] == "queue_cancel_unavailable"
+    assert payload["reason_code"] == "EXECUTION_HISTORY_PRESENT"
+    first_claim = store._conn.execute(
+        "SELECT status FROM platform_coordinator_claims WHERE task_id = ?",
+        (first["id"],),
+    ).fetchone()
+    assert first_claim["status"] == "ACTIVE"
+
+    status, result = _req(base, "POST", f"/api/runs/{second['id']}/cancel")
+    assert status == 200 and result == {"status": "APPLIED"}
+    with pytest.raises(TaskStoreError, match="task_not_claimable"):
+        control.claim_task(
+            window_id=window.id, task_id=second["id"], owner="late-owner", lease_ms=60_000
+        )
+    assert store._conn.execute(
+        "SELECT COUNT(*) AS c FROM platform_coordinator_claims WHERE task_id = ?",
+        (second["id"],),
+    ).fetchone()["c"] == 0
+    assert store._conn.execute(
+        "SELECT COUNT(*) AS c FROM platform_budget_reservations WHERE task_id = ?",
+        (second["id"],),
+    ).fetchone()["c"] == 0
+    assert control.get_window(window.id).tasks_started == 1
+
+
+def test_queue_cancel_event_failure_rolls_back_status_and_event(task_server, monkeypatch) -> None:
+    base, server = task_server
+    _, created = _req(
+        base, "POST", "/api/tasks",
+        {"title": "atomic cancel", "executor_kind": "deterministic_fixture"},
+    )
+    task_id = created["id"]
+    store = server.RequestHandlerClass.store
+    before_events = store._conn.execute(
+        "SELECT COUNT(*) AS c FROM task_events WHERE task_id = ?", (task_id,)
+    ).fetchone()["c"]
+
+    def fail_event(**_kwargs):
+        raise RuntimeError("injected event failure")
+
+    monkeypatch.setattr(store, "_append_event", fail_event)
+    status, payload = _req(base, "POST", f"/api/runs/{task_id}/cancel")
+    assert status == 500
+    assert payload == {"error": "queue_cancel_failed"}
+    assert store.get_task(task_id).status == "QUEUED"
+    after_events = store._conn.execute(
+        "SELECT COUNT(*) AS c FROM task_events WHERE task_id = ?", (task_id,)
+    ).fetchone()["c"]
+    assert after_events == before_events
+
+
+def test_queue_cancel_conditional_update_loss_does_not_claim_success(task_server, monkeypatch) -> None:
+    _, server = task_server
+    store = server.RequestHandlerClass.store
+    task = store.create_task(title="conditional update loss", executor_kind="deterministic_fixture")
+    store.set_state(task.id, "RUNNING")
+    monkeypatch.setattr(
+        store, "_queue_cancel_reason_locked", lambda *_args: "QUEUED_UNCLAIMED"
+    )
+    outcome = store.cancel_queued_task(task.id)
+    assert outcome.status == "UNAVAILABLE"
+    assert outcome.reason_code == "STATUS_NOT_CANCELLABLE"
+    assert store.get_task(task.id).status == "RUNNING"
+    assert store._conn.execute(
+        "SELECT COUNT(*) AS c FROM task_events "
+        "WHERE task_id = ? AND type = 'QUEUE_CANCELLED'",
+        (task.id,),
+    ).fetchone()["c"] == 0
 
 
 def test_execute_endpoint_runs_fixture_and_persists(task_server) -> None:
@@ -1526,3 +2269,41 @@ def test_goal_http_converges_to_blocked_on_cancelled_task(task_server) -> None:
                for link in listed_goal["task_links"])
     assert any(link["task_id"] == links[0]["task_id"] and link["status"] == "CANCELLED"
                for link in detail["task_links"])
+
+
+def test_goal_http_cancel_endpoint_converges_without_cascade(task_server) -> None:
+    base, server = task_server
+    goal_id, launched = _launch_http_goal(base, "queue-cancel-convergence")
+    task_id = launched["task_links"][0]["task_id"]
+    store = server.RequestHandlerClass.store
+    control = server.RequestHandlerClass.control_store
+    other = store.create_task(
+        title="same goal remains queued",
+        repository="dddd2024/reverse-agent",
+        executor_kind="deterministic_fixture",
+    )
+    control.link_goal_task(
+        goal_id,
+        goal_revision=1,
+        plan_task_id="T999",
+        task_id=other.id,
+        dependencies=[],
+        seq=1,
+    )
+    assert store.get_task(other.id).status == "QUEUED"
+    status, result = _req(base, "POST", f"/api/runs/{task_id}/cancel")
+    assert status == 200
+    assert result == {"status": "APPLIED"}
+
+    status, goals = _req(base, "GET", "/api/goals")
+    assert status == 200
+    listed_goal = next(goal for goal in goals["goals"] if goal["id"] == goal_id)
+    status, detail = _req(base, "GET", f"/api/goals/{goal_id}")
+    assert status == 200
+    assert listed_goal["status"] == "BLOCKED"
+    assert detail["status"] == "BLOCKED"
+    links = {link["task_id"]: link["status"] for link in detail["task_links"]}
+    assert links[task_id] == "CANCELLED"
+    assert links[other.id] == "QUEUED"
+    assert server.RequestHandlerClass.store.get_task(task_id).status == "CANCELLED"
+    assert server.RequestHandlerClass.store.get_task(other.id).status == "QUEUED"

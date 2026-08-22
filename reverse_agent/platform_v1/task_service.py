@@ -415,6 +415,55 @@ class _TaskHandler(BaseHTTPRequestHandler):
             return
         try:
             segments = self._segments()
+            if (
+                len(segments) == 4
+                and segments[:2] == ["api", "runs"]
+                and segments[3] == "cancel"
+            ):
+                try:
+                    payload = self._read_json(optional=True)
+                except TaskStoreError:
+                    self._send_json(
+                        HTTPStatus.BAD_REQUEST,
+                        {"error": "cancel_request_must_be_empty"},
+                    )
+                    return
+                if payload:
+                    self._send_json(
+                        HTTPStatus.BAD_REQUEST,
+                        {"error": "cancel_request_must_be_empty"},
+                    )
+                    return
+                try:
+                    outcome = self.store.cancel_queued_task(segments[2])
+                except TaskStoreError as exc:
+                    if str(exc).startswith("task_not_found:"):
+                        self._send_json(
+                            HTTPStatus.NOT_FOUND, {"error": "run_not_found"}
+                        )
+                    else:
+                        self._send_json(
+                            HTTPStatus.INTERNAL_SERVER_ERROR,
+                            {"error": "queue_cancel_failed"},
+                        )
+                    return
+                except Exception:
+                    self._send_json(
+                        HTTPStatus.INTERNAL_SERVER_ERROR,
+                        {"error": "queue_cancel_failed"},
+                    )
+                    return
+                if outcome.status == "UNAVAILABLE":
+                    self._send_json(
+                        HTTPStatus.CONFLICT,
+                        {
+                            "error": "queue_cancel_unavailable",
+                            "reason_code": outcome.reason_code,
+                        },
+                    )
+                    return
+                self._send_json(HTTPStatus.OK, {"status": outcome.status})
+                return
             if segments == ["api", "inbox"]:
                 item = self.inbox_service.capture(self._read_json())
                 self._send_json(HTTPStatus.CREATED, inbox_item_to_dict(item))
