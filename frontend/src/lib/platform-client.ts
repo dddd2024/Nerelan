@@ -155,6 +155,108 @@ export interface PlatformRoadmapPhase {
   updated_at: string;
 }
 
+export type PlatformRunStage =
+  | "PLAN"
+  | "EXECUTE"
+  | "VERIFY"
+  | "PUBLISH"
+  | "UNKNOWN";
+
+export type PlatformRunLiveness =
+  | "ACTIVE"
+  | "WAITING"
+  | "VALIDATING"
+  | "BLOCKED"
+  | "OWNER_ACTION_REQUIRED"
+  | "STALE"
+  | "TERMINAL"
+  | "UNKNOWN";
+
+export type PlatformRunActivityCategory =
+  | "PLAN"
+  | "READ"
+  | "SEARCH"
+  | "EDIT"
+  | "COMMAND"
+  | "TEST"
+  | "VERIFY"
+  | "AGENT_STARTED"
+  | "AGENT_WAITING"
+  | "AGENT_COMPLETED"
+  | "CHECKPOINT"
+  | "RECOVERY"
+  | "BLOCKED"
+  | "OWNER_ACTION_REQUIRED"
+  | "PUBLICATION"
+  | "UNKNOWN";
+
+export interface PlatformRunAgent {
+  agent_id: string;
+  role: string;
+  display_name?: string;
+  status?: string;
+  attempt?: number;
+  last_activity_at?: string;
+}
+
+export interface PlatformRunLivenessSummary {
+  state: PlatformRunLiveness;
+  last_activity_at: string;
+  last_activity_source?: string;
+  seconds_since_activity?: number | null;
+  stale_after_seconds?: number;
+  stale_reason?: string;
+}
+
+export interface PlatformRunActivityEvent {
+  id: string;
+  task_id: string;
+  timestamp: string;
+  category: PlatformRunActivityCategory;
+  title: string;
+  description: string;
+  status?: string;
+  stage?: PlatformRunStage;
+  agent_id?: string;
+  role?: string;
+  agent?: PlatformRunAgent | null;
+  path?: string;
+  command_summary?: string;
+  file?: PlatformRunChangedFile | null;
+  command?: PlatformRunActivityResult | null;
+  test?: PlatformRunActivityResult | null;
+  evidence_ref?: string;
+}
+
+export interface PlatformRunActivityResult {
+  summary: string;
+  status: string;
+  exit_code?: number | null;
+}
+
+export interface PlatformRunCurrentActivity {
+  category: PlatformRunActivityCategory;
+  title: string;
+  description: string;
+  agent_id?: string;
+  role?: string;
+  agent?: PlatformRunAgent | null;
+  timestamp?: string;
+}
+
+export interface PlatformRunChangeSummary {
+  file_count: number;
+  additions: number;
+  deletions: number;
+}
+
+export interface PlatformRunValidation {
+  command_id: string;
+  status: string;
+  exit_code?: number | null;
+  summary?: string;
+}
+
 export interface PlatformAgentRun {
   task_id: string;
   title: string;
@@ -169,6 +271,21 @@ export interface PlatformAgentRun {
   goal_id: string;
   goal_title: string;
   window_id: string;
+  stage?: PlatformRunStage;
+  liveness?: PlatformRunLiveness | PlatformRunLivenessSummary;
+  last_activity_at?: string;
+  liveness_detail?: PlatformRunLivenessSummary;
+  current_activity?: PlatformRunCurrentActivity | null;
+  current_agent?: PlatformRunAgent | null;
+  agents?: PlatformRunAgent[];
+  change_summary?: PlatformRunChangeSummary | null;
+  validation?: PlatformRunValidation | null;
+  events?: PlatformRunActivityEvent[];
+  activity?: PlatformRunActivityEvent[];
+  activity_total?: number;
+  event_count?: number;
+  events_truncated?: boolean;
+  changed_files?: PlatformRunChangedFile[];
   usage: PlatformUsageSummary;
   budget: PlatformBudgetSummary | null;
   publication: {
@@ -178,6 +295,18 @@ export interface PlatformAgentRun {
     pr_url: string;
     commit_sha: string;
   } | null;
+}
+
+export interface PlatformRunChangedFile {
+  path: string;
+  status: string;
+  additions: number;
+  deletions: number;
+}
+
+export interface PlatformAgentRunDetail extends PlatformAgentRun {
+  events: PlatformRunActivityEvent[];
+  changed_files: PlatformRunChangedFile[];
 }
 
 const API_BASE = import.meta.env.VITE_TASK_API_BASE ?? "http://127.0.0.1:8766";
@@ -333,6 +462,67 @@ const mockRuns: PlatformAgentRun[] = [
     goal_id: "goal-demo-platform",
     goal_title: "完善无人值守多 Agent 平台",
     window_id: "window-demo",
+    stage: "VERIFY",
+    liveness: { state: "OWNER_ACTION_REQUIRED", last_activity_at: new Date(now.getTime() - 5 * 60_000).toISOString() },
+    last_activity_at: new Date(now.getTime() - 5 * 60_000).toISOString(),
+    current_agent: { agent_id: "reviewer", role: "reviewer", display_name: "Reviewer" },
+    agents: [
+      { agent_id: "planner", role: "planner", display_name: "Planner" },
+      { agent_id: "coder", role: "coder", display_name: "Coder" },
+      { agent_id: "reviewer", role: "reviewer", display_name: "Reviewer" },
+    ],
+    current_activity: {
+      category: "OWNER_ACTION_REQUIRED",
+      title: "等待 Owner 审查",
+      description: "验证完成，等待人工审查结果。",
+      agent: { agent_id: "reviewer", role: "reviewer", display_name: "Reviewer" },
+      timestamp: new Date(now.getTime() - 5 * 60_000).toISOString(),
+    },
+    change_summary: { file_count: 2, additions: 42, deletions: 11 },
+    validation: {
+      command_id: "pytest tests/platform_v1 -q",
+      status: "SUCCESS",
+      exit_code: 0,
+      summary: "1785 passed",
+    },
+    events: [
+      {
+        id: "activity-demo-1",
+        task_id: "task-demo-1",
+        timestamp: new Date(now.getTime() - 16 * 60_000).toISOString(),
+        category: "AGENT_STARTED",
+        title: "Coder 开始执行",
+        description: "已从已批准计划开始执行。",
+        agent: { agent_id: "coder", role: "coder", display_name: "Coder" },
+        stage: "EXECUTE",
+      },
+      {
+        id: "activity-demo-2",
+        task_id: "task-demo-1",
+        timestamp: new Date(now.getTime() - 10 * 60_000).toISOString(),
+        category: "EDIT",
+        title: "修改任务实现",
+        description: "更新了执行与恢复链路。",
+        agent: { agent_id: "coder", role: "coder", display_name: "Coder" },
+        stage: "EXECUTE",
+        path: "reverse_agent/platform_v1/task_execution.py",
+      },
+      {
+        id: "activity-demo-3",
+        task_id: "task-demo-1",
+        timestamp: new Date(now.getTime() - 5 * 60_000).toISOString(),
+        category: "VERIFY",
+        title: "验证通过",
+        description: "确定性验证已通过，结果已留给 Owner 审查。",
+        agent: { agent_id: "reviewer", role: "reviewer", display_name: "Reviewer" },
+        stage: "VERIFY",
+        test: { summary: "pytest tests/platform_v1 -q", status: "PASS", exit_code: 0 },
+      },
+    ],
+    changed_files: [
+      { path: "reverse_agent/platform_v1/task_execution.py", status: "modified", additions: 24, deletions: 6 },
+      { path: "tests/platform_v1/test_task_execution.py", status: "modified", additions: 18, deletions: 5 },
+    ],
     usage: {
       status: "OBSERVED",
       input_units: 42000,
@@ -384,6 +574,67 @@ const mockRuns: PlatformAgentRun[] = [
     goal_id: "goal-demo-platform",
     goal_title: "完善无人值守多 Agent 平台",
     window_id: "window-demo",
+    stage: "EXECUTE",
+    activity_total: 8,
+    liveness: { state: "ACTIVE", last_activity_at: new Date(now.getTime() - 60_000).toISOString() },
+    last_activity_at: new Date(now.getTime() - 60_000).toISOString(),
+    current_agent: { agent_id: "coder", role: "coder", display_name: "Coder" },
+    agents: [
+      { agent_id: "coder", role: "coder", display_name: "Coder" },
+      { agent_id: "test", role: "test", display_name: "Test Agent" },
+    ],
+    current_activity: {
+      category: "COMMAND",
+      title: "运行集成测试",
+      description: "正在执行确定性测试。",
+      agent: { agent_id: "test", role: "test", display_name: "Test Agent" },
+      timestamp: new Date(now.getTime() - 60_000).toISOString(),
+    },
+    change_summary: { file_count: 1, additions: 8, deletions: 2 },
+    validation: {
+      command_id: "git_diff_check",
+      status: "RUNNING",
+      summary: "正在运行",
+    },
+    events: [
+      {
+        id: "activity-demo-4",
+        task_id: "task-demo-2",
+        timestamp: new Date(now.getTime() - 4 * 60_000).toISOString(),
+        category: "AGENT_STARTED",
+        title: "Coder 正在执行",
+        description: "执行器已启动。",
+        agent: { agent_id: "coder", role: "coder", display_name: "Coder" },
+        stage: "EXECUTE",
+      },
+      {
+        id: "activity-demo-5",
+        task_id: "task-demo-2",
+        timestamp: new Date(now.getTime() - 2 * 60_000).toISOString(),
+        category: "COMMAND",
+        title: "Test Agent 运行测试",
+        description: "正在执行测试命令。",
+        agent: { agent_id: "test", role: "test", display_name: "Test Agent" },
+        stage: "VERIFY",
+        command: {
+          summary: "git_diff_check",
+          status: "RUNNING",
+        },
+      },
+      {
+        id: "activity-demo-6",
+        task_id: "task-demo-2",
+        timestamp: new Date(now.getTime() - 60_000).toISOString(),
+        category: "UNKNOWN",
+        title: "新的持久化活动",
+        description: "使用通用活动展示。",
+        agent: { agent_id: "coder", role: "coder", display_name: "Coder" },
+        stage: "EXECUTE",
+      },
+    ],
+    changed_files: [
+      { path: "reverse_agent/platform_v1/task_service.py", status: "modified", additions: 8, deletions: 2 },
+    ],
     usage: {
       status: "USAGE_UNKNOWN",
       input_units: 0,
@@ -601,7 +852,14 @@ export async function fetchRuns(): Promise<PlatformAgentRun[]> {
   return result.runs;
 }
 
-export async function fetchRun(taskId: string): Promise<PlatformAgentRun> {
-  if (isMock()) return mockRuns.find((run) => run.task_id === taskId) ?? mockRuns[0];
-  return request<PlatformAgentRun>(`/api/runs/${encodeURIComponent(taskId)}`);
+export async function fetchRun(taskId: string): Promise<PlatformAgentRunDetail> {
+  if (isMock()) {
+    const run = mockRuns.find((entry) => entry.task_id === taskId) ?? mockRuns[0];
+    return {
+      ...run,
+      events: run.events ?? [],
+      changed_files: run.changed_files ?? [],
+    };
+  }
+  return request<PlatformAgentRunDetail>(`/api/runs/${encodeURIComponent(taskId)}`);
 }
