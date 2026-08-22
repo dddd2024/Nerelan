@@ -3,8 +3,10 @@ import { Save, Trash2 } from "lucide-react";
 import {
   ConnectionInputSchema,
   BindingInputSchema,
+  connectionVerificationCapability,
   type AuthMethod,
   type ConnectionProbeResult,
+  type ConnectionVerificationCapability,
   type Binding,
   type BindingInput,
   type Connection,
@@ -166,12 +168,21 @@ export function ConnectionBindingEditor({
 
   const connSavedId = creating && view === "connection" ? null : connection?.connectionId ?? null;
   const bindSavedId = creating && view === "binding" ? null : binding?.bindingId ?? null;
+  const verificationCapability = connection
+    ? connectionVerificationCapability(connection)
+    : null;
+  const verificationGuidance = verificationCapability
+    ? connectionVerificationGuidance(verificationCapability)
+    : null;
   const canVerifyConnection =
     view === "connection" &&
     !!connSavedId &&
     !connDirty &&
+    verificationCapability === "supported" &&
     !connectionProbePending &&
     !busy;
+  const savedApiKeyStatus =
+    connection?.authMethod === "api_key" ? connection.secretStatus : "missing";
 
   return (
     <div data-testid="connection-binding-editor">
@@ -236,15 +247,17 @@ export function ConnectionBindingEditor({
               <select
                 aria-label="认证方式"
                 value={connDraft.authMethod}
-                onChange={(event) =>
-                  setConnDraft((d) => ({
-                    ...d,
-                    authMethod: event.target.value as AuthMethod,
-                  }))
-                }
+                onChange={(event) => {
+                  const authMethod = event.target.value as AuthMethod;
+                  setConnDraft((d) => ({ ...d, authMethod }));
+                  if (authMethod !== "api_key") setConnApiKey("");
+                }}
                 className={inputClass}
               >
                 <option value="api_key">API Key</option>
+                <option value="account_login">账号登录</option>
+                <option value="external_cli_session">外部 CLI 会话</option>
+                <option value="none">无认证</option>
               </select>
             </Field>
             <Field label="Base URL" className="md:col-span-2">
@@ -259,24 +272,33 @@ export function ConnectionBindingEditor({
                 autoComplete="url"
               />
             </Field>
-            <Field
-              label={`API Key（${connection?.secretStatus === "session" ? "已配置（进程会话）" : connection?.secretStatus === "environment" ? "已配置（环境变量）" : "仅本次提交"}）`}
-              className="md:col-span-2"
-            >
-              <input
-                aria-label="API Key"
-                type="password"
-                value={connApiKey}
-                onChange={(event) => setConnApiKey(event.target.value)}
-                className={inputClass}
-                autoComplete="new-password"
-                placeholder={
-                  connection?.secretStatus === "missing"
-                    ? "尚未配置"
-                    : "已配置；留空表示不替换"
-                }
-              />
-            </Field>
+            {connDraft.authMethod === "api_key" ? (
+              <Field
+                label={`API Key（${apiKeyStatusLabel(savedApiKeyStatus)}）`}
+                className="md:col-span-2"
+              >
+                <input
+                  aria-label="API Key"
+                  type="password"
+                  value={connApiKey}
+                  onChange={(event) => setConnApiKey(event.target.value)}
+                  className={inputClass}
+                  autoComplete="new-password"
+                  placeholder={
+                    savedApiKeyStatus === "missing"
+                      ? "尚未配置"
+                      : "已配置；留空表示不替换"
+                  }
+                />
+              </Field>
+            ) : (
+              <div
+                data-testid="connection-auth-guidance"
+                className="md:col-span-2 rounded-md border border-ra-border bg-ra-tertiary px-3 py-2 text-xs text-ra-text-tertiary"
+              >
+                {authMethodGuidance(connDraft.authMethod)}
+              </div>
+            )}
           </div>
 
           <label className="inline-flex items-center gap-2 text-sm text-ra-text-secondary">
@@ -296,6 +318,19 @@ export function ConnectionBindingEditor({
             </p>
           )}
 
+          {connSavedId &&
+            !connDirty &&
+            verificationCapability !== null &&
+            verificationCapability !== "supported" &&
+            verificationGuidance && (
+              <p
+                data-testid="connection-verification-capability"
+                className="text-sm text-ra-text-tertiary"
+              >
+                {verificationGuidance}
+              </p>
+            )}
+
           {connectionProbeResult && !connDirty && (
             <p
               role="status"
@@ -303,7 +338,7 @@ export function ConnectionBindingEditor({
               className={`text-sm ${connectionProbeResult.ok ? "text-green-300" : "text-red-300"}`}
             >
               {connectionProbeResult.ok ? "验证成功" : "验证失败"}：
-              {connectionProbeResult.message}
+              {localizedProbeMessage(connectionProbeResult)}
               {connectionProbeResult.latencyMs !== null && (
                 <span>（{connectionProbeResult.latencyMs} ms）</span>
               )}
@@ -325,7 +360,9 @@ export function ConnectionBindingEditor({
                   ? "新建连接需先保存"
                   : connDirty
                     ? "当前有未保存的修改，请先保存"
-                    : "验证连接"
+                    : verificationCapability === "supported"
+                      ? "验证连接"
+                      : verificationGuidance ?? "当前连接不可验证"
               }
               className={cn(
                 secondaryButtonClass,
@@ -479,6 +516,74 @@ export function ConnectionBindingEditor({
       )}
     </div>
   );
+}
+
+function connectionVerificationGuidance(
+  capability: ConnectionVerificationCapability,
+): string | null {
+  switch (capability) {
+    case "supported":
+      return null;
+    case "credential_missing":
+      return "请先配置并保存 API Key，然后再验证连接。";
+    case "executor_managed":
+      return "认证由 OpenCode / 外部会话管理；当前连接不支持独立模型端点验证。";
+    case "connection_disabled":
+      return "连接已禁用；启用并保存后才能验证。";
+  }
+}
+
+function localizedProbeMessage(result: ConnectionProbeResult): string {
+  switch (result.status) {
+    case "connected":
+      return "连接成功";
+    case "credential_missing":
+      return "API Key 未配置";
+    case "disabled":
+      return "连接已禁用";
+    case "live_probe_disabled":
+      return "实时连接验证未启用";
+    case "unsupported_auth_method":
+      return "当前认证方式不支持独立连接验证";
+    case "upstream_http_error":
+      return "上游模型端点返回错误";
+    case "invalid_upstream_response":
+      return "上游模型端点返回了无效响应";
+    case "timeout":
+      return "连接验证超时";
+    case "connection_error":
+      return "无法连接上游模型端点";
+    case "not_found":
+      return "连接不存在";
+    default:
+      return result.ok ? "连接成功" : "连接验证失败";
+  }
+}
+
+function authMethodGuidance(authMethod: AuthMethod): string {
+  switch (authMethod) {
+    case "api_key":
+      return "API Key 由可信模型控制服务管理。";
+    case "account_login":
+      return "账号登录认证由 OpenCode / 外部会话管理；浏览器不会读取或保存会话凭据。";
+    case "external_cli_session":
+      return "外部 CLI 会话由执行器管理；浏览器不会读取或保存会话凭据。";
+    case "none":
+      return "此连接不使用凭据。";
+  }
+}
+
+function apiKeyStatusLabel(status: Connection["secretStatus"]): string {
+  switch (status) {
+    case "session":
+      return "已配置（进程会话）";
+    case "environment":
+      return "已配置（环境变量）";
+    case "missing":
+      return "仅本次提交";
+    case "not_applicable":
+      return "仅本次提交";
+  }
 }
 
 function Field({
