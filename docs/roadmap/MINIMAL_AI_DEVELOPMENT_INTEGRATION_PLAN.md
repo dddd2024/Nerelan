@@ -46,6 +46,32 @@ long-term cost-aware topology selection
 
 This capability complements, but does not duplicate, [`model_access_quota_budget_plan.md`](model_access_quota_budget_plan.md): model access owns provider quota/accounting/budget/routing; Context & Invocation Efficiency reduces demand and explains where context/calls are spent. Economic/context optimization never widens repository, operation, permission or publication authority and never substitutes for required validation or independent acceptance.
 
+## Permanent capability line — Workspace & Repository Lifecycle Governance
+
+**Workspace & Repository Lifecycle Governance / 工作区与仓库生命周期治理** is fixed as a permanent long-term mother-platform capability. Cleanup must be platform lifecycle behavior rather than an optional convention that each Agent may forget.
+
+The platform must prevent long unattended operation from indefinitely accumulating worktrees, task workspaces, runtime scratch, stale execution directories and repository dead assets while remaining fail-closed around dirty state, unknown provenance, active execution, unique history and required evidence.
+
+The fixed detailed plan is [`workspace_repository_lifecycle_governance_plan.md`](workspace_repository_lifecycle_governance_plan.md). Its core direction includes:
+
+```text
+durable Workspace Registry
+explicit workspace lifecycle and ownership
+Cleanup Eligibility Gate with bounded reason codes
+retention profiles rather than immediate terminal cleanup
+crash-independent orphan reconciliation
+three cleanup classes: disposable, gate-proven, proposal-only
+Artifact/Evidence preservation independent of workspace lifetime
+repository Dead Asset Analyzer using reference/runtime/test/config/history evidence
+branch/worktree lifecycle separation
+storage and hygiene observability
+Autonomous Improvement candidate generation without destructive authority
+```
+
+Existing worktree classification and historical repository-hygiene rules remain inputs to this capability. Age, task terminality, PR closure or expired claims/leases never authorize deletion by themselves. Dirty, locked, unknown-provenance and unpreserved-history workspaces fail closed. Tracked source, compatibility retirement and remote-history cleanup remain separately governed changes rather than silent background deletion.
+
+This capability complements the durable task/run/evidence plane rather than creating another execution source of truth. Workspace retention and evidence retention are explicitly decoupled: required audit artifacts must survive after a safely disposable worktree is removed.
+
 ## Two authority paths
 
 ### Path A — ordinary R0/R1
