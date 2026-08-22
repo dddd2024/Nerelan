@@ -23,6 +23,29 @@ natural-language goal
 
 Repository-owned capability remains a thin trust layer: risk and authority classification, bounded path/operation policy, autonomous-window budgets, durable claims/idempotency, evidence confinement, exact-path Draft publication, and deterministic acceptance. Spec Kit, LangGraph, OpenCode, OpenHands Agent Canvas, and GitHub provide the mature planning, orchestration, execution, presentation, and repository surfaces.
 
+## Permanent capability line — Context & Invocation Efficiency
+
+**Context & Invocation Efficiency / 上下文与调用效率治理** is fixed as a permanent long-term mother-platform capability, not a temporary optimization experiment.
+
+The platform must reduce unnecessary model context, repeated retrieval, repeated Agent exploration, tool payload, model calls, latency and cost while preserving durable truth, evidence, validation, authority, recovery and safety boundaries. The governing rules are: provide only context required now, exclude irrelevant context, and do not repeatedly provide already-known context unless provenance or independent verification requires re-reading the source.
+
+The fixed detailed plan is [`context_invocation_efficiency_plan.md`](context_invocation_efficiency_plan.md). Its core direction includes:
+
+```text
+Run/Task/Agent/model-call cost attribution
+Context Projection and history compaction from durable truth
+Pack/Skill progressive disclosure
+role/task-specific tool visibility and schema pruning
+structured Agent Handoff Packets
+stable-prefix / prompt-cache-aware compilation
+tool-output reduction with raw evidence retention
+code-intelligence adapters before broad repository reads
+deterministic-action-first invocation
+long-term cost-aware topology selection
+```
+
+This capability complements, but does not duplicate, [`model_access_quota_budget_plan.md`](model_access_quota_budget_plan.md): model access owns provider quota/accounting/budget/routing; Context & Invocation Efficiency reduces demand and explains where context/calls are spent. Economic/context optimization never widens repository, operation, permission or publication authority and never substitutes for required validation or independent acceptance.
+
 ## Two authority paths
 
 ### Path A — ordinary R0/R1
