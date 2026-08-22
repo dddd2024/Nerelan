@@ -152,6 +152,7 @@ class Task:
     changed_files: tuple[Mapping[str, Any], ...] = ()
     evidence_refs: tuple[Mapping[str, Any], ...] = ()
     events: tuple[Mapping[str, Any], ...] = ()
+    event_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -225,12 +226,33 @@ def _with_store_lock(method):
     return locked
 
 
-def _row_to_task(conn: sqlite3.Connection, row: sqlite3.Row) -> Task:
-    events = [dict(r) for r in conn.execute(
-        "SELECT id, task_id, type, timestamp, title, description, raw_log, "
-        "metadata FROM task_events WHERE task_id = ? ORDER BY seq ASC",
-        (row["id"],),
-    )]
+def _row_to_task(
+    conn: sqlite3.Connection,
+    row: sqlite3.Row,
+    *,
+    event_limit: int | None = None,
+) -> Task:
+    if event_limit is None:
+        event_rows = conn.execute(
+            "SELECT id, task_id, type, timestamp, title, description, raw_log, "
+            "metadata FROM task_events WHERE task_id = ? ORDER BY seq ASC",
+            (row["id"],),
+        ).fetchall()
+        event_count = len(event_rows)
+    else:
+        bounded_event_limit = max(1, int(event_limit))
+        event_rows = conn.execute(
+            "SELECT id, task_id, type, timestamp, title, description, raw_log, "
+            "metadata FROM task_events WHERE task_id = ? ORDER BY seq DESC LIMIT ?",
+            (row["id"], bounded_event_limit),
+        ).fetchall()
+        event_rows.reverse()
+        count_row = conn.execute(
+            "SELECT COUNT(*) AS c FROM task_events WHERE task_id = ?",
+            (row["id"],),
+        ).fetchone()
+        event_count = int(count_row["c"])
+    events = [dict(event_row) for event_row in event_rows]
     changed_files = [dict(r) for r in conn.execute(
         "SELECT path, status, additions, deletions, diff_digest FROM task_changed_files "
         "WHERE task_id = ? ORDER BY seq ASC",
@@ -266,6 +288,7 @@ def _row_to_task(conn: sqlite3.Connection, row: sqlite3.Row) -> Task:
         changed_files=changed_files,
         evidence_refs=evidence,
         events=events,
+        event_count=event_count,
     )
 
 
@@ -681,7 +704,7 @@ class TaskStore:
         )
         return task, result
 
-    def get_task(self, task_id: str) -> Task:
+    def get_task(self, task_id: str, *, event_limit: int | None = None) -> Task:
         with self._lock:
             try:
                 row = self._conn.execute(
@@ -691,15 +714,24 @@ class TaskStore:
                 raise TaskStoreError(f"task_lookup_error:{task_id}") from exc
             if row is None:
                 raise TaskStoreError(f"task_not_found:{task_id}")
-            return _row_to_task(self._conn, row)
+            return _row_to_task(self._conn, row, event_limit=event_limit)
 
-    def list_tasks(self, limit: int = 100, offset: int = 0) -> list[Task]:
+    def list_tasks(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        *,
+        event_limit: int | None = None,
+    ) -> list[Task]:
         with self._lock:
             rows = self._conn.execute(
                 "SELECT * FROM tasks ORDER BY created_at DESC LIMIT ? OFFSET ?",
                 (limit, offset),
             ).fetchall()
-            return [_row_to_task(self._conn, r) for r in rows]
+            return [
+                _row_to_task(self._conn, row, event_limit=event_limit)
+                for row in rows
+            ]
 
     def count_tasks(self) -> int:
         with self._lock:
@@ -1381,6 +1413,43 @@ class TaskStore:
             if row is None:
                 raise TaskStoreError(f"durable_run_not_found:{run_id}")
             return _row_to_durable_run(row)
+
+    def get_latest_durable_run_observation(
+        self, task_id: str
+    ) -> "DurableRunObservation | None":
+        """Return the bounded durable facts safe for RunReadModel.
+
+        This is deliberately a read-only projection accessor.  The durable
+        run remains owned by this TaskStore and the query does not reconcile,
+        claim, heartbeat, or otherwise mutate the run.  Unlike
+        ``_find_active_durable_run`` it also returns terminal/interrupted runs
+        so a read model can explain the complete lifecycle after completion.
+        Sensitive execution identity such as worktree, checkpoint DB,
+        lease-owner, authority and planning fields are intentionally excluded.
+        """
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT run_id, execution_id, current_role, role_attempt, "
+                "accepted_checkpoint, heartbeat_at_ms, lease_expiry_ms, "
+                "recovery_classification, interrupted_at, updated_at "
+                "FROM durable_runs WHERE task_id = ? "
+                "ORDER BY created_at DESC, rowid DESC LIMIT 1",
+                (task_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            return DurableRunObservation(
+                run_id=row["run_id"],
+                execution_id=row["execution_id"],
+                current_role=row["current_role"],
+                role_attempt=int(row["role_attempt"]),
+                accepted_checkpoint=row["accepted_checkpoint"],
+                heartbeat_at_ms=int(row["heartbeat_at_ms"]),
+                lease_expiry_ms=int(row["lease_expiry_ms"]),
+                recovery_classification=row["recovery_classification"],
+                interrupted_at=row["interrupted_at"],
+                updated_at=row["updated_at"],
+            )
 
     @_with_store_lock
     def _atomic_fenced_update(
@@ -2925,6 +2994,22 @@ class LeaseHandle:
         self.worktree_path = worktree_path
         self.repository_base_sha = repository_base_sha
         self.checkpoint_db_path = checkpoint_db_path
+
+
+@dataclass(frozen=True)
+class DurableRunObservation:
+    """Non-sensitive durable facts exposed to read-only projections."""
+
+    run_id: str
+    execution_id: str
+    current_role: str
+    role_attempt: int
+    accepted_checkpoint: str
+    heartbeat_at_ms: int
+    lease_expiry_ms: int
+    recovery_classification: str
+    interrupted_at: str
+    updated_at: str
 
 
 class DurableCheckpoint:

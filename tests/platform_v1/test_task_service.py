@@ -1369,11 +1369,18 @@ def test_agent_runs_listing_and_detail_over_http(task_server) -> None:
     assert run["task_id"] == task_id
     assert run["goal_id"] == goal["id"]
     assert run["state"] in {"WAITING_FOR_OWNER", "RUNNING"}
+    assert run["stage"] in {"PLAN", "EXECUTE", "VERIFY", "PUBLISH", "UNKNOWN"}
+    assert run["liveness"] in {"WAITING", "ACTIVE", "UNKNOWN"}
+    assert "raw_log" not in json.dumps(run)
+    assert "metadata" not in json.dumps(run)
 
     status, detail = _req(base, "GET", f"/api/runs/{task_id}")
     assert status == 200
     assert detail["task_id"] == task_id
     assert detail["events"][0]["type"] == "DISCOVERED"
+    assert detail["events"][0]["category"] == "PLAN"
+    assert "raw_log" not in json.dumps(detail)
+    assert "metadata" not in json.dumps(detail)
 
     status, missing = _req(base, "GET", "/api/runs/task-missing")
     assert status == 404

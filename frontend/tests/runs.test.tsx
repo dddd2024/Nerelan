@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "./test-utils";
 import { RunsPage } from "@/routes/runs";
 
@@ -67,5 +68,48 @@ describe("Agent Runs page", () => {
     expect(screen.getByTestId("run-usage-unknown-task-demo-2").textContent).toContain(
       "UNKNOWN 不是 0",
     );
+  });
+
+  it("shows semantic activity, stage, liveness and change summary on each card", async () => {
+    renderWithProviders(<RunsPage />);
+    await waitFor(() => expect(screen.getByTestId("run-task-demo-2")).toBeInTheDocument());
+
+    expect(screen.getByTestId("run-liveness-task-demo-2").textContent).toContain("活跃");
+    expect(screen.getByTestId("run-agent-task-demo-2").textContent).toContain("Coder");
+    expect(screen.getByTestId("run-current-activity-task-demo-2").textContent).toContain("运行集成测试");
+    expect(screen.getByTestId("run-change-summary-task-demo-2").textContent).toContain("1 个文件");
+  });
+
+  it("opens the detail region by keyboard and renders overview, activity and files", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<RunsPage />);
+    const toggle = await screen.findByTestId("run-toggle-task-demo-2");
+
+    toggle.focus();
+    await user.keyboard("{Enter}");
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const region = await screen.findByTestId("run-detail-task-demo-2");
+    expect(region).toHaveAttribute("role", "region");
+    expect(region).toHaveAttribute("id", "run-detail-task-demo-2");
+    const overview = within(region).getByTestId("run-overview-task-demo-2");
+    expect(overview).toBeInTheDocument();
+    expect(within(overview).getByText("执行")).toBeInTheDocument();
+    expect(within(overview).getByText("Coder")).toBeInTheDocument();
+    expect(within(region).getByText("Activity")).toBeInTheDocument();
+    expect(within(region).getByText("Files")).toBeInTheDocument();
+    expect(within(region).getByText("活动")).toBeInTheDocument();
+    expect(within(region).getByText("最近 3 / 共 8 条")).toBeInTheDocument();
+    expect(within(region).getByText(/仅显示最近 3 条结构化活动/)).toBeInTheDocument();
+    const commandActivity = within(region).getByTestId("run-activity-activity-demo-5");
+    expect(within(commandActivity).getByText(/git_diff_check/)).toBeInTheDocument();
+    expect(within(commandActivity).getByText(/RUNNING/)).toBeInTheDocument();
+    expect(within(region).getByTestId("run-files-task-demo-2")).toContainElement(
+      within(region).getByText("reverse_agent/platform_v1/task_service.py"),
+    );
+
+    await user.keyboard("{Enter}");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("run-detail-task-demo-2")).not.toBeInTheDocument();
   });
 });
