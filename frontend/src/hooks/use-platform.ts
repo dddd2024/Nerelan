@@ -29,28 +29,19 @@ export function useGoals() {
   });
 }
 
-export function useGoal(
-  goalId: string | undefined,
-  options: { enabled?: boolean; staleTime?: number; refetchInterval?: number | false } = {},
-) {
-  const enabled = options.enabled ?? true;
-  const goalStaleTime = (globalThis as unknown as { __testUseGoalStaleTime?: number }).__testUseGoalStaleTime ?? options.staleTime ?? 1_500;
-  const goalRefetchInterval =
-    options.refetchInterval ??
-    ((query: { state: { data: unknown } }) => {
-      const status = (query.state.data as { status?: string } | undefined)?.status;
-      return status === "RUNNING" ? 2_500 : false;
-    });
-  const result = useQuery({
+export function useGoal(goalId: string | undefined) {
+  return useQuery({
     queryKey: ["goals", goalId],
     queryFn: () => fetchGoal(goalId ?? ""),
-    enabled: Boolean(goalId) && enabled,
-    staleTime: goalStaleTime,
-    refetchInterval: goalRefetchInterval,
+    enabled: Boolean(goalId),
+    staleTime: 1_500,
+    refetchInterval: (query) => {
+      const status = (query.state.data as { status?: string } | undefined)?.status;
+      return status === "RUNNING" ? 2_500 : false;
+    },
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
-  return result;
 }
 
 export function useStartGoal() {
