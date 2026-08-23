@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260822_issue285_home_goal_truth_r2_v2_landing",
-  "round_id": "round_20260822_issue285_home_goal_truth_r2_v2_landing",
-  "expired_at": "2026-08-22T03:52:04+00:00"
+  "decision_id": "decision_20260823_issue318_state_gate_reachability_r2_v1",
+  "round_id": "round_20260823_issue318_state_gate_reachability_r2_v1",
+  "expired_at": "2026-08-23T02:47:42+00:00"
 }

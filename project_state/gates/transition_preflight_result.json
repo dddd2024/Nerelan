@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260822_issue285_home_goal_truth_r2_v2_landing",
-  "round_id": "round_20260822_issue285_home_goal_truth_r2_v2_landing",
+  "decision_id": "decision_20260823_issue318_state_gate_reachability_r2_v1",
+  "round_id": "round_20260823_issue318_state_gate_reachability_r2_v1",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260822_issue285_home_goal_truth_r2_v2_landing expected=decision_20260822_issue285_home_goal_truth_r2_v2_landing"
+      "detail": "observed=decision_20260823_issue318_state_gate_reachability_r2_v1 expected=decision_20260823_issue318_state_gate_reachability_r2_v1"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260822_issue285_home_goal_truth_r2_v2_landing expected=round_20260822_issue285_home_goal_truth_r2_v2_landing"
+      "detail": "observed=round_20260823_issue318_state_gate_reachability_r2_v1 expected=round_20260823_issue318_state_gate_reachability_r2_v1"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=owner/issue285-home-goal-truth-r2-v2-landing expected=owner/issue285-home-goal-truth-r2-v2-landing"
+      "detail": "observed=owner/issue318-state-gate-reachability-r2-v1 expected=owner/issue318-state-gate-reachability-r2-v1"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=ecacfd94e5140151a97fb1d3d486cd992769271b merge_base=ecacfd94e5140151a97fb1d3d486cd992769271b"
+      "detail": "base=772de2662949d2a454b611806a36b52f75cace9f merge_base=772de2662949d2a454b611806a36b52f75cace9f"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=d05ce22d306e384723edab46fc8c5b284fef195e"
+      "detail": "decision_commit=3a13b52afe7ea15e5d15a7a6d07006d4d3f0fa3a"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260822_issue285_home_goal_truth_r2_v2_landing/round_20260822_issue285_home_goal_truth_r2_v2_landing"
+      "detail": "plan=decision_20260823_issue318_state_gate_reachability_r2_v1/round_20260823_issue318_state_gate_reachability_r2_v1"
     },
     {
       "name": "command_plan_contract",
@@ -82,11 +82,6 @@
     },
     {
       "name": "network_policy_enforced",
-      "status": "PASS",
-      "detail": "violations=[]"
-    },
-    {
-      "name": "path_risk_floor_enforced",
       "status": "PASS",
       "detail": "violations=[]"
     },
