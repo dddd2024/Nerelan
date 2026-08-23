@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260823_issue320_state_gate_reachability_r2_v2",
-  "round_id": "round_20260823_issue320_state_gate_reachability_r2_v2",
+  "decision_id": "decision_20260823_issue320_state_gate_reachability_r2_v2_landing",
+  "round_id": "round_20260823_issue320_state_gate_reachability_r2_v2_landing",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260823_issue320_state_gate_reachability_r2_v2 expected=decision_20260823_issue320_state_gate_reachability_r2_v2"
+      "detail": "observed=decision_20260823_issue320_state_gate_reachability_r2_v2_landing expected=decision_20260823_issue320_state_gate_reachability_r2_v2_landing"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260823_issue320_state_gate_reachability_r2_v2 expected=round_20260823_issue320_state_gate_reachability_r2_v2"
+      "detail": "observed=round_20260823_issue320_state_gate_reachability_r2_v2_landing expected=round_20260823_issue320_state_gate_reachability_r2_v2_landing"
     },
     {
       "name": "decision_approved",
@@ -33,7 +33,7 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=owner/issue320-state-gate-reachability-r2-v2 expected=owner/issue320-state-gate-reachability-r2-v2"
+      "detail": "observed=owner/issue320-state-gate-reachability-r2-v2-landing expected=owner/issue320-state-gate-reachability-r2-v2-landing"
     },
     {
       "name": "base_ancestry",
@@ -43,12 +43,12 @@
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=e3c257a735329b65a3655a1e31a8e7574b6a3e5b"
+      "detail": "decision_commit=77eb77bd13a845c608be1136a6eddf90f5834b8f"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260823_issue320_state_gate_reachability_r2_v2/round_20260823_issue320_state_gate_reachability_r2_v2"
+      "detail": "plan=decision_20260823_issue320_state_gate_reachability_r2_v2_landing/round_20260823_issue320_state_gate_reachability_r2_v2_landing"
     },
     {
       "name": "command_plan_contract",

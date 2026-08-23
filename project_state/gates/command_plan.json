@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260823_issue320_state_gate_reachability_r2_v2",
-  "round_id": "round_20260823_issue320_state_gate_reachability_r2_v2",
+  "decision_id": "decision_20260823_issue320_state_gate_reachability_r2_v2_landing",
+  "round_id": "round_20260823_issue320_state_gate_reachability_r2_v2_landing",
   "commands": [
     {
-      "command_id": "issue320v2.bootstrap_and_gate",
-      "command": "verify origin/main remains 772de2662949d2a454b611806a36b52f75cace9f; verify PR 319 remains frozen Draft at head d837891f582a9ed30088fea8f7465a5cc97ce153; run startup-snapshot, transition-command-plan, transition-lint, and transition-preflight --mode pre; require PRE_EXECUTION_AUTHORIZED with zero blockers before semantic replay",
+      "command_id": "issue320v2landing.bootstrap_and_gate",
+      "command": "verify origin/main remains 772de2662949d2a454b611806a36b52f75cace9f; verify PR 322 remains OPEN Draft at head 663fc157a0dafc8002511921bc2b0411f26ee020; verify four accepted semantic blobs unchanged; run startup-snapshot, transition-command-plan, transition-lint, and transition-preflight --mode pre; require PRE_EXECUTION_AUTHORIZED with zero blockers before any mutation",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -34,38 +34,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue320v2.semantic_replay",
-      "command": "restore the four semantic replay files as an exact Git-blob replay from superseded v1 head d837891f582a9ed30088fea8f7465a5cc97ce153 in a single commit; verify each blob SHA equals the approved target: .github/workflows/state-gate.yml=73b44ca43b293a9481b026be801f119c77f68514, .github/workflows/ci.yml=2dc26892325e12fe22fd472d587a324f1ebc76e7, tests/test_ci_responsibility.py=d01aebfac31ba85be93b259e49edf26967ae0066, tests/test_project_gate.py=7063553ba79bd8a37e00f69679e300c3b6c7e63b",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "bounded_source_mutation",
-        "bounded_test_mutation",
-        "stage_authorized_paths",
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        ".github/workflows/state-gate.yml",
-        ".github/workflows/ci.yml",
-        "tests/test_ci_responsibility.py",
-        "tests/test_project_gate.py"
-      ]
-    },
-    {
-      "command_id": "issue320v2.post_replay_validation",
-      "command": "run tests/test_path_a_gate.py, tests/test_ci_responsibility.py, tests/test_project_gate.py, tests/test_control_plane_transition.py plus tests/test_planning_and_github_adapters.py; run transition-lint, transition-preflight --mode pre, worktree-publication-readiness, and git diff --check; assert test_state_gate_pull_request_trigger_reaches_every_risk_only_change 10 cases ALL PASS; assert State Gate ordinary pull_request block contains no paths: key; any failure stops publication",
+      "command_id": "issue320v2landing.prepublic_validation",
+      "command": "run test_path_a_gate, test_ci_responsibility, test_project_gate, test_mainline_landing + test_merge_intent, test_control_plane_transition + test_planning_and_github_adapters; run transition-lint, transition-preflight --mode pre, worktree-publication-readiness, git diff --check; assert all PASS; do not modify any accepted semantic blob",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -88,8 +58,30 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue320v2.publish_single_draft",
-      "command": "push owner/issue320-state-gate-reachability-r2-v2 once and create exactly one Draft PR with base=main; observe fresh exact-head CI, State Gate pull_request, and Decision Preflight runs without rerun or runner dispatch; stop at READY_FOR_OWNER_AUDIT",
+      "command_id": "issue320v2landing.decision_history_proof",
+      "command": "prove Decision commit is first after 663fc157; prove Decision commit touches only project_state/decision_packet.md; prove Decision blob unchanged between activation and final HEAD",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue320v2landing.initial_push_and_pr",
+      "command": "normal push owner/issue320-state-gate-reachability-r2-v2-landing once; create exactly one Draft PR with base=main; observe actual PR number; do not mark-ready; do not merge",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -113,8 +105,83 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.5fae2f4b609df48a645dcb99650ee08e31817d74e8fb5fdfd8f6c30a0cca2afc",
-      "command": "create owner/issue320-state-gate-reachability-r2-v2 from locked origin/main 772de2662949d2a454b611806a36b52f75cace9f in an isolated detached worktree whose merge-base with main is 772de2662949d2a454b611806a36b52f75cace9f",
+      "command_id": "issue320v2landing.mainline_intent_binding",
+      "command": "archive current active mainline merge intent byte-for-byte to archive/pr288_v2.json; replace active.json with new schema-v2 intent binding actual landing PR number, locked base, allowed merge method, immutable landing Decision digest, generated Command Plan digest, required workflows, bounded expiry; one governance-only binding commit; do not modify Decision",
+      "phase": "binding",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "bounded_governance_mutation",
+        "stage_authorized_paths",
+        "commit"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/mainline_merge_intents/active.json",
+        "project_state/mainline_merge_intents/archive/pr288_v2.json"
+      ]
+    },
+    {
+      "command_id": "issue320v2landing.final_validation",
+      "command": "prove Decision blob unchanged; prove accepted semantic blobs unchanged; prove archive byte-for-byte; prove active intent binding exact; rerun all prepublication validation; require all PASS before second push",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks",
+        "diff_validation",
+        "repository_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue320v2landing.final_push",
+      "command": "normal fast-forward push binding commit as second and final push; observe final exact head CI, State Gate, and Decision Preflight; verify all SUCCESS; verify PR still Draft, main still locked base, head exact, mergeable, zero unresolved threads",
+      "phase": "publication",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "push",
+        "repository_observation",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.7d308808735e7583f26e15a5b564cf6e1cb64c146c49b99e1eace49f9d1c5356",
+      "command": "create owner/issue320-state-gate-reachability-r2-v2-landing from accepted head 663fc157a0dafc8002511921bc2b0411f26ee020 in an isolated detached worktree whose merge-base with main is 772de2662949d2a454b611806a36b52f75cace9f",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -133,8 +200,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.63edab9835b0b0f1e650cf6d941671116d686d73d877a64e924b617c1048ea27",
-      "command": "commit this immutable Decision as the unique first new commit after 772de2662949d2a454b611806a36b52f75cace9f before any generated governance artifact or semantic replay",
+      "command_id": "bootstrap.b85eea77a8ced3cf954bdcfc2ec501ca8a7ad1d6472c92294f13d6747e8ad4b0",
+      "command": "commit this immutable Decision as the unique first new commit after 663fc157a0dafc8002511921bc2b0411f26ee020 before any generated governance artifact or semantic mutation",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
