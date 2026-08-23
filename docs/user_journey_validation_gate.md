@@ -120,7 +120,7 @@ Use the following rollout model:
 
 ### Phase A - deterministic critical journeys
 
-- retain/expand Playwright coverage for critical frontend workflows;
+- establish Playwright as the deterministic browser E2E layer and expand coverage across critical frontend workflows;
 - standardize traces, screenshots, terminal-state assertions, and failure artifacts;
 - ensure tests validate actual user-visible state, not only request success.
 
@@ -154,7 +154,7 @@ This prevents the project from repeatedly rediscovering the same bug while retai
 
 ## Relationship to existing frontend verification
 
-Existing owner verification and Playwright coverage remain valid deterministic evidence. This policy adds the missing black-box usability/exploration layer; it does not replace existing tests.
+Existing owner verification, component tests, screenshots, and other exact-head evidence remain valid. The current repository does not yet prove a Playwright browser-E2E baseline; establishing that deterministic layer is part of Phase A. This policy adds both the deterministic browser-journey requirement and the black-box usability/exploration layer without discarding existing evidence.
 
 ## Definition of Done for the capability
 
