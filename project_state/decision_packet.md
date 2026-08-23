@@ -124,6 +124,18 @@
       "allowed_mutated_paths": ["tests/test_ci_responsibility.py"]
     },
     {
+      "command_id": "issue318.fix_project_gate_test",
+      "command": "update tests/test_project_gate.py test_transition_packaging_and_workflow_boundary to include the new Path-A gate reachability blocking step in the expected CI workflow step list",
+      "phase": "implementation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["stage_authorized_paths", "commit"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": ["tests/test_project_gate.py"]
+    },
+    {
       "command_id": "issue318.validate_all_tests",
       "command": "run test_path_a_gate.py test_ci_responsibility.py test_control_plane_transition.py test_planning_and_github_adapters.py transition-lint transition-preflight publication-readiness git diff --check; all must pass",
       "phase": "validation",
@@ -150,7 +162,8 @@
   "allowed_product_paths": [
     ".github/workflows/state-gate.yml",
     ".github/workflows/ci.yml",
-    "tests/test_ci_responsibility.py"
+    "tests/test_ci_responsibility.py",
+    "tests/test_project_gate.py"
   ],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
@@ -161,7 +174,8 @@
     "project_state/gates/transition_preflight_result.json",
     ".github/workflows/state-gate.yml",
     ".github/workflows/ci.yml",
-    "tests/test_ci_responsibility.py"
+    "tests/test_ci_responsibility.py",
+    "tests/test_project_gate.py"
   ],
   "forbidden_mutated_paths": [
     "reverse_agent/control_plane/path_a.py",
