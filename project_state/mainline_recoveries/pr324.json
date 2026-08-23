@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "recovery_id": "pr324_post_merge_lifecycle_failure_observation_v1",
+  "status": "POST_MERGE_LIFECYCLE_FAILURE_OBSERVED",
+  "non_retroactive": true,
+  "never_asserts_success": true,
+  "repository": "dddd2024/reverse-agent",
+  "source_pr": 324,
+  "source_issue": 320,
+  "semantic_tree_landed": true,
+  "authority_lifecycle_failed": true,
+  "failure_reason": "required pre-merge mainline attestation was absent at merge time; State Gate (push) concluded failure",
+  "post_merge_late_attestation_added": false,
+  "state_gate_push_run_id": 32639335287,
+  "state_gate_push_conclusion": "failure",
+  "state_gate_push_conclusion_is_negative_evidence": true,
+  "rerun_performed_on_state_gate_push_32639335287": false,
+  "attestation_added_to_pr324_after_merge": false,
+  "pr324_history_rewritten": false,
+  "pr324_decision_modified": false,
+  "attestation_pre_merge_present": false,
+  "attestation_chronology_violation_observed": true,
+  "attestation_chronology_violation_class": "attestation_absent_at_merge_time",
+  "successor_recovery_issue": 326,
+  "successor_recovery_decision_id": "decision_20260823_issue326_mainline_attestation_recovery_r2_v1",
+  "machine_invariant_added_by_successor": "attestation_created_before_merge: _remote_comment_created_at must strictly precede merge_commit.author_date",
+  "workflow_observations": [
+    {
+      "name": "State Gate (push)",
+      "run_id": 32639335287,
+      "workflow_file": ".github/workflows/state-gate.yml",
+      "event": "push",
+      "run_attempt": 1,
+      "head_sha": "0beac2f57c1ae9caa1b11dc02dfc027c9b19e496",
+      "conclusion": "failure",
+      "is_negative_evidence_preserved": true
+    }
+  ],
+  "retroactive_whitewash_prohibited": [
+    "add MAINLINE_MERGE_APPROVAL_ATTESTATION to PR #324",
+    "rerun State Gate (push) run 32639335287",
+    "modify the PR #324 / issue320 landing Decision",
+    "rewrite PR #324 git history",
+    "mark the observed failure as success in any recovery artifact"
+  ],
+  "allowed_approvers": ["dddd2024"]
+}

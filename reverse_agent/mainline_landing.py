@@ -258,6 +258,11 @@ def _parse_time(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
+def _merge_commit_author_date(repo_root: Path, merge_sha: str) -> datetime:
+    raw = _git(repo_root, "log", "-1", "--format=%aI", merge_sha)
+    return _parse_time(raw)
+
+
 def _validate_intent(
     intent: Mapping[str, Any],
     *,
@@ -348,6 +353,7 @@ def _validate_attestation(
     accepted_head: str,
     locked_base: str,
     now: datetime,
+    merge_commit_author_date: datetime | None = None,
 ) -> list[dict[str, str]]:
     checks: list[dict[str, str]] = []
     source_pr = int(intent.get("source_pr") or 0)
@@ -375,10 +381,60 @@ def _validate_attestation(
     if schema_version == 1:
         workflow_policy = CANONICAL_WORKFLOW_POLICY
         required_observation_count = 4
+        attestation_fields = {
+            "schema_version",
+            "attestation_id",
+            "repository",
+            "source_pr",
+            "locked_base_sha",
+            "accepted_exact_head_sha",
+            "allowed_merge_method",
+            "intent_digest",
+            "workflow_observations",
+            "human_r2_approval",
+            "authorization_status",
+            "expires_at",
+            "superseded_by",
+            "content_digest",
+            "_remote_comment_id",
+            "_remote_author",
+        }
+        content_digest_omit = (
+            "content_digest",
+            "_remote_comment_id",
+            "_remote_author",
+        )
     elif schema_version == 2:
         workflow_policy = CURRENT_PREMERGE_WORKFLOW_POLICY
         required_observation_count = 3
+        attestation_fields = {
+            "schema_version",
+            "attestation_id",
+            "repository",
+            "source_pr",
+            "locked_base_sha",
+            "accepted_exact_head_sha",
+            "allowed_merge_method",
+            "intent_digest",
+            "workflow_observations",
+            "human_r2_approval",
+            "authorization_status",
+            "expires_at",
+            "superseded_by",
+            "content_digest",
+            "_remote_comment_id",
+            "_remote_author",
+            "_remote_comment_created_at",
+        }
+        content_digest_omit = (
+            "content_digest",
+            "_remote_comment_id",
+            "_remote_author",
+            "_remote_comment_created_at",
+        )
     else:
+        attestation_fields = set()
+        content_digest_omit = ()
         return [
             _check("attestation_schema_version", False, f"unsupported_version={schema_version}"),
             _check("attestation_fields", False, "unsupported_version"),
@@ -400,24 +456,6 @@ def _validate_attestation(
             _check("approval_payload", False, "unsupported_version"),
             _check("approval_content_digest", False, "unsupported_version"),
         ]
-    attestation_fields = {
-        "schema_version",
-        "attestation_id",
-        "repository",
-        "source_pr",
-        "locked_base_sha",
-        "accepted_exact_head_sha",
-        "allowed_merge_method",
-        "intent_digest",
-        "workflow_observations",
-        "human_r2_approval",
-        "authorization_status",
-        "expires_at",
-        "superseded_by",
-        "content_digest",
-        "_remote_comment_id",
-        "_remote_author",
-    }
     observation_fields = {
         "name",
         "run_id",
@@ -437,7 +475,7 @@ def _validate_attestation(
             _check("attestation_head", attestation.get("accepted_exact_head_sha") == accepted_head, f"observed={attestation.get('accepted_exact_head_sha')}"),
             _check("attestation_method", attestation.get("allowed_merge_method") == "merge", f"observed={attestation.get('allowed_merge_method')}"),
             _check("attestation_intent_digest", attestation.get("intent_digest") == canonical_digest(intent), f"observed={attestation.get('intent_digest')}"),
-            _check("attestation_content_digest", attestation.get("content_digest") == canonical_digest(attestation, omit=("content_digest", "_remote_comment_id", "_remote_author")), f"observed={attestation.get('content_digest')}"),
+            _check("attestation_content_digest", attestation.get("content_digest") == canonical_digest(attestation, omit=content_digest_omit), f"observed={attestation.get('content_digest')}"),
             _check("attestation_status", attestation.get("authorization_status") == "active" and not attestation.get("superseded_by"), f"status={attestation.get('authorization_status')} superseded_by={attestation.get('superseded_by')}"),
             _check("attestation_expiry", active_time, f"expires_at={attestation.get('expires_at')}"),
             _check("workflow_names", observed_names == list(workflow_policy), f"observed={observed_names}"),
@@ -484,6 +522,35 @@ def _validate_attestation(
                 str(verified.get("reason") or "verified"),
             )
         )
+    if schema_version == 2:
+        remote_created = attestation.get("_remote_comment_created_at")
+        if not remote_created or merge_commit_author_date is None:
+            checks.append(
+                _check(
+                    "attestation_created_before_merge",
+                    False,
+                    f"missing_remote_created_at={bool(remote_created)} missing_merge_author_date={merge_commit_author_date is None}",
+                )
+            )
+        else:
+            try:
+                comment_time = _parse_time(str(remote_created))
+                predates = comment_time < merge_commit_author_date
+                checks.append(
+                    _check(
+                        "attestation_created_before_merge",
+                        predates,
+                        f"comment_created_at={comment_time.isoformat()} merge_author_date={merge_commit_author_date.isoformat()}",
+                    )
+                )
+            except ValueError as exc:
+                checks.append(
+                    _check(
+                        "attestation_created_before_merge",
+                        False,
+                        f"invalid_remote_created_at={exc}",
+                    )
+                )
     return checks
 
 
@@ -537,6 +604,7 @@ def validate_future_merge(
                 now=now,
             )
         )
+        merge_author_date = _merge_commit_author_date(repo_root, merge)
         checks.extend(
             _validate_attestation(
                 attestation,
@@ -545,6 +613,7 @@ def validate_future_merge(
                 accepted_head=second_parent,
                 locked_base=first_parent,
                 now=now,
+                merge_commit_author_date=merge_author_date,
             )
         )
         return _result(

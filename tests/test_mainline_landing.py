@@ -201,9 +201,16 @@ def _future_repo(
         "_remote_comment_id": 12345,
         "_remote_author": "dddd2024",
     }
+    if schema_version == 2:
+        attestation["_remote_comment_created_at"] = "2020-01-01T00:00:00Z"
     attestation["content_digest"] = canonical_digest(
         attestation,
-        omit=("content_digest", "_remote_comment_id", "_remote_author"),
+        omit=(
+            "content_digest",
+            "_remote_comment_id",
+            "_remote_author",
+            "_remote_comment_created_at",
+        ),
     )
     return {
         "repo": repo,
@@ -438,7 +445,7 @@ def test_unknown_attestation_field_fails(tmp_path: Path) -> None:
     bundle["attestation"]["untrusted_override"] = True
     bundle["attestation"]["content_digest"] = canonical_digest(
         bundle["attestation"],
-        omit=("content_digest", "_remote_comment_id", "_remote_author"),
+        omit=("content_digest", "_remote_comment_id", "_remote_author", "_remote_comment_created_at"),
     )
     result = _validate(bundle)
     assert any("attestation_fields" in item for item in result["blocking_reasons"])
@@ -673,7 +680,7 @@ def test_committed_active_intent_binds_exact_current_authority() -> None:
         assert (
             contract.get("issue_number_must_not_substitute_for_pr_number") is True
         )
-        assert intent["schema_version"] == 1
+        assert intent["schema_version"] in {1, 2}
         assert (
             intent["decision_identity"]["decision_id"] != decision["decision_id"]
         )
@@ -909,9 +916,16 @@ def test_production_pre_merge_simulation(tmp_path: Path) -> None:
         "_remote_comment_id": 71001,
         "_remote_author": "dddd2024",
     }
+    if intent_schema_version == 2:
+        attestation["_remote_comment_created_at"] = "2020-01-01T00:00:00Z"
     attestation["content_digest"] = canonical_digest(
         attestation,
-        omit=("content_digest", "_remote_comment_id", "_remote_author"),
+        omit=(
+            "content_digest",
+            "_remote_comment_id",
+            "_remote_author",
+            "_remote_comment_created_at",
+        ),
     )
     result = validate_future_merge(
         repo_root=repo,
@@ -1352,3 +1366,114 @@ def test_production_verifier_accepts_empty_base64_content() -> None:
         expected_content=b"",
     )
     assert result["verified"] is True
+
+
+# ---------------------------------------------------------------------------
+# Issue #326 regression tests: non-retroactive attestation chronology
+# ---------------------------------------------------------------------------
+
+
+def test_v2_preattested_attestation_passes(tmp_path: Path) -> None:
+    """Positive: v2 intent + three pre-merge workflows + Owner attestation
+    whose remote comment.created_at is strictly BEFORE the merge author date."""
+    bundle = _future_repo(tmp_path, schema_version=2)
+    assert bundle["attestation"]["_remote_comment_created_at"] == "2020-01-01T00:00:00Z"
+    result = _validate(bundle)
+    assert result["gate_status"] == "PASSED", result
+    chronology = [
+        c for c in result["checks"] if c["name"] == "attestation_created_before_merge"
+    ]
+    assert chronology, result["checks"]
+    assert chronology[0]["status"] == "PASS"
+
+
+def test_v2_late_attestation_after_merge_blocks_with_chronology_reason(
+    tmp_path: Path,
+) -> None:
+    """Negative A/B: attestation added AFTER merge. The remote comment.created_at
+    is set to a far-future timestamp so it is provably after the merge author
+    date; validation must BLOCK for chronology, not for any fixture error."""
+    bundle = _future_repo(tmp_path, schema_version=2)
+    merge_author_iso = _git(bundle["repo"], "log", "-1", "--format=%aI", bundle["merge"])
+    merge_author_dt = datetime.fromisoformat(merge_author_iso.replace("Z", "+00:00"))
+    late_ts = (merge_author_dt.replace(tzinfo=None) if merge_author_dt.tzinfo is None else merge_author_dt)
+    from datetime import timedelta
+    late_ts = merge_author_dt + timedelta(hours=1)
+    bundle["attestation"]["_remote_comment_created_at"] = late_ts.isoformat().replace("+00:00", "Z")
+    bundle["attestation"]["content_digest"] = canonical_digest(
+        bundle["attestation"],
+        omit=(
+            "content_digest",
+            "_remote_comment_id",
+            "_remote_author",
+            "_remote_comment_created_at",
+        ),
+    )
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "attestation_created_before_merge" in item
+        for item in result["blocking_reasons"]
+    ), result["blocking_reasons"]
+    chronology = [
+        c for c in result["checks"] if c["name"] == "attestation_created_before_merge"
+    ]
+    assert chronology[0]["status"] == "FAIL"
+    assert "comment_created_at" in chronology[0]["detail"]
+    assert "merge_author_date" in chronology[0]["detail"]
+
+
+def test_v2_missing_remote_comment_created_at_blocks(tmp_path: Path) -> None:
+    """Negative C: v2 attestation without a remote-observed comment.created_at
+    must produce a named blocking_reason, not a generic BLOCKED."""
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["attestation"].pop("_remote_comment_created_at", None)
+    bundle["attestation"]["content_digest"] = canonical_digest(
+        bundle["attestation"],
+        omit=("content_digest", "_remote_comment_id", "_remote_author"),
+    )
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "attestation_created_before_merge" in item
+        for item in result["blocking_reasons"]
+    ), result["blocking_reasons"]
+
+
+def test_v2_equal_timestamp_blocks(tmp_path: Path) -> None:
+    """comment.created_at == merge author date is NOT strictly before => BLOCKED."""
+    bundle = _future_repo(tmp_path, schema_version=2)
+    merge_author_iso = _git(bundle["repo"], "log", "-1", "--format=%aI", bundle["merge"])
+    bundle["attestation"]["_remote_comment_created_at"] = merge_author_iso
+    bundle["attestation"]["content_digest"] = canonical_digest(
+        bundle["attestation"],
+        omit=(
+            "content_digest",
+            "_remote_comment_id",
+            "_remote_author",
+            "_remote_comment_created_at",
+        ),
+    )
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "attestation_created_before_merge" in item
+        for item in result["blocking_reasons"]
+    )
+
+
+def test_v1_frozen_policy_ignores_chronology_field(tmp_path: Path) -> None:
+    """v1 four-run policy remains byte-for-byte frozen: even without a
+    _remote_comment_created_at the legacy v1 path passes unchanged."""
+    bundle = _future_repo(tmp_path, schema_version=1)
+    bundle["attestation"].pop("_remote_comment_created_at", None)
+    bundle["attestation"]["content_digest"] = canonical_digest(
+        bundle["attestation"],
+        omit=("content_digest", "_remote_comment_id", "_remote_author"),
+    )
+    result = _validate(bundle)
+    assert result["gate_status"] == "PASSED", result
+    chronology = [
+        c for c in result["checks"] if c["name"] == "attestation_created_before_merge"
+    ]
+    assert not chronology, "v1 frozen policy must not emit chronology check"

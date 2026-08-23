@@ -1047,7 +1047,7 @@ class TestActiveMergeIntentV6:
         meta = extract_markdown_json_block(decision_text, "decision_meta")
         if not _active_intent_binds_current_decision():
             assert _contract_defers_pr_binding()
-            assert self._active["schema_version"] == 1
+            assert self._active["schema_version"] in {1, 2}
             assert (
                 self._active["decision_identity"]["decision_id"]
                 != meta["decision_id"]
@@ -1095,7 +1095,7 @@ class TestActiveMergeIntentV6:
         contract = extract_markdown_json_block(decision_text, "decision_contract")
         if not _active_intent_binds_current_decision():
             assert _contract_defers_pr_binding()
-            assert self._active["schema_version"] == 1
+            assert self._active["schema_version"] in {1, 2}
             return
         expected_base = contract["activation_base_sha"]
         assert self._active["locked_base_sha"] == expected_base

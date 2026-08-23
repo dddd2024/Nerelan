@@ -63,6 +63,7 @@
     "superseded_by": {"type": ["string", "null"]},
     "content_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
     "_remote_comment_id": {"type": "integer"},
-    "_remote_author": {"type": "string"}
+    "_remote_author": {"type": "string"},
+    "_remote_comment_created_at": {"type": "string", "description": "Remote-observed GitHub comment.created_at (ISO-8601). Populated solely by GitHubRemoteAcceptanceVerifier.load_merge_attestation from the live Issues-Comments API; never self-declared. Used by mainline_landing to enforce attestation_created_before_merge."}
   }
 }
