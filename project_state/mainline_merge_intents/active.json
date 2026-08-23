@@ -1,15 +1,15 @@
 {
   "schema_version": 2,
-  "intent_id": "pr288_issue285_home_goal_truth_landing_v2",
+  "intent_id": "pr324_issue320_state_gate_reachability_landing_v2",
   "repository": "dddd2024/reverse-agent",
-  "source_pr": 288,
-  "locked_base_sha": "ecacfd94e5140151a97fb1d3d486cd992769271b",
+  "source_pr": 324,
+  "locked_base_sha": "772de2662949d2a454b611806a36b52f75cace9f",
   "allowed_merge_method": "merge",
   "decision_identity": {
-    "decision_id": "decision_20260822_issue285_home_goal_truth_r2_v2_landing",
-    "decision_content_sha256": "4e48de3062be404e5fc39c3a87cb427b4c4a6ca924e89b8ea8949e5075336413"
+    "decision_id": "decision_20260823_issue320_state_gate_reachability_r2_v2_landing",
+    "decision_content_sha256": "322d3e5d7e60b3f729c839e387dc13de358071df6c130139206d652f4be68f6a"
   },
-  "command_plan_sha256": "2ebb7d9279a8e0dfcfd8b7025190bcb73c0f07f341ddaaf70e2c3a2d117b072e",
+  "command_plan_sha256": "e7888c449faa2839ee21739b76404c2608e0866bd362cfa3605e68b458b2ea56",
   "merge_tree_policy": "equal_to_accepted_head_tree",
   "required_workflows": [
     "CI",

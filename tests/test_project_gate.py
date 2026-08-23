@@ -31989,6 +31989,7 @@ def test_transition_packaging_and_workflow_boundary() -> None:
         "- name: Install package",
         "- name: Import check",
         "- name: Focused tests",
+        "- name: Path-A gate reachability (blocking)",
         "- name: Supervisor and repository hygiene tests",
         "- name: Codex skills sync tests",
         "- name: Integration baseline, mainline landing and project audit tests",

@@ -108,14 +108,17 @@ def test_state_gate_push_event_has_paths_filter() -> None:
         assert required in paths, f"push.paths missing: {required}"
 
 
-def test_state_gate_pull_request_event_has_paths_filter() -> None:
+def test_state_gate_pull_request_event_has_no_paths_filter() -> None:
     content = _read_state_gate()
     pr_block = _extract_event_block(content, "pull_request")
     assert pr_block is not None
-    paths = _extract_paths_from_block(pr_block)
-    assert paths, "pull_request event block must contain paths filter"
-    for required in STATE_GATE_GATEWAYS:
-        assert required in paths, f"pull_request.paths missing: {required}"
+    for line in pr_block.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("paths:"):
+            pytest.fail(
+                "pull_request event block must NOT contain paths filter; "
+                "State Gate must run on all PRs to maintain Path-A reachability"
+            )
 
 
 def test_state_gate_push_no_broad_product_paths() -> None:
@@ -163,15 +166,10 @@ def test_state_gate_product_test_path_does_not_match() -> None:
 def test_state_gate_governance_paths_do_match() -> None:
     content = _read_state_gate()
     push_block = _extract_event_block(content, "push")
-    pr_block = _extract_event_block(content, "pull_request")
     push_paths = _extract_paths_from_block(push_block)
-    pr_paths = _extract_paths_from_block(pr_block)
     for sample in GOVERNANCE_SAMPLES:
         assert _path_matches(push_paths, sample), (
             f"governance path {sample} must trigger push State Gate"
-        )
-        assert _path_matches(pr_paths, sample), (
-            f"governance path {sample} must trigger pull_request State Gate"
         )
 
 

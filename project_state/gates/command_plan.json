@@ -1,34 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260822_issue285_home_goal_truth_r2_v2_landing",
-  "round_id": "round_20260822_issue285_home_goal_truth_r2_v2_landing",
+  "decision_id": "decision_20260823_issue320_state_gate_reachability_r2_v2_landing",
+  "round_id": "round_20260823_issue320_state_gate_reachability_r2_v2_landing",
   "commands": [
     {
-      "command_id": "issue285landing.verify_candidate_and_remote",
-      "command": "verify origin/main remains ecacfd94e5140151a97fb1d3d486cd992769271b; verify Issue 285 remains approved with normalized body digest c40d700ce3a4ebb1a902a8a7207ef4c36ae8eeb0b89f3d5713bca905db5d4e66; verify PR 286 remains Draft at head 8310a25ae3c2e88e21207434e7d3647a971f8b0f and base ecacfd94e5140151a97fb1d3d486cd992769271b with accepted review 4998754580, CI run 32547032914, Model Access run 32547032884, zero unresolved review threads and no head or base drift; verify the remote landing branch ref refs/heads/owner/issue285-home-goal-truth-r2-v2-landing does not yet exist and no GitHub landing PR exists for that head branch",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue285landing.run_transition_gates",
-      "command": "run startup-snapshot transition-command-plan transition-lint and transition-preflight --mode pre; require PRE_EXECUTION_AUTHORIZED with zero blockers before publication or merge-intent mutation",
+      "command_id": "issue320v2landing.bootstrap_and_gate",
+      "command": "verify origin/main remains 772de2662949d2a454b611806a36b52f75cace9f; verify PR 322 remains OPEN Draft at head 663fc157a0dafc8002511921bc2b0411f26ee020; verify four accepted semantic blobs unchanged; run startup-snapshot, transition-command-plan, transition-lint, and transition-preflight --mode pre; require PRE_EXECUTION_AUTHORIZED with zero blockers before any mutation",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -37,6 +14,7 @@
       ],
       "execution_surface": "local",
       "operations": [
+        "repository_observation",
         "run_checks",
         "generate_governance_artifact"
       ],
@@ -56,8 +34,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue285landing.prepublication_validation",
-      "command": "before the landing PR number exists prove the eight product blobs equal accepted PR 286 head 8310a25ae3c2e88e21207434e7d3647a971f8b0f; prove origin/main and merge-base remain ecacfd94e5140151a97fb1d3d486cd992769271b and 8310a25ae3c2e88e21207434e7d3647a971f8b0f is an ancestor of HEAD; run focused Home Goal tests, the Platform V1 blocking gate with only its ordinary deselections plus exactly the five declared pre-PR intent-binding deferrals, and run mainline landing and merge-intent tests with the additional exact deselection tests/test_mainline_landing.py::test_committed_active_intent_binds_exact_current_authority; run CI responsibility, frontend tests typecheck lint production and mock builds, transition lint and preflight, publication readiness and git diff --check; accept no product mutation or other failure",
+      "command_id": "issue320v2landing.prepublic_validation",
+      "command": "run test_path_a_gate, test_ci_responsibility, test_project_gate, test_mainline_landing + test_merge_intent, test_control_plane_transition + test_planning_and_github_adapters; run transition-lint, transition-preflight --mode pre, worktree-publication-readiness, git diff --check; assert all PASS; do not modify any accepted semantic blob",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -80,8 +58,30 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue285landing.publish_initial_draft",
-      "command": "after prepublication validation passes push owner/issue285-home-goal-truth-r2-v2-landing once and create exactly one Draft PR with base main; read the actual GitHub-assigned PR number without guessing; transient checks against inherited PR 277 active intent are not acceptance evidence",
+      "command_id": "issue320v2landing.decision_history_proof",
+      "command": "prove Decision commit is first after 663fc157; prove Decision commit touches only project_state/decision_packet.md; prove Decision blob unchanged between activation and final HEAD",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue320v2landing.initial_push_and_pr",
+      "command": "normal push owner/issue320-state-gate-reachability-r2-v2-landing once; create exactly one Draft PR with base=main; observe actual PR number; do not mark-ready; do not merge",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -105,9 +105,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue285landing.bind_actual_pr",
-      "command": "using only the observed GitHub-assigned Draft PR number copy the committed schema-v2 PR 277 active intent byte-for-byte to project_state/mainline_merge_intents/archive/pr277_v2.json and replace active.json with schema version 2 bound to the actual landing PR, locked base ecacfd94e5140151a97fb1d3d486cd992769271b, this immutable Decision raw digest, the committed Command Plan raw digest, merge method merge, exact workflows CI Decision Preflight and State Gate pull_request, and expiry 2026-08-24T23:59:59Z; commit exactly once without editing the Decision or product paths",
-      "phase": "implementation",
+      "command_id": "issue320v2landing.mainline_intent_binding",
+      "command": "archive current active mainline merge intent byte-for-byte to archive/pr288_v2.json; replace active.json with new schema-v2 intent binding actual landing PR number, locked base, allowed merge method, immutable landing Decision digest, generated Command Plan digest, required workflows, bounded expiry; one governance-only binding commit; do not modify Decision",
+      "phase": "binding",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -128,12 +128,12 @@
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
         "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr277_v2.json"
+        "project_state/mainline_merge_intents/archive/pr288_v2.json"
       ]
     },
     {
-      "command_id": "issue285landing.final_bound_validation",
-      "command": "on the final PR-bound head prove the archived PR 277 bytes, schema-v2 active intent fields and raw Decision and Command Plan digests are exact; prove all eight validated product blobs remain identical and 8310a25ae3c2e88e21207434e7d3647a971f8b0f through HEAD changes only the eight allowed governance paths; run the focused Home Goal tests, exact Platform V1 blocking gate with only its ordinary deselections and all five formerly deferred assertions enabled, mainline landing and merge-intent tests, CI responsibility, frontend tests typecheck lint production and mock builds, transition lint and preflight, publication readiness and git diff --check; any failure stops publication",
+      "command_id": "issue320v2landing.final_validation",
+      "command": "prove Decision blob unchanged; prove accepted semantic blobs unchanged; prove archive byte-for-byte; prove active intent binding exact; rerun all prepublication validation; require all PASS before second push",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -156,8 +156,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue285landing.publish_bound_head",
-      "command": "after full bound validation push the single post-publication binding commit as the second and final normal push; verify the remote branch equals the local final head; observe fresh exact-final-head CI, Decision Preflight, State Gate pull_request and Model Access runs without rerun or runner dispatch",
+      "command_id": "issue320v2landing.final_push",
+      "command": "normal fast-forward push binding commit as second and final push; observe final exact head CI, State Gate, and Decision Preflight; verify all SUCCESS; verify PR still Draft, main still locked base, head exact, mergeable, zero unresolved threads",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -166,7 +166,6 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "run_checks",
         "push",
         "repository_observation",
         "network_access"
@@ -181,61 +180,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue285landing.audit_attest_and_land",
-      "command": "after fresh exact-final-head CI Decision Preflight State Gate pull_request and Model Access runs succeed obtain an independent clean detached exact-head ACCEPTED audit for the landing PR; reobserve base head checks MERGEABLE CLEAN and zero unresolved threads; create one non-active placeholder comment, observe its numeric ID and PATCH that same comment into the unique active schema-v2 MAINLINE_MERGE_APPROVAL_ATTESTATION bound to its own ID, exact three pre-merge workflow run IDs, canonical intent digest, exact accepted head and locked base; immediately reobserve no drift and then owner-controlled mark-ready once and merge once with method merge and expected-head protection; if merge is blocked after mark-ready and before merge success use the reserved second attestation update to remove the active marker and convert the same landing PR back to Draft at most once; do not retry merge in this Decision",
-      "phase": "publication",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation",
-        "issue_comment",
-        "mark_ready",
-        "merge",
-        "convert_to_draft",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": true,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue285landing.post_merge_verify_and_close",
-      "command": "verify the landing PR is merged; verify merge commit M has exactly parents ecacfd94e5140151a97fb1d3d486cd992769271b and the accepted landing head, tree M equals the accepted landing tree and origin/main equals M; require exact-M CI push, State Gate push and Model Access push SUCCESS and mainline-merge-validation PASSED; only then comment that PR 286 is superseded, close PR 286 and close Issue 285 completed; if post-merge evidence fails leave Issue 285 open and require a new bounded recovery Decision without revert force push reset or history rewrite",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation",
-        "issue_comment",
-        "pull_request_close",
-        "issue_close",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": true,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.4ee729301d58ce04c9ff595fed83fcb7965be0ee5dc4d1de61539f0a0af67737",
-      "command": "create owner/issue285-home-goal-truth-r2-v2-landing from accepted product head 8310a25ae3c2e88e21207434e7d3647a971f8b0f in an isolated canonical-LF checkout whose merge-base with main is ecacfd94e5140151a97fb1d3d486cd992769271b",
+      "command_id": "bootstrap.7d308808735e7583f26e15a5b564cf6e1cb64c146c49b99e1eace49f9d1c5356",
+      "command": "create owner/issue320-state-gate-reachability-r2-v2-landing from accepted head 663fc157a0dafc8002511921bc2b0411f26ee020 in an isolated detached worktree whose merge-base with main is 772de2662949d2a454b611806a36b52f75cace9f",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -254,8 +200,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.1c7f9d85af04d4cd83c59c61c82034dab6ca2a2aa9a8fa8f2eab4797b7c5d234",
-      "command": "commit this immutable Decision as the unique first new commit after 8310a25ae3c2e88e21207434e7d3647a971f8b0f before any generated governance artifact publication intent mutation mark-ready or merge",
+      "command_id": "bootstrap.b85eea77a8ced3cf954bdcfc2ec501ca8a7ad1d6472c92294f13d6747e8ad4b0",
+      "command": "commit this immutable Decision as the unique first new commit after 663fc157a0dafc8002511921bc2b0411f26ee020 before any generated governance artifact or semantic mutation",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
