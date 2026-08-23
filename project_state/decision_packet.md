@@ -26,6 +26,7 @@
   "allowed_merge_method": "merge",
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "post_draft_pr_exact_remote_number",
+  "issue_number_must_not_substitute_for_pr_number": true,
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
