@@ -33,6 +33,9 @@ jobs:
       - name: Focused tests
         run: python -m pytest tests/test_project_gate.py tests/test_ci_responsibility.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py tests/test_control_plane_transition.py tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py -q
 
+      - name: Path-A gate reachability (blocking)
+        run: python -m pytest tests/test_path_a_gate.py -q
+
       - name: Supervisor and repository hygiene tests
         run: python -m pytest tests/test_supervisor_validate.py tests/test_repository_hygiene.py -q
 
