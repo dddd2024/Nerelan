@@ -58,7 +58,8 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/gates/transition_preflight_result.json",
+    "tests/test_ci_responsibility.py"
   ],
   "bootstrap_exception_commands": [
     "commit this immutable Decision as the unique first new commit after 772de2662949d2a454b611806a36b52f75cace9f on owner/issue318-state-gate-reachability-r2-v1 before any workflow implementation or generated governance artifact publication",
@@ -111,6 +112,18 @@
       "allowed_mutated_paths": [".github/workflows/ci.yml"]
     },
     {
+      "command_id": "issue318.fix_ci_responsibility_test",
+      "command": "update tests/test_ci_responsibility.py to reflect restored pull_request reachability: rename test_state_gate_pull_request_event_has_paths_filter to test_state_gate_pull_request_event_has_no_paths_filter and assert no paths filter; update test_state_gate_governance_paths_do_match to only check push paths",
+      "phase": "implementation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["stage_authorized_paths", "commit"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": ["tests/test_ci_responsibility.py"]
+    },
+    {
       "command_id": "issue318.validate_all_tests",
       "command": "run test_path_a_gate.py test_ci_responsibility.py test_control_plane_transition.py test_planning_and_github_adapters.py transition-lint transition-preflight publication-readiness git diff --check; all must pass",
       "phase": "validation",
@@ -136,7 +149,8 @@
   ],
   "allowed_product_paths": [
     ".github/workflows/state-gate.yml",
-    ".github/workflows/ci.yml"
+    ".github/workflows/ci.yml",
+    "tests/test_ci_responsibility.py"
   ],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
@@ -146,12 +160,14 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
     ".github/workflows/state-gate.yml",
-    ".github/workflows/ci.yml"
+    ".github/workflows/ci.yml",
+    "tests/test_ci_responsibility.py"
   ],
   "forbidden_mutated_paths": [
     "reverse_agent/control_plane/path_a.py",
     "reverse_agent/**",
     "frontend/**",
+    "tests/test_path_a_gate.py",
     "tests/**",
     "requirements*.txt",
     "pyproject.toml",

@@ -112,11 +112,13 @@ def test_state_gate_pull_request_event_has_no_paths_filter() -> None:
     content = _read_state_gate()
     pr_block = _extract_event_block(content, "pull_request")
     assert pr_block is not None
-    paths = _extract_paths_from_block(pr_block)
-    assert not paths, (
-        "pull_request event block must NOT contain paths filter; "
-        "State Gate must run on all PRs to maintain Path-A reachability"
-    )
+    for line in pr_block.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("paths:"):
+            pytest.fail(
+                "pull_request event block must NOT contain paths filter; "
+                "State Gate must run on all PRs to maintain Path-A reachability"
+            )
 
 
 def test_state_gate_push_no_broad_product_paths() -> None:
