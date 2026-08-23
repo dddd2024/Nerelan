@@ -1,0 +1,89 @@
+{
+  "artifact_kind": "roadmap_workstream",
+  "artifact_name": "user_journey_validation_gate.json",
+  "artifact_path": "project_state/roadmap/user_journey_validation_gate.json",
+  "schema_version": 1,
+  "workstream_id": "user_journey_validation_gate",
+  "family": "frontend_quality",
+  "status": "ROADMAP_ACCEPTED",
+  "is_execution_authority": false,
+  "execution_authority": "project_state/decision_packet.md",
+  "requirement_doc": "docs/user_journey_validation_gate.md",
+  "goal": "Establish deterministic browser E2E plus black-box human-like agent exploration as a first-class frontend acceptance layer so lower-level test PASS cannot hide user-visible workflow failures.",
+  "invariants": [
+    "Lower-level test PASS does not substitute for proof that a user can complete a critical frontend journey through visible UI.",
+    "Deterministic Playwright E2E and exploratory browser-agent QA are complementary layers.",
+    "The exploratory agent must not use source code, internal APIs, direct database access, DOM/script injection, or hidden implementation knowledge to bypass the user journey.",
+    "A user-journey FAIL may block release independently of unit, integration, API, component, or deterministic E2E PASS once the gate reaches blocking maturity.",
+    "Every material agent finding must be backed by reproducible evidence and classified as product defect, test/agent flake, or environment/infrastructure issue.",
+    "Reproducible exploratory defects should become deterministic Playwright regression coverage where feasible without eliminating exploratory testing."
+  ],
+  "critical_journeys": [
+    "provider_configuration",
+    "verify_connection",
+    "create_task",
+    "file_and_image_input",
+    "agent_orchestration_configuration",
+    "start_task",
+    "observe_live_execution",
+    "terminal_completion_or_failure_state",
+    "inspect_result_and_evidence",
+    "failure_recovery_or_retry"
+  ],
+  "personas": [
+    "novice_first_time_user",
+    "technical_ai_agent_user",
+    "advanced_operator",
+    "error_seeking_user"
+  ],
+  "phases": [
+    {
+      "id": "phase_a",
+      "name": "deterministic_critical_journeys",
+      "status": "ROADMAP_ACCEPTED",
+      "scope": "Retain and expand Playwright coverage for critical journeys; standardize traces, screenshots, terminal-state assertions, and visible-state verification."
+    },
+    {
+      "id": "phase_b",
+      "name": "novice_black_box_exploration",
+      "status": "ROADMAP_ACCEPTED",
+      "scope": "Add a first-time-user browser agent that receives goals instead of selector scripts, uses visible UI only, and emits structured evidence and failure classification."
+    },
+    {
+      "id": "phase_c",
+      "name": "multi_persona_negative_paths",
+      "status": "ROADMAP_ACCEPTED",
+      "scope": "Add technical/operator/error-seeking personas, negative paths, deduplication, and promotion of reproducible findings into deterministic regression tests."
+    },
+    {
+      "id": "phase_d",
+      "name": "blocking_user_journey_gate",
+      "status": "ROADMAP_ACCEPTED",
+      "scope": "Make the machine-evaluable User Journey Validation Gate blocking after flake, rerun, runtime/cost, and environment-classification policies are stable."
+    }
+  ],
+  "required_evidence": [
+    "journey_id_and_persona",
+    "commit_or_build_under_test",
+    "visible_action_sequence",
+    "expected_vs_actual_observable_state",
+    "pass_warn_fail_and_severity",
+    "failure_and_key_transition_screenshots",
+    "playwright_trace_or_video_when_available",
+    "timeout_or_stuck_loading_duration",
+    "failure_classification",
+    "reproduction_reasoning"
+  ],
+  "definition_of_done": [
+    "Deterministic Playwright coverage exists for every current critical journey.",
+    "A reusable black-box browser-agent runner or adapter exists.",
+    "Goal-based novice journey definitions exist.",
+    "Evidence artifact schemas and persisted run outputs exist.",
+    "Failure classification plus bounded retry and timeout policy exist.",
+    "Multi-persona and negative-path support exists.",
+    "Frontend-impacting PR and release routing rules exist.",
+    "A machine-evaluable User Journey Validation Gate result exists.",
+    "PASS/WARN/FAIL semantics are auditable and documented."
+  ],
+  "notes": "Planning requirement only. This roadmap entry does not claim the exploratory agent runner or blocking CI gate is already implemented. Existing Playwright/owner verification remains deterministic evidence and is extended rather than replaced."
+}
