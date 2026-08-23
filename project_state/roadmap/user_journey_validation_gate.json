@@ -41,7 +41,7 @@
       "id": "phase_a",
       "name": "deterministic_critical_journeys",
       "status": "ROADMAP_ACCEPTED",
-      "scope": "Retain and expand Playwright coverage for critical journeys; standardize traces, screenshots, terminal-state assertions, and visible-state verification."
+      "scope": "Establish Playwright as the deterministic browser E2E layer for critical journeys; standardize traces, screenshots, terminal-state assertions, and visible-state verification."
     },
     {
       "id": "phase_b",
@@ -85,5 +85,5 @@
     "A machine-evaluable User Journey Validation Gate result exists.",
     "PASS/WARN/FAIL semantics are auditable and documented."
   ],
-  "notes": "Planning requirement only. This roadmap entry does not claim the exploratory agent runner or blocking CI gate is already implemented. Existing Playwright/owner verification remains deterministic evidence and is extended rather than replaced."
+  "notes": "Planning requirement only. This roadmap entry does not claim that Playwright browser E2E, the exploratory agent runner, or the blocking CI gate is already implemented. Existing owner verification, component tests, screenshots, and exact-head evidence remain valid and are extended rather than replaced."
 }
