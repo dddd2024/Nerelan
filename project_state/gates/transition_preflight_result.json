@@ -43,7 +43,7 @@
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=3a13b52afe7ea15e5d15a7a6d07006d4d3f0fa3a"
+      "detail": "decision_commit=b1dfc6b71a80517668dee6707da08dbad99cc3b0"
     },
     {
       "name": "command_plan_identity",

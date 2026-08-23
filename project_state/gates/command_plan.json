@@ -108,6 +108,31 @@
       ]
     },
     {
+      "command_id": "issue318.fix_project_gate_test",
+      "command": "update tests/test_project_gate.py test_transition_packaging_and_workflow_boundary to include the new Path-A gate reachability blocking step in the expected CI workflow step list",
+      "phase": "implementation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "stage_authorized_paths",
+        "commit"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "tests/test_project_gate.py"
+      ]
+    },
+    {
       "command_id": "issue318.validate_all_tests",
       "command": "run test_path_a_gate.py test_ci_responsibility.py test_control_plane_transition.py test_planning_and_github_adapters.py transition-lint transition-preflight publication-readiness git diff --check; all must pass",
       "phase": "validation",

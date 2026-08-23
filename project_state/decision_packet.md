@@ -24,6 +24,7 @@
   "base_sha": "772de2662949d2a454b611806a36b52f75cace9f",
   "activation_base_sha": "772de2662949d2a454b611806a36b52f75cace9f",
   "allowed_merge_method": "merge",
+  "mainline_merge_intent_required": false,
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
