@@ -1,9 +1,9 @@
 {
   "name": "reverse-agent-frontend",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "reverse-agent Frontend V1 — OpenHands-adapted permission policy prototype",
+  "description": "Reverse Agent V2.0 — 多Agent开发平台",
   "license": "MIT",
   "engines": {
     "node": ">=22.22.0"
@@ -23,10 +23,13 @@
   "dependencies": {
     "@tanstack/react-query": "^5.62.0",
     "clsx": "^2.1.1",
+    "framer-motion": "^11.0.0",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router": "8.3.0",
+    "recharts": "^2.10.0",
+    "socket.io-client": "^4.7.0",
     "tailwind-merge": "^2.6.0",
     "zod": "^3.24.1"
   },

@@ -303,6 +303,9 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     return
                 self._send_json(HTTPStatus.OK, detail)
                 return
+            if len(segments) == 4 and segments[:2] == ["api", "runs"] and segments[3] == "cancel":
+                self._handle_cancel_run(segments[2])
+                return
             if len(segments) == 3 and segments[:2] == ["api", "goals"]:
                 try:
                     detail = self.goal_service.detail(segments[2])
@@ -867,6 +870,25 @@ class _TaskHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
         except Exception:
             pass
+
+    def _handle_cancel_run(self, task_id: str) -> None:
+        if self.command != "POST":
+            self._send_json(HTTPStatus.METHOD_NOT_ALLOWED, {"error": "method not allowed"})
+            return
+        if not self._check_origin():
+            return
+        try:
+            outcome = self.run_read_model.store.cancel_queued_task(task_id)
+        except TaskStoreError:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": "run not found"})
+            return
+        if outcome.status == "UNAVAILABLE":
+            self._send_json(HTTPStatus.CONFLICT, {
+                "error": "queue_cancel_unavailable",
+                "reason_code": outcome.reason_code,
+            })
+            return
+        self._send_json(HTTPStatus.OK, {"status": outcome.status})
 
     def _send_forbidden(self) -> None:
         body = b'{"error":"forbidden"}'

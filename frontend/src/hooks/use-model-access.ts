@@ -108,7 +108,12 @@ export function useDeleteBinding() {
 
 export function useTestConnection() {
   const client = getDefaultModelControlClient();
-  return useMutation<ConnectionProbeResult, Error, string>({
-    mutationFn: (connectionId) => client.testConnection(connectionId),
+  return useMutation<
+    ConnectionProbeResult,
+    Error,
+    { connectionId: string; modelId?: string }
+  >({
+    mutationFn: ({ connectionId, modelId }) =>
+      client.testConnection(connectionId, modelId),
   });
 }

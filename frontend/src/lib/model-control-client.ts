@@ -31,7 +31,7 @@ export interface ModelControlClient {
   listConnections(): Promise<Connection[]>;
   upsertConnection(input: ConnectionInput): Promise<Connection>;
   deleteConnection(connectionId: string): Promise<void>;
-  testConnection(connectionId: string): Promise<ConnectionProbeResult>;
+  testConnection(connectionId: string, modelId?: string): Promise<ConnectionProbeResult>;
   listExecutors(): Promise<Executor[]>;
   listBindings(): Promise<Binding[]>;
   upsertBinding(input: BindingInput): Promise<Binding>;
@@ -319,12 +319,16 @@ export function createHttpModelControlClient(
       });
     },
 
-    async testConnection(connectionId) {
+    async testConnection(connectionId, modelId) {
+      const body: Record<string, unknown> = {};
+      if (modelId) {
+        body.model_id = modelId;
+      }
       const payload = await requestJson(
         `${connectionsUrl}/${encodeURIComponent(connectionId)}/test`,
         {
           method: "POST",
-          body: JSON.stringify({}),
+          body: JSON.stringify(body),
         },
       );
       const raw = payload as Record<string, unknown>;
@@ -515,7 +519,7 @@ export function createMockModelControlClient(
       connections = connections.filter((c) => c.connectionId !== connectionId);
     },
 
-    async testConnection(connectionId) {
+    async testConnection(connectionId, modelId) {
       const connection = connections.find((c) => c.connectionId === connectionId);
       if (!connection) {
         throw new Error(`Connection not found: ${connectionId}`);
@@ -534,6 +538,14 @@ export function createMockModelControlClient(
           status: "credential_missing",
           message: "API Key 未配置",
           latencyMs: null,
+        };
+      }
+      if (modelId && modelId.trim()) {
+        return {
+          ok: true,
+          status: "connected",
+          message: `模型 ${modelId} 调用成功`,
+          latencyMs: 42,
         };
       }
       return {

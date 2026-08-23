@@ -1,5 +1,7 @@
 @echo off
 setlocal
-cd /d "%~dp0"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0dev-up.ps1" -RepoDir "%~dp0" -SourceDir "%~dp0"
+set "SCRIPT_DIR=%~dp0"
+set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+cd /d "%SCRIPT_DIR%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%\dev-up.ps1" -RepoDir "%SCRIPT_DIR%" -SourceDir "%SCRIPT_DIR%"
 if errorlevel 1 pause

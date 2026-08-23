@@ -106,12 +106,15 @@ export function SettingsPage() {
     }
   }
 
-  async function handleConnectionTest(connectionId: string) {
+  async function handleConnectionTest(connectionId: string, modelId?: string) {
     setStatus(null);
     setError(null);
     setConnProbeResult(null);
     try {
-      const result = await testConnectionMutation.mutateAsync(connectionId);
+      const result = await testConnectionMutation.mutateAsync({
+        connectionId,
+        modelId,
+      });
       setConnProbeResult(result);
       if (result.ok) {
         setStatus("连接验证成功");

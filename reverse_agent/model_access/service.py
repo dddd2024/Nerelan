@@ -28,9 +28,9 @@ _PROBE_PAYLOAD_FORBIDDEN_FIELDS = frozenset({
     "connection_id", "connectionId",
     "name",
     "enabled",
-    "model_id", "modelId",
     "api_key_env", "apiKeyEnv",
 })
+_PROBE_PAYLOAD_ALLOWED_FIELDS = frozenset({"model_id", "modelId"})
 
 
 def _default_transport(
@@ -118,6 +118,181 @@ def _do_probe(
         )
 
 
+def _do_chat_completion_probe(
+    *,
+    url: str,
+    model_id: str,
+    headers: dict[str, str],
+    live_enabled: bool,
+    timeout: float,
+) -> ProbeResult:
+    """Send a minimal POST /chat/completions request to verify the model works.
+
+    Live network access is fail-closed.  The returned result never carries any
+    credential, Authorization header or upstream request body.
+    """
+    if not live_enabled:
+        return ProbeResult(
+            ok=False,
+            status="live_probe_disabled",
+            message="Live model probes require REVERSE_AGENT_MODEL_CONTROL_LIVE=1",
+            latency_ms=None,
+        )
+
+    body = json.dumps({
+        "model": model_id,
+        "messages": [{"role": "user", "content": "ping"}],
+        "max_tokens": 5,
+        "temperature": 0.0,
+    }).encode("utf-8")
+
+    merged_headers = {**headers, "Content-Type": "application/json", "Content-Length": str(len(body))}
+    started = perf_counter()
+    try:
+        request = Request(url, data=body, headers=merged_headers, method="POST")
+        with urlopen(request, timeout=timeout) as response:  # noqa: S310
+            status_code = int(response.status)
+            raw_body = response.read(_MAX_BODY_BYTES)
+            latency_ms = max(0, round((perf_counter() - started) * 1000))
+
+        if not 200 <= status_code < 300:
+            return ProbeResult(
+                ok=False,
+                status="upstream_http_error",
+                message=f"Upstream returned HTTP {status_code}",
+                latency_ms=latency_ms,
+            )
+
+        try:
+            data = json.loads(raw_body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return ProbeResult(
+                ok=False,
+                status="invalid_upstream_response",
+                message="Upstream returned invalid JSON",
+                latency_ms=latency_ms,
+            )
+
+        try:
+            choices = data.get("choices")
+            if not isinstance(choices, list) or not choices:
+                return ProbeResult(
+                    ok=False,
+                    status="empty_response",
+                    message="Model returned no completion choices",
+                    latency_ms=latency_ms,
+                )
+            first_choice = choices[0]
+            if not isinstance(first_choice, dict):
+                return ProbeResult(
+                    ok=False,
+                    status="invalid_response",
+                    message="Unexpected response format",
+                    latency_ms=latency_ms,
+                )
+            message = first_choice.get("message")
+            if not isinstance(message, dict):
+                return ProbeResult(
+                    ok=False,
+                    status="invalid_response",
+                    message="Unexpected response format",
+                    latency_ms=latency_ms,
+                )
+            content = message.get("content", "")
+            if not isinstance(content, str) or not content.strip():
+                return ProbeResult(
+                    ok=False,
+                    status="empty_response",
+                    message="Model returned empty completion",
+                    latency_ms=latency_ms,
+                )
+            return ProbeResult(
+                ok=True,
+                status="connected",
+                message=f"Model {model_id} responded successfully",
+                latency_ms=latency_ms,
+            )
+        except (TypeError, AttributeError, KeyError):
+            return ProbeResult(
+                ok=False,
+                status="invalid_response",
+                message="Unexpected response format",
+                latency_ms=latency_ms,
+            )
+    except HTTPError as error:
+        latency_ms = max(0, round((perf_counter() - started) * 1000))
+        detail = f"HTTP {error.code}"
+        try:
+            body_text = error.read(_MAX_BODY_BYTES).decode("utf-8", errors="replace").strip()
+            if body_text:
+                detail += f": {body_text[:200]}"
+        except Exception:
+            pass
+        return ProbeResult(
+            ok=False,
+            status="upstream_http_error",
+            message=detail,
+            latency_ms=latency_ms,
+        )
+    except TimeoutError:
+        return ProbeResult(
+            ok=False,
+            status="timeout",
+            message="Model request timed out",
+            latency_ms=max(0, round((perf_counter() - started) * 1000)),
+        )
+    except URLError as error:
+        return ProbeResult(
+            ok=False,
+            status="connection_error",
+            message=f"Unable to reach model: {error.reason}",
+            latency_ms=max(0, round((perf_counter() - started) * 1000)),
+        )
+    except OSError:
+        return ProbeResult(
+            ok=False,
+            status="connection_error",
+            message="Unable to connect to model endpoint",
+            latency_ms=max(0, round((perf_counter() - started) * 1000)),
+        )
+
+
+def probe_connection_chat_completion(
+    *,
+    connection: Connection,
+    model_id: str,
+    api_key: str | None,
+    live_enabled: bool,
+    timeout: float = 10.0,
+) -> ProbeResult:
+    """Probe a saved Connection's chat completion capability for a specific model.
+
+    Sends a minimal POST /chat/completions request to verify the configured
+    model can actually generate completions.
+    """
+    normalized = model_id.strip()
+    if not normalized:
+        return ProbeResult(
+            ok=False,
+            status="model_id_required",
+            message="model_id is required for chat completion probe",
+            latency_ms=None,
+        )
+
+    url = f"{connection.base_url.rstrip('/')}/chat/completions"
+    headers = {"Accept": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    return _do_chat_completion_probe(
+        url=url,
+        model_id=normalized,
+        headers=headers,
+        live_enabled=live_enabled,
+        timeout=timeout,
+    )
+
+
 def probe_openai_compatible(
     *,
     profile: ModelProfile,
@@ -154,11 +329,14 @@ def probe_saved_connection(
     transport: ProbeTransport | None = None,
     timeout: float = 10.0,
 ) -> ProbeResult:
-    """Probe a saved Connection's ``/models`` endpoint.
+    """Probe a saved Connection's endpoint.
 
     Saved-Connection only semantics:
-      - The probe body must be empty or ``{}``. Any non-empty payload, including
-        credential/config overrides, is rejected (fail closed).
+      - The probe body must be empty or ``{}``, unless ``model_id`` is supplied.
+      - When ``model_id`` is present, a POST /chat/completions probe is run to
+        verify the model can actually generate completions.
+      - Any other non-empty payload, including credential/config overrides, is
+        rejected (fail closed).
       - The Connection metadata comes from the trusted store, not from the
         request.
       - API-key secrets are resolved server-side via ``resolve_connection_secret``.
@@ -167,14 +345,18 @@ def probe_saved_connection(
       - Disabled connections, missing API-key secrets, and unsupported auth
         methods fail closed without invoking transport.
     """
-    # Fail closed: reject any non-empty probe payload / config override.
+    # Fail closed: reject any forbidden fields and allow only model_id.
     if payload:
-        conflicting = sorted(k for k in payload if k in _PROBE_PAYLOAD_FORBIDDEN_FIELDS)
-        if conflicting:
+        forbidden_keys = sorted(k for k in payload if k in _PROBE_PAYLOAD_FORBIDDEN_FIELDS)
+        if forbidden_keys:
             raise ValueError(
                 "probe payload must not contain configuration overrides"
             )
-        raise ValueError("probe payload must be an empty JSON object")
+        allowed = {k for k in payload if k in _PROBE_PAYLOAD_ALLOWED_FIELDS}
+        forbidden_set = set(forbidden_keys)
+        extra = set(payload.keys()) - forbidden_set - allowed
+        if extra:
+            raise ValueError("probe payload must be an empty JSON object")
 
     try:
         connection = Connection.from_mapping(
@@ -216,6 +398,17 @@ def probe_saved_connection(
             latency_ms=None,
         )
 
+    # If model_id is provided, test the chat completion endpoint.
+    model_id = _read_payload_text(payload, "model_id", "modelId")
+    if model_id:
+        return probe_connection_chat_completion(
+            connection=connection,
+            model_id=model_id,
+            api_key=secret if connection.auth_method == "api_key" else None,
+            live_enabled=live_enabled,
+            timeout=timeout,
+        )
+
     url = f"{connection.base_url.rstrip('/')}/models"
     return _do_probe(
         url=url,
@@ -224,6 +417,18 @@ def probe_saved_connection(
         transport=transport,
         timeout=timeout,
     )
+
+
+def _read_payload_text(
+    payload: dict[str, Any], snake_key: str, camel_key: str
+) -> str | None:
+    """Read a text value from payload by snake or camel case key."""
+    value = payload.get(snake_key, payload.get(camel_key))
+    if value in (None, ""):
+        return None
+    if not isinstance(value, str):
+        return None
+    return value.strip()
 
 
 class _ModelControlHandler(BaseHTTPRequestHandler):

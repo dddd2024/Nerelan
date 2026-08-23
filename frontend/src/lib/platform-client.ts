@@ -219,6 +219,17 @@ const mockGoal: PlatformGoal = {
 
 let mockGoals = [mockGoal];
 
+let goalStateOverrides = new Map<string, Partial<PlatformGoal>>();
+
+export function __setMockGoalStatus(goalId: string, override: Partial<PlatformGoal>) {
+  if (goalId === mockGoal.id) {
+    Object.assign(mockGoal, { task_links: [...(mockGoal.task_links ?? [])], ...override });
+  }
+  goalStateOverrides.set(goalId, override);
+  const target = mockGoals.find((goal) => goal.id === goalId);
+  if (target) Object.assign(target, { task_links: [...(target.task_links ?? [])], ...override });
+}
+
 const mockWindow: PlatformWindow = {
   id: "window-demo",
   policy_id: "owner-ui-demo",
@@ -421,14 +432,27 @@ export async function fetchPlatformStatus(): Promise<PlatformStatus> {
 }
 
 export async function fetchGoals(): Promise<PlatformGoal[]> {
-  if (isMock()) return mockGoals;
+  if (isMock()) {
+    return mockGoals.map((goal) => {
+      const override = goalStateOverrides.get(goal.id);
+      return shallowGoal(override ? { ...goal, ...override, task_links: override.task_links ?? goal.task_links } : goal);
+    });
+  }
   const result = await request<{ goals: PlatformGoal[] }>("/api/goals");
   return result.goals;
 }
 
 export async function fetchGoal(goalId: string): Promise<PlatformGoal> {
-  if (isMock()) return mockGoals.find((goal) => goal.id === goalId) ?? mockGoal;
+  if (isMock()) {
+    const goal = mockGoals.find((goal) => goal.id === goalId) ?? mockGoal;
+    const override = goalStateOverrides.get(goalId);
+    return shallowGoal(override ? { ...goal, ...override, task_links: override.task_links ?? goal.task_links } : goal);
+  }
   return request<PlatformGoal>(`/api/goals/${encodeURIComponent(goalId)}`);
+}
+
+function shallowGoal(goal: PlatformGoal): PlatformGoal {
+  return { ...goal, task_links: goal.task_links?.map((link) => ({ ...link })) };
 }
 
 export async function startGoal(input: StartGoalInput): Promise<PlatformGoal> {

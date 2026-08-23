@@ -53,9 +53,16 @@ function Resolve-InputPath([string]$candidate) {
   if ([string]::IsNullOrWhiteSpace($candidate)) {
     return (Get-Location).Path
   }
+  if ($candidate -match '[^a-zA-Z0-9\s\-_.:/\\\\]') {
+    return (Get-Location).Path
+  }
+  $candidate = $candidate.TrimEnd('\').TrimEnd('/')
   $resolved = Resolve-Path -LiteralPath $candidate -ErrorAction SilentlyContinue
-  if ($resolved) { return $resolved.Path }
-  return $candidate
+  if ($resolved) { return $resolved.Path.TrimEnd('\').TrimEnd('/') }
+  if (Test-Path -LiteralPath $candidate -ErrorAction SilentlyContinue) {
+    return ((Get-Item -LiteralPath $candidate).FullName).TrimEnd('\').TrimEnd('/')
+  }
+  return (Get-Location).Path
 }
 
 function Stop-Owned-Children {
@@ -249,7 +256,7 @@ if ([string]::IsNullOrWhiteSpace($SourceDir)) {
 $runtimeDir = Join-Path $repoDir ".platform_v1_runtime"
 $pidFile = Join-Path $runtimeDir "devup_pids.json"
 
-New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
+try { $null = New-Item -ItemType Directory -LiteralPath $runtimeDir -Force } catch {}
 
 $py = Find-Executable "python"
 if (-not $py) { Fail-Closed "prerequisite missing: python (not installed)" }

@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchGoal,
@@ -8,51 +7,41 @@ import {
   type StartGoalInput,
 } from "@/lib/platform-client";
 
-function useReconnect(query: { refetch: () => Promise<unknown> }) {
-  useEffect(() => {
-    const refetch = () => void query.refetch();
-    globalThis.addEventListener("visibilitychange", refetch);
-    globalThis.addEventListener("online", refetch);
-    return () => {
-      globalThis.removeEventListener("visibilitychange", refetch);
-      globalThis.removeEventListener("online", refetch);
-    };
-  }, [query]);
-}
-
 export function usePlatformStatus() {
-  const query = useQuery({
+  return useQuery({
     queryKey: ["platform", "status"],
     queryFn: fetchPlatformStatus,
     staleTime: 3_000,
-    refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
-  useReconnect(query);
-  return query;
 }
 
 export function useGoals() {
-  const query = useQuery({
+  return useQuery({
     queryKey: ["goals"],
     queryFn: fetchGoals,
     staleTime: 2_000,
     refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
-  useReconnect(query);
-  return query;
 }
 
 export function useGoal(goalId: string | undefined, options: { enabled?: boolean } = {}) {
   const enabled = options.enabled ?? true;
-  const query = useQuery({
+  return useQuery({
     queryKey: ["goals", goalId],
     queryFn: () => fetchGoal(goalId ?? ""),
     enabled: Boolean(goalId) && enabled,
     staleTime: 1_500,
-    refetchInterval: 3_000,
+    refetchInterval: (query) => {
+      const status = (query.state.data as { status?: string } | undefined)?.status;
+      return status === "RUNNING" ? 2_500 : false;
+    },
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
-  if (enabled) useReconnect(query);
-  return query;
 }
 
 export function useStartGoal() {
@@ -61,6 +50,14 @@ export function useStartGoal() {
     mutationFn: (input: StartGoalInput) => startGoal(input),
     onSuccess: (goal) => {
       queryClient.setQueryData(["goals", goal.id], goal);
+      void queryClient.setQueryData(["goals"], (previous: unknown) => {
+        const list = Array.isArray(previous) ? previous : [];
+        const existing = list.findIndex((entry) => entry && entry.id === goal.id);
+        if (existing >= 0) {
+          return list.map((entry, index) => (index === existing ? goal : entry));
+        }
+        return [goal, ...list];
+      });
       void queryClient.invalidateQueries({ queryKey: ["goals"] });
       void queryClient.invalidateQueries({ queryKey: ["goals", goal.id] });
       void queryClient.invalidateQueries({ queryKey: ["platform", "status"] });

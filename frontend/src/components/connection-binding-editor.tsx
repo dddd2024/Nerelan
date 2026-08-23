@@ -28,7 +28,7 @@ interface ConnectionBindingEditorProps {
   onBindingSave: (input: BindingInput) => Promise<void>;
   onConnectionDelete: (connectionId: string) => Promise<void>;
   onBindingDelete: (bindingId: string) => Promise<void>;
-  onConnectionTest: (connectionId: string) => Promise<void>;
+  onConnectionTest: (connectionId: string, modelId?: string) => Promise<void>;
   connectionProbeResult: ConnectionProbeResult | null;
   connectionProbePending: boolean;
 }
@@ -70,6 +70,7 @@ export function ConnectionBindingEditor({
   const [connDraft, setConnDraft] = useState<ConnectionInput>(EMPTY_CONNECTION);
   const [connApiKey, setConnApiKey] = useState("");
   const [connError, setConnError] = useState<string | null>(null);
+  const [testModelId, setTestModelId] = useState("");
   const [bindDraft, setBindDraft] = useState<BindingInput>(EMPTY_BINDING);
   const [bindError, setBindError] = useState<string | null>(null);
 
@@ -92,6 +93,7 @@ export function ConnectionBindingEditor({
       setConnApiKey("");
       setConnSavedDraft(structuredClone(draft));
       setConnSavedApiKey("");
+      setTestModelId("");
       setConnError(null);
     } else {
       setBindDraft(
@@ -161,7 +163,7 @@ export function ConnectionBindingEditor({
   async function handleTestConnection() {
     const savedId = connSavedId;
     if (!savedId) return;
-    await onConnectionTest(savedId);
+    await onConnectionTest(savedId, testModelId || undefined);
   }
 
   const connSavedId = creating && view === "connection" ? null : connection?.connectionId ?? null;
@@ -277,6 +279,19 @@ export function ConnectionBindingEditor({
                 }
               />
             </Field>
+            <Field
+              label="测试用 Model ID（可选，填写后验证将发送真实调用请求）"
+              className="md:col-span-2"
+            >
+              <input
+                aria-label="测试用 Model ID"
+                value={testModelId}
+                onChange={(event) => setTestModelId(event.target.value)}
+                className={inputClass}
+                autoComplete="off"
+                placeholder="例如 gpt-4o-mini"
+              />
+            </Field>
           </div>
 
           <label className="inline-flex items-center gap-2 text-sm text-ra-text-secondary">
@@ -325,14 +340,20 @@ export function ConnectionBindingEditor({
                   ? "新建连接需先保存"
                   : connDirty
                     ? "当前有未保存的修改，请先保存"
-                    : "验证连接"
+                    : testModelId.trim()
+                      ? "验证连接并测试模型调用"
+                      : "验证连接（API 可达性）"
               }
               className={cn(
                 secondaryButtonClass,
                 connectionProbePending && "opacity-60",
               )}
             >
-              {connectionProbePending ? "验证中…" : "验证连接"}
+              {connectionProbePending
+                ? "验证中…"
+                : testModelId.trim()
+                  ? "验证模型"
+                  : "验证连接"}
             </button>
             <button
               type="button"
