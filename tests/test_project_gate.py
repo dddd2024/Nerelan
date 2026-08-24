@@ -28826,7 +28826,7 @@ def _git_for_r1(repo: Path, *args: str) -> str:
 
 def _make_r1_publication_material(tmp_path: Path) -> tuple[Path, Path, Path, str, str]:
     repo = tmp_path / "repo"
-    repo.mkdir()
+    repo.mkdir(parents=True)
     _git_for_r1(repo, "init", "-b", "main")
     _git_for_r1(repo, "config", "user.email", "r1@example.invalid")
     _git_for_r1(repo, "config", "user.name", "R1 Test")
@@ -32596,3 +32596,175 @@ def test_transition_seal_local_requires_candidate_first(
     # Skip evaluator; sealer should fail.
     rc = main(["transition-seal-local", "--state-dir", str(state_dir)])
     assert rc != 0
+
+
+def _decision_test_git(repo: Path, *args: str) -> str:
+    return subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
+
+
+def _decision_history(tmp_path: Path, *, activation_extra: bool = False) -> tuple[Path, str, str]:
+    repo = tmp_path / "immutability-repo"
+    repo.mkdir(parents=True)
+    _decision_test_git(repo, "init", "-q")
+    _decision_test_git(repo, "config", "user.email", "tests@example.invalid")
+    _decision_test_git(repo, "config", "user.name", "tests")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    _decision_test_git(repo, "add", "README.md")
+    _decision_test_git(repo, "commit", "-qm", "base")
+    base = _decision_test_git(repo, "rev-parse", "HEAD")
+    decision = repo / "project_state" / "decision_packet.md"
+    decision.parent.mkdir(parents=True)
+    decision.write_text("decision\n", encoding="utf-8")
+    paths = ["project_state/decision_packet.md"]
+    if activation_extra:
+        (repo / "extra.txt").write_text("extra\n", encoding="utf-8")
+        paths.append("extra.txt")
+    _decision_test_git(repo, "add", *paths)
+    _decision_test_git(repo, "commit", "-qm", "Decision activation")
+    activation = _decision_test_git(repo, "rev-parse", "HEAD")
+    (repo / "implementation.py").write_text("implementation\n", encoding="utf-8")
+    _decision_test_git(repo, "add", "implementation.py")
+    _decision_test_git(repo, "commit", "-qm", "implementation")
+    (repo / "project_state" / "gates").mkdir(parents=True, exist_ok=True)
+    (repo / "project_state" / "gates" / "generated.json").write_text("{}\n", encoding="utf-8")
+    _decision_test_git(repo, "add", "project_state/gates/generated.json")
+    _decision_test_git(repo, "commit", "-qm", "generated evidence")
+    return repo, base, activation
+
+
+def _decision_contract(base: str, **updates: Any) -> dict[str, Any]:
+    contract: dict[str, Any] = {
+        "decision_content_immutable_after_activation": True,
+        "starting_head": base,
+    }
+    contract.update(updates)
+    return contract
+
+
+class TestLiveDecisionImmutability:
+    def test_clean_first_history_and_legacy_pass(self, tmp_path: Path) -> None:
+        repo, base, activation = _decision_history(tmp_path)
+        result = project_gate_module._decision_content_immutability_check(repo, _decision_contract(base))
+        assert result["passed"] is True
+        assert result["decision_commit"] == activation
+        legacy = project_gate_module._decision_content_immutability_check(repo, {})
+        assert legacy["passed"] is True and legacy["applicable"] is False
+
+    @pytest.mark.parametrize(
+        ("updates", "reason"),
+        [
+            ({"decision_immutability_required": True}, "decision_immutability_flag_missing_or_false"),
+            ({"decision_content_immutable_after_activation": False}, "decision_immutability_flag_missing_or_false"),
+            ({"starting_head": "invalid"}, "decision_starting_head_missing_or_invalid"),
+        ],
+    )
+    def test_flag_and_starting_head_fail_closed(self, tmp_path: Path, updates: dict[str, Any], reason: str) -> None:
+        repo, base, _ = _decision_history(tmp_path)
+        contract = _decision_contract(base, **updates)
+        if "decision_immutability_required" in updates and "decision_content_immutable_after_activation" not in updates:
+            contract.pop("decision_content_immutable_after_activation", None)
+        result = project_gate_module._decision_content_immutability_check(repo, contract)
+        assert reason in result["blocking_reasons"]
+
+    def test_base_without_decision_reports_missing_commit(self, tmp_path: Path) -> None:
+        repo = tmp_path / "base-only"
+        repo.mkdir()
+        _decision_test_git(repo, "init", "-q")
+        _decision_test_git(repo, "config", "user.email", "tests@example.invalid")
+        _decision_test_git(repo, "config", "user.name", "tests")
+        (repo / "README.md").write_text("base\n", encoding="utf-8")
+        _decision_test_git(repo, "add", "README.md")
+        _decision_test_git(repo, "commit", "-qm", "base")
+        base = _decision_test_git(repo, "rev-parse", "HEAD")
+        result = project_gate_module._decision_content_immutability_check(repo, _decision_contract(base))
+        assert "decision_commit_missing" in result["blocking_reasons"]
+
+    def test_decision_after_implementation_reports_order(self, tmp_path: Path) -> None:
+        repo = tmp_path / "late-decision"
+        repo.mkdir()
+        _decision_test_git(repo, "init", "-q")
+        _decision_test_git(repo, "config", "user.email", "tests@example.invalid")
+        _decision_test_git(repo, "config", "user.name", "tests")
+        (repo / "README.md").write_text("base\n", encoding="utf-8")
+        _decision_test_git(repo, "add", "README.md")
+        _decision_test_git(repo, "commit", "-qm", "base")
+        base = _decision_test_git(repo, "rev-parse", "HEAD")
+        (repo / "implementation.py").write_text("implementation\n", encoding="utf-8")
+        _decision_test_git(repo, "add", "implementation.py")
+        _decision_test_git(repo, "commit", "-qm", "implementation")
+        (repo / "project_state").mkdir()
+        (repo / "project_state" / "decision_packet.md").write_text("late\n", encoding="utf-8")
+        _decision_test_git(repo, "add", "project_state/decision_packet.md")
+        _decision_test_git(repo, "commit", "-qm", "late Decision")
+        result = project_gate_module._decision_content_immutability_check(repo, _decision_contract(base))
+        assert "decision_commit_not_before_implementation" in result["blocking_reasons"]
+
+    def test_scope_second_commit_blob_and_query_failures(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        repo, base, activation = _decision_history(tmp_path, activation_extra=True)
+        result = project_gate_module._decision_content_immutability_check(repo, _decision_contract(base))
+        assert "decision_activation_scope_invalid" in result["blocking_reasons"]
+        decision = repo / "project_state" / "decision_packet.md"
+        decision.write_text("retroactive\n", encoding="utf-8")
+        _decision_test_git(repo, "add", "project_state/decision_packet.md")
+        _decision_test_git(repo, "commit", "-qm", "second Decision")
+        result = project_gate_module._decision_content_immutability_check(repo, _decision_contract(base))
+        assert "decision_commit_count_invalid" in result["blocking_reasons"]
+        assert "decision_blob_changed_after_activation" in result["blocking_reasons"]
+        original = project_gate_module._decision_immutability_git
+        monkeypatch.setattr(project_gate_module, "_decision_immutability_git", lambda root, *args: None if args[0] == "diff-tree" else original(root, *args))
+        result = project_gate_module._decision_content_immutability_check(repo, _decision_contract(base))
+        assert "decision_commit_history_query_failed" in result["blocking_reasons"]
+
+    def test_blob_and_rev_list_queries_fail_closed(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        repo, base, activation = _decision_history(tmp_path)
+        original = project_gate_module._decision_immutability_git
+
+        def missing_blob(root: Path, *args: str) -> str | None:
+            if args[:2] == ("rev-parse", f"{activation}:project_state/decision_packet.md"):
+                return None
+            return original(root, *args)
+
+        monkeypatch.setattr(project_gate_module, "_decision_immutability_git", missing_blob)
+        result = project_gate_module._decision_content_immutability_check(repo, _decision_contract(base))
+        assert "decision_blob_missing" in result["blocking_reasons"]
+
+        def missing_rev_list(root: Path, *args: str) -> str | None:
+            if args and args[0] == "rev-list":
+                return None
+            return original(root, *args)
+
+        monkeypatch.setattr(project_gate_module, "_decision_immutability_git", missing_rev_list)
+        result = project_gate_module._decision_content_immutability_check(repo, _decision_contract(base))
+        assert "decision_commit_history_query_failed" in result["blocking_reasons"]
+
+    @pytest.mark.parametrize("staged", [False, True])
+    def test_dirty_paths_and_nonancestor(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, staged: bool) -> None:
+        repo, base, _ = _decision_history(tmp_path / ("staged" if staged else "worktree"))
+        decision = repo / "project_state" / "decision_packet.md"
+        decision.write_text("dirty\n", encoding="utf-8")
+        if staged:
+            _decision_test_git(repo, "add", "project_state/decision_packet.md")
+        result = project_gate_module._decision_content_immutability_check(repo, _decision_contract(base))
+        assert "decision_worktree_or_index_dirty" in result["blocking_reasons"]
+        monkeypatch.setattr(project_gate_module, "_decision_immutability_is_ancestor", lambda *args: False)
+        result = project_gate_module._decision_content_immutability_check(repo, _decision_contract(base))
+        assert "decision_commit_not_ancestor" in result["blocking_reasons"]
+
+    def test_publication_rejects_stale_preflight_after_decision_mutation(self, tmp_path: Path) -> None:
+        repo, base, _ = _decision_history(tmp_path)
+        state = tmp_path / "state"
+        (state / "gates").mkdir(parents=True)
+        (state / "decision_packet.md").write_text(
+            "```json decision_meta\n"
+            + json.dumps({"status": "APPROVED", "decision_id": "d", "round_id": "r"})
+            + "\n```\n```json decision_contract\n"
+            + json.dumps({"transition_kernel_required": True, **_decision_contract(base)})
+            + "\n```\n", encoding="utf-8"
+        )
+        (state / "gates" / "transition_preflight_result.json").write_text(
+            json.dumps({"gate_status": "PRE_EXECUTION_AUTHORIZED", "decision_id": "d", "round_id": "r"}), encoding="utf-8"
+        )
+        (repo / "project_state" / "decision_packet.md").write_text("changed\n", encoding="utf-8")
+        result = project_gate_module.worktree_publication_readiness(state_dir=state, repo_root=repo)
+        assert result["gate_status"] == "BLOCKED"
+        assert "decision_worktree_or_index_dirty" in result["blocking_reasons"]

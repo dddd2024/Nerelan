@@ -16,6 +16,7 @@ def _write_decision(
     round_id: str = "round_bootstrap",
     branch: str = "codex/example-v1",
     allowed_path: str = "reverse_agent/example/**",
+    immutable: bool = False,
 ) -> None:
     contract = {
         "transition_kernel_required": True,
@@ -37,6 +38,12 @@ def _write_decision(
         "model_api_invocation_allowed": False,
         "external_reverse_tool_invocation_allowed": False,
     }
+    if immutable:
+        contract.update({
+            "decision_content_immutable_after_activation": True,
+            "decision_immutability_required": True,
+            "starting_head": "a" * 40,
+        })
     state_dir.mkdir(parents=True, exist_ok=True)
     (state_dir / "decision_packet.md").write_text(
         "```json decision_meta\n"
@@ -247,6 +254,24 @@ def _install_envelope_git_stub(
 
     def fake_git(_repo_root: Path, *args: str, check: bool = True) -> str:
         del check
+        if args == ("rev-parse", f"{base_sha}^{{commit}}"):
+            return base_sha
+        if args == ("rev-parse", "HEAD"):
+            return "c" * 40
+        if args == ("rev-list", "--reverse", f"{base_sha}..HEAD"):
+            return decision_commit
+        if args == ("diff-tree", "--no-commit-id", "--name-only", "-r", decision_commit):
+            return "project_state/decision_packet.md"
+        if args == ("rev-parse", f"{decision_commit}:project_state/decision_packet.md"):
+            return "d" * 40
+        if args == ("rev-parse", "HEAD:project_state/decision_packet.md"):
+            return "d" * 40
+        if args == ("diff", "--name-only", "--", "project_state/decision_packet.md"):
+            return ""
+        if args == ("diff", "--cached", "--name-only", "--", "project_state/decision_packet.md"):
+            return ""
+        if args == ("status", "--short", "--untracked-files=all", "--", "project_state/decision_packet.md"):
+            return ""
         if args == ("branch", "--show-current"):
             return branch
         if args == ("merge-base", "HEAD", base_sha):
@@ -295,6 +320,28 @@ def test_transition_preflight_uses_decision_branch_and_paths(tmp_path: Path, mon
     assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED"
     branch_check = next(item for item in result["checks"] if item["name"] == "branch_identity")
     assert "expected=codex/different-v2" in branch_check["detail"]
+
+
+def test_active_immutability_structured_evidence_in_preflight_and_reconcile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_dir = tmp_path / "project_state"
+    _write_decision(state_dir, immutable=True)
+    _registry(tmp_path)
+    project_gate.transition_command_plan(state_dir=state_dir)
+    _install_envelope_git_stub(
+        monkeypatch,
+        branch="codex/example-v1",
+        base_sha="a" * 40,
+        decision_commit="b" * 40,
+        committed_files="reverse_agent/example/module.py",
+    )
+    preflight = project_gate.transition_preflight(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    pre_check = next(item for item in preflight["checks"] if item["name"] == "decision_content_immutability")
+    assert pre_check["status"] == "PASS" and pre_check["evidence"]["applicable"] is True
+    reconcile = project_gate.transition_reconcile(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    reconcile_check = next(item for item in reconcile["checks"] if item["name"] == "decision_content_immutability")
+    assert reconcile_check["status"] == "PASS" and reconcile_check["evidence"]["applicable"] is True
 
 
 def test_transition_preflight_blocks_when_execution_log_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
