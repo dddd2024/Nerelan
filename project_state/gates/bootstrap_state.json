@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260824_issue343_playwright_recovery_r3_v2",
-  "round_id": "round_20260824_issue343_playwright_recovery_r3_v2",
-  "expired_at": "2026-08-24T10:51:27+00:00"
+  "decision_id": "decision_20260824_issue345_scope_aware_workflow_policy_r2",
+  "round_id": "round_20260824_issue345_scope_aware_workflow_policy_r2",
+  "expired_at": "2026-08-24T12:38:55+00:00"
 }
