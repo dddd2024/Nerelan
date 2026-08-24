@@ -1,0 +1,20 @@
+{
+  "schema_version": 2,
+  "intent_id": "pr338_issue325_decision_immutability_landing_r2_v8",
+  "repository": "dddd2024/reverse-agent",
+  "source_pr": 338,
+  "locked_base_sha": "122f91ff451929f34cd71e918d88f1512d020d1d",
+  "allowed_merge_method": "merge",
+  "decision_identity": {
+    "decision_id": "decision_20260824_issue325_landing_candidate_r2_v8",
+    "decision_content_sha256": "a683acb8a89b0e335174089d05711421f9573dcc777b7a343ff09ab30b567ecf"
+  },
+  "command_plan_sha256": "5f93d2aa4617024f1f90741f8fd5af4acee72a748f09ab3f445e8e7c5c4dae7b",
+  "merge_tree_policy": "equal_to_accepted_head_tree",
+  "required_workflows": [
+    "CI",
+    "Decision Preflight",
+    "State Gate (pull_request)"
+  ],
+  "expires_at": "2026-08-26T23:59:59Z"
+}
