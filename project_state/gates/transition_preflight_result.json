@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260823_issue320_state_gate_reachability_r2_v2_landing",
-  "round_id": "round_20260823_issue320_state_gate_reachability_r2_v2_landing",
+  "decision_id": "decision_20260824_issue330_trusted_remote_merge_boundary_r2_v3",
+  "round_id": "round_20260824_issue330_trusted_remote_merge_boundary_r2_v3",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260823_issue320_state_gate_reachability_r2_v2_landing expected=decision_20260823_issue320_state_gate_reachability_r2_v2_landing"
+      "detail": "observed=decision_20260824_issue330_trusted_remote_merge_boundary_r2_v3 expected=decision_20260824_issue330_trusted_remote_merge_boundary_r2_v3"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260823_issue320_state_gate_reachability_r2_v2_landing expected=round_20260823_issue320_state_gate_reachability_r2_v2_landing"
+      "detail": "observed=round_20260824_issue330_trusted_remote_merge_boundary_r2_v3 expected=round_20260824_issue330_trusted_remote_merge_boundary_r2_v3"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=owner/issue320-state-gate-reachability-r2-v2-landing expected=owner/issue320-state-gate-reachability-r2-v2-landing"
+      "detail": "observed=owner/issue330-mainline-attestation-recovery-r2-v3 expected=owner/issue330-mainline-attestation-recovery-r2-v3"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=772de2662949d2a454b611806a36b52f75cace9f merge_base=772de2662949d2a454b611806a36b52f75cace9f"
+      "detail": "base=0beac2f57c1ae9caa1b11dc02dfc027c9b19e496 merge_base=0beac2f57c1ae9caa1b11dc02dfc027c9b19e496"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=77eb77bd13a845c608be1136a6eddf90f5834b8f"
+      "detail": "decision_commit=c97c335eb36748fd741f339424bb072f9cdf2cc5"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260823_issue320_state_gate_reachability_r2_v2_landing/round_20260823_issue320_state_gate_reachability_r2_v2_landing"
+      "detail": "plan=decision_20260824_issue330_trusted_remote_merge_boundary_r2_v3/round_20260824_issue330_trusted_remote_merge_boundary_r2_v3"
     },
     {
       "name": "command_plan_contract",

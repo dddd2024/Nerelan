@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260823_issue320_state_gate_reachability_r2_v2_landing",
-  "round_id": "round_20260823_issue320_state_gate_reachability_r2_v2_landing",
+  "decision_id": "decision_20260824_issue330_trusted_remote_merge_boundary_r2_v3",
+  "round_id": "round_20260824_issue330_trusted_remote_merge_boundary_r2_v3",
   "commands": [
     {
-      "command_id": "issue320v2landing.bootstrap_and_gate",
-      "command": "verify origin/main remains 772de2662949d2a454b611806a36b52f75cace9f; verify PR 322 remains OPEN Draft at head 663fc157a0dafc8002511921bc2b0411f26ee020; verify four accepted semantic blobs unchanged; run startup-snapshot, transition-command-plan, transition-lint, and transition-preflight --mode pre; require PRE_EXECUTION_AUTHORIZED with zero blockers before any mutation",
-      "phase": "validation",
+      "command_id": "issue330.bootstrap_gate_sequence",
+      "command": "verify exact base, branch, clean worktree, merge-base and no remote collision; run startup-snapshot, transition-command-plan, transition-lint and transition-preflight --mode pre immediately after Decision activation; require PRE_EXECUTION_AUTHORIZED with zero blockers before any non-Decision mutation",
+      "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -16,6 +16,94 @@
       "operations": [
         "repository_observation",
         "run_checks",
+        "generate_governance_artifact"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [
+        "project_state/gates/startup_snapshot.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/bootstrap_state.json",
+        "project_state/gates/transition_command_plan_preview.json",
+        "project_state/gates/transition_preflight_result.json"
+      ],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue330.replay_trusted_remote_chronology",
+      "command": "replay the accepted trusted remote chronology implementation from the locked main tree: runtime-enrich the exact carrying comment with remote id, author, created_at and updated_at; validate schema-v2 using exact merged PR, exact merge commit and remote merged_at; require created_at < merged_at and updated_at < merged_at; never use local Git timestamps or payload-declared timestamps; keep schema-v1 unchanged",
+      "phase": "implementation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "bounded_source_mutation",
+        "stage_authorized_paths",
+        "commit"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "reverse_agent/github_remote_verifier.py",
+        "reverse_agent/mainline_landing.py"
+      ]
+    },
+    {
+      "command_id": "issue330.replay_regressions_fixture_and_recovery",
+      "command": "replay deterministic regressions and recovery truth: fix production pre-merge simulation to supply both runtime-only v2 comment timestamps before content-digest calculation; cover crafted future local history, post-merge edit, equality, later, missing and invalid remote timestamps, valid created_at <= updated_at < merged_at, exact PR and merge binding, named fail-closed reasons and frozen v1 behavior; preserve PR324 as negative evidence",
+      "phase": "implementation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "bounded_test_mutation",
+        "bounded_governance_mutation",
+        "stage_authorized_paths",
+        "commit"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "tests/test_mainline_landing.py",
+        "tests/platform_v1/test_merge_intent.py",
+        "tests/platform_v1/test_contracts.py",
+        "project_state/mainline_recoveries/pr324.json"
+      ]
+    },
+    {
+      "command_id": "issue330.prepublication_validation",
+      "command": "run the mandatory focused pytest commands, the exact Platform V1 blocking command represented by CI, transition-lint, transition-preflight --mode pre, worktree-publication-readiness and git diff --check; prove production pre-merge simulation passes after the fixture correction, chronology cases fail closed with named reasons, schema-v1 remains unchanged and all cumulative paths are authorized",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "run_checks",
+        "diff_validation",
+        "repository_observation",
         "generate_governance_artifact"
       ],
       "network_access": false,
@@ -34,8 +122,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue320v2landing.prepublic_validation",
-      "command": "run test_path_a_gate, test_ci_responsibility, test_project_gate, test_mainline_landing + test_merge_intent, test_control_plane_transition + test_planning_and_github_adapters; run transition-lint, transition-preflight --mode pre, worktree-publication-readiness, git diff --check; assert all PASS; do not modify any accepted semantic blob",
+      "command_id": "issue330.history_and_replay_proof",
+      "command": "prove Decision is the unique first commit after the locked base and remains byte-identical; prove the implementation is a clean replay from locked main with no PR327 or PR329 ancestor, cherry-pick, patch import or authority import; prove PR324 State Gate push run 32639335287 remains FAILURE and was not rerun",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -44,9 +132,8 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "run_checks",
-        "diff_validation",
-        "repository_observation"
+        "repository_observation",
+        "diff_validation"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -58,30 +145,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue320v2landing.decision_history_proof",
-      "command": "prove Decision commit is first after 663fc157; prove Decision commit touches only project_state/decision_packet.md; prove Decision blob unchanged between activation and final HEAD",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue320v2landing.initial_push_and_pr",
-      "command": "normal push owner/issue320-state-gate-reachability-r2-v2-landing once; create exactly one Draft PR with base=main; observe actual PR number; do not mark-ready; do not merge",
+      "command_id": "issue330.initial_push_and_draft_pr",
+      "command": "after full deterministic validation perform the first normal fast-forward push of owner/issue330-mainline-attestation-recovery-r2-v3; create exactly one Draft PR against locked main; observe the actual PR number; keep it Draft and perform no attestation, comment, mark-ready, merge or workflow rerun",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -105,8 +170,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue320v2landing.mainline_intent_binding",
-      "command": "archive current active mainline merge intent byte-for-byte to archive/pr288_v2.json; replace active.json with new schema-v2 intent binding actual landing PR number, locked base, allowed merge method, immutable landing Decision digest, generated Command Plan digest, required workflows, bounded expiry; one governance-only binding commit; do not modify Decision",
+      "command_id": "issue330.mainline_intent_binding",
+      "command": "after the actual successor PR number is known, archive the current PR324 active schema-v2 intent byte-for-byte, replace active.json with the exact successor PR binding, create one governance-only binding commit, and do not add any chronology field or modify the Decision",
       "phase": "binding",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -128,12 +193,12 @@
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
         "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr288_v2.json"
+        "project_state/mainline_merge_intents/archive/pr324_v2.json"
       ]
     },
     {
-      "command_id": "issue320v2landing.final_validation",
-      "command": "prove Decision blob unchanged; prove accepted semantic blobs unchanged; prove archive byte-for-byte; prove active intent binding exact; rerun all prepublication validation; require all PASS before second push",
+      "command_id": "issue330.final_validation",
+      "command": "prove Decision immutability, exact path set, archive byte identity, exact active intent binding, one implementation commit, one generated-governance commit and one binding commit; rerun the complete validation suite and require PASS before the second push",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -156,8 +221,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue320v2landing.final_push",
-      "command": "normal fast-forward push binding commit as second and final push; observe final exact head CI, State Gate, and Decision Preflight; verify all SUCCESS; verify PR still Draft, main still locked base, head exact, mergeable, zero unresolved threads",
+      "command_id": "issue330.final_push_and_owner_audit_boundary",
+      "command": "perform the second and final normal fast-forward push containing only the binding commit; observe exact-head CI, State Gate pull_request and Decision Preflight SUCCESS, Draft state, locked main, exact head and no blocking review threads; stop for independent Owner audit",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -180,8 +245,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.7d308808735e7583f26e15a5b564cf6e1cb64c146c49b99e1eace49f9d1c5356",
-      "command": "create owner/issue320-state-gate-reachability-r2-v2-landing from accepted head 663fc157a0dafc8002511921bc2b0411f26ee020 in an isolated detached worktree whose merge-base with main is 772de2662949d2a454b611806a36b52f75cace9f",
+      "command_id": "bootstrap.2e6825706978fdd4cad851257d9b35c779f4de4182ef6a52fe4915c4e2c061c6",
+      "command": "verify origin/main remains 0beac2f57c1ae9caa1b11dc02dfc027c9b19e496 and the target remote branch and PR do not exist",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -200,8 +265,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.b85eea77a8ced3cf954bdcfc2ec501ca8a7ad1d6472c92294f13d6747e8ad4b0",
-      "command": "commit this immutable Decision as the unique first new commit after 663fc157a0dafc8002511921bc2b0411f26ee020 before any generated governance artifact or semantic mutation",
+      "command_id": "bootstrap.2bc17663e0009229ad794c7d499f20e0ba80cdc5e614566a7860fc160cf346fb",
+      "command": "create the fresh branch from the locked base and commit this immutable Decision as the unique first new commit before any generated governance, source, test, recovery, or intent mutation",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
