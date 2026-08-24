@@ -38,6 +38,10 @@ describe("accessibility", () => {
     expect(tasksLink).toHaveAttribute("href", "/tasks");
     const homeLink = screen.getByTestId("sidebar-nav-首页");
     expect(homeLink).toHaveAttribute("href", "/");
+    expect(screen.getByTestId("sidebar-nav-收件箱")).toHaveAttribute("href", "/inbox");
+    expect(screen.getByTestId("sidebar-nav-路线图")).toHaveAttribute("href", "/roadmap");
+    expect(screen.getByTestId("sidebar-nav-Agent 运行")).toHaveAttribute("href", "/runs");
+    expect(screen.getByTestId("sidebar-nav-设置")).toHaveAttribute("href", "/settings");
   });
 
   it("custom policy editor traps focus (Tab cycles within dialog)", async () => {

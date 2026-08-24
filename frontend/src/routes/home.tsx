@@ -1,4 +1,4 @@
-import { Loader2, PlayCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { GoalComposer } from "@/components/goal-composer";
 import { GoalProgress } from "@/components/goal-progress";
@@ -30,39 +30,43 @@ export function HomePage() {
   const recent = useMemo(() => goals.slice(0, 3), [goals]);
   const platform = statusQuery.data;
   const activeWindow = platform?.autonomy.active_window;
+  const coordinatorError = platform?.coordinator.last_error;
 
   function handleStarted(goal: PlatformGoal) {
     setSelectedId(goal.id);
   }
 
   return (
-    <main data-testid="platform-home" className="min-h-full bg-[var(--oh-surface)] px-4 py-7 sm:px-8 lg:px-12 lg:py-10">
+    <main data-testid="platform-home" className="min-h-full bg-ra-workspace px-4 py-7 sm:px-8 lg:px-12 lg:py-10">
       <div className="mx-auto max-w-[1080px]">
-        <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <header className="mb-7 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-ra-text-tertiary">Agent workspace</p>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-ra-text-tertiary">Workspace</p>
             <h1 className="mt-2 text-3xl font-medium tracking-[-0.025em] text-ra-text sm:text-4xl">今天想完成什么？</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-ra-text-secondary">
               给出最终目标。平台会生成规格与任务，协调 Agent，保存检查点，并把结果留给你审查。
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
             {activeWindow && (
-              <span className="flex items-center gap-2 rounded-full border border-ra-border bg-ra-light/70 px-3 py-1.5 text-xs text-ra-text-secondary">
+              <span data-testid="autonomy-status" className="flex items-center gap-2 rounded-full border border-ra-border bg-ra-light/70 px-3 py-1.5 text-xs text-ra-text-secondary">
                 <Loader2 className={cn("h-3 w-3", activeWindow.status === "ACTIVE" && "animate-spin")} />
                 {activeWindow.tasks_completed}/{activeWindow.max_tasks}
               </span>
             )}
-            <span className="flex items-center gap-2 rounded-full border border-ra-border bg-ra-light/70 px-3 py-1.5 text-xs text-ra-text-secondary">
-              <span className={cn("h-2 w-2 rounded-full", platform?.coordinator.enabled ? "bg-emerald-400" : "bg-amber-300")} />
+            <span data-testid="coordinator-status" className="flex items-center gap-2 rounded-full border border-ra-border bg-ra-light/70 px-3 py-1.5 text-xs text-ra-text-secondary">
+              <span className={cn("h-2 w-2 rounded-full", platform?.coordinator.enabled ? "bg-ra-status-running" : "bg-ra-status-starting")} />
               {platform?.coordinator.enabled ? "协调器在线" : "手动模式"}
-            </span>
-            <span className="flex items-center gap-2 rounded-full border border-ra-border bg-ra-light/70 px-3 py-1.5 text-xs text-ra-text-secondary">
-              <PlayCircle className="h-3 w-3" />
-              {platform?.capability_count ?? "—"} 能力
             </span>
           </div>
         </header>
+
+        {coordinatorError && (
+          <div role="alert" className="mb-6 flex items-start gap-3 rounded-xl border border-ra-status-error/30 bg-ra-status-error/10 px-4 py-3 text-sm text-ra-status-error">
+            <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-ra-status-error" aria-hidden="true" />
+            <span>协调器需要处理：{coordinatorError}</span>
+          </div>
+        )}
 
         <section data-testid="goal-composer-section" className="mb-10">
           <GoalComposer
@@ -70,7 +74,7 @@ export function HomePage() {
             onSubmit={(input) => startGoal.mutate(input, { onSuccess: handleStarted })}
           />
           {startGoal.isError && (
-            <p role="alert" className="mt-3 text-sm text-red-300">{startGoal.error.message}</p>
+            <p role="alert" className="mt-3 text-sm text-ra-status-error">{startGoal.error.message}</p>
           )}
         </section>
 
@@ -81,7 +85,7 @@ export function HomePage() {
             </div>
           ) : selectedId && detailQuery.isError ? (
             <div className="border-t border-ra-border/70 py-10 text-center">
-              <p role="alert" className="text-sm text-red-300">当前所选目标的执行进度暂时无法加载，请重试。</p>
+              <p role="alert" className="text-sm text-ra-status-error">当前所选目标的执行进度暂时无法加载，请重试。</p>
               <button
                 type="button"
                 onClick={() => void detailQuery.refetch()}
@@ -126,9 +130,9 @@ export function HomePage() {
                   </p>
                   <span className={cn(
                     "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
-                    goal.status === "COMPLETED" && "border border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
-                    goal.status === "RUNNING" && "border border-blue-500/40 bg-blue-500/10 text-blue-300",
-                    goal.status === "BLOCKED" && "border border-red-500/40 bg-red-500/10 text-red-300",
+                    goal.status === "COMPLETED" && "border border-ra-status-running/40 bg-ra-status-running/10 text-ra-status-running",
+                    goal.status === "RUNNING" && "border border-ra-accent/40 bg-ra-accent/10 text-ra-accent",
+                    goal.status === "BLOCKED" && "border border-ra-status-error/40 bg-ra-status-error/10 text-ra-status-error",
                     goal.status !== "COMPLETED" && goal.status !== "RUNNING" && goal.status !== "BLOCKED" && "border border-ra-border text-ra-text-secondary",
                   )}>{goal.status}</span>
                 </div>
