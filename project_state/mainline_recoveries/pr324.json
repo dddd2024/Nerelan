@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "recovery_id": "pr324_post_merge_lifecycle_failure_observation_v2",
+  "status": "POST_MERGE_LIFECYCLE_FAILURE_OBSERVED",
+  "non_retroactive": true,
+  "never_asserts_success": true,
+  "repository": "dddd2024/reverse-agent",
+  "source_pr": 324,
+  "source_issue": 320,
+  "semantic_tree_landed": true,
+  "authority_lifecycle_failed": true,
+  "failure_reason": "required structured attestation was absent before merge; State Gate (push) failed",
+  "post_merge_late_attestation_added": false,
+  "state_gate_push_run_id": 32639335287,
+  "state_gate_push_conclusion": "failure",
+  "state_gate_push_conclusion_is_negative_evidence": true,
+  "rerun": false,
+  "attestation_added_to_pr324_after_merge": false,
+  "pr324_history_rewritten": false,
+  "pr324_decision_modified": false,
+  "attestation_pre_merge_present": false,
+  "attestation_chronology_violation_observed": true,
+  "attestation_chronology_violation_class": "attestation_absent_at_merge_time",
+  "successor_machine_invariant": "GitHub PR merged_at and carrying comment created_at and updated_at must each strictly precede the merge boundary",
+  "retroactive_whitewash_prohibited": [
+    "must not rerun State Gate (push) for PR324",
+    "must not assert State Gate (push) success",
+    "must not redefine PR324 as historically authorized",
+    "must not rewrite PR324 history",
+    "must not modify the PR324 Decision"
+  ],
+  "allowed_approvers": [
+    "dddd2024"
+  ]
+}

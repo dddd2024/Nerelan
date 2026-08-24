@@ -43,11 +43,43 @@ def _git(repo: Path, *args: str) -> str:
 
 
 class FakeVerifier:
-    def __init__(self, *, fail: str = "") -> None:
+    def __init__(
+        self,
+        *,
+        fail: str = "",
+        merged_at: str | None = "2026-07-27T00:00:00Z",
+        remote_merge_commit_sha: str | None = None,
+        merged: bool = True,
+    ) -> None:
         self.fail = fail
+        self.merged_at = merged_at
+        self.remote_merge_commit_sha = remote_merge_commit_sha
+        self.merged = merged
 
-    def verify_pr(self, **_: Any) -> dict[str, Any]:
-        return {"verified": self.fail != "pr", "reason": self.fail}
+    def verify_pr(self, **kwargs: Any) -> dict[str, Any]:
+        if self.fail == "pr":
+            return {"verified": False, "reason": self.fail}
+        expected_merge = kwargs.get("expected_merge_commit_sha")
+        checks_pass = (
+            expected_merge is None
+            or self.remote_merge_commit_sha is None
+            or expected_merge == self.remote_merge_commit_sha
+        ) and (
+            kwargs.get("require_merged") is None
+            or self.merged is kwargs["require_merged"]
+        )
+        if not checks_pass:
+            return {"verified": False, "reason": "pr_mismatch"}
+        return {
+            "verified": True,
+            "reason": self.fail,
+            "pr": {
+                "merged": self.merged,
+                "merged_at": self.merged_at,
+                "merge_commit_sha": self.remote_merge_commit_sha
+                or kwargs.get("expected_merge_commit_sha"),
+            },
+        }
 
     def verify_workflow_run(self, **kwargs: Any) -> dict[str, Any]:
         bad = self.fail == "workflow" or kwargs["run_id"] <= 0
@@ -201,9 +233,18 @@ def _future_repo(
         "_remote_comment_id": 12345,
         "_remote_author": "dddd2024",
     }
+    if schema_version == 2:
+        attestation["_remote_comment_created_at"] = "2026-07-25T00:00:00Z"
+        attestation["_remote_comment_updated_at"] = "2026-07-26T00:00:00Z"
     attestation["content_digest"] = canonical_digest(
         attestation,
-        omit=("content_digest", "_remote_comment_id", "_remote_author"),
+        omit=(
+            "content_digest",
+            "_remote_comment_id",
+            "_remote_author",
+            "_remote_comment_created_at",
+            "_remote_comment_updated_at",
+        ),
     )
     return {
         "repo": repo,
@@ -438,7 +479,13 @@ def test_unknown_attestation_field_fails(tmp_path: Path) -> None:
     bundle["attestation"]["untrusted_override"] = True
     bundle["attestation"]["content_digest"] = canonical_digest(
         bundle["attestation"],
-        omit=("content_digest", "_remote_comment_id", "_remote_author"),
+        omit=(
+            "content_digest",
+            "_remote_comment_id",
+            "_remote_author",
+            "_remote_comment_created_at",
+            "_remote_comment_updated_at",
+        ),
     )
     result = _validate(bundle)
     assert any("attestation_fields" in item for item in result["blocking_reasons"])
@@ -673,7 +720,7 @@ def test_committed_active_intent_binds_exact_current_authority() -> None:
         assert (
             contract.get("issue_number_must_not_substitute_for_pr_number") is True
         )
-        assert intent["schema_version"] == 1
+        assert intent["schema_version"] in {1, 2}
         assert (
             intent["decision_identity"]["decision_id"] != decision["decision_id"]
         )
@@ -911,7 +958,13 @@ def test_production_pre_merge_simulation(tmp_path: Path) -> None:
     }
     attestation["content_digest"] = canonical_digest(
         attestation,
-        omit=("content_digest", "_remote_comment_id", "_remote_author"),
+        omit=(
+            "content_digest",
+            "_remote_comment_id",
+            "_remote_author",
+            "_remote_comment_created_at",
+            "_remote_comment_updated_at",
+        ),
     )
     result = validate_future_merge(
         repo_root=repo,
@@ -981,6 +1034,46 @@ def test_production_verifier_rejects_wrong_workflow_identity() -> None:
         expected_run_attempt=1,
     )
     assert result["verified"] is False
+
+
+def test_load_merge_attestation_overwrites_all_runtime_comment_metadata() -> None:
+    verifier = GitHubRemoteAcceptanceVerifier(
+        repository="dddd2024/reverse-agent",
+        token="test",
+    )
+    verifier._request_json = lambda _path: [  # type: ignore[method-assign]
+        {
+            "id": 71002,
+            "user": {"login": "dddd2024"},
+            "created_at": "2026-07-25T00:00:00Z",
+            "updated_at": "2026-07-26T00:00:00Z",
+            "body": (
+                "MAINLINE_MERGE_APPROVAL_ATTESTATION\n"
+                "```json mainline_merge_approval_attestation\n"
+                + json.dumps(
+                    {
+                        "schema_version": 2,
+                        "source_pr": 67,
+                        "accepted_exact_head_sha": "a" * 40,
+                        "authorization_status": "active",
+                        "_remote_comment_id": 1,
+                        "_remote_author": "forged",
+                        "_remote_comment_created_at": "forged-created",
+                        "_remote_comment_updated_at": "forged-updated",
+                    }
+                )
+                + "\n```"
+            ),
+        }
+    ]  # type: ignore[method-assign]
+    payload = verifier.load_merge_attestation(
+        pr_number=67,
+        expected_head_sha="a" * 40,
+    )
+    assert payload["_remote_comment_id"] == 71002
+    assert payload["_remote_author"] == "dddd2024"
+    assert payload["_remote_comment_created_at"] == "2026-07-25T00:00:00Z"
+    assert payload["_remote_comment_updated_at"] == "2026-07-26T00:00:00Z"
 
 
 def _verify_contents_payload(
@@ -1150,6 +1243,125 @@ def test_v2_current_policy_does_not_require_state_gate_push(tmp_path: Path) -> N
     )
     result = _validate(bundle)
     assert result["gate_status"] == "PASSED", result
+
+
+def _refresh_attestation_digest(bundle: dict[str, Any]) -> None:
+    bundle["attestation"]["content_digest"] = canonical_digest(
+        bundle["attestation"],
+        omit=(
+            "content_digest",
+            "_remote_comment_id",
+            "_remote_author",
+            "_remote_comment_created_at",
+            "_remote_comment_updated_at",
+        ),
+    )
+
+
+def test_v2_requires_exact_merged_remote_pr_and_merge_commit(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    result = _validate(
+        bundle,
+        verifier=FakeVerifier(remote_merge_commit_sha="0" * 40),
+    )
+    assert result["gate_status"] == "BLOCKED"
+    assert any("remote_pr_binding" in item for item in result["blocking_reasons"])
+
+
+def test_v2_remote_merged_at_is_authoritative_over_local_future_time(
+    tmp_path: Path,
+) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["attestation"]["_remote_comment_created_at"] = "2026-07-25T00:00:00Z"
+    bundle["attestation"]["_remote_comment_updated_at"] = "2026-07-26T00:00:00Z"
+    _refresh_attestation_digest(bundle)
+    result = _validate(
+        bundle,
+        verifier=FakeVerifier(merged_at="2026-07-27T00:00:00Z"),
+    )
+    assert result["gate_status"] == "PASSED", result
+
+
+def test_v2_precreated_comment_updated_after_merge_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["attestation"]["_remote_comment_updated_at"] = "2026-07-27T00:00:00Z"
+    _refresh_attestation_digest(bundle)
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any(
+        "attestation_updated_before_merge" in item
+        for item in result["blocking_reasons"]
+    )
+
+
+def test_v2_comment_created_after_updated_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["attestation"]["_remote_comment_created_at"] = "2026-07-26T00:00:00Z"
+    bundle["attestation"]["_remote_comment_updated_at"] = "2026-07-25T00:00:00Z"
+    _refresh_attestation_digest(bundle)
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("attestation_comment_order" in item for item in result["blocking_reasons"])
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "reason"),
+    [
+        ("_remote_comment_created_at", "2026-07-27T00:00:00Z", "created"),
+        ("_remote_comment_created_at", "2026-07-28T00:00:00Z", "created"),
+        ("_remote_comment_updated_at", "2026-07-27T00:00:00Z", "updated"),
+        ("_remote_comment_updated_at", "2026-07-28T00:00:00Z", "updated"),
+    ],
+)
+def test_v2_comment_timestamps_equal_or_after_merge_block(
+    tmp_path: Path,
+    field: str,
+    value: str,
+    reason: str,
+) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    bundle["attestation"][field] = value
+    _refresh_attestation_digest(bundle)
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any(f"attestation_{reason}_before_merge" in item for item in result["blocking_reasons"])
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "reason"),
+    [
+        ("_remote_comment_created_at", None, "created"),
+        ("_remote_comment_created_at", "not-a-timestamp", "created"),
+        ("_remote_comment_updated_at", None, "updated"),
+        ("_remote_comment_updated_at", "not-a-timestamp", "updated"),
+    ],
+)
+def test_v2_missing_or_invalid_comment_timestamp_blocks(
+    tmp_path: Path,
+    field: str,
+    value: str | None,
+    reason: str,
+) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    if value is None:
+        bundle["attestation"].pop(field)
+    else:
+        bundle["attestation"][field] = value
+    _refresh_attestation_digest(bundle)
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any(f"attestation_{reason}_before_merge" in item for item in result["blocking_reasons"])
+
+
+@pytest.mark.parametrize("merged_at", [None, "not-a-timestamp", "2026-07-27T00:00:00"])
+def test_v2_missing_or_invalid_remote_merged_at_blocks(
+    tmp_path: Path,
+    merged_at: str | None,
+) -> None:
+    bundle = _future_repo(tmp_path, schema_version=2)
+    result = _validate(bundle, verifier=FakeVerifier(merged_at=merged_at))
+    assert result["gate_status"] == "BLOCKED"
+    assert any("remote_pr_merged_at" in item for item in result["blocking_reasons"])
 
 
 def test_v1_four_run_still_passes(tmp_path: Path) -> None:

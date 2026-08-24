@@ -348,6 +348,7 @@ def _validate_attestation(
     accepted_head: str,
     locked_base: str,
     now: datetime,
+    merge_commit_sha: str,
 ) -> list[dict[str, str]]:
     checks: list[dict[str, str]] = []
     source_pr = int(intent.get("source_pr") or 0)
@@ -418,6 +419,16 @@ def _validate_attestation(
         "_remote_comment_id",
         "_remote_author",
     }
+    runtime_timestamp_fields = {
+        "_remote_comment_created_at",
+        "_remote_comment_updated_at",
+    }
+    expected_fields = attestation_fields
+    if schema_version == 2:
+        expected_fields = attestation_fields | runtime_timestamp_fields
+    observed_fields_valid = set(attestation) == expected_fields or (
+        schema_version == 1 and set(attestation) == attestation_fields | runtime_timestamp_fields
+    )
     observation_fields = {
         "name",
         "run_id",
@@ -429,7 +440,7 @@ def _validate_attestation(
     }
     checks.extend(
         [
-            _check("attestation_fields", set(attestation) == attestation_fields, f"observed={sorted(attestation)}"),
+            _check("attestation_fields", observed_fields_valid, f"observed={sorted(attestation)}"),
             _check("attestation_schema_version", schema_version in {1, 2}, f"observed={schema_version}"),
             _check("attestation_repository", attestation.get("repository") == "dddd2024/reverse-agent", f"observed={attestation.get('repository')}"),
             _check("attestation_source_pr", attestation.get("source_pr") == source_pr, f"observed={attestation.get('source_pr')} expected={source_pr}"),
@@ -437,7 +448,7 @@ def _validate_attestation(
             _check("attestation_head", attestation.get("accepted_exact_head_sha") == accepted_head, f"observed={attestation.get('accepted_exact_head_sha')}"),
             _check("attestation_method", attestation.get("allowed_merge_method") == "merge", f"observed={attestation.get('allowed_merge_method')}"),
             _check("attestation_intent_digest", attestation.get("intent_digest") == canonical_digest(intent), f"observed={attestation.get('intent_digest')}"),
-            _check("attestation_content_digest", attestation.get("content_digest") == canonical_digest(attestation, omit=("content_digest", "_remote_comment_id", "_remote_author")), f"observed={attestation.get('content_digest')}"),
+            _check("attestation_content_digest", attestation.get("content_digest") == canonical_digest(attestation, omit=("content_digest", "_remote_comment_id", "_remote_author", "_remote_comment_created_at", "_remote_comment_updated_at")), f"observed={attestation.get('content_digest')}"),
             _check("attestation_status", attestation.get("authorization_status") == "active" and not attestation.get("superseded_by"), f"status={attestation.get('authorization_status')} superseded_by={attestation.get('superseded_by')}"),
             _check("attestation_expiry", active_time, f"expires_at={attestation.get('expires_at')}"),
             _check("workflow_names", observed_names == list(workflow_policy), f"observed={observed_names}"),
@@ -450,12 +461,69 @@ def _validate_attestation(
             _check("approval_content_digest", approval.get("approval_content_digest") == canonical_digest(approval_payload), f"observed={approval.get('approval_content_digest')}"),
         ]
     )
-    pr = verifier.verify_pr(
-        pr_number=source_pr,
-        expected_head_sha=accepted_head,
-        expected_base_sha=locked_base,
-    )
+    verify_kwargs: dict[str, Any] = {
+        "pr_number": source_pr,
+        "expected_head_sha": accepted_head,
+        "expected_base_sha": locked_base,
+    }
+    if schema_version == 2:
+        verify_kwargs.update(
+            expected_merge_commit_sha=merge_commit_sha,
+            require_merged=True,
+        )
+    pr = verifier.verify_pr(**verify_kwargs)
     checks.append(_check("remote_pr_binding", bool(pr.get("verified")), str(pr.get("reason") or "verified")))
+    if schema_version == 2:
+        remote_pr = pr.get("pr") if isinstance(pr.get("pr"), Mapping) else {}
+        merged_at = remote_pr.get("merged_at")
+        if not isinstance(merged_at, str) or not merged_at:
+            checks.append(_check("remote_pr_merged_at", False, "missing"))
+            merged_time = None
+        else:
+            try:
+                merged_time = _parse_time(merged_at)
+                if merged_time.tzinfo is None:
+                    raise ValueError("timezone_required")
+            except (TypeError, ValueError) as exc:
+                checks.append(_check("remote_pr_merged_at", False, f"invalid:{exc}"))
+                merged_time = None
+        comment_times: dict[str, datetime] = {}
+        for field, check_name in (
+            ("_remote_comment_created_at", "attestation_created_before_merge"),
+            ("_remote_comment_updated_at", "attestation_updated_before_merge"),
+        ):
+            value = attestation.get(field)
+            if not isinstance(value, str) or not value:
+                checks.append(_check(check_name, False, "missing"))
+                continue
+            try:
+                comment_time = _parse_time(value)
+                if comment_time.tzinfo is None:
+                    raise ValueError("timezone_required")
+            except (TypeError, ValueError) as exc:
+                checks.append(_check(check_name, False, f"invalid:{exc}"))
+                continue
+            comment_times[field] = comment_time
+            if merged_time is None:
+                checks.append(_check(check_name, False, "remote_pr_merged_at_unavailable"))
+            else:
+                checks.append(
+                    _check(
+                        check_name,
+                        comment_time < merged_time,
+                        f"comment={comment_time.isoformat()} merged_at={merged_time.isoformat()}",
+                    )
+                )
+        created_time = comment_times.get("_remote_comment_created_at")
+        updated_time = comment_times.get("_remote_comment_updated_at")
+        if created_time is not None and updated_time is not None:
+            checks.append(
+                _check(
+                    "attestation_comment_order",
+                    created_time <= updated_time,
+                    f"created={created_time.isoformat()} updated={updated_time.isoformat()}",
+                )
+            )
     for index, name in enumerate(workflow_policy):
         if index >= len(observations) or not isinstance(observations[index], Mapping):
             checks.append(_check(f"remote_workflow:{name}", False, "missing"))
@@ -545,6 +613,7 @@ def validate_future_merge(
                 accepted_head=second_parent,
                 locked_base=first_parent,
                 now=now,
+                merge_commit_sha=merge,
             )
         )
         return _result(
