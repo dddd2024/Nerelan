@@ -9039,6 +9039,154 @@ def _git_toplevel(repo_root: Path) -> str:
     return (proc.stdout or "").strip()
 
 
+_LIVE_DECISION_PATH = "project_state/decision_packet.md"
+
+
+def _decision_immutability_git(repo_root: Path, *args: str) -> str | None:
+    try:
+        return _transition_git(repo_root, *args)
+    except (OSError, RuntimeError, subprocess.SubprocessError, ValueError):
+        return None
+
+
+def _decision_immutability_is_ancestor(repo_root: Path, commit: str, head: str) -> bool:
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", commit, head],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        return result.returncode == 0
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return False
+
+
+def _decision_content_immutability_check(repo_root: Path, contract: Mapping[str, Any]) -> dict[str, Any]:
+    """Live, fail-closed proof that the activated Decision remains immutable."""
+
+    flag_present = "decision_content_immutable_after_activation" in contract
+    required = contract.get("decision_immutability_required") is True
+    applicable = flag_present or required
+    flag = contract.get("decision_content_immutable_after_activation")
+    starting_head = str(contract.get("starting_head") or "").strip()
+    evidence: dict[str, Any] = {
+        "decision_path": _LIVE_DECISION_PATH,
+        "applicable": applicable,
+        "decision_content_immutable_after_activation": flag,
+        "starting_head": starting_head,
+        "head": "",
+        "commits": [],
+        "decision_commits": [],
+        "decision_commit": "",
+        "decision_commit_is_ancestor": False,
+        "activation_scope_paths": [],
+        "activation_blob": "",
+        "head_blob": "",
+        "worktree_paths": [],
+        "index_paths": [],
+        "status_paths": [],
+    }
+    reasons: list[str] = []
+    if not applicable:
+        evidence.update({"passed": True, "blocking_reasons": []})
+        return evidence
+    if flag is not True:
+        reasons.append("decision_immutability_flag_missing_or_false")
+
+    starting_object = _decision_immutability_git(repo_root, "rev-parse", f"{starting_head}^{{commit}}") if starting_head else None
+    if not starting_object or not re.fullmatch(r"[0-9a-fA-F]{40}", starting_object):
+        reasons.append("decision_starting_head_missing_or_invalid")
+    head = _decision_immutability_git(repo_root, "rev-parse", "HEAD")
+    if head and re.fullmatch(r"[0-9a-fA-F]{40}", head):
+        evidence["head"] = head
+    else:
+        reasons.append("decision_starting_head_missing_or_invalid")
+
+    rev_list = (
+        _decision_immutability_git(repo_root, "rev-list", "--reverse", f"{starting_head}..HEAD")
+        if starting_object and evidence["head"]
+        else None
+    )
+    commits = [line.strip() for line in (rev_list or "").splitlines() if line.strip()]
+    evidence["commits"] = commits
+    if rev_list is None:
+        reasons.append("decision_commit_history_query_failed")
+
+    decision_commits: list[str] = []
+    for commit in commits:
+        names = _decision_immutability_git(repo_root, "diff-tree", "--no-commit-id", "--name-only", "-r", commit)
+        if names is None:
+            reasons.append("decision_commit_history_query_failed")
+            continue
+        paths = {_norm_path(line) for line in names.splitlines() if _norm_path(line)}
+        if _LIVE_DECISION_PATH in paths:
+            decision_commits.append(commit)
+    evidence["decision_commits"] = decision_commits
+    if not decision_commits:
+        reasons.append("decision_commit_missing")
+    if len(decision_commits) != 1:
+        reasons.append("decision_commit_count_invalid")
+
+    # Always inspect the earliest Decision commit, even when count is invalid.
+    if decision_commits:
+        activation = decision_commits[0]
+        evidence["decision_commit"] = activation
+        ancestor = _decision_immutability_is_ancestor(repo_root, activation, evidence["head"])
+        evidence["decision_commit_is_ancestor"] = ancestor
+        if not ancestor:
+            reasons.append("decision_commit_not_ancestor")
+        if not commits or commits[0] != activation:
+            reasons.append("decision_commit_not_before_implementation")
+        scope = _decision_immutability_git(repo_root, "diff-tree", "--no-commit-id", "--name-only", "-r", activation)
+        if scope is None:
+            reasons.append("decision_commit_history_query_failed")
+            scope_paths: list[str] = []
+        else:
+            scope_paths = sorted({_norm_path(line) for line in scope.splitlines() if _norm_path(line)})
+        evidence["activation_scope_paths"] = scope_paths
+        if scope_paths != [_LIVE_DECISION_PATH]:
+            reasons.append("decision_activation_scope_invalid")
+        activation_blob = _decision_immutability_git(repo_root, "rev-parse", f"{activation}:{_LIVE_DECISION_PATH}")
+        head_blob = _decision_immutability_git(repo_root, "rev-parse", f"HEAD:{_LIVE_DECISION_PATH}")
+        evidence["activation_blob"] = activation_blob or ""
+        evidence["head_blob"] = head_blob or ""
+        if not activation_blob or not head_blob:
+            reasons.append("decision_blob_missing")
+        elif activation_blob != head_blob:
+            reasons.append("decision_blob_changed_after_activation")
+
+    worktree = _decision_immutability_git(repo_root, "diff", "--name-only", "--", _LIVE_DECISION_PATH)
+    index = _decision_immutability_git(repo_root, "diff", "--cached", "--name-only", "--", _LIVE_DECISION_PATH)
+    status = _decision_immutability_git(repo_root, "status", "--short", "--untracked-files=all", "--", _LIVE_DECISION_PATH)
+    evidence["worktree_paths"] = [line.strip() for line in (worktree or "").splitlines() if line.strip()]
+    evidence["index_paths"] = [line.strip() for line in (index or "").splitlines() if line.strip()]
+    evidence["status_paths"] = [line.strip() for line in (status or "").splitlines() if line.strip()]
+    if worktree is None or index is None or status is None or evidence["worktree_paths"] or evidence["index_paths"] or evidence["status_paths"]:
+        reasons.append("decision_worktree_or_index_dirty")
+    evidence["blocking_reasons"] = list(dict.fromkeys(reasons))
+    evidence["passed"] = not evidence["blocking_reasons"]
+    return evidence
+
+
+def _decision_immutability_check_record(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    reasons = list(evidence.get("blocking_reasons") or [])
+    if not evidence.get("applicable", True) and not reasons:
+        detail = "legacy_decision_immutability_not_required"
+    elif reasons:
+        detail = ";".join(reasons)
+    else:
+        detail = "live Decision history and blob are immutable"
+    return {
+        "name": "decision_content_immutability",
+        "status": "FAIL" if reasons else "PASS",
+        "detail": detail,
+        "evidence": dict(evidence),
+    }
+
+
 def _round_baseline_path(state_dir: Path) -> Path:
     return state_dir / "gates" / ROUND_BASELINE_RESULT_NAME
 
@@ -9528,6 +9676,7 @@ def worktree_publication_readiness(
     contract_block = extract_markdown_json_block(decision_text, "decision_contract")
     if contract_block.get("found") and not contract_block.get("parse_error"):
         decision_contract = {**decision_contract, **contract_block}
+    live_decision = _decision_content_immutability_check(repo_root, decision_contract)
     preflight = _read_json(state_dir / "gates" / "transition_preflight_result.json")
     authority_valid = (
         str(decision.get("status") or "") == "APPROVED"
@@ -9537,6 +9686,7 @@ def worktree_publication_readiness(
         and str(preflight.get("decision_id") or "") == decision_id
         and str(preflight.get("round_id") or "") == round_id
         and not list(preflight.get("blocking_reasons") or [])
+        and bool(live_decision.get("passed"))
     )
     authorized_paths = (
         _worktree_authorized_paths(
@@ -9557,6 +9707,8 @@ def worktree_publication_readiness(
     blocking_reasons: list[str] = []
     if not authority_valid:
         blocking_reasons.append("publication_authority_not_validated")
+    if not live_decision.get("passed"):
+        blocking_reasons.extend(live_decision.get("blocking_reasons") or ["decision_content_immutability_failed"])
     if status_error:
         blocking_reasons.append("publication_worktree_status_invalid")
     if any(
@@ -9578,6 +9730,8 @@ def worktree_publication_readiness(
         "round_id": round_id,
         "authority_source": "approved_decision_and_current_transition_preflight",
         "authority_valid": authority_valid,
+        "checks": [_decision_immutability_check_record(live_decision)],
+        "decision_immutability": live_decision,
         "authorized_paths": list(authorized_paths),
         "raw_git_status_short": raw_status,
         "worktree_classifications": [record.to_mapping() for record in records],
@@ -36334,6 +36488,24 @@ def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, writ
             "checks": [],
             "blocking_reasons": ["transition kernel is not selected by the active Decision"],
         }
+    live_decision = _decision_content_immutability_check(repo_root, contract)
+    live_check = _decision_immutability_check_record(live_decision)
+    if not live_decision.get("passed"):
+        result = {
+            "schema_version": 1,
+            "gate_name": "transition-preflight",
+            "gate_status": "BLOCKED",
+            "decision_id": decision.decision_id,
+            "round_id": decision.round_id,
+            "checks": [live_check],
+            "blocking_reasons": list(live_decision.get("blocking_reasons") or ["decision_content_immutability_failed"]),
+            "decision_immutability": live_decision,
+        }
+        if write_result:
+            path = state_dir / "gates" / TRANSITION_PREFLIGHT_RESULT_NAME
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(result, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+        return result
     branch = _transition_git(repo_root, "branch", "--show-current")
     if not branch:
         branch = os.environ.get("GITHUB_HEAD_REF") or os.environ.get("GITHUB_REF_NAME") or ""
@@ -36378,6 +36550,8 @@ def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, writ
     # evidence. Pass empty envelopes so the execution_evidence_present check
     # cannot pass based on stale local provenance.
     pre_result = validate_transition(authority, envelopes=()).to_dict()
+    pre_result.setdefault("checks", []).append(live_check)
+    pre_result["decision_immutability"] = live_decision
     # Translate PASSED into PRE_EXECUTION_AUTHORIZED for pre mode.
     if pre_result.get("gate_status") == "PASSED":
         pre_result["gate_status"] = "PRE_EXECUTION_AUTHORIZED"
@@ -36432,6 +36606,24 @@ def transition_reconcile(*, state_dir: Path, repo_root: Path | None = None, writ
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps(result, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
         return result
+    live_decision = _decision_content_immutability_check(repo_root, contract)
+    live_check = _decision_immutability_check_record(live_decision)
+    if not live_decision.get("passed"):
+        result = {
+            "schema_version": 1,
+            "gate_name": "transition-reconcile",
+            "gate_status": "BLOCKED",
+            "decision_id": decision.decision_id,
+            "round_id": decision.round_id,
+            "checks": [live_check],
+            "blocking_reasons": list(live_decision.get("blocking_reasons") or ["decision_content_immutability_failed"]),
+            "decision_immutability": live_decision,
+        }
+        if write_result:
+            path = state_dir / "gates" / "reconciliation_result.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(result, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+        return result
     execution_log_path = state_dir / "gates" / EXECUTION_LOG_RESULT_NAME
     envelopes: tuple[ExecutionEnvelope, ...] = ()
     if execution_log_path.exists():
@@ -36480,6 +36672,8 @@ def transition_reconcile(*, state_dir: Path, repo_root: Path | None = None, writ
         runner_managed_artifact_paths=tuple(scope.get("runner_managed_artifact_paths", ())),
     )
     result = validate_transition(authority, envelopes=envelopes, mode="post").to_dict()
+    result.setdefault("checks", []).append(live_check)
+    result["decision_immutability"] = live_decision
     if result.get("gate_name") == "transition-preflight":
         result["gate_name"] = "transition-reconcile"
     if write_result:

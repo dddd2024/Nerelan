@@ -1145,6 +1145,10 @@ class TestActiveMergeIntentV6:
             "972fcbec132fffc089d9e20bec0d4dc7eed2b31b"
         )
 
+    @pytest.mark.skipif(
+        not _requires_active_merge_intent(),
+        reason="engineering Decision does not activate a mainline merge intent",
+    )
     def test_active_binds_exact_pr_not_issue_number(self) -> None:
         """Post-binding: the active intent must carry the real PR number."""
         from reverse_agent.project_state import extract_markdown_json_block
