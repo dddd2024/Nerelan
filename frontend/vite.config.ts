@@ -1,5 +1,6 @@
 /// <reference types="vitest" />
 import { defineConfig } from "vite";
+import { configDefaults } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
@@ -34,6 +35,10 @@ export default defineConfig(({ mode }) => {
       setupFiles: ["./tests/setup.ts"],
       globals: true,
       testTimeout: 15000,
+      // Ordinary Vitest runs own only unit/component suites. Playwright E2E
+      // specs under e2e/ are executed exclusively by the dedicated
+      // `npm run e2e*` commands and the Frontend Playwright workflow.
+      exclude: [...configDefaults.exclude, "**/e2e/**"],
     },
   };
 });

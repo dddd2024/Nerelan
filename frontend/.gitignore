@@ -5,3 +5,5 @@ coverage
 .vite
 tsconfig.tsbuildinfo
 .logs
+test-results
+playwright-report
