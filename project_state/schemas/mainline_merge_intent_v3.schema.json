@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mainline_merge_intent_v3.schema.json",
+  "title": "Mainline Merge Intent V3 - Scope-Aware Trusted Workflow Profile Policy",
+  "description": "Schema version 3: scope-aware pre-merge intent that selects a bounded trusted workflow profile by exact name. The workflow_profile must name a profile in the production-owned TRUSTED_PREMERGE_WORKFLOW_PROFILES mapping and must equal the workflow_profile declared by the accepted-head Decision contract. Every profile is a superset of the generic three-workflow baseline (CI, Decision Preflight, State Gate (pull_request)); browser_r3 additionally requires Frontend Playwright and Model Access on the exact accepted head. State Gate (push) is post-merge landing evidence only and never a pre-merge prerequisite in any profile. Schema versions 1 and 2 keep their frozen historical semantics.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "intent_id",
+    "repository",
+    "source_pr",
+    "locked_base_sha",
+    "allowed_merge_method",
+    "decision_identity",
+    "command_plan_sha256",
+    "merge_tree_policy",
+    "workflow_profile",
+    "required_workflows",
+    "expires_at"
+  ],
+  "properties": {
+    "schema_version": {"const": 3},
+    "intent_id": {"type": "string", "minLength": 1},
+    "repository": {"const": "dddd2024/reverse-agent"},
+    "source_pr": {"type": "integer", "minimum": 1},
+    "locked_base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "allowed_merge_method": {"const": "merge"},
+    "decision_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision_id", "decision_content_sha256"],
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 200,
+          "pattern": "^decision_[A-Za-z0-9][A-Za-z0-9_.-]+$"
+        },
+        "decision_content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "command_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "merge_tree_policy": {"const": "equal_to_accepted_head_tree"},
+    "workflow_profile": {"enum": ["baseline", "browser_r3"]},
+    "required_workflows": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "CI"},
+        {"const": "Decision Preflight"},
+        {"const": "State Gate (pull_request)"}
+      ],
+      "items": {
+        "enum": [
+          "CI",
+          "Decision Preflight",
+          "State Gate (pull_request)",
+          "Frontend Playwright",
+          "Model Access"
+        ]
+      },
+      "minItems": 3,
+      "maxItems": 5,
+      "uniqueItems": true
+    },
+    "expires_at": {"type": "string"}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"workflow_profile": {"const": "baseline"}},
+        "required": ["workflow_profile"]
+      },
+      "then": {
+        "properties": {
+          "required_workflows": {"minItems": 3, "maxItems": 3}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"workflow_profile": {"const": "browser_r3"}},
+        "required": ["workflow_profile"]
+      },
+      "then": {
+        "properties": {
+          "required_workflows": {
+            "minItems": 5,
+            "maxItems": 5,
+            "prefixItems": [
+              {"const": "CI"},
+              {"const": "Decision Preflight"},
+              {"const": "State Gate (pull_request)"},
+              {"const": "Frontend Playwright"},
+              {"const": "Model Access"}
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
