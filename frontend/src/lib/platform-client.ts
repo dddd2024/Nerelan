@@ -729,6 +729,10 @@ mockRuns.push({
   },
 });
 
+export function __setMockRuns(runs: PlatformAgentRun[]) {
+  mockRuns.splice(0, mockRuns.length, ...runs);
+}
+
 export class PlatformClientError extends Error {
   readonly status: number;
   readonly code: string;

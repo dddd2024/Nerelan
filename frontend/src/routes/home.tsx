@@ -1,8 +1,10 @@
 import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { GoalComposer } from "@/components/goal-composer";
+import { GoalCurrentActivity } from "@/components/goal-current-activity";
 import { GoalProgress } from "@/components/goal-progress";
 import { useGoal, useGoals, usePlatformStatus, useStartGoal } from "@/hooks/use-platform";
+import { useRuns } from "@/hooks/use-runs";
 import type { PlatformGoal } from "@/lib/platform-client";
 import { cn } from "@/lib/cn";
 
@@ -17,8 +19,10 @@ function relativeTime(value: string) {
 export function HomePage() {
   const statusQuery = usePlatformStatus();
   const goalsQuery = useGoals();
+  const runsQuery = useRuns();
   const startGoal = useStartGoal();
   const goals = useMemo(() => goalsQuery.data ?? [], [goalsQuery.data]);
+  const runs = useMemo(() => runsQuery.data ?? [], [runsQuery.data]);
   const [selectedId, setSelectedId] = useState<string | undefined>();
 
   useEffect(() => {
@@ -96,7 +100,10 @@ export function HomePage() {
               </button>
             </div>
           ) : detailGoal ? (
-            <GoalProgress goal={detailGoal} />
+            <>
+              <GoalProgress goal={detailGoal} />
+              <GoalCurrentActivity goal={detailGoal} runs={runs} />
+            </>
           ) : !selectedId ? (
             <div className="border-t border-ra-border/70 py-12 text-center text-sm text-ra-text-tertiary">
               第一个目标会在这里显示 Agent 的执行进度。
