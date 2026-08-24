@@ -15,6 +15,20 @@ from pathlib import Path
 import pytest
 
 
+from reverse_agent.platform_v1.contracts import (
+    UNATTENDED_ALLOWED_TIERS,
+    VALID_RISK_TIERS,
+)
+
+
+# A mainline merge-intent Decision is Path-B authority: exactly the risk tiers
+# that production blocks from unattended approval in
+# reverse_agent/platform_v1/contracts.py (complement of UNATTENDED_ALLOWED_TIERS
+# within VALID_RISK_TIERS, currently R2 and R3). R1, unknown or malformed tiers
+# stay fail-closed.
+PATH_B_RISK_TIERS = frozenset(VALID_RISK_TIERS - UNATTENDED_ALLOWED_TIERS)
+
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INTENTS_DIR = REPO_ROOT / "project_state" / "mainline_merge_intents"
 ACTIVE_PATH = INTENTS_DIR / "active.json"
@@ -255,7 +269,11 @@ class TestActiveMergeIntent:
         assert isinstance(contract["required_branch"], str)
         assert isinstance(contract["starting_head"], str)
         assert contract["allowed_merge_method"] == "merge"
-        assert contract["risk_tier"] == "R2"
+        assert contract["risk_tier"] in PATH_B_RISK_TIERS, (
+            f"active mainline Decision risk_tier={contract['risk_tier']!r} must be a "
+            f"production Path-B tier {sorted(PATH_B_RISK_TIERS)}, not an unattended/"
+            f"unknown/malformed tier"
+        )
         assert contract["decision_commit_must_precede_implementation"] is True
         if "active_pr" in contract:
             assert isinstance(contract["active_pr"], int)
@@ -264,6 +282,11 @@ class TestActiveMergeIntent:
             assert isinstance(
                 contract.get("post_publication_binding_commit_limit"), int
             )
+
+    def test_path_b_risk_tier_boundary_matches_production(self) -> None:
+        assert PATH_B_RISK_TIERS == frozenset({"R2", "R3"})
+        for rejected in ("R0", "R1", "r2", "", "R4", "unknown"):
+            assert rejected not in PATH_B_RISK_TIERS
 
     def test_decision_id_format_matches_production(self) -> None:
         meta = _parse_decision_meta()
