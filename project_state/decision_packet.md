@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260824_issue325_landing_candidate_r2_v8",
-  "round_id": "round_20260824_issue325_landing_candidate_r2_v8",
+  "decision_id": "decision_20260824_issue334_visual_playwright_r3_v1",
+  "round_id": "round_20260824_issue334_visual_playwright_r3_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,69 +14,113 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260824_issue325_landing_candidate_r2_v7",
-  "follows_last_round_id": "round_20260824_issue325_landing_candidate_r2_v7",
-  "previous_audit_outcome": "ISSUE325_R2_V7_BLOCKED_DURABLE_TRUSTED_IDENTITY_TEST_FIXTURE",
-  "workstream_id": "issue325-landing-candidate-r2-v8",
-  "source_issue": 325,
-  "accepted_source_pr": 337,
-  "accepted_source_head_sha": "b430e0d026ff84e40b0d60c804bfe57b1ce34ca4",
-  "accepted_source_base_sha": "122f91ff451929f34cd71e918d88f1512d020d1d",
+  "follows_last_decision_id": "decision_20260824_issue325_landing_candidate_r2_v8",
+  "follows_last_round_id": "round_20260824_issue325_landing_candidate_r2_v8",
+  "previous_audit_outcome": "PR340_ACCEPTED_EXACT_HEAD_96e7305b801a3f63847f6e9733d1855dd9923c38",
+  "workstream_id": "issue334-visual-playwright-r3-v1",
+  "source_issue": 334,
+  "accepted_source_pr": 340,
+  "accepted_source_head_sha": "96e7305b801a3f63847f6e9733d1855dd9923c38",
+  "accepted_source_base_sha": "dbf714c228ca470a19bdf971d1f38ad237cba0c5",
+  "accepted_source_audit_comment_id": 5392278514,
   "integration_base_ref": "main",
-  "base_sha": "122f91ff451929f34cd71e918d88f1512d020d1d",
-  "activation_base_sha": "122f91ff451929f34cd71e918d88f1512d020d1d",
-  "starting_head": "122f91ff451929f34cd71e918d88f1512d020d1d",
-  "required_branch": "owner/issue325-decision-immutability-landing-r2-v8",
-  "risk_tier": "R2",
-  "governance_artifact_risk_tier": "R2",
+  "base_sha": "dbf714c228ca470a19bdf971d1f38ad237cba0c5",
+  "activation_base_sha": "dbf714c228ca470a19bdf971d1f38ad237cba0c5",
+  "starting_head": "dbf714c228ca470a19bdf971d1f38ad237cba0c5",
+  "required_branch": "owner/issue334-visual-playwright-r3-v1",
+  "risk_tier": "R3",
+  "governance_artifact_risk_tier": "R3",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
   "decision_immutability_required": true,
   "decision_immutability_check_required_in": ["transition_preflight", "transition_reconcile", "worktree_publication_readiness"],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 1,
+  "product_change_commit_limit": 3,
   "product_replay_commit_limit": 1,
   "generated_governance_commit_limit": 1,
   "post_publication_binding_commit_limit": 1,
-  "normal_push_attempt_limit": 2,
+  "normal_push_attempt_limit": 3,
   "draft_pr_creation_limit": 1,
-  "mark_ready_attempt_limit": 0,
-  "merge_attempt_limit": 0,
+  "dependency_install_limit": 1,
+  "browser_install_limit": 1,
+  "browser_execution_limit": 12,
+  "docker_image_pull_limit": 1,
+  "docker_execution_limit": 3,
+  "snapshot_update_limit": 1,
   "workflow_rerun_limit": 0,
-  "dependency_install_limit": 0,
+  "runner_dispatch_limit": 0,
   "live_model_call_limit": 0,
   "provider_network_call_limit": 0,
-  "runner_dispatch_limit": 0,
-  "tag_or_release_limit": 0,
-  "deployment_limit": 0,
+  "credential_access_limit": 0,
+  "mark_ready_attempt_limit": 0,
+  "merge_attempt_limit": 0,
   "pr_creation_allowed": true,
   "issue_comment_allowed": false,
+  "pull_request_comment_allowed": false,
   "merge_allowed": false,
   "mark_ready_allowed": false,
   "workflow_rerun_allowed": false,
+  "runner_dispatch_allowed": false,
   "direct_push_to_main_allowed": false,
   "auto_merge_allowed": false,
   "force_push_allowed": false,
   "rebase_during_execution_allowed": false,
-  "dependency_install_allowed": false,
+  "dependency_install_allowed": true,
+  "known_browser_execution_allowed": true,
   "live_provider_access_allowed": false,
+  "credential_access_allowed": false,
   "allowed_merge_method": "merge",
   "mainline_merge_intent_required": true,
   "active_pr_binding_mode": "post_draft_pr_exact_remote_number",
   "issue_number_must_not_substitute_for_pr_number": true,
+  "browser_lock": {
+    "package": "@playwright/test",
+    "package_version": "1.62.1",
+    "browser_family": "chromium",
+    "browser_channel": "chromium",
+    "browser_title": "Chrome for Testing",
+    "browser_version": "151.0.7922.34",
+    "browser_revision": "1234",
+    "runner_os": "ubuntu-24.04",
+    "node_version": "22.23.1",
+    "install_command_local": "npx playwright install --no-shell chromium",
+    "install_command_ci": "npx playwright install --with-deps --no-shell chromium",
+    "official_container_candidate": "mcr.microsoft.com/playwright:v1.62.1-noble",
+    "desktop_viewport": {"width": 1440, "height": 900},
+    "mobile_viewport": {"width": 390, "height": 844},
+    "workers": 1,
+    "fully_parallel": false,
+    "retries": 0,
+    "trace": "retain-on-failure",
+    "screenshot": "only-on-failure",
+    "video": "off",
+    "base_url": "http://127.0.0.1:4173",
+    "web_server_command": "npm run dev:mock -- --host 127.0.0.1 --port 4173 --strictPort",
+    "runtime_network_policy": "loopback_data_blob_only",
+    "snapshot_update_in_ci": false
+  },
   "accepted_source_replay": {
-    "source_ref": "b430e0d026ff84e40b0d60c804bfe57b1ce34ca4",
+    "source_ref": "96e7305b801a3f63847f6e9733d1855dd9923c38",
+    "source_frontend_tree": "d8db9c4a486f1add6aedbcc30ad2d6eebf6b73f0",
     "blob_equal_paths": [
-      ".github/workflows/ci.yml",
-      "reverse_agent/project_gate.py",
-      "tests/platform_v1/test_contracts.py",
-      "tests/test_ci_responsibility.py",
-      "tests/test_control_plane_transition.py",
-      "tests/test_project_gate.py"
+      "frontend/index.html",
+      "frontend/src/components/app-shell.tsx",
+      "frontend/src/components/goal-progress.tsx",
+      "frontend/src/components/sidebar.tsx",
+      "frontend/src/components/theme-selector.tsx",
+      "frontend/src/entry.client.tsx",
+      "frontend/src/index.css",
+      "frontend/src/lib/theme.ts",
+      "frontend/src/routes/home.tsx",
+      "frontend/src/routes/settings.tsx",
+      "frontend/tests/accessibility.test.tsx",
+      "frontend/tests/platform-home.test.tsx",
+      "frontend/tests/responsive.test.tsx",
+      "frontend/tests/theme.test.tsx"
     ],
-    "exclude_v4_decision_and_gates": true,
     "dirty_worktree_import_allowed": false,
-    "cherry_pick_allowed": false
+    "cherry_pick_allowed": false,
+    "bounded_visual_qa_repairs_after_replay_allowed": true
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
@@ -87,8 +131,8 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
-    "verify exact base branch merge-base and no remote collision",
-    "commit this immutable Decision as the unique first commit",
+    "verify exact main base branch merge-base PR340 accepted source and no remote branch collision",
+    "commit this immutable R3 Decision as the unique first commit",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
@@ -96,13 +140,13 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "issue325_v8.bootstrap",
+      "command_id": "issue334_r3.bootstrap",
       "command": "verify locked base and fresh branch; commit Decision first; generate five gates and require PRE_EXECUTION_AUTHORIZED",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["repository_observation", "run_checks", "generate_governance_artifact", "commit"],
+      "operations": ["code_read", "local_static_check", "commit"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence",
       "produced_artifacts": [
@@ -114,93 +158,183 @@
       ]
     },
     {
-      "command_id": "issue325_v8.replay",
-      "command": "with apply_patch replay the six accepted PR337 implementation paths with committed blob equality and fix only the trusted-host production-relay test fixture to pass resolved authority/planning SHAs; create one implementation commit",
+      "command_id": "issue334_r3.visual_replay",
+      "command": "use apply_patch to replay the fourteen accepted PR340 visual paths with blob equality before any bounded visual QA repair",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["bounded_source_mutation", "bounded_test_mutation", "bounded_workflow_mutation", "stage_authorized_paths", "commit"],
+      "operations": ["source_edit", "unit_test", "local_static_check", "commit"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence",
       "allowed_mutated_paths": [
-        ".github/workflows/ci.yml",
-        "reverse_agent/project_gate.py",
-        "tests/platform_v1/test_contracts.py",
-        "tests/test_ci_responsibility.py",
-        "tests/test_control_plane_transition.py",
-        "tests/test_project_gate.py",
-        "tests/platform_v1/test_task3c_v6_production_relay.py"
+        "frontend/index.html",
+        "frontend/src/components/app-shell.tsx",
+        "frontend/src/components/goal-progress.tsx",
+        "frontend/src/components/sidebar.tsx",
+        "frontend/src/components/theme-selector.tsx",
+        "frontend/src/entry.client.tsx",
+        "frontend/src/index.css",
+        "frontend/src/lib/theme.ts",
+        "frontend/src/routes/home.tsx",
+        "frontend/src/routes/settings.tsx",
+        "frontend/tests/accessibility.test.tsx",
+        "frontend/tests/platform-home.test.tsx",
+        "frontend/tests/responsive.test.tsx",
+        "frontend/tests/theme.test.tsx"
       ]
     },
     {
-      "command_id": "issue325_v8.validate_and_publish",
-      "command": "run focused and blocking tests plus blob equality and transition gates; commit one generated-gate commit; push once and create one Draft PR",
+      "command_id": "issue334_r3.playwright_implementation_and_qa",
+      "command": "install exact Playwright dependency and official Chromium; implement provider-free journeys and eight fixed snapshots; run bounded local and Ubuntu-matched visual QA only against loopback",
+      "phase": "implementation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["source_edit", "unit_test", "workflow_change", "dependency_change", "network_access", "execute_binary", "local_static_check", "commit"],
+      "network_access": true,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": [
+        ".github/workflows/frontend-playwright.yml",
+        "tests/test_ci_responsibility.py",
+        "frontend/.gitignore",
+        "frontend/package.json",
+        "frontend/package-lock.json",
+        "frontend/playwright.config.ts",
+        "frontend/design-qa.md",
+        "frontend/index.html",
+        "frontend/src/components/app-shell.tsx",
+        "frontend/src/components/goal-progress.tsx",
+        "frontend/src/components/sidebar.tsx",
+        "frontend/src/components/theme-selector.tsx",
+        "frontend/src/entry.client.tsx",
+        "frontend/src/index.css",
+        "frontend/src/lib/theme.ts",
+        "frontend/src/routes/home.tsx",
+        "frontend/src/routes/settings.tsx",
+        "frontend/tests/accessibility.test.tsx",
+        "frontend/tests/platform-home.test.tsx",
+        "frontend/tests/responsive.test.tsx",
+        "frontend/tests/theme.test.tsx",
+        "frontend/e2e/fixtures.ts",
+        "frontend/e2e/home.spec.ts",
+        "frontend/e2e/theme.spec.ts",
+        "frontend/e2e/navigation.spec.ts",
+        "frontend/e2e/goal.spec.ts",
+        "frontend/e2e/runs.spec.ts",
+        "frontend/e2e/states.spec.ts",
+        "frontend/e2e/errors.spec.ts",
+        "frontend/e2e/visual.spec.ts",
+        "frontend/e2e/snapshots/desktop-chromium/home-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
+        "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
+        "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/settings-dark.png"
+      ]
+    },
+    {
+      "command_id": "issue334_r3.validate_and_publish",
+      "command": "run deterministic frontend and Playwright checks plus Product Design same-viewport comparison; commit generated gates and implementation; push exact branch and create one Draft PR",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["run_checks", "diff_validation", "generate_governance_artifact", "commit", "push", "pull_request_create", "repository_observation", "network_access"],
+      "operations": ["unit_test", "lint", "local_static_check", "commit", "push", "draft_pr", "network_access"],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue325_v8.bind_intent",
-      "command": "after the real PR number is known archive current active intent byte-identically as archive/pr331_v2.json; bind active.json schema v2 to the exact new PR base Decision and Command Plan; create one binding commit",
+      "command_id": "issue334_r3.bind_intent",
+      "command": "after the real Draft PR number is known archive current active intent byte-identically as archive/pr338_v1.json and bind active.json schema v2 to the exact new PR base Decision and Command Plan",
       "phase": "binding",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["bounded_governance_mutation", "stage_authorized_paths", "commit"],
+      "operations": ["source_edit", "local_static_check", "commit"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence",
       "allowed_mutated_paths": [
         "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr331_v2.json"
+        "project_state/mainline_merge_intents/archive/pr338_v1.json"
       ]
     },
     {
-      "command_id": "issue325_v8.final_push_and_audit",
-      "command": "rerun required validation; push the binding commit once; require exact-head CI State Gate and Decision Preflight SUCCESS; keep Draft and stop after independent exact-head ACCEPT",
+      "command_id": "issue334_r3.final_push_and_audit",
+      "command": "push the final intent binding and require exact-head CI Decision Preflight State Gate Frontend Playwright and independent audit while the PR remains Draft",
       "phase": "audit",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["run_checks", "diff_validation", "push", "repository_observation", "network_access", "independent_audit"],
+      "operations": ["local_static_check", "push", "network_access", "read_only_audit"],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation"
     }
   ],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
-    ".github/workflows/ci.yml",
-    "reverse_agent/project_gate.py",
-    "tests/platform_v1/test_contracts.py",
-    "tests/test_ci_responsibility.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_project_gate.py",
-    "tests/platform_v1/test_task3c_v6_production_relay.py",
-    "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr331_v2.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr338_v1.json",
+    ".github/workflows/frontend-playwright.yml",
+    "tests/test_ci_responsibility.py",
+    "frontend/.gitignore",
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/playwright.config.ts",
+    "frontend/design-qa.md",
+    "frontend/index.html",
+    "frontend/src/components/app-shell.tsx",
+    "frontend/src/components/goal-progress.tsx",
+    "frontend/src/components/sidebar.tsx",
+    "frontend/src/components/theme-selector.tsx",
+    "frontend/src/entry.client.tsx",
+    "frontend/src/index.css",
+    "frontend/src/lib/theme.ts",
+    "frontend/src/routes/home.tsx",
+    "frontend/src/routes/settings.tsx",
+    "frontend/tests/accessibility.test.tsx",
+    "frontend/tests/platform-home.test.tsx",
+    "frontend/tests/responsive.test.tsx",
+    "frontend/tests/theme.test.tsx",
+    "frontend/e2e/fixtures.ts",
+    "frontend/e2e/home.spec.ts",
+    "frontend/e2e/theme.spec.ts",
+    "frontend/e2e/navigation.spec.ts",
+    "frontend/e2e/goal.spec.ts",
+    "frontend/e2e/runs.spec.ts",
+    "frontend/e2e/states.spec.ts",
+    "frontend/e2e/errors.spec.ts",
+    "frontend/e2e/visual.spec.ts",
+    "frontend/e2e/snapshots/desktop-chromium/home-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
+    "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
+    "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/settings-dark.png"
   ],
   "reference_paths": [
     "AGENTS.md",
+    "reverse_agent/project_gate.py",
     "reverse_agent/mainline_landing.py",
     "reverse_agent/github_remote_verifier.py",
-    "project_state/schemas/mainline_merge_intent_v2.schema.json",
-    "project_state/schemas/merge_approval_attestation_v2.schema.json",
+    "project_state/schemas/**",
+    ".github/workflows/ci.yml",
     ".github/workflows/state-gate.yml",
     ".github/workflows/decision-preflight.yml",
-    "tests/test_mainline_landing.py",
-    "tests/platform_v1/test_merge_intent.py",
-    "tests/test_path_a_gate.py",
-    "tests/test_planning_and_github_adapters.py"
+    "frontend/vite.config.ts",
+    "frontend/src/lib/platform-client.ts",
+    "frontend/src/lib/run-client.ts",
+    "frontend/src/fixtures/**"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -210,17 +344,31 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "forbidden_mutated_paths": [
-    "frontend/**", "docs/**", "requirements*.txt", "pyproject.toml", "AGENTS.md",
-    "reverse_agent/control_plane/**", "reverse_agent/mainline_landing.py", "reverse_agent/github_remote_verifier.py", "reverse_agent/platform_v1/**",
-    ".github/workflows/state-gate.yml", ".github/workflows/decision-preflight.yml", ".github/workflows/model-access.yml", ".github/workflows/freshness.yml",
-    "project_state/schemas/**", "project_state/mainline_recoveries/**", "project_state/rounds/**", "project_state/audits/**",
-    "project_state/current_state.json", "project_state/state_manifest.json", "project_state/artifact_index.json"
+    "AGENTS.md",
+    "reverse_agent/**",
+    "docs/**",
+    "requirements*.txt",
+    "pyproject.toml",
+    ".github/workflows/ci.yml",
+    ".github/workflows/state-gate.yml",
+    ".github/workflows/decision-preflight.yml",
+    ".github/workflows/model-access.yml",
+    "frontend/vite.config.ts",
+    "frontend/src/lib/platform-client.ts",
+    "frontend/src/lib/run-client.ts",
+    "frontend/src/fixtures/**",
+    "project_state/schemas/**",
+    "project_state/mainline_recoveries/**",
+    "project_state/current_state.json",
+    "project_state/state_manifest.json",
+    "project_state/artifact_index.json"
   ],
   "forbidden_operations": [
     "direct_push_main", "auto_merge", "merge", "mark_ready", "force_push", "rebase", "squash", "reset", "clean", "stash", "restore", "amend", "history_rewrite",
-    "dependency_install", "live_model_call", "model_api_invocation", "provider_network_call", "credential_access", "auth_store_read", "runner_dispatch", "workflow_rerun",
-    "tag_or_release", "deployment", "issue_comment", "issue_close", "pull_request_comment", "pull_request_close", "browser", "playwright", "offensive_security",
-    "cherry_pick_pr337", "import_pr337_history", "import_pr337_dirty_worktree", "modify_pr337", "second_decision_commit"
+    "unknown_binary_execution", "secrets", "destructive_delete", "privileged_remote_execution", "model_api_invocation", "provider_network_call", "credential_access", "auth_store_read",
+    "runner_dispatch", "workflow_rerun", "tag_or_release", "deployment", "issue_comment", "issue_close", "pull_request_comment", "pull_request_close",
+    "snapshot_update_in_ci", "arbitrary_remote_browsing", "external_url_navigation", "offensive_security_or_network_attack_work",
+    "cherry_pick_pr340", "import_pr340_history", "import_dirty_worktree", "modify_pr340", "second_decision_commit"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -231,7 +379,8 @@
     "external_reverse_tool_invocation_allowed": false,
     "unknown_binary_execution_allowed": false,
     "destructive_operations_allowed": false,
-    "dependency_install_allowed": false,
+    "dependency_install_allowed": true,
+    "known_binary_execution_allowed": true,
     "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
     "merge_allowed": false,
@@ -249,48 +398,58 @@
     "publication_allowed": true,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
-      "two normal fast-forward pushes to the exact named branch",
-      "one Draft PR creation against locked main",
-      "read-only exact-head workflow and audit observation"
+      "install exact Playwright dependency and official Chromium; implement provider-free journeys and eight fixed snapshots; run bounded local and Ubuntu-matched visual QA only against loopback",
+      "run deterministic frontend and Playwright checks plus Product Design same-viewport comparison; commit generated gates and implementation; push exact branch and create one Draft PR",
+      "push the final intent binding and require exact-head CI Decision Preflight State Gate Frontend Playwright and independent audit while the PR remains Draft"
     ],
     "ci_network_exceptions": []
   },
   "path_risk_floor": [
     {"pattern": ".github/workflows/**", "minimum_risk": "R2"},
+    {"pattern": "frontend/package*.json", "minimum_risk": "R2"},
     {"pattern": "project_state/mainline_merge_intents/**", "minimum_risk": "R2"},
     {"pattern": "project_state/gates/**", "minimum_risk": "R2"},
+    {"pattern": "frontend/e2e/snapshots/**", "minimum_risk": "R3"},
     {"pattern": "**/secrets/**", "minimum_risk": "R3"}
   ],
   "authorized_risk_paths": [
-    ".github/workflows/ci.yml",
+    ".github/workflows/frontend-playwright.yml",
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/e2e/snapshots/**",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr331_v2.json",
+    "project_state/mainline_merge_intents/archive/pr338_v1.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json"
   ],
-  "authorized_risk_tier": "R2",
-  "success_terminal": "ISSUE325_V8_BOUND_DRAFT_ACCEPTED_FOR_SEPARATE_LANDING_DECISION",
-  "blocked_terminal": "ISSUE325_V8_BLOCKED_WITH_EXACT_EVIDENCE"
+  "authorized_risk_tier": "R3",
+  "success_terminal": "ISSUE334_R3_VISUAL_AND_OFFICIAL_CHROMIUM_DRAFT_ACCEPTED_FOR_SEPARATE_LANDING_DECISION",
+  "blocked_terminal": "ISSUE334_R3_BLOCKED_WITH_EXACT_EVIDENCE"
 }
 ```
 
 ## Goal
 
-Replay the accepted PR #337 implementation onto locked current main, bind the resulting Draft PR to a schema-v2 active merge intent, pass exact-head checks and independent audit, then stop for a separate landing Decision.
+Replay the exact accepted PR #340 visual foundation onto locked current main, add the smallest official Playwright Test layer with the Owner-selected bundled Chromium, prove provider-free functional journeys and fixed light/dark visual baselines at both viewports, bind the resulting Draft PR to a schema-v2 merge intent, and stop for a separate landing Decision.
 
 ## Acceptance
 
-1. Decision is the unique immutable first commit from locked main.
-2. One implementation commit keeps six replay blobs equal to accepted PR337 and fixes only the production-relay trusted-identity test fixture.
-3. One generated-gate commit and one two-path intent-binding commit occur.
-4. Two pushes and one Draft PR occur; final exact-head CI, State Gate, Decision Preflight and independent audit pass.
-5. No merge, ready, comment, rerun, browser, dependency/model/provider/credential action or mutation of PR337 occurs.
+1. This Decision is the unique immutable first commit from `main@dbf714c228ca470a19bdf971d1f38ad237cba0c5`; all later implementation descends from it.
+2. The fourteen visual replay blobs initially equal accepted PR #340. Later visual adjustments stay in those paths, follow same-viewport Product Design comparison, and receive independent review.
+3. Only `@playwright/test@1.62.1` and bundled full Chromium revision `1234` / Chrome for Testing `151.0.7922.34` may run. Ubuntu 24.04, Node 22.23.1, zero retries and one worker are fixed.
+4. Browser traffic is confined to `127.0.0.1:4173`, `data:` and `blob:`. No model, provider, credential, arbitrary URL, offensive-security or network-attack action occurs.
+5. Home, theme, six-route navigation, provider-free Goal submission, Agent Run details, available states/errors and eight Home/Settings light/dark snapshots pass. Missing product capabilities are documented and never faked.
+6. Existing frontend checks remain green. CI adds one Ubuntu 24.04 Playwright workflow, never updates snapshots, and uploads only bounded failure artifacts.
+7. `frontend/design-qa.md` records reference, current-run screenshots, identical viewports, mismatch fixes and `PASSED` only after comparison succeeds.
+8. One Draft PR is created and intent-bound; exact-head checks and independent audit accept; it remains Draft for a separate landing Decision.
 
 ## Execution policy
 
-- Use `apply_patch`; do not cherry-pick or import dirty v4/v5/v6/v7 worktrees.
-- Stage only exact allowed paths. Never reset, clean, stash, restore, amend, rebase or force push.
-- Keep the new PR Draft. Attestation and merge require a separate immutable landing Decision.
+- Use `apply_patch`; never cherry-pick or consume the dirty root worktree.
+- Stage only exact allowed paths. Never reset, clean, stash, restore, amend, rebase, squash or force push.
+- Downloads are exact and bounded to npm, Microsoft Playwright CDN, and the optional exact Microsoft Playwright Noble image. Browser runtime remains loopback-only.
+- Snapshot update occurs exactly once in the fixed Ubuntu-matched environment and never in CI. Product Design QA compares current-run screenshots with the selected reference at the same viewport.
+- Keep the PR Draft. Comment, attestation, ready and merge require a separate immutable landing Decision.
