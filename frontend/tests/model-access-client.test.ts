@@ -6,6 +6,7 @@ import {
 import {
   ConnectionInputSchema,
   BindingInputSchema,
+  connectionVerificationCapability,
 } from "@/schemas/model-access";
 
 const DUMMY_KEY = "test-secret-should-not-appear";
@@ -248,6 +249,96 @@ describe("connection probe client contract", () => {
     expect(result.latencyMs).toBe(null);
   });
 
+  it("mock no-auth connection is probeable without a secret", async () => {
+    const client = createMockModelControlClient([]);
+    const saved = await client.upsertConnection({
+      connectionId: "no-auth-conn",
+      name: "No Auth",
+      provider: "openai-compatible",
+      baseUrl: "https://api.example.com/v1",
+      authMethod: "none",
+      enabled: true,
+    });
+
+    expect(saved.secretStatus).toBe("not_applicable");
+    expect(saved.externalSessionStatus).toBe("not_applicable");
+    expect(connectionVerificationCapability(saved)).toBe("supported");
+
+    const result = await client.testConnection(saved.connectionId);
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe("connected");
+  });
+
+  it.each(["account_login", "external_cli_session"] as const)(
+    "mock %s connection is executor-managed and never fabricates probe success",
+    async (authMethod) => {
+      const client = createMockModelControlClient([]);
+      const saved = await client.upsertConnection({
+        connectionId: `${authMethod.replaceAll("_", "-")}-conn`,
+        name: authMethod,
+        provider: "custom.provider",
+        baseUrl: "https://api.example.com/v1",
+        authMethod,
+        enabled: true,
+      });
+
+      expect(saved.secretStatus).toBe("not_applicable");
+      expect(saved.externalSessionStatus).toBe("executor_managed");
+      expect(connectionVerificationCapability(saved)).toBe("executor_managed");
+
+      const result = await client.testConnection(saved.connectionId);
+      expect(result.ok).toBe(false);
+      expect(result.status).toBe("unsupported_auth_method");
+    },
+  );
+
+  it("typed capability distinguishes missing credential and disabled state", async () => {
+    const client = createMockModelControlClient([]);
+    const missing = await client.upsertConnection({
+      connectionId: "missing-capability",
+      name: "Missing",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+    });
+    const disabled = await client.upsertConnection({
+      connectionId: "disabled-capability",
+      name: "Disabled",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "none",
+      enabled: false,
+    });
+
+    expect(connectionVerificationCapability(missing)).toBe("credential_missing");
+    expect(connectionVerificationCapability(disabled)).toBe("connection_disabled");
+  });
+
+  it("switching mock connection away from api_key removes public secret applicability", async () => {
+    const client = createMockModelControlClient([]);
+    await client.upsertConnection({
+      connectionId: "switch-auth",
+      name: "Switch Auth",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      apiKey: DUMMY_KEY,
+    });
+    const saved = await client.upsertConnection({
+      connectionId: "switch-auth",
+      name: "Switch Auth",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "none",
+      enabled: true,
+    });
+
+    expect(saved.secretStatus).toBe("not_applicable");
+    expect(JSON.stringify(saved)).not.toContain(DUMMY_KEY);
+  });
+
   it("mock testConnection not found throws", async () => {
     const client = createMockModelControlClient([]);
     await expect(client.testConnection("nonexistent")).rejects.toThrow();
@@ -290,6 +381,8 @@ describe("connection probe client contract", () => {
       expect(parsed).not.toHaveProperty("provider");
       expect(parsed).not.toHaveProperty("auth_method");
       expect(parsed).not.toHaveProperty("authMethod");
+      expect(parsed).not.toHaveProperty("model_id");
+      expect(parsed).not.toHaveProperty("modelId");
     } finally {
       vi.unstubAllGlobals();
     }
