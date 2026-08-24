@@ -18,15 +18,17 @@ The unlayered global margin: 0/padding: 0 reset overrode Tailwind utility classe
 
 Linux snapshot update: 8 passed. Full Playwright: 24 passed, 2 viewport-specific skipped.
 
-Snapshot paths and SHA256:
+Issue #343 bounded re-capture (single permitted snapshot update): the replayed PR #341 snapshots were captured against the index.css without the unlayered global margin/padding reset, while locked current main `af0bfdb62d96e00b5f89660390950f3b7f096026` still carries that reset. Because this round freezes `frontend/src/**`, the eight baselines were re-captured exactly once in the same official container image against locked main rendering; no CI snapshot update occurred. Container re-capture: 8 regenerated, full Playwright 24 passed, 2 viewport-specific skipped.
 
-- frontend/e2e/snapshots/desktop-chromium/home-light.png — F61FB04854997C75E67C67E95DFF4A38C177BFF88797884C2AA93838392DC0EE
-- frontend/e2e/snapshots/desktop-chromium/home-dark.png — F895994C267C1003A118DEA849669614741938A63AE96D90D1A5166D9B0B127B
-- frontend/e2e/snapshots/desktop-chromium/settings-light.png — 8B4DA2CDB0134DAD690D97CC70B17B62C5E049521AFFFB8332B5C1F634F930BD
-- frontend/e2e/snapshots/desktop-chromium/settings-dark.png — 79487EEA78D89DC8DB692F236362088119EE7862A941731EDB9DA2131D364C08
-- frontend/e2e/snapshots/mobile-chromium/home-light.png — A9F5D3FDDCBAA8FB77C8680ACD46DDC97E87BB1F7D46875E44F2AD20FAA5D4BB
-- frontend/e2e/snapshots/mobile-chromium/home-dark.png — 78A462CBD8E13793BADC168ABDEFA9AC828D59377DAA544A471DFE83C7379CE5
-- frontend/e2e/snapshots/mobile-chromium/settings-light.png — B6E7F5CE75106F0DF1775F8279810CD055CB34A8C792E63D9770E9C33204DF80
-- frontend/e2e/snapshots/mobile-chromium/settings-dark.png — 78700EB3E8C6B4A7904576ACEB21DDAF2598A2EFCF352E67A191CCBA57146E1F
+Snapshot paths and SHA256 (bounded re-capture on locked main):
+
+- frontend/e2e/snapshots/desktop-chromium/home-light.png — AA4EB97D531B1720A58C06BC5DD273E8CAFFFA6A78871B5ABAB53B9B26D8528E
+- frontend/e2e/snapshots/desktop-chromium/home-dark.png — 7827EF305C15F21067AF8CAEADC17F69A3F5263E9BF61036D2816570285DBA5D
+- frontend/e2e/snapshots/desktop-chromium/settings-light.png — D262BB23EBFDD39480F9EB55E6A474D0DBADAB47F737A81539DA3CAEA977D139
+- frontend/e2e/snapshots/desktop-chromium/settings-dark.png — DB7F60B4407B603DAE78F90A10BBE793F1E0C87923F8316A6558C7A0A220B7E8
+- frontend/e2e/snapshots/mobile-chromium/home-light.png — 76727CE5B96020D354E523135B801102FCCFC0978B5719CB80375C8E1F7BD7B6
+- frontend/e2e/snapshots/mobile-chromium/home-dark.png — 0AC46E9176E0018CC5D121AC093FC87FA358C6801518B2569603C4BDA6D04200
+- frontend/e2e/snapshots/mobile-chromium/settings-light.png — CA0EB68807BC184CB6471B0F7A6E289A70910E0155D73AFD506A4A15D8C8FF42
+- frontend/e2e/snapshots/mobile-chromium/settings-dark.png — 395C49F15DAAB3DD192D7CBEE2924504CDAEC016FBDBB07D3F051EE73A52FC1B
 
 The implementation retains the current product Home/Settings information architecture and does not fabricate unavailable capabilities or states.
