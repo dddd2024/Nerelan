@@ -479,7 +479,8 @@ describe("Connection verify button state", () => {
 
     await user.click(await screen.findByTestId("connection-item-coding-connection"));
 
-    await user.selectOptions(screen.getByLabelText("Provider"), "openai-compatible");
+    await user.clear(screen.getByLabelText("Provider"));
+    await user.type(screen.getByLabelText("Provider"), "openai-compatible");
 
     const verifyBtn = screen.getByTestId("test-connection-button");
     expect(verifyBtn).toBeDisabled();
@@ -746,4 +747,383 @@ describe("Connection verify button state", () => {
     expect(screen.queryByTestId("connection-probe-result")).not.toBeInTheDocument();
     expect(screen.getByTestId("test-connection-button")).toBeDisabled();
   });
+
+  it("a successful save invalidates the previous probe result", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(<SettingsPage />);
+
+    await user.click(await screen.findByTestId("connection-item-coding-connection"));
+
+    await user.click(screen.getByTestId("test-connection-button"));
+    expect(
+      await screen.findByTestId("connection-probe-result"),
+    ).toHaveTextContent(/验证成功/);
+
+    await user.clear(screen.getByLabelText("连接名称"));
+    await user.type(screen.getByLabelText("连接名称"), "Updated After Probe");
+    expect(screen.queryByTestId("connection-probe-result")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "保存连接" }));
+    expect(await screen.findByText("连接已保存")).toBeInTheDocument();
+
+    expect(screen.queryByTestId("connection-probe-result")).not.toBeInTheDocument();
+    expect(screen.getByTestId("test-connection-button")).toBeEnabled();
+  });
+});
+
+describe("auth-method-aware Connection verification UI", () => {
+  const executors = [{
+    executorId: "opencode",
+    name: "OpenCode",
+    operational: true,
+    capabilities: [],
+  }];
+
+  function renderConnection(
+    connection: Connection,
+    options: {
+      onConnectionSave?: (input: ConnectionInput) => Promise<void>;
+      connectionProbeResult?: {
+        ok: boolean;
+        status: string;
+        message: string;
+        latencyMs: number | null;
+      } | null;
+    } = {},
+  ) {
+    renderWithProviders(
+      <ConnectionBindingEditor
+        view="connection"
+        connection={connection}
+        binding={null}
+        creating={false}
+        connections={[connection]}
+        executors={executors}
+        busy={false}
+        onConnectionSave={options.onConnectionSave ?? (async () => undefined)}
+        onBindingSave={async () => undefined}
+        onConnectionDelete={async () => undefined}
+        onBindingDelete={async () => undefined}
+        onConnectionTest={async () => undefined}
+        connectionProbeResult={options.connectionProbeResult ?? null}
+        connectionProbePending={false}
+      />,
+    );
+  }
+
+  it.each(["account_login", "external_cli_session"] as const)(
+    "renders saved %s truthfully and disables generic verification before click",
+    (authMethod) => {
+      const connection: Connection = {
+        connectionId: `${authMethod.replaceAll("_", "-")}-ui`,
+        name: authMethod,
+        provider: "openai-compatible",
+        baseUrl: "https://api.example.com/v1",
+        authMethod,
+        enabled: true,
+        secretStatus: "not_applicable",
+        externalSessionStatus: "executor_managed",
+      };
+
+      renderConnection(connection);
+
+      expect(screen.getByLabelText("认证方式")).toHaveValue(authMethod);
+      expect(screen.queryByLabelText("API Key")).not.toBeInTheDocument();
+      expect(screen.getByTestId("test-connection-button")).toBeDisabled();
+      expect(
+        screen.getByTestId("connection-verification-capability"),
+      ).toHaveTextContent(/认证由 OpenCode \/ 外部会话管理/);
+    },
+  );
+
+  it("keeps saved no-auth Connection independently probeable without an API Key field", () => {
+    const connection: Connection = {
+      connectionId: "none-ui",
+      name: "No Auth",
+      provider: "openai-compatible",
+      baseUrl: "https://api.example.com/v1",
+      authMethod: "none",
+      enabled: true,
+      secretStatus: "not_applicable",
+      externalSessionStatus: "not_applicable",
+    };
+
+    renderConnection(connection);
+
+    expect(screen.getByLabelText("认证方式")).toHaveValue("none");
+    expect(screen.queryByLabelText("API Key")).not.toBeInTheDocument();
+    expect(screen.getByTestId("test-connection-button")).toBeEnabled();
+  });
+
+  it("disables verification before click when the saved API Key is missing", () => {
+    const connection: Connection = {
+      connectionId: "missing-ui",
+      name: "Missing Key",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      secretStatus: "missing",
+      externalSessionStatus: "not_applicable",
+    };
+
+    renderConnection(connection);
+
+    expect(screen.getByLabelText("认证方式")).toHaveValue("api_key");
+    expect(screen.getByLabelText("API Key")).toBeInTheDocument();
+    expect(screen.getByTestId("test-connection-button")).toBeDisabled();
+    expect(
+      screen.getByTestId("connection-verification-capability"),
+    ).toHaveTextContent(/请先配置并保存 API Key/);
+  });
+
+  it("disables verification before click for a disabled Connection", () => {
+    const connection: Connection = {
+      connectionId: "disabled-ui",
+      name: "Disabled",
+      provider: "openai-compatible",
+      baseUrl: "https://api.example.com/v1",
+      authMethod: "none",
+      enabled: false,
+      secretStatus: "not_applicable",
+      externalSessionStatus: "not_applicable",
+    };
+
+    renderConnection(connection);
+
+    expect(screen.getByTestId("test-connection-button")).toBeDisabled();
+    expect(
+      screen.getByTestId("connection-verification-capability"),
+    ).toHaveTextContent(/连接已禁用/);
+  });
+
+  it("clears an unsaved API Key when auth changes away from api_key", async () => {
+    const connection: Connection = {
+      connectionId: "clear-hidden-key-ui",
+      name: "Clear Hidden Key",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      secretStatus: "environment",
+      externalSessionStatus: "not_applicable",
+    };
+    const save = vi.fn(async (_input: ConnectionInput) => undefined);
+    const user = userEvent.setup();
+
+    renderConnection(connection, { onConnectionSave: save });
+
+    await user.type(screen.getByLabelText("API Key"), "unsaved-hidden-secret");
+    await user.selectOptions(screen.getByLabelText("认证方式"), "none");
+
+    expect(screen.queryByLabelText("API Key")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "保存连接" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+
+    const savedInput = save.mock.calls[0][0];
+    expect(savedInput.authMethod).toBe("none");
+    expect(savedInput.apiKey).toBeUndefined();
+  });
+
+  it("localizes backend capability prose instead of rendering raw English", () => {
+    const rawEnglish = "Probing this authentication method is not yet supported";
+    const connection: Connection = {
+      connectionId: "localized-probe-ui",
+      name: "Localized Probe",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      secretStatus: "environment",
+      externalSessionStatus: "not_applicable",
+    };
+
+    renderConnection(connection, {
+      connectionProbeResult: {
+        ok: false,
+        status: "unsupported_auth_method",
+        message: rawEnglish,
+        latencyMs: null,
+      },
+    });
+
+    const result = screen.getByTestId("connection-probe-result");
+    expect(result).toHaveTextContent("当前认证方式不支持独立连接验证");
+    expect(result).not.toHaveTextContent(rawEnglish);
+  });
+
+  it("renders a saved generic provider ID exactly in the editable provider control", () => {
+    const connection: Connection = {
+      connectionId: "generic-provider-ui",
+      name: "Generic Provider",
+      provider: "sensetime",
+      baseUrl: "https://api.sensetime.com/v1",
+      authMethod: "api_key",
+      enabled: true,
+      secretStatus: "environment",
+      externalSessionStatus: "not_applicable",
+    };
+
+    renderConnection(connection);
+
+    const providerInput = screen.getByLabelText("Provider") as HTMLInputElement;
+    expect(providerInput.tagName).toBe("INPUT");
+    expect(providerInput.value).toBe("sensetime");
+    expect(providerInput.list?.id).toBe("connection-provider-presets");
+  });
+
+  it("allows editing to another generic safe provider ID and saves it unchanged", async () => {
+    const connection: Connection = {
+      connectionId: "generic-edit-ui",
+      name: "Generic Edit",
+      provider: "sensetime",
+      baseUrl: "https://api.sensetime.com/v1",
+      authMethod: "none",
+      enabled: true,
+      secretStatus: "not_applicable",
+      externalSessionStatus: "not_applicable",
+    };
+    const save = vi.fn(async (_input: ConnectionInput) => undefined);
+    const user = userEvent.setup();
+
+    renderConnection(connection, { onConnectionSave: save });
+
+    await user.clear(screen.getByLabelText("Provider"));
+    await user.type(screen.getByLabelText("Provider"), "custom.provider_v2");
+    await user.click(screen.getByRole("button", { name: "保存连接" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0][0].provider).toBe("custom.provider_v2");
+  });
+
+  it("blocks authority-bearing provider edits without a replacement secret and accepts a replacement key", async () => {
+    const connection: Connection = {
+      connectionId: "authority-ui",
+      name: "Authority",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      secretStatus: "environment",
+      externalSessionStatus: "not_applicable",
+    };
+    const save = vi.fn(async (_input: ConnectionInput) => undefined);
+    const user = userEvent.setup();
+
+    renderConnection(connection, { onConnectionSave: save });
+
+    expect(
+      screen.queryByTestId("connection-authority-change-notice"),
+    ).not.toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("Provider"));
+    await user.type(screen.getByLabelText("Provider"), "openai-compatible");
+
+    const notice = screen.getByTestId("connection-authority-change-notice");
+    expect(notice).toHaveTextContent(/正在修改认证相关配置/);
+    expect(notice).toHaveTextContent(/留空保存不会沿用旧密钥/);
+
+    await user.click(screen.getByRole("button", { name: "保存连接" }));
+
+    expect(
+      await screen.findByText(/保存前需要：填写新的 API Key/),
+    ).toBeInTheDocument();
+    expect(save).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText("API Key"), "replacement-secret");
+    await user.click(screen.getByRole("button", { name: "保存连接" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0][0].provider).toBe("openai-compatible");
+    expect(save.mock.calls[0][0].apiKey).toBe("replacement-secret");
+  });
+
+  it("resolves an authority-bearing edit through the explicit clear-secret choice", async () => {
+    const connection: Connection = {
+      connectionId: "authority-clear-ui",
+      name: "Authority Clear",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      secretStatus: "environment",
+      externalSessionStatus: "not_applicable",
+    };
+    const save = vi.fn(async (_input: ConnectionInput) => undefined);
+    const user = userEvent.setup();
+
+    renderConnection(connection, { onConnectionSave: save });
+
+    await user.clear(screen.getByLabelText("Base URL"));
+    await user.type(screen.getByLabelText("Base URL"), "http://changed.local/v1");
+
+    expect(
+      screen.getByTestId("connection-authority-change-notice"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "保存连接" }));
+    expect(save).not.toHaveBeenCalled();
+
+    await user.click(screen.getByText("清除已保存密钥（clear_secret）"));
+    await user.click(screen.getByRole("button", { name: "保存连接" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0][0].clearSecret).toBe(true);
+  });
+
+  it("hides the authority-change notice when the authority edit is reverted", async () => {
+    const connection: Connection = {
+      connectionId: "authority-revert-ui",
+      name: "Authority Revert",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      secretStatus: "environment",
+      externalSessionStatus: "not_applicable",
+    };
+    const user = userEvent.setup();
+
+    renderConnection(connection);
+
+    await user.clear(screen.getByLabelText("Base URL"));
+    await user.type(screen.getByLabelText("Base URL"), "http://changed.local/v1");
+    expect(
+      screen.getByTestId("connection-authority-change-notice"),
+    ).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("Base URL"));
+    await user.type(screen.getByLabelText("Base URL"), "http://localhost:4000/v1");
+    expect(
+      screen.queryByTestId("connection-authority-change-notice"),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["available", "可用"],
+    ["missing", "未观察到可用会话"],
+    ["executor_managed", "由执行器管理"],
+  ] as const)(
+    "displays sanitized external-session readiness (%s) for executor-managed auth",
+    (status, label) => {
+      const connection: Connection = {
+        connectionId: `session-${status}-ui`,
+        name: `Session ${status}`,
+        provider: "openai-compatible",
+        baseUrl: "https://api.example.com/v1",
+        authMethod: "external_cli_session",
+        enabled: true,
+        secretStatus: "not_applicable",
+        externalSessionStatus: status,
+      };
+
+      renderConnection(connection);
+
+      const readiness = screen.getByTestId(
+        "connection-external-session-readiness",
+      );
+      expect(readiness).toHaveTextContent(`外部会话状态：${label}`);
+    },
+  );
 });

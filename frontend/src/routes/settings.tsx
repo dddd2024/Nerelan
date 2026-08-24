@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Settings } from "lucide-react";
-import { ConnectionBindingEditor } from "@/components/connection-binding-editor";
+import { ConnectionBindingEditor, executorManagedAuth, externalSessionStatusLabel } from "@/components/connection-binding-editor";
 import {
   useBindings,
   useConnections,
@@ -100,6 +100,7 @@ export function SettingsPage() {
       const saved = await connectionsMutation.mutateAsync(input);
       setCreating(false);
       setSelectedConnId(saved.connectionId);
+      setConnProbeResult(null);
       setStatus("连接已保存");
     } catch (cause) {
       setError(errorMessage(cause));
@@ -288,6 +289,14 @@ export function SettingsPage() {
                   <span className="text-[10px] text-ra-text-tertiary">
                     密钥：{secretStatusLabel(conn.secretStatus)}
                   </span>
+                  {executorManagedAuth(conn.authMethod) && (
+                    <span
+                      className="text-[10px] text-ra-text-tertiary"
+                      data-testid={`connection-list-external-session-${conn.connectionId}`}
+                    >
+                      外部会话：{externalSessionStatusLabel(conn.externalSessionStatus)}
+                    </span>
+                  )}
                 </button>
               ))
             )}

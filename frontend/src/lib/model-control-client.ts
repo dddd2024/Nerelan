@@ -478,6 +478,13 @@ export function createMockModelControlClient(
 
     async upsertConnection(input) {
       const parsed = ConnectionInputSchema.parse(input);
+      const existing = connections.find(
+        (connection) => connection.connectionId === parsed.connectionId,
+      );
+      const apiKeyAuth = parsed.authMethod === "api_key";
+      const executorManagedAuth =
+        parsed.authMethod === "account_login" ||
+        parsed.authMethod === "external_cli_session";
       const saved: Connection = {
         connectionId: parsed.connectionId,
         name: parsed.name,
@@ -485,13 +492,20 @@ export function createMockModelControlClient(
         baseUrl: parsed.baseUrl,
         authMethod: parsed.authMethod,
         enabled: parsed.enabled,
-        secretStatus: parsed.apiKey
-          ? "session"
-          : parsed.apiKeyEnv
-            ? "environment"
-            : (connections.find((c) => c.connectionId === parsed.connectionId)
-                ?.secretStatus ?? "missing"),
-        externalSessionStatus: "not_applicable",
+        secretStatus: apiKeyAuth
+          ? parsed.clearSecret
+            ? "missing"
+            : parsed.apiKey
+              ? "session"
+              : parsed.apiKeyEnv
+                ? "environment"
+                : existing?.authMethod === "api_key"
+                  ? existing.secretStatus
+                  : "missing"
+          : "not_applicable",
+        externalSessionStatus: executorManagedAuth
+          ? "executor_managed"
+          : "not_applicable",
       };
       connections = [
         ...connections.filter((c) => c.connectionId !== saved.connectionId),
@@ -528,11 +542,20 @@ export function createMockModelControlClient(
           latencyMs: null,
         };
       }
-      if (connection.secretStatus === "missing") {
+      if (connection.authMethod === "api_key") {
+        if (connection.secretStatus === "missing") {
+          return {
+            ok: false,
+            status: "credential_missing",
+            message: "API Key 未配置",
+            latencyMs: null,
+          };
+        }
+      } else if (connection.authMethod !== "none") {
         return {
           ok: false,
-          status: "credential_missing",
-          message: "API Key 未配置",
+          status: "unsupported_auth_method",
+          message: "认证由执行器管理，当前不支持独立连接验证",
           latencyMs: null,
         };
       }

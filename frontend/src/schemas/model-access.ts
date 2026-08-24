@@ -32,6 +32,13 @@ export const ExternalSessionStatusSchema = z.enum([
   "not_applicable",
 ]);
 
+export const ConnectionVerificationCapabilitySchema = z.enum([
+  "supported",
+  "credential_missing",
+  "executor_managed",
+  "connection_disabled",
+]);
+
 const accessId = z
   .string()
   .min(1, "ID 不能为空")
@@ -95,11 +102,31 @@ export type ConnectionProvider = z.infer<typeof ConnectionProviderSchema>;
 export type AuthMethod = z.infer<typeof AuthMethodSchema>;
 export type ConnectionSecretStatus = z.infer<typeof ConnectionSecretStatusSchema>;
 export type ExternalSessionStatus = z.infer<typeof ExternalSessionStatusSchema>;
+export type ConnectionVerificationCapability = z.infer<
+  typeof ConnectionVerificationCapabilitySchema
+>;
 export type Connection = z.infer<typeof ConnectionSchema>;
 export type ConnectionInput = z.infer<typeof ConnectionInputSchema>;
 export type Executor = z.infer<typeof ExecutorSchema>;
 export type Binding = z.infer<typeof BindingSchema>;
 export type BindingInput = z.infer<typeof BindingInputSchema>;
+
+export function connectionVerificationCapability(
+  connection: Connection,
+): ConnectionVerificationCapability {
+  if (!connection.enabled) return "connection_disabled";
+
+  if (connection.authMethod === "api_key") {
+    return connection.secretStatus === "session" ||
+      connection.secretStatus === "environment"
+      ? "supported"
+      : "credential_missing";
+  }
+
+  if (connection.authMethod === "none") return "supported";
+
+  return "executor_managed";
+}
 
 export const ConnectionProbeResultSchema = z.object({
   ok: z.boolean(),
