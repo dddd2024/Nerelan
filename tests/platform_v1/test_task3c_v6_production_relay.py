@@ -210,11 +210,23 @@ class TestCombinedTrustedHostInstalledOpenCodeE2E:
                 old_repo = os.environ.get("REVERSE_AGENT_REPO_DIR")
                 os.environ["REVERSE_AGENT_REPO_DIR"] = str(repo_path)
 
+                trusted_sha = subprocess.run(
+                    ["git", "rev-parse", "HEAD"],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    check=True,
+                ).stdout.strip()
+                assert trusted_sha
+
                 try:
                     host = CombinedTrustedHost(
                         store=store,
                         model_control_port=0,
                         task_api_port=0,
+                        execution_authority_sha=trusted_sha,
+                        planning_sha=trusted_sha,
                     )
                     host.start()
 

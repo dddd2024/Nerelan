@@ -181,21 +181,6 @@ def test_ci_platform_v1_blocking_gate_present() -> None:
 
 _EXACT_DESELECTED_NODE_IDS: list[str] = [
     (
-        "tests/platform_v1/test_merge_intent.py"
-        "::TestDecisionImmutability"
-        "::test_decision_bytes_unchanged_since_commit"
-    ),
-    (
-        "tests/platform_v1/test_merge_intent.py"
-        "::TestDecisionImmutability"
-        "::test_decision_commit_precedes_implementation"
-    ),
-    (
-        "tests/platform_v1/test_merge_intent.py"
-        "::TestDecisionImmutability"
-        "::test_single_decision_commit_in_range"
-    ),
-    (
         "tests/platform_v1/test_task3c_v6_production_relay.py"
         "::TestCombinedTrustedHostInstalledOpenCodeE2E"
         "::test_real_task_api_opencode_relay_fake_provider_end_to_end"
@@ -237,24 +222,24 @@ def _extract_deselected_nodes(cmd: str) -> set[str]:
     return nodes
 
 
-def test_ci_platform_v1_blocking_gate_deselects_exact_seven_nodes() -> None:
+def test_ci_platform_v1_blocking_gate_deselects_exact_four_nodes() -> None:
     content = _read_ci()
     cmd = _extract_platform_v1_blocking_command(content)
     assert cmd is not None
     deselected = _extract_deselected_nodes(cmd)
     assert deselected == set(_EXACT_DESELECTED_NODE_IDS), (
-        f"Platform V1 blocking gate deselected set must exactly match the 7 "
+        f"Platform V1 blocking gate deselected set must exactly match the 4 "
         f"reclassified node IDs; got {sorted(deselected)}"
     )
 
 
-def test_ci_platform_v1_blocking_gate_exactly_seven_deselects() -> None:
+def test_ci_platform_v1_blocking_gate_exactly_four_deselects() -> None:
     content = _read_ci()
     cmd = _extract_platform_v1_blocking_command(content)
     assert cmd is not None
     deselected = _extract_deselected_nodes(cmd)
-    assert len(deselected) == 7, (
-        f"Platform V1 blocking gate must contain exactly 7 --deselect node IDs, "
+    assert len(deselected) == 4, (
+        f"Platform V1 blocking gate must contain exactly 4 --deselect node IDs, "
         f"got {len(deselected)}"
     )
 
@@ -289,7 +274,7 @@ def test_ci_platform_v1_blocking_gate_does_not_broad_ignore_merge_intent_file() 
         n for n in deselected
         if n.startswith("tests/platform_v1/test_merge_intent.py")
     ]
-    assert len(merge_intent_file_deselects) == 3
+    assert merge_intent_file_deselects == []
     assert "tests/platform_v1/test_merge_intent.py" not in deselected, (
         "must not broad-ignore test_merge_intent.py"
     )
