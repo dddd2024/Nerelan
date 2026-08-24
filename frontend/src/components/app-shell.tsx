@@ -166,7 +166,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div
       data-testid="app-shell"
       className={cn(
-        "h-screen flex flex-col md:flex-row bg-ra-base overflow-hidden",
+        "h-screen flex flex-col md:flex-row bg-ra-base text-ra-text overflow-hidden",
       )}
     >
       <Sidebar
@@ -179,7 +179,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div
         data-testid="mobile-menu-bar"
         data-agent-canvas-source="v1.6.1"
-        className="md:hidden flex flex-row items-center gap-2 px-3 h-[54px] shrink-0 bg-ra-base border-b border-ra-border"
+        className="md:hidden flex flex-row items-center gap-2 px-4 h-[54px] shrink-0 bg-ra-base border-b border-ra-border"
         inert={mobileNavOpen ? true : undefined}
         aria-hidden={mobileNavOpen ? "true" : undefined}
       >
@@ -215,7 +215,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         aria-hidden={!mobileNavOpen}
         tabIndex={-1}
         data-testid="mobile-drawer"
-        className="fixed top-0 bottom-0 left-0 z-50 w-[min(300px,85vw)] md:hidden bg-ra-base flex flex-col shadow-lg"
+        className="fixed top-0 bottom-0 left-0 z-50 w-[min(300px,85vw)] md:hidden bg-ra-base flex flex-col border-r border-ra-border shadow-lg"
         style={{ display: mobileNavOpen ? "" : "none" }}
       >
         <div className="flex items-center justify-between p-4 border-b border-ra-border">
@@ -262,7 +262,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               closeDrawer();
               setNewTaskComposerOpen(true);
             }}
-            className="flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-ra-accent text-ra-base text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-ra-accent text-ra-base text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ra-base"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             新建任务
@@ -284,7 +284,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div
         data-testid="app-shell-workspace"
         data-agent-canvas-source="v1.6.1"
-        className="flex flex-col w-full min-w-0 flex-1 h-full bg-[var(--oh-surface)]"
+        className="flex flex-col w-full min-w-0 flex-1 h-full bg-ra-workspace"
         inert={mobileNavOpen ? true : undefined}
         aria-hidden={mobileNavOpen ? "true" : undefined}
       >

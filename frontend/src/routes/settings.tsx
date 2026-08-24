@@ -19,6 +19,7 @@ import type {
 } from "@/schemas/model-access";
 import type { BindingInput } from "@/schemas/model-access";
 import { cn } from "@/lib/cn";
+import { ThemeSelector } from "@/components/theme-selector";
 
 type EditorView = "connection" | "binding";
 
@@ -229,15 +230,17 @@ export function SettingsPage() {
         </div>
 
         {status && (
-          <p role="status" className="text-sm text-green-300">
+          <p role="status" className="text-sm text-ra-status-running">
             {status}
           </p>
         )}
         {error && (
-          <p role="alert" className="text-sm text-red-300">
+          <p role="alert" className="text-sm text-ra-status-error">
             {error}
           </p>
         )}
+
+        <ThemeSelector />
 
         <div className="grid min-h-0 grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
           <aside className="flex flex-col gap-2 rounded-xl border border-ra-border bg-ra-secondary p-3">
