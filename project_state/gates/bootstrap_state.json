@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260823_issue320_state_gate_reachability_r2_v2_landing",
-  "round_id": "round_20260823_issue320_state_gate_reachability_r2_v2_landing",
-  "expired_at": "2026-08-23T08:41:37+00:00"
+  "decision_id": "decision_20260824_issue330_trusted_remote_merge_boundary_r2_v3",
+  "round_id": "round_20260824_issue330_trusted_remote_merge_boundary_r2_v3",
+  "expired_at": "2026-08-24T01:21:51+00:00"
 }
