@@ -1,0 +1,20 @@
+{
+  "schema_version": 2,
+  "intent_id": "pr344_issue343_playwright_recovery_r3_v2",
+  "repository": "dddd2024/reverse-agent",
+  "source_pr": 344,
+  "locked_base_sha": "af0bfdb62d96e00b5f89660390950f3b7f096026",
+  "allowed_merge_method": "merge",
+  "decision_identity": {
+    "decision_id": "decision_20260824_issue343_playwright_recovery_r3_v2",
+    "decision_content_sha256": "8bbc2f65af7fe3f3690c64bd6552ac3f24085045c1eeb55ecfb187417210af34"
+  },
+  "command_plan_sha256": "462001e6a217ceb86cd6d19ba9a3e0806ddbc0f70694b2b038c3b104c2d195c5",
+  "merge_tree_policy": "equal_to_accepted_head_tree",
+  "required_workflows": [
+    "CI",
+    "Decision Preflight",
+    "State Gate (pull_request)"
+  ],
+  "expires_at": "2026-08-27T23:59:59Z"
+}
