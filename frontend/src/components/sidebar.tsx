@@ -3,8 +3,11 @@ import { NavLink, useLocation } from "react-router";
 import {
   ChevronLeft,
   ChevronRight,
+  Bot,
   Home,
+  Inbox,
   ListChecks,
+  Map,
   Menu,
   Plus,
   Settings,
@@ -28,6 +31,9 @@ export interface SidebarItem {
 const ITEMS: SidebarItem[] = [
   { to: "/", label: "首页", icon: Home },
   { to: "/tasks", label: "任务", icon: ListChecks },
+  { to: "/inbox", label: "收件箱", icon: Inbox },
+  { to: "/roadmap", label: "路线图", icon: Map },
+  { to: "/runs", label: "Agent 运行", icon: Bot },
   { to: "/settings", label: "设置", icon: Settings },
 ];
 
@@ -122,7 +128,7 @@ export function Sidebar({
       aria-pressed={!collapsed}
       data-testid="sidebar-collapse-toggle"
       onClick={() => setCollapsed((value) => !value)}
-      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--oh-muted)] hover:bg-[var(--oh-surface-raised)] hover:text-white"
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--oh-muted)] hover:bg-[var(--oh-surface-raised)] hover:text-ra-text"
       title={collapsed ? "展开" : "收起"}
     >
       {collapsed ? (

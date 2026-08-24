@@ -5,6 +5,20 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>reverse-agent — 平台 V1 控制台</title>
+    <script>
+      (() => {
+        try {
+          const saved = JSON.parse(localStorage.getItem("reverse-agent.appearance") || "null");
+          const modes = ["system", "light", "dark"];
+          const accents = ["cyan", "blue", "violet", "amber", "rose"];
+          document.documentElement.dataset.theme = modes.includes(saved?.mode) ? saved.mode : "system";
+          document.documentElement.dataset.accent = accents.includes(saved?.accent) ? saved.accent : "cyan";
+        } catch {
+          document.documentElement.dataset.theme = "system";
+          document.documentElement.dataset.accent = "cyan";
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -12,6 +12,9 @@ import { SettingsPage } from "@/routes/settings";
 import { InboxPage } from "@/routes/inbox";
 import { RoadmapPage } from "@/routes/roadmap";
 import { RunsPage } from "@/routes/runs";
+import { initializeAppearance } from "@/lib/theme";
+
+initializeAppearance();
 
 const queryClient = new QueryClient({
   defaultOptions: {
