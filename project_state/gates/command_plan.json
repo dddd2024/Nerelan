@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260824_issue343_playwright_recovery_r3_v2",
-  "round_id": "round_20260824_issue343_playwright_recovery_r3_v2",
+  "decision_id": "decision_20260824_issue345_scope_aware_workflow_policy_r2_v2",
+  "round_id": "round_20260824_issue345_scope_aware_workflow_policy_r2_v2",
   "commands": [
     {
-      "command_id": "issue343_r3v2.bootstrap",
-      "command": "verify locked base and fresh branch; commit Decision first; generate five gates and require PRE_EXECUTION_AUTHORIZED",
+      "command_id": "issue345_r2v2.bootstrap",
+      "command": "verify locked base cb6e7a3e3b92935525079278e327843fd1f2d03e and fresh branch; commit Decision first; generate five gates and require PRE_EXECUTION_AUTHORIZED",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -34,8 +34,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue343_r3v2.merge_intent_boundary_fix",
-      "command": "repair tests/platform_v1/test_merge_intent.py active Decision risk-tier assertion to accept exactly the production Path-B tiers R2 and R3 derived from repository production constants, rejecting R1 unknown and malformed tiers, without weakening exact base head Decision merge-method or immutability checks",
+      "command_id": "issue345_r2v2.trusted_profiles_and_v3_intent",
+      "command": "extend reverse_agent/mainline_landing.py with the production-owned TRUSTED_PREMERGE_WORKFLOW_PROFILES mapping (baseline plus browser_r3 supersets including Frontend Playwright and Model Access), schema-v3 intent support binding workflow_profile to the same value declared by the accepted-head Decision contract, profile resolution that always includes the generic three-workflow baseline, and schema-v3 attestation validation that requires exactly the resolved profile workflow set on the exact accepted head while State Gate push remains post-merge-only",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -57,12 +57,38 @@
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
-        "tests/platform_v1/test_merge_intent.py"
+        "reverse_agent/mainline_landing.py"
       ]
     },
     {
-      "command_id": "issue343_r3v2.vitest_boundary_fix",
-      "command": "add an explicit Vitest unit and component test boundary in frontend/vite.config.ts that excludes frontend/e2e from ordinary npm test collection while dedicated Playwright commands remain the only e2e runner",
+      "command_id": "issue345_r2v2.v3_schema",
+      "command": "add project_state/schemas/mainline_merge_intent_v3.schema.json describing the schema-v3 intent with the bounded workflow_profile enum and required_workflows constrained to the baseline-first resolved profile sets",
+      "phase": "implementation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "source_edit",
+        "local_static_check",
+        "commit"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/schemas/mainline_merge_intent_v3.schema.json"
+      ]
+    },
+    {
+      "command_id": "issue345_r2v2.profile_regressions",
+      "command": "extend tests/test_mainline_landing.py with focused regressions proving: generic baseline round resolves and accepts the three-workflow baseline; browser_r3 round resolves an exact set including Frontend Playwright and Model Access; missing failing wrong-head or wrong-file/event specialized runs block; deleting a specialized workflow from committed active intent fails; unknown workflow profile name fails; duplicate run id fails; intent profile must equal the Decision-declared profile; State Gate push remains excluded from pre-merge requirements; historical schema-v1 and v2 fixtures keep their frozen semantics; post-merge mainline validation still runs unchanged",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -84,66 +110,12 @@
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
-        "frontend/vite.config.ts"
+        "tests/test_mainline_landing.py"
       ]
     },
     {
-      "command_id": "issue343_r3v2.playwright_replay",
-      "command": "replay the governed frontend Playwright acceptance layer from superseded PR341 head 22e4ffb0 with blob equality: workflow, config, eight official Chromium specs, fixtures, eight fixed snapshots, dependency manifests and design-qa record; install exact Playwright dependency and official Chromium; run bounded local functional QA only against loopback",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "unit_test",
-        "workflow_change",
-        "dependency_change",
-        "network_access",
-        "execute_binary",
-        "local_static_check",
-        "commit"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        ".github/workflows/frontend-playwright.yml",
-        "tests/test_ci_responsibility.py",
-        "frontend/.gitignore",
-        "frontend/package.json",
-        "frontend/package-lock.json",
-        "frontend/playwright.config.ts",
-        "frontend/design-qa.md",
-        "frontend/e2e/fixtures.ts",
-        "frontend/e2e/home.spec.ts",
-        "frontend/e2e/theme.spec.ts",
-        "frontend/e2e/navigation.spec.ts",
-        "frontend/e2e/goal.spec.ts",
-        "frontend/e2e/runs.spec.ts",
-        "frontend/e2e/states.spec.ts",
-        "frontend/e2e/errors.spec.ts",
-        "frontend/e2e/visual.spec.ts",
-        "frontend/e2e/snapshots/desktop-chromium/home-light.png",
-        "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
-        "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
-        "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
-        "frontend/e2e/snapshots/mobile-chromium/home-light.png",
-        "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
-        "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
-        "frontend/e2e/snapshots/mobile-chromium/settings-dark.png"
-      ]
-    },
-    {
-      "command_id": "issue343_r3v2.validate_and_publish",
-      "command": "run deterministic frontend unit suite proving the e2e collection boundary, platform_v1 merge-intent suite proving the Path-B tier fix, typecheck lint build and build:mock; commit implementation; push exact branch and create one Draft PR",
+      "command_id": "issue345_r2v2.validate_and_publish",
+      "command": "run the focused mainline-landing suite, the platform_v1 merge-intent suite, and the project-gate focused suite; commit implementation; push exact branch and create one Draft PR",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -170,8 +142,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue343_r3v2.bind_intent",
-      "command": "after the real Draft PR number is known archive current active intent byte-identically as archive/pr338_v1.json and bind active.json schema v2 to the exact new PR base Decision and Command Plan",
+      "command_id": "issue345_r2v2.bind_intent",
+      "command": "after the real Draft PR number is known archive the current PR344 intent byte-identically as archive/pr344_v2.json and bind active.json schema v3 to the exact new PR with workflow_profile baseline equal to this Decision-declared profile",
       "phase": "binding",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -193,12 +165,12 @@
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
         "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr338_v1.json"
+        "project_state/mainline_merge_intents/archive/pr344_v2.json"
       ]
     },
     {
-      "command_id": "issue343_r3v2.final_push_and_audit",
-      "command": "push the final intent binding and require exact-head CI Decision Preflight State Gate Model Access and Frontend Playwright terminal success plus independent audit while the PR remains Draft",
+      "command_id": "issue345_r2v2.final_push_and_audit",
+      "command": "push the final intent binding and require exact-head CI Decision Preflight and State Gate terminal success plus independent audit while the PR remains Draft",
       "phase": "audit",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -222,8 +194,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.ff705d9225eb53721d0666dcd73bab7a25a24597c5a2a0a250b5aaf84473775a",
-      "command": "verify exact main base branch merge-base superseded PR341 source and no remote branch collision",
+      "command_id": "bootstrap.245963221be7a494de8dcdd13b40d98bf0138e146924bd2618b334e1a8ecb797",
+      "command": "verify exact main base cb6e7a3e3b92935525079278e327843fd1f2d03e and fresh branch merge-base",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -242,8 +214,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.f7de96f0ecd62e5c5e93dbf9fb14e886efd716e0a3e5080bc6b044dfe85f545c",
-      "command": "commit this immutable R3 Decision as the unique first commit",
+      "command_id": "bootstrap.234f8ef150ef2c4adfece3cb131177275c83ffd977f9e1a451805af4525ea5d0",
+      "command": "commit this immutable R2 Decision as the unique first commit",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",

@@ -20,9 +20,11 @@ from reverse_agent.github_remote_verifier import (
 from reverse_agent.mainline_landing import (
     CANONICAL_WORKFLOW_POLICY,
     CURRENT_PREMERGE_WORKFLOW_POLICY,
+    TRUSTED_PREMERGE_WORKFLOW_PROFILES,
     _validate_intent,
     canonical_digest,
     emit_mainline_integration_receipt,
+    resolve_premerge_workflow_profile,
     validate_future_merge,
     validate_pr60_recovery,
 )
@@ -102,6 +104,8 @@ def _future_repo(
     plan_decision_id: str | None = None,
     decision_artifact: str | None = None,
     schema_version: int = 1,
+    workflow_profile: str | None = None,
+    decision_contract_profile: str | None = None,
 ) -> dict[str, Any]:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -118,6 +122,20 @@ def _future_repo(
     decision_path.parent.mkdir(parents=True)
     plan_path.parent.mkdir(parents=True)
     round_id = "round_20260801_later_mainline_landing_v4"
+    if schema_version == 3 and workflow_profile is None:
+        workflow_profile = "baseline"
+    if schema_version == 3 and decision_contract_profile is None:
+        decision_contract_profile = workflow_profile
+    contract_block = ""
+    if decision_contract_profile is not None:
+        contract_block = (
+            "```json decision_contract\n"
+            + json.dumps(
+                {"workflow_profile": decision_contract_profile},
+                separators=(",", ":"),
+            )
+            + "\n```\n"
+        )
     decision_text = decision_artifact or (
         "# Decision Packet\n\n"
         "```json decision_meta\n"
@@ -131,7 +149,8 @@ def _future_repo(
             },
             separators=(",", ":"),
         )
-        + "\n```\n"
+        + "\n```\n\n"
+        + contract_block
     )
     decision_path.write_text(decision_text, encoding="utf-8")
     plan_path.write_text(
@@ -161,6 +180,11 @@ def _future_repo(
     ).hexdigest()
     if schema_version == 1:
         workflow_policy = CANONICAL_WORKFLOW_POLICY
+    elif schema_version == 3:
+        try:
+            workflow_policy = resolve_premerge_workflow_profile(workflow_profile)
+        except ValueError:
+            workflow_policy = CURRENT_PREMERGE_WORKFLOW_POLICY
     else:
         workflow_policy = CURRENT_PREMERGE_WORKFLOW_POLICY
     intent = {
@@ -179,6 +203,8 @@ def _future_repo(
         "required_workflows": list(workflow_policy),
         "expires_at": "2026-08-28T00:00:00Z",
     }
+    if schema_version == 3:
+        intent["workflow_profile"] = workflow_profile
     intent_path = repo / "project_state" / "mainline_merge_intents" / "active.json"
     intent_path.parent.mkdir(parents=True)
     intent_path.write_text(json.dumps(intent, indent=2) + "\n", encoding="utf-8")
@@ -233,7 +259,7 @@ def _future_repo(
         "_remote_comment_id": 12345,
         "_remote_author": "dddd2024",
     }
-    if schema_version == 2:
+    if schema_version in {2, 3}:
         attestation["_remote_comment_created_at"] = "2026-07-25T00:00:00Z"
         attestation["_remote_comment_updated_at"] = "2026-07-26T00:00:00Z"
     attestation["content_digest"] = canonical_digest(
@@ -266,6 +292,33 @@ def _validate(bundle: dict[str, Any], *, verifier: FakeVerifier | None = None) -
         commit_sha=bundle["merge"],
         validation_time=NOW,
     )
+
+
+def _recommit_intent(bundle: dict[str, Any], intent: dict[str, Any]) -> None:
+    """Amend the committed active intent and rebuild the two-parent merge."""
+
+    repo = bundle["repo"]
+    _git(repo, "checkout", "feature")
+    intent_path = repo / "project_state" / "mainline_merge_intents" / "active.json"
+    intent_path.write_text(json.dumps(intent, indent=2) + "\n", encoding="utf-8")
+    _git(repo, "add", "project_state/mainline_merge_intents/active.json")
+    _git(repo, "commit", "--amend", "--no-edit")
+    new_head = _git(repo, "rev-parse", "HEAD")
+    tree = _git(repo, "rev-parse", "HEAD^{tree}")
+    new_merge = _git(
+        repo,
+        "commit-tree",
+        tree,
+        "-p",
+        bundle["base"],
+        "-p",
+        new_head,
+        "-m",
+        "merge amended intent",
+    )
+    bundle["head"] = new_head
+    bundle["merge"] = new_merge
+    bundle["attestation"]["accepted_exact_head_sha"] = new_head
 
 
 def test_normal_two_parent_merge_passes(tmp_path: Path) -> None:
@@ -720,7 +773,7 @@ def test_committed_active_intent_binds_exact_current_authority() -> None:
         assert (
             contract.get("issue_number_must_not_substitute_for_pr_number") is True
         )
-        assert intent["schema_version"] in {1, 2}
+        assert intent["schema_version"] in {1, 2, 3}
         assert (
             intent["decision_identity"]["decision_id"] != decision["decision_id"]
         )
@@ -917,6 +970,10 @@ def test_production_pre_merge_simulation(tmp_path: Path) -> None:
     intent_schema_version = int(intent.get("schema_version") or 1)
     if intent_schema_version == 1:
         sim_workflow_policy = CANONICAL_WORKFLOW_POLICY
+    elif intent_schema_version == 3:
+        sim_workflow_policy = resolve_premerge_workflow_profile(
+            intent.get("workflow_profile")
+        )
     else:
         sim_workflow_policy = CURRENT_PREMERGE_WORKFLOW_POLICY
     observations = [
@@ -956,7 +1013,7 @@ def test_production_pre_merge_simulation(tmp_path: Path) -> None:
         "_remote_comment_id": 71001,
         "_remote_author": "dddd2024",
     }
-    if intent_schema_version == 2:
+    if intent_schema_version in {2, 3}:
         attestation["_remote_comment_created_at"] = "2026-07-25T00:00:00Z"
         attestation["_remote_comment_updated_at"] = "2026-07-26T00:00:00Z"
     attestation["content_digest"] = canonical_digest(
@@ -1478,7 +1535,7 @@ def test_v2_wrong_accepted_head_still_blocks(tmp_path: Path) -> None:
 def test_unsupported_intent_schema_version_fails_closed(tmp_path: Path) -> None:
     bundle = _future_repo(tmp_path, schema_version=1)
     intent = dict(bundle["intent"])
-    intent["schema_version"] = 3
+    intent["schema_version"] = 4
     repo = bundle["repo"]
     _git(repo, "checkout", "feature")
     intent_path = repo / "project_state" / "mainline_merge_intents" / "active.json"
@@ -1504,7 +1561,7 @@ def test_unsupported_intent_schema_version_fails_closed(tmp_path: Path) -> None:
     result = _validate(bundle)
     assert result["gate_status"] == "BLOCKED"
     assert any(
-        "intent_schema_version: unsupported_version=3" in item
+        "intent_schema_version: unsupported_version=4" in item
         for item in result["blocking_reasons"]
     )
 
@@ -1513,11 +1570,11 @@ def test_v2_attestation_unsupported_schema_version_fails_closed(
     tmp_path: Path,
 ) -> None:
     bundle = _future_repo(tmp_path, schema_version=2)
-    bundle["attestation"]["schema_version"] = 3
+    bundle["attestation"]["schema_version"] = 4
     result = _validate(bundle)
     assert result["gate_status"] == "BLOCKED"
     assert any(
-        "attestation_schema_version: unsupported_version=3" in item
+        "attestation_schema_version: unsupported_version=4" in item
         for item in result["blocking_reasons"]
     )
 
@@ -1564,3 +1621,329 @@ def test_production_verifier_accepts_empty_base64_content() -> None:
         expected_content=b"",
     )
     assert result["verified"] is True
+
+
+# ---------------------------------------------------------------------------
+# Schema v3: scope-aware trusted workflow profile policy (Issue #345)
+# ---------------------------------------------------------------------------
+
+
+def test_trusted_profiles_are_baseline_supersets() -> None:
+    baseline = list(TRUSTED_PREMERGE_WORKFLOW_PROFILES["baseline"])
+    assert baseline == list(CURRENT_PREMERGE_WORKFLOW_POLICY)
+    assert "State Gate (push)" not in TRUSTED_PREMERGE_WORKFLOW_PROFILES["baseline"]
+    assert "State Gate (push)" not in TRUSTED_PREMERGE_WORKFLOW_PROFILES["browser_r3"]
+    for name, profile in TRUSTED_PREMERGE_WORKFLOW_PROFILES.items():
+        assert list(profile)[:3] == baseline, f"profile {name} must be baseline-first"
+    browser_r3 = list(TRUSTED_PREMERGE_WORKFLOW_PROFILES["browser_r3"])
+    assert "Frontend Playwright" in browser_r3
+    assert "Model Access" in browser_r3
+    assert len(browser_r3) == 5
+
+
+def test_resolve_premerge_workflow_profile_rejects_unknown_names() -> None:
+    for bad in ("", "unknown", "Baseline", "browser", "browser_r4", None, 3, {}):
+        with pytest.raises(ValueError):
+            resolve_premerge_workflow_profile(bad)
+    assert resolve_premerge_workflow_profile("baseline") == (
+        TRUSTED_PREMERGE_WORKFLOW_PROFILES["baseline"]
+    )
+
+
+def test_v3_baseline_round_resolves_and_accepts_three_workflow_baseline(
+    tmp_path: Path,
+) -> None:
+    bundle = _future_repo(tmp_path, schema_version=3, workflow_profile="baseline")
+    assert bundle["intent"]["workflow_profile"] == "baseline"
+    assert bundle["intent"]["required_workflows"] == list(
+        CURRENT_PREMERGE_WORKFLOW_POLICY
+    )
+    assert len(bundle["attestation"]["workflow_observations"]) == 3
+    result = _validate(bundle)
+    assert result["gate_status"] == "PASSED", result
+
+
+def test_v3_browser_r3_round_resolves_exact_specialized_set(tmp_path: Path) -> None:
+    bundle = _future_repo(
+        tmp_path,
+        schema_version=3,
+        workflow_profile="browser_r3",
+        decision_contract_profile="browser_r3",
+    )
+    observed = [obs["name"] for obs in bundle["attestation"]["workflow_observations"]]
+    assert observed == list(TRUSTED_PREMERGE_WORKFLOW_PROFILES["browser_r3"])
+    assert "Frontend Playwright" in observed
+    assert "Model Access" in observed
+    result = _validate(bundle)
+    assert result["gate_status"] == "PASSED", result
+
+
+def test_v3_missing_specialized_workflow_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(
+        tmp_path,
+        schema_version=3,
+        workflow_profile="browser_r3",
+        decision_contract_profile="browser_r3",
+    )
+    bundle["attestation"]["workflow_observations"] = bundle["attestation"][
+        "workflow_observations"
+    ][:4]
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("workflow_names" in item for item in result["blocking_reasons"])
+    assert any("Model Access" in item for item in result["blocking_reasons"])
+
+
+def test_v3_deleted_specialized_workflow_from_intent_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(
+        tmp_path,
+        schema_version=3,
+        workflow_profile="browser_r3",
+        decision_contract_profile="browser_r3",
+    )
+    amended = dict(bundle["intent"])
+    amended["required_workflows"] = amended["required_workflows"][:4]
+    _recommit_intent(bundle, amended)
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("intent_workflow_policy" in item for item in result["blocking_reasons"])
+
+
+def test_v3_failing_specialized_workflow_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(
+        tmp_path,
+        schema_version=3,
+        workflow_profile="browser_r3",
+        decision_contract_profile="browser_r3",
+    )
+    names = [obs["name"] for obs in bundle["attestation"]["workflow_observations"]]
+    frontend = bundle["attestation"]["workflow_observations"][
+        names.index("Frontend Playwright")
+    ]
+    frontend["conclusion"] = "failure"
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any(
+        "remote_workflow:Frontend Playwright" in item
+        for item in result["blocking_reasons"]
+    )
+
+
+def test_v3_wrong_head_specialized_run_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(
+        tmp_path,
+        schema_version=3,
+        workflow_profile="browser_r3",
+        decision_contract_profile="browser_r3",
+    )
+    names = [obs["name"] for obs in bundle["attestation"]["workflow_observations"]]
+    model_access = bundle["attestation"]["workflow_observations"][
+        names.index("Model Access")
+    ]
+    model_access["head_sha"] = "0" * 40
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any(
+        "remote_workflow:Model Access" in item
+        for item in result["blocking_reasons"]
+    )
+
+
+def test_v3_wrong_file_or_event_specialized_run_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(
+        tmp_path,
+        schema_version=3,
+        workflow_profile="browser_r3",
+        decision_contract_profile="browser_r3",
+    )
+    names = [obs["name"] for obs in bundle["attestation"]["workflow_observations"]]
+    frontend = bundle["attestation"]["workflow_observations"][
+        names.index("Frontend Playwright")
+    ]
+    frontend["workflow_file"] = ".github/workflows/ci.yml"
+    frontend["event"] = "push"
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any(
+        "remote_workflow:Frontend Playwright" in item
+        for item in result["blocking_reasons"]
+    )
+
+
+def test_v3_unknown_workflow_profile_name_fails_closed(tmp_path: Path) -> None:
+    bundle = _future_repo(
+        tmp_path,
+        schema_version=3,
+        workflow_profile="custom",
+        decision_contract_profile="custom",
+    )
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("intent_workflow_profile" in item for item in result["blocking_reasons"])
+    assert any("intent_workflow_policy" in item for item in result["blocking_reasons"])
+
+
+def test_v3_free_form_workflow_names_fail_closed(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=3, workflow_profile="baseline")
+    amended = dict(bundle["intent"])
+    amended["required_workflows"] = [
+        "CI",
+        "Decision Preflight",
+        "State Gate (pull_request)",
+        "Totally Custom Workflow",
+    ]
+    _recommit_intent(bundle, amended)
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("intent_workflow_policy" in item for item in result["blocking_reasons"])
+
+
+def test_v3_missing_workflow_profile_field_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=3, workflow_profile="baseline")
+    amended = dict(bundle["intent"])
+    del amended["workflow_profile"]
+    _recommit_intent(bundle, amended)
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("intent_fields" in item for item in result["blocking_reasons"])
+
+
+def test_v3_intent_profile_must_equal_decision_declared_profile(
+    tmp_path: Path,
+) -> None:
+    bundle = _future_repo(
+        tmp_path,
+        schema_version=3,
+        workflow_profile="baseline",
+        decision_contract_profile="browser_r3",
+    )
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any(
+        "intent_workflow_profile" in item for item in result["blocking_reasons"]
+    )
+
+
+def test_v3_decision_without_declared_profile_fails_closed(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=3, workflow_profile="baseline")
+    repo = bundle["repo"]
+    _git(repo, "checkout", "feature")
+    decision_path = repo / "project_state" / "decision_packet.md"
+    decision_path.write_text(
+        "# Decision Packet\n\n"
+        "```json decision_meta\n"
+        + json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": "decision_20260801_later_mainline_landing_v4",
+                "round_id": "round_20260801_later_mainline_landing_v4",
+                "status": "APPROVED",
+                "mainline": "engineering_branch",
+            },
+            separators=(",", ":"),
+        )
+        + "\n```\n\n"
+        "```json decision_contract\n"
+        + json.dumps({"risk_tier": "R2"}, separators=(",", ":"))
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", "project_state/decision_packet.md")
+    _git(repo, "commit", "--amend", "--no-edit")
+    new_head = _git(repo, "rev-parse", "HEAD")
+    tree = _git(repo, "rev-parse", "HEAD^{tree}")
+    new_merge = _git(
+        repo,
+        "commit-tree",
+        tree,
+        "-p",
+        bundle["base"],
+        "-p",
+        new_head,
+        "-m",
+        "merge decision without declared profile",
+    )
+    bundle["head"] = new_head
+    bundle["merge"] = new_merge
+    bundle["attestation"]["accepted_exact_head_sha"] = new_head
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any(
+        "intent_workflow_profile" in item for item in result["blocking_reasons"]
+    )
+
+
+def test_v3_duplicate_run_id_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(
+        tmp_path,
+        schema_version=3,
+        workflow_profile="browser_r3",
+        decision_contract_profile="browser_r3",
+    )
+    observations = bundle["attestation"]["workflow_observations"]
+    observations[3]["run_id"] = observations[0]["run_id"]
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("workflow_run_uniqueness" in item for item in result["blocking_reasons"])
+
+
+def test_v3_push_state_gate_cannot_be_pre_merge_evidence(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=3, workflow_profile="baseline")
+    for obs in bundle["attestation"]["workflow_observations"]:
+        obs["name"] = "State Gate (push)"
+        obs["event"] = "push"
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("workflow_names" in item for item in result["blocking_reasons"])
+
+
+def test_v3_baseline_excludes_state_gate_push_from_requirements(
+    tmp_path: Path,
+) -> None:
+    bundle = _future_repo(tmp_path, schema_version=3, workflow_profile="baseline")
+    assert "State Gate (push)" not in bundle["intent"]["required_workflows"]
+    assert all(
+        "State Gate (push)" not in obs["name"]
+        for obs in bundle["attestation"]["workflow_observations"]
+    )
+    result = _validate(bundle)
+    assert result["gate_status"] == "PASSED", result
+
+
+def test_v3_attestation_with_unresolvable_intent_profile_fails_closed(
+    tmp_path: Path,
+) -> None:
+    bundle = _future_repo(tmp_path, schema_version=3, workflow_profile="baseline")
+    result = _validate(bundle)
+    assert result["gate_status"] == "PASSED", result
+    v2_intent = dict(bundle["intent"])
+    v2_intent["schema_version"] = 2
+    del v2_intent["workflow_profile"]
+    _recommit_intent(bundle, v2_intent)
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any(
+        "attestation_schema_version: unresolved_workflow_profile" in item
+        for item in result["blocking_reasons"]
+    )
+
+
+def test_v3_merge_topology_and_owner_checks_still_fail_closed(
+    tmp_path: Path,
+) -> None:
+    bundle = _future_repo(tmp_path, schema_version=3, workflow_profile="baseline")
+    bundle["attestation"]["_remote_author"] = "attacker"
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("approval_remote_identity" in item for item in result["blocking_reasons"])
+
+
+def test_v3_post_merge_validation_runs_unchanged(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=3, workflow_profile="baseline")
+    before = _git(bundle["repo"], "rev-parse", "HEAD")
+    validation = _validate(bundle)
+    receipt = emit_mainline_integration_receipt(validation, emitted_at=NOW)
+    after = _git(bundle["repo"], "rev-parse", "HEAD")
+    assert validation["gate_status"] == "PASSED", validation
+    assert receipt["receipt_status"] == "EMITTED"
+    assert before == after
