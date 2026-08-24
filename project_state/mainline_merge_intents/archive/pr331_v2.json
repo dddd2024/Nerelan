@@ -1,0 +1,20 @@
+{
+  "schema_version": 2,
+  "intent_id": "pr331_issue330_trusted_remote_merge_boundary_r2_v3",
+  "repository": "dddd2024/reverse-agent",
+  "source_pr": 331,
+  "locked_base_sha": "0beac2f57c1ae9caa1b11dc02dfc027c9b19e496",
+  "allowed_merge_method": "merge",
+  "decision_identity": {
+    "decision_id": "decision_20260824_issue330_trusted_remote_merge_boundary_r2_v3",
+    "decision_content_sha256": "110e4c2523c08b0c53cec60a8853a9c496e37e9099ee038f0426cbf603271267"
+  },
+  "command_plan_sha256": "cf6aa01247df6255520db7ef8e9220edd7e30b1740498a405984ca79bb3ca282",
+  "merge_tree_policy": "equal_to_accepted_head_tree",
+  "required_workflows": [
+    "CI",
+    "Decision Preflight",
+    "State Gate (pull_request)"
+  ],
+  "expires_at": "2026-08-25T23:59:59Z"
+}
