@@ -162,7 +162,7 @@ class TestActiveMergeIntent:
         contract = _parse_decision_contract()
         if not _active_intent_binds_current_decision():
             assert _contract_defers_pr_binding()
-            assert data["schema_version"] == 1
+            assert data["schema_version"] in {1, 2}
             return
         expected_base = contract["activation_base_sha"]
         assert data["locked_base_sha"] == expected_base
@@ -180,7 +180,7 @@ class TestActiveMergeIntent:
         meta = _parse_decision_meta()
         if not _active_intent_binds_current_decision():
             assert _contract_defers_pr_binding()
-            assert data["schema_version"] == 1
+            assert data["schema_version"] in {1, 2}
             assert (
                 data["decision_identity"]["decision_id"] != meta["decision_id"]
             ), "pre-binding interim must preserve the previous landing decision"

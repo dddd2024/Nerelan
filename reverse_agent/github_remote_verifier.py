@@ -234,6 +234,12 @@ class GitHubRemoteAcceptanceVerifier:
                     payload["_remote_author"] = str(
                         (comment.get("user") or {}).get("login") or ""
                     )
+                    payload["_remote_comment_created_at"] = str(
+                        comment.get("created_at") or ""
+                    )
+                    payload["_remote_comment_updated_at"] = str(
+                        comment.get("updated_at") or ""
+                    )
                     matches.append(payload)
             if len(matches) != 1:
                 raise GitHubEvidenceError(
