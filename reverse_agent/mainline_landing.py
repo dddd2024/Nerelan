@@ -52,6 +52,52 @@ CURRENT_POSTMERGE_WORKFLOW_POLICY: dict[str, tuple[str, str]] = {
     "State Gate (push)": (".github/workflows/state-gate.yml", "push"),
 }
 
+# Production-owned trusted pre-merge workflow profiles (Issue #345).
+# Every profile is a superset of the generic three-workflow baseline; a
+# feature branch selects a profile by name but can never weaken, remove,
+# or invent one.  ``State Gate (push)`` stays post-merge-only in every
+# profile and therefore never appears here.
+TRUSTED_PREMERGE_WORKFLOW_PROFILES: dict[str, dict[str, tuple[str, str]]] = {
+    "baseline": {
+        "CI": (".github/workflows/ci.yml", "pull_request"),
+        "Decision Preflight": (
+            ".github/workflows/decision-preflight.yml",
+            "pull_request",
+        ),
+        "State Gate (pull_request)": (
+            ".github/workflows/state-gate.yml",
+            "pull_request",
+        ),
+    },
+    "browser_r3": {
+        "CI": (".github/workflows/ci.yml", "pull_request"),
+        "Decision Preflight": (
+            ".github/workflows/decision-preflight.yml",
+            "pull_request",
+        ),
+        "State Gate (pull_request)": (
+            ".github/workflows/state-gate.yml",
+            "pull_request",
+        ),
+        "Frontend Playwright": (
+            ".github/workflows/frontend-playwright.yml",
+            "pull_request",
+        ),
+        "Model Access": (".github/workflows/model-access.yml", "pull_request"),
+    },
+}
+
+
+def resolve_premerge_workflow_profile(profile_name: Any) -> dict[str, tuple[str, str]]:
+    """Resolve a bounded trusted pre-merge workflow profile by exact name."""
+
+    if (
+        not isinstance(profile_name, str)
+        or profile_name not in TRUSTED_PREMERGE_WORKFLOW_PROFILES
+    ):
+        raise ValueError(f"unknown_workflow_profile:{profile_name!r}")
+    return TRUSTED_PREMERGE_WORKFLOW_PROFILES[profile_name]
+
 
 def canonical_digest(payload: Mapping[str, Any], *, omit: tuple[str, ...] = ()) -> str:
     filtered = {key: value for key, value in payload.items() if key not in omit}
@@ -174,6 +220,39 @@ def _decision_meta_blob(repo_root: Path, commit_sha: str) -> dict[str, Any]:
     ):
         raise ValueError("invalid_decision_meta_contract")
     return meta
+
+
+def _decision_contract_profile(repo_root: Path, commit_sha: str) -> Any:
+    """Read the Decision-declared workflow_profile from a committed Decision contract.
+
+    Returns ``None`` when the committed Decision contract predates the
+    scope-aware profile policy and declares no ``workflow_profile``; a v3
+    intent must never match such a Decision.
+    """
+
+    path = "project_state/decision_packet.md"
+    raw = _blob(repo_root, commit_sha, path)
+    if raw is None:
+        raise ValueError(f"missing_decision_artifact:{path}")
+    text = raw.decode("utf-8", errors="strict")
+    match_count = sum(
+        1
+        for line in text.splitlines()
+        if line.strip().startswith("```")
+        and "json" in line.strip()[3:].strip().split()
+        and "decision_contract" in line.strip()[3:].strip().split()
+    )
+    if match_count != 1:
+        raise ValueError(f"expected_one_decision_contract:observed={match_count}")
+    parsed = extract_markdown_json_block(text, "decision_contract")
+    if not parsed.get("found") or parsed.get("parse_error"):
+        raise ValueError(f"invalid_decision_contract:{parsed.get('parse_error')}")
+    contract = {
+        key: value
+        for key, value in parsed.items()
+        if key not in {"found", "parse_error"}
+    }
+    return contract.get("workflow_profile")
 
 
 def _sha(value: Any) -> bool:
@@ -301,10 +380,16 @@ def _validate_intent(
         "expires_at",
     }
     schema_version = int(intent.get("schema_version") or 1)
+    intent_profile = intent.get("workflow_profile")
     if schema_version == 1:
         workflow_policy = CANONICAL_WORKFLOW_POLICY
     elif schema_version == 2:
         workflow_policy = CURRENT_PREMERGE_WORKFLOW_POLICY
+    elif schema_version == 3:
+        try:
+            workflow_policy = resolve_premerge_workflow_profile(intent_profile)
+        except ValueError:
+            workflow_policy = {}
     else:
         return [
             _check("intent_schema_version", False, f"unsupported_version={schema_version}"),
@@ -322,9 +407,11 @@ def _validate_intent(
             _check("intent_workflow_policy", False, "unsupported_version"),
             _check("intent_expiry", False, "unsupported_version"),
         ]
-    return [
+    if schema_version == 3:
+        intent_fields = intent_fields | {"workflow_profile"}
+    checks = [
         _check("intent_fields", set(intent) == intent_fields, f"observed={sorted(intent)}"),
-        _check("intent_schema_version", schema_version in {1, 2}, f"observed={schema_version}"),
+        _check("intent_schema_version", schema_version in {1, 2, 3}, f"observed={schema_version}"),
         _check("intent_repository", intent.get("repository") == "dddd2024/reverse-agent", f"observed={intent.get('repository')}"),
         _check("intent_source_pr", intent.get("source_pr") == source_pr, f"observed={intent.get('source_pr')} expected={source_pr}"),
         _check("intent_locked_base", intent.get("locked_base_sha") == locked_base, f"observed={intent.get('locked_base_sha')} expected={locked_base}"),
@@ -338,6 +425,18 @@ def _validate_intent(
         _check("intent_workflow_policy", required == list(workflow_policy), f"observed={required}"),
         _check("intent_expiry", not_expired, f"expires_at={expiry} now={now.isoformat()}"),
     ]
+    if schema_version == 3:
+        decision_profile = _decision_contract_profile(repo_root, accepted_head)
+        checks.append(
+            _check(
+                "intent_workflow_profile",
+                isinstance(intent_profile, str)
+                and intent_profile in TRUSTED_PREMERGE_WORKFLOW_PROFILES
+                and intent_profile == decision_profile,
+                f"observed={intent_profile!r} decision={decision_profile!r}",
+            )
+        )
+    return checks
 
 
 def _validate_attestation(
@@ -379,6 +478,34 @@ def _validate_attestation(
     elif schema_version == 2:
         workflow_policy = CURRENT_PREMERGE_WORKFLOW_POLICY
         required_observation_count = 3
+    elif schema_version == 3:
+        try:
+            workflow_policy = resolve_premerge_workflow_profile(
+                intent.get("workflow_profile")
+            )
+        except ValueError as exc:
+            return [
+                _check("attestation_schema_version", False, f"unresolved_workflow_profile:{exc}"),
+                _check("attestation_fields", False, "unresolved_workflow_profile"),
+                _check("attestation_repository", False, "unresolved_workflow_profile"),
+                _check("attestation_source_pr", False, "unresolved_workflow_profile"),
+                _check("attestation_base", False, "unresolved_workflow_profile"),
+                _check("attestation_head", False, "unresolved_workflow_profile"),
+                _check("attestation_method", False, "unresolved_workflow_profile"),
+                _check("attestation_intent_digest", False, "unresolved_workflow_profile"),
+                _check("attestation_content_digest", False, "unresolved_workflow_profile"),
+                _check("attestation_status", False, "unresolved_workflow_profile"),
+                _check("attestation_expiry", False, "unresolved_workflow_profile"),
+                _check("workflow_names", False, "unresolved_workflow_profile"),
+                _check("workflow_run_uniqueness", False, "unresolved_workflow_profile"),
+                _check("workflow_observation_fields", False, "unresolved_workflow_profile"),
+                _check("approval_remote_identity", False, "unresolved_workflow_profile"),
+                _check("approval_fields", False, "unresolved_workflow_profile"),
+                _check("approval_approver", False, "unresolved_workflow_profile"),
+                _check("approval_payload", False, "unresolved_workflow_profile"),
+                _check("approval_content_digest", False, "unresolved_workflow_profile"),
+            ]
+        required_observation_count = len(workflow_policy)
     else:
         return [
             _check("attestation_schema_version", False, f"unsupported_version={schema_version}"),
@@ -424,7 +551,7 @@ def _validate_attestation(
         "_remote_comment_updated_at",
     }
     expected_fields = attestation_fields
-    if schema_version == 2:
+    if schema_version in {2, 3}:
         expected_fields = attestation_fields | runtime_timestamp_fields
     observed_fields_valid = set(attestation) == expected_fields or (
         schema_version == 1 and set(attestation) == attestation_fields | runtime_timestamp_fields
@@ -441,7 +568,7 @@ def _validate_attestation(
     checks.extend(
         [
             _check("attestation_fields", observed_fields_valid, f"observed={sorted(attestation)}"),
-            _check("attestation_schema_version", schema_version in {1, 2}, f"observed={schema_version}"),
+            _check("attestation_schema_version", schema_version in {1, 2, 3}, f"observed={schema_version}"),
             _check("attestation_repository", attestation.get("repository") == "dddd2024/reverse-agent", f"observed={attestation.get('repository')}"),
             _check("attestation_source_pr", attestation.get("source_pr") == source_pr, f"observed={attestation.get('source_pr')} expected={source_pr}"),
             _check("attestation_base", attestation.get("locked_base_sha") == locked_base, f"observed={attestation.get('locked_base_sha')}"),
@@ -466,14 +593,14 @@ def _validate_attestation(
         "expected_head_sha": accepted_head,
         "expected_base_sha": locked_base,
     }
-    if schema_version == 2:
+    if schema_version in {2, 3}:
         verify_kwargs.update(
             expected_merge_commit_sha=merge_commit_sha,
             require_merged=True,
         )
     pr = verifier.verify_pr(**verify_kwargs)
     checks.append(_check("remote_pr_binding", bool(pr.get("verified")), str(pr.get("reason") or "verified")))
-    if schema_version == 2:
+    if schema_version in {2, 3}:
         remote_pr = pr.get("pr") if isinstance(pr.get("pr"), Mapping) else {}
         merged_at = remote_pr.get("merged_at")
         if not isinstance(merged_at, str) or not merged_at:
