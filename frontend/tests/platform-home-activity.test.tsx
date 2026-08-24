@@ -309,6 +309,120 @@ describe("Home compact activity stream (OBS-1)", () => {
     expect(screen.getByTestId("goal-activity-event-p2").textContent).toContain("pytest tests/integration -q");
   });
 
+  it("does not count waiting or stale RUNNING runs in the parallel-active agent summary", async () => {
+    __setMockRuns([
+      makeRun({
+        task_id: "t-live",
+        current_agent: { agent_id: "coder", role: "coder", display_name: "Coder" },
+        current_activity: {
+          category: "EDIT",
+          title: "修改认证实现",
+          description: "更新 auth/service.py。",
+          agent: { agent_id: "coder", role: "coder", display_name: "Coder" },
+          timestamp: secondsAgo(5),
+        },
+        activity: [activity("live1", "t-live", "EDIT", "修改 auth/service.py", secondsAgo(5), "Coder")],
+      }),
+      makeRun({
+        task_id: "t-waiting-run",
+        state: "RUNNING",
+        liveness: "WAITING",
+        last_activity_at: minutesAgo(3),
+        current_agent: { agent_id: "test", role: "test", display_name: "Test Agent" },
+        current_activity: {
+          category: "AGENT_WAITING",
+          title: "等待模型响应",
+          description: "执行器等待上游响应。",
+          agent: { agent_id: "test", role: "test", display_name: "Test Agent" },
+          timestamp: minutesAgo(3),
+        },
+      }),
+      makeRun({
+        task_id: "t-stale-run",
+        state: "RUNNING",
+        liveness: "STALE",
+        last_activity_at: minutesAgo(25),
+        current_agent: { agent_id: "review", role: "review", display_name: "Reviewer" },
+        current_activity: {
+          category: "COMMAND",
+          title: "运行长时命令",
+          description: "命令仍在执行。",
+          agent: { agent_id: "review", role: "review", display_name: "Reviewer" },
+          timestamp: minutesAgo(25),
+        },
+      }),
+    ]);
+    __setMockGoalStatus(GOAL_ID, {
+      status: "RUNNING",
+      task_links: [
+        { task_id: "t-live", plan_task_id: "T001", status: "RUNNING", title: "活跃任务" },
+        { task_id: "t-waiting-run", plan_task_id: "T002", status: "RUNNING", title: "等待任务" },
+        { task_id: "t-stale-run", plan_task_id: "T003", status: "RUNNING", title: "停滞任务" },
+      ],
+    });
+
+    rtlRender(<HomePage />, { wrapper: makeWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("goal-activity-agents")).toBeTruthy();
+    });
+    const agents = screen.getByTestId("goal-activity-agents").textContent ?? "";
+    expect(agents).not.toContain("并行");
+    expect(agents).toContain("Coder");
+    expect(agents).not.toContain("Test Agent");
+    expect(agents).not.toContain("Reviewer");
+  });
+
+  it("shows at most the primary run's agent when no run is actively working", async () => {
+    __setMockRuns([
+      makeRun({
+        task_id: "t-wait-only-1",
+        state: "RUNNING",
+        liveness: "WAITING",
+        last_activity_at: minutesAgo(2),
+        current_agent: { agent_id: "coder", role: "coder", display_name: "Coder" },
+        current_activity: {
+          category: "AGENT_WAITING",
+          title: "等待模型响应",
+          description: "执行器等待上游响应。",
+          agent: { agent_id: "coder", role: "coder", display_name: "Coder" },
+          timestamp: minutesAgo(2),
+        },
+      }),
+      makeRun({
+        task_id: "t-stale-only-2",
+        state: "RUNNING",
+        liveness: "STALE",
+        last_activity_at: minutesAgo(30),
+        current_agent: { agent_id: "test", role: "test", display_name: "Test Agent" },
+        current_activity: {
+          category: "COMMAND",
+          title: "运行长时命令",
+          description: "命令仍在执行。",
+          agent: { agent_id: "test", role: "test", display_name: "Test Agent" },
+          timestamp: minutesAgo(30),
+        },
+      }),
+    ]);
+    __setMockGoalStatus(GOAL_ID, {
+      status: "RUNNING",
+      task_links: [
+        { task_id: "t-wait-only-1", plan_task_id: "T001", status: "RUNNING", title: "等待任务" },
+        { task_id: "t-stale-only-2", plan_task_id: "T002", status: "RUNNING", title: "停滞任务" },
+      ],
+    });
+
+    rtlRender(<HomePage />, { wrapper: makeWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("goal-activity-agents")).toBeTruthy();
+    });
+    const agents = screen.getByTestId("goal-activity-agents").textContent ?? "";
+    expect(agents).not.toContain("并行");
+    expect(agents).toContain("Coder");
+    expect(agents).not.toContain("Test Agent");
+  });
+
   it("keeps the panel hidden when the goal has no linked runs", async () => {
     __setMockRuns([
       makeRun({ task_id: "unrelated-run" }),

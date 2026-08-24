@@ -148,10 +148,13 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
   const view = useMemo(() => {
     if (linkedRuns.length === 0) return null;
 
-    const activeRuns = linkedRuns.filter(
+    const currentRuns = linkedRuns.filter(
       (run) => run.state === "RUNNING" || livenessState(run) === "ACTIVE" || livenessState(run) === "VALIDATING",
     );
-    const pool = activeRuns.length > 0 ? activeRuns : linkedRuns;
+    const workingRuns = linkedRuns.filter(
+      (run) => livenessState(run) === "ACTIVE" || livenessState(run) === "VALIDATING",
+    );
+    const pool = currentRuns.length > 0 ? currentRuns : linkedRuns;
     const primary =
       pool.find((run) => run.current_activity) ??
       [...pool].sort((a, b) => Date.parse(lastActivityAt(b) || "0") - Date.parse(lastActivityAt(a) || "0"))[0] ??
@@ -173,8 +176,9 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
       .sort((a, b) => Date.parse(b.event.timestamp || "0") - Date.parse(a.event.timestamp || "0"))
       .slice(0, limit);
 
+    const agentSource = workingRuns.length > 0 ? workingRuns : [primary];
     const agentNames: string[] = [];
-    for (const run of activeRuns.length > 0 ? activeRuns : pool) {
+    for (const run of agentSource) {
       const agent = run.current_agent ?? eventAgent(run.current_activity);
       const label = agent ? agentLabel(agent) : "";
       if (label && !agentNames.includes(label)) agentNames.push(label);
@@ -196,7 +200,7 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
       primary,
       events,
       agentNames,
-      activeCount: activeRuns.length,
+      activeCount: workingRuns.length,
       changeSummary,
       currentActivity: primary.current_activity ?? null,
       liveness: livenessState(primary),
