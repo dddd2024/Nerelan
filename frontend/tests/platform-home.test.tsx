@@ -177,6 +177,7 @@ describe("Platform V2 Home Workspace V2", () => {
     expect(screen.getByLabelText("描述最终目标")).toBeInTheDocument();
     expect(screen.getByText("Agent progress")).toBeInTheDocument();
     expect(screen.getByText("实现协调与恢复链路")).toBeInTheDocument();
+    expect(screen.getByTestId("goal-progress-bar")).toBeInTheDocument();
     const composer = screen.getByTestId("goal-composer-section");
     const current = screen.getByTestId("current-execution-section");
     const recent = screen.getByTestId("recent-goals-section");
@@ -191,6 +192,7 @@ describe("Platform V2 Home Workspace V2", () => {
     expect(main.querySelector("aside")).toBeNull();
     expect(main.querySelector('[data-testid="activity-stream-slot"]')).toBeNull();
     expect(screen.queryByText("Multi-agent workspace")).not.toBeInTheDocument();
+    expect(screen.queryByText(/能力$/)).not.toBeInTheDocument();
     const recentSection = screen.getByTestId("recent-goals-section");
     const recentButtons = recentSection.querySelectorAll("button[type='button']");
     expect(recentButtons.length).toBeLessThanOrEqual(3);
@@ -204,6 +206,34 @@ describe("Platform V2 Home Workspace V2", () => {
     expect(currentSection).toContainElement(screen.getByText("Agent progress"));
     expect(currentSection).toContainElement(screen.getByText("分析目标与代码库"));
     expect(currentSection).toContainElement(screen.getByText("验证并准备证据"));
+  });
+
+  it("labels a completed current goal with its semantic status", async () => {
+    const completed = makeGoal("COMPLETED", [...COMPLETED_LINKS]);
+    const client = makeClient({ staleTime: 60_000 });
+    client.setQueryData(["goals"], [completed]);
+    client.setQueryData(["goals", DEMO_ID], completed);
+
+    render(<HomePage />, { factory: () => client });
+
+    await waitFor(() => expect(screen.getByTestId("goal-state-label")).toBeInTheDocument());
+    expect(screen.getByTestId("goal-state-label")).toHaveTextContent("已完成");
+    expect(screen.getByTestId("goal-state-label")).toHaveClass("text-ra-status-running");
+    expect(screen.getByTestId("goal-progress-bar").firstElementChild).toHaveClass("bg-ra-status-running");
+  });
+
+  it("labels a blocked current goal with its semantic status", async () => {
+    const blocked = makeGoal("BLOCKED", [...BLOCKED_LINKS]);
+    const client = makeClient({ staleTime: 60_000 });
+    client.setQueryData(["goals"], [blocked]);
+    client.setQueryData(["goals", DEMO_ID], blocked);
+
+    render(<HomePage />, { factory: () => client });
+
+    await waitFor(() => expect(screen.getByTestId("goal-state-label")).toBeInTheDocument());
+    expect(screen.getByTestId("goal-state-label")).toHaveTextContent("需要处理阻塞");
+    expect(screen.getByTestId("goal-state-label")).toHaveClass("text-ra-status-error");
+    expect(screen.getByTestId("goal-progress-bar").firstElementChild).toHaveClass("bg-ra-status-error");
   });
 
   it("distinguishes selected-detail loading from the empty state", async () => {
@@ -425,8 +455,8 @@ describe("Platform V2 Home Workspace V2", () => {
     const recentSection = screen.getByTestId("recent-goals-section");
     const badges = recentSection.querySelectorAll("span");
     const classes = Array.from(badges).map((el) => el.className);
-    expect(classes.some((cls) => cls.includes("emerald"))).toBe(true);
-    expect(classes.some((cls) => cls.includes("blue"))).toBe(true);
-    expect(classes.some((cls) => cls.includes("red"))).toBe(true);
+    expect(classes.some((cls) => cls.includes("ra-status-running"))).toBe(true);
+    expect(classes.some((cls) => cls.includes("ra-accent"))).toBe(true);
+    expect(classes.some((cls) => cls.includes("ra-status-error"))).toBe(true);
   });
 });

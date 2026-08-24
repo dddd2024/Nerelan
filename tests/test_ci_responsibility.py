@@ -8,6 +8,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 STATE_GATE_PATH = WORKFLOWS_DIR / "state-gate.yml"
 CI_PATH = WORKFLOWS_DIR / "ci.yml"
+FRONTEND_PLAYWRIGHT_PATH = WORKFLOWS_DIR / "frontend-playwright.yml"
 PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
 
 STATE_GATE_GATEWAYS = [
@@ -411,3 +412,26 @@ def _extract_package_names(dependencies: list[str]) -> set[str]:
         if match:
             names.add(match.group(1).lower().replace("_", "-"))
     return names
+
+
+def test_frontend_playwright_workflow_contract() -> None:
+    content = FRONTEND_PLAYWRIGHT_PATH.read_text(encoding="utf-8")
+    for required in (
+        "runs-on: ubuntu-24.04",
+        'node-version: "22.23.1"',
+        "run: npm ci",
+        "npx playwright install --with-deps --no-shell chromium",
+        "run: npm run e2e",
+        "if: failure()",
+        "contents: read",
+    ):
+        assert required in content, f"frontend Playwright workflow missing: {required}"
+    assert "--update-snapshots" not in content
+    assert "workflow_dispatch" not in content
+    for provider_url in (
+        "api.openai.com",
+        "api.anthropic.com",
+        "generativelanguage.googleapis.com",
+        "openrouter.ai",
+    ):
+        assert provider_url not in content

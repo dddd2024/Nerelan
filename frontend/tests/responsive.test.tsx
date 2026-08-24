@@ -54,6 +54,10 @@ describe("responsive layout", () => {
     expect(screen.getByLabelText("打开任务列表")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-首页")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-任务")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-nav-收件箱")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-nav-路线图")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-nav-Agent 运行")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-nav-设置")).toBeInTheDocument();
   });
 
   it("task inbox renders on desktop", () => {
