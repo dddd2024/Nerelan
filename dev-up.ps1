@@ -11,6 +11,13 @@
   dev-up does NOT install packages, does NOT print secrets, and does NOT
   invoke any model. It only starts the existing local service entry points.
 
+  dev-up is idempotent: repeated runs against the same RepoDir reuse a healthy
+  recorded stack, repair a partial/unhealthy/config-drifted one by stopping
+  only verified owned children, and fail closed when ports are held by
+  unknown processes. The runtime directory always derives from the resolved
+  RepoDir (blank RepoDir means the script directory), never from the caller's
+  working directory or a previous runtime value.
+
   RepoDir  = trusted service host (frontend/node_modules, .platform_v1_runtime).
   SourceDir = repository exposed to OpenCode via REVERSE_AGENT_REPO_DIR.
   When SourceDir is omitted or blank it deterministically equals resolved RepoDir.
@@ -34,28 +41,42 @@ param(
   [Parameter(Mandatory = $false)]
   [string]$OpenCodeModel = "sensetime/sensenova-6.7-flash-lite",
   [Parameter(Mandatory = $false)]
+  [int]$FrontendPort = 4173,
+  [Parameter(Mandatory = $false)]
+  [int]$TaskApiPort = 8766,
+  [Parameter(Mandatory = $false)]
+  [int]$ModelControlPort = 8765,
+  [Parameter(Mandatory = $false)]
   [switch]$NoBrowser
 )
 
 $ErrorActionPreference = "Stop"
-
-$FrontendPort = 4173
-$TaskApiPort = 8766
-$ModelControlPort = 8765
 
 $FrontendUrl = "http://127.0.0.1:${FrontendPort}"
 $TaskApiUrl = "http://127.0.0.1:${TaskApiPort}"
 $ModelControlUrl = "http://127.0.0.1:${ModelControlPort}"
 
 $script:startedChildren = New-Object System.Collections.Generic.List[object]
+$script:runtimeDir = ""
 
 function Resolve-InputPath([string]$candidate) {
-  if ([string]::IsNullOrWhiteSpace($candidate)) {
-    return (Get-Location).Path
-  }
   $resolved = Resolve-Path -LiteralPath $candidate -ErrorAction SilentlyContinue
   if ($resolved) { return $resolved.Path }
   return $candidate
+}
+
+function Get-InvalidDirReason([string]$candidate, [string]$label) {
+  if ([string]::IsNullOrWhiteSpace($candidate)) {
+    return "${label} is empty or whitespace: '${candidate}'"
+  }
+  if ($candidate.IndexOfAny([System.IO.Path]::GetInvalidPathChars()) -ge 0) {
+    return "${label} contains an invalid filesystem character: '${candidate}'"
+  }
+  $segments = @($candidate -split "[\\/]")
+  if ($segments -contains ".platform_v1_runtime") {
+    return "${label} must not point inside .platform_v1_runtime: '${candidate}'"
+  }
+  return $null
 }
 
 function Stop-Owned-Children {
@@ -78,9 +99,9 @@ function Stop-Owned-Children {
 
 function Fail-Closed([string]$msg) {
   Stop-Owned-Children
-  $errLog = Join-Path (Join-Path (Get-Location).Path ".platform_v1_runtime") "devup.fail.log"
-  try { New-Item -ItemType Directory -Path (Split-Path $errLog) -Force | Out-Null } catch {}
-  Add-Content -LiteralPath $errLog -Value "[FAIL] ${msg}" -Encoding UTF8 -ErrorAction SilentlyContinue
+  $logBase = if ($script:runtimeDir) { $script:runtimeDir } else { Join-Path $PSScriptRoot ".platform_v1_runtime" }
+  try { New-Item -ItemType Directory -Path $logBase -Force | Out-Null } catch {}
+  Add-Content -LiteralPath (Join-Path $logBase "devup.fail.log") -Value "[FAIL] ${msg}" -Encoding UTF8 -ErrorAction SilentlyContinue
   Write-Error "dev-up: ${msg}"
   exit 1
 }
@@ -162,32 +183,36 @@ function Start-ServiceProcess(
   [string]$logDir
 ) {
   $argString = ($serviceArgs -join " ")
-  $psi = New-Object System.Diagnostics.ProcessStartInfo
-  $psi.WorkingDirectory = $cwd
-  $psi.UseShellExecute = $false
-  $psi.CreateNoWindow = $true
+  $logFile = Join-Path $logDir "${name}.log"
 
-  foreach ($kv in $env.GetEnumerator()) {
-    $psi.Environment[$kv.Key] = $kv.Value
-  }
-
-  $wrapped = $false
-  $expectedExe = [System.IO.Path]::GetFileName($cmd)
   if ($cmd -match '\.ps1$') {
     $pwsh = Get-Command "powershell.exe" -ErrorAction SilentlyContinue
     $pwshPath = if ($pwsh) { $pwsh.Source } else { "powershell.exe" }
-    $psi.FileName = $pwshPath
-    $psi.Arguments = "-NoProfile -NonInteractive -NoLogo -File `"$cmd`" $argString"
-    $expectedExe = [System.IO.Path]::GetFileName($pwshPath)
-  } elseif ($cmd -match '\.cmd$|\.bat$') {
-    $psi.FileName = "cmd.exe"
-    $psi.Arguments = "/c `"$cmd`" $argString"
-    $wrapped = $true
-    $expectedExe = "cmd.exe"
+    $inner = "`"$pwshPath`" -NoProfile -NonInteractive -NoLogo -File `"$cmd`" $argString"
   } else {
-    $psi.FileName = $cmd
-    $psi.Arguments = $argString
+    $inner = "`"$cmd`" $argString"
   }
+
+  # Service children must never inherit dev-up's stdio handles. The .NET
+  # UseShellExecute=false path enables full handle inheritance, so a
+  # long-lived child would keep the caller's stdout/stderr pipe write ends
+  # open and block any orchestrator (pytest, CI) reading dev-up output until
+  # EOF - even after dev-up itself exits or is killed. ShellExecute passes no
+  # handles; per-child environment variables travel inside the wrapper as
+  # `set` commands, and the wrapper redirects the real service's stdio into a
+  # per-service log file so the service never blocks on an unread pipe.
+  $setEnv = @()
+  foreach ($kv in $env.GetEnumerator()) {
+    $setEnv += "set `"$($kv.Key)=$($kv.Value)`""
+  }
+  $wrappedCommand = (@($setEnv) + @("$inner > `"${logFile}`" 2>&1")) -join " && "
+
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = "cmd.exe"
+  $psi.Arguments = "/s /c `"$wrappedCommand`""
+  $psi.UseShellExecute = $true
+  $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+  $psi.WorkingDirectory = $cwd
 
   $proc = New-Object System.Diagnostics.Process
   $proc.StartInfo = $psi
@@ -203,11 +228,11 @@ function Start-ServiceProcess(
   $script:startedChildren.Add([ordered]@{
     name = $name
     pid = $proc.Id
-    expected_exe = $expectedExe
+    expected_exe = "cmd.exe"
     start_time = $proc.StartTime.ToString("o")
     cmd = $cmd
     serviceArgs = $argString
-    wrapped = $wrapped
+    wrapped = $true
     handle = $proc
   })
 
@@ -236,10 +261,27 @@ function Wait-ServiceReady(
   return $false
 }
 
+function Write-StackSummary {
+  Write-Output "Model Control: ${ModelControlUrl}"
+  Write-Output "Task API:      ${TaskApiUrl}"
+  Write-Output "Frontend:      ${FrontendUrl}"
+  Write-Output "Executor:      opencode"
+  Write-Output "Coordinator:   enabled (requires an owner-activated window)"
+  Write-Output "Model:         ${OpenCodeModel}"
+  Write-Output "Runtime state: ${pidFile}"
+}
+
 # RepoDir is the trusted service host: frontend/node_modules and runtime.
 # SourceDir is the repository exposed to OpenCode via REVERSE_AGENT_REPO_DIR.
 # Blank/absent SourceDir deterministically falls back to resolved RepoDir (V3-F2).
-$repoDir = Resolve-InputPath $RepoDir
+# Blank/absent RepoDir deterministically resolves to the script directory, never
+# the caller's current working directory, so the runtime directory is identical
+# across repeated executions (idempotency).
+if ([string]::IsNullOrWhiteSpace($RepoDir)) {
+  $repoDir = $PSScriptRoot
+} else {
+  $repoDir = Resolve-InputPath $RepoDir
+}
 if ([string]::IsNullOrWhiteSpace($SourceDir)) {
   $sourceDir = $repoDir
 } else {
@@ -248,8 +290,140 @@ if ([string]::IsNullOrWhiteSpace($SourceDir)) {
 
 $runtimeDir = Join-Path $repoDir ".platform_v1_runtime"
 $pidFile = Join-Path $runtimeDir "devup_pids.json"
+$script:runtimeDir = $runtimeDir
+
+$repoDirRejection = Get-InvalidDirReason -candidate $repoDir -label "RepoDir"
+if ($repoDirRejection) { Fail-Closed $repoDirRejection }
+$sourceDirRejection = Get-InvalidDirReason -candidate $sourceDir -label "SourceDir"
+if ($sourceDirRejection) { Fail-Closed $sourceDirRejection }
+
+foreach ($portParam in @($FrontendPort, $TaskApiPort, $ModelControlPort)) {
+  if ($portParam -lt 1 -or $portParam -gt 65535) {
+    Fail-Closed "port ${portParam} is outside the valid range 1-65535"
+  }
+}
+if ($FrontendPort -eq $TaskApiPort -or $FrontendPort -eq $ModelControlPort -or $TaskApiPort -eq $ModelControlPort) {
+  Fail-Closed "service ports must be distinct: ${FrontendPort}/${TaskApiPort}/${ModelControlPort}"
+}
 
 New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
+
+# Startup state reconciliation: a healthy recorded stack is reused; a partial,
+# unhealthy or config-drifted one is repaired by stopping only verified owned
+# children; unknown port occupants keep the fail-closed refusal below.
+function Compare-ProcessStartTime([string]$recordedStartTimeStr, [datetime]$actualStartTime) {
+  if ([string]::IsNullOrWhiteSpace($recordedStartTimeStr)) { return $false }
+  $recorded = $null
+  try {
+    $parsed = [datetime]::MinValue
+    if (-not [datetime]::TryParse($recordedStartTimeStr, [ref]$parsed)) { return $false }
+    $recorded = $parsed
+    if ($recorded.Kind -eq [System.DateTimeKind]::Unspecified) {
+      $recorded = [datetime]::SpecifyKind($recorded, [System.DateTimeKind]::Utc)
+    }
+    $recordedUtc = $recorded.ToUniversalTime()
+  } catch { return $false }
+  try { $actualUtc = $actualStartTime.ToUniversalTime() } catch { return $false }
+  $diffMs = [math]::Abs(($recordedUtc - $actualUtc).TotalMilliseconds)
+  return $diffMs -le 100
+}
+
+function Test-RecordedChildOwned([object]$child) {
+  if (-not $child -or -not $child.pid) { return $false }
+  $proc = Get-Process -Id $child.pid -ErrorAction SilentlyContinue
+  if (-not $proc) { return $false }
+  $actualExe = $null
+  try { $actualExe = [System.IO.Path]::GetFileName($proc.MainModule.FileName) } catch { return $false }
+  $wrapped = if ($child.PSObject.Properties.Name -contains "wrapped") { [bool]$child.wrapped } else { $false }
+  $expectedExe = if ($child.expected_exe) { [string]$child.expected_exe } else { $null }
+  $identityOk = $false
+  if ($wrapped -and $actualExe -eq "cmd.exe") {
+    $identityOk = $true
+  } elseif ($expectedExe -and $actualExe -eq $expectedExe) {
+    $identityOk = $true
+  }
+  if (-not $identityOk) { return $false }
+  $recordedStart = if ($child.PSObject.Properties.Name -contains "start_time") { [string]$child.start_time } else { $null }
+  if (-not (Compare-ProcessStartTime $recordedStart $proc.StartTime)) { return $false }
+  return $true
+}
+
+function Stop-VerifiedChild([object]$child) {
+  try {
+    $proc = Get-Process -Id $child.pid -ErrorAction SilentlyContinue
+    if ($proc -and -not $proc.HasExited) {
+      if ($child.wrapped) {
+        $ki = Start-Process "taskkill" -ArgumentList "/PID $($child.pid) /T /F" -Wait -NoNewWindow -PassThru -ErrorAction SilentlyContinue
+        if ($ki) { $ki.WaitForExit(5000) | Out-Null }
+      } else {
+        $proc.Kill()
+        $proc.WaitForExit(5000) | Out-Null
+      }
+    }
+  } catch {}
+}
+
+function Test-StackHealthy {
+  if (-not (Wait-ServiceReady -url "$ModelControlUrl/api/model-profiles" -attempts 8 -intervalMs 250)) { return $false }
+  if (-not (Wait-ServiceReady -url "${TaskApiUrl}/api/tasks" -attempts 8 -intervalMs 250)) { return $false }
+  return (Wait-ServiceReady -url "$FrontendUrl/" -attempts 8 -intervalMs 250)
+}
+
+function Wait-PortsFreed {
+  foreach ($portParam in @($FrontendPort, $TaskApiPort, $ModelControlPort)) {
+    $freed = $false
+    for ($i = 0; $i -lt 20; $i++) {
+      if (-not (Is-PortInUse $portParam)) { $freed = $true; break }
+      Start-Sleep -Milliseconds 250
+    }
+    if (-not $freed) { Fail-Closed "port ${portParam} did not free after stopping owned children" }
+  }
+}
+
+$stackReused = $false
+if (Test-Path -LiteralPath $pidFile) {
+  $runtimeState = $null
+  $rawRecord = $null
+  try { $rawRecord = Get-Content -LiteralPath $pidFile -Raw -Encoding UTF8 -ErrorAction SilentlyContinue } catch { $rawRecord = $null }
+  if ([string]::IsNullOrWhiteSpace($rawRecord)) {
+    Write-Warning "dev-up: invalid runtime state at ${pidFile} (empty record); starting fresh"
+  } else {
+    try { $runtimeState = $rawRecord | ConvertFrom-Json -ErrorAction Stop } catch {
+      Write-Warning "dev-up: invalid runtime state at ${pidFile} (unparseable record); starting fresh"
+    }
+  }
+  if ($runtimeState -and $runtimeState.children) {
+    $recordedRepoDir = [string]$runtimeState.repo_dir
+    if (-not ($recordedRepoDir.TrimEnd('\') -ieq ([string]$repoDir).TrimEnd('\'))) {
+      if (@($runtimeState.children | Where-Object { Test-RecordedChildOwned $_ }).Count -gt 0) {
+        Write-Warning "dev-up: runtime record at ${pidFile} belongs to a different repo_dir; refusing to reuse or stop its children"
+      }
+    } else {
+      $ownedChildren = @($runtimeState.children | Where-Object { Test-RecordedChildOwned $_ })
+      $configMatches = (([string]$runtimeState.source_dir).TrimEnd('\') -ieq ([string]$sourceDir).TrimEnd('\')) -and
+        ([string]$runtimeState.open_code_model -eq [string]$OpenCodeModel)
+      if ($ownedChildren.Count -gt 0 -and $configMatches -and (Test-StackHealthy)) {
+        $stackReused = $true
+        $ownedList = ($ownedChildren | ForEach-Object { "$($_.name) (pid $($_.pid))" }) -join ", "
+        Write-Output "dev-up: stack already running and healthy; reusing recorded runtime: ${ownedList}"
+      } elseif ($ownedChildren.Count -gt 0) {
+        foreach ($child in $ownedChildren) {
+          Write-Output "dev-up: repair: stopping recorded child $($child.name) (pid $($child.pid))"
+          Stop-VerifiedChild $child
+        }
+        Wait-PortsFreed
+      }
+    }
+  }
+}
+
+if ($stackReused) {
+  Write-StackSummary
+  if (-not $NoBrowser) {
+    try { Start-Process $FrontendUrl } catch {}
+  }
+  exit 0
+}
 
 $py = Find-Executable "python"
 if (-not $py) { Fail-Closed "prerequisite missing: python (not installed)" }
@@ -383,13 +557,7 @@ $record = [ordered]@{
 
 $record | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $pidFile -Encoding UTF8
 
-Write-Output "Model Control: ${ModelControlUrl}"
-Write-Output "Task API:      ${TaskApiUrl}"
-Write-Output "Frontend:      ${FrontendUrl}"
-Write-Output "Executor:      opencode"
-Write-Output "Coordinator:   enabled (requires an owner-activated window)"
-Write-Output "Model:         ${OpenCodeModel}"
-Write-Output "Runtime state: ${pidFile}"
+Write-StackSummary
 
 if (-not $NoBrowser) {
   try { Start-Process $FrontendUrl } catch {}
