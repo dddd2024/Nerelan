@@ -35,6 +35,11 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SHELL_META_RE = re.compile(r"(?:&&|\|\||[;`|<>]|\$\(|\$\{)")
 
+ACTIVATION_DRAFT = "ACTIVATION_DRAFT"
+IMPLEMENTATION_DRAFT = "IMPLEMENTATION_DRAFT"
+READY_FINAL_READINESS = "READY_FINAL_READINESS"
+LIFECYCLE_STAGES = (ACTIVATION_DRAFT, IMPLEMENTATION_DRAFT, READY_FINAL_READINESS)
+
 PRIVILEGED_OPERATION_TERMS = (
     "direct push to main",
     "force push",
@@ -557,8 +562,26 @@ def verify_path_a_r1(
     merge_base_sha: str,
     expected_repository: str,
     expected_authority_revision: str | None = None,
+    stage: str | None = None,
+    empty_delta: bool | None = None,
 ) -> dict[str, Any]:
-    """Verify a complete ordinary R1 authority snapshot without executing Issue text."""
+    """Verify a stage-aware Path-A R1 authority snapshot.
+
+    Stages are mutually exclusive lifecycle outcomes and are inferred
+    from live PR state plus live git truth unless the caller passes an
+    explicit stage for unit-testing a specific branch.
+
+    - ACTIVATION_DRAFT:  PASS with zero implementation delta; the gate
+      returns implementation_authority=false and no product acceptance.
+    - IMPLEMENTATION_DRAFT: preserves every existing Path-A R1 check
+      and returns PATH_A_R1_AUTHORIZED.
+    - READY_FINAL_READINESS: revalidates every live authority input
+      against a freshly computed authority revision; the gate returns
+      READY_FINAL_READINESS without granting implementation authority.
+    """
+
+    if stage is not None and stage not in LIFECYCLE_STAGES:
+        raise PathAGateError("invalid_stage", stage)
 
     if event_name != "pull_request" or not isinstance(event.get("pull_request"), Mapping):
         raise PathAGateError("event_not_pull_request")
@@ -612,8 +635,122 @@ def verify_path_a_r1(
             ),
         )
 
-    if pr.get("state") != "open" or pr.get("draft") is not True:
-        raise PathAGateError("pr_must_be_open_draft")
+    pr_open = pr.get("state") == "open"
+    pr_draft_state = (
+        pr.get("draft") if isinstance(pr.get("draft"), bool) else None
+    )
+    pr_draft = pr_draft_state is True
+    changed = tuple(dict.fromkeys(path.replace("\\", "/") for path in changed_paths))
+    empty = bool(empty_delta) if empty_delta is not None else len(changed) == 0
+    inferred_stage = infer_path_a_lifecycle_stage(
+        pr_open=pr_open,
+        pr_draft=pr_draft_state,
+        empty_delta=empty,
+    )
+    if stage is not None and stage != inferred_stage:
+        raise PathAGateError(
+            "stage_mismatch",
+            (
+                f"expected={stage};inferred={inferred_stage};"
+                f"empty_delta={empty};draft={pr_draft_state}"
+            ),
+        )
+    stage_branch = stage if stage is not None else inferred_stage
+    if stage_branch == ACTIVATION_DRAFT:
+        if not pr_open:
+            raise PathAGateError("pr_not_open")
+        if not pr_draft:
+            raise PathAGateError("activation_draft_pr_must_be_draft")
+        if str(issue.get("state") or "").lower() != "open":
+            raise PathAGateError("source_issue_not_open")
+        if "r1" not in labels:
+            raise PathAGateError("issue_not_r1")
+        if "r1-approved" not in labels:
+            raise PathAGateError("issue_not_r1_approved")
+        disallowed_tiers = sorted(labels & {"r2", "r3"})
+        if disallowed_tiers:
+            raise PathAGateError(
+                "issue_privileged_risk_tier", ",".join(disallowed_tiers)
+            )
+        if approver_permission not in {"admin", "maintain"}:
+            raise PathAGateError("approver_not_owner_or_maintainer")
+        if not approval_transitions:
+            raise PathAGateError("approval_event_missing")
+        assert effective_approval is not None
+        if str(effective_approval.get("event") or "") != "labeled":
+            raise PathAGateError("approval_event_superseded")
+        if str((effective_approval.get("actor") or {}).get("login") or "") != snapshot.approved_by:
+            raise PathAGateError("approval_actor_mismatch")
+        if str(effective_approval.get("created_at") or "") != snapshot.approval_event_or_time:
+            raise PathAGateError("approval_event_mismatch")
+        last_edited_at = issue.get("content_last_edited_at")
+        if last_edited_at:
+            try:
+                last_edit = datetime.fromisoformat(
+                    str(last_edited_at).replace("Z", "+00:00")
+                )
+                approval_time = datetime.fromisoformat(
+                    snapshot.approval_event_or_time.replace("Z", "+00:00")
+                )
+            except ValueError as exc:
+                raise PathAGateError("issue_edit_time_invalid") from exc
+            if last_edit >= approval_time:
+                raise PathAGateError("issue_body_edit_not_strictly_before_approval")
+        issue_body = str(issue.get("body") or "")
+        if issue_body_digest(issue_body) != snapshot.body_digest_sha256:
+            raise PathAGateError("issue_body_digest_mismatch")
+        head = pr.get("head") or {}
+        base = pr.get("base") or {}
+        head_repository = str((head.get("repo") or {}).get("full_name") or "")
+        if head_repository and head_repository != expected_repository:
+            raise PathAGateError("head_repository_mismatch")
+        if str(head.get("ref") or "") != snapshot.target_branch:
+            raise PathAGateError("head_branch_mismatch")
+        if str(head.get("sha") or "").lower() != snapshot.exact_head_sha:
+            raise PathAGateError("exact_head_mismatch")
+        if str(base.get("ref") or "") != snapshot.integration_base_ref:
+            raise PathAGateError("integration_base_ref_mismatch")
+        if str(base.get("sha") or "").lower() != snapshot.base_sha:
+            raise PathAGateError("base_sha_mismatch")
+        if merge_base_sha.lower() != snapshot.base_sha:
+            raise PathAGateError("merge_base_mismatch")
+        if pr.get("auto_merge") not in (None, False):
+            raise PathAGateError("auto_merge_forbidden")
+        return {
+            "schema_version": 1,
+            "gate_name": "path-a-r1-gate",
+            "gate_status": "PATH_A_R1_AUTHORIZED",
+            "mode": "path_a_r1",
+            "repository": expected_repository,
+            "issue_number": snapshot.issue_number,
+            "target_branch": snapshot.target_branch,
+            "integration_base_ref": snapshot.integration_base_ref,
+            "base_sha": snapshot.base_sha,
+            "exact_head_sha": snapshot.exact_head_sha,
+            "authority_revision": authority_revision,
+            "authority_revalidation_required": True,
+            "lifecycle_stage": ACTIVATION_DRAFT,
+            "implementation_authority": False,
+            "product_accepted": False,
+            "implementation_complete": False,
+            "merge_authority": False,
+            "ready_authority": False,
+            "no_task_checks": True,
+            "empty_delta": True,
+            "changed_paths": [],
+            "selected_checks": [],
+            "authority_source": "live_github_authority_revision",
+            "comments_authoritative": False,
+            "issue_commands_executed": False,
+        }
+    if stage_branch == READY_FINAL_READINESS:
+        if not pr_open:
+            raise PathAGateError("pr_not_open")
+        if pr_draft:
+            raise PathAGateError("ready_pr_must_be_ready_for_review")
+    else:
+        if not (pr_open and pr_draft):
+            raise PathAGateError("pr_must_be_open_draft")
     if str(issue.get("state") or "").lower() != "open":
         raise PathAGateError("source_issue_not_open")
     if "r1" not in labels:
@@ -671,9 +808,9 @@ def verify_path_a_r1(
     if pr.get("auto_merge") not in (None, False):
         raise PathAGateError("auto_merge_forbidden")
 
-    changed = tuple(dict.fromkeys(path.replace("\\", "/") for path in changed_paths))
-    if not changed:
-        raise PathAGateError("changed_paths_empty")
+    if stage_branch == IMPLEMENTATION_DRAFT:
+        if not changed:
+            raise PathAGateError("changed_paths_empty")
     allowed_paths = parse_allowed_paths(issue_body)
     for path in changed:
         path_risk = _minimum_path_risk(path)
@@ -690,6 +827,8 @@ def verify_path_a_r1(
     if outside:
         raise PathAGateError("changed_paths_outside_allowed", ",".join(outside))
 
+    lifecycle_stage = stage if stage is not None else inferred_stage
+    is_ready = lifecycle_stage == READY_FINAL_READINESS
     return {
         "schema_version": 1,
         "gate_name": "path-a-r1-gate",
@@ -703,8 +842,18 @@ def verify_path_a_r1(
         "exact_head_sha": snapshot.exact_head_sha,
         "authority_revision": authority_revision,
         "authority_revalidation_required": True,
+        "lifecycle_stage": lifecycle_stage,
+        "implementation_authority": not is_ready,
+        "product_accepted": lifecycle_stage == IMPLEMENTATION_DRAFT,
+        "implementation_complete": lifecycle_stage == IMPLEMENTATION_DRAFT,
+        "merge_authority": False,
+        "ready_authority": is_ready,
+        "no_task_checks": is_ready,
+        "empty_delta": empty,
         "changed_paths": list(changed),
-        "selected_checks": list(select_task_checks(changed)["commands"]),
+        "selected_checks": list(select_task_checks(changed)["commands"])
+        if lifecycle_stage == IMPLEMENTATION_DRAFT
+        else [],
         "authority_source": "live_github_authority_revision",
         "comments_authoritative": False,
         "issue_commands_executed": False,
@@ -832,8 +981,11 @@ def _collect_paginated_compare_files(path: str) -> list[Mapping[str, Any]]:
     return files
 
 
-def changed_paths_for_event(event: Mapping[str, Any], repo_root: Path) -> tuple[tuple[str, ...], str, str]:
-    """Return changed paths plus exact head/base bindings from a checked-out event."""
+def _collect_changed_paths_for_event(
+    event: Mapping[str, Any],
+    repo_root: Path,
+) -> tuple[tuple[str, ...], str, str]:
+    """Collect changed paths plus exact head/base bindings from a checked-out event."""
 
     pr = event.get("pull_request")
     if isinstance(pr, Mapping):
@@ -878,9 +1030,76 @@ def changed_paths_for_event(event: Mapping[str, Any], repo_root: Path) -> tuple[
                 f"/repos/{repository}/compare/{base_sha}...{head_sha}?per_page=100"
             )
         changed = _paths_from_api_file_entries(files)
-    if not changed:
-        raise PathAGateError("changed_paths_empty")
     return changed, base_sha, head_sha
+
+
+@dataclass(frozen=True)
+class DeltaObservation:
+    changed_paths: tuple[str, ...]
+    base_sha: str
+    head_sha: str
+    empty_delta: bool
+
+
+def changed_paths_for_event(
+    event: Mapping[str, Any], repo_root: Path
+) -> DeltaObservation:
+    """Return a stage-aware delta observation plus exact head/base bindings."""
+
+    changed, base_sha, head_sha = _collect_changed_paths_for_event(event, repo_root)
+    return DeltaObservation(
+        changed_paths=changed,
+        base_sha=base_sha,
+        head_sha=head_sha,
+        empty_delta=(len(changed) == 0),
+    )
+
+
+def infer_path_a_lifecycle_stage(
+    *,
+    pr_open: bool,
+    pr_draft: bool | None,
+    empty_delta: bool,
+) -> str:
+    """Classify a Path-A event by its live PR state and git truth.
+
+    The classifier trusts only current git/GitHub observations; it never
+    carries stage state across workflow runs.  Draft + empty Delta is the
+    normal ACTIVATION_DRAFT bootstrap.  A non-empty Delta is the
+    IMPLEMENTATION_DRAFT.  Once the PR is marked ready_for_review the
+    gate may only observe READY_FINAL_READINESS and must not grant any
+    implementation authority.
+    """
+
+    if not pr_open:
+        raise PathAGateError("pr_not_open")
+    if pr_draft is not True:
+        return READY_FINAL_READINESS
+    if empty_delta:
+        return ACTIVATION_DRAFT
+    return IMPLEMENTATION_DRAFT
+
+
+def _validate_stage_for_delta(
+    *,
+    stage: str,
+    pr_open: bool,
+    pr_draft: bool | None,
+    empty_delta: bool,
+) -> None:
+    inferred = infer_path_a_lifecycle_stage(
+        pr_open=pr_open,
+        pr_draft=pr_draft,
+        empty_delta=empty_delta,
+    )
+    if stage != inferred:
+        raise PathAGateError(
+            "stage_mismatch",
+            (
+                f"expected={stage};inferred={inferred};"
+                f"empty_delta={empty_delta};draft={pr_draft}"
+            ),
+        )
 
 
 def _github_headers() -> dict[str, str]:
@@ -978,7 +1197,7 @@ def run_path_a_gate(*, event_path: Path, repository: str, repo_root: Path) -> di
             f"/repos/{repository}/collaborators/{snapshot.approved_by}/permission"
         )
         permission = str(permission_payload.get("permission") or "")
-    changed, _, _ = changed_paths_for_event(event, repo_root)
+    delta = changed_paths_for_event(event, repo_root)
     merge_base = subprocess.check_output(
         ["git", "merge-base", "HEAD", snapshot.base_sha],
         cwd=repo_root,
@@ -990,12 +1209,20 @@ def run_path_a_gate(*, event_path: Path, repository: str, repo_root: Path) -> di
         issue=issue,
         approval_events=approval_events,
         approver_permission=permission,
-        changed_paths=changed,
+        changed_paths=delta.changed_paths,
         merge_base_sha=merge_base,
         expected_repository=repository,
         expected_authority_revision=(
             os.environ.get("PATH_A_EXPECTED_AUTHORITY_REVISION") or None
         ),
+        stage=infer_path_a_lifecycle_stage(
+            pr_open=str(live_pr.get("state") or "").lower() == "open",
+            pr_draft=(
+                live_pr.get("draft") if isinstance(live_pr.get("draft"), bool) else None
+            ),
+            empty_delta=delta.empty_delta,
+        ),
+        empty_delta=delta.empty_delta,
     )
     result["live_github_state_observed"] = True
     return result
@@ -1005,14 +1232,17 @@ def write_task_check_outputs(
     *, event_path: Path, repo_root: Path, output_path: Path | None
 ) -> dict[str, Any]:
     event = json.loads(event_path.read_text(encoding="utf-8"))
-    changed, base_sha, head_sha = changed_paths_for_event(event, repo_root)
+    delta = changed_paths_for_event(event, repo_root)
+    if delta.empty_delta:
+        raise PathAGateError("changed_paths_empty")
+    changed = delta.changed_paths
     selected = select_task_checks(changed, repo_root=repo_root)
     payload = {
         "schema_version": 1,
         "gate_name": "task-scoped-check-selection",
         "gate_status": "TASK_CHECKS_SELECTED",
-        "base_sha": base_sha,
-        "exact_head_sha": head_sha,
+        "base_sha": delta.base_sha,
+        "exact_head_sha": delta.head_sha,
         "changed_paths": list(changed),
         "check_ids": list(selected["check_ids"]),
         "commands": [BASELINE_CHECK, *selected["commands"]],

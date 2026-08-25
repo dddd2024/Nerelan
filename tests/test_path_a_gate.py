@@ -14,6 +14,7 @@ from reverse_agent.control_plane.path_a import (
     _collect_paginated_list,
     _paths_from_api_file_entries,
     changed_paths_for_event,
+    DeltaObservation,
     execute_task_checks,
     issue_body_digest,
     parse_snapshot,
@@ -526,10 +527,11 @@ def test_path_a_gate_requeries_live_pr_and_issue_state(
     )
     monkeypatch.setattr(
         "reverse_agent.control_plane.path_a.changed_paths_for_event",
-        lambda event, repo_root: (
-            fixture["changed_paths"],
-            BASE_SHA,
-            HEAD_SHA,
+        lambda event, repo_root: DeltaObservation(
+            changed_paths=fixture["changed_paths"],
+            base_sha=BASE_SHA,
+            head_sha=HEAD_SHA,
+            empty_delta=False,
         ),
     )
     monkeypatch.setattr(
@@ -595,8 +597,8 @@ def test_pr_must_be_open_draft_and_event_must_be_pull_request() -> None:
         verify_path_a_r1(**fixture)
     fixture = _fixture()
     fixture["event"]["pull_request"]["draft"] = False
-    with pytest.raises(PathAGateError, match="pr_must_be_open_draft"):
-        verify_path_a_r1(**fixture)
+    with pytest.raises(PathAGateError, match="stage_mismatch"):
+        verify_path_a_r1(**fixture, stage="IMPLEMENTATION_DRAFT")
 
 
 def test_approver_and_approval_event_are_verified() -> None:
@@ -1048,3 +1050,406 @@ def test_untracked_path_a_r3_categories_are_sensitive_case_insensitively(path: s
     assert result.bootstrap_blocking is True
     assert result.publication_blocking is True
     assert result.stageable is False
+
+
+# ---------------------------------------------------------------------------
+# Stage-aware Path-A lifecycle regressions (Issue #364 / parent #353).
+# ---------------------------------------------------------------------------
+
+
+def _activation_fixture() -> dict:
+    body = _issue_body()
+    return {
+        "event_name": "pull_request",
+        "event": {
+            "number": 49,
+            "repository": {"full_name": REPOSITORY},
+            "pull_request": {
+                "number": 49,
+                "state": "open",
+                "draft": True,
+                "body": _snapshot(body),
+                "head": {
+                    "ref": "codex/base-platform-m1-spec-policy-core-v1",
+                    "sha": HEAD_SHA,
+                },
+                "base": {"ref": "main", "sha": BASE_SHA},
+                "auto_merge": None,
+            },
+        },
+        "issue": {
+            "number": 46,
+            "state": "open",
+            "body": body,
+            "labels": [{"name": "r1"}, {"name": "r1-approved"}],
+        },
+        "approval_events": [
+            {
+                "event": "labeled",
+                "id": 1,
+                "label": {"name": "r1-approved"},
+                "actor": {"login": "dddd2024"},
+                "created_at": APPROVAL_TIME,
+            }
+        ],
+        "approver_permission": "admin",
+        "changed_paths": (),
+        "merge_base_sha": BASE_SHA,
+        "expected_repository": REPOSITORY,
+    }
+
+
+def _ready_fixture(*, changed_paths: tuple[str, ...] = ()) -> dict:
+    fx = _activation_fixture()
+    fx["event"]["pull_request"]["draft"] = False
+    fx["changed_paths"] = changed_paths
+    return fx
+
+
+def _ready_fixture_with_implementation_delta() -> dict:
+    return _ready_fixture(
+        changed_paths=("reverse_agent/base_platform/models.py",)
+    )
+
+
+def test_A1_activation_draft_zero_delta_passes() -> None:
+    result = verify_path_a_r1(**_activation_fixture())
+
+    assert result["gate_status"] == "PATH_A_R1_AUTHORIZED"
+    assert result["lifecycle_stage"] == "ACTIVATION_DRAFT"
+    assert result["implementation_authority"] is False
+    assert result["product_accepted"] is False
+    assert result["implementation_complete"] is False
+    assert result["merge_authority"] is False
+    assert result["ready_authority"] is False
+    assert result["no_task_checks"] is True
+    assert result["empty_delta"] is True
+    assert result["changed_paths"] == []
+    assert result["selected_checks"] == []
+    assert result["authority_revalidation_required"] is True
+
+
+def test_A2_activation_draft_approval_invalid_blocks() -> None:
+    fixture = _activation_fixture()
+    fixture["issue"]["labels"] = [{"name": "r1"}]
+    with pytest.raises(PathAGateError, match="issue_not_r1_approved"):
+        verify_path_a_r1(**fixture)
+
+
+def test_A3_activation_draft_cannot_be_product_accepted() -> None:
+    result = verify_path_a_r1(**_activation_fixture())
+
+    assert result["gate_status"] == "PATH_A_R1_AUTHORIZED"
+    assert result["lifecycle_stage"] == "ACTIVATION_DRAFT"
+    assert result["implementation_authority"] is False
+    assert result["product_accepted"] is False
+    assert result["implementation_complete"] is False
+    assert result["merge_authority"] is False
+    assert result["ready_authority"] is False
+    assert result["no_task_checks"] is True
+    assert result["empty_delta"] is True
+    assert result["changed_paths"] == []
+    assert result["selected_checks"] == []
+    assert result["authority_revalidation_required"] is True
+
+
+@pytest.mark.parametrize(
+    "changed_paths",
+    [
+        ("reverse_agent/base_platform/models.py",),
+        ("tests/base_platform/test_models.py",),
+        (
+            "reverse_agent/base_platform/models.py",
+            "tests/base_platform/test_models.py",
+        ),
+    ],
+)
+def test_I1_valid_implementation_draft_remains_authorized(
+    changed_paths: tuple[str, ...],
+) -> None:
+    result = verify_path_a_r1(**_fixture(changed_paths=changed_paths))
+
+    assert result["gate_status"] == "PATH_A_R1_AUTHORIZED"
+    assert result["lifecycle_stage"] == "IMPLEMENTATION_DRAFT"
+    assert result["implementation_authority"] is True
+    assert result["product_accepted"] is True
+    assert result["implementation_complete"] is True
+    assert result["merge_authority"] is False
+    assert result["ready_authority"] is False
+    assert result["no_task_checks"] is False
+    assert result["empty_delta"] is False
+    assert result["selected_checks"] == [BASE_PLATFORM_CHECK]
+
+
+def test_I2_invalid_implementation_draft_still_fails_closed() -> None:
+    with pytest.raises(PathAGateError, match="changed_paths_outside_allowed"):
+        verify_path_a_r1(**_fixture(changed_paths=("README.md",)))
+
+
+def test_I2b_implementation_draft_with_zero_delta_rejects() -> None:
+    with pytest.raises(PathAGateError, match="stage_mismatch"):
+        verify_path_a_r1(
+            **_activation_fixture(),
+            stage="IMPLEMENTATION_DRAFT",
+        )
+
+
+def test_R1_ready_with_implementation_delta_passes() -> None:
+    result = verify_path_a_r1(**_ready_fixture_with_implementation_delta())
+
+    assert result["gate_status"] == "PATH_A_R1_AUTHORIZED"
+    assert result["lifecycle_stage"] == "READY_FINAL_READINESS"
+    assert result["implementation_authority"] is False
+    assert result["product_accepted"] is False
+    assert result["implementation_complete"] is False
+    assert result["merge_authority"] is False
+    assert result["ready_authority"] is True
+    assert result["no_task_checks"] is True
+    assert result["selected_checks"] == []
+    assert result["authority_revalidation_required"] is True
+    assert result["changed_paths"] == ["reverse_agent/base_platform/models.py"]
+
+
+def test_R2_ready_head_drift_blocks() -> None:
+    fixture = _ready_fixture_with_implementation_delta()
+    fixture["event"]["pull_request"]["head"]["sha"] = "c" * 40
+    with pytest.raises(PathAGateError, match="exact_head_mismatch"):
+        verify_path_a_r1(**fixture)
+
+
+def test_R2b_ready_base_drift_blocks() -> None:
+    fixture = _ready_fixture_with_implementation_delta()
+    fixture["event"]["pull_request"]["base"]["sha"] = "c" * 40
+    with pytest.raises(PathAGateError, match="base_sha_mismatch"):
+        verify_path_a_r1(**fixture)
+
+
+def test_R2c_ready_merge_base_drift_blocks() -> None:
+    fixture = _ready_fixture_with_implementation_delta()
+    fixture["merge_base_sha"] = "c" * 40
+    with pytest.raises(PathAGateError, match="merge_base_mismatch"):
+        verify_path_a_r1(**fixture)
+
+
+def test_R3_ready_issue_digest_drift_blocks() -> None:
+    fixture = _ready_fixture_with_implementation_delta()
+    approved_body = fixture["issue"]["body"]
+    fixture["issue"]["body"] = approved_body + "\nmaterial edit\n"
+    with pytest.raises(PathAGateError, match="issue_body_digest_mismatch"):
+        verify_path_a_r1(**fixture)
+
+
+def test_R3b_ready_approval_removed_blocks() -> None:
+    fixture = _ready_fixture_with_implementation_delta()
+    fixture["issue"]["labels"] = [{"name": "r1"}]
+    fixture["approval_events"].append(
+        {
+            "event": "unlabeled",
+            "id": 2,
+            "label": {"name": "r1-approved"},
+            "actor": {"login": "dddd2024"},
+            "created_at": "2026-07-26T10:33:00Z",
+        }
+    )
+    with pytest.raises(PathAGateError, match="issue_not_r1_approved"):
+        verify_path_a_r1(**fixture)
+
+
+def test_R4_ready_missing_snapshot_blocks() -> None:
+    fixture = _ready_fixture_with_implementation_delta()
+    fixture["event"]["pull_request"]["body"] = ""
+    with pytest.raises(PathAGateError, match="snapshot_missing"):
+        verify_path_a_r1(**fixture)
+
+
+def test_R4b_ready_missing_approval_blocks() -> None:
+    fixture = _ready_fixture_with_implementation_delta()
+    fixture["approval_events"] = []
+    with pytest.raises(PathAGateError, match="approval_event_missing"):
+        verify_path_a_r1(**fixture)
+
+
+def test_D1_converted_to_draft_empty_delta_is_activation() -> None:
+    body = _issue_body()
+    fixture = {
+        "event_name": "pull_request",
+        "event": {
+            "number": 49,
+            "repository": {"full_name": REPOSITORY},
+            "pull_request": {
+                "number": 49,
+                "state": "open",
+                "draft": True,
+                "body": _snapshot(body),
+                "head": {
+                    "ref": "codex/base-platform-m1-spec-policy-core-v1",
+                    "sha": HEAD_SHA,
+                },
+                "base": {"ref": "main", "sha": BASE_SHA},
+                "auto_merge": None,
+            },
+        },
+        "issue": {
+            "number": 46,
+            "state": "open",
+            "body": body,
+            "labels": [{"name": "r1"}, {"name": "r1-approved"}],
+        },
+        "approval_events": [
+            {
+                "event": "labeled",
+                "id": 1,
+                "label": {"name": "r1-approved"},
+                "actor": {"login": "dddd2024"},
+                "created_at": APPROVAL_TIME,
+            }
+        ],
+        "approver_permission": "admin",
+        "changed_paths": (),
+        "merge_base_sha": BASE_SHA,
+        "expected_repository": REPOSITORY,
+    }
+    result = verify_path_a_r1(**fixture)
+
+    assert result["lifecycle_stage"] == "ACTIVATION_DRAFT"
+    assert result["empty_delta"] is True
+    assert result["implementation_authority"] is False
+    assert result["product_accepted"] is False
+
+
+def test_D2_converted_to_draft_with_delta_is_implementation() -> None:
+    fixture = _fixture(changed_paths=("reverse_agent/base_platform/models.py",))
+    fixture["event"]["pull_request"]["draft"] = True
+    result = verify_path_a_r1(**fixture)
+
+    assert result["lifecycle_stage"] == "IMPLEMENTATION_DRAFT"
+    assert result["empty_delta"] is False
+    assert result["implementation_authority"] is True
+    assert result["product_accepted"] is True
+
+
+def test_L1_ready_recomputes_authority_revision_on_live_pr_state() -> None:
+    initial = _ready_fixture_with_implementation_delta()
+    initial["event"]["pull_request"]["draft"] = False
+    previous_revision = verify_path_a_r1(**initial)["authority_revision"]["digest_sha256"]
+
+    current = _ready_fixture_with_implementation_delta()
+    current["event"]["pull_request"]["body"] += "\n\nnon-snapshot PR metadata edit"
+    with pytest.raises(PathAGateError, match="authority_revision_mismatch"):
+        verify_path_a_r1(
+            **current,
+            expected_authority_revision=previous_revision,
+        )
+
+
+def test_L1b_ready_issue_body_mutation_invalidates_previous_revision() -> None:
+    initial = _ready_fixture_with_implementation_delta()
+    previous_revision = verify_path_a_r1(**initial)["authority_revision"]["digest_sha256"]
+
+    current = _ready_fixture_with_implementation_delta()
+    body = current["issue"]["body"] + "\nmaterial authority edit\n"
+    current["issue"]["body"] = body
+    current["event"]["pull_request"]["body"] = _snapshot(body)
+    with pytest.raises(PathAGateError, match="authority_revision_mismatch"):
+        verify_path_a_r1(
+            **current,
+            expected_authority_revision=previous_revision,
+        )
+
+
+def test_L1c_ready_approval_reapplied_invalidates_previous_revision() -> None:
+    initial = _ready_fixture_with_implementation_delta()
+    previous_revision = verify_path_a_r1(**initial)["authority_revision"]["digest_sha256"]
+
+    current = _ready_fixture_with_implementation_delta()
+    current["approval_events"].append(
+        {
+            "event": "labeled",
+            "id": 2,
+            "label": {"name": "r1-approved"},
+            "actor": {"login": "dddd2024"},
+            "created_at": APPROVAL_TIME,
+        }
+    )
+    with pytest.raises(PathAGateError, match="authority_revision_mismatch"):
+        verify_path_a_r1(
+            **current,
+            expected_authority_revision=previous_revision,
+        )
+
+
+def test_M1_auto_merge_blocks_in_implementation_draft() -> None:
+    fixture = _fixture(changed_paths=("reverse_agent/base_platform/models.py",))
+    fixture["event"]["pull_request"]["auto_merge"] = {
+        "enabled_by": {"login": "user"},
+    }
+    with pytest.raises(PathAGateError, match="auto_merge_forbidden"):
+        verify_path_a_r1(**fixture)
+
+
+def test_M1b_auto_merge_blocks_in_ready_final_readiness() -> None:
+    fixture = _ready_fixture_with_implementation_delta()
+    fixture["event"]["pull_request"]["auto_merge"] = {
+        "enabled_by": {"login": "user"},
+    }
+    with pytest.raises(PathAGateError, match="auto_merge_forbidden"):
+        verify_path_a_r1(**fixture)
+
+
+def test_M1c_auto_merge_blocks_in_activation_draft() -> None:
+    fixture = _activation_fixture()
+    fixture["event"]["pull_request"]["auto_merge"] = {
+        "enabled_by": {"login": "user"},
+    }
+    with pytest.raises(PathAGateError, match="auto_merge_forbidden"):
+        verify_path_a_r1(**fixture)
+
+
+def test_G1_state_gate_pull_request_triggers_cover_every_lifecycle_transition() -> None:
+    state_gate = (
+        Path(__file__).resolve().parents[1]
+        / ".github"
+        / "workflows"
+        / "state-gate.yml"
+    ).read_text(encoding="utf-8")
+    pull_request_block = state_gate.split("  pull_request:", 1)[1].split(
+        "\n\npermissions:",
+        1,
+    )[0]
+    for event_type in (
+        "opened",
+        "edited",
+        "synchronize",
+        "reopened",
+        "converted_to_draft",
+        "ready_for_review",
+        "labeled",
+        "unlabeled",
+        "auto_merge_enabled",
+        "auto_merge_disabled",
+    ):
+        assert f"- {event_type}" in pull_request_block
+    assert "Path-A R1 gate" in state_gate
+    assert "path-a-r1-gate" in state_gate
+
+
+def test_explicit_stage_mismatch_fails_closed() -> None:
+    with pytest.raises(PathAGateError, match="stage_mismatch"):
+        verify_path_a_r1(
+            **_activation_fixture(),
+            stage="IMPLEMENTATION_DRAFT",
+        )
+
+    with pytest.raises(PathAGateError, match="stage_mismatch"):
+        verify_path_a_r1(
+            **_ready_fixture_with_implementation_delta(),
+            stage="ACTIVATION_DRAFT",
+        )
+
+
+def test_invalid_stage_token_fails_closed() -> None:
+    with pytest.raises(PathAGateError, match="invalid_stage"):
+        verify_path_a_r1(
+            **_activation_fixture(),
+            stage="UNKNOWN_STAGE",
+        )
