@@ -137,16 +137,35 @@ export function ConnectionBindingEditor({
     );
   }, [connection, creating, view, connDraft]);
 
-  const authorityChangeUnresolved =
+  const savedApiKeyStatus =
+    connection?.authMethod === "api_key" ? connection.secretStatus : "missing";
+  const hasSavedApiKeyAuthority =
+    savedApiKeyStatus === "session" || savedApiKeyStatus === "environment";
+  const destructiveAuthMethodChange =
+    authorityChanged &&
+    connection?.authMethod === "api_key" &&
+    connDraft.authMethod !== "api_key" &&
+    hasSavedApiKeyAuthority;
+  const apiKeyAuthorityChangeUnresolved =
     authorityChanged &&
     connDraft.authMethod === "api_key" &&
     !connApiKey &&
     !connDraft.apiKeyEnv &&
     !connClearSecret;
+  const destructiveAuthMethodChangeUnresolved =
+    destructiveAuthMethodChange && !connClearSecret;
+  const authorityChangeUnresolved =
+    apiKeyAuthorityChangeUnresolved || destructiveAuthMethodChangeUnresolved;
 
   async function handleConnectionSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (authorityChangeUnresolved) {
+    if (destructiveAuthMethodChangeUnresolved) {
+      setConnError(
+        "切换认证方式会清除当前已保存的 API Key 凭据。保存前请明确勾选“确认清除已保存密钥”，或还原认证方式。",
+      );
+      return;
+    }
+    if (apiKeyAuthorityChangeUnresolved) {
       setConnError(
         "正在修改认证相关配置（Provider / Base URL / 认证方式）。保存前需要：填写新的 API Key 或环境变量引用、勾选“清除已保存密钥”，或还原上述修改。",
       );
@@ -208,8 +227,6 @@ export function ConnectionBindingEditor({
     verificationCapability === "supported" &&
     !connectionProbePending &&
     !busy;
-  const savedApiKeyStatus =
-    connection?.authMethod === "api_key" ? connection.secretStatus : "missing";
 
   return (
     <div data-testid="connection-binding-editor">
@@ -377,6 +394,41 @@ export function ConnectionBindingEditor({
                 />
                 清除已保存密钥（clear_secret）
               </label>
+            </div>
+          )}
+
+          {destructiveAuthMethodChange && (
+            <div
+              data-testid="connection-destructive-auth-change-notice"
+              className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs text-ra-text-secondary"
+            >
+              <p>
+                切换到当前认证方式会清除已保存的 API Key 凭据；浏览器不会读取或显示该凭据。
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <label className="inline-flex items-center gap-2 text-xs text-ra-text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={connClearSecret}
+                    onChange={(event) => setConnClearSecret(event.target.checked)}
+                  />
+                  确认清除已保存密钥（clear_secret）
+                </label>
+                <button
+                  type="button"
+                  className={secondaryButtonClass}
+                  onClick={() => {
+                    setConnDraft((draft) => ({
+                      ...draft,
+                      authMethod: connection?.authMethod ?? "api_key",
+                    }));
+                    setConnClearSecret(false);
+                    setConnError(null);
+                  }}
+                >
+                  还原认证方式
+                </button>
+              </div>
             </div>
           )}
 
