@@ -898,10 +898,84 @@ describe("auth-method-aware Connection verification UI", () => {
     ).toHaveTextContent(/连接已禁用/);
   });
 
-  it("clears an unsaved API Key when auth changes away from api_key", async () => {
+  it("clears an unsaved API Key when auth changes away from api_key without fabricating a saved-credential warning", async () => {
     const connection: Connection = {
       connectionId: "clear-hidden-key-ui",
       name: "Clear Hidden Key",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      secretStatus: "missing",
+      externalSessionStatus: "not_applicable",
+    };
+    const save = vi.fn(async (_input: ConnectionInput) => undefined);
+    const user = userEvent.setup();
+
+    renderConnection(connection, { onConnectionSave: save });
+
+    await user.type(screen.getByLabelText("API Key"), "unsaved-hidden-secret");
+    await user.selectOptions(screen.getByLabelText("认证方式"), "none");
+
+    expect(screen.queryByLabelText("API Key")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("connection-destructive-auth-change-notice"),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "保存连接" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+
+    const savedInput = save.mock.calls[0][0];
+    expect(savedInput.authMethod).toBe("none");
+    expect(savedInput.apiKey).toBeUndefined();
+    expect(savedInput.clearSecret).toBeUndefined();
+  });
+
+  it.each(["none", "account_login", "external_cli_session"] as const)(
+    "requires explicit saved-credential clear acknowledgement before api_key -> %s",
+    async (authMethod) => {
+      const connection: Connection = {
+        connectionId: `destructive-${authMethod}`,
+        name: `Destructive ${authMethod}`,
+        provider: "litellm-proxy",
+        baseUrl: "http://localhost:4000/v1",
+        authMethod: "api_key",
+        enabled: true,
+        secretStatus: "environment",
+        externalSessionStatus: "not_applicable",
+      };
+      const save = vi.fn(async (_input: ConnectionInput) => undefined);
+      const user = userEvent.setup();
+
+      renderConnection(connection, { onConnectionSave: save });
+
+      await user.selectOptions(screen.getByLabelText("认证方式"), authMethod);
+
+      const notice = screen.getByTestId("connection-destructive-auth-change-notice");
+      expect(notice).toHaveTextContent(/会清除已保存的 API Key 凭据/);
+      expect(screen.queryByLabelText("API Key")).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "保存连接" }));
+      expect(save).not.toHaveBeenCalled();
+      expect(
+        await screen.findByText(/保存前请明确勾选“确认清除已保存密钥”/),
+      ).toBeInTheDocument();
+
+      await user.click(screen.getByText("确认清除已保存密钥（clear_secret）"));
+      await user.click(screen.getByRole("button", { name: "保存连接" }));
+
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+      const savedInput = save.mock.calls[0][0];
+      expect(savedInput.authMethod).toBe(authMethod);
+      expect(savedInput.clearSecret).toBe(true);
+      expect(savedInput.apiKey).toBeUndefined();
+      expect(screen.queryByText(DUMMY_SECRET)).not.toBeInTheDocument();
+    },
+  );
+
+  it("reverts a destructive auth-method change without clearing the saved credential", async () => {
+    const connection: Connection = {
+      connectionId: "destructive-revert-ui",
+      name: "Destructive Revert",
       provider: "litellm-proxy",
       baseUrl: "http://localhost:4000/v1",
       authMethod: "api_key",
@@ -914,16 +988,50 @@ describe("auth-method-aware Connection verification UI", () => {
 
     renderConnection(connection, { onConnectionSave: save });
 
-    await user.type(screen.getByLabelText("API Key"), "unsaved-hidden-secret");
+    await user.selectOptions(screen.getByLabelText("认证方式"), "external_cli_session");
+    expect(
+      screen.getByTestId("connection-destructive-auth-change-notice"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "还原认证方式" }));
+
+    expect(screen.getByLabelText("认证方式")).toHaveValue("api_key");
+    expect(
+      screen.queryByTestId("connection-destructive-auth-change-notice"),
+    ).not.toBeInTheDocument();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("preserves a destructive auth transition and clear acknowledgement after failed save", async () => {
+    const connection: Connection = {
+      connectionId: "destructive-failed-save-ui",
+      name: "Destructive Failed Save",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      secretStatus: "environment",
+      externalSessionStatus: "not_applicable",
+    };
+    const save = vi.fn(async (_input: ConnectionInput) => {
+      throw new Error("远端保存失败");
+    });
+    const user = userEvent.setup();
+
+    renderConnection(connection, { onConnectionSave: save });
+
     await user.selectOptions(screen.getByLabelText("认证方式"), "none");
-
-    expect(screen.queryByLabelText("API Key")).not.toBeInTheDocument();
+    await user.click(screen.getByText("确认清除已保存密钥（clear_secret）"));
     await user.click(screen.getByRole("button", { name: "保存连接" }));
-    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
 
-    const savedInput = save.mock.calls[0][0];
-    expect(savedInput.authMethod).toBe("none");
-    expect(savedInput.apiKey).toBeUndefined();
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("远端保存失败")).toBeInTheDocument();
+    expect(screen.getByLabelText("认证方式")).toHaveValue("none");
+    expect(
+      screen.getByText("确认清除已保存密钥（clear_secret）").closest("label")
+        ?.querySelector("input"),
+    ).toBeChecked();
+    expect(save.mock.calls[0][0].clearSecret).toBe(true);
   });
 
   it("localizes backend capability prose instead of rendering raw English", () => {
