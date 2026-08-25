@@ -69,7 +69,12 @@ function Get-InvalidDirReason([string]$candidate, [string]$label) {
   if ([string]::IsNullOrWhiteSpace($candidate)) {
     return "${label} is empty or whitespace: '${candidate}'"
   }
-  if ($candidate.IndexOfAny([System.IO.Path]::GetInvalidPathChars()) -ge 0) {
+  # Fixed Windows-invalid path character set: control characters plus " < > * | ?.
+  # [System.IO.Path]::GetInvalidPathChars() is platform-dependent (quotes and
+  # pipes are legal on Linux), but dev-up is the Windows bootstrap and the
+  # observed New-Item failure came from embedded quotes, so rejection must be
+  # deterministic under both Windows powershell and pwsh.
+  if ($candidate -match '[\x00-\x1F"<>*|?]') {
     return "${label} contains an invalid filesystem character: '${candidate}'"
   }
   $segments = @($candidate -split "[\\/]")
