@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "gate_name": "transition-preflight",
-  "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260825_issue364_path_a_lifecycle_coherence_r2_v1",
-  "round_id": "round_20260825_issue364_path_a_lifecycle_coherence_r2_v1",
+  "gate_status": "BLOCKED",
+  "decision_id": "decision_20260825_issue367_engineering_landing_boundary_r2_v2",
+  "round_id": "round_20260825_issue367_engineering_landing_boundary_r2_v2",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260825_issue364_path_a_lifecycle_coherence_r2_v1 expected=decision_20260825_issue364_path_a_lifecycle_coherence_r2_v1"
+      "detail": "observed=decision_20260825_issue367_engineering_landing_boundary_r2_v2 expected=decision_20260825_issue367_engineering_landing_boundary_r2_v2"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260825_issue364_path_a_lifecycle_coherence_r2_v1 expected=round_20260825_issue364_path_a_lifecycle_coherence_r2_v1"
+      "detail": "observed=round_20260825_issue367_engineering_landing_boundary_r2_v2 expected=round_20260825_issue367_engineering_landing_boundary_r2_v2"
     },
     {
       "name": "decision_approved",
@@ -32,23 +32,23 @@
     },
     {
       "name": "branch_identity",
-      "status": "PASS",
-      "detail": "observed=owner/issue353-path-a-lifecycle-coherence-r2-v1 expected=owner/issue353-path-a-lifecycle-coherence-r2-v1"
+      "status": "FAIL",
+      "detail": "observed= expected=owner/issue367-engineering-landing-boundary-r2-v2"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=435907ad132dc1080b111ac6372c179e5cda429c merge_base=435907ad132dc1080b111ac6372c179e5cda429c"
+      "detail": "base=9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf merge_base=9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=15cede95127806ffed11ff26a34436d60ba77a99"
+      "detail": "decision_commit=47e34e51ac728735dd5457b4e1d285e7233bdb99"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260825_issue364_path_a_lifecycle_coherence_r2_v1/round_20260825_issue364_path_a_lifecycle_coherence_r2_v1"
+      "detail": "plan=decision_20260825_issue367_engineering_landing_boundary_r2_v2/round_20260825_issue367_engineering_landing_boundary_r2_v2"
     },
     {
       "name": "command_plan_contract",
@@ -103,25 +103,22 @@
         "decision_path": "project_state/decision_packet.md",
         "applicable": true,
         "decision_content_immutable_after_activation": true,
-        "starting_head": "435907ad132dc1080b111ac6372c179e5cda429c",
-        "head": "a0e4a7b31d91aae6899491cb0ac38f0e53d9d6dc",
+        "starting_head": "9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf",
+        "head": "247d76cc918553aefd4c6fd07154e34929a43f9a",
         "commits": [
-          "15cede95127806ffed11ff26a34436d60ba77a99",
-          "dca83eedb57ab8ce43986e528fec42b4c38fe1b0",
-          "fa44f59874950d190f6c201c6d11478a35a391ed",
-          "b88ac883b04ca48283b0bacac862155fca45b5ed",
-          "a0e4a7b31d91aae6899491cb0ac38f0e53d9d6dc"
+          "47e34e51ac728735dd5457b4e1d285e7233bdb99",
+          "247d76cc918553aefd4c6fd07154e34929a43f9a"
         ],
         "decision_commits": [
-          "15cede95127806ffed11ff26a34436d60ba77a99"
+          "47e34e51ac728735dd5457b4e1d285e7233bdb99"
         ],
-        "decision_commit": "15cede95127806ffed11ff26a34436d60ba77a99",
+        "decision_commit": "47e34e51ac728735dd5457b4e1d285e7233bdb99",
         "decision_commit_is_ancestor": true,
         "activation_scope_paths": [
           "project_state/decision_packet.md"
         ],
-        "activation_blob": "aef86c05fcf6ab8d723b4fb62b371a27a520846a",
-        "head_blob": "aef86c05fcf6ab8d723b4fb62b371a27a520846a",
+        "activation_blob": "b4caccdd3b1d5c23e1ab2a80451473f19f2350e1",
+        "head_blob": "b4caccdd3b1d5c23e1ab2a80451473f19f2350e1",
         "worktree_paths": [],
         "index_paths": [],
         "status_paths": [],
@@ -130,30 +127,29 @@
       }
     }
   ],
-  "blocking_reasons": [],
+  "blocking_reasons": [
+    "branch_identity: observed= expected=owner/issue367-engineering-landing-boundary-r2-v2"
+  ],
   "decision_immutability": {
     "decision_path": "project_state/decision_packet.md",
     "applicable": true,
     "decision_content_immutable_after_activation": true,
-    "starting_head": "435907ad132dc1080b111ac6372c179e5cda429c",
-    "head": "a0e4a7b31d91aae6899491cb0ac38f0e53d9d6dc",
+    "starting_head": "9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf",
+    "head": "247d76cc918553aefd4c6fd07154e34929a43f9a",
     "commits": [
-      "15cede95127806ffed11ff26a34436d60ba77a99",
-      "dca83eedb57ab8ce43986e528fec42b4c38fe1b0",
-      "fa44f59874950d190f6c201c6d11478a35a391ed",
-      "b88ac883b04ca48283b0bacac862155fca45b5ed",
-      "a0e4a7b31d91aae6899491cb0ac38f0e53d9d6dc"
+      "47e34e51ac728735dd5457b4e1d285e7233bdb99",
+      "247d76cc918553aefd4c6fd07154e34929a43f9a"
     ],
     "decision_commits": [
-      "15cede95127806ffed11ff26a34436d60ba77a99"
+      "47e34e51ac728735dd5457b4e1d285e7233bdb99"
     ],
-    "decision_commit": "15cede95127806ffed11ff26a34436d60ba77a99",
+    "decision_commit": "47e34e51ac728735dd5457b4e1d285e7233bdb99",
     "decision_commit_is_ancestor": true,
     "activation_scope_paths": [
       "project_state/decision_packet.md"
     ],
-    "activation_blob": "aef86c05fcf6ab8d723b4fb62b371a27a520846a",
-    "head_blob": "aef86c05fcf6ab8d723b4fb62b371a27a520846a",
+    "activation_blob": "b4caccdd3b1d5c23e1ab2a80451473f19f2350e1",
+    "head_blob": "b4caccdd3b1d5c23e1ab2a80451473f19f2350e1",
     "worktree_paths": [],
     "index_paths": [],
     "status_paths": [],
