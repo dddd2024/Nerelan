@@ -1,15 +1,15 @@
 {
   "schema_version": 3,
-  "intent_id": "pr347_issue345_scope_aware_workflow_policy_r2_v2",
+  "intent_id": "pr369_issue367_engineering_landing_boundary_r2_v2",
   "repository": "dddd2024/reverse-agent",
-  "source_pr": 347,
-  "locked_base_sha": "cb6e7a3e3b92935525079278e327843fd1f2d03e",
+  "source_pr": 369,
+  "locked_base_sha": "9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf",
   "allowed_merge_method": "merge",
   "decision_identity": {
-    "decision_id": "decision_20260824_issue345_scope_aware_workflow_policy_r2_v2",
-    "decision_content_sha256": "46b056b28a66922e4a8f14d7623823efdd7a406599c8c5896c0f7a3fbfb8143b"
+    "decision_id": "decision_20260825_issue367_engineering_landing_boundary_r2_v2",
+    "decision_content_sha256": "a9a200f719da83a1ad3bdaffecc3980ad63e5d993a83b3c6dcdb66a78747f365"
   },
-  "command_plan_sha256": "d8773a1f8becc79b35e83c6ae853ad3aa13d7a7b5e63adc74816906b9edaffc4",
+  "command_plan_sha256": "a148796902898c7e0a6f6bac94d91283c157b417468115f7de37905344c6bad7",
   "merge_tree_policy": "equal_to_accepted_head_tree",
   "workflow_profile": "baseline",
   "required_workflows": [
