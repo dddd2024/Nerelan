@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 DEV_UP = ROOT / "dev-up.ps1"
 DEV_DOWN = ROOT / "dev-down.ps1"
 COMPOSER = ROOT / "frontend/src/components/new-task-composer.tsx"
