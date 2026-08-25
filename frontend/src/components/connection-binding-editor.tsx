@@ -154,8 +154,6 @@ export function ConnectionBindingEditor({
     !connClearSecret;
   const destructiveAuthMethodChangeUnresolved =
     destructiveAuthMethodChange && !connClearSecret;
-  const authorityChangeUnresolved =
-    apiKeyAuthorityChangeUnresolved || destructiveAuthMethodChangeUnresolved;
 
   async function handleConnectionSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
