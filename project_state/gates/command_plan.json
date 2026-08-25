@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260824_issue345_scope_aware_workflow_policy_r2_v2",
-  "round_id": "round_20260824_issue345_scope_aware_workflow_policy_r2_v2",
+  "decision_id": "decision_20260825_issue364_path_a_lifecycle_coherence_r2_v1",
+  "round_id": "round_20260825_issue364_path_a_lifecycle_coherence_r2_v1",
   "commands": [
     {
-      "command_id": "issue345_r2v2.bootstrap",
-      "command": "verify locked base cb6e7a3e3b92935525079278e327843fd1f2d03e and fresh branch; commit Decision first; generate five gates and require PRE_EXECUTION_AUTHORIZED",
+      "command_id": "issue364_r2v1.bootstrap",
+      "command": "verify locked base 435907ad132dc1080b111ac6372c179e5cda429c and fresh branch; commit Decision first; generate startup snapshot, command plan, transition lint, transition preflight, and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -34,8 +34,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue345_r2v2.trusted_profiles_and_v3_intent",
-      "command": "extend reverse_agent/mainline_landing.py with the production-owned TRUSTED_PREMERGE_WORKFLOW_PROFILES mapping (baseline plus browser_r3 supersets including Frontend Playwright and Model Access), schema-v3 intent support binding workflow_profile to the same value declared by the accepted-head Decision contract, profile resolution that always includes the generic three-workflow baseline, and schema-v3 attestation validation that requires exactly the resolved profile workflow set on the exact accepted head while State Gate push remains post-merge-only",
+      "command_id": "issue364_r2v1.lifecycle_stage_core",
+      "command": "extend reverse_agent/control_plane/path_a.py with three stage-aware Path-A lifecycle outcomes (ACTIVATION_DRAFT, IMPLEMENTATION_DRAFT, READY_FINAL_READINESS): add DeltaObservation dataclass plus empty_delta flag, refactor changed_paths_for_event to return a DeltaObservation tuple, add a classify_stage helper, and restructure verify_path_a_r1 so ACTIVATION_DRAFT with a proven empty delta returns a PASS that explicitly carries implementation_authority=false and product_accepted=false without executing task checks; IMPLEMENTATION_DRAFT keeps all current path, risk, snapshot, digest, head/base/merge-base, auto-merge, and authority-revision checks; READY_FINAL_READINESS revalidates live Issue, r1-approved, approval transition, digest, snapshot, exact head/base, merge base, changed paths, risk classification, Allowed paths, and auto-merge on a freshly computed live authority revision and returns READY_FINAL_READINESS while still forbidding implementation authority; converted_to_draft events recompute the delta from live git truth rather than trusting the previous workflow stage",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -57,38 +57,12 @@
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
-        "reverse_agent/mainline_landing.py"
+        "reverse_agent/control_plane/path_a.py"
       ]
     },
     {
-      "command_id": "issue345_r2v2.v3_schema",
-      "command": "add project_state/schemas/mainline_merge_intent_v3.schema.json describing the schema-v3 intent with the bounded workflow_profile enum and required_workflows constrained to the baseline-first resolved profile sets",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "local_static_check",
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/schemas/mainline_merge_intent_v3.schema.json"
-      ]
-    },
-    {
-      "command_id": "issue345_r2v2.profile_regressions",
-      "command": "extend tests/test_mainline_landing.py with focused regressions proving: generic baseline round resolves and accepts the three-workflow baseline; browser_r3 round resolves an exact set including Frontend Playwright and Model Access; missing failing wrong-head or wrong-file/event specialized runs block; deleting a specialized workflow from committed active intent fails; unknown workflow profile name fails; duplicate run id fails; intent profile must equal the Decision-declared profile; State Gate push remains excluded from pre-merge requirements; historical schema-v1 and v2 fixtures keep their frozen semantics; post-merge mainline validation still runs unchanged",
+      "command_id": "issue364_r2v1.lifecycle_regressions",
+      "command": "extend tests/test_path_a_gate.py with focused stage-aware regressions covering A1 approved activation draft + zero delta -> ACTIVATION_DRAFT PASS; A2 activation draft approval/snapshot invalid -> BLOCK; A3 activation draft cannot count as completed implementation -> BLOCK; I1 valid implementation draft -> existing implementation PASS; I2 invalid implementation draft -> existing fail-closed behavior preserved; R1 Ready unchanged accepted exact implementation head -> READY_FINAL_READINESS PASS; R2 Ready head/base drift -> BLOCK; R3 Ready Issue digest/approval drift -> BLOCK; R4 Ready cannot bypass missing snapshot/approval -> BLOCK; D1 converted_to_draft + empty delta -> ACTIVATION_DRAFT; D2 converted_to_draft + implementation delta -> IMPLEMENTATION_DRAFT; L1 labeled/unlabeled/edited/synchronize re-evaluates live authority; M1 auto_merge_enabled BLOCK; plus an explicit ACTIVATION_DRAFT PASS != PRODUCT_ACCEPTED regression",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -110,12 +84,12 @@
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
-        "tests/test_mainline_landing.py"
+        "tests/test_path_a_gate.py"
       ]
     },
     {
-      "command_id": "issue345_r2v2.validate_and_publish",
-      "command": "run the focused mainline-landing suite, the platform_v1 merge-intent suite, and the project-gate focused suite; commit implementation; push exact branch and create one Draft PR",
+      "command_id": "issue364_r2v1.validate_and_publish",
+      "command": "run the Path-A gate focused suite, CI responsibility suite, project gate suite, and control-plane/planning-adapter suites; run git diff --check; run transition-lint and transition-preflight and worktree-publication-readiness; commit implementation; push exact branch and create one Draft PR to main",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -142,60 +116,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue345_r2v2.bind_intent",
-      "command": "after the real Draft PR number is known archive the current PR344 intent byte-identically as archive/pr344_v2.json and bind active.json schema v3 to the exact new PR with workflow_profile baseline equal to this Decision-declared profile",
-      "phase": "binding",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "local_static_check",
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr344_v2.json"
-      ]
-    },
-    {
-      "command_id": "issue345_r2v2.final_push_and_audit",
-      "command": "push the final intent binding and require exact-head CI Decision Preflight and State Gate terminal success plus independent audit while the PR remains Draft",
-      "phase": "audit",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "local_static_check",
-        "push",
-        "network_access",
-        "read_only_audit"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.245963221be7a494de8dcdd13b40d98bf0138e146924bd2618b334e1a8ecb797",
-      "command": "verify exact main base cb6e7a3e3b92935525079278e327843fd1f2d03e and fresh branch merge-base",
+      "command_id": "bootstrap.2325d9e8c8ddfa9ef71fe1aa32da529651bda3cec902d512fb155b05fc386f67",
+      "command": "verify exact main base 435907ad132dc1080b111ac6372c179e5cda429c and fresh branch merge-base",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -296,6 +218,26 @@
     {
       "command_id": "bootstrap.677fc095a0ccb225c87b5528ad9885b37484c464961934f364a72d07e89bdcb3",
       "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.ec3489d9c07e649d7b634f4dba2c97608dbc6d7d75d429f1f629c4b5f6a197fe",
+      "command": "python -m reverse_agent.project_gate worktree-publication-readiness --state-dir project_state",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
