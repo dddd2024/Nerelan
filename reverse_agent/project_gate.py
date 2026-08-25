@@ -36441,7 +36441,207 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: bool = True, mode: str = "pre") -> dict[str, Any]:
+def _parse_transition_event(event_path: str) -> dict[str, Any]:
+    """Parse a GitHub event file and return a safe subset of its fields.
+
+    Returns ``{}`` when the path is empty, missing, or malformed.  The
+    returned payload contains at most ``action`` (str) and ``pr_number``
+    (int) for use by the landing-authority gate.
+    """
+
+    if not event_path:
+        return {}
+    path = Path(event_path)
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    action = payload.get("action")
+    if not isinstance(action, str) or not action.strip():
+        return {}
+    result: dict[str, Any] = {"action": action.strip()}
+    pr = payload.get("pull_request")
+    if isinstance(pr, Mapping):
+        number = pr.get("number")
+        if isinstance(number, int) and number > 0:
+            result["pr_number"] = number
+    return result
+
+
+def _check_landing_authority(
+    *,
+    contract: Mapping[str, Any],
+    active_pr: int,
+    decision_id: str,
+    decision_sha256: str,
+    locked_base_sha: str,
+    state_dir: Path,
+    repo_root: Path,
+) -> tuple[list[dict[str, str]], tuple[str, ...]]:
+    """Validate landing authority for a ``ready_for_review`` event.
+
+    Returns ``(checks, blocking_reasons)``.  When no blocking reasons are
+    present the caller may proceed through the normal transition-preflight
+    path.  Failure modes are deterministic and machine-readable:
+
+    * ``engineering_pr_not_landing_authorized``
+      ``mainline_merge_intent_required=false`` in the Decision contract.
+
+    * ``landing_authority_required``
+      ``mainline_merge_intent_required=true`` but no active intent exists
+      or the active intent is unreadable.
+
+    * ``landing_authority_mismatch``
+      ``mainline_merge_intent_required=true`` and an active intent exists
+      but one or more binding fields does not match the current Decision,
+      base, Command Plan, or PR.
+    """
+
+    from hashlib import sha256
+
+    from .mainline_landing import (
+        CURRENT_PREMERGE_WORKFLOW_POLICY,
+        resolve_premerge_workflow_profile,
+    )
+
+    checks: list[dict[str, str]] = []
+    reasons: list[str] = []
+
+    intent_required = contract.get("mainline_merge_intent_required", True) is not False
+    checks.append({
+        "name": "landing_mainline_merge_intent_required",
+        "status": "PASS" if intent_required else "FAIL",
+        "detail": f"observed={intent_required}",
+    })
+    if not intent_required:
+        reasons.append("engineering_pr_not_landing_authorized")
+        return checks, tuple(reasons)
+
+    active_path = repo_root / "project_state" / "mainline_merge_intents" / "active.json"
+    if not active_path.exists():
+        checks.append({"name": "landing_active_intent_exists", "status": "FAIL", "detail": "no active.json"})
+        reasons.append("landing_authority_required")
+        return checks, tuple(reasons)
+    checks.append({"name": "landing_active_intent_exists", "status": "PASS", "detail": f"path={active_path}"})
+
+    try:
+        intent = json.loads(active_path.read_text(encoding="utf-8"))
+        if not isinstance(intent, dict):
+            raise ValueError("intent_not_object")
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        checks.append({"name": "landing_active_intent_readable", "status": "FAIL", "detail": f"{exc}"})
+        reasons.append("landing_authority_required")
+        return checks, tuple(reasons)
+
+    intent_source_pr = intent.get("source_pr")
+    decision_identity = intent.get("decision_identity") if isinstance(intent.get("decision_identity"), Mapping) else {}
+    intent_decision_id = decision_identity.get("decision_id")
+    intent_decision_sha = decision_identity.get("decision_content_sha256")
+    intent_plan_sha = intent.get("command_plan_sha256")
+    intent_base = intent.get("locked_base_sha")
+    intent_profile = intent.get("workflow_profile")
+    intent_merge_method = intent.get("allowed_merge_method")
+    intent_tree_policy = intent.get("merge_tree_policy")
+    intent_expiry = intent.get("expires_at")
+    intent_required_workflows = intent.get("required_workflows")
+
+    actual_decision_sha = decision_sha256 if decision_sha256.startswith("sha256:") else "sha256:" + decision_sha256
+
+    checks.extend([
+        {
+            "name": "landing_intent_source_pr",
+            "status": "PASS" if isinstance(intent_source_pr, int) and intent_source_pr == active_pr else "FAIL",
+            "detail": f"observed={intent_source_pr} expected={active_pr}",
+        },
+        {
+            "name": "landing_intent_decision_id",
+            "status": "PASS" if intent_decision_id == decision_id else "FAIL",
+            "detail": f"observed={intent_decision_id} expected={decision_id}",
+        },
+        {
+            "name": "landing_intent_decision_digest",
+            "status": "PASS" if intent_decision_sha == actual_decision_sha else "FAIL",
+            "detail": f"observed={intent_decision_sha} expected={actual_decision_sha}",
+        },
+    ])
+
+    command_plan_path = state_dir / "gates" / "command_plan.json"
+    try:
+        actual_plan_sha = "sha256:" + sha256(command_plan_path.read_bytes()).hexdigest() if command_plan_path.exists() else ""
+    except OSError:
+        actual_plan_sha = ""
+    checks.append({
+        "name": "landing_intent_command_plan_digest",
+        "status": "PASS" if intent_plan_sha == actual_plan_sha else "FAIL",
+        "detail": f"observed={intent_plan_sha} expected={actual_plan_sha}",
+    })
+
+    checks.extend([
+        {
+            "name": "landing_intent_locked_base",
+            "status": "PASS" if intent_base == locked_base_sha else "FAIL",
+            "detail": f"observed={intent_base} expected={locked_base_sha}",
+        },
+    ])
+
+    contract_profile = contract.get("workflow_profile")
+    try:
+        resolved_policy = resolve_premerge_workflow_profile(intent_profile) if isinstance(intent_profile, str) else {}
+    except ValueError:
+        resolved_policy = {}
+    checks.append({
+        "name": "landing_intent_workflow_profile",
+        "status": "PASS" if isinstance(intent_profile, str) and intent_profile == contract_profile and bool(resolved_policy) else "FAIL",
+        "detail": f"observed={intent_profile!r} contract={contract_profile!r}",
+    })
+
+    expected_workflows = list(resolved_policy) if resolved_policy else list(CURRENT_PREMERGE_WORKFLOW_POLICY)
+    checks.append({
+        "name": "landing_intent_required_workflows",
+        "status": "PASS" if isinstance(intent_required_workflows, list) and intent_required_workflows == expected_workflows else "FAIL",
+        "detail": f"observed={intent_required_workflows} expected={expected_workflows}",
+    })
+
+    checks.extend([
+        {
+            "name": "landing_intent_merge_method",
+            "status": "PASS" if intent_merge_method == "merge" else "FAIL",
+            "detail": f"observed={intent_merge_method}",
+        },
+        {
+            "name": "landing_intent_tree_policy",
+            "status": "PASS" if intent_tree_policy == "equal_to_accepted_head_tree" else "FAIL",
+            "detail": f"observed={intent_tree_policy}",
+        },
+    ])
+
+    try:
+        from datetime import datetime as _dt, timezone as _tz
+        if not isinstance(intent_expiry, str) or not intent_expiry:
+            not_expired = False
+        else:
+            expiry_dt = _dt.fromisoformat(str(intent_expiry).replace("Z", "+00:00"))
+            not_expired = expiry_dt > _dt.now(_tz.utc)
+    except (ValueError, TypeError):
+        not_expired = False
+    checks.append({
+        "name": "landing_intent_expiry",
+        "status": "PASS" if not_expired else "FAIL",
+        "detail": f"expires_at={intent_expiry}",
+    })
+
+    failed = [c for c in checks if c["status"] == "FAIL"]
+    if failed:
+        reasons.append("landing_authority_mismatch")
+
+    return checks, tuple(reasons)
+
+
+def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: bool = True, mode: str = "pre", event_path: str = "") -> dict[str, Any]:
     """Run the transition preflight gate.
 
     ``mode='pre'`` (default): pre-execution authorization. Validates plan
@@ -36449,6 +36649,12 @@ def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, writ
     state. Does NOT read historical execution_log as completion evidence.
     Returns ``PRE_EXECUTION_AUTHORIZED`` on success and persists
     ``BOOTSTRAP_EXPIRED``.
+
+    When ``event_path`` points to a GitHub event whose action is
+    ``ready_for_review``, the gate additionally validates landing authority:
+    an engineering-only Decision (``mainline_merge_intent_required=false``)
+    blocks with ``engineering_pr_not_landing_authorized``; a landing-capable
+    Decision requires a currently bound active mainline merge intent.
 
     ``mode='post'``: alias for :func:`transition_reconcile` with ``mode='post'``.
     Validates required command coverage and reconciles observed executions.
@@ -36488,6 +36694,44 @@ def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, writ
             "checks": [],
             "blocking_reasons": ["transition kernel is not selected by the active Decision"],
         }
+    event_payload = _parse_transition_event(event_path)
+    event_action = event_payload.get("action") if isinstance(event_payload, Mapping) else ""
+    if event_action == "ready_for_review":
+        active_pr = event_payload.get("pr_number")
+        if not isinstance(active_pr, int) or active_pr <= 0:
+            active_pr = int(os.environ.get("GITHUB_EVENT_NUMBER") or 0)
+        if active_pr <= 0:
+            active_pr = 0
+        decision_sha256 = ""
+        decision_path = state_dir / "decision_packet.md"
+        if decision_path.exists():
+            decision_sha256 = "sha256:" + _sha256_path(decision_path)
+        landing_checks, landing_reasons = _check_landing_authority(
+            contract=contract,
+            active_pr=active_pr,
+            decision_id=decision.decision_id,
+            decision_sha256=decision_sha256,
+            locked_base_sha=str(scope["activation_base_sha"]),
+            state_dir=state_dir,
+            repo_root=repo_root,
+        )
+        if landing_reasons:
+            result = {
+                "schema_version": 1,
+                "gate_name": "transition-preflight",
+                "gate_status": "BLOCKED",
+                "decision_id": decision.decision_id,
+                "round_id": decision.round_id,
+                "checks": list(landing_checks),
+                "blocking_reasons": list(landing_reasons),
+                "event_action": event_action,
+                "event_pr_number": active_pr,
+            }
+            if write_result:
+                path = state_dir / "gates" / TRANSITION_PREFLIGHT_RESULT_NAME
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(json.dumps(result, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+            return result
     live_decision = _decision_content_immutability_check(repo_root, contract)
     live_check = _decision_immutability_check_record(live_decision)
     if not live_decision.get("passed"):
@@ -37438,6 +37682,11 @@ def main(argv: list[str] | None = None) -> int:
         default="pre",
         help="pre = pre-execution authorization; post = post-execution reconcile.",
     )
+    transition_preflight_parser.add_argument(
+        "--event-path",
+        default="",
+        help="Path to a GitHub event JSON file; used to enforce landing authority on ready_for_review events.",
+    )
     integration_baseline_parser = subparsers.add_parser(
         "integration-baseline",
         help="Validate the frozen Architecture Spine integration baseline.",
@@ -37589,7 +37838,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if result.get("plan_status") == "PASSED" else 1
     if args.command == "transition-preflight":
         state_dir = Path(args.state_dir)
-        result = transition_preflight(state_dir=state_dir, repo_root=_derive_repo_root(state_dir), mode=args.mode)
+        result = transition_preflight(state_dir=state_dir, repo_root=_derive_repo_root(state_dir), mode=args.mode, event_path=args.event_path)
         if args.json:
             print(json.dumps(result, ensure_ascii=True, indent=2))
         else:

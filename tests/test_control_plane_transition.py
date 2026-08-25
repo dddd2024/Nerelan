@@ -924,3 +924,387 @@ def test_project_gate_transition_command_plan_preserves_bootstrap_collision(
     assert all(i for i in ids)
     assert ids[0] != ids[1]
     assert all(i.startswith("bootstrap.") for i in ids)
+
+
+# ---------------------------------------------------------------------------
+# Landing authority checks for ready_for_review events (Issue #367)
+# ---------------------------------------------------------------------------
+
+
+def _write_decision_with_landing_flag(
+    state_dir: Path,
+    *,
+    decision_id: str = "decision_landing_test",
+    round_id: str = "round_landing_test",
+    branch: str = "owner/test-branch",
+    base_sha: str = "a" * 40,
+    mainline_merge_intent_required: bool = True,
+    workflow_profile: str = "baseline",
+) -> None:
+    """Write a Decision contract with explicit mainline_merge_intent_required."""
+
+    contract = {
+        "transition_kernel_required": True,
+        "required_branch": branch,
+        "activation_base_sha": base_sha,
+        "bootstrap_exception_files": ["reverse_agent/project_gate.py"],
+        "bootstrap_exception_commands": [
+            "python -m pytest tests/test_project_gate.py -q",
+            "git diff --check",
+        ],
+        "allowed_mutated_paths": ["reverse_agent/example/**"],
+        "forbidden_mutated_paths": ["frontend/**"],
+        "direct_push_to_main_allowed": False,
+        "merge_allowed": False,
+        "force_push_allowed": False,
+        "rebase_during_execution_allowed": False,
+        "destructive_operations_allowed": False,
+        "unknown_binary_execution_allowed": False,
+        "model_api_invocation_allowed": False,
+        "external_reverse_tool_invocation_allowed": False,
+        "mainline_merge_intent_required": mainline_merge_intent_required,
+        "workflow_profile": workflow_profile,
+        "decision_content_immutable_after_activation": True,
+        "decision_immutability_required": True,
+        "starting_head": base_sha,
+    }
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "decision_packet.md").write_text(
+        "```json decision_meta\n"
+        + json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": decision_id,
+                "round_id": round_id,
+                "status": "APPROVED",
+                "mainline": "engineering_branch",
+                "skill_profiles": ["reverse-agent-iteration@v2"],
+            }
+        )
+        + "\n```\n\n```json decision_contract\n"
+        + json.dumps(contract)
+        + "\n```\n",
+        encoding="utf-8",
+    )
+
+
+def _write_event_file(
+    tmp_path: Path,
+    *,
+    action: str = "ready_for_review",
+    pr_number: int = 367,
+) -> Path:
+    event = {
+        "action": action,
+        "pull_request": {
+            "number": pr_number,
+            "head": {"sha": "b" * 40},
+            "base": {"sha": "a" * 40},
+        },
+    }
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps(event), encoding="utf-8")
+    return event_path
+
+
+def _write_active_intent(
+    repo_root: Path,
+    *,
+    source_pr: int = 367,
+    decision_id: str = "decision_landing_test",
+    decision_sha: str = "",
+    plan_sha: str = "",
+    base_sha: str = "a" * 40,
+    workflow_profile: str = "baseline",
+    expires_at: str = "2099-01-01T00:00:00Z",
+) -> None:
+    intents_dir = repo_root / "project_state" / "mainline_merge_intents"
+    intents_dir.mkdir(parents=True, exist_ok=True)
+    intent = {
+        "schema_version": 3,
+        "intent_id": f"pr{source_pr}_test_v1",
+        "repository": "dddd2024/reverse-agent",
+        "source_pr": source_pr,
+        "locked_base_sha": base_sha,
+        "allowed_merge_method": "merge",
+        "decision_identity": {
+            "decision_id": decision_id,
+            "decision_content_sha256": decision_sha,
+        },
+        "command_plan_sha256": plan_sha,
+        "merge_tree_policy": "equal_to_accepted_head_tree",
+        "workflow_profile": workflow_profile,
+        "required_workflows": [
+            "CI",
+            "Decision Preflight",
+            "State Gate (pull_request)",
+        ],
+        "expires_at": expires_at,
+    }
+    (intents_dir / "active.json").write_text(
+        json.dumps(intent, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _compute_decision_sha(state_dir: Path) -> str:
+    from hashlib import sha256
+    path = state_dir / "decision_packet.md"
+    return "sha256:" + sha256(path.read_bytes()).hexdigest()
+
+
+def _compute_plan_sha(state_dir: Path) -> str:
+    from hashlib import sha256
+    path = state_dir / "gates" / "command_plan.json"
+    if not path.exists():
+        return ""
+    return "sha256:" + sha256(path.read_bytes()).hexdigest()
+
+
+def test_landing_authority_blocks_engineering_pr_ready_for_review(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """G2: engineering Decision (mainline_merge_intent_required=false) + ready_for_review -> BLOCK."""
+
+    state_dir = tmp_path / "project_state"
+    _write_decision_with_landing_flag(
+        state_dir,
+        mainline_merge_intent_required=False,
+    )
+    _registry(tmp_path)
+    project_gate.transition_command_plan(state_dir=state_dir)
+    event_path = _write_event_file(tmp_path, action="ready_for_review", pr_number=367)
+    monkeypatch.setattr(project_gate, "_derive_repo_root", lambda _state_dir: tmp_path)
+    result = project_gate.transition_preflight(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        event_path=str(event_path),
+        write_result=False,
+    )
+    assert result["gate_status"] == "BLOCKED"
+    assert "engineering_pr_not_landing_authorized" in result["blocking_reasons"]
+    assert result.get("event_action") == "ready_for_review"
+
+
+def test_landing_authority_passes_through_non_ready_for_review(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """G1: engineering Decision + non-ready_for_review event -> normal preflight (no landing check)."""
+
+    state_dir = tmp_path / "project_state"
+    _write_decision_with_landing_flag(
+        state_dir,
+        mainline_merge_intent_required=False,
+    )
+    _registry(tmp_path)
+    project_gate.transition_command_plan(state_dir=state_dir)
+    event_path = _write_event_file(tmp_path, action="synchronize", pr_number=367)
+    _install_envelope_git_stub(
+        monkeypatch,
+        branch="owner/test-branch",
+        base_sha="a" * 40,
+        decision_commit="b" * 40,
+        committed_files="reverse_agent/example/module.py",
+    )
+    result = project_gate.transition_preflight(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        event_path=str(event_path),
+        write_result=False,
+    )
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED"
+    assert "engineering_pr_not_landing_authorized" not in result.get("blocking_reasons", [])
+
+
+def test_landing_authority_passes_through_no_event_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No event path -> normal preflight (no landing check)."""
+
+    state_dir = tmp_path / "project_state"
+    _write_decision_with_landing_flag(
+        state_dir,
+        mainline_merge_intent_required=False,
+    )
+    _registry(tmp_path)
+    project_gate.transition_command_plan(state_dir=state_dir)
+    _install_envelope_git_stub(
+        monkeypatch,
+        branch="owner/test-branch",
+        base_sha="a" * 40,
+        decision_commit="b" * 40,
+        committed_files="reverse_agent/example/module.py",
+    )
+    result = project_gate.transition_preflight(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        event_path="",
+        write_result=False,
+    )
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED"
+    assert "engineering_pr_not_landing_authorized" not in result.get("blocking_reasons", [])
+
+
+def test_landing_authority_blocks_when_no_active_intent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """G3: landing-capable Decision + ready_for_review + no active intent -> BLOCK with landing_authority_required."""
+
+    state_dir = tmp_path / "project_state"
+    _write_decision_with_landing_flag(state_dir, mainline_merge_intent_required=True)
+    _registry(tmp_path)
+    project_gate.transition_command_plan(state_dir=state_dir)
+    event_path = _write_event_file(tmp_path, action="ready_for_review", pr_number=367)
+    monkeypatch.setattr(project_gate, "_derive_repo_root", lambda _state_dir: tmp_path)
+    result = project_gate.transition_preflight(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        event_path=str(event_path),
+        write_result=False,
+    )
+    assert result["gate_status"] == "BLOCKED"
+    assert "landing_authority_required" in result["blocking_reasons"]
+
+
+def test_landing_authority_blocks_when_wrong_pr_number(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """G5: landing-capable + active intent bound to wrong PR -> BLOCK with landing_authority_mismatch."""
+
+    state_dir = tmp_path / "project_state"
+    _write_decision_with_landing_flag(state_dir, mainline_merge_intent_required=True)
+    _registry(tmp_path)
+    project_gate.transition_command_plan(state_dir=state_dir)
+    decision_sha = _compute_decision_sha(state_dir)
+    plan_sha = _compute_plan_sha(state_dir)
+    _write_active_intent(
+        tmp_path,
+        source_pr=999,
+        decision_id="decision_landing_test",
+        decision_sha=decision_sha,
+        plan_sha=plan_sha,
+        base_sha="a" * 40,
+    )
+    event_path = _write_event_file(tmp_path, action="ready_for_review", pr_number=367)
+    monkeypatch.setattr(project_gate, "_derive_repo_root", lambda _state_dir: tmp_path)
+    result = project_gate.transition_preflight(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        event_path=str(event_path),
+        write_result=False,
+    )
+    assert result["gate_status"] == "BLOCKED"
+    assert "landing_authority_mismatch" in result["blocking_reasons"]
+    pr_check = next((c for c in result["checks"] if c["name"] == "landing_intent_source_pr"), None)
+    assert pr_check is not None
+    assert pr_check["status"] == "FAIL"
+    assert "observed=999" in pr_check["detail"]
+    assert "expected=367" in pr_check["detail"]
+
+
+def test_landing_authority_blocks_when_wrong_base(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """G6: landing-capable + active intent with wrong base -> BLOCK with landing_authority_mismatch."""
+
+    state_dir = tmp_path / "project_state"
+    _write_decision_with_landing_flag(state_dir, mainline_merge_intent_required=True)
+    _registry(tmp_path)
+    project_gate.transition_command_plan(state_dir=state_dir)
+    decision_sha = _compute_decision_sha(state_dir)
+    plan_sha = _compute_plan_sha(state_dir)
+    _write_active_intent(
+        tmp_path,
+        source_pr=367,
+        decision_id="decision_landing_test",
+        decision_sha=decision_sha,
+        plan_sha=plan_sha,
+        base_sha="b" * 40,
+    )
+    event_path = _write_event_file(tmp_path, action="ready_for_review", pr_number=367)
+    monkeypatch.setattr(project_gate, "_derive_repo_root", lambda _state_dir: tmp_path)
+    result = project_gate.transition_preflight(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        event_path=str(event_path),
+        write_result=False,
+    )
+    assert result["gate_status"] == "BLOCKED"
+    assert "landing_authority_mismatch" in result["blocking_reasons"]
+    base_check = next((c for c in result["checks"] if c["name"] == "landing_intent_locked_base"), None)
+    assert base_check is not None
+    assert base_check["status"] == "FAIL"
+
+
+def test_landing_authority_blocks_when_expired(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """G11: landing-capable + expired active intent -> BLOCK with landing_authority_mismatch."""
+
+    state_dir = tmp_path / "project_state"
+    _write_decision_with_landing_flag(state_dir, mainline_merge_intent_required=True)
+    _registry(tmp_path)
+    project_gate.transition_command_plan(state_dir=state_dir)
+    decision_sha = _compute_decision_sha(state_dir)
+    plan_sha = _compute_plan_sha(state_dir)
+    _write_active_intent(
+        tmp_path,
+        source_pr=367,
+        decision_id="decision_landing_test",
+        decision_sha=decision_sha,
+        plan_sha=plan_sha,
+        base_sha="a" * 40,
+        expires_at="2020-01-01T00:00:00Z",
+    )
+    event_path = _write_event_file(tmp_path, action="ready_for_review", pr_number=367)
+    monkeypatch.setattr(project_gate, "_derive_repo_root", lambda _state_dir: tmp_path)
+    result = project_gate.transition_preflight(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        event_path=str(event_path),
+        write_result=False,
+    )
+    assert result["gate_status"] == "BLOCKED"
+    assert "landing_authority_mismatch" in result["blocking_reasons"]
+    expiry_check = next((c for c in result["checks"] if c["name"] == "landing_intent_expiry"), None)
+    assert expiry_check is not None
+    assert expiry_check["status"] == "FAIL"
+
+
+def test_landing_authority_blocks_when_wrong_workflow_profile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """G10: landing-capable + wrong workflow profile -> BLOCK with landing_authority_mismatch."""
+
+    state_dir = tmp_path / "project_state"
+    _write_decision_with_landing_flag(
+        state_dir,
+        mainline_merge_intent_required=True,
+        workflow_profile="baseline",
+    )
+    _registry(tmp_path)
+    project_gate.transition_command_plan(state_dir=state_dir)
+    decision_sha = _compute_decision_sha(state_dir)
+    plan_sha = _compute_plan_sha(state_dir)
+    _write_active_intent(
+        tmp_path,
+        source_pr=367,
+        decision_id="decision_landing_test",
+        decision_sha=decision_sha,
+        plan_sha=plan_sha,
+        base_sha="a" * 40,
+        workflow_profile="unknown_profile",
+    )
+    event_path = _write_event_file(tmp_path, action="ready_for_review", pr_number=367)
+    monkeypatch.setattr(project_gate, "_derive_repo_root", lambda _state_dir: tmp_path)
+    result = project_gate.transition_preflight(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        event_path=str(event_path),
+        write_result=False,
+    )
+    assert result["gate_status"] == "BLOCKED"
+    assert "landing_authority_mismatch" in result["blocking_reasons"]
+    profile_check = next((c for c in result["checks"] if c["name"] == "landing_intent_workflow_profile"), None)
+    assert profile_check is not None
+    assert profile_check["status"] == "FAIL"
