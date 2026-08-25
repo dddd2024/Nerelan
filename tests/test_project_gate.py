@@ -32768,3 +32768,227 @@ class TestLiveDecisionImmutability:
         result = project_gate_module.worktree_publication_readiness(state_dir=state, repo_root=repo)
         assert result["gate_status"] == "BLOCKED"
         assert "decision_worktree_or_index_dirty" in result["blocking_reasons"]
+
+
+# ---------------------------------------------------------------------------
+# V2-G regression suite: Issue #367 engineering-landing-boundary-r2-v2
+# ---------------------------------------------------------------------------
+
+
+def _make_v2_decision_packet(
+    tmp_path: Path,
+    *,
+    decision_id: str = "decision_v2_test",
+    round_id: str = "round_v2_test",
+    intent_required: bool = True,
+    extra_contract: dict[str, Any] | None = None,
+) -> tuple[Path, Path, dict[str, Any]]:
+    repo = tmp_path / "repo"
+    state = tmp_path / "state"
+    for d in (repo, state):
+        d.mkdir(parents=True, exist_ok=True)
+    (state / "gates").mkdir(parents=True, exist_ok=True)
+    contract = {
+        "transition_kernel_required": True,
+        "mainline_merge_intent_required": intent_required,
+        "required_branch": "test-branch",
+        "activation_base_sha": "0" * 40,
+        "allowed_paths": ["project_state/decision_packet.md", "reverse_agent/project_gate.py"],
+        "allowed_mutated_paths": ["project_state/decision_packet.md", "reverse_agent/project_gate.py"],
+        "forbidden_mutated_paths": ["docs/**"],
+        "forbidden_paths": ["docs/**"],
+        "forbidden_operations": ["direct_push_main", "merge", "mark_ready"],
+        "reference_paths": [],
+        "generated_artifact_paths": [],
+        "authorized_risk_paths": [],
+        "authorized_risk_tier": "",
+        "runner_managed_artifact_paths": [],
+        "workflow_profile": "baseline",
+        "owner_attestation_required_for_ready_state": True,
+        "attestation_head_must_match_current_pr_head": True,
+        "ready_state_synchronize_must_revalidate": True,
+        "bootstrap_exception_files": ["project_state/decision_packet.md"],
+        "bootstrap_exception_commands": [],
+        "direct_push_to_main_allowed": False,
+        "merge_allowed": False,
+        "mark_ready_allowed": False,
+        "workflow_rerun_allowed": False,
+        "runner_dispatch_allowed": False,
+        "force_push_allowed": False,
+        "rebase_during_execution_allowed": False,
+        "destructive_operations_allowed": False,
+        "unknown_binary_execution_allowed": False,
+        "model_api_invocation_allowed": False,
+        "external_reverse_tool_invocation_allowed": False,
+        "dependency_install_allowed": False,
+        "known_browser_execution_allowed": False,
+        "live_provider_access_allowed": False,
+        "credential_access_allowed": False,
+        "auto_merge_allowed": False,
+    }
+    if extra_contract:
+        contract.update(extra_contract)
+    (state / "decision_packet.md").write_text(
+        "```json decision_meta\n"
+        + json.dumps({"schema_version": 1, "status": "APPROVED", "mainline": "engineering_branch",
+                       "decision_id": decision_id, "round_id": round_id, "skill_profiles": ["s"]})
+        + "\n```\n```json decision_contract\n"
+        + json.dumps(contract)
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    return repo, state, contract
+
+
+def _ensure_command_plan(state: Path) -> None:
+    (state / "gates" / "command_plan.json").write_text(
+        json.dumps({"schema_version": 1, "decision_id": "decision_v2_test",
+                    "round_id": "round_v2_test", "commands": []}), encoding="utf-8"
+    )
+    (state / "gates" / "bootstrap_state.json").write_text(
+        json.dumps({"status": "BOOTSTRAP_EXPIRED"}), encoding="utf-8"
+    )
+
+
+def _write_event_file(tmp_path: Path, *, action: str, pr_number: int, draft: bool,
+                      head_sha: str = "h" * 40, base_sha: str = "b" * 40) -> Path:
+    payload = {
+        "action": action,
+        "pull_request": {
+            "number": pr_number,
+            "head": {"sha": head_sha},
+            "base": {"sha": base_sha},
+            "draft": draft,
+        },
+    }
+    path = tmp_path / "event.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+class TestV2LandingAuthorityGate:
+
+    def _fake_transition_git(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, state: Path, repo: Path) -> None:
+        (state / "gates" / "command_plan.json").write_text(
+            json.dumps({"schema_version": 1, "decision_id": "decision_v2_test",
+                        "round_id": "round_v2_test", "commands": []}), encoding="utf-8"
+        )
+        (state / "gates" / "bootstrap_state.json").write_text(
+            json.dumps({"status": "BOOTSTRAP_EXPIRED"}), encoding="utf-8"
+        )
+        # Initialize a minimal git repo at the repo path
+        import subprocess
+        subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+        subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=repo, check=True, capture_output=True)
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True, capture_output=True)
+        # Create an initial commit with the decision packet
+        (repo / "project_state").mkdir(parents=True, exist_ok=True)
+        (repo / "project_state" / "decision_packet.md").write_text(
+            (state / "decision_packet.md").read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        subprocess.run(["git", "add", "project_state/decision_packet.md"], cwd=repo, check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "init"], cwd=repo, check=True, capture_output=True)
+        # Create the test-branch
+        subprocess.run(["git", "checkout", "-b", "test-branch"], cwd=repo, check=True, capture_output=True)
+        monkeypatch.setattr(project_gate_module, "_active_transition_skills", lambda r: ("s",))
+
+    def test_v2_g1_draft_synchronize_no_landing_check(self, tmp_path: Path) -> None:
+        event = _write_event_file(tmp_path, action="synchronize", pr_number=369, draft=True)
+        payload = project_gate_module._parse_transition_event(str(event))
+        assert payload["action"] == "synchronize"
+        assert payload["draft"] is True
+        assert not project_gate_module._is_landing_boundary_event(payload)
+
+    def test_v2_g4_landing_draft_no_attestation_no_landing_check(self, tmp_path: Path) -> None:
+        event = _write_event_file(tmp_path, action="synchronize", pr_number=369, draft=True)
+        payload = project_gate_module._parse_transition_event(str(event))
+        assert payload["draft"] is True
+        assert not project_gate_module._is_landing_boundary_event(payload)
+
+    def test_v2_g15_converted_to_draft_returns_draft_semantics(self, tmp_path: Path) -> None:
+        event = _write_event_file(tmp_path, action="converted_to_draft", pr_number=369, draft=True)
+        payload = project_gate_module._parse_transition_event(str(event))
+        assert payload["action"] == "converted_to_draft"
+        assert not project_gate_module._is_landing_boundary_event(payload)
+
+    def test_v2_g2_engineering_ready_for_review_blocks(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        repo, state, _ = _make_v2_decision_packet(tmp_path, intent_required=False)
+        _ensure_command_plan(state)
+        event_path = _write_event_file(tmp_path, action="ready_for_review", pr_number=369, draft=False)
+        result = project_gate_module.transition_preflight(state_dir=state, repo_root=repo,
+                                                           event_path=str(event_path), write_result=False)
+        assert result["gate_status"] == "BLOCKED"
+        assert "engineering_pr_not_landing_authorized" in result["blocking_reasons"]
+
+    def test_v2_g3_engineering_non_draft_synchronize_blocks(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        repo, state, _ = _make_v2_decision_packet(tmp_path, intent_required=False)
+        _ensure_command_plan(state)
+        event_path = _write_event_file(tmp_path, action="synchronize", pr_number=369, draft=False)
+        result = project_gate_module.transition_preflight(state_dir=state, repo_root=repo,
+                                                           event_path=str(event_path), write_result=False)
+        assert result["gate_status"] == "BLOCKED"
+        assert "engineering_pr_not_landing_authorized" in result["blocking_reasons"]
+
+    def test_v2_g14_malformed_event_path_blocks(self, tmp_path: Path) -> None:
+        repo, state, _ = _make_v2_decision_packet(tmp_path)
+        _ensure_command_plan(state)
+        bad = tmp_path / "bad.json"
+        bad.write_text("{not json", encoding="utf-8")
+        result = project_gate_module.transition_preflight(state_dir=state, repo_root=repo,
+                                                           event_path=str(bad), write_result=False)
+        assert result["gate_status"] == "BLOCKED"
+        assert "landing_event_path_malformed" in result["blocking_reasons"]
+
+    def test_v2_g14_missing_pr_number_blocks(self, tmp_path: Path) -> None:
+        repo, state, _ = _make_v2_decision_packet(tmp_path)
+        _ensure_command_plan(state)
+        bad = tmp_path / "bad2.json"
+        bad.write_text(json.dumps({"action": "ready_for_review", "pull_request": {"head": {}, "base": {}, "draft": False}}), encoding="utf-8")
+        result = project_gate_module.transition_preflight(state_dir=state, repo_root=repo,
+                                                           event_path=str(bad), write_result=False)
+        assert result["gate_status"] == "BLOCKED"
+        assert "landing_event_path_malformed" in result["blocking_reasons"]
+
+    def test_v2_g6_ready_missing_attestation_blocks(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        repo, state, _ = _make_v2_decision_packet(tmp_path, intent_required=True)
+        self._fake_transition_git(monkeypatch, tmp_path, state, repo)
+        monkeypatch.setattr(project_gate_module, "_active_transition_skills", lambda r: ("s",))
+        intents_dir = repo / "project_state" / "mainline_merge_intents"
+        intents_dir.mkdir(parents=True, exist_ok=True)
+        from hashlib import sha256
+        decision_sha = sha256((state / "decision_packet.md").read_bytes()).hexdigest()
+        plan_sha = sha256((state / "gates" / "command_plan.json").read_bytes()).hexdigest()
+        intent = {
+            "schema_version": 3,
+            "intent_id": "test_v2",
+            "repository": "dddd2024/reverse-agent",
+            "source_pr": 369,
+            "locked_base_sha": "0" * 40,
+            "allowed_merge_method": "merge",
+            "decision_identity": {
+                "decision_id": "decision_v2_test",
+                "decision_content_sha256": decision_sha,
+            },
+            "command_plan_sha256": plan_sha,
+            "merge_tree_policy": "equal_to_accepted_head_tree",
+            "workflow_profile": "baseline",
+            "required_workflows": ["CI", "Decision Preflight", "State Gate (pull_request)"],
+            "expires_at": "2099-01-01T00:00:00Z",
+        }
+        (intents_dir / "active.json").write_text(json.dumps(intent), encoding="utf-8")
+        event_path = _write_event_file(tmp_path, action="ready_for_review", pr_number=369, draft=False)
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+        monkeypatch.delenv("GH_TOKEN", raising=False)
+        result = project_gate_module.transition_preflight(state_dir=state, repo_root=repo,
+                                                           event_path=str(event_path), write_result=False)
+        assert result["gate_status"] == "BLOCKED"
+        assert any(r.startswith("landing_attestation") for r in result["blocking_reasons"]), result["blocking_reasons"]
+
+    def test_v2_g13_missing_active_intent_blocks(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        repo, state, _ = _make_v2_decision_packet(tmp_path, intent_required=True)
+        _ensure_command_plan(state)
+        event_path = _write_event_file(tmp_path, action="ready_for_review", pr_number=369, draft=False)
+        result = project_gate_module.transition_preflight(state_dir=state, repo_root=repo,
+                                                           event_path=str(event_path), write_result=False)
+        assert result["gate_status"] == "BLOCKED"
+        assert "landing_authority_required" in result["blocking_reasons"]
