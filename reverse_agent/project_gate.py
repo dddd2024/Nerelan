@@ -36549,7 +36549,7 @@ def _check_landing_authority(
     intent_expiry = intent.get("expires_at")
     intent_required_workflows = intent.get("required_workflows")
 
-    actual_decision_sha = decision_sha256 if decision_sha256.startswith("sha256:") else "sha256:" + decision_sha256
+    actual_decision_sha = decision_sha256.replace("sha256:", "") if decision_sha256.startswith("sha256:") else decision_sha256
 
     checks.extend([
         {
@@ -36571,7 +36571,7 @@ def _check_landing_authority(
 
     command_plan_path = state_dir / "gates" / "command_plan.json"
     try:
-        actual_plan_sha = "sha256:" + sha256(command_plan_path.read_bytes()).hexdigest() if command_plan_path.exists() else ""
+        actual_plan_sha = sha256(command_plan_path.read_bytes()).hexdigest() if command_plan_path.exists() else ""
     except OSError:
         actual_plan_sha = ""
     checks.append({

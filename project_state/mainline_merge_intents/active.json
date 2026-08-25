@@ -7,9 +7,9 @@
   "allowed_merge_method": "merge",
   "decision_identity": {
     "decision_id": "decision_20260825_issue367_engineering_landing_boundary_r2_v1",
-    "decision_content_sha256": "sha256:4c97f31114da7078b4c6d558ea0310bae3c12520a2380395473e3ad530b995dd"
+    "decision_content_sha256": "4c97f31114da7078b4c6d558ea0310bae3c12520a2380395473e3ad530b995dd"
   },
-  "command_plan_sha256": "sha256:bda6cb01c2f1fc0d7f29aa1a7a53a5fddab770baf4dd260e4643f5e2d0fafe39",
+  "command_plan_sha256": "bda6cb01c2f1fc0d7f29aa1a7a53a5fddab770baf4dd260e4643f5e2d0fafe39",
   "merge_tree_policy": "equal_to_accepted_head_tree",
   "workflow_profile": "baseline",
   "required_workflows": [
