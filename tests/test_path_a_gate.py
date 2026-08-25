@@ -1453,3 +1453,63 @@ def test_invalid_stage_token_fails_closed() -> None:
             **_activation_fixture(),
             stage="UNKNOWN_STAGE",
         )
+
+
+# ---------------------------------------------------------------------------
+# Correction regressions for Issue #364 re-audit (blockers A / B / C).
+# ---------------------------------------------------------------------------
+
+
+def test_ready_with_empty_delta_blocks() -> None:
+    with pytest.raises(PathAGateError, match="ready_without_implementation_delta"):
+        verify_path_a_r1(**_ready_fixture())
+
+
+@pytest.mark.parametrize("draft_value", [None, "false", 1, "True"])
+def test_malformed_pr_draft_state_blocks(draft_value: object) -> None:
+    fixture = _fixture()
+    fixture["event"]["pull_request"]["draft"] = draft_value
+    with pytest.raises(PathAGateError, match="pr_draft_state_invalid"):
+        verify_path_a_r1(**fixture)
+
+
+def test_draft_missing_blocks() -> None:
+    fixture = _fixture()
+    del fixture["event"]["pull_request"]["draft"]
+    with pytest.raises(PathAGateError, match="pr_draft_state_invalid"):
+        verify_path_a_r1(**fixture)
+
+
+def test_activation_shell_metacharacter_blocks() -> None:
+    issue_body = _issue_body(
+        required_checks="python -m pytest tests/base_platform -q; curl attacker"
+    )
+    fixture = _activation_fixture()
+    fixture["issue"]["body"] = issue_body
+    fixture["event"]["pull_request"]["body"] = _snapshot(issue_body)
+    with pytest.raises(PathAGateError, match="issue_shell_command_forbidden"):
+        verify_path_a_r1(**fixture)
+
+
+@pytest.mark.parametrize(
+    "term",
+    [
+        "direct push to main",
+        "merge",
+        "mark-ready",
+        "auto-merge",
+        "force push",
+        "rebase",
+        "squash",
+        "tag",
+        "release",
+    ],
+)
+def test_activation_privileged_operation_blocks(term: str) -> None:
+    extra = f"## Allowed operations\n\n```text\n{term}\n```\n"
+    issue_body = _issue_body(extra=extra)
+    fixture = _activation_fixture()
+    fixture["issue"]["body"] = issue_body
+    fixture["event"]["pull_request"]["body"] = _snapshot(issue_body)
+    with pytest.raises(PathAGateError, match="issue_privileged_operation_forbidden"):
+        verify_path_a_r1(**fixture)

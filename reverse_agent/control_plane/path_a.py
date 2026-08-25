@@ -699,6 +699,7 @@ def verify_path_a_r1(
         issue_body = str(issue.get("body") or "")
         if issue_body_digest(issue_body) != snapshot.body_digest_sha256:
             raise PathAGateError("issue_body_digest_mismatch")
+        _validate_issue_commands(issue_body)
         head = pr.get("head") or {}
         base = pr.get("base") or {}
         head_repository = str((head.get("repo") or {}).get("full_name") or "")
@@ -1065,19 +1066,25 @@ def infer_path_a_lifecycle_stage(
 
     The classifier trusts only current git/GitHub observations; it never
     carries stage state across workflow runs.  Draft + empty Delta is the
-    normal ACTIVATION_DRAFT bootstrap.  A non-empty Delta is the
+    normal ACTIVATION_DRAFT bootstrap.  A non-empty Draft Delta is the
     IMPLEMENTATION_DRAFT.  Once the PR is marked ready_for_review the
-    gate may only observe READY_FINAL_READINESS and must not grant any
-    implementation authority.
+    gate may observe READY_FINAL_READINESS only when an actual
+    implementation delta exists; a Ready-without-delta event is fail-closed
+    with ready_without_implementation_delta.  A missing, None, or
+    non-bool draft state is fail-closed with pr_draft_state_invalid.
     """
 
     if not pr_open:
         raise PathAGateError("pr_not_open")
-    if pr_draft is not True:
-        return READY_FINAL_READINESS
+    if not isinstance(pr_draft, bool):
+        raise PathAGateError("pr_draft_state_invalid")
+    if pr_draft:
+        if empty_delta:
+            return ACTIVATION_DRAFT
+        return IMPLEMENTATION_DRAFT
     if empty_delta:
-        return ACTIVATION_DRAFT
-    return IMPLEMENTATION_DRAFT
+        raise PathAGateError("ready_without_implementation_delta")
+    return READY_FINAL_READINESS
 
 
 def _validate_stage_for_delta(
