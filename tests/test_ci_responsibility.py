@@ -134,6 +134,18 @@ def test_state_gate_pull_request_target_bootstrap_job_present() -> None:
     assert "bootstrap-authority:" in content
 
 
+def test_state_gate_transition_preflight_receives_event_path_and_github_read_context() -> None:
+    """The transition step must carry the PR event and bounded GitHub env."""
+
+    content = _read_state_gate()
+    marker = "      - name: Transition preflight"
+    assert marker in content
+    block = content.split(marker, 1)[1].split("      - name:", 1)[0]
+    assert 'GITHUB_TOKEN: ${{ github.token }}' in block
+    assert 'GITHUB_REPOSITORY: ${{ github.repository }}' in block
+    assert 'transition-preflight --state-dir project_state --event-path "$GITHUB_EVENT_PATH"' in block
+
+
 def test_state_gate_product_source_path_does_not_match() -> None:
     content = _read_state_gate()
     push_block = _extract_event_block(content, "push")
