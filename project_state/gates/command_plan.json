@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260825_issue364_path_a_lifecycle_coherence_r2_v1",
-  "round_id": "round_20260825_issue364_path_a_lifecycle_coherence_r2_v1",
+  "decision_id": "decision_20260826_issue367_engineering_landing_boundary_r2_v3",
+  "round_id": "round_20260826_issue367_engineering_landing_boundary_r2_v3",
   "commands": [
     {
-      "command_id": "issue364_r2v1.bootstrap",
-      "command": "verify locked base 435907ad132dc1080b111ac6372c179e5cda429c and fresh branch; commit Decision first; generate startup snapshot, command plan, transition lint, transition preflight, and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY",
+      "command_id": "issue367_r2v3.bootstrap",
+      "command": "verify the locked main base and fresh branch; commit this Decision as the unique first commit; run startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre, and worktree-publication-readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY; commit the initial generated governance artifacts as the first of at most two generated-governance commits before implementation",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -34,8 +34,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue364_r2v1.lifecycle_stage_core",
-      "command": "extend reverse_agent/control_plane/path_a.py with three stage-aware Path-A lifecycle outcomes (ACTIVATION_DRAFT, IMPLEMENTATION_DRAFT, READY_FINAL_READINESS): add DeltaObservation dataclass plus empty_delta flag, refactor changed_paths_for_event to return a DeltaObservation tuple, add a classify_stage helper, and restructure verify_path_a_r1 so ACTIVATION_DRAFT with a proven empty delta returns a PASS that explicitly carries implementation_authority=false and product_accepted=false without executing task checks; IMPLEMENTATION_DRAFT keeps all current path, risk, snapshot, digest, head/base/merge-base, auto-merge, and authority-revision checks; READY_FINAL_READINESS revalidates live Issue, r1-approved, approval transition, digest, snapshot, exact head/base, merge base, changed paths, risk classification, Allowed paths, and auto-merge on a freshly computed live authority revision and returns READY_FINAL_READINESS while still forbidding implementation authority; converted_to_draft events recompute the delta from live git truth rather than trusting the previous workflow stage",
+      "command_id": "issue367_r2v3.landing_authority_gate",
+      "command": "extend the existing State Gate transition-preflight composition only: strictly parse supplied pull-request events as action plus positive PR number plus lowercase 40-hex head/base SHAs plus Boolean draft; fail closed on missing or malformed authority facts; require landing revalidation for ready_for_review and every event while the PR is non-Draft, including synchronize drift, while converted_to_draft returns to Draft semantics; block engineering-only Decisions before Ready; for landing-capable Decisions require the live remote PR number/head/base/draft to equal the trusted event and require the live base to equal the locked integration base by reusing GitHubRemoteAcceptanceVerifier.verify_pr; reuse the canonical schema-v3 raw-hex intent and mainline_landing validation instead of duplicating it; require exactly one current exact-head Owner MAINLINE_MERGE_APPROVAL_ATTESTATION via load_merge_attestation and canonical attestation validation; preserve post-merge fail-closed and Path-A lifecycle semantics; pass event path and bounded GitHub read-only context from state-gate.yml; do not add another Gate, schema, intent representation, verifier, or authority store",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -57,12 +57,14 @@
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
-        "reverse_agent/control_plane/path_a.py"
+        "reverse_agent/project_gate.py",
+        "reverse_agent/mainline_landing.py",
+        ".github/workflows/state-gate.yml"
       ]
     },
     {
-      "command_id": "issue364_r2v1.lifecycle_regressions",
-      "command": "extend tests/test_path_a_gate.py with focused stage-aware regressions covering A1 approved activation draft + zero delta -> ACTIVATION_DRAFT PASS; A2 activation draft approval/snapshot invalid -> BLOCK; A3 activation draft cannot count as completed implementation -> BLOCK; I1 valid implementation draft -> existing implementation PASS; I2 invalid implementation draft -> existing fail-closed behavior preserved; R1 Ready unchanged accepted exact implementation head -> READY_FINAL_READINESS PASS; R2 Ready head/base drift -> BLOCK; R3 Ready Issue digest/approval drift -> BLOCK; R4 Ready cannot bypass missing snapshot/approval -> BLOCK; D1 converted_to_draft + empty delta -> ACTIVATION_DRAFT; D2 converted_to_draft + implementation delta -> IMPLEMENTATION_DRAFT; L1 labeled/unlabeled/edited/synchronize re-evaluates live authority; M1 auto_merge_enabled BLOCK; plus an explicit ACTIVATION_DRAFT PASS != PRODUCT_ACCEPTED regression",
+      "command_id": "issue367_r2v3.landing_authority_tests",
+      "command": "implement the complete V3 cross-layer regression matrix: Draft implementation/audit pass-through; engineering Ready and non-Draft block; landing Draft pass-through without attestation; exact current intent plus live PR plus exact-head attestation Ready pass; missing, duplicate, stale, wrong-head, wrong-base, wrong-PR, wrong-Decision, wrong-command-plan, wrong-profile, wrong-workflow-set, expired, malformed, unsupported-schema and noncanonical-digest evidence block; supplied event action/PR/head/base/draft typing blocks malformed values; Ready synchronize unchanged exact truth passes while head/base/intent/attestation drift blocks; converted_to_draft restores Draft semantics; auto_merge_enabled while non-Draft revalidates; historical PR347 schema-v3 semantics remain valid; post-merge validator stays fail closed; #364 Path-A activation/implementation/Ready behavior remains green; a direct #365 engineering-only sequence is server-visibly blocked before merge eligibility",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -84,12 +86,17 @@
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
+        "tests/test_project_gate.py",
+        "tests/test_mainline_landing.py",
+        "tests/test_control_plane_transition.py",
+        "tests/platform_v1/test_merge_intent.py",
+        "tests/test_ci_responsibility.py",
         "tests/test_path_a_gate.py"
       ]
     },
     {
-      "command_id": "issue364_r2v1.validate_and_publish",
-      "command": "run the Path-A gate focused suite, CI responsibility suite, project gate suite, and control-plane/planning-adapter suites; run git diff --check; run transition-lint and transition-preflight and worktree-publication-readiness; commit implementation; push exact branch and create one Draft PR to main",
+      "command_id": "issue367_r2v3.validate_and_publish_draft",
+      "command": "run python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_mainline_landing.py tests/platform_v1/test_merge_intent.py tests/test_ci_responsibility.py tests/test_path_a_gate.py -q; run transition-lint, transition-preflight --mode pre, worktree-publication-readiness, and git diff --check; require all pass on the exact implementation head; push the exact branch for the first normal push and create exactly one Draft PR against locked main; do not mark Ready, merge, comment, rerun workflows, or dispatch runners",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -101,7 +108,6 @@
         "unit_test",
         "lint",
         "local_static_check",
-        "commit",
         "push",
         "draft_pr",
         "network_access"
@@ -116,8 +122,65 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.2325d9e8c8ddfa9ef71fe1aa32da529651bda3cec902d512fb155b05fc386f67",
-      "command": "verify exact main base 435907ad132dc1080b111ac6372c179e5cda429c and fresh branch merge-base",
+      "command_id": "issue367_r2v3.post_publication_binding",
+      "command": "after the Draft PR yields the actual GitHub PR number, archive the inherited PR347 active intent byte-for-byte to project_state/mainline_merge_intents/archive/pr347_v3.json and bind active.json exactly once to that actual PR using schema v3, raw 64-hex Decision and Command Plan digests, locked base 9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf, workflow_profile baseline, exact baseline workflows, merge method merge, equal_to_accepted_head_tree, and bounded expiry; commit only the two binding paths and perform the second normal push; issue number 367 must never substitute for the actual PR number",
+      "phase": "post_publication_binding",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "commit",
+        "push",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/mainline_merge_intents/active.json",
+        "project_state/mainline_merge_intents/archive/pr347_v3.json"
+      ]
+    },
+    {
+      "command_id": "issue367_r2v3.final_evidence_sync",
+      "command": "after the actual-PR binding commit and second push, obtain the current Draft PR event facts read-only, run the final local transition-preflight on the exact named branch with the supplied Draft event, require PRE_EXECUTION_AUTHORIZED with the current branch identity and zero blockers, and update only project_state/gates/transition_preflight_result.json; the artifact must not claim the SHA of the commit that contains itself; commit this final tracked evidence as the second and last generated-governance commit, run transition-lint, worktree-publication-readiness, focused tests, and git diff --check again, then perform the third and final normal push; require fresh exact-head CI, State Gate, and Decision Preflight and stop for independent audit",
+      "phase": "final_evidence",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "local_static_check",
+        "unit_test",
+        "commit",
+        "push",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [
+        "project_state/gates/transition_preflight_result.json"
+      ],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/transition_preflight_result.json"
+      ]
+    },
+    {
+      "command_id": "bootstrap.b563ff49b72d24ab0bdec785647599a35f40b518429b47431963fa616e5ce08f",
+      "command": "verify exact main base 9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf and fresh branch merge-base",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
