@@ -64,6 +64,8 @@ from .mainline_landing import (
     emit_mainline_integration_receipt,
     integration_baseline,
     load_merge_intent,
+    validate_active_merge_intent,
+    validate_premerge_attestation,
     validate_future_merge,
     validate_pr60_recovery,
 )
@@ -36441,7 +36443,256 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: bool = True, mode: str = "pre") -> dict[str, Any]:
+_TRANSITION_SHA_RE = re.compile(r"[0-9a-f]{40}\Z")
+
+
+def _read_transition_event(event_path: str) -> tuple[dict[str, Any], str | None]:
+    """Read and strictly type the supplied GitHub pull-request event.
+
+    An empty path is the local preflight mode and deliberately returns an
+    empty payload without an error.  Once a path is supplied, every
+    authority-bearing field is mandatory; a partial event is never treated
+    as a Draft event or as a local invocation.
+    """
+
+    if not event_path:
+        return {}, None
+    try:
+        payload = json.loads(Path(event_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}, "landing_event_path_malformed"
+    if not isinstance(payload, dict):
+        return {}, "landing_event_path_malformed"
+    action = payload.get("action")
+    if not isinstance(action, str) or not action.strip():
+        return {}, "landing_event_path_malformed"
+    pull_request = payload.get("pull_request")
+    if not isinstance(pull_request, dict):
+        return {}, "landing_event_path_malformed"
+    number = pull_request.get("number")
+    if isinstance(number, bool) or not isinstance(number, int) or number <= 0:
+        return {}, "landing_event_path_malformed"
+    head = pull_request.get("head")
+    base = pull_request.get("base")
+    if not isinstance(head, dict) or not isinstance(base, dict):
+        return {}, "landing_event_path_malformed"
+    head_sha = head.get("sha")
+    base_sha = base.get("sha")
+    if (
+        not isinstance(head_sha, str)
+        or _TRANSITION_SHA_RE.fullmatch(head_sha) is None
+        or not isinstance(base_sha, str)
+        or _TRANSITION_SHA_RE.fullmatch(base_sha) is None
+    ):
+        return {}, "landing_event_path_malformed"
+    draft = pull_request.get("draft")
+    if not isinstance(draft, bool):
+        return {}, "landing_event_path_malformed"
+    if action.strip() == "ready_for_review" and draft is not False:
+        return {}, "landing_event_path_malformed"
+    if action.strip() == "converted_to_draft" and draft is not True:
+        return {}, "landing_event_path_malformed"
+    return (
+        {
+            "action": action.strip(),
+            "pr_number": number,
+            "head_sha": head_sha,
+            "base_sha": base_sha,
+            "draft": draft,
+        },
+        None,
+    )
+
+
+def _parse_transition_event(event_path: str) -> dict[str, Any]:
+    """Return the strictly validated authority subset of a PR event."""
+
+    payload, error = _read_transition_event(event_path)
+    return {} if error else payload
+
+
+def _is_landing_boundary_event(event_payload: Mapping[str, Any]) -> bool:
+    """Return whether a validated event crosses the landing boundary."""
+
+    if not isinstance(event_payload, Mapping):
+        return False
+    # Converting a PR back to Draft always restores Draft semantics.  The
+    # strict parser rejects an inconsistent draft flag before classification.
+    if event_payload.get("action") == "converted_to_draft":
+        return False
+    return event_payload.get("action") == "ready_for_review" or event_payload.get("draft") is False
+
+
+def _is_malformed_supplied_event(event_path: str) -> bool:
+    """Return true for any non-empty event path that fails strict parsing."""
+
+    if not event_path:
+        return False
+    _payload, error = _read_transition_event(event_path)
+    return error is not None
+
+
+def _check_landing_authority(
+    *,
+    contract: Mapping[str, Any],
+    event_payload: Mapping[str, Any],
+    decision_id: str,
+    decision_sha256: str,
+    locked_base_sha: str,
+    state_dir: Path,
+    repo_root: Path,
+) -> tuple[list[dict[str, str]], tuple[str, ...]]:
+    """Revalidate remote landing authority for a Ready/non-Draft event."""
+
+    checks: list[dict[str, str]] = []
+    reasons: list[str] = []
+    pr_number = event_payload.get("pr_number")
+    event_head = event_payload.get("head_sha")
+    event_base = event_payload.get("base_sha")
+    event_draft = event_payload.get("draft")
+
+    intent_required = contract.get("mainline_merge_intent_required", True) is not False
+    checks.append(
+        {
+            "name": "landing_mainline_merge_intent_required",
+            "status": "PASS" if intent_required else "FAIL",
+            "detail": f"observed={intent_required}",
+        }
+    )
+    if not intent_required:
+        return checks, ("engineering_pr_not_landing_authorized",)
+
+    if event_base != locked_base_sha:
+        checks.append(
+            {
+                "name": "landing_event_base_locked",
+                "status": "FAIL",
+                "detail": f"event={event_base} locked={locked_base_sha}",
+            }
+        )
+        return checks, ("landing_event_base_mismatch",)
+    checks.append(
+        {
+            "name": "landing_event_base_locked",
+            "status": "PASS",
+            "detail": f"base={event_base}",
+        }
+    )
+
+    # The event is untrusted input.  Verify the server-visible PR before
+    # reading any attestation or treating the event head as current truth.
+    try:
+        verifier = GitHubRemoteAcceptanceVerifier.from_env()
+        remote_result = verifier.verify_pr(
+            pr_number=int(pr_number),
+            expected_head_sha=str(event_head),
+            expected_base_sha=str(event_base),
+            require_merged=False,
+        )
+    except Exception as exc:  # noqa: BLE001 - fail closed with stable reason
+        checks.append(
+            {
+                "name": "landing_remote_pr_lookup",
+                "status": "FAIL",
+                "detail": f"{type(exc).__name__}",
+            }
+        )
+        return checks, ("landing_remote_pr_lookup_failed",)
+
+    remote_pr = remote_result.get("pr") if isinstance(remote_result, Mapping) else None
+    remote_pr = remote_pr if isinstance(remote_pr, Mapping) else {}
+    remote_number = remote_pr.get("number")
+    remote_head = (remote_pr.get("head") or {}).get("sha") if isinstance(remote_pr.get("head"), Mapping) else None
+    remote_base = (remote_pr.get("base") or {}).get("sha") if isinstance(remote_pr.get("base"), Mapping) else None
+    remote_draft = remote_pr.get("draft")
+    remote_checks = {
+        "verified": isinstance(remote_result, Mapping) and remote_result.get("verified") is True,
+        "number": isinstance(remote_number, int) and not isinstance(remote_number, bool) and remote_number == pr_number,
+        "head": remote_head == event_head,
+        "base": remote_base == event_base == locked_base_sha,
+        "merged": remote_pr.get("merged") is False,
+        "draft": isinstance(remote_draft, bool) and remote_draft is event_draft,
+    }
+    checks.append(
+        {
+            "name": "landing_remote_pr_binding",
+            "status": "PASS" if all(remote_checks.values()) else "FAIL",
+            "detail": "verified" if all(remote_checks.values()) else "remote_pr_mismatch",
+        }
+    )
+    if not all(remote_checks.values()):
+        return checks, ("landing_remote_pr_mismatch",)
+
+    active_path = repo_root / "project_state" / "mainline_merge_intents" / "active.json"
+    if not active_path.exists():
+        checks.append({"name": "landing_active_intent_exists", "status": "FAIL", "detail": "missing"})
+        return checks, ("landing_authority_required",)
+    try:
+        intent = json.loads(active_path.read_text(encoding="utf-8"))
+        if not isinstance(intent, dict):
+            raise ValueError("intent_not_object")
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        checks.append({"name": "landing_active_intent_readable", "status": "FAIL", "detail": "malformed"})
+        return checks, ("landing_authority_required",)
+
+    checks.append({"name": "landing_active_intent_exists", "status": "PASS", "detail": "active.json"})
+    now = datetime.now(timezone.utc)
+    intent_checks = validate_active_merge_intent(
+        intent,
+        repo_root=repo_root,
+        accepted_head=str(event_head),
+        source_pr=int(pr_number),
+        locked_base=str(locked_base_sha),
+        now=now,
+    )
+    checks.extend(intent_checks)
+    if any(item.get("status") != "PASS" for item in intent_checks):
+        reasons.append("landing_intent_mismatch")
+
+    try:
+        attestation = verifier.load_merge_attestation(
+            pr_number=int(pr_number),
+            expected_head_sha=str(event_head),
+        )
+    except Exception as exc:  # noqa: BLE001 - remote evidence is fail closed
+        detail = str(exc)
+        if "observed=0" in detail:
+            reason = "landing_attestation_required"
+        elif "observed=" in detail:
+            reason = "landing_attestation_duplicate"
+        else:
+            reason = "landing_attestation_remote_lookup_failed"
+        checks.append({"name": "landing_attestation_load", "status": "FAIL", "detail": reason})
+        reasons.append(reason)
+        return checks, tuple(dict.fromkeys(reasons))
+
+    if not isinstance(attestation, Mapping):
+        checks.append({"name": "landing_attestation_load", "status": "FAIL", "detail": "not_object"})
+        reasons.append("landing_attestation_mismatch")
+    else:
+        attestation_checks = validate_premerge_attestation(
+            attestation,
+            verifier=verifier,
+            intent=intent,
+            accepted_head=str(event_head),
+            locked_base=str(locked_base_sha),
+            now=now,
+        )
+        checks.extend(attestation_checks)
+        if any(item.get("status") != "PASS" for item in attestation_checks):
+            reasons.append("landing_attestation_mismatch")
+
+    return checks, tuple(dict.fromkeys(reasons))
+
+
+def transition_preflight(
+    *,
+    state_dir: Path,
+    repo_root: Path | None = None,
+    write_result: bool = True,
+    mode: str = "pre",
+    event_path: str = "",
+) -> dict[str, Any]:
     """Run the transition preflight gate.
 
     ``mode='pre'`` (default): pre-execution authorization. Validates plan
@@ -36449,6 +36700,10 @@ def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, writ
     state. Does NOT read historical execution_log as completion evidence.
     Returns ``PRE_EXECUTION_AUTHORIZED`` on success and persists
     ``BOOTSTRAP_EXPIRED``.
+
+    A supplied event path is strictly typed.  Only Ready/non-Draft events
+    cross the landing boundary and trigger read-only remote revalidation;
+    Draft events retain ordinary transition-preflight semantics.
 
     ``mode='post'``: alias for :func:`transition_reconcile` with ``mode='post'``.
     Validates required command coverage and reconciles observed executions.
@@ -36488,6 +36743,68 @@ def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, writ
             "checks": [],
             "blocking_reasons": ["transition kernel is not selected by the active Decision"],
         }
+    event_payload, event_error = _read_transition_event(event_path)
+    if event_error:
+        result = {
+            "schema_version": 1,
+            "gate_name": "transition-preflight",
+            "gate_status": "BLOCKED",
+            "decision_id": decision.decision_id,
+            "round_id": decision.round_id,
+            "checks": [
+                {
+                    "name": "landing_event_path_valid",
+                    "status": "FAIL",
+                    "detail": event_error,
+                }
+            ],
+            "blocking_reasons": [event_error],
+        }
+        if write_result:
+            path = state_dir / "gates" / TRANSITION_PREFLIGHT_RESULT_NAME
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+        return result
+    if _is_landing_boundary_event(event_payload):
+        decision_path = state_dir / "decision_packet.md"
+        decision_sha256 = "sha256:" + _sha256_path(decision_path) if decision_path.exists() else ""
+        landing_checks, landing_reasons = _check_landing_authority(
+            contract=contract,
+            event_payload=event_payload,
+            decision_id=decision.decision_id,
+            decision_sha256=decision_sha256,
+            locked_base_sha=str(scope["activation_base_sha"]),
+            state_dir=state_dir,
+            repo_root=repo_root,
+        )
+        if landing_reasons:
+            result = {
+                "schema_version": 1,
+                "gate_name": "transition-preflight",
+                "gate_status": "BLOCKED",
+                "decision_id": decision.decision_id,
+                "round_id": decision.round_id,
+                "checks": list(landing_checks),
+                "blocking_reasons": list(landing_reasons),
+                "event_action": event_payload.get("action", ""),
+                "event_pr_number": event_payload.get("pr_number"),
+                "event_head_sha": event_payload.get("head_sha", ""),
+                "event_base_sha": event_payload.get("base_sha", ""),
+                "event_draft": event_payload.get("draft"),
+            }
+            if write_result:
+                path = state_dir / "gates" / TRANSITION_PREFLIGHT_RESULT_NAME
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(
+                    json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+                    encoding="utf-8",
+                    newline="\n",
+                )
+            return result
     live_decision = _decision_content_immutability_check(repo_root, contract)
     live_check = _decision_immutability_check_record(live_decision)
     if not live_decision.get("passed"):
@@ -37438,6 +37755,11 @@ def main(argv: list[str] | None = None) -> int:
         default="pre",
         help="pre = pre-execution authorization; post = post-execution reconcile.",
     )
+    transition_preflight_parser.add_argument(
+        "--event-path",
+        default="",
+        help="Path to the GitHub pull_request event JSON; supplied events are strictly validated.",
+    )
     integration_baseline_parser = subparsers.add_parser(
         "integration-baseline",
         help="Validate the frozen Architecture Spine integration baseline.",
@@ -37589,7 +37911,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if result.get("plan_status") == "PASSED" else 1
     if args.command == "transition-preflight":
         state_dir = Path(args.state_dir)
-        result = transition_preflight(state_dir=state_dir, repo_root=_derive_repo_root(state_dir), mode=args.mode)
+        result = transition_preflight(
+            state_dir=state_dir,
+            repo_root=_derive_repo_root(state_dir),
+            mode=args.mode,
+            event_path=args.event_path,
+        )
         if args.json:
             print(json.dumps(result, ensure_ascii=True, indent=2))
         else:
