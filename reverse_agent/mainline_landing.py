@@ -448,6 +448,7 @@ def _validate_attestation(
     locked_base: str,
     now: datetime,
     merge_commit_sha: str,
+    premerge: bool = False,
 ) -> list[dict[str, str]]:
     checks: list[dict[str, str]] = []
     source_pr = int(intent.get("source_pr") or 0)
@@ -598,9 +599,15 @@ def _validate_attestation(
             expected_merge_commit_sha=merge_commit_sha,
             require_merged=True,
         )
+    if premerge:
+        # A pre-merge landing check must prove that the exact PR is still
+        # unmerged, while the historical/post-merge validator retains its
+        # merge-commit and timestamp checks below unchanged.
+        verify_kwargs.pop("expected_merge_commit_sha", None)
+        verify_kwargs["require_merged"] = False
     pr = verifier.verify_pr(**verify_kwargs)
     checks.append(_check("remote_pr_binding", bool(pr.get("verified")), str(pr.get("reason") or "verified")))
-    if schema_version in {2, 3}:
+    if schema_version in {2, 3} and not premerge:
         remote_pr = pr.get("pr") if isinstance(pr.get("pr"), Mapping) else {}
         merged_at = remote_pr.get("merged_at")
         if not isinstance(merged_at, str) or not merged_at:
@@ -680,6 +687,98 @@ def _validate_attestation(
             )
         )
     return checks
+
+
+def validate_active_merge_intent(
+    intent: Mapping[str, Any],
+    *,
+    repo_root: Path,
+    accepted_head: str,
+    source_pr: int,
+    locked_base: str,
+    now: datetime | None = None,
+) -> list[dict[str, str]]:
+    """Expose the canonical intent validator for the pre-merge gate.
+
+    Transition landing has no merge commit yet, but it still uses exactly
+    the same schema, profile, digest, expiry, and Decision/plan binding
+    checks as post-merge validation.  The wrapper gives callers a stable
+    check list when malformed evidence makes the canonical validator raise.
+    """
+
+    schema_version = intent.get("schema_version")
+    if (
+        isinstance(schema_version, bool)
+        or not isinstance(schema_version, int)
+        or schema_version != 3
+    ):
+        return [
+            _check(
+                "premerge_intent_schema_version",
+                False,
+                f"observed={schema_version!r} expected=3",
+            )
+        ]
+    try:
+        return _validate_intent(
+            intent,
+            repo_root=repo_root,
+            accepted_head=accepted_head,
+            source_pr=source_pr,
+            locked_base=locked_base,
+            now=now or datetime.now(timezone.utc),
+        )
+    except Exception as exc:  # noqa: BLE001 - malformed authority fails closed
+        return [
+            _check("intent_canonical_validation", False, f"{type(exc).__name__}:{exc}"),
+        ]
+
+
+def validate_premerge_attestation(
+    attestation: Mapping[str, Any],
+    *,
+    verifier: Any,
+    intent: Mapping[str, Any],
+    accepted_head: str,
+    locked_base: str,
+    now: datetime | None = None,
+) -> list[dict[str, str]]:
+    """Run canonical attestation checks at the pre-merge landing boundary.
+
+    The only semantic difference from :func:`_validate_attestation` is that
+    pre-merge evidence must verify an unmerged PR and does not require
+    ``merged_at`` or a merge commit.  All schema, raw digest, workflow,
+    owner-identity, and remote workflow-run checks remain canonical.
+    """
+
+    schema_version = attestation.get("schema_version")
+    if (
+        isinstance(schema_version, bool)
+        or not isinstance(schema_version, int)
+        or schema_version != 3
+    ):
+        return [
+            _check(
+                "premerge_attestation_schema_version",
+                False,
+                f"observed={schema_version!r} expected=3",
+            )
+        ]
+    try:
+        return _validate_attestation(
+            attestation,
+            verifier=verifier,
+            intent=intent,
+            accepted_head=accepted_head,
+            locked_base=locked_base,
+            now=now or datetime.now(timezone.utc),
+            merge_commit_sha="",
+            premerge=True,
+        )
+    except Exception as exc:  # noqa: BLE001 - remote evidence fails closed
+        return [
+            _check("attestation_canonical_validation", False, f"{type(exc).__name__}:{exc}"),
+        ]
 
 
 def validate_future_merge(
