@@ -956,6 +956,23 @@ def _contract_defers_pr_binding() -> bool:
     )
 
 
+SUPPORTED_ACTIVE_SCHEMA_VERSIONS = (1, 2, 3)
+
+
+def _active_intent_blob_at(repo_root: Path, base_sha: str) -> bytes:
+    """Read the active-intent bytes from the Decision's locked Git base."""
+
+    return subprocess.check_output(
+        [
+            "git",
+            "cat-file",
+            "blob",
+            f"{base_sha}:project_state/mainline_merge_intents/active.json",
+        ],
+        cwd=repo_root,
+    )
+
+
 class TestActiveMergeIntentV6:
     """The active intent binds PR #112 while preserving prior intents.
 
@@ -1047,12 +1064,13 @@ class TestActiveMergeIntentV6:
         meta = extract_markdown_json_block(decision_text, "decision_meta")
         if not _active_intent_binds_current_decision():
             assert _contract_defers_pr_binding()
-            assert self._active["schema_version"] in {1, 2}
+            assert self._active["schema_version"] in SUPPORTED_ACTIVE_SCHEMA_VERSIONS
             assert (
                 self._active["decision_identity"]["decision_id"]
                 != meta["decision_id"]
             ), "pre-binding interim must preserve the previous landing decision"
             return
+        assert self._active["schema_version"] == 3
         assert self._active["decision_identity"]["decision_id"] == meta["decision_id"]
 
     @pytest.mark.skipif(
@@ -1064,9 +1082,11 @@ class TestActiveMergeIntentV6:
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
         if _active_intent_binds_current_decision():
+            assert self._active["schema_version"] == 3
             assert sha == hashlib.sha256(self._decision_path.read_bytes()).hexdigest()
         else:
             assert _contract_defers_pr_binding()
+            assert self._active["schema_version"] in SUPPORTED_ACTIVE_SCHEMA_VERSIONS
             assert sha != hashlib.sha256(self._decision_path.read_bytes()).hexdigest()
         assert sha != self._archive_v3["decision_identity"]["decision_content_sha256"]
 
@@ -1079,9 +1099,11 @@ class TestActiveMergeIntentV6:
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
         if _active_intent_binds_current_decision():
+            assert self._active["schema_version"] == 3
             assert sha == hashlib.sha256(self._command_plan_path.read_bytes()).hexdigest()
         else:
             assert _contract_defers_pr_binding()
+            assert self._active["schema_version"] in SUPPORTED_ACTIVE_SCHEMA_VERSIONS
             assert sha != hashlib.sha256(self._command_plan_path.read_bytes()).hexdigest()
         assert sha != self._archive_v3["command_plan_sha256"]
 
@@ -1095,10 +1117,62 @@ class TestActiveMergeIntentV6:
         contract = extract_markdown_json_block(decision_text, "decision_contract")
         if not _active_intent_binds_current_decision():
             assert _contract_defers_pr_binding()
-            assert self._active["schema_version"] in {1, 2}
+            assert self._active["schema_version"] in SUPPORTED_ACTIVE_SCHEMA_VERSIONS
             return
-        expected_base = contract["activation_base_sha"]
+        assert self._active["schema_version"] == 3
+        expected_base = contract["base_sha"]
         assert self._active["locked_base_sha"] == expected_base
+
+    @pytest.mark.skipif(
+        not _requires_active_merge_intent(),
+        reason="engineering Decision does not activate a mainline merge intent",
+    )
+    def test_prebinding_active_is_exact_locked_base_git_blob(self) -> None:
+        """PRE_BINDING must preserve the exact active bytes from locked base."""
+
+        if _active_intent_binds_current_decision():
+            return
+        assert _contract_defers_pr_binding()
+        contract = __import__(
+            "reverse_agent.project_state", fromlist=["extract_markdown_json_block"]
+        ).extract_markdown_json_block(
+            self._decision_path.read_text(encoding="utf-8"), "decision_contract"
+        )
+        assert self._active["schema_version"] in SUPPORTED_ACTIVE_SCHEMA_VERSIONS
+        assert self._active_path.read_bytes() == _active_intent_blob_at(
+            self._active_path.parents[2], contract["base_sha"]
+        )
+
+    @pytest.mark.skipif(
+        not _requires_active_merge_intent(),
+        reason="engineering Decision does not activate a mainline merge intent",
+    )
+    def test_postbinding_active_requires_schema3_current_profile_and_actual_pr(self) -> None:
+        """POST_BINDING must be the exact current-v6 schema-3 binding."""
+
+        if not _active_intent_binds_current_decision():
+            assert _contract_defers_pr_binding()
+            return
+        from reverse_agent.project_state import extract_markdown_json_block
+
+        contract = extract_markdown_json_block(
+            self._decision_path.read_text(encoding="utf-8"), "decision_contract"
+        )
+        meta = extract_markdown_json_block(
+            self._decision_path.read_text(encoding="utf-8"), "decision_meta"
+        )
+        assert self._active["schema_version"] == 3
+        assert self._active["decision_identity"]["decision_id"] == meta["decision_id"]
+        assert self._active["decision_identity"]["decision_content_sha256"] == (
+            hashlib.sha256(self._decision_path.read_bytes()).hexdigest()
+        )
+        assert self._active["command_plan_sha256"] == hashlib.sha256(
+            self._command_plan_path.read_bytes()
+        ).hexdigest()
+        assert self._active["locked_base_sha"] == contract["base_sha"]
+        assert self._active["source_pr"] > 0
+        assert self._active["source_pr"] != contract["source_issue"]
+        assert self._active["workflow_profile"] == contract["workflow_profile"]
 
     def test_active_binds_merge_method(self) -> None:
         assert self._active["allowed_merge_method"] == "merge"

@@ -21,10 +21,12 @@ from reverse_agent.mainline_landing import (
     CANONICAL_WORKFLOW_POLICY,
     CURRENT_PREMERGE_WORKFLOW_POLICY,
     TRUSTED_PREMERGE_WORKFLOW_PROFILES,
+    validate_active_merge_intent,
     _validate_intent,
     canonical_digest,
     emit_mainline_integration_receipt,
     resolve_premerge_workflow_profile,
+    validate_premerge_attestation,
     validate_future_merge,
     validate_pr60_recovery,
 )
@@ -1947,3 +1949,62 @@ def test_v3_post_merge_validation_runs_unchanged(tmp_path: Path) -> None:
     assert validation["gate_status"] == "PASSED", validation
     assert receipt["receipt_status"] == "EMITTED"
     assert before == after
+
+
+def test_v3_premerge_attestation_does_not_require_merge_fields(
+    tmp_path: Path,
+) -> None:
+    """Pre-merge checks keep owner/digest/workflow proof without post-merge facts."""
+
+    bundle = _future_repo(tmp_path, schema_version=3, workflow_profile="baseline")
+    checks = validate_premerge_attestation(
+        bundle["attestation"],
+        verifier=FakeVerifier(merged=False, merged_at=None),
+        intent=bundle["intent"],
+        accepted_head=bundle["head"],
+        locked_base=bundle["base"],
+        now=NOW,
+    )
+    assert all(check["status"] == "PASS" for check in checks), checks
+    assert not any(check["name"] == "remote_pr_merged_at" for check in checks)
+
+
+@pytest.mark.parametrize("schema_version", [1, 2])
+def test_legacy_schema_premerge_rejection_is_explicit_but_postmerge_passes(
+    tmp_path: Path, schema_version: int
+) -> None:
+    """Legacy evidence remains valid for history, never for the pre-merge gate."""
+
+    bundle = _future_repo(tmp_path, schema_version=schema_version)
+    intent_checks = validate_active_merge_intent(
+        bundle["intent"],
+        repo_root=bundle["repo"],
+        accepted_head=bundle["head"],
+        source_pr=67,
+        locked_base=bundle["base"],
+        now=NOW,
+    )
+    attestation_checks = validate_premerge_attestation(
+        bundle["attestation"],
+        verifier=FakeVerifier(merged=False, merged_at=None),
+        intent=bundle["intent"],
+        accepted_head=bundle["head"],
+        locked_base=bundle["base"],
+        now=NOW,
+    )
+    assert intent_checks == [
+        {
+            "name": "premerge_intent_schema_version",
+            "status": "FAIL",
+            "detail": f"observed={schema_version!r} expected=3",
+        }
+    ]
+    assert attestation_checks == [
+        {
+            "name": "premerge_attestation_schema_version",
+            "status": "FAIL",
+            "detail": f"observed={schema_version!r} expected=3",
+        }
+    ]
+    postmerge = _validate(bundle)
+    assert postmerge["gate_status"] == "PASSED", postmerge

@@ -11,6 +11,7 @@ import socket
 import threading
 from http.client import HTTPConnection
 from typing import Any
+from urllib.error import URLError
 
 import pytest
 
@@ -336,17 +337,48 @@ class TestRelayHttpIntegration:
         finally:
             pass
 
-    def test_non_loopback_relay_only(self, manager: CredentialRelayManager, snapshot: ExecutionSnapshot) -> None:
-        relay = CredentialRelayServer(manager, host="127.0.0.1", port=_free_port(), upstream_timeout=5.0)
+    @pytest.mark.parametrize(
+        ("upstream_failure", "failure_detail"),
+        [
+            (URLError("provider secret must not escape"), "provider secret must not escape"),
+            (TimeoutError("provider URL and timeout detail must not escape"), "provider URL and timeout detail must not escape"),
+        ],
+    )
+    def test_non_loopback_relay_only(
+        self,
+        manager: CredentialRelayManager,
+        snapshot: ExecutionSnapshot,
+        monkeypatch: pytest.MonkeyPatch,
+        upstream_failure: Exception,
+        failure_detail: str,
+    ) -> None:
+        upstream_calls: list[tuple[Any, float]] = []
+
+        def fail_before_external_network(request: Any, *, timeout: float) -> Any:
+            upstream_calls.append((request, timeout))
+            raise upstream_failure
+
+        monkeypatch.setattr(
+            "reverse_agent.model_access.credential_relay.urlopen",
+            fail_before_external_network,
+        )
+        relay = CredentialRelayServer(manager, host="127.0.0.1", port=0, upstream_timeout=5.0)
         with relay:
             lease = manager.create_lease(snapshot, relay_url=relay.url)
             body = b'{"model":"gpt-4o"}'
             conn = HTTPConnection("127.0.0.1", relay._port, timeout=5)
             conn.request("POST", "/chat/completions", body=body, headers={"Authorization": f"Bearer {lease.lease_id}"})
             resp = conn.getresponse()
-            resp.read()
+            response_body = resp.read()
             conn.close()
             assert resp.status == 502
+            assert response_body == b'{"error":"upstream_error"}'
+            assert len(upstream_calls) == 1
+            assert upstream_calls[0][0].full_url == f"{snapshot.base_url}/chat/completions"
+            assert upstream_calls[0][1] == 5.0
+            assert snapshot.resolved_api_key.encode("utf-8") not in response_body
+            assert snapshot.base_url.encode("utf-8") not in response_body
+            assert failure_detail.encode("utf-8") not in response_body
 
     def test_missing_lease_rejected(self, manager: CredentialRelayManager, snapshot: ExecutionSnapshot) -> None:
         relay = CredentialRelayServer(manager, host="127.0.0.1", port=_free_port(), upstream_timeout=5.0)
