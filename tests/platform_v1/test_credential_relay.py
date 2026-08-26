@@ -7,10 +7,10 @@ Covers Task 3C R2 v3 Segments C (lease + negative confinement) and D
 from __future__ import annotations
 
 import json
-import socket
 import threading
 from http.client import HTTPConnection
 from typing import Any
+from urllib.error import URLError
 
 import pytest
 
@@ -56,14 +56,6 @@ def manager() -> CredentialRelayManager:
 @pytest.fixture()
 def snapshot() -> ExecutionSnapshot:
     return _make_snapshot()
-
-
-def _free_port() -> int:
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(("127.0.0.1", 0))
-    port = s.getsockname()[1]
-    s.close()
-    return port
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +176,9 @@ class TestLeaseValidation:
 # ---------------------------------------------------------------------------
 
 class TestRelayHttpIntegration:
-    def _start_fake_upstream(self, port: int, responses: list[tuple[int, bytes]]) -> threading.Thread:
+    def _start_fake_upstream(
+        self, responses: list[tuple[int, bytes]]
+    ) -> tuple[Any, threading.Thread, int]:
         from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
         idx = [0]
@@ -214,17 +208,17 @@ class TestRelayHttpIntegration:
             def log_message(self, fmt, *args):  # noqa: N802
                 return
 
-        server = ThreadingHTTPServer(("127.0.0.1", port), FakeHandler)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), FakeHandler)
+        port = server.server_address[1]
         t = threading.Thread(target=server.serve_forever, daemon=True)
         t.start()
-        return t
+        return server, t, port
 
     def test_authorized_request_upstream_authorization_hash_match(self, manager: CredentialRelayManager, snapshot: ExecutionSnapshot) -> None:
-        port = _free_port()
         fake_response = (200, b'{"choices":[{"message":{"content":"ok"}}]}')
-        t = self._start_fake_upstream(port, [fake_response])
+        server, t, port = self._start_fake_upstream([fake_response])
         try:
-            relay = CredentialRelayServer(manager, host="127.0.0.1", port=_free_port(), upstream_timeout=5.0)
+            relay = CredentialRelayServer(manager, host="127.0.0.1", port=0, upstream_timeout=5.0)
             with relay:
                 lease = manager.create_lease(snapshot, relay_url=relay.url)
 
@@ -254,10 +248,12 @@ class TestRelayHttpIntegration:
                 parsed = json.loads(data)
                 assert "choices" in parsed
         finally:
-            pass
+            server.shutdown()
+            server.server_close()
+            t.join(timeout=5)
+            assert not t.is_alive()
 
     def test_wrong_method_zero_upstream(self, manager: CredentialRelayManager, snapshot: ExecutionSnapshot) -> None:
-        port = _free_port()
         fake_response = (200, b'{"choices":[]}')
         upstream_requests = [0]
 
@@ -277,12 +273,13 @@ class TestRelayHttpIntegration:
             def log_message(self, fmt, *args):  # noqa: N802
                 return
 
-        server = ThreadingHTTPServer(("127.0.0.1", port), FakeHandler)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), FakeHandler)
+        port = server.server_address[1]
         t = threading.Thread(target=server.serve_forever, daemon=True)
         t.start()
 
         try:
-            relay = CredentialRelayServer(manager, host="127.0.0.1", port=_free_port(), upstream_timeout=5.0)
+            relay = CredentialRelayServer(manager, host="127.0.0.1", port=0, upstream_timeout=5.0)
             with relay:
                 snap_local = _make_snapshot(base_url=f"http://127.0.0.1:{port}")
                 lease = manager.create_lease(snap_local, relay_url=relay.url)
@@ -295,10 +292,12 @@ class TestRelayHttpIntegration:
                 assert resp.status == 405
                 assert upstream_requests[0] == 0
         finally:
-            pass
+            server.shutdown()
+            server.server_close()
+            t.join(timeout=5)
+            assert not t.is_alive()
 
     def test_wrong_path_zero_upstream(self, manager: CredentialRelayManager, snapshot: ExecutionSnapshot) -> None:
-        port = _free_port()
         upstream_requests = [0]
 
         from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -315,12 +314,13 @@ class TestRelayHttpIntegration:
             def log_message(self, fmt, *args):  # noqa: N802
                 return
 
-        server = ThreadingHTTPServer(("127.0.0.1", port), FakeHandler)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), FakeHandler)
+        port = server.server_address[1]
         t = threading.Thread(target=server.serve_forever, daemon=True)
         t.start()
 
         try:
-            relay = CredentialRelayServer(manager, host="127.0.0.1", port=_free_port(), upstream_timeout=5.0)
+            relay = CredentialRelayServer(manager, host="127.0.0.1", port=0, upstream_timeout=5.0)
             with relay:
                 snap_local = _make_snapshot(base_url=f"http://127.0.0.1:{port}")
                 lease = manager.create_lease(snap_local, relay_url=relay.url)
@@ -334,33 +334,82 @@ class TestRelayHttpIntegration:
                 assert resp.status == 404
                 assert upstream_requests[0] == 0
         finally:
-            pass
+            server.shutdown()
+            server.server_close()
+            t.join(timeout=5)
+            assert not t.is_alive()
 
-    def test_non_loopback_relay_only(self, manager: CredentialRelayManager, snapshot: ExecutionSnapshot) -> None:
-        relay = CredentialRelayServer(manager, host="127.0.0.1", port=_free_port(), upstream_timeout=5.0)
+    @pytest.mark.parametrize(
+        ("upstream_failure", "failure_detail"),
+        [
+            (URLError("provider secret must not escape"), "provider secret must not escape"),
+            (TimeoutError("provider URL and timeout detail must not escape"), "provider URL and timeout detail must not escape"),
+        ],
+    )
+    def test_non_loopback_relay_only(
+        self,
+        manager: CredentialRelayManager,
+        snapshot: ExecutionSnapshot,
+        monkeypatch: pytest.MonkeyPatch,
+        upstream_failure: Exception,
+        failure_detail: str,
+    ) -> None:
+        upstream_calls: list[tuple[Any, float]] = []
+
+        def fail_before_external_network(request: Any, *, timeout: float) -> Any:
+            upstream_calls.append((request, timeout))
+            raise upstream_failure
+
+        monkeypatch.setattr(
+            "reverse_agent.model_access.credential_relay.urlopen",
+            fail_before_external_network,
+        )
+        relay = CredentialRelayServer(manager, host="127.0.0.1", port=0, upstream_timeout=5.0)
         with relay:
             lease = manager.create_lease(snapshot, relay_url=relay.url)
             body = b'{"model":"gpt-4o"}'
             conn = HTTPConnection("127.0.0.1", relay._port, timeout=5)
             conn.request("POST", "/chat/completions", body=body, headers={"Authorization": f"Bearer {lease.lease_id}"})
             resp = conn.getresponse()
-            resp.read()
+            response_body = resp.read()
             conn.close()
             assert resp.status == 502
+            assert response_body == b'{"error":"upstream_error"}'
+            assert len(upstream_calls) == 1
+            assert upstream_calls[0][0].full_url == f"{snapshot.base_url}/chat/completions"
+            assert upstream_calls[0][1] == 5.0
+            assert snapshot.resolved_api_key.encode("utf-8") not in response_body
+            assert snapshot.base_url.encode("utf-8") not in response_body
+            assert failure_detail.encode("utf-8") not in response_body
 
-    def test_missing_lease_rejected(self, manager: CredentialRelayManager, snapshot: ExecutionSnapshot) -> None:
-        relay = CredentialRelayServer(manager, host="127.0.0.1", port=_free_port(), upstream_timeout=5.0)
+    def test_missing_lease_rejected(
+        self,
+        manager: CredentialRelayManager,
+        snapshot: ExecutionSnapshot,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        upstream_calls: list[Any] = []
+
+        def fail_if_upstream_called(request: Any, *, timeout: float) -> Any:
+            upstream_calls.append((request, timeout))
+            pytest.fail("missing-lease request reached upstream")
+
+        # A missing lease must be rejected before any provider request is attempted.
+        # Keep this assertion independent of a real upstream listener.
+        monkeypatch.setattr("reverse_agent.model_access.credential_relay.urlopen", fail_if_upstream_called)
+        relay = CredentialRelayServer(manager, host="127.0.0.1", port=0, upstream_timeout=5.0)
         with relay:
             body = b'{"model":"gpt-4o"}'
             conn = HTTPConnection("127.0.0.1", relay._port, timeout=5)
             conn.request("POST", "/chat/completions", body=body, headers={"Content-Type": "application/json"})
             resp = conn.getresponse()
-            resp.read()
+            response_body = resp.read()
             conn.close()
             assert resp.status == 400
+            assert response_body == b'{"error":"missing_lease"}'
+            assert upstream_calls == []
 
     def test_release_replay_failure(self, manager: CredentialRelayManager, snapshot: ExecutionSnapshot) -> None:
-        port = _free_port()
         call_count = [0]
 
         from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -379,12 +428,13 @@ class TestRelayHttpIntegration:
             def log_message(self, fmt, *args):  # noqa: N802
                 return
 
-        server = ThreadingHTTPServer(("127.0.0.1", port), FakeHandler)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), FakeHandler)
+        port = server.server_address[1]
         t = threading.Thread(target=server.serve_forever, daemon=True)
         t.start()
 
         try:
-            relay = CredentialRelayServer(manager, host="127.0.0.1", port=_free_port(), upstream_timeout=5.0)
+            relay = CredentialRelayServer(manager, host="127.0.0.1", port=0, upstream_timeout=5.0)
             with relay:
                 snap_local = _make_snapshot(base_url=f"http://127.0.0.1:{port}")
                 lease = manager.create_lease(snap_local, relay_url=relay.url)
@@ -409,7 +459,10 @@ class TestRelayHttpIntegration:
                 assert r2.status == 401
                 assert call_count[0] == 1
         finally:
-            pass
+            server.shutdown()
+            server.server_close()
+            t.join(timeout=5)
+            assert not t.is_alive()
 
 
 # ---------------------------------------------------------------------------
@@ -419,7 +472,6 @@ class TestRelayHttpIntegration:
 class TestProviderMasterInjection:
     def test_upstream_sees_bearer_master(self) -> None:
         manager = CredentialRelayManager(default_expiry_seconds=2.0)
-        port = _free_port()
 
         received_headers: dict[str, str] = {}
 
@@ -440,7 +492,8 @@ class TestProviderMasterInjection:
             def log_message(self, fmt, *args):  # noqa: N802
                 return
 
-        server = ThreadingHTTPServer(("127.0.0.1", port), CaptureHandler)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), CaptureHandler)
+        port = server.server_address[1]
         t = threading.Thread(target=server.serve_forever, daemon=True)
         t.start()
 
@@ -460,7 +513,10 @@ class TestProviderMasterInjection:
             assert status == 200
             assert received_headers["Authorization"] == f"Bearer {master}"
         finally:
-            pass
+            server.shutdown()
+            server.server_close()
+            t.join(timeout=5)
+            assert not t.is_alive()
 
 
 # ---------------------------------------------------------------------------
@@ -469,7 +525,6 @@ class TestProviderMasterInjection:
 
 class TestJsonAndSseResponses:
     def test_normal_json_response_passed_through(self, manager: CredentialRelayManager) -> None:
-        port = _free_port()
         expected = b'{"choices":[{"message":{"content":"hello"}}]}'
 
         from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -487,7 +542,8 @@ class TestJsonAndSseResponses:
             def log_message(self, fmt, *args):  # noqa: N802
                 return
 
-        server = ThreadingHTTPServer(("127.0.0.1", port), FakeHandler)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), FakeHandler)
+        port = server.server_address[1]
         t = threading.Thread(target=server.serve_forever, daemon=True)
         t.start()
 
@@ -504,10 +560,12 @@ class TestJsonAndSseResponses:
             assert status == 200
             assert body == expected
         finally:
-            pass
+            server.shutdown()
+            server.server_close()
+            t.join(timeout=5)
+            assert not t.is_alive()
 
     def test_ordered_multi_chunk_sse(self, manager: CredentialRelayManager) -> None:
-        port = _free_port()
         chunks = [
             b'data: {"choices":[{"delta":{"content":"he"}}]}\n\n',
             b'data: {"choices":[{"delta":{"content":"llo"}}]}\n\n',
@@ -533,7 +591,8 @@ class TestJsonAndSseResponses:
             def log_message(self, fmt, *args):  # noqa: N802
                 return
 
-        server = ThreadingHTTPServer(("127.0.0.1", port), SseHandler)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), SseHandler)
+        port = server.server_address[1]
         t = threading.Thread(target=server.serve_forever, daemon=True)
         t.start()
 
@@ -562,7 +621,10 @@ class TestJsonAndSseResponses:
             assert "llo" in content
             assert "[DONE]" in content
         finally:
-            pass
+            server.shutdown()
+            server.server_close()
+            t.join(timeout=5)
+            assert not t.is_alive()
 
 
 # ---------------------------------------------------------------------------

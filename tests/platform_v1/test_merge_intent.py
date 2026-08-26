@@ -111,9 +111,9 @@ def _requires_active_merge_intent() -> bool:
 def _active_intent_binds_current_decision() -> bool:
     """True once the post-publication binding commit lands the active intent.
 
-    Issue #259 v3 defers the exact GitHub-assigned Draft PR number binding to a
-    single post-publication commit; before that commit the active intent still
-    preserves the previous landing's schema-v1 four-run binding.
+    Landing-capable Decisions defer the exact GitHub-assigned Draft PR number
+    to a single post-publication commit.  Before that commit, active.json
+    preserves the previous landing intent in any currently supported schema.
     """
 
     data = _load_json(ACTIVE_PATH)
@@ -176,7 +176,7 @@ class TestActiveMergeIntent:
         contract = _parse_decision_contract()
         if not _active_intent_binds_current_decision():
             assert _contract_defers_pr_binding()
-            assert data["schema_version"] in {1, 2}
+            assert data["schema_version"] in {1, 2, 3}
             return
         expected_base = contract["activation_base_sha"]
         assert data["locked_base_sha"] == expected_base
@@ -194,7 +194,7 @@ class TestActiveMergeIntent:
         meta = _parse_decision_meta()
         if not _active_intent_binds_current_decision():
             assert _contract_defers_pr_binding()
-            assert data["schema_version"] in {1, 2}
+            assert data["schema_version"] in {1, 2, 3}
             assert (
                 data["decision_identity"]["decision_id"] != meta["decision_id"]
             ), "pre-binding interim must preserve the previous landing decision"
