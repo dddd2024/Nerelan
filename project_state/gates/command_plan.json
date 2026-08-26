@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260825_issue364_path_a_lifecycle_coherence_r2_v1",
-  "round_id": "round_20260825_issue364_path_a_lifecycle_coherence_r2_v1",
+  "decision_id": "decision_20260826_issue370_strict_required_checks_r2_v1",
+  "round_id": "round_20260826_issue370_strict_required_checks_r2_v1",
   "commands": [
     {
-      "command_id": "issue364_r2v1.bootstrap",
-      "command": "verify locked base 435907ad132dc1080b111ac6372c179e5cda429c and fresh branch; commit Decision first; generate startup snapshot, command plan, transition lint, transition preflight, and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY",
+      "command_id": "issue370_r2v1.bootstrap",
+      "command": "verify the locked main base and fresh settings branch; commit this Decision as the unique first commit; run startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre, and worktree-publication-readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY; commit exactly the five generated governance artifacts; do not push or create a PR",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -24,8 +24,8 @@
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [
-        "project_state/gates/startup_snapshot.json",
         "project_state/gates/command_plan.json",
+        "project_state/gates/startup_snapshot.json",
         "project_state/gates/bootstrap_state.json",
         "project_state/gates/transition_command_plan_preview.json",
         "project_state/gates/transition_preflight_result.json"
@@ -34,63 +34,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue364_r2v1.lifecycle_stage_core",
-      "command": "extend reverse_agent/control_plane/path_a.py with three stage-aware Path-A lifecycle outcomes (ACTIVATION_DRAFT, IMPLEMENTATION_DRAFT, READY_FINAL_READINESS): add DeltaObservation dataclass plus empty_delta flag, refactor changed_paths_for_event to return a DeltaObservation tuple, add a classify_stage helper, and restructure verify_path_a_r1 so ACTIVATION_DRAFT with a proven empty delta returns a PASS that explicitly carries implementation_authority=false and product_accepted=false without executing task checks; IMPLEMENTATION_DRAFT keeps all current path, risk, snapshot, digest, head/base/merge-base, auto-merge, and authority-revision checks; READY_FINAL_READINESS revalidates live Issue, r1-approved, approval transition, digest, snapshot, exact head/base, merge base, changed paths, risk classification, Allowed paths, and auto-merge on a freshly computed live authority revision and returns READY_FINAL_READINESS while still forbidding implementation authority; converted_to_draft events recompute the delta from live git truth rather than trusting the previous workflow stage",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "unit_test",
-        "local_static_check",
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "reverse_agent/control_plane/path_a.py"
-      ]
-    },
-    {
-      "command_id": "issue364_r2v1.lifecycle_regressions",
-      "command": "extend tests/test_path_a_gate.py with focused stage-aware regressions covering A1 approved activation draft + zero delta -> ACTIVATION_DRAFT PASS; A2 activation draft approval/snapshot invalid -> BLOCK; A3 activation draft cannot count as completed implementation -> BLOCK; I1 valid implementation draft -> existing implementation PASS; I2 invalid implementation draft -> existing fail-closed behavior preserved; R1 Ready unchanged accepted exact implementation head -> READY_FINAL_READINESS PASS; R2 Ready head/base drift -> BLOCK; R3 Ready Issue digest/approval drift -> BLOCK; R4 Ready cannot bypass missing snapshot/approval -> BLOCK; D1 converted_to_draft + empty delta -> ACTIVATION_DRAFT; D2 converted_to_draft + implementation delta -> IMPLEMENTATION_DRAFT; L1 labeled/unlabeled/edited/synchronize re-evaluates live authority; M1 auto_merge_enabled BLOCK; plus an explicit ACTIVATION_DRAFT PASS != PRODUCT_ACCEPTED regression",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "unit_test",
-        "local_static_check",
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "tests/test_path_a_gate.py"
-      ]
-    },
-    {
-      "command_id": "issue364_r2v1.validate_and_publish",
-      "command": "run the Path-A gate focused suite, CI responsibility suite, project gate suite, and control-plane/planning-adapter suites; run git diff --check; run transition-lint and transition-preflight and worktree-publication-readiness; commit implementation; push exact branch and create one Draft PR to main",
-      "phase": "publication",
+      "command_id": "issue370_r2v1.observe_ruleset",
+      "command": "read GitHub server truth for repository dddd2024/reverse-agent Ruleset 21023698 and require enforcement active, target branch, conditions include refs/heads/main, pull_request rule present with merge-only method, deletion and non_fast_forward rules present, required_status_checks contexts exactly baseline and state-gate with strict false before mutation, bypass actor 206685950 User pull_request only, and no layered stricter equivalent; stop on any drift",
+      "phase": "pre_mutation_observation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
@@ -98,12 +44,28 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "unit_test",
-        "lint",
-        "local_static_check",
-        "commit",
-        "push",
-        "draft_pr",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue370_r2v1.update_ruleset_strict",
+      "command": "perform exactly one authenticated PUT to /repos/dddd2024/reverse-agent/rulesets/21023698 preserving name, target, active enforcement, exact include conditions, exact User 206685950 pull_request-only bypass, deletion, non_fast_forward, pull_request parameters and baseline/state-gate required contexts while changing only required_status_checks.strict_required_status_checks_policy from false to true; do not enable auto-merge, merge queue, new bypass, direct push, release, deployment, or another Ruleset",
+      "phase": "settings_mutation",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
         "network_access"
       ],
       "network_access": true,
@@ -116,8 +78,30 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.2325d9e8c8ddfa9ef71fe1aa32da529651bda3cec902d512fb155b05fc386f67",
-      "command": "verify exact main base 435907ad132dc1080b111ac6372c179e5cda429c and fresh branch merge-base",
+      "command_id": "issue370_r2v1.verify_ruleset",
+      "command": "perform two independent GitHub server readbacks of Ruleset 21023698 and require active enforcement, main target, pull request required, deletion and non_fast_forward present, required contexts exactly baseline and state-gate, strict_required_status_checks_policy true, bypass unchanged and current_user_can_bypass pull_requests_only; verify PR378 remains Open Draft with unchanged exact head/base and required checks; do not close Issue370 until a deterministic natural main advance proves a previously green stale PR is not merge-eligible and a fresh current-base PR remains eligible",
+      "phase": "post_mutation_verification",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.f25f031bc4d110778433b8df9bcf9ea93840b34870e0dd2565d4a04638394da2",
+      "command": "verify exact main base 9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf and fresh settings branch merge-base",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
