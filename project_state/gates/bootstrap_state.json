@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260826_issue367_engineering_landing_boundary_r2_v7",
-  "round_id": "round_20260826_issue367_engineering_landing_boundary_r2_v7",
-  "expired_at": "2026-08-26T15:43:05+00:00"
+  "decision_id": "decision_20260827_issue370_pr390_push_failure_containment_r2_v2",
+  "round_id": "round_20260827_issue370_pr390_push_failure_containment_r2_v2",
+  "expired_at": "2026-08-27T06:35:55+00:00"
 }
