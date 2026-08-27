@@ -124,6 +124,7 @@ ORDINARY_R1_PATH_RISK_POLICY = (
     ("**/Dockerfile.*", "R2"),
 )
 
+
 class PathAGateError(ValueError):
     """A stable fail-closed Path-A validation error."""
 
@@ -212,12 +213,23 @@ TEAM_TARGETS_TASK_CHECK = TaskCheck(
     ),
     required_targets=("tests/test_development_graph.py", "tests/test_team_graph.py"),
 )
+MODEL_ACCESS_TASK_CHECK = TaskCheck(
+    check_id="model_access",
+    argv=(
+        "python", "-m", "pytest",
+        "tests/test_model_access.py",
+        "tests/test_connection_binding.py",
+        "-q",
+    ),
+    required_targets=("tests/test_model_access.py", "tests/test_connection_binding.py"),
+)
 
 BASELINE_CHECK = BASELINE_TASK_CHECK.command
 PATH_A_CHECK = PATH_A_TASK_CHECK.command
 BASE_PLATFORM_CHECK = BASE_PLATFORM_TASK_CHECK.command
 PLATFORM_V1_CHECK = PLATFORM_V1_TASK_CHECK.command
 TEAM_TARGETS_CHECK = TEAM_TARGETS_TASK_CHECK.command
+MODEL_ACCESS_CHECK = MODEL_ACCESS_TASK_CHECK.command
 
 TASK_CHECK_MAPPING = (
     (
@@ -237,6 +249,14 @@ TASK_CHECK_MAPPING = (
     (
         ("reverse_agent/base_platform/**", "tests/base_platform/**"),
         BASE_PLATFORM_TASK_CHECK,
+    ),
+    (
+        (
+            "reverse_agent/model_access/**",
+            "tests/test_model_access.py",
+            "tests/test_connection_binding.py",
+        ),
+        MODEL_ACCESS_TASK_CHECK,
     ),
     (
         (
