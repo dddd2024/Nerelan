@@ -191,6 +191,76 @@ def _registry(repo_root: Path) -> None:
     )
 
 
+def _transition_test_git(repo: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def _real_transition_fixture(
+    tmp_path: Path,
+    *,
+    decision_id: str = "decision_real_transition",
+    round_id: str = "round_real_transition",
+) -> dict[str, Path | str]:
+    """Create a real git-backed transition preflight fixture.
+
+    The gate itself runs against an actual repository and branch.  The
+    mutable ``project_state`` authority directory is kept outside that repo
+    so generated gate artifacts do not become implementation deltas.
+    """
+
+    repo = tmp_path / "repo"
+    state_dir = tmp_path / "project_state"
+    repo.mkdir()
+    _transition_test_git(repo, "init", "-q", "-b", "main")
+    _transition_test_git(repo, "config", "user.email", "tests@example.invalid")
+    _transition_test_git(repo, "config", "user.name", "tests")
+    (repo / "base.txt").write_text("base\n", encoding="utf-8")
+    _transition_test_git(repo, "add", "base.txt")
+    _transition_test_git(repo, "commit", "-qm", "base")
+    base_sha = _transition_test_git(repo, "rev-parse", "HEAD")
+    branch = "codex/real-transition"
+    _transition_test_git(repo, "checkout", "-qb", branch)
+
+    _write_decision(
+        state_dir,
+        decision_id=decision_id,
+        round_id=round_id,
+        branch=branch,
+    )
+    decision_text = (state_dir / "decision_packet.md").read_text(encoding="utf-8")
+    decision_text = decision_text.replace('"activation_base_sha": "' + "a" * 40 + '"', f'"activation_base_sha": "{base_sha}"')
+    (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+    repo_decision = repo / "project_state" / "decision_packet.md"
+    repo_decision.parent.mkdir(parents=True, exist_ok=True)
+    repo_decision.write_text(decision_text, encoding="utf-8")
+    _transition_test_git(repo, "add", "project_state/decision_packet.md")
+    _transition_test_git(repo, "commit", "-qm", "Decision activation")
+    _registry(repo)
+    project_gate.transition_command_plan(state_dir=state_dir)
+    return {
+        "repo": repo,
+        "state": state_dir,
+        "decision_id": decision_id,
+        "round_id": round_id,
+    }
+
+
+def _state_bytes(state_dir: Path) -> dict[str, bytes]:
+    """Return the complete filename-to-bytes mapping for a project_state fixture."""
+
+    return {
+        path.relative_to(state_dir).as_posix(): path.read_bytes()
+        for path in sorted(state_dir.rglob("*"))
+        if path.is_file()
+    }
+
+
 def test_transition_command_plan_rebinds_to_active_decision(tmp_path: Path) -> None:
     state_dir = tmp_path / "project_state"
     _write_decision(state_dir)
@@ -320,6 +390,103 @@ def test_transition_preflight_uses_decision_branch_and_paths(tmp_path: Path, mon
     assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED"
     branch_check = next(item for item in result["checks"] if item["name"] == "branch_identity")
     assert "expected=codex/different-v2" in branch_check["detail"]
+
+
+def test_transition_preflight_dry_run_is_project_state_byte_and_path_stable(
+    tmp_path: Path,
+) -> None:
+    """A diagnostic preflight must not persist any project_state artifact."""
+
+    fixture = _real_transition_fixture(tmp_path)
+    state_dir = fixture["state"]
+    before = _state_bytes(state_dir)
+
+    result = project_gate.transition_preflight(
+        state_dir=state_dir,
+        repo_root=fixture["repo"],
+        write_result=False,
+    )
+
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
+    assert _state_bytes(state_dir) == before
+
+
+def test_transition_preflight_write_is_bootstrap_expiry_idempotent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Repeated successful writes retain the first bootstrap expiry bytes."""
+
+    fixture = _real_transition_fixture(tmp_path)
+    state_dir = fixture["state"]
+    bootstrap_path = state_dir / "gates" / "bootstrap_state.json"
+    monkeypatch.setattr(project_gate, "_utc_now_iso", lambda: "2026-08-26T01:00:00+00:00")
+
+    first = project_gate.transition_preflight(
+        state_dir=state_dir,
+        repo_root=fixture["repo"],
+        write_result=True,
+    )
+    first_bytes = bootstrap_path.read_bytes()
+    monkeypatch.setattr(project_gate, "_utc_now_iso", lambda: "2026-08-26T02:00:00+00:00")
+    second = project_gate.transition_preflight(
+        state_dir=state_dir,
+        repo_root=fixture["repo"],
+        write_result=True,
+    )
+
+    assert first["gate_status"] == "PRE_EXECUTION_AUTHORIZED", first
+    assert second["gate_status"] == "PRE_EXECUTION_AUTHORIZED", second
+    assert bootstrap_path.read_bytes() == first_bytes
+
+
+@pytest.mark.parametrize(
+    ("old_decision", "old_round"),
+    [
+        ("decision_inherited", "round_real_transition"),
+        ("decision_real_transition", "round_inherited"),
+    ],
+)
+def test_transition_preflight_write_rebinds_inherited_bootstrap_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    old_decision: str,
+    old_round: str,
+) -> None:
+    """A successful write rebinds an expired bootstrap to current authority."""
+
+    fixture = _real_transition_fixture(tmp_path)
+    state_dir = fixture["state"]
+    bootstrap_path = state_dir / "gates" / "bootstrap_state.json"
+    bootstrap_path.write_text(
+        json.dumps(
+            {
+                "status": "BOOTSTRAP_EXPIRED",
+                "decision_id": old_decision,
+                "round_id": old_round,
+                "expired_at": "2026-08-25T23:00:00+00:00",
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(project_gate, "_utc_now_iso", lambda: "2026-08-26T03:00:00+00:00")
+
+    result = project_gate.transition_preflight(
+        state_dir=state_dir,
+        repo_root=fixture["repo"],
+        write_result=True,
+    )
+    rebound = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
+    assert rebound == {
+        "status": "BOOTSTRAP_EXPIRED",
+        "decision_id": fixture["decision_id"],
+        "round_id": fixture["round_id"],
+        "expired_at": "2026-08-26T03:00:00+00:00",
+    }
 
 
 def test_active_immutability_structured_evidence_in_preflight_and_reconcile(

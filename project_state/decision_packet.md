@@ -3,39 +3,45 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260825_issue364_path_a_lifecycle_coherence_r2_v1",
-  "round_id": "round_20260825_issue364_path_a_lifecycle_coherence_r2_v1",
+  "decision_id": "decision_20260826_issue367_engineering_landing_boundary_r2_v7",
+  "round_id": "round_20260826_issue367_engineering_landing_boundary_r2_v7",
   "status": "APPROVED",
   "mainline": "engineering_branch",
-  "skill_profiles": ["reverse-agent-iteration@v2"]
+  "skill_profiles": [
+    "reverse-agent-iteration@v2"
+  ]
 }
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260824_issue345_scope_aware_workflow_policy_r2_v2",
-  "follows_last_round_id": "round_20260824_issue345_scope_aware_workflow_policy_r2_v2",
-  "previous_audit_outcome": "ISSUE345_R2V2_SCOPE_AWARE_WORKFLOW_PROFILE_POLICY_DRAFT_ACCEPTED_FOR_OWNER_LANDING",
-  "workstream_id": "issue364-path-a-lifecycle-coherence-r2-v1",
-  "source_issue": 364,
-  "parent_issue": 353,
+  "follows_last_decision_id": "decision_20260826_issue367_engineering_landing_boundary_r2_v6",
+  "follows_last_round_id": "round_20260826_issue367_engineering_landing_boundary_r2_v6",
+  "previous_audit_outcome": "V6_PREPUBLICATION_PLATFORM_V1_RELAY_BIND_CLOSE_BIND_AND_WINDOWS_RESET",
+  "workstream_id": "issue367-engineering-landing-boundary-r2-v7",
+  "source_issue": 367,
+  "parent_issue": 365,
   "integration_base_ref": "main",
-  "base_sha": "435907ad132dc1080b111ac6372c179e5cda429c",
-  "activation_base_sha": "435907ad132dc1080b111ac6372c179e5cda429c",
-  "starting_head": "435907ad132dc1080b111ac6372c179e5cda429c",
-  "required_branch": "owner/issue353-path-a-lifecycle-coherence-r2-v1",
+  "base_sha": "9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf",
+  "activation_base_sha": "9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf",
+  "starting_head": "9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf",
+  "required_branch": "owner/issue367-engineering-landing-boundary-r2-v7",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "workflow_profile": "baseline",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
   "decision_immutability_required": true,
-  "decision_immutability_check_required_in": ["transition_preflight", "transition_reconcile", "worktree_publication_readiness"],
+  "decision_immutability_check_required_in": [
+    "transition_preflight",
+    "transition_reconcile",
+    "worktree_publication_readiness"
+  ],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 3,
-  "generated_governance_commit_limit": 1,
-  "post_publication_binding_commit_limit": 0,
+  "product_change_commit_limit": 2,
+  "generated_governance_commit_limit": 2,
+  "post_publication_binding_commit_limit": 1,
   "normal_push_attempt_limit": 3,
   "draft_pr_creation_limit": 1,
   "workflow_rerun_limit": 0,
@@ -61,10 +67,19 @@
   "live_provider_access_allowed": false,
   "credential_access_allowed": false,
   "allowed_merge_method": "merge",
-  "mainline_merge_intent_required": false,
+  "mainline_merge_intent_required": true,
   "active_pr_binding_mode": "post_draft_pr_exact_remote_number",
   "issue_number_must_not_substitute_for_pr_number": true,
   "test_semantics_changes_allowed": true,
+  "landing_revalidation_required_for_actions": [
+    "ready_for_review"
+  ],
+  "landing_revalidation_required_when_draft": false,
+  "owner_attestation_required_for_ready_state": true,
+  "attestation_head_must_match_current_pr_head": true,
+  "ready_state_synchronize_must_revalidate": true,
+  "converted_to_draft_returns_to_draft_semantics": true,
+  "malformed_event_path_fail_closed": true,
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
@@ -74,7 +89,7 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
-    "verify exact main base 435907ad132dc1080b111ac6372c179e5cda429c and fresh branch merge-base",
+    "verify exact main base 9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf and fresh branch merge-base",
     "commit this immutable R2 Decision as the unique first commit",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
@@ -84,13 +99,19 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "issue364_r2v1.bootstrap",
-      "command": "verify locked base 435907ad132dc1080b111ac6372c179e5cda429c and fresh branch; commit Decision first; generate startup snapshot, command plan, transition lint, transition preflight, and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY",
+      "command_id": "issue367_r2v7.bootstrap",
+      "command": "verify locked main and fresh v7 branch; prove terminal v6 is clean, unpublished, four commits ahead only, and has not been retried or modified; commit this v7 Decision as the unique first commit; run startup-snapshot, transition-command-plan, transition-lint, normal write-result preflight, and publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY; commit exactly five initial generated governance artifacts before implementation",
       "phase": "bootstrap",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["code_read", "local_static_check", "commit"],
+      "operations": [
+        "code_read",
+        "local_static_check",
+        "commit"
+      ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence",
       "produced_artifacts": [
@@ -102,44 +123,122 @@
       ]
     },
     {
-      "command_id": "issue364_r2v1.lifecycle_stage_core",
-      "command": "extend reverse_agent/control_plane/path_a.py with three stage-aware Path-A lifecycle outcomes (ACTIVATION_DRAFT, IMPLEMENTATION_DRAFT, READY_FINAL_READINESS): add DeltaObservation dataclass plus empty_delta flag, refactor changed_paths_for_event to return a DeltaObservation tuple, add a classify_stage helper, and restructure verify_path_a_r1 so ACTIVATION_DRAFT with a proven empty delta returns a PASS that explicitly carries implementation_authority=false and product_accepted=false without executing task checks; IMPLEMENTATION_DRAFT keeps all current path, risk, snapshot, digest, head/base/merge-base, auto-merge, and authority-revision checks; READY_FINAL_READINESS revalidates live Issue, r1-approved, approval transition, digest, snapshot, exact head/base, merge base, changed paths, risk classification, Allowed paths, and auto-merge on a freshly computed live authority revision and returns READY_FINAL_READINESS while still forbidding implementation authority; converted_to_draft events recompute the delta from live git truth rather than trusting the previous workflow stage",
+      "command_id": "issue367_r2v7.landing_authority_gate",
+      "command": "verify exact terminal-v6 source patch 472bc745d7d53c21d6e3f0dc838ba82122815092 applies cleanly to locked base and replay it without committing as a byte-equivalent three-path source product commit; preserve all v6/v5 schema-v3 premerge guards and accepted v4 behavior; do not modify production credential relay or any additional source path",
       "phase": "implementation",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["source_edit", "unit_test", "local_static_check", "commit"],
+      "operations": [
+        "source_edit",
+        "unit_test",
+        "local_static_check",
+        "commit"
+      ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence",
       "allowed_mutated_paths": [
-        "reverse_agent/control_plane/path_a.py"
+        "reverse_agent/project_gate.py",
+        "reverse_agent/mainline_landing.py",
+        ".github/workflows/state-gate.yml"
       ]
     },
     {
-      "command_id": "issue364_r2v1.lifecycle_regressions",
-      "command": "extend tests/test_path_a_gate.py with focused stage-aware regressions covering A1 approved activation draft + zero delta -> ACTIVATION_DRAFT PASS; A2 activation draft approval/snapshot invalid -> BLOCK; A3 activation draft cannot count as completed implementation -> BLOCK; I1 valid implementation draft -> existing implementation PASS; I2 invalid implementation draft -> existing fail-closed behavior preserved; R1 Ready unchanged accepted exact implementation head -> READY_FINAL_READINESS PASS; R2 Ready head/base drift -> BLOCK; R3 Ready Issue digest/approval drift -> BLOCK; R4 Ready cannot bypass missing snapshot/approval -> BLOCK; D1 converted_to_draft + empty delta -> ACTIVATION_DRAFT; D2 converted_to_draft + implementation delta -> IMPLEMENTATION_DRAFT; L1 labeled/unlabeled/edited/synchronize re-evaluates live authority; M1 auto_merge_enabled BLOCK; plus an explicit ACTIVATION_DRAFT PASS != PRODUCT_ACCEPTED regression",
+      "command_id": "issue367_r2v7.landing_authority_tests",
+      "command": "verify exact terminal-v6 test patch e4dbbcd183d5d7425b4607d9b5046be339bbd944 applies cleanly to locked base and replay it without committing; in the same single test product commit modify only tests/platform_v1/test_credential_relay.py to eliminate every bind-close-bind port probe, use OS-assigned port zero for every CredentialRelayServer and fake ThreadingHTTPServer, obtain each actual bound port from server_address, remove the obsolete _free_port helper/socket import, and ensure every fake upstream is shutdown, server_close'd, and bounded-joined in finally; preserve the non-empty-body missing-lease contract and require exact readable HTTP 400 sanitized missing_lease with zero urlopen/upstream access; preserve deterministic unreachable-upstream sanitized 502 and every positive JSON/SSE/auth/release integration; do not skip, xfail, retry, extend timeouts, accept ConnectionReset as success, or modify production relay",
       "phase": "implementation",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["source_edit", "unit_test", "local_static_check", "commit"],
+      "operations": [
+        "source_edit",
+        "unit_test",
+        "local_static_check",
+        "commit"
+      ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence",
       "allowed_mutated_paths": [
+        "tests/test_project_gate.py",
+        "tests/test_mainline_landing.py",
+        "tests/test_control_plane_transition.py",
+        "tests/platform_v1/test_merge_intent.py",
+        "tests/test_ci_responsibility.py",
         "tests/test_path_a_gate.py"
       ]
     },
     {
-      "command_id": "issue364_r2v1.validate_and_publish",
-      "command": "run the Path-A gate focused suite, CI responsibility suite, project gate suite, and control-plane/planning-adapter suites; run git diff --check; run transition-lint and transition-preflight and worktree-publication-readiness; commit implementation; push exact branch and create one Draft PR to main",
+      "command_id": "issue367_r2v7.validate_and_publish_draft",
+      "command": "before first publication prove test_credential_relay.py contains no _free_port or bind-close-bind pattern and run the complete credential-relay file, complete contract file, six-file governance/landing suite, architecture/planning/risk/docs suite, and once only the complete provider-free tests/platform_v1 suite with only four named installed-OpenCode fake-provider process probes deselected; require every invoked test to pass on its first v7 acceptance run; run transition-lint, publication readiness, git diff --check, and write_result=False filename/byte/status side-effect proof; push exact v7 branch once and create exactly one v7 Draft PR against locked main; terminal v5/v6 and closed PR378 remain observation-only; no Ready, merge, workflow rerun, runner dispatch, or retry-as-proof",
       "phase": "publication",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["unit_test", "lint", "local_static_check", "commit", "push", "draft_pr", "network_access"],
+      "operations": [
+        "unit_test",
+        "lint",
+        "local_static_check",
+        "push",
+        "draft_pr",
+        "network_access"
+      ],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue367_r2v7.post_publication_binding",
+      "command": "after the v7 Draft PR yields its actual GitHub PR number, derive archive/pr347_v3.json only from the locked-base inherited PR347 active intent and prove byte-for-byte Git-blob identity; bind active.json exactly once to the actual v7 PR using schema v3, raw 64-hex v7 Decision and Command Plan digests, locked base 9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf, workflow_profile baseline, exact baseline workflows, merge method merge, equal_to_accepted_head_tree, and bounded expiry; commit only the two binding paths; before the second push run the complete tests/platform_v1/test_contracts.py and require POST_BINDING current-v7 identity, actual PR, schema3, base, plan, and profile checks pass; rerun the focused governance/landing tests, transition-lint, publication readiness, and git diff --check; then perform the second normal push; neither issue 367, closed PR378, nor terminal v5 or v6 may substitute for the actual v7 PR number",
+      "phase": "post_publication_binding",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "commit",
+        "push",
+        "network_access"
+      ],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_only_after_validation": true,
+      "allowed_mutated_paths": [
+        "project_state/mainline_merge_intents/active.json",
+        "project_state/mainline_merge_intents/archive/pr347_v3.json"
+      ]
+    },
+    {
+      "command_id": "issue367_r2v7.final_evidence_sync",
+      "command": "after the v7 binding commit and second push, obtain current Draft PR event facts read-only and record bootstrap_state.json bytes; run the final local transition-preflight with write_result=True on the exact named branch and supplied Draft event; require PRE_EXECUTION_AUTHORIZED, current branch identity, zero blockers, and byte-identical bootstrap_state.json; require git diff --name-only to contain only project_state/gates/transition_preflight_result.json and forbid the artifact from claiming the commit that contains itself; commit that single final evidence file, rerun transition-lint, worktree-publication-readiness, focused tests, and git diff --check, then perform the third and final normal push; require fresh exact-head CI, State Gate, and Decision Preflight and stop for independent audit",
+      "phase": "final_evidence",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "local_static_check",
+        "unit_test",
+        "commit",
+        "push",
+        "network_access"
+      ],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_only_after_validation": true,
+      "produced_artifacts": [
+        "project_state/gates/transition_preflight_result.json"
+      ],
+      "allowed_mutated_paths": [
+        "project_state/gates/transition_preflight_result.json"
+      ]
     }
   ],
   "allowed_mutated_paths": [
@@ -149,28 +248,44 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/control_plane/path_a.py",
-    "tests/test_path_a_gate.py"
+    "reverse_agent/project_gate.py",
+    "reverse_agent/mainline_landing.py",
+    ".github/workflows/state-gate.yml",
+    "tests/test_project_gate.py",
+    "tests/test_mainline_landing.py",
+    "tests/test_control_plane_transition.py",
+    "tests/platform_v1/test_merge_intent.py",
+    "tests/test_ci_responsibility.py",
+    "tests/test_path_a_gate.py",
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr347_v3.json",
+    "tests/platform_v1/test_contracts.py",
+    "tests/platform_v1/test_credential_relay.py"
   ],
   "reference_paths": [
     "AGENTS.md",
-    "reverse_agent/project_gate.py",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/worktree_state.py",
     "reverse_agent/control_plane/transition.py",
+    "reverse_agent/control_plane/models.py",
+    "reverse_agent/control_plane/path_a.py",
     "reverse_agent/decision_preflight.py",
+    "reverse_agent/project_state.py",
+    "reverse_agent/post_final_evidence_sync.py",
+    "reverse_agent/project_ci.py",
+    "reverse_agent/project_jobs.py",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/architecture/report_truth.py",
+    "reverse_agent/github_adapter.py",
     "project_state/schemas/mainline_merge_intent.schema.json",
     "project_state/schemas/mainline_merge_intent_v2.schema.json",
     "project_state/schemas/mainline_merge_intent_v3.schema.json",
     ".github/workflows/ci.yml",
-    ".github/workflows/state-gate.yml",
     ".github/workflows/decision-preflight.yml",
     ".github/workflows/frontend-playwright.yml",
     ".github/workflows/model-access.yml",
-    "tests/test_ci_responsibility.py",
-    "tests/test_project_gate.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_planning_and_github_adapters.py"
+    "tests/test_planning_and_github_adapters.py",
+    "reverse_agent/model_access/credential_relay.py"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -184,51 +299,116 @@
     "docs/**",
     "requirements*.txt",
     "pyproject.toml",
-    ".github/workflows/**",
     ".codex-skills/**",
-    "reverse_agent/project_gate.py",
+    ".github/workflows/ci.yml",
+    ".github/workflows/decision-preflight.yml",
+    ".github/workflows/frontend-playwright.yml",
+    ".github/workflows/model-access.yml",
     "reverse_agent/project_state.py",
     "reverse_agent/decision_preflight.py",
-    "reverse_agent/github_adapter.py",
     "reverse_agent/post_final_evidence_sync.py",
     "reverse_agent/project_ci.py",
     "reverse_agent/project_jobs.py",
     "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/github_adapter.py",
     "reverse_agent/architecture/**",
     "reverse_agent/base_platform/**",
     "reverse_agent/platform_v1/**",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/transition.py",
+    "reverse_agent/control_plane/models.py",
+    "reverse_agent/control_plane/path_a.py",
     "reverse_agent/control_plane/worktree_state.py",
     "frontend/**",
     "launch_reverse_agent.bat",
     "dev-up.ps1",
     "project_state/schemas/**",
-    "project_state/mainline_merge_intents/**",
     "project_state/mainline_recoveries/**",
     "project_state/current_state.json",
     "project_state/state_manifest.json",
     "project_state/artifact_index.json",
     "project_state/rounds/**",
-    "tests/platform_v1/**",
+    "tests/platform_v1/test_authority_adapter.py",
+    "tests/platform_v1/test_durable_execution.py",
+    "tests/platform_v1/test_durable_execution_v5.py",
+    "tests/platform_v1/test_task_execution.py",
+    "tests/platform_v1/test_task_service.py",
     "tests/base_platform/**",
-    "tests/test_project_gate.py",
-    "tests/test_control_plane_transition.py",
     "tests/test_planning_and_github_adapters.py",
-    "tests/test_ci_responsibility.py",
-    "tests/test_mainline_landing.py"
+    "tests/test_execution_evidence.py",
+    "tests/test_decision_preflight.py",
+    "tests/test_trusted_command_runner.py"
   ],
   "forbidden_operations": [
-    "direct_push_main", "auto_merge", "merge", "mark_ready", "force_push", "rebase", "squash", "reset", "clean", "stash", "restore", "amend", "history_rewrite",
-    "unknown_binary_execution", "secrets", "destructive_delete", "privileged_remote_execution", "model_api_invocation", "provider_network_call", "credential_access", "auth_store_read",
-    "runner_dispatch", "workflow_rerun", "tag_or_release", "deployment", "issue_comment", "issue_close", "pull_request_comment", "pull_request_close",
-    "dependency_install", "browser_execution", "snapshot_update", "arbitrary_remote_browsing", "external_url_navigation", "offensive_security_or_network_attack_work",
-    "second_decision_commit", "make_state_gate_push_pre_merge", "modify_workflows_or_ci", "broad_dependency_change",
-    "new_gate_family", "new_decision_artifact_family", "new_receipt_artifact_family",
-    "modify_issue345_decision", "modify_issue360_branch_or_pr", "modify_issue363_branch_or_pr",
-    "revisit_issue283_protection", "revisit_github_ruleset",
-    "mark_ready_pr360", "merge_pr360", "close_pr360",
-    "rebase_pr360"
+    "direct_push_main",
+    "auto_merge",
+    "merge",
+    "mark_ready",
+    "force_push",
+    "rebase",
+    "squash",
+    "reset",
+    "clean",
+    "stash",
+    "restore",
+    "amend",
+    "history_rewrite",
+    "unknown_binary_execution",
+    "secrets",
+    "destructive_delete",
+    "privileged_remote_execution",
+    "model_api_invocation",
+    "provider_network_call",
+    "credential_access",
+    "auth_store_read",
+    "runner_dispatch",
+    "workflow_rerun",
+    "tag_or_release",
+    "deployment",
+    "issue_comment",
+    "issue_close",
+    "pull_request_comment",
+    "dependency_install",
+    "browser_execution",
+    "snapshot_update",
+    "arbitrary_remote_browsing",
+    "external_url_navigation",
+    "offensive_security_or_network_attack_work",
+    "second_decision_commit",
+    "make_state_gate_push_pre_merge",
+    "broad_dependency_change",
+    "new_gate_family",
+    "new_decision_artifact_family",
+    "new_receipt_artifact_family",
+    "modify_issue345_decision",
+    "modify_issue360_branch_or_pr",
+    "modify_issue363_branch_or_pr",
+    "modify_issue364_decision",
+    "revisit_issue283_protection",
+    "revisit_github_ruleset",
+    "mark_ready_pr360",
+    "merge_pr360",
+    "close_pr360",
+    "rebase_pr360",
+    "start_issue358",
+    "start_issue363",
+    "delete_or_rotate_inherited_active_intent",
+    "second_post_publication_binding_commit",
+    "reuse_v1_or_v2_decision_or_binding",
+    "github_ruleset_mutation",
+    "create_owner_merge_attestation",
+    "reopen_pr378",
+    "comment_pr378",
+    "resolve_pr378_review_thread",
+    "close_pr378",
+    "publish_terminal_v5",
+    "modify_terminal_v5_branch",
+    "retry_failed_local_acceptance_suite",
+    "relax_relay_timeout",
+    "skip_or_xfail_relay_test",
+    "publish_terminal_v6",
+    "modify_terminal_v6_branch",
+    "retry_v6_acceptance"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -255,64 +435,132 @@
     "github_pr_comment_allowed": false,
     "github_pr_creation_allowed": true,
     "github_pr_close_allowed": false,
-    "publication_allowed": true,
-    "remote_observation_read_only_allowed": true,
-    "local_network_exceptions": [
-      "push exact branch and create one Draft PR after all validation suites pass"
-    ],
-    "ci_network_exceptions": []
+    "remote_observation_read_only_allowed": true
   },
   "path_risk_floor": [
-    {"pattern": ".github/workflows/**", "minimum_risk": "R2"},
-    {"pattern": "project_state/**", "minimum_risk": "R2"},
-    {"pattern": "reverse_agent/**", "minimum_risk": "R2"},
-    {"pattern": "tests/**", "minimum_risk": "R2"},
-    {"pattern": "**/secrets/**", "minimum_risk": "R3"}
+    {
+      "pattern": ".github/workflows/state-gate.yml",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "reverse_agent/project_gate.py",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "reverse_agent/mainline_landing.py",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "project_state/mainline_merge_intents/active.json",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "tests/test_project_gate.py",
+      "minimum_risk": "R1"
+    },
+    {
+      "pattern": "tests/test_control_plane_transition.py",
+      "minimum_risk": "R1"
+    },
+    {
+      "pattern": "tests/platform_v1/test_merge_intent.py",
+      "minimum_risk": "R1"
+    },
+    {
+      "pattern": "tests/test_mainline_landing.py",
+      "minimum_risk": "R1"
+    },
+    {
+      "pattern": "tests/test_path_a_gate.py",
+      "minimum_risk": "R1"
+    },
+    {
+      "pattern": "tests/test_ci_responsibility.py",
+      "minimum_risk": "R1"
+    },
+    {
+      "pattern": "tests/platform_v1/test_contracts.py",
+      "minimum_risk": "R1"
+    },
+    {
+      "pattern": "tests/platform_v1/test_credential_relay.py",
+      "minimum_risk": "R1"
+    }
   ],
   "authorized_risk_paths": [
-    "reverse_agent/control_plane/path_a.py",
-    "tests/test_path_a_gate.py",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    ".github/workflows/state-gate.yml",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/mainline_landing.py",
+    "project_state/mainline_merge_intents/active.json"
   ],
   "authorized_risk_tier": "R2",
-  "success_terminal": "ISSUE364_PATH_A_LIFECYCLE_R2_READY_FOR_OWNER_AUDIT",
-  "blocked_terminal": "ISSUE364_BLOCKED_WITH_EXACT_EVIDENCE",
-  "activation_stage": "ACTIVATION_DRAFT",
-  "implementation_stage": "IMPLEMENTATION_DRAFT",
-  "ready_stage": "READY_FINAL_READINESS",
-  "second_gate_family_forbidden": true
+  "ci_network_exceptions": [
+    "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --event-path \"$GITHUB_EVENT_PATH\""
+  ],
+  "landing_revalidation_required_when_pr_is_non_draft": true,
+  "supplied_pr_event_required_fields": [
+    "action",
+    "positive_pr_number",
+    "lowercase_40_hex_head_sha",
+    "lowercase_40_hex_base_sha",
+    "boolean_draft"
+  ],
+  "live_remote_pr_identity_required": true,
+  "live_remote_pr_must_match_event": true,
+  "live_remote_base_must_match_locked_base": true,
+  "canonical_schema_v3_raw_hex_intent_required": true,
+  "canonical_mainline_landing_validation_reuse_required": true,
+  "second_gate_schema_or_verifier_forbidden": true,
+  "owner_attestation_creation_by_agent_allowed": false,
+  "github_ruleset_mutation_allowed": false,
+  "final_tracked_preflight_required": true,
+  "final_tracked_preflight_status_required": "PRE_EXECUTION_AUTHORIZED",
+  "final_tracked_preflight_branch_identity_required": true,
+  "final_tracked_preflight_self_referential_head_claim_forbidden": true,
+  "superseded_pr_close_attempt_limit": 0,
+  "superseded_pr_number": 378,
+  "superseded_pr_expected_head_sha": "8f9a7c75ac428253669393b420c4b8c36ec29997",
+  "superseded_pr_expected_base_sha": "9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf",
+  "superseded_pr_branch_deletion_allowed": false,
+  "replay_source_commit": "472bc745d7d53c21d6e3f0dc838ba82122815092",
+  "replay_test_commit": "e4dbbcd183d5d7425b4607d9b5046be339bbd944",
+  "cherry_pick_no_commit_limit": 2,
+  "authorized_cherry_pick_no_commit_commits": [
+    "472bc745d7d53c21d6e3f0dc838ba82122815092",
+    "e4dbbcd183d5d7425b4607d9b5046be339bbd944"
+  ],
+  "write_result_false_must_be_fully_side_effect_free": true,
+  "bootstrap_expiry_must_be_idempotent_for_same_decision_round": true,
+  "bootstrap_expiry_must_rebind_for_different_decision_or_round": true,
+  "github_pr_close_allowed": false,
+  "superseded_pr_observation_only": true,
+  "superseded_pr_reopen_allowed": false,
+  "superseded_pr_comment_allowed": false,
+  "superseded_pr_review_thread_resolution_allowed": false,
+  "premerge_intent_schema_version_required": 3,
+  "premerge_attestation_schema_version_required": 3,
+  "premerge_schema_version_must_be_non_boolean_integer": true,
+  "postmerge_legacy_schema_compatibility_required": true,
+  "prebinding_active_must_equal_locked_base_blob": true,
+  "prebinding_active_supported_schema_versions": [
+    1,
+    2,
+    3
+  ],
+  "prebinding_active_must_not_bind_current_decision": true,
+  "postbinding_active_schema_version_required": 3,
+  "postbinding_active_must_bind_actual_pr_and_current_decision": true,
+  "relay_negative_test_external_network_forbidden": true,
+  "relay_negative_test_real_loopback_http_required": true,
+  "relay_negative_test_sanitized_502_required": true,
+  "local_acceptance_test_retry_limit": 0,
+  "terminal_v6_local_head": "e4dbbcd183d5d7425b4607d9b5046be339bbd944",
+  "terminal_v6_remote_head": "ABSENT",
+  "terminal_v6_must_remain_unpublished": true,
+  "relay_test_free_port_probe_forbidden": true,
+  "relay_test_os_assigned_port_required": true,
+  "relay_test_server_shutdown_close_join_required": true,
+  "missing_lease_nonempty_body_readable_400_required": true,
+  "missing_lease_connection_reset_not_accepted": true
 }
 ```
-
-## Goal
-
-Reconcile the Path-A State Gate ready-for-review semantics with the Path-A lifecycle so that a Draft PR can be created at activation (zero delta), can be validated during implementation (non-empty implementation delta), and can be revalidated at Ready (draft=false) without granting implementation authority. Parent defect #353 required that draft=false + READY_FINAL_READINESS not be conflated with PATH_A_R1_AUTHORIZED implementation-authority.
-
-## Acceptance
-
-1. This Decision is the unique immutable first commit from `main@435907ad132dc1080b111ac6372c179e5cda429c`; all later implementation descends from it.
-2. `changed_paths_for_event` returns a `DeltaObservation` carrying `changed_paths`, `base_sha`, `head_sha`, and `empty_delta`; the legacy `(changed, base, head)` shape is preserved for internal callers.
-3. `verify_path_a_r1` accepts a stage argument and dispatches to three mutually exclusive stage-validated paths:
-   - `ACTIVATION_DRAFT`: PASS only when `changed_paths` is empty and the PR is open/draft with an approved r1-approved snapshot; result carries `implementation_authority=false`, `product_accepted=false`, `no_task_checks=true`, and `authority_revalidation_required=true`.
-   - `IMPLEMENTATION_DRAFT`: keeps every current Path-A R1 check (labels, digest, approval, head/base/merge-base, auto-merge, Allowed paths, risk floor, changed_paths non-empty) and emits `PATH_A_R1_AUTHORIZED` with `implementation_authority=true`.
-   - `READY_FINAL_READINESS`: revalidates live Issue, r1-approved, approval transition, digest, snapshot, exact head/base, merge base, changed paths (if any), risk classification, Allowed paths, and auto-merge against a freshly computed live authority revision; emits `READY_FINAL_READINESS` with `implementation_authority=false`, `product_accepted=false`, `no_task_checks=true`, `read_only_final_readiness=true`.
-4. `converted_to_draft` events recompute the delta from live git truth and classify as `ACTIVATION_DRAFT` when the delta is empty and `IMPLEMENTATION_DRAFT` when the delta is non-empty; previous workflow stage is not trusted.
-5. `authority_revision` always reflects current live PR state including `pr_draft_state`, so Draft->Ready mutation invalidates any prior expected authority revision; Ready never inherits a prior Draft digest.
-6. A regression test proves `ACTIVATION_DRAFT PASS != PRODUCT_ACCEPTED` (i.e., an activation draft's PASS result cannot satisfy an implementation-completed predicate).
-7. Existing fail-closed Path-A R1 behavior is preserved: any missing/invalid snapshot, approval removal/change, Issue body edit after approval, head/base/merge-base drift, risk-escalation path, unauthorized path, or auto-merge state blocks the gate in every stage except the corresponding activation-empty-Delta case.
-8. No `.github/workflows/state-gate.yml` change is required: the workflow already triggers on `converted_to_draft`, `ready_for_review`, `labeled`, `unlabeled`, `synchronize`, `opened`, `edited`, `reopened`, `auto_merge_enabled`, `auto_merge_disabled`; the new stage-aware gate reuses the existing `path-a-r1` step.
-9. `project_state/decision_packet.md` is never edited after the Decision commit; the transition-lint, transition-preflight, and worktree-publication-readiness gates all pass before implementation commits land.
-10. `tests/test_path_a_gate.py` gains the mandatory regression matrix (A1/A2/A3, I1/I2, R1/R2/R3/R4, D1/D2, L1, M1, G1) and remains green together with `tests/test_ci_responsibility.py`, `tests/test_project_gate.py`, `tests/test_control_plane_transition.py`, and `tests/test_planning_and_github_adapters.py`.
-11. #360 is untouched; #363 is untouched; #283 is not revisited.
-12. One Draft PR is created against `main`; it remains Draft; no mark-ready, merge, auto-merge, tag, release, or deploy occurs.
-
-## Execution policy
-
-- Stage only the exact `allowed_mutated_paths`; never reset, clean, stash, restore, amend, rebase, squash, or force push.
-- All validation is local and deterministic: no network access except the one bounded publication exception.
-- Keep the PR Draft. Agent comment, ready, merge, tag, release, and deploy remain prohibited; owner landing follows independent audit under this Decision's bounded scope.
-- Do not touch #360, #363, desktop-app code, Connection product code, or any non-#353/#364 governance surface.
