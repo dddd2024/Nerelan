@@ -107,9 +107,12 @@ class Connection:
     def to_public_dict(
         self,
         *,
+        credential_configured: bool,
         secret_status: str,
         external_session_status: str,
     ) -> dict[str, Any]:
+        if not isinstance(credential_configured, bool):
+            raise ValueError("credential_configured must be a boolean")
         if secret_status not in _SECRET_STATUS_VALUES:
             raise ValueError(f"unsupported secret status: {secret_status}")
         if external_session_status not in _EXTERNAL_SESSION_STATUS_VALUES:
@@ -123,6 +126,7 @@ class Connection:
             "base_url": self.base_url,
             "auth_method": self.auth_method,
             "enabled": self.enabled,
+            "credential_configured": credential_configured,
             "secret_status": secret_status,
             "external_session_status": external_session_status,
         }

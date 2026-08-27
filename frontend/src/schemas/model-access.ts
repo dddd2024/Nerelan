@@ -63,11 +63,13 @@ export const ConnectionSchema = z.object({
   baseUrl,
   authMethod: AuthMethodSchema,
   enabled: z.boolean(),
+  credentialConfigured: z.boolean(),
   secretStatus: ConnectionSecretStatusSchema,
   externalSessionStatus: ExternalSessionStatusSchema,
 });
 
 export const ConnectionInputSchema = ConnectionSchema.omit({
+  credentialConfigured: true,
   secretStatus: true,
   externalSessionStatus: true,
 }).extend({

@@ -60,6 +60,7 @@ const DEFAULT_MOCK_CONNECTIONS: Connection[] = [
     baseUrl: "http://localhost:4000/v1",
     authMethod: "api_key",
     enabled: true,
+    credentialConfigured: true,
     secretStatus: "environment",
     externalSessionStatus: "not_applicable",
   },
@@ -109,6 +110,8 @@ function normalizeConnection(value: unknown): Connection {
     baseUrl: raw.baseUrl ?? raw.base_url,
     authMethod: raw.authMethod ?? raw.auth_method,
     enabled: raw.enabled,
+    credentialConfigured:
+      raw.credentialConfigured ?? raw.credential_configured,
     secretStatus: raw.secretStatus ?? raw.secret_status,
     externalSessionStatus: raw.externalSessionStatus ?? raw.external_session_status,
   });
@@ -485,6 +488,14 @@ export function createMockModelControlClient(
       const executorManagedAuth =
         parsed.authMethod === "account_login" ||
         parsed.authMethod === "external_cli_session";
+      const credentialConfigured = apiKeyAuth
+        ? parsed.clearSecret
+          ? false
+          : !!parsed.apiKey ||
+            !!parsed.apiKeyEnv ||
+            (existing?.authMethod === "api_key" &&
+              existing.credentialConfigured)
+        : false;
       const saved: Connection = {
         connectionId: parsed.connectionId,
         name: parsed.name,
@@ -492,6 +503,7 @@ export function createMockModelControlClient(
         baseUrl: parsed.baseUrl,
         authMethod: parsed.authMethod,
         enabled: parsed.enabled,
+        credentialConfigured,
         secretStatus: apiKeyAuth
           ? parsed.clearSecret
             ? "missing"
