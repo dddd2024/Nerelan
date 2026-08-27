@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260825_issue364_path_a_lifecycle_coherence_r2_v1",
-  "round_id": "round_20260825_issue364_path_a_lifecycle_coherence_r2_v1",
+  "decision_id": "decision_20260827_issue367_pr382_owner_landing_r2_v1",
+  "round_id": "round_20260827_issue367_pr382_owner_landing_r2_v1",
   "commands": [
     {
-      "command_id": "issue364_r2v1.bootstrap",
-      "command": "verify locked base 435907ad132dc1080b111ac6372c179e5cda429c and fresh branch; commit Decision first; generate startup snapshot, command plan, transition lint, transition preflight, and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY",
+      "command_id": "issue367_pr382_landing.bootstrap",
+      "command": "verify locked main and clean landing-authority branch; commit this Decision first; run startup snapshot, deterministic command plan, transition lint, preflight and publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY; commit exactly five generated gate files; push this exact authority branch once without creating a PR",
       "phase": "bootstrap",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
@@ -16,16 +16,18 @@
       "operations": [
         "code_read",
         "local_static_check",
-        "commit"
+        "commit",
+        "push",
+        "network_access"
       ],
-      "network_access": false,
+      "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [
-        "project_state/gates/startup_snapshot.json",
         "project_state/gates/command_plan.json",
+        "project_state/gates/startup_snapshot.json",
         "project_state/gates/bootstrap_state.json",
         "project_state/gates/transition_command_plan_preview.json",
         "project_state/gates/transition_preflight_result.json"
@@ -34,63 +36,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue364_r2v1.lifecycle_stage_core",
-      "command": "extend reverse_agent/control_plane/path_a.py with three stage-aware Path-A lifecycle outcomes (ACTIVATION_DRAFT, IMPLEMENTATION_DRAFT, READY_FINAL_READINESS): add DeltaObservation dataclass plus empty_delta flag, refactor changed_paths_for_event to return a DeltaObservation tuple, add a classify_stage helper, and restructure verify_path_a_r1 so ACTIVATION_DRAFT with a proven empty delta returns a PASS that explicitly carries implementation_authority=false and product_accepted=false without executing task checks; IMPLEMENTATION_DRAFT keeps all current path, risk, snapshot, digest, head/base/merge-base, auto-merge, and authority-revision checks; READY_FINAL_READINESS revalidates live Issue, r1-approved, approval transition, digest, snapshot, exact head/base, merge base, changed paths, risk classification, Allowed paths, and auto-merge on a freshly computed live authority revision and returns READY_FINAL_READINESS while still forbidding implementation authority; converted_to_draft events recompute the delta from live git truth rather than trusting the previous workflow stage",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "unit_test",
-        "local_static_check",
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "reverse_agent/control_plane/path_a.py"
-      ]
-    },
-    {
-      "command_id": "issue364_r2v1.lifecycle_regressions",
-      "command": "extend tests/test_path_a_gate.py with focused stage-aware regressions covering A1 approved activation draft + zero delta -> ACTIVATION_DRAFT PASS; A2 activation draft approval/snapshot invalid -> BLOCK; A3 activation draft cannot count as completed implementation -> BLOCK; I1 valid implementation draft -> existing implementation PASS; I2 invalid implementation draft -> existing fail-closed behavior preserved; R1 Ready unchanged accepted exact implementation head -> READY_FINAL_READINESS PASS; R2 Ready head/base drift -> BLOCK; R3 Ready Issue digest/approval drift -> BLOCK; R4 Ready cannot bypass missing snapshot/approval -> BLOCK; D1 converted_to_draft + empty delta -> ACTIVATION_DRAFT; D2 converted_to_draft + implementation delta -> IMPLEMENTATION_DRAFT; L1 labeled/unlabeled/edited/synchronize re-evaluates live authority; M1 auto_merge_enabled BLOCK; plus an explicit ACTIVATION_DRAFT PASS != PRODUCT_ACCEPTED regression",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "unit_test",
-        "local_static_check",
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "tests/test_path_a_gate.py"
-      ]
-    },
-    {
-      "command_id": "issue364_r2v1.validate_and_publish",
-      "command": "run the Path-A gate focused suite, CI responsibility suite, project gate suite, and control-plane/planning-adapter suites; run git diff --check; run transition-lint and transition-preflight and worktree-publication-readiness; commit implementation; push exact branch and create one Draft PR to main",
-      "phase": "publication",
+      "command_id": "issue367_pr382_landing.observe",
+      "command": "immediately re-observe main, PR382 OPEN Draft head/base/mergeability/auto-merge, zero unresolved threads, exact three workflow runs, active schema-v3 intent and digests, Ruleset21023698 active strict merge-only baseline/state-gate policy, independent audit acceptance, and attestation expiry margin; stop on any drift",
+      "phase": "pre_landing_observation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
@@ -98,12 +46,28 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "unit_test",
-        "lint",
-        "local_static_check",
-        "commit",
-        "push",
-        "draft_pr",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue367_pr382_landing.audit_comment",
+      "command": "create exactly one PR382 independent exact-head audit comment binding accepted head/base, independent Luna ACCEPTED_EXACT_HEAD, Decision/Plan/intent digests and exact workflow runs; state that it grants no merge authority; read back exact comment id/author/body and do not retry an unknown result",
+      "phase": "audit_publication",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
         "network_access"
       ],
       "network_access": true,
@@ -116,8 +80,119 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.2325d9e8c8ddfa9ef71fe1aa32da529651bda3cec902d512fb155b05fc386f67",
-      "command": "verify exact main base 435907ad132dc1080b111ac6372c179e5cda429c and fresh branch merge-base",
+      "command_id": "issue367_pr382_landing.attestation",
+      "command": "create exactly one inert PR382 placeholder comment containing nonce pr382-owner-attestation-placeholder-v1-cfc2eea1 and no attestation marker; read back its numeric comment id; compute canonical approval and attestation digests; edit that same comment exactly once into the unique active schema-v3 MAINLINE_MERGE_APPROVAL_ATTESTATION bound to PR382/head/base/intent/workflow runs/owner and expiry 2026-08-27T02:48:01Z; read back and require canonical premerge validation PASS; reserve one additional edit only to revoke/remove marker if landing stops before merge",
+      "phase": "attestation_publication",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue367_pr382_landing.ready",
+      "command": "re-observe every bound fact and expiry margin, then mark PR382 Ready exactly once; require a new ready_for_review State Gate pull_request run on exact head attempt1 SUCCESS; on failure do not merge and use at most one convert-to-draft plus reserved attestation revocation edit",
+      "phase": "ready_gate",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue367_pr382_landing.merge",
+      "command": "immediately before merge require main still locked base, PR382 OPEN non-Draft exact head/base MERGEABLE/CLEAN, auto-merge disabled, baseline and Decision Preflight exact-head SUCCESS, fresh Ready State Gate SUCCESS, zero unresolved threads, strict Ruleset unchanged, unique active attestation unchanged and unexpired; perform exactly one owner expected-head merge with method merge and sha cfc2eea13943c7c1597bddd6f8057fd5036a6a84; unknown result is resolved read-only and never retried",
+      "phase": "owner_merge",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue367_pr382_landing.postmerge",
+      "command": "verify merged_by owner, new main equals merge commit, ordered parents locked base and accepted head, merge tree equals 2e99d9c3baf060e023255cbd27e30b1639964e48, fresh State Gate push attempt1 SUCCESS and canonical mainline validation 46 checks zero failed with receipt EMITTED; only then create exactly one non-marker PR receipt comment and read it back",
+      "phase": "postmerge_validation",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "network_access",
+        "local_static_check"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue367_pr382_landing.close_issue",
+      "command": "only after postmerge validation and receipt readback, close Issue367 exactly once and verify CLOSED/completed; do not close Issue370, which retains its stale-PR scenario acceptance",
+      "phase": "issue_close",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.fd6b471b5dfc7f9183570a1038b1769a246ead5a01c44c1eb0147d1849cff6cc",
+      "command": "verify exact main/base 9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf and fresh landing-authority branch",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -136,8 +211,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.234f8ef150ef2c4adfece3cb131177275c83ffd977f9e1a451805af4525ea5d0",
-      "command": "commit this immutable R2 Decision as the unique first commit",
+      "command_id": "bootstrap.61106286bd7922d733373f140e6ad3ec3ed7b7728866cd4e692a2b1289057a90",
+      "command": "commit this immutable Owner landing Decision as the unique first commit",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
