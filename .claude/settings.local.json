@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "mcp__sequential-thinking__sequentialthinking",
-      "Bash(python -m reverse_agent.project_gate preflight --state-dir project_state)"
-    ]
-  }
-}
