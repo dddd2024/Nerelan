@@ -103,15 +103,18 @@ function normalizeProfile(value: unknown): ModelProfile {
 
 function normalizeConnection(value: unknown): Connection {
   const raw = value as Record<string, unknown>;
+  const authMethod = raw.authMethod ?? raw.auth_method;
+  const credentialConfigured =
+    raw.credentialConfigured ?? raw.credential_configured;
   return ConnectionSchema.parse({
     connectionId: raw.connectionId ?? raw.connection_id,
     name: raw.name,
     provider: raw.provider,
     baseUrl: raw.baseUrl ?? raw.base_url,
-    authMethod: raw.authMethod ?? raw.auth_method,
+    authMethod,
     enabled: raw.enabled,
     credentialConfigured:
-      raw.credentialConfigured ?? raw.credential_configured,
+      credentialConfigured ?? (authMethod === "api_key" ? undefined : false),
     secretStatus: raw.secretStatus ?? raw.secret_status,
     externalSessionStatus: raw.externalSessionStatus ?? raw.external_session_status,
   });
