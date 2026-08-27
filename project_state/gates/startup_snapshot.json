@@ -3,31 +3,31 @@
   "artifact_name": "startup_snapshot.json",
   "gate_name": "startup-snapshot",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260826_issue367_engineering_landing_boundary_r2_v7",
-  "round_id": "round_20260826_issue367_engineering_landing_boundary_r2_v7",
+  "decision_id": "decision_20260827_issue370_pr389_ready_failure_containment_r2_v1",
+  "round_id": "round_20260827_issue370_pr389_ready_failure_containment_r2_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-08-26T15:43:03.817312Z",
+  "generated_at": "2026-08-27T06:20:50.277411Z",
   "artifact_path": "project_state/gates/startup_snapshot.json",
   "startup_sequence": [
     {
-      "command": "Set-Location F:\\reverse-agent-issue367-engineering-landing-r2-v7",
+      "command": "Set-Location F:\\reverse-agent-issue370-pr389-ready-failure-containment-r2-v1",
       "exit_code": 0,
-      "stdout": "F:\\reverse-agent-issue367-engineering-landing-r2-v7"
+      "stdout": "F:\\reverse-agent-issue370-pr389-ready-failure-containment-r2-v1"
     },
     {
       "command": "Get-Location",
       "exit_code": 0,
-      "stdout": "F:\\reverse-agent-issue367-engineering-landing-r2-v7"
+      "stdout": "F:\\reverse-agent-issue370-pr389-ready-failure-containment-r2-v1"
     },
     {
-      "command": "Test-Path F:\\reverse-agent-issue367-engineering-landing-r2-v7",
+      "command": "Test-Path F:\\reverse-agent-issue370-pr389-ready-failure-containment-r2-v1",
       "exit_code": 0,
       "stdout": "True"
     },
     {
       "command": "git rev-parse --show-toplevel",
       "exit_code": 0,
-      "stdout": "F:/reverse-agent-issue367-engineering-landing-r2-v7"
+      "stdout": "F:/reverse-agent-issue370-pr389-ready-failure-containment-r2-v1"
     },
     {
       "command": "git status --short",
@@ -35,10 +35,10 @@
       "stdout_lines": []
     }
   ],
-  "repository_root": "F:/reverse-agent-issue367-engineering-landing-r2-v7",
-  "expected_repository_root": "F:\\reverse-agent-issue367-engineering-landing-r2-v7",
+  "repository_root": "F:/reverse-agent-issue370-pr389-ready-failure-containment-r2-v1",
+  "expected_repository_root": "F:\\reverse-agent-issue370-pr389-ready-failure-containment-r2-v1",
   "repository_root_matches": true,
-  "head_commit": "f76411cb862e",
+  "head_commit": "d152e531c027",
   "raw_git_status_short": [],
   "dirty_files": [],
   "worktree_classifier_schema_version": 1,
