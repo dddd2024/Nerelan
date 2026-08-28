@@ -1513,3 +1513,42 @@ def test_activation_privileged_operation_blocks(term: str) -> None:
     fixture["event"]["pull_request"]["body"] = _snapshot(issue_body)
     with pytest.raises(PathAGateError, match="issue_privileged_operation_forbidden"):
         verify_path_a_r1(**fixture)
+
+
+# ---------------------------------------------------------------------------
+# Model-access task-check mapping regressions (Issue #48 R2 v3).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "reverse_agent/model_access/contracts.py",
+        "reverse_agent/model_access/store.py",
+        "reverse_agent/model_access/credential_relay.py",
+        "tests/test_model_access.py",
+        "tests/test_connection_binding.py",
+    ],
+)
+def test_model_access_paths_select_repository_owned_model_access_suite(path: str) -> None:
+    result = select_task_checks((path,))
+
+    assert result["check_ids"] == ("model_access",)
+    assert result["commands"] == (
+        "python -m pytest tests/test_model_access.py tests/test_connection_binding.py -q",
+    )
+
+
+def test_issue_required_check_text_cannot_supply_missing_runtime_mapping() -> None:
+    issue_body = _issue_body(
+        allowed_paths="reverse_agent/unmapped_runtime.py",
+        required_checks="python -m pytest tests/test_connection_binding.py -q",
+    )
+
+    with pytest.raises(PathAGateError, match="runtime_change_without_task_check"):
+        verify_path_a_r1(
+            **_fixture(
+                issue_body=issue_body,
+                changed_paths=("reverse_agent/unmapped_runtime.py",),
+            )
+        )
