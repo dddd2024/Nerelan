@@ -1,120 +1,56 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260826_issue367_engineering_landing_boundary_r2_v7",
-  "round_id": "round_20260826_issue367_engineering_landing_boundary_r2_v7",
+  "decision_id": "decision_20260829_issue367_landing_stage_check_identity_r2_v10",
+  "round_id": "round_20260829_issue367_landing_stage_check_identity_r2_v10",
   "commands": [
     {
-      "command_id": "issue367_r2v7.bootstrap",
-      "command": "verify locked main and fresh v7 branch; prove terminal v6 is clean, unpublished, four commits ahead only, and has not been retried or modified; commit this v7 Decision as the unique first commit; run startup-snapshot, transition-command-plan, transition-lint, normal write-result preflight, and publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY; commit exactly five initial generated governance artifacts before implementation",
-      "phase": "bootstrap",
+      "command_id": "issue367_r2v10.materialize_activation_packet",
+      "command": "materialize command_plan startup_snapshot bootstrap_state transition_command_plan_preview and transition_preflight_result for the exact v10 Decision round locked base and required branch before Draft publication; inherited tracked transition identity is forbidden",
+      "phase": "gate",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "code_read",
-        "local_static_check",
-        "commit"
-      ],
+      "expected_exit_codes": [0],
+      "execution_surface": "remote_repository_mutation",
+      "operations": ["commit"],
       "network_access": false,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": ["project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/bootstrap_state.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"],
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
-      "produced_artifacts": [
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/bootstrap_state.json",
-        "project_state/gates/transition_command_plan_preview.json",
-        "project_state/gates/transition_preflight_result.json"
-      ],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
+      "produced_artifacts": ["project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/bootstrap_state.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"],
+      "subject_to_reconciliation": true
     },
     {
-      "command_id": "issue367_r2v7.landing_authority_gate",
-      "command": "verify exact terminal-v6 source patch 472bc745d7d53c21d6e3f0dc838ba82122815092 applies cleanly to locked base and replay it without committing as a byte-equivalent three-path source product commit; preserve all v6/v5 schema-v3 premerge guards and accepted v4 behavior; do not modify production credential relay or any additional source path",
+      "command_id": "issue367_r2v10.implement_landing_context",
+      "command": "add one distinct landing-stage GitHub Actions job context in .github/workflows/state-gate.yml that cannot be satisfied by earlier Draft-stage state-gate success on the same SHA; reuse existing transition and Path-A validation kernels; update only tests/test_ci_responsibility.py for deterministic workflow responsibility regression",
       "phase": "implementation",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "unit_test",
-        "local_static_check",
-        "commit"
-      ],
+      "expected_exit_codes": [0],
+      "execution_surface": "remote_repository_mutation",
+      "operations": ["source_edit","unit_test","commit"],
       "network_access": false,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [".github/workflows/state-gate.yml","tests/test_ci_responsibility.py"],
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/mainline_landing.py",
-        ".github/workflows/state-gate.yml"
-      ]
+      "subject_to_reconciliation": true
     },
     {
-      "command_id": "issue367_r2v7.landing_authority_tests",
-      "command": "verify exact terminal-v6 test patch e4dbbcd183d5d7425b4607d9b5046be339bbd944 applies cleanly to locked base and replay it without committing; in the same single test product commit modify only tests/platform_v1/test_credential_relay.py to eliminate every bind-close-bind port probe, use OS-assigned port zero for every CredentialRelayServer and fake ThreadingHTTPServer, obtain each actual bound port from server_address, remove the obsolete _free_port helper/socket import, and ensure every fake upstream is shutdown, server_close'd, and bounded-joined in finally; preserve the non-empty-body missing-lease contract and require exact readable HTTP 400 sanitized missing_lease with zero urlopen/upstream access; preserve deterministic unreachable-upstream sanitized 502 and every positive JSON/SSE/auth/release integration; do not skip, xfail, retry, extend timeouts, accept ConnectionReset as success, or modify production relay",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "unit_test",
-        "local_static_check",
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "tests/test_project_gate.py",
-        "tests/test_mainline_landing.py",
-        "tests/test_control_plane_transition.py",
-        "tests/platform_v1/test_merge_intent.py",
-        "tests/test_ci_responsibility.py",
-        "tests/test_path_a_gate.py"
-      ]
-    },
-    {
-      "command_id": "issue367_r2v7.validate_and_publish_draft",
-      "command": "before first publication prove test_credential_relay.py contains no _free_port or bind-close-bind pattern and run the complete credential-relay file, complete contract file, six-file governance/landing suite, architecture/planning/risk/docs suite, and once only the complete provider-free tests/platform_v1 suite with only four named installed-OpenCode fake-provider process probes deselected; require every invoked test to pass on its first v7 acceptance run; run transition-lint, publication readiness, git diff --check, and write_result=False filename/byte/status side-effect proof; push exact v7 branch once and create exactly one v7 Draft PR against locked main; terminal v5/v6 and closed PR378 remain observation-only; no Ready, merge, workflow rerun, runner dispatch, or retry-as-proof",
+      "command_id": "issue367_r2v10.validate_publish",
+      "command": "run deterministic CI responsibility and governance regression through GitHub Actions on the exact Draft head; require baseline State Gate and Decision Preflight acceptance before independent audit",
       "phase": "publication",
       "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "unit_test",
-        "lint",
-        "local_static_check",
-        "push",
-        "draft_pr",
-        "network_access"
-      ],
+      "expected_exit_codes": [0],
+      "execution_surface": "remote_observation",
+      "operations": ["unit_test","push","draft_pr","network_access"],
       "network_access": true,
-      "diagnostic_only": false,
+      "required_evidence_source": "repository_state_attestation",
       "allowed_only_after_validation": true,
+      "diagnostic_only": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
@@ -122,204 +58,47 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue367_r2v7.post_publication_binding",
-      "command": "after the v7 Draft PR yields its actual GitHub PR number, derive archive/pr347_v3.json only from the locked-base inherited PR347 active intent and prove byte-for-byte Git-blob identity; bind active.json exactly once to the actual v7 PR using schema v3, raw 64-hex v7 Decision and Command Plan digests, locked base 9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf, workflow_profile baseline, exact baseline workflows, merge method merge, equal_to_accepted_head_tree, and bounded expiry; commit only the two binding paths; before the second push run the complete tests/platform_v1/test_contracts.py and require POST_BINDING current-v7 identity, actual PR, schema3, base, plan, and profile checks pass; rerun the focused governance/landing tests, transition-lint, publication readiness, and git diff --check; then perform the second normal push; neither issue 367, closed PR378, nor terminal v5 or v6 may substitute for the actual v7 PR number",
+      "command_id": "issue367_r2v10.post_publication_binding",
+      "command": "after Draft PR publication bind the existing schema-v3 landing intent exactly once to the actual PR number locked base current Decision current Command Plan workflow profile and merge policy while preserving prior PR405 evidence byte-identically in archive",
       "phase": "post_publication_binding",
       "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "commit",
-        "push",
-        "network_access"
-      ],
+      "expected_exit_codes": [0],
+      "execution_surface": "remote_repository_mutation",
+      "operations": ["commit","push","network_access"],
       "network_access": true,
-      "diagnostic_only": false,
+      "required_evidence_source": "repository_state_attestation",
       "allowed_only_after_validation": true,
+      "allowed_mutated_paths": ["project_state/mainline_merge_intents/active.json","project_state/mainline_merge_intents/archive/pr405_v3.json"],
+      "diagnostic_only": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr347_v3.json"
-      ]
+      "subject_to_reconciliation": true
     },
     {
-      "command_id": "issue367_r2v7.final_evidence_sync",
-      "command": "after the v7 binding commit and second push, obtain current Draft PR event facts read-only and record bootstrap_state.json bytes; run the final local transition-preflight with write_result=True on the exact named branch and supplied Draft event; require PRE_EXECUTION_AUTHORIZED, current branch identity, zero blockers, and byte-identical bootstrap_state.json; require git diff --name-only to contain only project_state/gates/transition_preflight_result.json and forbid the artifact from claiming the commit that contains itself; commit that single final evidence file, rerun transition-lint, worktree-publication-readiness, focused tests, and git diff --check, then perform the third and final normal push; require fresh exact-head CI, State Gate, and Decision Preflight and stop for independent audit",
+      "command_id": "issue367_r2v10.final_exact_head_acceptance",
+      "command": "require exact-head baseline State Gate Decision Preflight and distinct landing-stage context evidence plus zero unresolved threads and unchanged locked base before Owner landing lifecycle",
       "phase": "final_evidence",
       "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "remote_observation",
+      "operations": ["code_read"],
+      "network_access": false,
       "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "local_static_check",
-        "unit_test",
-        "commit",
-        "push",
-        "network_access"
-      ],
-      "network_access": true,
       "diagnostic_only": false,
-      "allowed_only_after_validation": true,
+      "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
-      "produced_artifacts": [
-        "project_state/gates/transition_preflight_result.json"
-      ],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/gates/transition_preflight_result.json"
-      ]
-    },
-    {
-      "command_id": "bootstrap.b563ff49b72d24ab0bdec785647599a35f40b518429b47431963fa616e5ce08f",
-      "command": "verify exact main base 9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf and fresh branch merge-base",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": []
     },
-    {
-      "command_id": "bootstrap.234f8ef150ef2c4adfece3cb131177275c83ffd977f9e1a451805af4525ea5d0",
-      "command": "commit this immutable R2 Decision as the unique first commit",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.8b36eaeb3ce665a698059342f0a478e3329fbe30d9dd5973c09b9a061f2c2091",
-      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.748384806c2774ade5d9fec7d422f87ac5614c30035911ccf10bab2019aede3a",
-      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.06e93636c7597d91a7cd0967908dfb4d618dcdc78d2640bf238a6300acdcf4d2",
-      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.677fc095a0ccb225c87b5528ad9885b37484c464961934f364a72d07e89bdcb3",
-      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.ec3489d9c07e649d7b634f4dba2c97608dbc6d7d75d429f1f629c4b5f6a197fe",
-      "command": "python -m reverse_agent.project_gate worktree-publication-readiness --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    }
-  ],
-  "plan_name": "transition-command-plan",
-  "plan_status": "PASSED",
-  "blocking_reasons": []
+    {"command_id":"bootstrap.bac0ee4bd8bb8cf1ad791b4a4b1fa9afd1017c717e78bb44afeb47eeb24ef23b","command":"verify exact main base fa2265478b7e1da61e121a3c7193a3cb8c797802 and fresh branch merge-base","phase":"gate","required":true,"required_evidence_source":"local_command_evidence","expected_exit_codes":[0],"execution_surface":"remote_observation","operations":[],"network_access":false,"diagnostic_only":false,"allowed_only_after_validation":false,"authority_origin":"bootstrap_exception","bootstrap_exception":true,"produced_artifacts":[],"subject_to_reconciliation":true,"allowed_mutated_paths":[]},
+    {"command_id":"bootstrap.450d8288ec0db9f35f74c51cbe538b402480fbdfd7313619db0b1236cf44f697","command":"verify PR #405 ready-stage and post-merge failure evidence remains immutable","phase":"gate","required":true,"required_evidence_source":"local_command_evidence","expected_exit_codes":[0],"execution_surface":"remote_observation","operations":[],"network_access":false,"diagnostic_only":false,"allowed_only_after_validation":false,"authority_origin":"bootstrap_exception","bootstrap_exception":true,"produced_artifacts":[],"subject_to_reconciliation":true,"allowed_mutated_paths":[]},
+    {"command_id":"bootstrap.234f8ef150ef2c4adfece3cb131177275c83ffd977f9e1a451805af4525ea5d0","command":"commit this immutable R2 Decision as the unique first commit","phase":"gate","required":true,"required_evidence_source":"local_command_evidence","expected_exit_codes":[0],"execution_surface":"local","operations":[],"network_access":false,"diagnostic_only":false,"allowed_only_after_validation":false,"authority_origin":"bootstrap_exception","bootstrap_exception":true,"produced_artifacts":[],"subject_to_reconciliation":true,"allowed_mutated_paths":[]},
+    {"command_id":"bootstrap.29e872c06cc05159d0597c594de9083c0afae27653b7bbd8d094a3fb21cfce83","command":"materialize all tracked transition bootstrap artifacts for the exact v10 Decision/round/base/branch before Draft publication","phase":"gate","required":true,"required_evidence_source":"repository_state_attestation","expected_exit_codes":[0],"execution_surface":"remote_repository_mutation","operations":["commit"],"network_access":false,"diagnostic_only":false,"allowed_only_after_validation":false,"authority_origin":"bootstrap_exception","bootstrap_exception":true,"produced_artifacts":[],"subject_to_reconciliation":true,"allowed_mutated_paths":[]},
+    {"command_id":"bootstrap.06e93636c7597d91a7cd0967908dfb4d618dcdc78d2640bf238a6300acdcf4d2","command":"python -m reverse_agent.project_gate transition-lint --state-dir project_state","phase":"gate","required":true,"required_evidence_source":"local_command_evidence","expected_exit_codes":[0],"execution_surface":"local","operations":[],"network_access":false,"diagnostic_only":false,"allowed_only_after_validation":false,"authority_origin":"bootstrap_exception","bootstrap_exception":true,"produced_artifacts":[],"subject_to_reconciliation":true,"allowed_mutated_paths":[]},
+    {"command_id":"bootstrap.677fc095a0ccb225c87b5528ad9885b37484c464961934f364a72d07e89bdcb3","command":"python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre","phase":"gate","required":true,"required_evidence_source":"local_command_evidence","expected_exit_codes":[0],"execution_surface":"local","operations":[],"network_access":false,"diagnostic_only":false,"allowed_only_after_validation":false,"authority_origin":"bootstrap_exception","bootstrap_exception":true,"produced_artifacts":[],"subject_to_reconciliation":true,"allowed_mutated_paths":[]},
+    {"command_id":"bootstrap.ec3489d9c07e649d7b634f4dba2c97608dbc6d7d75d429f1f629c4b5f6a197fe","command":"python -m reverse_agent.project_gate worktree-publication-readiness --state-dir project_state","phase":"gate","required":true,"required_evidence_source":"local_command_evidence","expected_exit_codes":[0],"execution_surface":"local","operations":[],"network_access":false,"diagnostic_only":false,"allowed_only_after_validation":false,"authority_origin":"bootstrap_exception","bootstrap_exception":true,"produced_artifacts":[],"subject_to_reconciliation":true,"allowed_mutated_paths":[]}
+  ]
 }
