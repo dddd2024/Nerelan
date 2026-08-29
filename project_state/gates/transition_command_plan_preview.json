@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260826_issue367_engineering_landing_boundary_r2_v7",
-  "round_id": "round_20260826_issue367_engineering_landing_boundary_r2_v7",
+  "decision_id": "decision_20260829_issue367_pr416_owner_landing_r2_v1",
+  "round_id": "round_20260829_issue367_pr416_owner_landing_r2_v1",
   "commands": [
     {
-      "command_id": "issue367_r2v7.bootstrap",
-      "command": "verify locked main and fresh v7 branch; prove terminal v6 is clean, unpublished, four commits ahead only, and has not been retried or modified; commit this v7 Decision as the unique first commit; run startup-snapshot, transition-command-plan, transition-lint, normal write-result preflight, and publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY; commit exactly five initial generated governance artifacts before implementation",
-      "phase": "bootstrap",
+      "command_id": "issue367_pr416_owner_landing_r2v1.materialize_authority",
+      "command": "run the repository-owned startup snapshot command-plan compiler transition lint and preflight locally then commit only the five declared generated gate artifacts",
+      "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
@@ -14,7 +14,6 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "code_read",
         "local_static_check",
         "commit"
       ],
@@ -23,80 +22,19 @@
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
-      "produced_artifacts": [
-        "project_state/gates/startup_snapshot.json",
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
         "project_state/gates/command_plan.json",
+        "project_state/gates/startup_snapshot.json",
         "project_state/gates/bootstrap_state.json",
         "project_state/gates/transition_command_plan_preview.json",
         "project_state/gates/transition_preflight_result.json"
-      ],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue367_r2v7.landing_authority_gate",
-      "command": "verify exact terminal-v6 source patch 472bc745d7d53c21d6e3f0dc838ba82122815092 applies cleanly to locked base and replay it without committing as a byte-equivalent three-path source product commit; preserve all v6/v5 schema-v3 premerge guards and accepted v4 behavior; do not modify production credential relay or any additional source path",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "unit_test",
-        "local_static_check",
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/mainline_landing.py",
-        ".github/workflows/state-gate.yml"
       ]
     },
     {
-      "command_id": "issue367_r2v7.landing_authority_tests",
-      "command": "verify exact terminal-v6 test patch e4dbbcd183d5d7425b4607d9b5046be339bbd944 applies cleanly to locked base and replay it without committing; in the same single test product commit modify only tests/platform_v1/test_credential_relay.py to eliminate every bind-close-bind port probe, use OS-assigned port zero for every CredentialRelayServer and fake ThreadingHTTPServer, obtain each actual bound port from server_address, remove the obsolete _free_port helper/socket import, and ensure every fake upstream is shutdown, server_close'd, and bounded-joined in finally; preserve the non-empty-body missing-lease contract and require exact readable HTTP 400 sanitized missing_lease with zero urlopen/upstream access; preserve deterministic unreachable-upstream sanitized 502 and every positive JSON/SSE/auth/release integration; do not skip, xfail, retry, extend timeouts, accept ConnectionReset as success, or modify production relay",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "unit_test",
-        "local_static_check",
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "tests/test_project_gate.py",
-        "tests/test_mainline_landing.py",
-        "tests/test_control_plane_transition.py",
-        "tests/platform_v1/test_merge_intent.py",
-        "tests/test_ci_responsibility.py",
-        "tests/test_path_a_gate.py"
-      ]
-    },
-    {
-      "command_id": "issue367_r2v7.validate_and_publish_draft",
-      "command": "before first publication prove test_credential_relay.py contains no _free_port or bind-close-bind pattern and run the complete credential-relay file, complete contract file, six-file governance/landing suite, architecture/planning/risk/docs suite, and once only the complete provider-free tests/platform_v1 suite with only four named installed-OpenCode fake-provider process probes deselected; require every invoked test to pass on its first v7 acceptance run; run transition-lint, publication readiness, git diff --check, and write_result=False filename/byte/status side-effect proof; push exact v7 branch once and create exactly one v7 Draft PR against locked main; terminal v5/v6 and closed PR378 remain observation-only; no Ready, merge, workflow rerun, runner dispatch, or retry-as-proof",
+      "command_id": "issue367_pr416_owner_landing_r2v1.publish_authority",
+      "command": "push the exact Owner landing authority branch once and verify remote commit identity",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -105,11 +43,7 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "unit_test",
-        "lint",
-        "local_static_check",
         "push",
-        "draft_pr",
         "network_access"
       ],
       "network_access": true,
@@ -122,9 +56,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue367_r2v7.post_publication_binding",
-      "command": "after the v7 Draft PR yields its actual GitHub PR number, derive archive/pr347_v3.json only from the locked-base inherited PR347 active intent and prove byte-for-byte Git-blob identity; bind active.json exactly once to the actual v7 PR using schema v3, raw 64-hex v7 Decision and Command Plan digests, locked base 9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf, workflow_profile baseline, exact baseline workflows, merge method merge, equal_to_accepted_head_tree, and bounded expiry; commit only the two binding paths; before the second push run the complete tests/platform_v1/test_contracts.py and require POST_BINDING current-v7 identity, actual PR, schema3, base, plan, and profile checks pass; rerun the focused governance/landing tests, transition-lint, publication readiness, and git diff --check; then perform the second normal push; neither issue 367, closed PR378, nor terminal v5 or v6 may substitute for the actual v7 PR number",
-      "phase": "post_publication_binding",
+      "command_id": "issue367_pr416_owner_landing_r2v1.mark_ready",
+      "command": "after exact readback of unchanged PR416 head base active schema-v3 attestation Ruleset landing context and zero unresolved threads mark PR416 Ready exactly once",
+      "phase": "landing",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
@@ -132,9 +66,8 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "commit",
-        "push",
-        "network_access"
+        "network_access",
+        "mark_ready"
       ],
       "network_access": true,
       "diagnostic_only": false,
@@ -143,15 +76,34 @@
       "bootstrap_exception": false,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr347_v3.json"
-      ]
+      "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue367_r2v7.final_evidence_sync",
-      "command": "after the v7 binding commit and second push, obtain current Draft PR event facts read-only and record bootstrap_state.json bytes; run the final local transition-preflight with write_result=True on the exact named branch and supplied Draft event; require PRE_EXECUTION_AUTHORIZED, current branch identity, zero blockers, and byte-identical bootstrap_state.json; require git diff --name-only to contain only project_state/gates/transition_preflight_result.json and forbid the artifact from claiming the commit that contains itself; commit that single final evidence file, rerun transition-lint, worktree-publication-readiness, focused tests, and git diff --check, then perform the third and final normal push; require fresh exact-head CI, State Gate, and Decision Preflight and stop for independent audit",
-      "phase": "final_evidence",
+      "command_id": "issue367_pr416_owner_landing_r2v1.verify_ready",
+      "command": "observe the newly triggered formal landing-state-gate and Ready State Gate reach terminal success on unchanged PR416 head with all required contexts successful",
+      "phase": "landing_evidence",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "remote_observation",
+      "operations": [
+        "code_read"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue367_pr416_owner_landing_r2v1.merge",
+      "command": "after immediate reobservation merge PR416 exactly once with merge method merge and expected head 6f5012dc664543fbd0c7bc9486c3c9bf9f4672a6",
+      "phase": "landing",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
@@ -159,28 +111,43 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "local_static_check",
-        "unit_test",
-        "commit",
-        "push",
-        "network_access"
+        "network_access",
+        "merge"
       ],
       "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": true,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
-      "produced_artifacts": [
-        "project_state/gates/transition_preflight_result.json"
-      ],
+      "produced_artifacts": [],
       "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/gates/transition_preflight_result.json"
-      ]
+      "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.b563ff49b72d24ab0bdec785647599a35f40b518429b47431963fa616e5ce08f",
-      "command": "verify exact main base 9f5fa5a7c9846352346daf44c2d063bf8f6fb3bf and fresh branch merge-base",
+      "command_id": "issue367_pr416_owner_landing_r2v1.postmerge_verify",
+      "command": "observe PR416 merged exact merge commit parent topology and natural exact-new-main CI push plus State Gate push terminal success before closure",
+      "phase": "final_evidence",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "remote_observation",
+      "operations": [
+        "code_read"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.62c266b8e478521bad336f4f2268a354ef04aaeebc6e0896fa1651d043a6472f",
+      "command": "verify exact main base PR416 head audit attestation Ruleset required contexts and zero unresolved review threads",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -199,8 +166,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.234f8ef150ef2c4adfece3cb131177275c83ffd977f9e1a451805af4525ea5d0",
-      "command": "commit this immutable R2 Decision as the unique first commit",
+      "command_id": "bootstrap.dc09278eedcc4f4dc4a108ead71ef669be6e69c9a8cf528feeb54ff80f7dcac9",
+      "command": "commit this immutable R2 Owner landing Decision as the unique first commit",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
