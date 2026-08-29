@@ -137,18 +137,29 @@ export function ConnectionBindingEditor({
     );
   }, [connection, creating, view, connDraft]);
 
+  const discardingConfiguredCredential =
+    !!connection &&
+    !creating &&
+    view === "connection" &&
+    connection.authMethod === "api_key" &&
+    connection.credentialConfigured &&
+    connDraft.authMethod !== "api_key";
+
   const authorityChangeUnresolved =
-    authorityChanged &&
-    connDraft.authMethod === "api_key" &&
-    !connApiKey &&
-    !connDraft.apiKeyEnv &&
-    !connClearSecret;
+    (authorityChanged &&
+      connDraft.authMethod === "api_key" &&
+      !connApiKey &&
+      !connDraft.apiKeyEnv &&
+      !connClearSecret) ||
+    (discardingConfiguredCredential && !connClearSecret);
 
   async function handleConnectionSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (authorityChangeUnresolved) {
       setConnError(
-        "正在修改认证相关配置（Provider / Base URL / 认证方式）。保存前需要：填写新的 API Key 或环境变量引用、勾选“清除已保存密钥”，或还原上述修改。",
+        discardingConfiguredCredential
+          ? "当前连接仍配置了 API Key 凭据。切换到其他认证方式前必须明确勾选“清除已保存密钥”。"
+          : "正在修改认证相关配置（Provider / Base URL / 认证方式）。保存前需要：填写新的 API Key 或环境变量引用、勾选“清除已保存密钥”，或还原上述修改。",
       );
       return;
     }
@@ -281,7 +292,11 @@ export function ConnectionBindingEditor({
                 onChange={(event) => {
                   const authMethod = event.target.value as AuthMethod;
                   setConnDraft((d) => ({ ...d, authMethod }));
-                  if (authMethod !== "api_key") setConnApiKey("");
+                  if (authMethod !== "api_key") {
+                    setConnApiKey("");
+                  } else {
+                    setConnClearSecret(false);
+                  }
                 }}
                 className={inputClass}
               >
@@ -316,9 +331,9 @@ export function ConnectionBindingEditor({
                   className={inputClass}
                   autoComplete="new-password"
                   placeholder={
-                    savedApiKeyStatus === "missing"
-                      ? "尚未配置"
-                      : "已配置；留空表示不替换"
+                    connection?.credentialConfigured
+                      ? "已配置；留空表示不替换"
+                      : "尚未配置"
                   }
                 />
               </Field>
@@ -358,16 +373,21 @@ export function ConnectionBindingEditor({
             启用该连接
           </label>
 
-          {authorityChanged && connDraft.authMethod === "api_key" && (
+          {(authorityChanged && connDraft.authMethod === "api_key") ||
+          discardingConfiguredCredential ? (
             <div
               data-testid="connection-authority-change-notice"
               className="rounded-md border border-ra-border bg-ra-tertiary px-3 py-2 text-xs text-ra-text-secondary"
             >
               <p>
-                正在修改认证相关配置（Provider / Base URL / 认证方式）。保存前需要明确选择：
+                {discardingConfiguredCredential
+                  ? "当前认证方式变更会丢弃已配置的 API Key 凭据。保存前必须明确确认清除。"
+                  : "正在修改认证相关配置（Provider / Base URL / 认证方式）。保存前需要明确选择："}
               </p>
               <p className="mt-1 text-ra-text-tertiary">
-                填写新的 API Key 或环境变量引用；或勾选下方“清除已保存密钥”；或还原上述修改。留空保存不会沿用旧密钥。
+                {discardingConfiguredCredential
+                  ? "该确认仅表示允许删除服务端已配置的凭据；浏览器不会读取密钥或环境变量名。"
+                  : "填写新的 API Key 或环境变量引用；或勾选下方“清除已保存密钥”；或还原上述修改。留空保存不会沿用旧密钥。"}
               </p>
               <label className="mt-2 inline-flex items-center gap-2 text-xs text-ra-text-secondary">
                 <input
@@ -378,7 +398,7 @@ export function ConnectionBindingEditor({
                 清除已保存密钥（clear_secret）
               </label>
             </div>
-          )}
+          ) : null}
 
           {connError && (
             <p role="alert" className="text-sm text-red-300">
@@ -667,9 +687,9 @@ function apiKeyStatusLabel(status: Connection["secretStatus"]): string {
     case "environment":
       return "已配置（环境变量）";
     case "missing":
-      return "仅本次提交";
+      return "当前不可用";
     case "not_applicable":
-      return "仅本次提交";
+      return "不适用";
   }
 }
 
