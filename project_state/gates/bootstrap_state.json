@@ -1,6 +1,6 @@
 {
-  "status": "BOOTSTRAP_OPEN",
-  "decision_id": "decision_20260828_issue48_model_access_task_check_landing_r2_v1",
-  "round_id": "round_20260828_issue48_model_access_task_check_landing_r2_v1",
-  "expired_at": ""
+  "status": "BOOTSTRAP_EXPIRED",
+  "decision_id": "decision_20260829_issue367_ruleset_landing_context_r2_v1",
+  "round_id": "round_20260829_issue367_ruleset_landing_context_r2_v1",
+  "expired_at": "2026-08-29T09:24:49+00:00"
 }
