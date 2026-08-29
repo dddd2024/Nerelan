@@ -1,9 +1,244 @@
 # Decision Packet
 
 ```json decision_meta
-{"schema_version":1,"decision_id":"decision_20260828_issue48_model_access_task_check_landing_r2_v1","round_id":"round_20260828_issue48_model_access_task_check_landing_r2_v1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260829_issue367_pr416_owner_landing_r2_v1",
+  "round_id": "round_20260829_issue367_pr416_owner_landing_r2_v1",
+  "status": "APPROVED",
+  "mainline": "engineering_branch",
+  "skill_profiles": ["reverse-agent-iteration@v2"]
+}
 ```
 
 ```json decision_contract
-{"transition_kernel_required":true,"follows_last_decision_id":"decision_20260826_issue367_engineering_landing_boundary_r2_v7","follows_last_round_id":"round_20260826_issue367_engineering_landing_boundary_r2_v7","previous_audit_outcome":"ISSUE48_R2_V3_EXACT_HEAD_ACCEPTED_PR404_96938398FA2473BE183489E41573DE33452879F4","workstream_id":"issue48-model-access-task-check-landing-r2-v1","source_issue":48,"parent_issue":397,"integration_base_ref":"main","base_sha":"113002d8298c27ec7dcb598075376153fa86d87d","activation_base_sha":"113002d8298c27ec7dcb598075376153fa86d87d","starting_head":"113002d8298c27ec7dcb598075376153fa86d87d","required_branch":"owner/issue48-model-access-task-check-landing-r2-v1","risk_tier":"R2","governance_artifact_risk_tier":"R2","authorized_risk_tier":"R2","authorized_risk_paths":["project_state/decision_packet.md","project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/bootstrap_state.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json","project_state/mainline_merge_intents/active.json","project_state/mainline_merge_intents/archive/pr382_v3.json","reverse_agent/control_plane/path_a.py"],"workflow_profile":"baseline","decision_commit_must_precede_implementation":true,"decision_content_immutable_after_activation":true,"decision_immutability_required":true,"decision_activation_commit_limit":1,"product_change_commit_limit":1,"generated_governance_commit_limit":2,"post_publication_binding_commit_limit":1,"normal_push_attempt_limit":3,"draft_pr_creation_limit":1,"workflow_rerun_limit":0,"runner_dispatch_limit":0,"live_model_call_limit":0,"provider_network_call_limit":0,"credential_access_limit":0,"mark_ready_attempt_limit":0,"merge_attempt_limit":0,"pr_creation_allowed":true,"issue_comment_allowed":true,"pull_request_comment_allowed":true,"merge_allowed":false,"mark_ready_allowed":false,"workflow_rerun_allowed":false,"runner_dispatch_allowed":false,"direct_push_to_main_allowed":false,"auto_merge_allowed":false,"force_push_allowed":false,"rebase_during_execution_allowed":false,"dependency_install_allowed":false,"known_browser_execution_allowed":false,"live_provider_access_allowed":false,"credential_access_allowed":false,"allowed_merge_method":"merge","mainline_merge_intent_required":true,"active_pr_binding_mode":"post_draft_pr_exact_remote_number","issue_number_must_not_substitute_for_pr_number":true,"test_semantics_changes_allowed":false,"landing_revalidation_required_for_actions":["ready_for_review"],"landing_revalidation_required_when_draft":false,"owner_attestation_required_for_ready_state":true,"attestation_head_must_match_current_pr_head":true,"ready_state_synchronize_must_revalidate":true,"converted_to_draft_returns_to_draft_semantics":true,"malformed_event_path_fail_closed":true,"bootstrap_exception_files":["project_state/decision_packet.md","project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/bootstrap_state.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"],"bootstrap_exception_commands":["verify exact main base 113002d8298c27ec7dcb598075376153fa86d87d and fresh branch merge-base","verify PR #404 exact accepted head 96938398fa2473be183489e41573de33452879f4 remains immutable accepted evidence","commit this immutable R2 landing Decision as the unique first commit","python -m reverse_agent.project_gate startup-snapshot --state-dir project_state","python -m reverse_agent.project_gate transition-command-plan --state-dir project_state","python -m reverse_agent.project_gate transition-lint --state-dir project_state","python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre","python -m reverse_agent.project_gate worktree-publication-readiness --state-dir project_state"],"allowed_commands":[{"command_id":"issue48_landing_r2v1.replay_accepted_candidate","command":"replay byte-equivalently from accepted PR #404 exact head 96938398fa2473be183489e41573de33452879f4 only reverse_agent/control_plane/path_a.py and tests/test_path_a_gate.py onto locked main; no semantic expansion or additional source paths","phase":"implementation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["source_edit","unit_test","local_static_check","commit"],"network_access":false,"required_evidence_source":"local_command_evidence","allowed_mutated_paths":["reverse_agent/control_plane/path_a.py","tests/test_path_a_gate.py"]},{"command_id":"issue48_landing_r2v1.validate_and_publish_draft","command":"run focused Path-A tests, tests/test_connection_binding.py, transition/governance tests and git diff --check; push exact branch once and create one Draft PR against locked main; require fresh exact-head CI, State Gate and Decision Preflight before independent audit","phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["unit_test","lint","local_static_check","push","draft_pr","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","allowed_only_after_validation":true},{"command_id":"issue48_landing_r2v1.post_publication_binding","command":"after the Draft PR yields its actual GitHub PR number, archive inherited active schema-v3 PR382 intent byte-for-byte to project_state/mainline_merge_intents/archive/pr382_v3.json and bind active.json exactly once to the actual successor PR, locked base, current Decision digest, current Command Plan digest, workflow profile baseline, required workflows CI/Decision Preflight/State Gate (pull_request), merge method merge, equal_to_accepted_head_tree and bounded expiry; no issue number may substitute for PR number","phase":"post_publication_binding","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["commit","push","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","allowed_only_after_validation":true,"allowed_mutated_paths":["project_state/mainline_merge_intents/active.json","project_state/mainline_merge_intents/archive/pr382_v3.json"]},{"command_id":"issue48_landing_r2v1.final_exact_head_acceptance","command":"after post-publication binding, require exact-head CI, State Gate and Decision Preflight success, zero unresolved review threads, unchanged locked base and accepted replay tree; record independent Owner acceptance and structured Owner merge attestation before any Ready or merge action; implementation actor has no Ready or merge authority","phase":"final_evidence","required":true,"expected_exit_codes":[0],"execution_surface":"remote_observation","operations":["code_read"],"network_access":false,"required_evidence_source":"repository_state_attestation"}],"allowed_source_paths":["reverse_agent/control_plane/path_a.py","tests/test_path_a_gate.py"],"allowed_mutated_paths":["project_state/decision_packet.md","project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/bootstrap_state.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json","reverse_agent/control_plane/path_a.py","tests/test_path_a_gate.py","project_state/mainline_merge_intents/active.json","project_state/mainline_merge_intents/archive/pr382_v3.json"],"reference_paths":["AGENTS.md",".github/workflows/state-gate.yml",".github/workflows/decision-preflight.yml",".github/workflows/ci.yml","reverse_agent/model_access/**","tests/test_connection_binding.py","reverse_agent/project_gate.py","reverse_agent/mainline_landing.py"],"generated_artifact_paths":["project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/bootstrap_state.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"],"forbidden_mutated_paths":["AGENTS.md","docs/**",".github/workflows/**",".github/actions/**",".codex-skills/**","requirements*.txt","pyproject.toml","reverse_agent/model_access/**","tests/test_connection_binding.py","reverse_agent/project_gate.py","reverse_agent/decision_preflight.py","reverse_agent/project_ci.py","reverse_agent/project_jobs.py","reverse_agent/github_adapter.py","reverse_agent/architecture/**","reverse_agent/base_platform/**","reverse_agent/platform_v1/**","frontend/**"],"capability_policy":{"runner_dispatch_allowed":false,"model_api_invocation_allowed":false,"external_reverse_tool_invocation_allowed":false,"unknown_binary_execution_allowed":false,"destructive_operations_allowed":false,"bmad_installation_allowed":false,"network_access_default_allowed":false,"local_network_exceptions":["run focused Path-A tests, tests/test_connection_binding.py, transition/governance tests and git diff --check; push exact branch once and create one Draft PR against locked main; require fresh exact-head CI, State Gate and Decision Preflight before independent audit","after the Draft PR yields its actual GitHub PR number, archive inherited active schema-v3 PR382 intent byte-for-byte to project_state/mainline_merge_intents/archive/pr382_v3.json and bind active.json exactly once to the actual successor PR, locked base, current Decision digest, current Command Plan digest, workflow profile baseline, required workflows CI/Decision Preflight/State Gate (pull_request), merge method merge, equal_to_accepted_head_tree and bounded expiry; no issue number may substitute for PR number"],"ci_network_exceptions":[],"remote_observation_read_only_allowed":true,"direct_push_to_main_allowed":false,"merge_allowed":false,"force_push_allowed":false,"rebase_during_execution_allowed":false,"tag_or_release_allowed":false},"path_risk_floor":[{"pattern":"project_state/**","minimum_risk":"R2"},{"pattern":"reverse_agent/control_plane/**","minimum_risk":"R2"},{"pattern":".github/workflows/**","minimum_risk":"R2"},{"pattern":"**/secrets/**","minimum_risk":"R3"}]}
+{
+  "transition_kernel_required": true,
+  "follows_last_decision_id": "decision_20260829_issue367_ruleset_landing_context_r2_v1",
+  "follows_last_round_id": "round_20260829_issue367_ruleset_landing_context_r2_v1",
+  "previous_audit_outcome": "PR416_FINAL_DRAFT_HEAD_ACCEPTED_ATTESTED_AND_LANDING_CONTEXT_SERVER_REQUIRED",
+  "workstream_id": "issue367-pr416-owner-landing-r2-v1",
+  "source_issue": 367,
+  "source_pr": 416,
+  "integration_base_ref": "main",
+  "base_sha": "fa2265478b7e1da61e121a3c7193a3cb8c797802",
+  "activation_base_sha": "fa2265478b7e1da61e121a3c7193a3cb8c797802",
+  "starting_head": "fa2265478b7e1da61e121a3c7193a3cb8c797802",
+  "accepted_exact_head_sha": "6f5012dc664543fbd0c7bc9486c3c9bf9f4672a6",
+  "required_branch": "owner/issue367-pr416-owner-landing-r2-v1",
+  "risk_tier": "R2",
+  "governance_artifact_risk_tier": "R2",
+  "authorized_risk_tier": "R2",
+  "authorized_risk_paths": [
+    "project_state/decision_packet.md",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
+  "workflow_profile": "baseline",
+  "decision_commit_must_precede_execution": true,
+  "decision_content_immutable_after_activation": true,
+  "decision_immutability_required": true,
+  "decision_activation_commit_limit": 1,
+  "generated_governance_commit_limit": 1,
+  "normal_push_attempt_limit": 1,
+  "draft_pr_creation_limit": 0,
+  "workflow_rerun_limit": 0,
+  "runner_dispatch_limit": 0,
+  "mark_ready_attempt_limit": 1,
+  "merge_attempt_limit": 1,
+  "live_model_call_limit": 0,
+  "provider_network_call_limit": 0,
+  "credential_access_limit": 0,
+  "pr_creation_allowed": false,
+  "issue_comment_allowed": true,
+  "pull_request_comment_allowed": true,
+  "merge_allowed": true,
+  "mark_ready_allowed": true,
+  "workflow_rerun_allowed": false,
+  "runner_dispatch_allowed": false,
+  "direct_push_to_main_allowed": false,
+  "auto_merge_allowed": false,
+  "force_push_allowed": false,
+  "rebase_during_execution_allowed": false,
+  "dependency_install_allowed": false,
+  "known_browser_execution_allowed": false,
+  "live_provider_access_allowed": false,
+  "credential_access_allowed": false,
+  "allowed_merge_method": "merge",
+  "expected_head_protection_required": true,
+  "independent_audit_comment_id": 5460343440,
+  "owner_attestation_comment_id": 5461547685,
+  "owner_attestation_expires_at": "2026-08-29T12:30:00Z",
+  "ruleset_id": 21023698,
+  "required_status_contexts": ["baseline", "state-gate", "landing-state-gate"],
+  "required_draft_workflow_runs": {
+    "CI": 33233582508,
+    "Decision Preflight": 33233582442,
+    "State Gate (pull_request)": 33233582448
+  },
+  "landing_revalidation_required_for_actions": ["ready_for_review"],
+  "formal_landing_context_must_be_success_before_merge": true,
+  "natural_new_main_ci_required": true,
+  "natural_new_main_state_gate_required": true,
+  "bootstrap_exception_files": [
+    "project_state/decision_packet.md",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
+  "bootstrap_exception_commands": [
+    "verify exact main base PR416 head audit attestation Ruleset required contexts and zero unresolved review threads",
+    "commit this immutable R2 Owner landing Decision as the unique first commit",
+    "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+    "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+    "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
+    "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
+    "python -m reverse_agent.project_gate worktree-publication-readiness --state-dir project_state"
+  ],
+  "allowed_commands": [
+    {
+      "command_id": "issue367_pr416_owner_landing_r2v1.materialize_authority",
+      "command": "run the repository-owned startup snapshot command-plan compiler transition lint and preflight locally then commit only the five declared generated gate artifacts",
+      "phase": "gate",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["local_static_check", "commit"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/gates/bootstrap_state.json",
+        "project_state/gates/transition_command_plan_preview.json",
+        "project_state/gates/transition_preflight_result.json"
+      ]
+    },
+    {
+      "command_id": "issue367_pr416_owner_landing_r2v1.publish_authority",
+      "command": "push the exact Owner landing authority branch once and verify remote commit identity",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["push", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue367_pr416_owner_landing_r2v1.mark_ready",
+      "command": "after exact readback of unchanged PR416 head base active schema-v3 attestation Ruleset landing context and zero unresolved threads mark PR416 Ready exactly once",
+      "phase": "landing",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["network_access", "mark_ready"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue367_pr416_owner_landing_r2v1.verify_ready",
+      "command": "observe the newly triggered formal landing-state-gate and Ready State Gate reach terminal success on unchanged PR416 head with all required contexts successful",
+      "phase": "landing_evidence",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "remote_observation",
+      "operations": ["code_read"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "issue367_pr416_owner_landing_r2v1.merge",
+      "command": "after immediate reobservation merge PR416 exactly once with merge method merge and expected head 6f5012dc664543fbd0c7bc9486c3c9bf9f4672a6",
+      "phase": "landing",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["network_access", "merge"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue367_pr416_owner_landing_r2v1.postmerge_verify",
+      "command": "observe PR416 merged exact merge commit parent topology and natural exact-new-main CI push plus State Gate push terminal success before closure",
+      "phase": "final_evidence",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "remote_observation",
+      "operations": ["code_read"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    }
+  ],
+  "allowed_source_paths": [],
+  "allowed_mutated_paths": [
+    "project_state/decision_packet.md",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
+  "reference_paths": [
+    "AGENTS.md",
+    ".github/workflows/state-gate.yml",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/github_remote_verifier.py",
+    "project_state/mainline_merge_intents/active.json"
+  ],
+  "generated_artifact_paths": [
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
+  "forbidden_mutated_paths": [
+    "AGENTS.md",
+    ".github/**",
+    ".codex-skills/**",
+    "docs/**",
+    "requirements*.txt",
+    "pyproject.toml",
+    "reverse_agent/**",
+    "frontend/**",
+    "tests/**",
+    "project_state/mainline_merge_intents/**"
+  ],
+  "capability_policy": {
+    "runner_dispatch_allowed": false,
+    "model_api_invocation_allowed": false,
+    "external_reverse_tool_invocation_allowed": false,
+    "unknown_binary_execution_allowed": false,
+    "destructive_operations_allowed": false,
+    "bmad_installation_allowed": false,
+    "network_access_default_allowed": false,
+    "local_network_exceptions": [
+      "push the exact Owner landing authority branch once and verify remote commit identity",
+      "after exact readback of unchanged PR416 head base active schema-v3 attestation Ruleset landing context and zero unresolved threads mark PR416 Ready exactly once",
+      "after immediate reobservation merge PR416 exactly once with merge method merge and expected head 6f5012dc664543fbd0c7bc9486c3c9bf9f4672a6"
+    ],
+    "ci_network_exceptions": [],
+    "remote_observation_read_only_allowed": true,
+    "direct_push_to_main_allowed": false,
+    "merge_allowed": true,
+    "force_push_allowed": false,
+    "rebase_during_execution_allowed": false,
+    "tag_or_release_allowed": false
+  },
+  "path_risk_floor": [
+    {"pattern": "project_state/**", "minimum_risk": "R2"},
+    {"pattern": ".github/workflows/**", "minimum_risk": "R2"},
+    {"pattern": "**/secrets/**", "minimum_risk": "R3"}
+  ]
+}
 ```
