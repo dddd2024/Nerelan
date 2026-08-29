@@ -1090,3 +1090,135 @@ def test_host_starts_inert_unattended_coordinator_only_when_explicitly_enabled(t
         assert status["executions"] == 0
     finally:
         host.stop()
+
+
+# ===================================================================
+# ISSUE385 — trusted-host serving-loop ownership regressions
+# ===================================================================
+
+def test_start_owns_exactly_one_thread_per_server(tmp_path) -> None:
+    host = CombinedTrustedHost(task_store=_make_store(tmp_path))
+    try:
+        host.start(model_control_port=0, task_api_port=0)
+        assert len(host._threads) == 3
+        assert len(host._started_servers) == 3
+        assert len({id(server) for server in host._started_servers}) == 3
+        assert all(thread.is_alive() for thread in host._threads)
+    finally:
+        host.stop()
+
+
+def test_partial_startup_failure_closes_created_listener(tmp_path, monkeypatch) -> None:
+    import reverse_agent.platform_v1.trusted_host as trusted_host_module
+    import reverse_agent.model_access.credential_relay as credential_relay_module
+
+    created_servers = []
+    real_server = trusted_host_module.ThreadingHTTPServer
+
+    def recording_server(*args, **kwargs):
+        server = real_server(*args, **kwargs)
+        created_servers.append(server)
+        return server
+
+    def fail_relay(**kwargs):
+        raise RuntimeError("relay_start_failed")
+
+    monkeypatch.setattr(trusted_host_module, "ThreadingHTTPServer", recording_server)
+    monkeypatch.setattr(
+        credential_relay_module,
+        "run_credential_relay_server",
+        fail_relay,
+    )
+
+    host = CombinedTrustedHost(task_store=_make_store(tmp_path))
+    with pytest.raises(RuntimeError, match="relay_start_failed"):
+        host.start(model_control_port=0, task_api_port=0)
+
+    assert len(created_servers) == 1
+    closed_port = created_servers[0].server_address[1]
+    assert host._model_server is None
+    assert host._task_server is None
+    assert host._threads == []
+    assert host._started_servers == []
+
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.bind(("127.0.0.1", closed_port))
+    finally:
+        probe.close()
+
+    host.stop()
+
+
+def test_stop_orders_shutdown_before_join_and_close(tmp_path) -> None:
+    events: list[str] = []
+
+    class FakeServer:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def shutdown(self) -> None:
+            events.append(f"shutdown:{self.name}")
+
+        def server_close(self) -> None:
+            events.append(f"close:{self.name}")
+
+    class FakeThread:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def join(self, timeout: float | None = None) -> None:
+            events.append(f"join:{self.name}:{timeout}")
+
+    host = CombinedTrustedHost(task_store=_make_store(tmp_path))
+    model = FakeServer("model")
+    task = FakeServer("task")
+    relay = FakeServer("relay")
+    host._model_server = model
+    host._task_server = task
+    host._relay_server_inner = relay
+    host._started_servers = [model, task, relay]
+    host._threads = [FakeThread("model"), FakeThread("task"), FakeThread("relay")]
+
+    host.stop()
+
+    first_join = next(i for i, event in enumerate(events) if event.startswith("join:"))
+    last_shutdown = max(i for i, event in enumerate(events) if event.startswith("shutdown:"))
+    first_close = next(i for i, event in enumerate(events) if event.startswith("close:"))
+    last_join = max(i for i, event in enumerate(events) if event.startswith("join:"))
+    assert last_shutdown < first_join
+    assert last_join < first_close
+    assert host._model_server is None
+    assert host._task_server is None
+    assert host._relay_server_inner is None
+
+
+def test_run_combined_trusted_host_waits_then_stops_once(tmp_path, monkeypatch) -> None:
+    import reverse_agent.platform_v1.trusted_host as trusted_host_module
+
+    events: list[str] = []
+
+    class FakeHost:
+        def __init__(self, **kwargs) -> None:
+            self.model_control_url = "http://127.0.0.1:10001"
+            self.task_api_url = "http://127.0.0.1:10002"
+            self.relay_url = "http://127.0.0.1:10003"
+
+        def start(self) -> None:
+            events.append("start")
+
+        def wait(self) -> None:
+            events.append("wait")
+            raise KeyboardInterrupt()
+
+        def stop(self) -> None:
+            events.append("stop")
+
+    monkeypatch.setattr(trusted_host_module, "CombinedTrustedHost", FakeHost)
+    monkeypatch.setenv("REVERSE_AGENT_TASK_DB_DIR", str(tmp_path))
+    monkeypatch.setenv("REVERSE_AGENT_EXECUTION_AUTHORITY_SHA", "auth-385")
+    monkeypatch.setenv("REVERSE_AGENT_PLANNING_SHA", "plan-385")
+
+    trusted_host_module.run_combined_trusted_host()
+
+    assert events == ["start", "wait", "stop"]
