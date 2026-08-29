@@ -142,6 +142,13 @@ class _StoredConnection:
     external_session_status: str = "not_applicable"
 
     @property
+    def credential_configured(self) -> bool:
+        return (
+            self.connection.auth_method == "api_key"
+            and bool(self.api_key or self.api_key_env)
+        )
+
+    @property
     def secret_status(self) -> str:
         if self.connection.auth_method != "api_key":
             return "not_applicable"
@@ -153,6 +160,7 @@ class _StoredConnection:
 
     def public(self) -> dict[str, Any]:
         return self.connection.to_public_dict(
+            credential_configured=self.credential_configured,
             secret_status=self.secret_status,
             external_session_status=self.external_session_status,
         )
@@ -334,6 +342,16 @@ class ModelProfileStore:
                         "raw session credentials are not accepted for this auth_method"
                     )
                 _reject_raw_session_credentials(payload)
+                if (
+                    existing is not None
+                    and existing.connection.auth_method == "api_key"
+                    and existing.credential_configured
+                    and not clear_secret
+                ):
+                    raise ValueError(
+                        "configured API-key credential would be discarded; "
+                        "clear_secret=true is required"
+                    )
                 api_key = None
                 api_key_env = None
                 if connection.auth_method in {"account_login", "external_cli_session"}:

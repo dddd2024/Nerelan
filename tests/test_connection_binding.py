@@ -95,6 +95,7 @@ def test_fake_api_key_is_process_local_and_public_connection_is_sanitized() -> N
 
     public = store.upsert_connection(connection_payload(api_key=raw_key))
 
+    assert public["credential_configured"] is True
     assert public["secret_status"] == "session"
     assert public["external_session_status"] == "not_applicable"
     assert raw_key not in json.dumps(public)
@@ -113,6 +114,7 @@ def test_environment_secret_reference_exposes_status_not_reference(
     )
 
     serialized = json.dumps(public)
+    assert public["credential_configured"] is True
     assert public["secret_status"] == "environment"
     assert "CONNECTION_BINDING_FAKE_KEY" not in serialized
     assert "fake-env-secret" not in serialized
@@ -132,6 +134,7 @@ def test_external_auth_methods_represent_status_without_accepting_token(
         )
     )
 
+    assert public["credential_configured"] is False
     assert public["external_session_status"] == "executor_managed"
     assert public["secret_status"] == "not_applicable"
     with pytest.raises(ValueError, match="external_session_status"):
@@ -160,14 +163,18 @@ def test_external_auth_methods_represent_status_without_accepting_token(
         )
 
 
-def test_changing_auth_method_resets_incompatible_secret_status() -> None:
+def test_changing_auth_method_requires_explicit_clear_for_configured_secret() -> None:
     store = ModelProfileStore()
     store.upsert_connection(connection_payload(api_key="fake-key-not-real"))
 
+    with pytest.raises(ValueError, match="clear_secret"):
+        store.upsert_connection(connection_payload(auth_method="account_login"))
+
     public = store.upsert_connection(
-        connection_payload(auth_method="account_login")
+        connection_payload(auth_method="account_login", clear_secret=True)
     )
 
+    assert public["credential_configured"] is False
     assert public["secret_status"] == "not_applicable"
     assert public["external_session_status"] == "executor_managed"
     assert store.resolve_connection_secret("sense-api") is None
@@ -278,6 +285,7 @@ def test_connection_and_executor_endpoints_return_sanitized_structures(
     )
     assert status == 200
     assert created["connection_id"] == "sense-api"
+    assert created["credential_configured"] is True
     assert created["secret_status"] == "session"
     assert raw_key not in json.dumps(created)
 
@@ -546,6 +554,7 @@ def test_raw_api_key_never_persisted_and_missing_after_restart(tmp_path) -> None
 
     fresh = ModelProfileStore(state_path=sp)
     listed = fresh.list_connections_public()
+    assert listed[0]["credential_configured"] is False
     assert listed[0]["secret_status"] == "missing"
     assert fresh.resolve_connection_secret("sense-api") is None
 
@@ -566,11 +575,13 @@ def test_api_key_env_only_persists_name_never_value(tmp_path, monkeypatch) -> No
 
     monkeypatch.setenv(env_name, "FRESH-ENV-VALUE")
     fresh = ModelProfileStore(state_path=sp)
+    assert fresh.list_connections_public()[0]["credential_configured"] is True
     assert fresh.list_connections_public()[0]["secret_status"] == "environment"
     assert fresh.resolve_connection_secret("sense-api") == "FRESH-ENV-VALUE"
 
     monkeypatch.delenv(env_name)
     fresh2 = ModelProfileStore(state_path=sp)
+    assert fresh2.list_connections_public()[0]["credential_configured"] is True
     assert fresh2.list_connections_public()[0]["secret_status"] == "missing"
     assert fresh2.resolve_connection_secret("sense-api") is None
 
@@ -770,6 +781,7 @@ def test_process_local_store_still_works_without_state_path(tmp_path) -> None:
     store.upsert_binding(binding_payload())
 
     public = store.list_connections_public()
+    assert public[0]["credential_configured"] is True
     assert public[0]["secret_status"] == "session"
     assert store.resolve_connection_secret("sense-api") == "local-only-key"
 
@@ -925,7 +937,7 @@ def test_executor_managed_external_session_resets_when_authority_changes(tmp_pat
 
 
 def test_executor_managed_external_session_resets_from_api_key_to_external(tmp_path) -> None:
-    """Switching an existing api_key connection to external auth resets to executor_managed."""
+    """Switching an existing api_key connection to external auth requires explicit clear."""
     sp = _state_path(tmp_path)
     store = ModelProfileStore(state_path=sp)
     store.upsert_connection(
@@ -937,13 +949,24 @@ def test_executor_managed_external_session_resets_from_api_key_to_external(tmp_p
     )
     assert store.get_connection_public("sense-api")["external_session_status"] == "not_applicable"
 
+    with pytest.raises(ValueError, match="clear_secret"):
+        store.upsert_connection(
+            connection_payload(
+                connection_id="sense-api",
+                auth_method="external_cli_session",
+                provider="sensetime",
+            ),
+        )
+
     store.upsert_connection(
         connection_payload(
             connection_id="sense-api",
             auth_method="external_cli_session",
             provider="sensetime",
+            clear_secret=True,
         ),
     )
+    assert store.get_connection_public("sense-api")["credential_configured"] is False
     assert store.get_connection_public("sense-api")["external_session_status"] == "executor_managed"
     assert store.get_connection_public("sense-api")["secret_status"] == "not_applicable"
     assert store.resolve_connection_secret("sense-api") is None
@@ -969,6 +992,7 @@ def test_executor_managed_external_session_resets_from_external_to_api_key(tmp_p
             api_key="fake-key-not-real",
         ),
     )
+    assert store.get_connection_public("persisted-external-conn")["credential_configured"] is True
     assert store.get_connection_public("persisted-external-conn")["external_session_status"] == "not_applicable"
     assert store.get_connection_public("persisted-external-conn")["secret_status"] == "session"
 
@@ -1013,6 +1037,7 @@ def test_refresh_external_session_status_does_not_mutate_api_key_status(tmp_path
 
     store.refresh_external_session_status({"sensetime": "api"})
     conn = store.get_connection_public("sense-api")
+    assert conn["credential_configured"] is True
     assert conn["external_session_status"] == "not_applicable"
     assert conn["secret_status"] == "session"
     assert store.resolve_connection_secret("sense-api") == "fresh-in-memory-key"
