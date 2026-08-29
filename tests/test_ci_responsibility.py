@@ -134,6 +134,31 @@ def test_state_gate_pull_request_target_bootstrap_job_present() -> None:
     assert "bootstrap-authority:" in content
 
 
+def test_state_gate_has_distinct_non_skipped_landing_context() -> None:
+    """Draft checks must not satisfy the Ready-stage required context."""
+
+    content = _read_state_gate()
+    start = content.index("  landing-state-gate:")
+    end = content.index("\n  bootstrap-authority:", start)
+    block = content[start:end]
+    header = block.split("    steps:", 1)[0]
+
+    assert "name: >-" in header
+    assert "'landing-state-gate'" in header
+    assert "'landing-state-gate-draft-inert'" in header
+    assert "github.event.action == 'converted_to_draft'" in header
+    assert "github.event.pull_request.draft == false" in header
+    assert "    if: github.event_name == 'pull_request'" in header
+    assert "    if: github.event.pull_request.draft == false" not in header
+
+    assert "Invalidate converted-to-Draft landing context" in block
+    assert "exit 1" in block
+    assert "steps.landing_control_plane.outputs.mode == 'path_a_r1'" in block
+    assert "steps.landing_control_plane.outputs.mode == 'transition'" in block
+    assert 'path-a-r1-gate --event-path "$GITHUB_EVENT_PATH"' in block
+    assert 'transition-preflight --state-dir project_state --event-path "$GITHUB_EVENT_PATH"' in block
+
+
 def test_state_gate_transition_preflight_receives_event_path_and_github_read_context() -> None:
     """The transition step must carry the PR event and bounded GitHub env."""
 

@@ -222,6 +222,79 @@ jobs:
             project_state/pytest_result.txt
             ${{ runner.temp }}/mainline_integration_receipt.json
 
+  landing-state-gate:
+    # A conditionally skipped required job reports Success. Keep this job alive
+    # and vary only its display context so a Draft cannot pre-satisfy landing.
+    name: >-
+      ${{ github.event_name == 'pull_request' &&
+          (github.event.action == 'converted_to_draft' || github.event.pull_request.draft == false) &&
+          'landing-state-gate' || 'landing-state-gate-draft-inert' }}
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Preserve engineering Draft context
+        if: github.event.pull_request.draft && github.event.action != 'converted_to_draft'
+        run: echo "Engineering Draft; formal landing context intentionally absent."
+
+      - name: Invalidate converted-to-Draft landing context
+        if: github.event.action == 'converted_to_draft'
+        shell: bash
+        run: |
+          echo "Landing authority revoked by conversion to Draft." >&2
+          exit 1
+
+      - name: Checkout exact landing candidate
+        if: github.event.pull_request.draft == false
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python for landing validation
+        if: github.event.pull_request.draft == false
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install package for landing validation
+        if: github.event.pull_request.draft == false
+        run: python -m pip install -e ".[test]"
+
+      - name: Detect landing control-plane mode
+        if: github.event.pull_request.draft == false
+        id: landing_control_plane
+        shell: bash
+        run: echo "mode=$(python -m reverse_agent.project_gate control-plane-mode --state-dir project_state --event-path \"$GITHUB_EVENT_PATH\")" >> "$GITHUB_OUTPUT"
+
+      - name: Landing Path-A R1 gate
+        if: github.event.pull_request.draft == false && steps.landing_control_plane.outputs.mode == 'path_a_r1'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python -m reverse_agent.project_gate path-a-r1-gate --event-path "$GITHUB_EVENT_PATH" --repository "$GITHUB_REPOSITORY"
+
+      - name: Landing transition lint
+        if: github.event.pull_request.draft == false && steps.landing_control_plane.outputs.mode == 'transition'
+        run: python -m reverse_agent.project_gate transition-lint --state-dir project_state
+
+      - name: Landing transition command plan
+        if: github.event.pull_request.draft == false && steps.landing_control_plane.outputs.mode == 'transition'
+        run: python -m reverse_agent.project_gate transition-command-plan --state-dir project_state
+
+      - name: Landing transition preflight
+        if: github.event.pull_request.draft == false && steps.landing_control_plane.outputs.mode == 'transition'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python -m reverse_agent.project_gate transition-preflight --state-dir project_state --event-path "$GITHUB_EVENT_PATH"
+
+      - name: Reject legacy landing mode
+        if: github.event.pull_request.draft == false && steps.landing_control_plane.outputs.mode == 'legacy'
+        run: |
+          echo "Legacy authority cannot satisfy landing-state-gate." >&2
+          exit 1
+
   bootstrap-authority:
     if: >-
       github.event_name == 'pull_request_target' &&

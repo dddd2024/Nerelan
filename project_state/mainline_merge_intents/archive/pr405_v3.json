@@ -1,0 +1,21 @@
+{
+  "schema_version": 3,
+  "intent_id": "pr405_issue48_model_access_task_check_landing_r2_v1",
+  "repository": "dddd2024/reverse-agent",
+  "source_pr": 405,
+  "locked_base_sha": "113002d8298c27ec7dcb598075376153fa86d87d",
+  "allowed_merge_method": "merge",
+  "decision_identity": {
+    "decision_id": "decision_20260828_issue48_model_access_task_check_landing_r2_v1",
+    "decision_content_sha256": "efafa3b1d25d4a752e267340fe0580aed648f44b89b063f8215493ddbec936e0"
+  },
+  "command_plan_sha256": "1b4f6a013e9b35db0b6a2076306187c4910e85e9096b1c0f0fa50b67476519c2",
+  "merge_tree_policy": "equal_to_accepted_head_tree",
+  "workflow_profile": "baseline",
+  "required_workflows": [
+    "CI",
+    "Decision Preflight",
+    "State Gate (pull_request)"
+  ],
+  "expires_at": "2026-09-04T23:59:59Z"
+}
