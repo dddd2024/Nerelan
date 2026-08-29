@@ -355,6 +355,12 @@ def _collect_changed_files(worktree: Path, task_id: str) -> list[dict[str, Any]]
 # ExecutorRouter
 # ---------------------------------------------------------------------------
 
+def _normalize_executor_kind(kind: str) -> str:
+    if not isinstance(kind, str) or not kind.strip():
+        raise ExecutorRuntimeError("executor_kind_must_be_non_empty")
+    return kind.strip().casefold()
+
+
 class ExecutorRouter:
     """Dispatch to the registered executor for a given executor_kind."""
 
@@ -367,9 +373,10 @@ class ExecutorRouter:
         }
 
     def register(self, kind: str, factory: Callable[..., Executor]) -> None:
-        if not isinstance(kind, str) or not kind.strip():
-            raise ExecutorRuntimeError("executor_kind_must_be_non_empty")
-        self._registry[kind] = factory
+        normalized_kind = _normalize_executor_kind(kind)
+        if normalized_kind in self._registry:
+            raise ExecutorRuntimeError(f"duplicate_executor_kind:{normalized_kind}")
+        self._registry[normalized_kind] = factory
 
     def dispatch_execute(
         self,
@@ -381,9 +388,10 @@ class ExecutorRouter:
         event_callback: ExecutorCallback | None = None,
         **executor_kwargs: Any,
     ) -> FixtureExecutorResult:
-        factory = self._registry.get(executor_kind)
+        normalized_kind = _normalize_executor_kind(executor_kind)
+        factory = self._registry.get(normalized_kind)
         if factory is None:
-            raise ExecutorRuntimeError(f"unknown_executor_kind:{executor_kind}")
+            raise ExecutorRuntimeError(f"unknown_executor_kind:{normalized_kind}")
         return factory(**executor_kwargs).execute(
             task_id,
             store,
@@ -403,7 +411,8 @@ class ExecutorRouter:
         executor and call its bounded prepare/execute-role methods for the
         shared-workspace sequential planner->coder->reviewer flow.
         """
-        factory = self._registry.get(executor_kind)
+        normalized_kind = _normalize_executor_kind(executor_kind)
+        factory = self._registry.get(normalized_kind)
         if factory is None:
-            raise ExecutorRuntimeError(f"unknown_executor_kind:{executor_kind}")
+            raise ExecutorRuntimeError(f"unknown_executor_kind:{normalized_kind}")
         return factory(**executor_kwargs)

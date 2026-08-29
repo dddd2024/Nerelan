@@ -125,7 +125,7 @@ def test_validation_runner_runs_git_diff_check() -> None:
         assert len(digest) == 64
 
 
-def test_registration_allows_new_executor_kind() -> None:
+def test_registration_allows_new_executor_kind_and_normalizes_lookup() -> None:
     router = ExecutorRouter()
 
     class DummyExecutor:
@@ -143,12 +143,87 @@ def test_registration_allows_new_executor_kind() -> None:
                 execution_id="exec-dummy",
             )
 
-    router.register("dummy", lambda: DummyExecutor())
+    router.register(" Dummy ", lambda: DummyExecutor())
     with tempfile.TemporaryDirectory() as td:
         result = router.dispatch_execute(
             task_id="task-r6",
             store=TaskStore(":memory:"),
-            executor_kind="dummy",
+            executor_kind="DUMMY",
             workspace_root=td,
         )
         assert result.validation_command_id == "noop"
+
+
+def test_registration_rejects_duplicate_normalized_kind_and_preserves_factory() -> None:
+    router = ExecutorRouter()
+
+    class FirstExecutor:
+        def execute(self, task_id, store, *, workspace_root="", event_callback=None):
+            from reverse_agent.platform_v1.task_runtime import FixtureExecutorResult
+
+            return FixtureExecutorResult(
+                success=True,
+                validation_exit_code=0,
+                validation_command_id="first",
+                validation_output_digest="first",
+                validation_output_summary="",
+                execution_id="exec-first",
+            )
+
+    class ReplacementExecutor(FirstExecutor):
+        pass
+
+    first_factory = lambda: FirstExecutor()
+    router.register("custom", first_factory)
+
+    with pytest.raises(ExecutorRuntimeError, match=r"^duplicate_executor_kind:custom$"):
+        router.register(" CUSTOM ", lambda: ReplacementExecutor())
+
+    assert router._registry["custom"] is first_factory
+    with tempfile.TemporaryDirectory() as td:
+        result = router.dispatch_execute(
+            task_id="task-duplicate-custom",
+            store=TaskStore(":memory:"),
+            executor_kind=" Custom ",
+            workspace_root=td,
+        )
+    assert result.validation_command_id == "first"
+
+
+def test_registration_cannot_shadow_builtin_opencode_alias() -> None:
+    from reverse_agent.platform_v1.opencode_executor import OpenCodeExecutor
+
+    router = ExecutorRouter()
+    original_factory = router._registry["opencode"]
+
+    with pytest.raises(ExecutorRuntimeError, match=r"^duplicate_executor_kind:opencode$"):
+        router.register(" OPENCODE ", lambda: object())
+
+    assert router._registry["opencode"] is original_factory
+    executor = router.create_executor(
+        executor_kind=" OpenCode ",
+        model_id="sensetime/sensenova-6.7-flash-lite",
+        opencode_exe="/fake/opencode",
+    )
+    assert isinstance(executor, OpenCodeExecutor)
+
+
+def test_registration_cannot_shadow_builtin_fixture_alias() -> None:
+    router = ExecutorRouter()
+    original_factory = router._registry["deterministic_fixture"]
+
+    with pytest.raises(
+        ExecutorRuntimeError,
+        match=r"^duplicate_executor_kind:deterministic_fixture$",
+    ):
+        router.register(" DETERMINISTIC_FIXTURE ", lambda: object())
+
+    assert router._registry["deterministic_fixture"] is original_factory
+    with tempfile.TemporaryDirectory() as td:
+        result = router.dispatch_execute(
+            task_id="task-fixture-alias",
+            store=TaskStore(":memory:"),
+            executor_kind=" Deterministic_Fixture ",
+            workspace_root=td,
+        )
+    assert result.success is True
