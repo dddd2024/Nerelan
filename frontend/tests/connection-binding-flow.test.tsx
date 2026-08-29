@@ -10,6 +10,7 @@ import type {
   ConnectionInput,
 } from "@/schemas/model-access";
 import {
+  createHttpModelControlClient,
   getDefaultModelControlClient,
   resetDefaultModelControlClientForTests,
 } from "@/lib/model-control-client";
@@ -93,6 +94,37 @@ describe("settings Connection + Binding flow", () => {
     expect(await screen.findByText("绑定已保存")).toBeInTheDocument();
 
     expect(screen.queryByText(DUMMY_SECRET)).not.toBeInTheDocument();
+  });
+
+  it("normalizes configured credential truth without exposing the env reference", async () => {
+    const envReference = "SENSITIVE_ENV_REFERENCE_MUST_STAY_SERVER_SIDE";
+    const mockFetch = vi.fn(async () =>
+      new Response(
+        JSON.stringify([
+          {
+            connection_id: "configured-missing",
+            name: "Configured but unavailable",
+            provider: "openai-compatible",
+            base_url: "https://api.example.test/v1",
+            auth_method: "api_key",
+            enabled: true,
+            credential_configured: true,
+            secret_status: "missing",
+            external_session_status: "not_applicable",
+            api_key_env: envReference,
+          },
+        ]),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", mockFetch);
+
+    const [connection] = await createHttpModelControlClient().listConnections();
+
+    expect(connection.credentialConfigured).toBe(true);
+    expect(connection.secretStatus).toBe("missing");
+    expect(JSON.stringify(connection)).not.toContain(envReference);
+    expect(connection).not.toHaveProperty("apiKeyEnv");
   });
 });
 
@@ -568,6 +600,7 @@ describe("Connection verify button state", () => {
       baseUrl: "http://localhost:4000/v1",
       authMethod: "api_key",
       enabled: true,
+      credentialConfigured: true,
       secretStatus: "environment",
       externalSessionStatus: "not_applicable",
     };
@@ -632,6 +665,7 @@ describe("Connection verify button state", () => {
       baseUrl: "http://localhost:4000/v1",
       authMethod: "api_key",
       enabled: true,
+      credentialConfigured: true,
       secretStatus: "environment",
       externalSessionStatus: "not_applicable",
     };
@@ -822,6 +856,7 @@ describe("auth-method-aware Connection verification UI", () => {
         baseUrl: "https://api.example.com/v1",
         authMethod,
         enabled: true,
+        credentialConfigured: false,
         secretStatus: "not_applicable",
         externalSessionStatus: "executor_managed",
       };
@@ -845,6 +880,7 @@ describe("auth-method-aware Connection verification UI", () => {
       baseUrl: "https://api.example.com/v1",
       authMethod: "none",
       enabled: true,
+      credentialConfigured: false,
       secretStatus: "not_applicable",
       externalSessionStatus: "not_applicable",
     };
@@ -864,6 +900,7 @@ describe("auth-method-aware Connection verification UI", () => {
       baseUrl: "http://localhost:4000/v1",
       authMethod: "api_key",
       enabled: true,
+      credentialConfigured: false,
       secretStatus: "missing",
       externalSessionStatus: "not_applicable",
     };
@@ -886,6 +923,7 @@ describe("auth-method-aware Connection verification UI", () => {
       baseUrl: "https://api.example.com/v1",
       authMethod: "none",
       enabled: false,
+      credentialConfigured: false,
       secretStatus: "not_applicable",
       externalSessionStatus: "not_applicable",
     };
@@ -898,6 +936,79 @@ describe("auth-method-aware Connection verification UI", () => {
     ).toHaveTextContent(/连接已禁用/);
   });
 
+  it("requires explicit clear when configured credential authority is runtime-missing", async () => {
+    const connection: Connection = {
+      connectionId: "configured-missing-ui",
+      name: "Configured Missing",
+      provider: "openai-compatible",
+      baseUrl: "https://api.example.com/v1",
+      authMethod: "api_key",
+      enabled: true,
+      credentialConfigured: true,
+      secretStatus: "missing",
+      externalSessionStatus: "not_applicable",
+    };
+    const save = vi.fn(async (_input: ConnectionInput) => undefined);
+    const user = userEvent.setup();
+
+    renderConnection(connection, { onConnectionSave: save });
+
+    expect(screen.getByLabelText("API Key")).toHaveAttribute(
+      "placeholder",
+      "已配置；留空表示不替换",
+    );
+    await user.selectOptions(screen.getByLabelText("认证方式"), "none");
+
+    expect(
+      screen.getByTestId("connection-authority-change-notice"),
+    ).toHaveTextContent(/会丢弃已配置的 API Key 凭据/);
+    await user.click(screen.getByRole("button", { name: "保存连接" }));
+    expect(
+      await screen.findByText(/切换到其他认证方式前必须明确勾选/),
+    ).toBeInTheDocument();
+    expect(save).not.toHaveBeenCalled();
+
+    await user.click(screen.getByText("清除已保存密钥（clear_secret）"));
+    await user.click(screen.getByRole("button", { name: "保存连接" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0][0]).toMatchObject({
+      authMethod: "none",
+      clearSecret: true,
+    });
+  });
+
+  it("invalidates a pending destructive clear after reverting to api_key", async () => {
+    const connection: Connection = {
+      connectionId: "clear-revert-ui",
+      name: "Clear Revert",
+      provider: "openai-compatible",
+      baseUrl: "https://api.example.com/v1",
+      authMethod: "api_key",
+      enabled: true,
+      credentialConfigured: true,
+      secretStatus: "missing",
+      externalSessionStatus: "not_applicable",
+    };
+    const save = vi.fn(async (_input: ConnectionInput) => undefined);
+    const user = userEvent.setup();
+
+    renderConnection(connection, { onConnectionSave: save });
+
+    await user.selectOptions(screen.getByLabelText("认证方式"), "none");
+    await user.click(screen.getByText("清除已保存密钥（clear_secret）"));
+    await user.selectOptions(screen.getByLabelText("认证方式"), "api_key");
+
+    expect(
+      screen.queryByTestId("connection-authority-change-notice"),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "保存连接" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0][0].authMethod).toBe("api_key");
+    expect(save.mock.calls[0][0].clearSecret).toBeUndefined();
+  });
+
   it("clears an unsaved API Key when auth changes away from api_key", async () => {
     const connection: Connection = {
       connectionId: "clear-hidden-key-ui",
@@ -906,7 +1017,8 @@ describe("auth-method-aware Connection verification UI", () => {
       baseUrl: "http://localhost:4000/v1",
       authMethod: "api_key",
       enabled: true,
-      secretStatus: "environment",
+      credentialConfigured: false,
+      secretStatus: "missing",
       externalSessionStatus: "not_applicable",
     };
     const save = vi.fn(async (_input: ConnectionInput) => undefined);
@@ -935,6 +1047,7 @@ describe("auth-method-aware Connection verification UI", () => {
       baseUrl: "http://localhost:4000/v1",
       authMethod: "api_key",
       enabled: true,
+      credentialConfigured: true,
       secretStatus: "environment",
       externalSessionStatus: "not_applicable",
     };
@@ -961,6 +1074,7 @@ describe("auth-method-aware Connection verification UI", () => {
       baseUrl: "https://api.sensetime.com/v1",
       authMethod: "api_key",
       enabled: true,
+      credentialConfigured: true,
       secretStatus: "environment",
       externalSessionStatus: "not_applicable",
     };
@@ -981,6 +1095,7 @@ describe("auth-method-aware Connection verification UI", () => {
       baseUrl: "https://api.sensetime.com/v1",
       authMethod: "none",
       enabled: true,
+      credentialConfigured: false,
       secretStatus: "not_applicable",
       externalSessionStatus: "not_applicable",
     };
@@ -1005,6 +1120,7 @@ describe("auth-method-aware Connection verification UI", () => {
       baseUrl: "http://localhost:4000/v1",
       authMethod: "api_key",
       enabled: true,
+      credentialConfigured: true,
       secretStatus: "environment",
       externalSessionStatus: "not_applicable",
     };
@@ -1047,6 +1163,7 @@ describe("auth-method-aware Connection verification UI", () => {
       baseUrl: "http://localhost:4000/v1",
       authMethod: "api_key",
       enabled: true,
+      credentialConfigured: true,
       secretStatus: "environment",
       externalSessionStatus: "not_applicable",
     };
@@ -1080,6 +1197,7 @@ describe("auth-method-aware Connection verification UI", () => {
       baseUrl: "http://localhost:4000/v1",
       authMethod: "api_key",
       enabled: true,
+      credentialConfigured: true,
       secretStatus: "environment",
       externalSessionStatus: "not_applicable",
     };
@@ -1114,6 +1232,7 @@ describe("auth-method-aware Connection verification UI", () => {
         baseUrl: "https://api.example.com/v1",
         authMethod: "external_cli_session",
         enabled: true,
+        credentialConfigured: false,
         secretStatus: "not_applicable",
         externalSessionStatus: status,
       };
