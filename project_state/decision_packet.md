@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260829_issue367_landing_stage_check_identity_r2_v11",
-  "round_id": "round_20260829_issue367_landing_stage_check_identity_r2_v11",
+  "decision_id": "decision_20260830_issue423_windows_platform_ci_r2_v1",
+  "round_id": "round_20260830_issue423_windows_platform_ci_r2_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,16 +14,16 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260828_issue48_model_access_task_check_landing_r2_v1",
-  "follows_last_round_id": "round_20260828_issue48_model_access_task_check_landing_r2_v1",
-  "previous_audit_outcome": "PR414_V10_TERMINAL_INVALID_EXECUTION_SURFACE_BEFORE_SEMANTIC_MUTATION",
-  "workstream_id": "issue367-landing-stage-check-identity-r2-v11",
-  "source_issue": 367,
+  "follows_last_decision_id": "decision_20260829_issue367_landing_stage_check_identity_r2_v11",
+  "follows_last_round_id": "round_20260829_issue367_landing_stage_check_identity_r2_v11",
+  "previous_audit_outcome": "PR424_R1_REJECTED_WORKFLOW_PATH_REQUIRES_R2",
+  "workstream_id": "issue423-windows-platform-ci-r2-v1",
+  "source_issue": 423,
   "integration_base_ref": "main",
-  "base_sha": "fa2265478b7e1da61e121a3c7193a3cb8c797802",
-  "activation_base_sha": "fa2265478b7e1da61e121a3c7193a3cb8c797802",
-  "starting_head": "fa2265478b7e1da61e121a3c7193a3cb8c797802",
-  "required_branch": "owner/issue367-engineering-landing-boundary-r2-v11",
+  "base_sha": "24fb827ab6c161267b7f4041f4b2b3f424c1ddfa",
+  "activation_base_sha": "24fb827ab6c161267b7f4041f4b2b3f424c1ddfa",
+  "starting_head": "24fb827ab6c161267b7f4041f4b2b3f424c1ddfa",
+  "required_branch": "owner/issue423-windows-platform-ci-r2-v1",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "authorized_risk_tier": "R2",
@@ -34,10 +34,7 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr405_v3.json",
-    ".github/workflows/state-gate.yml",
-    "tests/test_ci_responsibility.py"
+    ".github/workflows/windows-platform-v1.yml"
   ],
   "workflow_profile": "baseline",
   "decision_commit_must_precede_implementation": true,
@@ -45,9 +42,9 @@
   "decision_immutability_required": true,
   "decision_activation_commit_limit": 1,
   "product_change_commit_limit": 1,
-  "generated_governance_commit_limit": 2,
-  "post_publication_binding_commit_limit": 1,
-  "normal_push_attempt_limit": 3,
+  "generated_governance_commit_limit": 1,
+  "post_publication_binding_commit_limit": 0,
+  "normal_push_attempt_limit": 2,
   "draft_pr_creation_limit": 1,
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
@@ -72,17 +69,8 @@
   "live_provider_access_allowed": false,
   "credential_access_allowed": false,
   "allowed_merge_method": "merge",
-  "mainline_merge_intent_required": true,
-  "active_pr_binding_mode": "post_draft_pr_exact_remote_number",
-  "issue_number_must_not_substitute_for_pr_number": true,
+  "mainline_merge_intent_required": false,
   "test_semantics_changes_allowed": false,
-  "landing_revalidation_required_for_actions": ["ready_for_review"],
-  "landing_revalidation_required_when_draft": true,
-  "owner_attestation_required_for_ready_state": true,
-  "attestation_head_must_match_current_pr_head": true,
-  "ready_state_synchronize_must_revalidate": true,
-  "converted_to_draft_returns_to_draft_semantics": true,
-  "malformed_event_path_fail_closed": true,
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
@@ -92,8 +80,8 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
-    "verify exact main base fa2265478b7e1da61e121a3c7193a3cb8c797802 and fresh branch merge-base",
-    "verify PR #405 ready-stage and post-merge failure evidence remains immutable",
+    "verify exact main base 24fb827ab6c161267b7f4041f4b2b3f424c1ddfa and fresh branch merge-base",
+    "verify PR #424 remains closed unmerged negative evidence",
     "commit this immutable R2 Decision as the unique first commit",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
@@ -103,15 +91,15 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "issue367_r2v11.materialize_activation_packet",
-      "command": "run the repository-owned startup snapshot command-plan compiler transition lint and preflight locally; materialize the exact v11 activation packet and commit only the five declared generated gate artifacts",
+      "command_id": "issue423_r2v1.materialize_activation_packet",
+      "command": "run the repository-owned startup snapshot command-plan compiler transition lint and preflight; materialize the exact activation packet and commit only the five declared generated gate artifacts",
       "phase": "gate",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["local_static_check", "commit"],
       "network_access": false,
-      "required_evidence_source": "local_command_evidence",
+      "required_evidence_source": "local_provenance",
       "allowed_mutated_paths": [
         "project_state/gates/command_plan.json",
         "project_state/gates/startup_snapshot.json",
@@ -121,60 +109,43 @@
       ]
     },
     {
-      "command_id": "issue367_r2v11.implement_landing_context",
-      "command": "add one distinct landing-stage GitHub Actions job context in .github/workflows/state-gate.yml that cannot be satisfied by earlier Draft-stage state-gate success on the same SHA; reuse existing transition and Path-A validation kernels; update only tests/test_ci_responsibility.py for deterministic workflow responsibility regression",
+      "command_id": "issue423_r2v1.implement_windows_ci",
+      "command": "add the single specialized .github/workflows/windows-platform-v1.yml workflow using windows-latest and run python -m pytest tests/platform_v1/test_dev_up_contract.py -q without false-green controls",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["source_edit", "unit_test", "local_static_check", "commit"],
+      "operations": ["source_edit", "local_static_check", "commit"],
       "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "allowed_mutated_paths": [".github/workflows/state-gate.yml", "tests/test_ci_responsibility.py"]
+      "required_evidence_source": "local_provenance",
+      "allowed_mutated_paths": [".github/workflows/windows-platform-v1.yml"]
     },
     {
-      "command_id": "issue367_r2v11.validate_publish",
-      "command": "run deterministic CI responsibility and governance regression locally then push the exact branch and create one Draft PR against locked main; require fresh baseline State Gate and Decision Preflight before independent audit",
+      "command_id": "issue423_r2v1.validate_publish",
+      "command": "validate workflow syntax and repository governance then push the exact branch create one Draft PR against locked main and require fresh CI State Gate Decision Preflight plus the Windows hosted job",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["unit_test", "lint", "local_static_check", "push", "draft_pr", "network_access"],
+      "operations": ["local_static_check", "push", "draft_pr", "network_access"],
       "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
+      "required_evidence_source": "repository_truth",
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue367_r2v11.post_publication_binding",
-      "command": "after Draft PR publication archive the existing schema-v3 PR405 landing intent byte-for-byte and bind active intent exactly once to the actual PR number locked base current Decision current Command Plan workflow profile and merge policy",
-      "phase": "post_publication_binding",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["commit", "push", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_only_after_validation": true,
-      "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr405_v3.json"
-      ]
-    },
-    {
-      "command_id": "issue367_r2v11.final_exact_head_acceptance",
-      "command": "require exact-head baseline State Gate Decision Preflight and distinct landing-stage context evidence plus zero unresolved threads and unchanged locked base before Owner landing lifecycle",
+      "command_id": "issue423_r2v1.final_exact_head_acceptance",
+      "command": "require exact-head CI State Gate Decision Preflight and Windows hosted launcher lifecycle test success with zero unauthorized paths before independent Owner audit",
       "phase": "final_evidence",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "remote_observation",
       "operations": ["code_read"],
       "network_access": false,
-      "required_evidence_source": "repository_state_attestation"
+      "required_evidence_source": "repository_truth"
     }
   ],
   "allowed_source_paths": [
-    ".github/workflows/state-gate.yml",
-    "tests/test_ci_responsibility.py"
+    ".github/workflows/windows-platform-v1.yml"
   ],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
@@ -183,21 +154,20 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    ".github/workflows/state-gate.yml",
-    "tests/test_ci_responsibility.py",
-    "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr405_v3.json"
+    ".github/workflows/windows-platform-v1.yml"
   ],
   "reference_paths": [
     "AGENTS.md",
+    ".github/workflows/ci.yml",
+    ".github/workflows/state-gate.yml",
     "reverse_agent/project_gate.py",
     "reverse_agent/control_plane/transition.py",
     "reverse_agent/control_plane/models.py",
-    "reverse_agent/mainline_landing.py",
-    "tests/test_project_gate.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_mainline_landing.py",
-    "tests/platform_v1/test_merge_intent.py"
+    "tests/test_ci_responsibility.py",
+    "tests/platform_v1/test_dev_up_contract.py",
+    "launch_reverse_agent.bat",
+    "dev-up.ps1",
+    "dev-down.ps1"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -211,17 +181,21 @@
     "docs/**",
     ".github/actions/**",
     ".github/workflows/ci.yml",
+    ".github/workflows/state-gate.yml",
     ".github/workflows/decision-preflight.yml",
+    ".github/workflows/frontend-playwright.yml",
+    ".github/workflows/model-access.yml",
+    ".github/workflows/freshness.yml",
     ".codex-skills/**",
     "requirements*.txt",
     "pyproject.toml",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/control_plane/**",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/model_access/**",
-    "reverse_agent/base_platform/**",
-    "reverse_agent/platform_v1/**",
-    "frontend/**"
+    "reverse_agent/**",
+    "tests/**",
+    "frontend/**",
+    "launch_reverse_agent.bat",
+    "dev-up.ps1",
+    "dev-down.ps1",
+    "project_state/mainline_merge_intents/**"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -232,8 +206,7 @@
     "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
     "local_network_exceptions": [
-      "run deterministic CI responsibility and governance regression locally then push the exact branch and create one Draft PR against locked main; require fresh baseline State Gate and Decision Preflight before independent audit",
-      "after Draft PR publication archive the existing schema-v3 PR405 landing intent byte-for-byte and bind active intent exactly once to the actual PR number locked base current Decision current Command Plan workflow profile and merge policy"
+      "validate workflow syntax and repository governance then push the exact branch create one Draft PR against locked main and require fresh CI State Gate Decision Preflight plus the Windows hosted job"
     ],
     "ci_network_exceptions": [],
     "remote_observation_read_only_allowed": true,
