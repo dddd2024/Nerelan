@@ -159,6 +159,29 @@ def test_state_gate_has_distinct_non_skipped_landing_context() -> None:
     assert 'transition-preflight --state-dir project_state --event-path "$GITHUB_EVENT_PATH"' in block
 
 
+def test_state_gate_mode_detection_fails_before_writing_output() -> None:
+    """A detector failure must not be hidden by a successful echo command."""
+
+    content = _read_state_gate()
+    expected_assignment = (
+        'mode="$(python -m reverse_agent.project_gate control-plane-mode '
+        '--state-dir project_state --event-path "$GITHUB_EVENT_PATH")"'
+    )
+    expected_output = 'echo "mode=$mode" >> "$GITHUB_OUTPUT"'
+
+    for marker in (
+        "      - name: Detect control-plane mode",
+        "      - name: Detect landing control-plane mode",
+    ):
+        block = content.split(marker, 1)[1].split("      - name:", 1)[0]
+        assert "run: |" in block
+        assert expected_assignment in block
+        assert expected_output in block
+        assert block.index(expected_assignment) < block.index(expected_output)
+        assert 'run: echo "mode=$(python' not in block
+        assert '\\"$GITHUB_EVENT_PATH\\"' not in block
+
+
 def test_state_gate_transition_preflight_receives_event_path_and_github_read_context() -> None:
     """The transition step must carry the PR event and bounded GitHub env."""
 
