@@ -1,5 +1,5 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0dev-up.ps1" -RepoDir "%~dp0" -SourceDir "%~dp0"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0dev-up.ps1" %*
 if errorlevel 1 pause

@@ -81,6 +81,15 @@ def test_desktop_launcher_starts_platform_stack_not_legacy_solver() -> None:
     assert "app.py" not in lowered
 
 
+def test_desktop_launcher_delegates_path_resolution_and_forwards_options() -> None:
+    """The thin batch adapter must leave script-root resolution to dev-up."""
+    assert '-repodir "%~dp0"' not in _LAUNCHER.lower()
+    assert '-sourcedir "%~dp0"' not in _LAUNCHER.lower()
+    assert "%*" in _LAUNCHER, "developer-supplied dev-up options must be forwarded"
+    assert "-nobrowser" not in _LAUNCHER.lower(), \
+        "the default desktop launch must retain dev-up's browser behavior"
+
+
 def test_frontend_api_bases_are_set() -> None:
     assert '"VITE_TASK_API_BASE"' in _DEV_UP
     assert '"VITE_MODEL_CONTROL_API_BASE"' in _DEV_UP
@@ -677,8 +686,10 @@ def _free_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def _setup_stub_stack(tmp_path: Path) -> tuple[Path, dict, dict]:
-    repo = tmp_path / "repo"
+def _setup_stub_stack(
+    tmp_path: Path, *, repo_name: str = "repo"
+) -> tuple[Path, dict, dict]:
+    repo = tmp_path / repo_name
     (repo / "frontend" / "node_modules").mkdir(parents=True)
     stub_dir = tmp_path / "stubbin"
     stub_dir.mkdir()
@@ -717,6 +728,21 @@ def _run_dev_up(repo: Path, env: dict, ports: dict, timeout: int = 180) -> subpr
             "-NoBrowser",
         ],
         capture_output=True, text=True, timeout=timeout, env=env, cwd=str(repo),
+    )
+
+
+def _run_launcher(repo: Path, env: dict, ports: dict, timeout: int = 180) -> subprocess.CompletedProcess:
+    launcher = repo / LAUNCHER.name
+    return subprocess.run(
+        [
+            "cmd.exe", "/d", "/c", str(launcher),
+            "-FrontendPort", str(ports["frontend"]),
+            "-TaskApiPort", str(ports["task"]),
+            "-ModelControlPort", str(ports["model"]),
+            "-NoBrowser",
+        ],
+        capture_output=True, text=True, encoding="utf-8",
+        timeout=timeout, env=env, cwd=str(repo),
     )
 
 
@@ -789,6 +815,53 @@ def test_dev_up_five_consecutive_runs_are_idempotent(tmp_path: Path) -> None:
     down = _run_dev_down(repo, env)
     assert down.returncode == 0, f"dev-down failed:\n{down.stdout}\n{down.stderr}"
     _assert_ports_free(ports)
+
+
+@requires_windows_powershell
+def test_desktop_launcher_five_runs_from_spaced_unicode_path(tmp_path: Path) -> None:
+    """The real .bat entrypoint must work repeatedly from a realistic Windows path."""
+    repo, env, ports = _setup_stub_stack(tmp_path, repo_name="repo space 启动")
+    shutil.copy2(DEV_UP, repo / DEV_UP.name)
+    shutil.copy2(LAUNCHER, repo / LAUNCHER.name)
+    runtime_dir = repo / ".platform_v1_runtime"
+    pid_file = runtime_dir / "devup_pids.json"
+    first_record: str | None = None
+
+    try:
+        for run_index in range(1, 6):
+            result = _run_launcher(repo, env, ports)
+            combined = result.stdout + result.stderr
+            assert result.returncode == 0, (
+                f"launcher run {run_index} failed:\nstdout={result.stdout}\n"
+                f"stderr={result.stderr}"
+            )
+            assert "路径中具有非法字符" not in combined
+            assert "Illegal characters in path" not in combined
+
+            if run_index == 1:
+                assert result.stdout.count("started pid=") == 2, result.stdout
+                first_record = pid_file.read_text(encoding="utf-8-sig")
+                record = json.loads(first_record)
+                assert len(record["children"]) == 2
+                assert Path(record["repo_dir"]) == repo.resolve()
+                assert Path(record["source_dir"]) == repo.resolve()
+                assert "%~dp0" not in record["repo_dir"]
+                assert "%~dp0" not in record["source_dir"]
+            else:
+                assert "reusing recorded runtime" in result.stdout, result.stdout
+                assert "started pid=" not in result.stdout, result.stdout
+                assert pid_file.read_text(encoding="utf-8-sig") == first_record
+
+        assert runtime_dir.is_dir()
+        assert not (runtime_dir / ".platform_v1_runtime").exists()
+        _assert_ports_reachable(ports)
+    finally:
+        if pid_file.exists():
+            down = _run_dev_down(repo, env)
+            assert down.returncode == 0, (
+                f"dev-down failed:\nstdout={down.stdout}\nstderr={down.stderr}"
+            )
+            _assert_ports_free(ports)
 
 
 @requires_windows_powershell
