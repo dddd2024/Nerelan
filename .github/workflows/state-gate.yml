@@ -68,7 +68,9 @@ jobs:
       - name: Detect control-plane mode
         id: control_plane
         shell: bash
-        run: echo "mode=$(python -m reverse_agent.project_gate control-plane-mode --state-dir project_state --event-path "$GITHUB_EVENT_PATH")" >> "$GITHUB_OUTPUT"
+        run: |
+          mode="$(python -m reverse_agent.project_gate control-plane-mode --state-dir project_state --event-path "$GITHUB_EVENT_PATH")"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
 
       - name: Path-A R1 gate
         if: steps.control_plane.outputs.mode == 'path_a_r1'
@@ -266,7 +268,9 @@ jobs:
         if: github.event.pull_request.draft == false
         id: landing_control_plane
         shell: bash
-        run: echo "mode=$(python -m reverse_agent.project_gate control-plane-mode --state-dir project_state --event-path \"$GITHUB_EVENT_PATH\")" >> "$GITHUB_OUTPUT"
+        run: |
+          mode="$(python -m reverse_agent.project_gate control-plane-mode --state-dir project_state --event-path "$GITHUB_EVENT_PATH")"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
 
       - name: Landing Path-A R1 gate
         if: github.event.pull_request.draft == false && steps.landing_control_plane.outputs.mode == 'path_a_r1'

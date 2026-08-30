@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260829_issue367_landing_stage_check_identity_r2_v11",
-  "round_id": "round_20260829_issue367_landing_stage_check_identity_r2_v11",
+  "decision_id": "decision_20260830_issue367_landing_mode_fail_closed_r2_v12",
+  "round_id": "round_20260830_issue367_landing_mode_fail_closed_r2_v12",
   "commands": [
     {
-      "command_id": "issue367_r2v11.materialize_activation_packet",
-      "command": "run the repository-owned startup snapshot command-plan compiler transition lint and preflight locally; materialize the exact v11 activation packet and commit only the five declared generated gate artifacts",
+      "command_id": "issue367_r2v12.materialize_activation_packet",
+      "command": "run the repository-owned startup snapshot command-plan compiler transition lint and preflight locally; materialize the exact v12 activation packet and commit only the five declared generated gate artifacts",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -33,8 +33,8 @@
       ]
     },
     {
-      "command_id": "issue367_r2v11.implement_landing_context",
-      "command": "add one distinct landing-stage GitHub Actions job context in .github/workflows/state-gate.yml that cannot be satisfied by earlier Draft-stage state-gate success on the same SHA; reuse existing transition and Path-A validation kernels; update only tests/test_ci_responsibility.py for deterministic workflow responsibility regression",
+      "command_id": "issue367_r2v12.implement_fail_closed_mode_detection",
+      "command": "make both existing State Gate control-plane mode detectors fail before writing GitHub output when the repository-owned detector fails; remove the landing detector literal-quote event-path bug; reuse the existing validation kernels and update only tests/test_ci_responsibility.py for exact shell-shape and fail-closed responsibility regression",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -61,7 +61,7 @@
       ]
     },
     {
-      "command_id": "issue367_r2v11.validate_publish",
+      "command_id": "issue367_r2v12.validate_publish",
       "command": "run deterministic CI responsibility and governance regression locally then push the exact branch and create one Draft PR against locked main; require fresh baseline State Gate and Decision Preflight before independent audit",
       "phase": "publication",
       "required": true,
@@ -88,8 +88,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue367_r2v11.post_publication_binding",
-      "command": "after Draft PR publication archive the existing schema-v3 PR405 landing intent byte-for-byte and bind active intent exactly once to the actual PR number locked base current Decision current Command Plan workflow profile and merge policy",
+      "command_id": "issue367_r2v12.post_publication_binding",
+      "command": "after Draft PR publication archive the existing schema-v3 PR416 landing intent byte-for-byte and bind active intent exactly once to the actual PR number locked base current Decision current Command Plan workflow profile and merge policy",
       "phase": "post_publication_binding",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -111,12 +111,12 @@
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
         "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr405_v3.json"
+        "project_state/mainline_merge_intents/archive/pr416_v3.json"
       ]
     },
     {
-      "command_id": "issue367_r2v11.final_exact_head_acceptance",
-      "command": "require exact-head baseline State Gate Decision Preflight and distinct landing-stage context evidence plus zero unresolved threads and unchanged locked base before Owner landing lifecycle",
+      "command_id": "issue367_r2v12.final_exact_head_acceptance",
+      "command": "require exact-head baseline State Gate Decision Preflight and distinct landing-stage evidence proving the matching kernel executed rather than skipped; require zero unresolved threads and unchanged locked base before Owner landing lifecycle",
       "phase": "final_evidence",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -137,8 +137,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.bac0ee4bd8bb8cf1ad791b4a4b1fa9afd1017c717e78bb44afeb47eeb24ef23b",
-      "command": "verify exact main base fa2265478b7e1da61e121a3c7193a3cb8c797802 and fresh branch merge-base",
+      "command_id": "bootstrap.6d262f5471e195ae039fc1b919bceb72d51eec79d2b15f7584ce8365ef16c6d6",
+      "command": "verify exact main base 1dcb985dddf61204aecd57ca1260ec14f79a4f75 and fresh branch merge-base",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -157,8 +157,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.450d8288ec0db9f35f74c51cbe538b402480fbdfd7313619db0b1236cf44f697",
-      "command": "verify PR #405 ready-stage and post-merge failure evidence remains immutable",
+      "command_id": "bootstrap.df0c462e3f0fc4e585421c38a5843cf7351549fac1afdec78746d8786fc90abc",
+      "command": "verify PR #422 Ready run 33285993694 false-green landing evidence remains immutable",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
