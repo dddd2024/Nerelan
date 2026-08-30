@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260829_issue367_landing_stage_check_identity_r2_v11",
-  "round_id": "round_20260829_issue367_landing_stage_check_identity_r2_v11",
+  "decision_id": "decision_20260830_issue367_landing_mode_fail_closed_r2_v12",
+  "round_id": "round_20260830_issue367_landing_mode_fail_closed_r2_v12",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,16 +14,16 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260828_issue48_model_access_task_check_landing_r2_v1",
-  "follows_last_round_id": "round_20260828_issue48_model_access_task_check_landing_r2_v1",
-  "previous_audit_outcome": "PR414_V10_TERMINAL_INVALID_EXECUTION_SURFACE_BEFORE_SEMANTIC_MUTATION",
-  "workstream_id": "issue367-landing-stage-check-identity-r2-v11",
+  "follows_last_decision_id": "decision_20260829_issue367_landing_stage_check_identity_r2_v11",
+  "follows_last_round_id": "round_20260829_issue367_landing_stage_check_identity_r2_v11",
+  "previous_audit_outcome": "PR422_READY_LANDING_CONTEXT_FALSE_GREEN_EXACT_EVIDENCE",
+  "workstream_id": "issue367-landing-mode-fail-closed-r2-v12",
   "source_issue": 367,
   "integration_base_ref": "main",
-  "base_sha": "fa2265478b7e1da61e121a3c7193a3cb8c797802",
-  "activation_base_sha": "fa2265478b7e1da61e121a3c7193a3cb8c797802",
-  "starting_head": "fa2265478b7e1da61e121a3c7193a3cb8c797802",
-  "required_branch": "owner/issue367-engineering-landing-boundary-r2-v11",
+  "base_sha": "1dcb985dddf61204aecd57ca1260ec14f79a4f75",
+  "activation_base_sha": "1dcb985dddf61204aecd57ca1260ec14f79a4f75",
+  "starting_head": "1dcb985dddf61204aecd57ca1260ec14f79a4f75",
+  "required_branch": "owner/issue367-landing-mode-failclosed-r2-v12",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "authorized_risk_tier": "R2",
@@ -35,7 +35,7 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr405_v3.json",
+    "project_state/mainline_merge_intents/archive/pr416_v3.json",
     ".github/workflows/state-gate.yml",
     "tests/test_ci_responsibility.py"
   ],
@@ -92,8 +92,8 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
-    "verify exact main base fa2265478b7e1da61e121a3c7193a3cb8c797802 and fresh branch merge-base",
-    "verify PR #405 ready-stage and post-merge failure evidence remains immutable",
+    "verify exact main base 1dcb985dddf61204aecd57ca1260ec14f79a4f75 and fresh branch merge-base",
+    "verify PR #422 Ready run 33285993694 false-green landing evidence remains immutable",
     "commit this immutable R2 Decision as the unique first commit",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
@@ -103,8 +103,8 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "issue367_r2v11.materialize_activation_packet",
-      "command": "run the repository-owned startup snapshot command-plan compiler transition lint and preflight locally; materialize the exact v11 activation packet and commit only the five declared generated gate artifacts",
+      "command_id": "issue367_r2v12.materialize_activation_packet",
+      "command": "run the repository-owned startup snapshot command-plan compiler transition lint and preflight locally; materialize the exact v12 activation packet and commit only the five declared generated gate artifacts",
       "phase": "gate",
       "required": true,
       "expected_exit_codes": [0],
@@ -121,8 +121,8 @@
       ]
     },
     {
-      "command_id": "issue367_r2v11.implement_landing_context",
-      "command": "add one distinct landing-stage GitHub Actions job context in .github/workflows/state-gate.yml that cannot be satisfied by earlier Draft-stage state-gate success on the same SHA; reuse existing transition and Path-A validation kernels; update only tests/test_ci_responsibility.py for deterministic workflow responsibility regression",
+      "command_id": "issue367_r2v12.implement_fail_closed_mode_detection",
+      "command": "make both existing State Gate control-plane mode detectors fail before writing GitHub output when the repository-owned detector fails; remove the landing detector literal-quote event-path bug; reuse the existing validation kernels and update only tests/test_ci_responsibility.py for exact shell-shape and fail-closed responsibility regression",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
@@ -133,7 +133,7 @@
       "allowed_mutated_paths": [".github/workflows/state-gate.yml", "tests/test_ci_responsibility.py"]
     },
     {
-      "command_id": "issue367_r2v11.validate_publish",
+      "command_id": "issue367_r2v12.validate_publish",
       "command": "run deterministic CI responsibility and governance regression locally then push the exact branch and create one Draft PR against locked main; require fresh baseline State Gate and Decision Preflight before independent audit",
       "phase": "publication",
       "required": true,
@@ -145,8 +145,8 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue367_r2v11.post_publication_binding",
-      "command": "after Draft PR publication archive the existing schema-v3 PR405 landing intent byte-for-byte and bind active intent exactly once to the actual PR number locked base current Decision current Command Plan workflow profile and merge policy",
+      "command_id": "issue367_r2v12.post_publication_binding",
+      "command": "after Draft PR publication archive the existing schema-v3 PR416 landing intent byte-for-byte and bind active intent exactly once to the actual PR number locked base current Decision current Command Plan workflow profile and merge policy",
       "phase": "post_publication_binding",
       "required": true,
       "expected_exit_codes": [0],
@@ -157,12 +157,12 @@
       "allowed_only_after_validation": true,
       "allowed_mutated_paths": [
         "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr405_v3.json"
+        "project_state/mainline_merge_intents/archive/pr416_v3.json"
       ]
     },
     {
-      "command_id": "issue367_r2v11.final_exact_head_acceptance",
-      "command": "require exact-head baseline State Gate Decision Preflight and distinct landing-stage context evidence plus zero unresolved threads and unchanged locked base before Owner landing lifecycle",
+      "command_id": "issue367_r2v12.final_exact_head_acceptance",
+      "command": "require exact-head baseline State Gate Decision Preflight and distinct landing-stage evidence proving the matching kernel executed rather than skipped; require zero unresolved threads and unchanged locked base before Owner landing lifecycle",
       "phase": "final_evidence",
       "required": true,
       "expected_exit_codes": [0],
@@ -186,7 +186,7 @@
     ".github/workflows/state-gate.yml",
     "tests/test_ci_responsibility.py",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr405_v3.json"
+    "project_state/mainline_merge_intents/archive/pr416_v3.json"
   ],
   "reference_paths": [
     "AGENTS.md",
