@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Save, Trash2 } from "lucide-react";
+import { ExternalLink, Save, Trash2 } from "lucide-react";
 import {
   ConnectionInputSchema,
   BindingInputSchema,
   connectionVerificationCapability,
   type AuthMethod,
+  type AccountAuthStatus,
   type ConnectionProbeResult,
   type ConnectionVerificationCapability,
   type Binding,
@@ -33,6 +34,12 @@ interface ConnectionBindingEditorProps {
   onConnectionTest: (connectionId: string) => Promise<void>;
   connectionProbeResult: ConnectionProbeResult | null;
   connectionProbePending: boolean;
+  accountAuthState?: AccountAuthStatus | null;
+  accountAuthPending?: boolean;
+  onAccountAuthStart?: (connectionId: string) => Promise<void>;
+  onAccountAuthComplete?: (connectionId: string, code?: string) => Promise<void>;
+  onAccountAuthCancel?: (connectionId: string) => Promise<void>;
+  onAccountAuthLogout?: (connectionId: string) => Promise<void>;
 }
 
 const EMPTY_CONNECTION: ConnectionInput = {
@@ -68,6 +75,12 @@ export function ConnectionBindingEditor({
   onConnectionTest,
   connectionProbeResult,
   connectionProbePending,
+  accountAuthState = null,
+  accountAuthPending = false,
+  onAccountAuthStart,
+  onAccountAuthComplete,
+  onAccountAuthCancel,
+  onAccountAuthLogout,
 }: ConnectionBindingEditorProps) {
   const [connDraft, setConnDraft] = useState<ConnectionInput>(EMPTY_CONNECTION);
   const [connApiKey, setConnApiKey] = useState("");
@@ -75,6 +88,7 @@ export function ConnectionBindingEditor({
   const [connError, setConnError] = useState<string | null>(null);
   const [bindDraft, setBindDraft] = useState<BindingInput>(EMPTY_BINDING);
   const [bindError, setBindError] = useState<string | null>(null);
+  const [accountAuthCode, setAccountAuthCode] = useState("");
 
   const [connSavedDraft, setConnSavedDraft] = useState<ConnectionInput | null>(null);
   const [connSavedApiKey, setConnSavedApiKey] = useState("");
@@ -97,6 +111,7 @@ export function ConnectionBindingEditor({
       setConnSavedDraft(structuredClone(draft));
       setConnSavedApiKey("");
       setConnError(null);
+      setAccountAuthCode("");
     } else {
       setBindDraft(
         binding
@@ -221,6 +236,26 @@ export function ConnectionBindingEditor({
     !busy;
   const savedApiKeyStatus =
     connection?.authMethod === "api_key" ? connection.secretStatus : "missing";
+  const durableStatusDetail = durableSecretStatusDetail(savedApiKeyStatus);
+  const authorityNoticeVisible =
+    (authorityChanged && connDraft.authMethod === "api_key") ||
+    discardingConfiguredCredential;
+  const canManageSavedSecret =
+    !creating &&
+    !!connection &&
+    connection.authMethod === "api_key" &&
+    connection.credentialConfigured &&
+    connDraft.authMethod === "api_key" &&
+    !authorityNoticeVisible;
+  const canManageAccountLogin =
+    !creating &&
+    !!connection &&
+    !connDirty &&
+    connection.enabled &&
+    connection.provider === "openai" &&
+    connection.authMethod === "account_login" &&
+    connDraft.provider === "openai" &&
+    connDraft.authMethod === "account_login";
 
   return (
     <div data-testid="connection-binding-editor">
@@ -319,24 +354,55 @@ export function ConnectionBindingEditor({
               />
             </Field>
             {connDraft.authMethod === "api_key" ? (
-              <Field
-                label={`API Key（${apiKeyStatusLabel(savedApiKeyStatus)}）`}
-                className="md:col-span-2"
-              >
-                <input
-                  aria-label="API Key"
-                  type="password"
-                  value={connApiKey}
-                  onChange={(event) => setConnApiKey(event.target.value)}
-                  className={inputClass}
-                  autoComplete="new-password"
-                  placeholder={
-                    connection?.credentialConfigured
-                      ? "已配置；留空表示不替换"
-                      : "尚未配置"
-                  }
-                />
-              </Field>
+              <>
+                <Field
+                  label={`API Key（${apiKeyStatusLabel(savedApiKeyStatus)}）`}
+                  className="md:col-span-2"
+                >
+                  <input
+                    aria-label="API Key"
+                    type="password"
+                    value={connApiKey}
+                    onChange={(event) => setConnApiKey(event.target.value)}
+                    className={inputClass}
+                    autoComplete="new-password"
+                    placeholder={
+                      connection?.credentialConfigured
+                        ? "已配置；留空表示不替换"
+                        : "尚未配置"
+                    }
+                  />
+                </Field>
+                {durableStatusDetail && (
+                  <p
+                    data-testid="connection-secret-status-detail"
+                    className="md:col-span-2 text-xs text-ra-text-tertiary"
+                  >
+                    {durableStatusDetail}
+                  </p>
+                )}
+                {canManageSavedSecret ? (
+                  <div
+                    data-testid="connection-secret-management"
+                    className="md:col-span-2 rounded-md border border-ra-border bg-ra-tertiary px-3 py-2 text-xs text-ra-text-secondary"
+                  >
+                    <p>
+                      已保存的密钥不会回显到浏览器。替换请在上方输入新 API Key 后保存；
+                      移除请勾选下方选项。
+                    </p>
+                    <label className="mt-2 inline-flex items-center gap-2 text-xs text-ra-text-secondary">
+                      <input
+                        type="checkbox"
+                        checked={connClearSecret}
+                        onChange={(event) =>
+                          setConnClearSecret(event.target.checked)
+                        }
+                      />
+                      移除已保存密钥（clear_secret）
+                    </label>
+                  </div>
+                ) : null}
+              </>
             ) : (
               <div
                 data-testid="connection-auth-guidance"
@@ -358,6 +424,124 @@ export function ConnectionBindingEditor({
                           : ""}
                   </p>
                 )}
+                {canManageAccountLogin && onAccountAuthStart && (
+                  <div
+                    data-testid="connection-account-auth"
+                    className="mt-3 rounded-md border border-ra-border bg-ra-secondary p-3 text-ra-text-secondary"
+                  >
+                    <p className="font-medium text-ra-text">
+                      OpenAI / ChatGPT（GPT）账号登录
+                    </p>
+                    <p className="mt-1 text-ra-text-tertiary">
+                      登录由 OpenCode 官方 OAuth 流程处理；浏览器不会收到 access token 或 refresh token。
+                    </p>
+                    {accountAuthState?.instructions && (
+                      <p className="mt-2" data-testid="account-auth-instructions">
+                        {accountAuthState.instructions}
+                      </p>
+                    )}
+                    {accountAuthState?.authorizationUrl && (
+                      <a
+                        href={accountAuthState.authorizationUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-flex items-center gap-1 text-ra-accent underline"
+                        data-testid="account-auth-browser-link"
+                      >
+                        在浏览器中继续登录
+                        <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                      </a>
+                    )}
+                    {accountAuthState?.callbackMethod === "code" &&
+                      accountAuthState.status === "awaiting_browser" && (
+                        <input
+                          aria-label="OAuth 授权码"
+                          type="password"
+                          value={accountAuthCode}
+                          onChange={(event) => setAccountAuthCode(event.target.value)}
+                          className={cn(inputClass, "mt-2")}
+                          autoComplete="off"
+                          placeholder="粘贴浏览器返回的授权码"
+                        />
+                      )}
+                    {accountAuthState && (
+                      <p className="mt-2" data-testid="account-auth-status">
+                        流程状态：{accountAuthStatusLabel(accountAuthState.status)}
+                      </p>
+                    )}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={accountAuthPending || busy}
+                        onClick={() => onAccountAuthStart(connection.connectionId)}
+                        className={secondaryButtonClass}
+                        data-testid="account-auth-start"
+                      >
+                        <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                        浏览器登录
+                      </button>
+                      {accountAuthState?.status === "awaiting_browser" &&
+                        onAccountAuthComplete && (
+                          <button
+                            type="button"
+                            disabled={
+                              accountAuthPending ||
+                              (accountAuthState.callbackMethod === "code" &&
+                                !accountAuthCode.trim())
+                            }
+                            onClick={async () => {
+                              try {
+                                await onAccountAuthComplete(
+                                  connection.connectionId,
+                                  accountAuthState.callbackMethod === "code"
+                                    ? accountAuthCode
+                                    : undefined,
+                                );
+                                setAccountAuthCode("");
+                              } catch {
+                                // The parent surfaces the sanitized failure and
+                                // the transient code remains available to retry.
+                              }
+                            }}
+                            className={secondaryButtonClass}
+                            data-testid="account-auth-complete"
+                          >
+                            已完成授权
+                          </button>
+                        )}
+                      {accountAuthState?.status === "awaiting_browser" &&
+                        onAccountAuthCancel && (
+                          <button
+                            type="button"
+                            disabled={accountAuthPending}
+                            onClick={async () => {
+                              try {
+                                await onAccountAuthCancel(connection.connectionId);
+                                setAccountAuthCode("");
+                              } catch {
+                                // The parent surfaces the sanitized failure.
+                              }
+                            }}
+                            className={secondaryButtonClass}
+                            data-testid="account-auth-cancel"
+                          >
+                            取消
+                          </button>
+                        )}
+                      {onAccountAuthLogout && (
+                        <button
+                          type="button"
+                          disabled={accountAuthPending}
+                          onClick={() => onAccountAuthLogout(connection.connectionId)}
+                          className={secondaryButtonClass}
+                          data-testid="account-auth-logout"
+                        >
+                          退出说明
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -373,8 +557,7 @@ export function ConnectionBindingEditor({
             启用该连接
           </label>
 
-          {(authorityChanged && connDraft.authMethod === "api_key") ||
-          discardingConfiguredCredential ? (
+          {authorityNoticeVisible ? (
             <div
               data-testid="connection-authority-change-notice"
               className="rounded-md border border-ra-border bg-ra-tertiary px-3 py-2 text-xs text-ra-text-secondary"
@@ -640,12 +823,35 @@ function connectionVerificationGuidance(
   }
 }
 
+function accountAuthStatusLabel(status: string): string {
+  switch (status) {
+    case "awaiting_browser":
+      return "等待浏览器授权";
+    case "authenticated":
+      return "已登录";
+    case "verification_pending":
+      return "授权完成，等待会话复核";
+    case "expired":
+      return "已超时";
+    case "canceled":
+      return "已取消";
+    case "provider_logout_required":
+      return "需在 OpenCode 中退出";
+    case "busy":
+      return "其他登录正在进行";
+    default:
+      return "未启动";
+  }
+}
+
 function localizedProbeMessage(result: ConnectionProbeResult): string {
   switch (result.status) {
     case "connected":
       return "连接成功";
     case "credential_missing":
-      return "API Key 未配置";
+      return "API Key 未配置或需要重新输入";
+    case "credential_store_locked":
+      return "系统凭据库不可用或已锁定，暂时无法读取已保存的密钥";
     case "disabled":
       return "连接已禁用";
     case "live_probe_disabled":
@@ -686,10 +892,31 @@ function apiKeyStatusLabel(status: Connection["secretStatus"]): string {
       return "已配置（进程会话）";
     case "environment":
       return "已配置（环境变量）";
+    case "stored":
+      return "已安全保存（系统凭据库）";
+    case "store_locked":
+      return "系统凭据库不可用或已锁定";
+    case "replacement_required":
+      return "需要重新输入 API Key";
     case "missing":
       return "当前不可用";
     case "not_applicable":
       return "不适用";
+  }
+}
+
+function durableSecretStatusDetail(
+  status: Connection["secretStatus"],
+): string | null {
+  switch (status) {
+    case "stored":
+      return "密钥已保存在操作系统凭据库中，重启后无需重新输入；浏览器永远不会读取或回显密钥。";
+    case "store_locked":
+      return "系统凭据库当前不可用或已锁定。保存或替换密钥会失败，执行解析也会安全关闭；请解锁系统凭据库后重试。";
+    case "replacement_required":
+      return "系统凭据库中的密钥条目已不存在（可能被外部移除）。请重新输入 API Key 以恢复。";
+    default:
+      return null;
   }
 }
 

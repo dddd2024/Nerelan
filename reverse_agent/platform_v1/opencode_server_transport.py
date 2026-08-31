@@ -33,6 +33,7 @@ MAX_JSON_BYTES = 1_048_576
 MAX_SSE_EVENT_BYTES = 262_144
 SERVER_USERNAME = "reverse-agent"
 _VERSION_RE = re.compile(r"^[A-Za-z0-9._+-]{1,64}$")
+_PROVIDER_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,127}$")
 
 
 class OpenCodeServerTransportError(RuntimeError):
@@ -47,6 +48,24 @@ class ServerTransportResult:
     server_version: str = ""
     session_digest: str = ""
     usage_event_count: int = 0
+
+
+@dataclass(frozen=True)
+class ProviderAuthMethod:
+    """Sanitized provider-advertised authentication method."""
+
+    index: int
+    type: str
+    label: str
+
+
+@dataclass(frozen=True)
+class ProviderAuthAuthorization:
+    """Transient browser continuation returned by OpenCode."""
+
+    url: str
+    method: str
+    instructions: str
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -203,6 +222,109 @@ class OpenCodeServerClient:
         except OpenCodeServerTransportError:
             return False
         return payload is True
+
+    def provider_auth_methods(
+        self, *, directory: str, provider_id: str
+    ) -> tuple[ProviderAuthMethod, ...]:
+        """Return only bounded methods advertised for one exact provider."""
+
+        provider = _validate_provider_id(provider_id)
+        payload = self._json_request(
+            "GET", "/provider/auth", query={"directory": directory}
+        )
+        if not isinstance(payload, Mapping):
+            raise OpenCodeServerTransportError("provider_auth_methods_invalid")
+        raw_methods = payload.get(provider)
+        if not isinstance(raw_methods, list):
+            raise OpenCodeServerTransportError("provider_auth_method_missing")
+        methods: list[ProviderAuthMethod] = []
+        for index, raw in enumerate(raw_methods):
+            if not isinstance(raw, Mapping):
+                raise OpenCodeServerTransportError("provider_auth_method_invalid")
+            method_type = raw.get("type")
+            label = raw.get("label")
+            if method_type not in {"oauth", "api"}:
+                raise OpenCodeServerTransportError("provider_auth_type_invalid")
+            if (
+                not isinstance(label, str)
+                or not label.strip()
+                or len(label) > 200
+                or any(ord(char) < 32 for char in label)
+            ):
+                raise OpenCodeServerTransportError("provider_auth_label_invalid")
+            methods.append(
+                ProviderAuthMethod(index=index, type=method_type, label=label.strip())
+            )
+        return tuple(methods)
+
+    def provider_oauth_authorize(
+        self, *, directory: str, provider_id: str, method_index: int
+    ) -> ProviderAuthAuthorization:
+        provider = _validate_provider_id(provider_id)
+        index = _validate_method_index(method_index)
+        payload = self._json_request(
+            "POST",
+            f"/provider/{quote(provider, safe='')}/oauth/authorize",
+            query={"directory": directory},
+            body={"method": index},
+        )
+        if not isinstance(payload, Mapping):
+            raise OpenCodeServerTransportError("provider_oauth_authorization_invalid")
+        url = payload.get("url")
+        callback_method = payload.get("method")
+        instructions = payload.get("instructions")
+        try:
+            parsed = urlsplit(url) if isinstance(url, str) else None
+        except ValueError as exc:
+            raise OpenCodeServerTransportError(
+                "provider_oauth_authorization_url_invalid"
+            ) from exc
+        if (
+            parsed is None
+            or parsed.scheme != "https"
+            or not parsed.netloc
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.fragment
+            or len(url) > 8192
+        ):
+            raise OpenCodeServerTransportError(
+                "provider_oauth_authorization_url_invalid"
+            )
+        if callback_method not in {"auto", "code"}:
+            raise OpenCodeServerTransportError("provider_oauth_callback_method_invalid")
+        if not isinstance(instructions, str) or len(instructions) > 2000:
+            raise OpenCodeServerTransportError("provider_oauth_instructions_invalid")
+        return ProviderAuthAuthorization(
+            url=url,
+            method=callback_method,
+            instructions=instructions,
+        )
+
+    def provider_oauth_callback(
+        self,
+        *,
+        directory: str,
+        provider_id: str,
+        method_index: int,
+        code: str | None = None,
+    ) -> bool:
+        provider = _validate_provider_id(provider_id)
+        index = _validate_method_index(method_index)
+        body: dict[str, Any] = {"method": index}
+        if code is not None:
+            if not isinstance(code, str) or not code or len(code) > 4096:
+                raise OpenCodeServerTransportError("provider_oauth_code_invalid")
+            body["code"] = code
+        payload = self._json_request(
+            "POST",
+            f"/provider/{quote(provider, safe='')}/oauth/callback",
+            query={"directory": directory},
+            body=body,
+        )
+        if not isinstance(payload, bool):
+            raise OpenCodeServerTransportError("provider_oauth_callback_invalid")
+        return payload
 
     def run_role(
         self,
@@ -433,30 +555,85 @@ def _reserve_loopback_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def run_managed_server_role(
+def _validate_provider_id(value: Any) -> str:
+    if not isinstance(value, str) or not _PROVIDER_ID_RE.fullmatch(value):
+        raise OpenCodeServerTransportError("provider_id_invalid")
+    return value
+
+
+def _validate_method_index(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 100:
+        raise OpenCodeServerTransportError("provider_auth_method_index_invalid")
+    return value
+
+
+@dataclass
+class ManagedOpenCodeServer:
+    """One authenticated loopback OpenCode child with deterministic cleanup."""
+
+    process: Any
+    client: OpenCodeServerClient
+    directory: str
+    _closed: bool = False
+
+    def provider_auth_methods(
+        self, *, provider_id: str
+    ) -> tuple[ProviderAuthMethod, ...]:
+        return self.client.provider_auth_methods(
+            directory=self.directory, provider_id=provider_id
+        )
+
+    def provider_oauth_authorize(
+        self, *, provider_id: str, method_index: int
+    ) -> ProviderAuthAuthorization:
+        return self.client.provider_oauth_authorize(
+            directory=self.directory,
+            provider_id=provider_id,
+            method_index=method_index,
+        )
+
+    def provider_oauth_callback(
+        self, *, provider_id: str, method_index: int, code: str | None = None
+    ) -> bool:
+        return self.client.provider_oauth_callback(
+            directory=self.directory,
+            provider_id=provider_id,
+            method_index=method_index,
+            code=code,
+        )
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        self.client.dispose(directory=self.directory)
+        try:
+            self.process.wait(timeout=2.0)
+        except subprocess.TimeoutExpired:
+            self.process.terminate()
+            try:
+                self.process.wait(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait(timeout=2.0)
+
+
+def start_managed_server(
     *,
     cli_path: str,
     is_cmd: bool,
     cwd: str,
     child_env: Mapping[str, str],
     timeout: float,
-    title: str,
-    prompt: str,
-    provider_id: str,
-    model_id: str,
-    agent: str,
-    usage_observer: Callable[[Mapping[str, Any]], bool],
-) -> ServerTransportResult:
-    """Start, use, and stop exactly one authenticated loopback server child."""
+) -> ManagedOpenCodeServer:
+    """Start one authenticated loopback server and return after health passes."""
 
     password = secrets.token_urlsafe(32)
     env = dict(child_env)
     env["OPENCODE_SERVER_USERNAME"] = SERVER_USERNAME
     env["OPENCODE_SERVER_PASSWORD"] = password
     port = _reserve_loopback_port()
-    server_args = [
-        "serve", "--hostname", "127.0.0.1", "--port", str(port)
-    ]
+    server_args = ["serve", "--hostname", "127.0.0.1", "--port", str(port)]
     if is_cmd:
         comspec = os.environ.get("COMSPEC", "cmd.exe")
         argv = [comspec, "/d", "/s", "/c", cli_path, *server_args]
@@ -480,6 +657,7 @@ def run_managed_server_role(
         password=password,
         timeout=timeout,
     )
+    managed = ManagedOpenCodeServer(process=process, client=client, directory=cwd)
     try:
         deadline = time.monotonic() + min(float(timeout), 10.0)
         while True:
@@ -487,12 +665,41 @@ def run_managed_server_role(
                 raise OpenCodeServerTransportError("server_process_exited_before_health")
             try:
                 client.health(timeout=min(0.25, max(0.1, deadline - time.monotonic())))
-                break
+                return managed
             except OpenCodeServerTransportError:
                 if time.monotonic() >= deadline:
                     raise OpenCodeServerTransportError("server_health_timeout")
                 time.sleep(0.05)
-        return client.run_role(
+    except Exception:
+        managed.close()
+        raise
+
+
+def run_managed_server_role(
+    *,
+    cli_path: str,
+    is_cmd: bool,
+    cwd: str,
+    child_env: Mapping[str, str],
+    timeout: float,
+    title: str,
+    prompt: str,
+    provider_id: str,
+    model_id: str,
+    agent: str,
+    usage_observer: Callable[[Mapping[str, Any]], bool],
+) -> ServerTransportResult:
+    """Start, use, and stop exactly one authenticated loopback server child."""
+
+    managed = start_managed_server(
+        cli_path=cli_path,
+        is_cmd=is_cmd,
+        cwd=cwd,
+        child_env=child_env,
+        timeout=timeout,
+    )
+    try:
+        return managed.client.run_role(
             directory=cwd,
             title=title,
             prompt=prompt,
@@ -502,13 +709,4 @@ def run_managed_server_role(
             usage_observer=usage_observer,
         )
     finally:
-        client.dispose(directory=cwd)
-        try:
-            process.wait(timeout=2.0)
-        except subprocess.TimeoutExpired:
-            process.terminate()
-            try:
-                process.wait(timeout=2.0)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait(timeout=2.0)
+        managed.close()

@@ -12,6 +12,7 @@ import {
   useUpsertConnection,
 } from "@/hooks/use-model-access";
 import type {
+  AccountAuthStatus,
   Binding,
   Connection,
   ConnectionInput,
@@ -19,6 +20,7 @@ import type {
 } from "@/schemas/model-access";
 import type { BindingInput } from "@/schemas/model-access";
 import { cn } from "@/lib/cn";
+import { getDefaultModelControlClient } from "@/lib/model-control-client";
 import { ThemeSelector } from "@/components/theme-selector";
 
 type EditorView = "connection" | "binding";
@@ -52,6 +54,8 @@ export function SettingsPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connProbeResult, setConnProbeResult] = useState<ConnectionProbeResult | null>(null);
+  const [accountAuthState, setAccountAuthState] = useState<AccountAuthStatus | null>(null);
+  const [accountAuthPending, setAccountAuthPending] = useState(false);
 
   const testConnectionMutation = useTestConnection();
 
@@ -91,6 +95,7 @@ export function SettingsPage() {
     setStatus(null);
     setError(null);
     setConnProbeResult(null);
+    setAccountAuthState(null);
   }
 
   async function handleConnectionSave(input: ConnectionInput) {
@@ -120,6 +125,74 @@ export function SettingsPage() {
       }
     } catch (cause) {
       setError(errorMessage(cause));
+    }
+  }
+
+  async function handleAccountAuthStart(connectionId: string) {
+    setError(null);
+    setAccountAuthPending(true);
+    try {
+      const result = await getDefaultModelControlClient().startAccountAuth(connectionId);
+      setAccountAuthState(result);
+      if (result.authorizationUrl) {
+        window.open(result.authorizationUrl, "_blank", "noopener,noreferrer");
+      }
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      setAccountAuthPending(false);
+    }
+  }
+
+  async function handleAccountAuthComplete(connectionId: string, code?: string) {
+    setError(null);
+    setAccountAuthPending(true);
+    try {
+      const result = await getDefaultModelControlClient().completeAccountAuth(
+        connectionId,
+        code,
+      );
+      setAccountAuthState(result);
+      await connectionsQuery.refetch();
+      setStatus(
+        result.status === "authenticated"
+          ? "OpenAI / ChatGPT（GPT）账号已登录"
+          : "授权已完成，正在等待 OpenCode 会话复核",
+      );
+    } catch (cause) {
+      setError(errorMessage(cause));
+      throw cause;
+    } finally {
+      setAccountAuthPending(false);
+    }
+  }
+
+  async function handleAccountAuthCancel(connectionId: string) {
+    setError(null);
+    setAccountAuthPending(true);
+    try {
+      setAccountAuthState(
+        await getDefaultModelControlClient().cancelAccountAuth(connectionId),
+      );
+    } catch (cause) {
+      setError(errorMessage(cause));
+      throw cause;
+    } finally {
+      setAccountAuthPending(false);
+    }
+  }
+
+  async function handleAccountAuthLogout(connectionId: string) {
+    setError(null);
+    setAccountAuthPending(true);
+    try {
+      setAccountAuthState(
+        await getDefaultModelControlClient().logoutAccountAuth(connectionId),
+      );
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      setAccountAuthPending(false);
     }
   }
 
@@ -167,7 +240,7 @@ export function SettingsPage() {
     setSelectedBindId(null);
   }
 
-  const editorBusy = busy;
+  const editorBusy = busy || accountAuthPending;
 
   return (
     <div
@@ -362,6 +435,12 @@ export function SettingsPage() {
             onConnectionTest={handleConnectionTest}
             connectionProbeResult={connProbeResult}
             connectionProbePending={testConnectionMutation.isPending}
+            accountAuthState={accountAuthState}
+            accountAuthPending={accountAuthPending}
+            onAccountAuthStart={handleAccountAuthStart}
+            onAccountAuthComplete={handleAccountAuthComplete}
+            onAccountAuthCancel={handleAccountAuthCancel}
+            onAccountAuthLogout={handleAccountAuthLogout}
           />
         </div>
       </div>
@@ -379,6 +458,12 @@ function secretStatusLabel(status: Connection["secretStatus"]): string {
       return "环境变量";
     case "session":
       return "进程会话";
+    case "stored":
+      return "系统凭据库";
+    case "store_locked":
+      return "凭据库锁定";
+    case "replacement_required":
+      return "需重新输入";
     case "missing":
       return "未配置";
     case "not_applicable":

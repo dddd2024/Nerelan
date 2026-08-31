@@ -731,3 +731,688 @@ class TestConnectionProbeService:
 
         assert result.ok is False
         assert result.status == "not_found"
+
+
+# ---------------------------------------------------------------------------
+# ISSUE444 R3 - provider-owned OpenAI OAuth lifecycle
+# ---------------------------------------------------------------------------
+
+from types import SimpleNamespace as _SimpleNamespace
+
+from reverse_agent.model_access.account_auth import AccountAuthManager
+
+
+class _FakeAccountAuthServer:
+    def __init__(self, *, callback_method: str = "code") -> None:
+        self.callback_method = callback_method
+        self.closed = False
+        self.calls: list[tuple[Any, ...]] = []
+
+    def provider_auth_methods(self, *, provider_id: str):
+        self.calls.append(("methods", provider_id))
+        return (
+            _SimpleNamespace(index=0, type="api", label="API key"),
+            _SimpleNamespace(index=2, type="oauth", label="ChatGPT Plus/Pro"),
+        )
+
+    def provider_oauth_authorize(self, *, provider_id: str, method_index: int):
+        self.calls.append(("authorize", provider_id, method_index))
+        return _SimpleNamespace(
+            url="https://auth.example.test/authorize?state=opaque",
+            method=self.callback_method,
+            instructions="Continue in browser.",
+        )
+
+    def provider_oauth_callback(
+        self, *, provider_id: str, method_index: int, code: str | None = None
+    ) -> bool:
+        self.calls.append(("callback", provider_id, method_index, code))
+        return True
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def _account_login_store() -> ModelProfileStore:
+    store = ModelProfileStore()
+    store.upsert_connection(
+        _connection_payload(
+            connection_id="openai-account",
+            provider="openai",
+            base_url="https://api.openai.com/v1",
+            auth_method="account_login",
+        )
+    )
+    return store
+
+
+def test_account_auth_delegates_to_advertised_oauth_and_refreshes_status() -> None:
+    store = _account_login_store()
+    server = _FakeAccountAuthServer()
+
+    def refresh(force: bool, connection_id: str | None) -> None:
+        assert force is True
+        assert connection_id == "openai-account"
+        store.refresh_external_session_status({"openai": "oauth"})
+
+    manager = AccountAuthManager(
+        store=store,
+        server_factory=lambda: server,
+        refresh=refresh,
+    )
+    started = manager.start("openai-account")
+    completed = manager.callback("openai-account", "TRANSIENT_CODE_SENTINEL")
+
+    assert started == {
+        "status": "awaiting_browser",
+        "provider": "openai",
+        "authorization_url": "https://auth.example.test/authorize?state=opaque",
+        "callback_method": "code",
+        "instructions": "Continue in browser.",
+        "expires_in_seconds": 300,
+    }
+    assert completed == {
+        "status": "authenticated",
+        "provider": "openai",
+        "external_session_status": "available",
+    }
+    assert server.calls == [
+        ("methods", "openai"),
+        ("authorize", "openai", 2),
+        ("callback", "openai", 2, "TRANSIENT_CODE_SENTINEL"),
+    ]
+    assert server.closed is True
+    assert "TRANSIENT_CODE_SENTINEL" not in json.dumps(started)
+    assert "TRANSIENT_CODE_SENTINEL" not in json.dumps(completed)
+
+
+def test_account_auth_auto_callback_rejects_supplied_code() -> None:
+    store = _account_login_store()
+    server = _FakeAccountAuthServer(callback_method="auto")
+    manager = AccountAuthManager(
+        store=store,
+        server_factory=lambda: server,
+        refresh=lambda *_: None,
+    )
+    manager.start("openai-account")
+
+    with pytest.raises(ValueError, match="not accepted"):
+        manager.callback("openai-account", "UNEXPECTED_CODE")
+    assert server.closed is False
+    result = manager.callback("openai-account")
+    assert result["status"] == "verification_pending"
+    assert server.closed is True
+
+
+def test_account_auth_timeout_closes_child_and_never_claims_success() -> None:
+    store = _account_login_store()
+    server = _FakeAccountAuthServer()
+    now = [10.0]
+    manager = AccountAuthManager(
+        store=store,
+        server_factory=lambda: server,
+        refresh=lambda *_: None,
+        timeout_seconds=5,
+        clock=lambda: now[0],
+    )
+    manager.start("openai-account")
+    now[0] = 16.0
+
+    status = manager.status("openai-account")
+    assert status["status"] == "expired"
+    assert status["external_session_status"] == "executor_managed"
+    assert server.closed is True
+
+
+def test_account_auth_cancel_and_logout_are_explicit_provider_boundaries() -> None:
+    store = _account_login_store()
+    server = _FakeAccountAuthServer()
+    manager = AccountAuthManager(
+        store=store,
+        server_factory=lambda: server,
+        refresh=lambda *_: None,
+    )
+    manager.start("openai-account")
+    canceled = manager.cancel("openai-account")
+    logout = manager.logout("openai-account")
+
+    assert canceled["status"] == "canceled"
+    assert server.closed is True
+    assert logout["status"] == "provider_logout_required"
+    assert "OpenCode" in logout["instructions"]
+    assert logout["external_session_status"] == "executor_managed"
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"provider": "anthropic"}, "OpenAI only"),
+        ({"auth_method": "external_cli_session"}, "does not use account_login"),
+        ({"enabled": False}, "disabled"),
+    ],
+)
+def test_account_auth_rejects_out_of_scope_connections(
+    overrides: dict[str, Any], message: str
+) -> None:
+    store = ModelProfileStore()
+    payload = _connection_payload(
+        connection_id="other-account",
+        provider="openai",
+        auth_method="account_login",
+    )
+    payload.update(overrides)
+    store.upsert_connection(payload)
+    manager = AccountAuthManager(
+        store=store,
+        server_factory=lambda: _FakeAccountAuthServer(),
+        refresh=lambda *_: None,
+    )
+    with pytest.raises(ValueError, match=message):
+        manager.start("other-account")
+
+
+# ---------------------------------------------------------------------------
+# ISSUE441 R1 - Durable OS-backed API-key persistence (CRED-1 ~ CRED-4)
+# ---------------------------------------------------------------------------
+
+from pathlib import Path as _Path
+import reverse_agent.model_access.store as _store_module
+
+from reverse_agent.model_access.os_vault import (
+    FakeVault,
+    VaultItemMissingError,
+    VaultSizeError,
+    VaultUnavailableError,
+    connection_vault_ref,
+)
+
+_VAULT_SECRET = "vault-backed-master-key-sentinel"
+
+
+class TestVaultReferenceBinding:
+    """The vault item reference is bound to the Connection authority."""
+
+    def test_reference_is_deterministic_and_namespaced(self) -> None:
+        ref = connection_vault_ref(
+            "sense-api", "openai-compatible", "https://models.example.test/v1", "api_key"
+        )
+        assert ref.startswith("nerelan:conn:v1:sense-api:")
+        assert ref == connection_vault_ref(
+            "sense-api", "openai-compatible", "https://models.example.test/v1", "api_key"
+        )
+        suffix = ref.rsplit(":", 1)[1]
+        assert len(suffix) == 16 and all(c in "0123456789abcdef" for c in suffix)
+
+    def test_any_authority_change_moves_the_reference(self) -> None:
+        base = connection_vault_ref(
+            "sense-api", "openai-compatible", "https://models.example.test/v1", "api_key"
+        )
+        assert connection_vault_ref(
+            "sense-api", "litellm-proxy", "https://models.example.test/v1", "api_key"
+        ) != base
+        assert connection_vault_ref(
+            "sense-api", "openai-compatible", "https://other.example.test/v1", "api_key"
+        ) != base
+        assert connection_vault_ref(
+            "sense-api", "openai-compatible", "https://models.example.test/v1", "none"
+        ) != base
+        assert connection_vault_ref(
+            "other-api", "openai-compatible", "https://models.example.test/v1", "api_key"
+        ) != base
+
+    def test_two_connections_with_same_authority_never_share_a_reference(self) -> None:
+        first = connection_vault_ref(
+            "conn-a", "openai-compatible", "https://models.example.test/v1", "api_key"
+        )
+        second = connection_vault_ref(
+            "conn-b", "openai-compatible", "https://models.example.test/v1", "api_key"
+        )
+        assert first != second
+
+
+class TestVaultBackedSaveAndRestart:
+    """Save through the vault, then restart over the same sanitized state."""
+
+    def _vault_store(self, tmp_path, vault):
+        return ModelProfileStore(
+            state_path=str(tmp_path / "model_setup_state.json"), vault=vault
+        )
+
+    def test_save_reports_stored_and_persists_ref_never_secret(self, tmp_path) -> None:
+        vault = FakeVault()
+        store = self._vault_store(tmp_path, vault)
+
+        public = store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+
+        assert public["credential_configured"] is True
+        assert public["secret_status"] == "stored"
+        assert "api_key" not in public
+        assert _VAULT_SECRET not in json.dumps(public)
+
+        raw = _Path(str(tmp_path / "model_setup_state.json")).read_bytes()
+        assert _VAULT_SECRET.encode("utf-8") not in raw
+        assert b"nerelan:conn:v1:sense-api:" in raw
+        assert vault.item_refs() == (
+            connection_vault_ref(
+                "sense-api",
+                "openai-compatible",
+                "https://models.example.test/v1",
+                "api_key",
+            ),
+        )
+
+    def test_restart_resolves_secret_again_without_re_entry(self, tmp_path) -> None:
+        vault = FakeVault()
+        store = self._vault_store(tmp_path, vault)
+        store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+
+        fresh = self._vault_store(tmp_path, vault)
+        listed = fresh.list_connections_public()
+        assert listed[0]["credential_configured"] is True
+        assert listed[0]["secret_status"] == "stored"
+        assert fresh.resolve_connection_secret("sense-api") == _VAULT_SECRET
+
+    def test_public_reads_show_status_only_never_the_secret(self, tmp_path) -> None:
+        vault = FakeVault()
+        store = self._vault_store(tmp_path, vault)
+        store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+
+        serialized = json.dumps(
+            store.list_connections_public()
+            + [store.get_connection_public("sense-api")]
+        )
+        assert _VAULT_SECRET not in serialized
+        assert "credential_ref" not in serialized
+        assert "resolved_api_key" not in serialized
+
+    def test_execution_snapshot_resolves_through_the_vault(self, tmp_path) -> None:
+        vault = FakeVault()
+        store = self._vault_store(tmp_path, vault)
+        store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+        store.upsert_binding(_binding_payload())
+
+        snap = store.resolve_execution_snapshot("coding-fast")
+        assert snap.resolved_api_key == _VAULT_SECRET
+
+    def test_oversized_secret_fails_closed(self, tmp_path) -> None:
+        vault = FakeVault()
+        store = self._vault_store(tmp_path, vault)
+
+        with pytest.raises(VaultSizeError):
+            store.upsert_connection(
+                _connection_payload(api_key="x" * 2561)
+            )
+        assert vault.item_refs() == ()
+        assert store.list_connections_public() == []
+
+
+class TestVaultFailClosedStates:
+    """Locked or missing vault items produce explicit typed states."""
+
+    def _prepared(self, tmp_path):
+        vault = FakeVault()
+        store = ModelProfileStore(
+            state_path=str(tmp_path / "model_setup_state.json"), vault=vault
+        )
+        store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+        return vault, store
+
+    def test_locked_vault_on_public_read_reports_store_locked(self, tmp_path) -> None:
+        vault, store = self._prepared(tmp_path)
+        vault.locked = True
+
+        listed = store.list_connections_public()
+        assert listed[0]["credential_configured"] is True
+        assert listed[0]["secret_status"] == "store_locked"
+
+    def test_externally_missing_item_maps_to_replacement_required(self, tmp_path) -> None:
+        vault, store = self._prepared(tmp_path)
+        ref = vault.item_refs()[0]
+        vault._items.pop(ref)  # simulate external removal from the OS store
+
+        listed = store.list_connections_public()
+        assert listed[0]["credential_configured"] is True
+        assert listed[0]["secret_status"] == "replacement_required"
+        assert store.resolve_connection_secret("sense-api") is None
+
+    def test_locked_vault_fails_execution_resolution_closed(self, tmp_path) -> None:
+        vault, store = self._prepared(tmp_path)
+        store.upsert_binding(_binding_payload())
+        vault.locked = True
+
+        with pytest.raises(VaultUnavailableError):
+            store.resolve_connection_secret("sense-api")
+        with pytest.raises(VaultUnavailableError):
+            store.resolve_execution_snapshot("coding-fast")
+
+    def test_locked_vault_probe_returns_typed_state(self, tmp_path) -> None:
+        vault, store = self._prepared(tmp_path)
+        vault.locked = True
+
+        result = probe_saved_connection(
+            store=store,
+            connection_id="sense-api",
+            payload={},
+            live_enabled=True,
+        )
+        assert result.ok is False
+        assert result.status == "credential_store_locked"
+        assert _VAULT_SECRET not in json.dumps(result.to_dict())
+
+    def test_missing_vault_item_probe_reports_credential_missing(self, tmp_path) -> None:
+        vault, store = self._prepared(tmp_path)
+        vault._items.pop(vault.item_refs()[0])
+
+        result = probe_saved_connection(
+            store=store,
+            connection_id="sense-api",
+            payload={},
+            live_enabled=True,
+        )
+        assert result.ok is False
+        assert result.status == "credential_missing"
+
+
+class TestVaultSaveAtomicityAndAuthority:
+    """Failed saves preserve prior state; authority changes never reuse items."""
+
+    def _store(self, tmp_path, vault):
+        return ModelProfileStore(
+            state_path=str(tmp_path / "model_setup_state.json"), vault=vault
+        )
+
+    def test_locked_vault_save_fails_closed_and_preserves_previous_state(
+        self, tmp_path
+    ) -> None:
+        vault = FakeVault()
+        store = self._store(tmp_path, vault)
+        store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+
+        vault.locked = True
+        with pytest.raises(VaultUnavailableError):
+            store.upsert_connection(
+                _connection_payload(api_key="replacement-secret")
+            )
+        vault.locked = False
+
+        listed = store.list_connections_public()
+        assert listed[0]["secret_status"] == "stored"
+        assert store.resolve_connection_secret("sense-api") == _VAULT_SECRET
+        raw = _Path(str(tmp_path / "model_setup_state.json")).read_bytes()
+        assert b"replacement-secret" not in raw
+
+    def test_failed_replacement_preserves_prior_valid_item(self, tmp_path) -> None:
+        vault = FakeVault()
+        store = self._store(tmp_path, vault)
+        store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+        original_ref = vault.item_refs()[0]
+
+        def fail_store(ref: str) -> None:
+            raise VaultUnavailableError("write failed mid-replacement")
+
+        vault._store_hook = fail_store
+        with pytest.raises(VaultUnavailableError):
+            store.upsert_connection(
+                _connection_payload(api_key="replacement-secret")
+            )
+        vault._store_hook = None
+
+        assert vault.item_refs() == (original_ref,)
+        assert store.resolve_connection_secret("sense-api") == _VAULT_SECRET
+
+    @pytest.mark.parametrize(
+        "replacement",
+        [
+            {"api_key": "replacement-secret"},
+            {"provider": "litellm-proxy", "api_key": "replacement-secret"},
+            {"clear_secret": True},
+        ],
+    )
+    def test_persistence_failure_restores_prior_committed_vault_relation(
+        self,
+        tmp_path,
+        monkeypatch: pytest.MonkeyPatch,
+        replacement: dict[str, Any],
+    ) -> None:
+        vault = FakeVault()
+        store = self._store(tmp_path, vault)
+        state_path = _Path(str(tmp_path / "model_setup_state.json"))
+        store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+        committed_state = state_path.read_bytes()
+        committed_refs = vault.item_refs()
+
+        def fail_persist(_data: bytes, _target: _Path) -> None:
+            raise OSError("simulated sanitized-state persistence failure")
+
+        monkeypatch.setattr(_store_module, "_write_atomic", fail_persist)
+        with pytest.raises(_store_module.StoreError, match="persistence failed"):
+            store.upsert_connection(_connection_payload(**replacement))
+
+        assert state_path.read_bytes() == committed_state
+        assert vault.item_refs() == committed_refs
+        assert store.resolve_connection_secret("sense-api") == _VAULT_SECRET
+        assert "replacement-secret" not in vault._items.values()
+
+    def test_delete_persistence_failure_preserves_connection_and_vault_item(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        vault = FakeVault()
+        store = self._store(tmp_path, vault)
+        state_path = _Path(str(tmp_path / "model_setup_state.json"))
+        store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+        committed_state = state_path.read_bytes()
+        committed_refs = vault.item_refs()
+
+        def fail_persist(_data: bytes, _target: _Path) -> None:
+            raise OSError("simulated sanitized-state persistence failure")
+
+        monkeypatch.setattr(_store_module, "_write_atomic", fail_persist)
+        with pytest.raises(_store_module.StoreError, match="persistence failed"):
+            store.delete_connection("sense-api")
+
+        assert state_path.read_bytes() == committed_state
+        assert vault.item_refs() == committed_refs
+        assert store.resolve_connection_secret("sense-api") == _VAULT_SECRET
+
+    def test_obsolete_item_delete_failure_rolls_back_new_state_and_item(
+        self, tmp_path
+    ) -> None:
+        vault = FakeVault()
+        store = self._store(tmp_path, vault)
+        state_path = _Path(str(tmp_path / "model_setup_state.json"))
+        store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+        old_ref = vault.item_refs()[0]
+        committed_state = state_path.read_bytes()
+
+        def fail_old_delete(ref: str) -> None:
+            if ref == old_ref:
+                raise VaultUnavailableError("simulated obsolete-item delete failure")
+
+        vault._delete_hook = fail_old_delete
+        with pytest.raises(VaultUnavailableError, match="obsolete-item"):
+            store.upsert_connection(
+                _connection_payload(
+                    provider="litellm-proxy",
+                    api_key="replacement-secret",
+                )
+            )
+        vault._delete_hook = None
+
+        assert state_path.read_bytes() == committed_state
+        assert vault.item_refs() == (old_ref,)
+        assert store.resolve_connection_secret("sense-api") == _VAULT_SECRET
+
+    def test_authority_change_with_new_key_writes_new_ref_and_removes_old(
+        self, tmp_path
+    ) -> None:
+        vault = FakeVault()
+        store = self._store(tmp_path, vault)
+        store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+        old_ref = vault.item_refs()[0]
+
+        store.upsert_connection(
+            _connection_payload(
+                provider="litellm-proxy", api_key="rotated-secret"
+            )
+        )
+
+        new_ref = vault.item_refs()[0]
+        assert new_ref != old_ref
+        assert vault.item_refs() == (new_ref,)
+        assert vault._items[new_ref] == "rotated-secret"
+        assert store.resolve_connection_secret("sense-api") == "rotated-secret"
+
+    def test_authority_change_without_replacement_fail_closed(self, tmp_path) -> None:
+        vault = FakeVault()
+        store = self._store(tmp_path, vault)
+        store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+
+        with pytest.raises(ValueError, match="authority-bearing"):
+            store.upsert_connection(_connection_payload(provider="litellm-proxy"))
+
+        assert store.resolve_connection_secret("sense-api") == _VAULT_SECRET
+
+    def test_one_connection_never_resolves_another_connections_item(
+        self, tmp_path
+    ) -> None:
+        vault = FakeVault()
+        store = self._store(tmp_path, vault)
+        store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+        store.upsert_connection(
+            _connection_payload(
+                connection_id="other-api",
+                name="Other API",
+                api_key="other-connection-secret",
+            )
+        )
+
+        assert store.resolve_connection_secret("sense-api") == _VAULT_SECRET
+        assert store.resolve_connection_secret("other-api") == "other-connection-secret"
+        assert len(vault.item_refs()) == 2
+
+
+class TestVaultRemovalAndIndependentPaths:
+    """Explicit removal removes only the owning item; other paths unchanged."""
+
+    def _store(self, tmp_path, vault):
+        return ModelProfileStore(
+            state_path=str(tmp_path / "model_setup_state.json"), vault=vault
+        )
+
+    def test_clear_secret_removes_only_the_owning_item(self, tmp_path) -> None:
+        vault = FakeVault()
+        store = self._store(tmp_path, vault)
+        store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+        store.upsert_connection(
+            _connection_payload(
+                connection_id="other-api",
+                name="Other API",
+                api_key="other-connection-secret",
+            )
+        )
+
+        cleared = store.upsert_connection(
+            _connection_payload(clear_secret=True)
+        )
+
+        assert cleared["credential_configured"] is False
+        assert cleared["secret_status"] == "missing"
+        remaining = vault.item_refs()
+        assert len(remaining) == 1
+        assert vault._items[remaining[0]] == "other-connection-secret"
+        raw = _Path(str(tmp_path / "model_setup_state.json")).read_bytes()
+        assert b"nerelan:conn:v1:sense-api:" not in raw
+
+    def test_delete_connection_removes_the_nerelan_owned_item(self, tmp_path) -> None:
+        vault = FakeVault()
+        store = self._store(tmp_path, vault)
+        store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+
+        store.delete_connection("sense-api")
+
+        assert vault.item_refs() == ()
+        fresh = self._store(tmp_path, vault)
+        assert fresh.list_connections_public() == []
+
+    def test_environment_backed_path_stays_independent_with_vault_present(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("VAULT_TEST_ENV_KEY", "env-path-secret")
+        vault = FakeVault()
+        store = self._store(tmp_path, vault)
+
+        public = store.upsert_connection(
+            _connection_payload(api_key_env="VAULT_TEST_ENV_KEY")
+        )
+
+        assert public["secret_status"] == "environment"
+        assert vault.item_refs() == ()
+        assert store.resolve_connection_secret("sense-api") == "env-path-secret"
+
+    def test_env_replacement_of_vault_secret_removes_the_item(self, tmp_path) -> None:
+        vault = FakeVault()
+        store = self._store(tmp_path, vault)
+        store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+
+        store.upsert_connection(
+            _connection_payload(api_key_env="VAULT_TEST_ENV_KEY_2")
+        )
+
+        assert vault.item_refs() == ()
+        listed = store.list_connections_public()
+        assert listed[0]["secret_status"] == "missing"  # env var not set
+
+    def test_without_vault_process_local_behavior_is_unchanged(self, tmp_path) -> None:
+        store = self._store(tmp_path, None)
+
+        public = store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+
+        assert public["secret_status"] == "session"
+        assert store.resolve_connection_secret("sense-api") == _VAULT_SECRET
+        raw = _Path(str(tmp_path / "model_setup_state.json")).read_bytes()
+        assert _VAULT_SECRET.encode("utf-8") not in raw
+        assert b"nerelan:conn:v1" not in raw
+
+    def test_restarted_connection_without_vault_reports_store_locked(
+        self, tmp_path
+    ) -> None:
+        state = str(tmp_path / "model_setup_state.json")
+        vault = FakeVault()
+        ModelProfileStore(state_path=state, vault=vault).upsert_connection(
+            _connection_payload(api_key=_VAULT_SECRET)
+        )
+
+        fresh = ModelProfileStore(state_path=state)
+
+        listed = fresh.list_connections_public()
+        assert listed[0]["credential_configured"] is True
+        assert listed[0]["secret_status"] == "store_locked"
+        assert fresh.resolve_connection_secret("sense-api") is None
+
+    def test_account_login_path_rejects_raw_credentials_with_vault(
+        self, tmp_path
+    ) -> None:
+        vault = FakeVault()
+        store = self._store(tmp_path, vault)
+
+        with pytest.raises(ValueError, match="raw session credentials"):
+            store.upsert_connection(
+                _connection_payload(auth_method="account_login", token="x")
+            )
+        assert vault.item_refs() == ()
+
+    def test_vault_secret_discarded_on_auth_method_change_requires_clear(
+        self, tmp_path
+    ) -> None:
+        vault = FakeVault()
+        store = self._store(tmp_path, vault)
+        store.upsert_connection(_connection_payload(api_key=_VAULT_SECRET))
+
+        with pytest.raises(ValueError, match="clear_secret"):
+            store.upsert_connection(_connection_payload(auth_method="none"))
+
+        switched = store.upsert_connection(
+            _connection_payload(auth_method="none", clear_secret=True)
+        )
+        assert switched["secret_status"] == "not_applicable"
+        assert vault.item_refs() == ()

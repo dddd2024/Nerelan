@@ -94,7 +94,7 @@ Examples:
 
 ```text
 OpenAI API       -> api_key
-OpenAI account   -> account_login
+OpenAI / ChatGPT account -> account_login (GPT models remain Binding model IDs)
 OpenCode session -> external_cli_session
 Local Ollama     -> none
 ```
@@ -209,6 +209,14 @@ selected Binding
 The adapter does not scrape or migrate OpenCode credentials. Existing OpenCode
 account/login state is reused only through OpenCode's normal runtime locations;
 reverse-agent does not inspect or export the auth store.
+
+Native OpenAI / ChatGPT login follows the same ownership rule. A bounded
+authenticated loopback OpenCode server advertises the exact provider auth
+methods and produces the browser continuation. OpenCode owns OAuth/PKCE,
+callback handling, token refresh and durable session storage. Reverse-agent
+keeps only in-memory flow control, returns no token material, and re-proves
+availability through a fresh sanitized auth-list probe. GPT names belong in the
+Binding `model_id`; they do not create a separate credential or provider.
 
 For Binding launches, reverse-agent copies only an explicit allowlist of
 non-secret runtime/location variables into the child environment and adds a

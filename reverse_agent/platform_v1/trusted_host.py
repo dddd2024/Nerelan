@@ -32,12 +32,15 @@ from ..model_access.credential_relay import (
     ExecutionLease,
     _normalize_model_id,
 )
+from ..model_access.os_vault import default_vault_adapter
+from ..model_access.account_auth import AccountAuthManager, ServerFactory
 from ..model_access.service import _handler_factory as _model_control_handler_factory
 from ..model_access.store import ModelProfileStore
 from .github_adapter import LiveGitHubAdapter
 from .opencode_executor import (
     ExecutionLeaseHandle,
     execute_opencode_auth_list_probe,
+    start_opencode_account_auth_server,
 )
 from .run_store import TaskStore
 from .task_runtime import ExecutorRouter
@@ -53,6 +56,11 @@ from .unattended_coordinator import UnattendedCoordinator
 
 class CombinedTrustedHost:
     """One-process host for Model Control + Task API + credential relay."""
+
+    # Sentinel: auto-constructed stores use the platform vault adapter
+    # (``default_vault_adapter()``). Passing ``vault=None`` forces the exact
+    # legacy process-local behavior; tests inject a fake adapter.
+    _PLATFORM_VAULT: Any = object()
 
     def __init__(
         self,
@@ -72,6 +80,8 @@ class CombinedTrustedHost:
         auth_list_probe: Callable[[], dict[str, str]] | None = None,
         auth_refresh_ttl_seconds: float = 5.0,
         auth_refresh_clock: Callable[[], float] = time.monotonic,
+        account_auth_server_factory: ServerFactory | None = None,
+        vault: Any = _PLATFORM_VAULT,
     ) -> None:
         if auth_refresh_ttl_seconds < 0:
             raise ValueError("auth_refresh_ttl_seconds must be non-negative")
@@ -80,7 +90,18 @@ class CombinedTrustedHost:
             self._store = store
         else:
             state_path = _resolve_store_state_path(task_store)
-            self._store = ModelProfileStore(state_path=state_path)
+            # Platforms without a supported OS vault adapter (None) keep the
+            # exact legacy process-local behavior; there is no plaintext
+            # fallback for durable storage.
+            resolved_vault = (
+                default_vault_adapter()
+                if vault is CombinedTrustedHost._PLATFORM_VAULT
+                else vault
+            )
+            self._store = ModelProfileStore(
+                state_path=state_path,
+                vault=resolved_vault,
+            )
         self._task_store = task_store
         self._relay_manager = relay_manager or CredentialRelayManager()
         self._router = ExecutorRouter()
@@ -93,6 +114,11 @@ class CombinedTrustedHost:
         self._auth_refresh_condition = threading.Condition()
         self._auth_refresh_in_progress = False
         self._auth_refresh_last_completed: float | None = None
+        self._account_auth = AccountAuthManager(
+            store=self._store,
+            server_factory=account_auth_server_factory,
+            refresh=self._refresh_external_session_auth,
+        )
         self._control_store = PlatformControlStore(self._task_store)
         self._capability_registry = CapabilityRegistry(
             pack_dir=os.environ.get("REVERSE_AGENT_CAPABILITY_PACK_DIR") or None
@@ -303,6 +329,7 @@ class CombinedTrustedHost:
             live_enabled=live_enabled,
             allowed_origin=self._allowed_origin,
             external_session_refresh=self._refresh_external_session_auth,
+            account_auth=self._account_auth,
         )
         self._model_server = ThreadingHTTPServer(
             (self._model_control_host, mcp), mc_handler
@@ -377,6 +404,7 @@ class CombinedTrustedHost:
             self._coordinator.start()
 
     def stop(self) -> None:
+        self._account_auth.close()
         if self._coordinator:
             self._coordinator.stop()
         servers = (
@@ -496,6 +524,7 @@ def run_combined_trusted_host() -> None:
         execution_authority_sha=auth_sha,
         planning_sha=planning_sha,
         auth_list_probe=execute_opencode_auth_list_probe,
+        account_auth_server_factory=start_opencode_account_auth_server,
     )
     host.start()
     metadata = {

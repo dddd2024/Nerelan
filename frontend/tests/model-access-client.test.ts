@@ -495,3 +495,95 @@ describe("executor-managed external session regressions", () => {
     }
   });
 });
+
+describe("OpenAI account OAuth client", () => {
+  it("normalizes browser continuation and sends only the transient callback code", async () => {
+    const calls: Array<{ url: string; method: string; body: string }> = [];
+    const mockFetch = vi.fn(async (url, options) => {
+      calls.push({
+        url: String(url),
+        method: String((options as RequestInit | undefined)?.method ?? "GET"),
+        body: String((options as RequestInit | undefined)?.body ?? ""),
+      });
+      const callback = String(url).endsWith("/callback");
+      return {
+        ok: true,
+        text: async () =>
+          JSON.stringify(
+            callback
+              ? {
+                  status: "authenticated",
+                  provider: "openai",
+                  external_session_status: "available",
+                }
+              : {
+                  status: "awaiting_browser",
+                  provider: "openai",
+                  authorization_url: "https://auth.example.test/continue?state=opaque",
+                  callback_method: "code",
+                  instructions: "Continue in browser.",
+                  expires_in_seconds: 300,
+                },
+          ),
+      };
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    try {
+      const client = createHttpModelControlClient("/api");
+      const started = await client.startAccountAuth("openai-gpt");
+      const completed = await client.completeAccountAuth(
+        "openai-gpt",
+        "TRANSIENT_CODE_SENTINEL",
+      );
+
+      expect(started.authorizationUrl).toBe(
+        "https://auth.example.test/continue?state=opaque",
+      );
+      expect(started.callbackMethod).toBe("code");
+      expect(completed.externalSessionStatus).toBe("available");
+      expect(calls).toEqual([
+        {
+          url: "/api/connections/openai-gpt/account-auth/start",
+          method: "POST",
+          body: "{}",
+        },
+        {
+          url: "/api/connections/openai-gpt/account-auth/callback",
+          method: "POST",
+          body: JSON.stringify({ code: "TRANSIENT_CODE_SENTINEL" }),
+        },
+      ]);
+      const callbackBody = JSON.parse(calls[1].body);
+      expect(Object.keys(callbackBody)).toEqual(["code"]);
+      expect(JSON.stringify(completed)).not.toContain("TRANSIENT_CODE_SENTINEL");
+      for (const forbidden of ["access_token", "refresh_token", "verifier", "cookie"]) {
+        expect(JSON.stringify(started)).not.toContain(forbidden);
+      }
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("mock account login makes the existing external session reusable", async () => {
+    const client = createMockModelControlClient([]);
+    await client.upsertConnection({
+      connectionId: "openai-gpt",
+      name: "OpenAI ChatGPT GPT",
+      provider: "openai",
+      baseUrl: "https://api.openai.com/v1",
+      authMethod: "account_login",
+      enabled: true,
+    });
+
+    const started = await client.startAccountAuth("openai-gpt");
+    const completed = await client.completeAccountAuth("openai-gpt", "code");
+    const connection = (await client.listConnections()).find(
+      (candidate) => candidate.connectionId === "openai-gpt",
+    );
+
+    expect(started.status).toBe("awaiting_browser");
+    expect(completed.status).toBe("authenticated");
+    expect(connection?.externalSessionStatus).toBe("available");
+  });
+});
