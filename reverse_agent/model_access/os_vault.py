@@ -113,6 +113,29 @@ def _encode_secret(secret: str) -> bytes:
     return encoded
 
 
+def _decode_secret_blob(
+    ctypes_api: Any,
+    blob_pointer: Any,
+    size: int,
+    ref: str,
+) -> str:
+    """Copy and decode one bounded native credential blob fail closed."""
+
+    if size == 0:
+        raise VaultItemMissingError(f"vault item is empty: {ref}")
+    if size > _MAX_SECRET_BYTES:
+        raise VaultSizeError(
+            "OS credential store returned an oversized secret item"
+        )
+    if not blob_pointer:
+        raise VaultItemMissingError(f"vault item is invalid: {ref}")
+    blob = ctypes_api.string_at(blob_pointer, size)
+    try:
+        return blob.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise VaultItemMissingError(f"vault item is invalid: {ref}") from exc
+
+
 class FakeVault:
     """Deterministic in-memory vault adapter for provider-free tests.
 
@@ -284,15 +307,15 @@ class WindowsVaultAdapter:
         try:
             credential = pointer.contents
             size = credential.CredentialBlobSize
-            if size == 0:
-                raise VaultItemMissingError(f"vault item is empty: {ref}")
-            blob = ctypes.string_at(credential.CredentialBlob, size)
+            secret = _decode_secret_blob(
+                ctypes,
+                credential.CredentialBlob,
+                size,
+                ref,
+            )
         finally:
             self._cred_free(pointer)
-        try:
-            return blob.decode("utf-8")
-        except UnicodeDecodeError as exc:
-            raise VaultItemMissingError(f"vault item is invalid: {ref}") from exc
+        return secret
 
     def delete(self, ref: str) -> None:
         ctypes = self._ctypes

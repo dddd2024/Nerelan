@@ -29,8 +29,17 @@ class AccountAuthServer(Protocol):
     def close(self) -> None: ...
 
 
+class TimerHandle(Protocol):
+    daemon: bool
+
+    def start(self) -> None: ...
+
+    def cancel(self) -> None: ...
+
+
 ServerFactory = Callable[[], AccountAuthServer]
 RefreshCallback = Callable[[bool, str | None], None]
+TimerFactory = Callable[[float, Callable[[], None]], TimerHandle]
 
 
 @dataclass
@@ -40,7 +49,9 @@ class _ActiveFlow:
     method_index: int
     callback_method: str
     deadline: float
+    generation: int
     server: AccountAuthServer
+    timer: TimerHandle
 
 
 class AccountAuthManager:
@@ -54,6 +65,7 @@ class AccountAuthManager:
         refresh: RefreshCallback,
         timeout_seconds: float = 300.0,
         clock: Callable[[], float] = time.monotonic,
+        timer_factory: TimerFactory = threading.Timer,
     ) -> None:
         if timeout_seconds <= 0 or timeout_seconds > 900:
             raise ValueError("account auth timeout must be between 0 and 900 seconds")
@@ -62,8 +74,11 @@ class AccountAuthManager:
         self._refresh = refresh
         self._timeout_seconds = float(timeout_seconds)
         self._clock = clock
+        self._timer_factory = timer_factory
         self._lock = threading.RLock()
         self._active: _ActiveFlow | None = None
+        self._generation = 0
+        self._last_terminal: tuple[str, str] | None = None
 
     def start(self, connection_id: str) -> dict[str, Any]:
         connection = self._validated_connection(connection_id)
@@ -85,14 +100,25 @@ class AccountAuthManager:
                     provider_id="openai", method_index=method.index
                 )
                 deadline = self._clock() + self._timeout_seconds
+                self._generation += 1
+                generation = self._generation
+                timer = self._timer_factory(
+                    self._timeout_seconds,
+                    lambda: self._expire(generation),
+                )
+                timer.daemon = True
                 self._active = _ActiveFlow(
                     connection_id=connection["connection_id"],
                     provider_id="openai",
                     method_index=method.index,
                     callback_method=authorization.method,
                     deadline=deadline,
+                    generation=generation,
                     server=server,
+                    timer=timer,
                 )
+                self._last_terminal = None
+                timer.start()
                 return {
                     "status": "awaiting_browser",
                     "provider": "openai",
@@ -102,17 +128,26 @@ class AccountAuthManager:
                     "expires_in_seconds": int(self._timeout_seconds),
                 }
             except Exception:
-                server.close()
+                active = self._active
+                if active is not None and active.server is server:
+                    self._cancel_locked()
+                else:
+                    server.close()
                 raise
 
     def status(self, connection_id: str) -> dict[str, Any]:
         connection = self._validated_connection(connection_id)
         with self._lock:
-            flow_status = "idle"
+            flow_status = (
+                self._last_terminal[1]
+                if self._last_terminal is not None
+                and self._last_terminal[0] == connection_id
+                else "idle"
+            )
             active = self._active
             if active is not None:
                 if self._clock() >= active.deadline:
-                    self._cancel_locked()
+                    self._expire_locked()
                     flow_status = "expired"
                 elif active.connection_id == connection_id:
                     flow_status = "awaiting_browser"
@@ -127,7 +162,7 @@ class AccountAuthManager:
             if active is None or active.connection_id != connection_id:
                 raise ValueError("no active account login for this connection")
             if self._clock() >= active.deadline:
-                self._cancel_locked()
+                self._expire_locked()
                 raise ValueError("account login expired")
             if active.callback_method == "code":
                 if not isinstance(code, str) or not code.strip() or len(code) > 4096:
@@ -146,8 +181,7 @@ class AccountAuthManager:
                 if not completed:
                     raise ValueError("OpenCode did not complete account login")
             finally:
-                active.server.close()
-                self._active = None
+                self._cancel_locked()
         self._refresh(True, connection_id)
         connection = self._validated_connection(connection_id)
         flow_status = (
@@ -210,4 +244,20 @@ class AccountAuthManager:
         active = self._active
         self._active = None
         if active is not None:
+            active.timer.cancel()
             active.server.close()
+
+    def _expire(self, generation: int) -> None:
+        with self._lock:
+            active = self._active
+            if active is None or active.generation != generation:
+                return
+            self._expire_locked()
+
+    def _expire_locked(self) -> None:
+        active = self._active
+        if active is None:
+            return
+        connection_id = active.connection_id
+        self._cancel_locked()
+        self._last_terminal = (connection_id, "expired")

@@ -4,7 +4,7 @@ import json
 import socket
 import threading
 from http.client import HTTPConnection
-from typing import Any
+from typing import Any, Callable
 
 import pytest
 
@@ -773,6 +773,36 @@ class _FakeAccountAuthServer:
         self.closed = True
 
 
+class _FakeAccountAuthTimer:
+    def __init__(self, seconds: float, callback: Callable[[], None]) -> None:
+        self.seconds = seconds
+        self.callback = callback
+        self.daemon = False
+        self.started = False
+        self.canceled = False
+
+    def start(self) -> None:
+        self.started = True
+
+    def cancel(self) -> None:
+        self.canceled = True
+
+    def fire(self) -> None:
+        self.callback()
+
+
+class _FakeAccountAuthTimerFactory:
+    def __init__(self) -> None:
+        self.timers: list[_FakeAccountAuthTimer] = []
+
+    def __call__(
+        self, seconds: float, callback: Callable[[], None]
+    ) -> _FakeAccountAuthTimer:
+        timer = _FakeAccountAuthTimer(seconds, callback)
+        self.timers.append(timer)
+        return timer
+
+
 def _account_login_store() -> ModelProfileStore:
     store = ModelProfileStore()
     store.upsert_connection(
@@ -844,24 +874,51 @@ def test_account_auth_auto_callback_rejects_supplied_code() -> None:
     assert server.closed is True
 
 
-def test_account_auth_timeout_closes_child_and_never_claims_success() -> None:
+def test_account_auth_timeout_proactively_closes_child_without_polling() -> None:
     store = _account_login_store()
     server = _FakeAccountAuthServer()
-    now = [10.0]
+    timers = _FakeAccountAuthTimerFactory()
     manager = AccountAuthManager(
         store=store,
         server_factory=lambda: server,
         refresh=lambda *_: None,
         timeout_seconds=5,
-        clock=lambda: now[0],
+        timer_factory=timers,
     )
     manager.start("openai-account")
-    now[0] = 16.0
 
+    assert len(timers.timers) == 1
+    timer = timers.timers[0]
+    assert timer.seconds == 5
+    assert timer.started is True
+    assert timer.daemon is True
+    assert server.closed is False
+
+    timer.fire()
+
+    assert server.closed is True
+    assert timer.canceled is True
     status = manager.status("openai-account")
     assert status["status"] == "expired"
     assert status["external_session_status"] == "executor_managed"
-    assert server.closed is True
+
+
+def test_account_auth_completed_flow_cancels_proactive_expiry_timer() -> None:
+    store = _account_login_store()
+    server = _FakeAccountAuthServer()
+    timers = _FakeAccountAuthTimerFactory()
+    manager = AccountAuthManager(
+        store=store,
+        server_factory=lambda: server,
+        refresh=lambda *_: None,
+        timer_factory=timers,
+    )
+    manager.start("openai-account")
+    manager.callback("openai-account", "TRANSIENT_CODE")
+
+    assert timers.timers[0].canceled is True
+    timers.timers[0].fire()
+    assert manager.status("openai-account")["status"] == "idle"
 
 
 def test_account_auth_cancel_and_logout_are_explicit_provider_boundaries() -> None:
@@ -923,8 +980,38 @@ from reverse_agent.model_access.os_vault import (
     VaultItemMissingError,
     VaultSizeError,
     VaultUnavailableError,
+    _decode_secret_blob,
     connection_vault_ref,
 )
+
+
+class _FakeCtypesBlobReader:
+    def __init__(self, payload: bytes = b"secret") -> None:
+        self.payload = payload
+        self.calls: list[tuple[Any, int]] = []
+
+    def string_at(self, pointer: Any, size: int) -> bytes:
+        self.calls.append((pointer, size))
+        return self.payload[:size]
+
+
+def test_native_vault_read_rejects_oversized_blob_before_copy() -> None:
+    ctypes_api = _FakeCtypesBlobReader()
+
+    with pytest.raises(VaultSizeError, match="oversized"):
+        _decode_secret_blob(ctypes_api, object(), 2561, "safe-ref")
+
+    assert ctypes_api.calls == []
+
+
+def test_native_vault_read_copies_and_decodes_only_bounded_blob() -> None:
+    ctypes_api = _FakeCtypesBlobReader(b"bounded-secret")
+    pointer = object()
+
+    assert _decode_secret_blob(
+        ctypes_api, pointer, len(b"bounded-secret"), "safe-ref"
+    ) == "bounded-secret"
+    assert ctypes_api.calls == [(pointer, len(b"bounded-secret"))]
 
 _VAULT_SECRET = "vault-backed-master-key-sentinel"
 
