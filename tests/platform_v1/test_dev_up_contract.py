@@ -18,6 +18,7 @@ DEV_DOWN = ROOT / "dev-down.ps1"
 COMPOSER = ROOT / "frontend/src/components/new-task-composer.tsx"
 FRONTEND_TEST = ROOT / "frontend/tests/real-executor-task-plane.test.tsx"
 LAUNCHER = ROOT / "launch_reverse_agent.bat"
+README = ROOT / "README.md"
 
 _PWSH = shutil.which("powershell") or shutil.which("pwsh")
 requires_powershell = pytest.mark.skipif(
@@ -45,6 +46,7 @@ _DEV_DOWN = _text(DEV_DOWN)
 _COMPOSER = _text(COMPOSER)
 _FRONTEND_TEST = _text(FRONTEND_TEST)
 _LAUNCHER = _text(LAUNCHER)
+_README = _text(README)
 
 
 def test_dev_up_uses_loopback_ports_only() -> None:
@@ -79,6 +81,12 @@ def test_desktop_launcher_starts_platform_stack_not_legacy_solver() -> None:
     lowered = _LAUNCHER.lower()
     assert "dev-up.ps1" in lowered
     assert "app.py" not in lowered
+
+
+def test_readme_no_longer_recommends_old_local_samples_flow() -> None:
+    assert "python -m reverse_agent.local_samples add" not in _README
+    assert "python -m reverse_agent.local_samples solve" not in _README
+    assert "local_reverse_samples\\<case_id>\\" not in _README
 
 
 def test_desktop_launcher_delegates_path_resolution_and_forwards_options() -> None:
