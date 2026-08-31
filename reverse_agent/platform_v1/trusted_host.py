@@ -297,84 +297,88 @@ class CombinedTrustedHost:
         mcp = model_control_port if model_control_port is not None else self._model_control_port
         tap = task_api_port if task_api_port is not None else self._task_api_port
 
-        live_enabled = os.environ.get("REVERSE_AGENT_MODEL_CONTROL_LIVE") == "1"
-        mc_handler = _model_control_handler_factory(
-            self._store,
-            live_enabled=live_enabled,
-            allowed_origin=self._allowed_origin,
-            external_session_refresh=self._refresh_external_session_auth,
-        )
-        self._model_server = ThreadingHTTPServer(
-            (self._model_control_host, mcp), mc_handler
-        )
-        actual_mc_port = self._model_server.server_address[1]
-        self.model_control_url = f"http://{self._model_control_host}:{actual_mc_port}"
-
-        from ..model_access.credential_relay import run_credential_relay_server
-        relay_srv = run_credential_relay_server(
-            manager=self._relay_manager,
-            host="127.0.0.1",
-            port=0,
-            upstream_timeout=120.0,
-        )
-        self._relay_server_port = relay_srv.server_address[1]
-        self._relay_server_inner = relay_srv
-        self.relay_url = f"http://127.0.0.1:{self._relay_server_port}"
-
-        binding_resolver = self._binding_resolver_factory(self.model_control_url)
-        live_github = self._github_adapter
-        if live_github is None:
-            live_github = LiveGitHubAdapter()
-        self._publication_controller = PublicationController(
-            store=self._task_store,
-            control_store=self._control_store,
-            autonomy=self._autonomy_service,
-        )
-        workspace_root = os.environ.get("REVERSE_AGENT_TASK_WORKSPACE_ROOT", "").strip()
-        if not workspace_root:
-            workspace_root = os.path.join(
-                os.path.dirname(os.path.abspath(self._task_store.db_path)) or ".",
-                "task_workspaces",
+        try:
+            live_enabled = os.environ.get("REVERSE_AGENT_MODEL_CONTROL_LIVE") == "1"
+            mc_handler = _model_control_handler_factory(
+                self._store,
+                live_enabled=live_enabled,
+                allowed_origin=self._allowed_origin,
+                external_session_refresh=self._refresh_external_session_auth,
             )
-        self._coordinator = UnattendedCoordinator(
-            store=self._task_store,
-            control_store=self._control_store,
-            autonomy=self._autonomy_service,
-            router=self._router,
-            workspace_root=workspace_root,
-            lease_provider=self._lease_provider_factory(),
-            binding_resolver=binding_resolver,
-            execution_authority_sha=self._execution_authority_sha,
-            planning_sha=self._planning_sha,
-        )
-        task_handler = _task_handler_factory(
-            self._task_store,
-            self._router,
-            allowed_origin=self._allowed_origin,
-            lease_provider=self._lease_provider_factory(),
-            binding_resolver=binding_resolver,
-            github_adapter=live_github,
-            execution_authority_sha=self._execution_authority_sha,
-            planning_sha=self._planning_sha,
-            control_store=self._control_store,
-            goal_service=self._goal_service,
-            autonomy_service=self._autonomy_service,
-            capability_registry=self._capability_registry,
-            publication_controller=self._publication_controller,
-            coordinator=self._coordinator,
-        )
-        self._task_server = ThreadingHTTPServer(
-            (self._task_api_host, tap), task_handler
-        )
-        actual_task_port = self._task_server.server_address[1]
-        self.task_api_url = f"http://{self._task_api_host}:{actual_task_port}"
+            self._model_server = ThreadingHTTPServer(
+                (self._model_control_host, mcp), mc_handler
+            )
+            actual_mc_port = self._model_server.server_address[1]
+            self.model_control_url = f"http://{self._model_control_host}:{actual_mc_port}"
 
-        for server in (self._model_server, self._task_server, relay_srv):
-            t = threading.Thread(target=server.serve_forever, daemon=True)
-            t.start()
-            self._threads.append(t)
-        if os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and self._coordinator:
-            self._coordinator.start()
+            from ..model_access.credential_relay import run_credential_relay_server
+            relay_srv = run_credential_relay_server(
+                manager=self._relay_manager,
+                host="127.0.0.1",
+                port=0,
+                upstream_timeout=120.0,
+            )
+            self._relay_server_port = relay_srv.server_address[1]
+            self._relay_server_inner = relay_srv
+            self.relay_url = f"http://127.0.0.1:{self._relay_server_port}"
+
+            binding_resolver = self._binding_resolver_factory(self.model_control_url)
+            live_github = self._github_adapter
+            if live_github is None:
+                live_github = LiveGitHubAdapter()
+            self._publication_controller = PublicationController(
+                store=self._task_store,
+                control_store=self._control_store,
+                autonomy=self._autonomy_service,
+            )
+            workspace_root = os.environ.get("REVERSE_AGENT_TASK_WORKSPACE_ROOT", "").strip()
+            if not workspace_root:
+                workspace_root = os.path.join(
+                    os.path.dirname(os.path.abspath(self._task_store.db_path)) or ".",
+                    "task_workspaces",
+                )
+            self._coordinator = UnattendedCoordinator(
+                store=self._task_store,
+                control_store=self._control_store,
+                autonomy=self._autonomy_service,
+                router=self._router,
+                workspace_root=workspace_root,
+                lease_provider=self._lease_provider_factory(),
+                binding_resolver=binding_resolver,
+                execution_authority_sha=self._execution_authority_sha,
+                planning_sha=self._planning_sha,
+            )
+            task_handler = _task_handler_factory(
+                self._task_store,
+                self._router,
+                allowed_origin=self._allowed_origin,
+                lease_provider=self._lease_provider_factory(),
+                binding_resolver=binding_resolver,
+                github_adapter=live_github,
+                execution_authority_sha=self._execution_authority_sha,
+                planning_sha=self._planning_sha,
+                control_store=self._control_store,
+                goal_service=self._goal_service,
+                autonomy_service=self._autonomy_service,
+                capability_registry=self._capability_registry,
+                publication_controller=self._publication_controller,
+                coordinator=self._coordinator,
+            )
+            self._task_server = ThreadingHTTPServer(
+                (self._task_api_host, tap), task_handler
+            )
+            actual_task_port = self._task_server.server_address[1]
+            self.task_api_url = f"http://{self._task_api_host}:{actual_task_port}"
+
+            for server in (self._model_server, self._task_server, relay_srv):
+                t = threading.Thread(target=server.serve_forever, daemon=True)
+                t.start()
+                self._threads.append(t)
+            if os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and self._coordinator:
+                self._coordinator.start()
+        except Exception:
+            self.stop()
+            raise
 
     def stop(self) -> None:
         if self._coordinator:
@@ -384,7 +388,10 @@ class CombinedTrustedHost:
             self._task_server,
             getattr(self, "_relay_server_inner", None),
         )
-        for server in servers:
+        # BaseServer.shutdown() blocks if serve_forever() never ran. During
+        # partial startup cleanup, only shut down servers whose loop was started.
+        started_servers = servers[: len(self._threads)]
+        for server in started_servers:
             if server:
                 try:
                     server.shutdown()
@@ -521,9 +528,12 @@ def run_combined_trusted_host() -> None:
     print(f"  Authority SHA: {auth_sha or '(empty - durable execute will fail closed)'}")
     print(f"  Planning SHA:  {planning_sha or '(empty - durable execute will fail closed)'}")
 
+    lifetime = threading.Event()
     try:
-        host._model_server.serve_forever()
+        lifetime.wait()
     except (KeyboardInterrupt, SystemExit):
+        pass
+    finally:
         host.stop()
 
 
