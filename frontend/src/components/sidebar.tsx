@@ -96,7 +96,7 @@ export function Sidebar({
   onConversationPanelClose,
   conversationPanelOpen,
 }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -112,12 +112,17 @@ export function Sidebar({
         window.location.href = "/";
       }}
       className={cn(
-        "flex h-9 w-full items-center text-sm font-semibold tracking-tight",
-        "text-ra-text-secondary hover:text-ra-text",
+        "flex h-9 w-full items-center text-sm font-semibold tracking-[-0.015em]",
+        "text-ra-text hover:text-ra-text",
         collapsed ? "justify-center" : "justify-start px-2.5",
       )}
+      title="Nerelan"
     >
-      {collapsed ? "RA" : "reverse-agent"}
+      {collapsed ? (
+        <span className="text-[15px] font-semibold">N</span>
+      ) : (
+        <span className="text-[15px] font-semibold">Nerelan</span>
+      )}
     </button>
   );
 
@@ -132,9 +137,9 @@ export function Sidebar({
       title={collapsed ? "展开" : "收起"}
     >
       {collapsed ? (
-        <ChevronRight className="h-[18px] w-[18px]" />
+        <ChevronRight className="h-[17px] w-[17px]" />
       ) : (
-        <ChevronLeft className="h-[18px] w-[18px]" />
+        <ChevronLeft className="h-[17px] w-[17px]" />
       )}
     </button>
   );
