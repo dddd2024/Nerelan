@@ -803,6 +803,58 @@ class _FakeAccountAuthTimerFactory:
         return timer
 
 
+class _BlockingAuthorizeAccountAuthServer(_FakeAccountAuthServer):
+    def __init__(self) -> None:
+        super().__init__()
+        self.authorize_entered = threading.Event()
+        self.authorize_exited = threading.Event()
+        self.close_called = threading.Event()
+        self.close_during_authorize = False
+
+    def provider_oauth_authorize(self, *, provider_id: str, method_index: int):
+        self.calls.append(("authorize", provider_id, method_index))
+        self.authorize_entered.set()
+        assert self.close_called.wait(timeout=1)
+        self.authorize_exited.set()
+        return _SimpleNamespace(
+            url="https://auth.example.test/authorize?state=opaque",
+            method="code",
+            instructions="Continue in browser.",
+        )
+
+    def close(self) -> None:
+        self.close_during_authorize = (
+            self.authorize_entered.is_set() and not self.authorize_exited.is_set()
+        )
+        self.close_called.set()
+        super().close()
+
+
+class _BlockingCallbackAccountAuthServer(_FakeAccountAuthServer):
+    def __init__(self) -> None:
+        super().__init__()
+        self.callback_entered = threading.Event()
+        self.callback_exited = threading.Event()
+        self.close_called = threading.Event()
+        self.close_during_callback = False
+
+    def provider_oauth_callback(
+        self, *, provider_id: str, method_index: int, code: str | None = None
+    ) -> bool:
+        self.calls.append(("callback", provider_id, method_index, code))
+        self.callback_entered.set()
+        assert self.close_called.wait(timeout=1)
+        self.callback_exited.set()
+        return True
+
+    def close(self) -> None:
+        self.close_during_callback = (
+            self.callback_entered.is_set() and not self.callback_exited.is_set()
+        )
+        self.close_called.set()
+        super().close()
+
+
 def _account_login_store() -> ModelProfileStore:
     store = ModelProfileStore()
     store.upsert_connection(
@@ -919,6 +971,43 @@ def test_account_auth_completed_flow_cancels_proactive_expiry_timer() -> None:
     assert timers.timers[0].canceled is True
     timers.timers[0].fire()
     assert manager.status("openai-account")["status"] == "idle"
+
+
+def test_account_auth_deadline_closes_child_during_blocking_authorize() -> None:
+    store = _account_login_store()
+    server = _BlockingAuthorizeAccountAuthServer()
+    manager = AccountAuthManager(
+        store=store,
+        server_factory=lambda: server,
+        refresh=lambda *_: None,
+        timeout_seconds=0.05,
+    )
+
+    with pytest.raises(ValueError, match="expired"):
+        manager.start("openai-account")
+
+    assert server.close_during_authorize is True
+    assert server.closed is True
+    assert manager.status("openai-account")["status"] == "expired"
+
+
+def test_account_auth_deadline_closes_child_during_blocking_callback() -> None:
+    store = _account_login_store()
+    server = _BlockingCallbackAccountAuthServer()
+    manager = AccountAuthManager(
+        store=store,
+        server_factory=lambda: server,
+        refresh=lambda *_: pytest.fail("expired login must not refresh credentials"),
+        timeout_seconds=0.05,
+    )
+    manager.start("openai-account")
+
+    with pytest.raises(ValueError, match="expired"):
+        manager.callback("openai-account", "TRANSIENT_CODE")
+
+    assert server.close_during_callback is True
+    assert server.closed is True
+    assert manager.status("openai-account")["status"] == "expired"
 
 
 def test_account_auth_cancel_and_logout_are_explicit_provider_boundaries() -> None:

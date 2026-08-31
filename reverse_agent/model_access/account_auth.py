@@ -7,7 +7,7 @@ loopback OpenCode server and exposes only a sanitized browser continuation.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import threading
 import time
 from typing import Any, Callable, Protocol
@@ -46,12 +46,56 @@ TimerFactory = Callable[[float, Callable[[], None]], TimerHandle]
 class _ActiveFlow:
     connection_id: str
     provider_id: str
-    method_index: int
-    callback_method: str
     deadline: float
     generation: int
     server: AccountAuthServer
-    timer: TimerHandle
+    method_index: int | None = None
+    callback_method: str | None = None
+    timer: TimerHandle | None = None
+    _state_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    _closed: bool = field(default=False, init=False, repr=False)
+    _expired: bool = field(default=False, init=False, repr=False)
+
+    def is_expired(self) -> bool:
+        with self._state_lock:
+            return self._expired
+
+    def expire(self) -> bool:
+        """Claim the flow and close its child without the manager lock."""
+
+        with self._state_lock:
+            if self._closed:
+                return False
+            self._expired = True
+            self._closed = True
+            timer = self.timer
+        if timer is not None:
+            timer.cancel()
+        self.server.close()
+        return True
+
+    def finish(self) -> bool:
+        """Claim successful completion unless expiry already won the race."""
+
+        with self._state_lock:
+            if self._closed:
+                return False
+            self._closed = True
+            timer = self.timer
+        if timer is not None:
+            timer.cancel()
+        self.server.close()
+        return True
+
+    def cancel(self) -> None:
+        with self._state_lock:
+            if self._closed:
+                return
+            self._closed = True
+            timer = self.timer
+        if timer is not None:
+            timer.cancel()
+        self.server.close()
 
 
 class AccountAuthManager:
@@ -88,8 +132,27 @@ class AccountAuthManager:
         with self._lock:
             self._cancel_locked()
             server = factory()
+            deadline = self._clock() + self._timeout_seconds
+            self._generation += 1
+            flow = _ActiveFlow(
+                connection_id=connection["connection_id"],
+                provider_id="openai",
+                deadline=deadline,
+                generation=self._generation,
+                server=server,
+            )
+            timer = self._timer_factory(
+                self._timeout_seconds,
+                lambda: self._expire(flow),
+            )
+            timer.daemon = True
+            flow.timer = timer
+            self._active = flow
+            self._last_terminal = None
+            timer.start()
             try:
                 methods = server.provider_auth_methods(provider_id="openai")
+                self._raise_if_expired(flow)
                 method = next(
                     (candidate for candidate in methods if candidate.type == "oauth"),
                     None,
@@ -99,26 +162,9 @@ class AccountAuthManager:
                 authorization = server.provider_oauth_authorize(
                     provider_id="openai", method_index=method.index
                 )
-                deadline = self._clock() + self._timeout_seconds
-                self._generation += 1
-                generation = self._generation
-                timer = self._timer_factory(
-                    self._timeout_seconds,
-                    lambda: self._expire(generation),
-                )
-                timer.daemon = True
-                self._active = _ActiveFlow(
-                    connection_id=connection["connection_id"],
-                    provider_id="openai",
-                    method_index=method.index,
-                    callback_method=authorization.method,
-                    deadline=deadline,
-                    generation=generation,
-                    server=server,
-                    timer=timer,
-                )
-                self._last_terminal = None
-                timer.start()
+                self._raise_if_expired(flow)
+                flow.method_index = method.index
+                flow.callback_method = authorization.method
                 return {
                     "status": "awaiting_browser",
                     "provider": "openai",
@@ -127,12 +173,15 @@ class AccountAuthManager:
                     "instructions": authorization.instructions,
                     "expires_in_seconds": int(self._timeout_seconds),
                 }
-            except Exception:
-                active = self._active
-                if active is not None and active.server is server:
-                    self._cancel_locked()
-                else:
-                    server.close()
+            except Exception as exc:
+                expired = flow.is_expired()
+                if self._active is flow:
+                    self._active = None
+                if expired:
+                    self._last_terminal = (flow.connection_id, "expired")
+                flow.cancel()
+                if expired and str(exc) != "account login expired":
+                    raise ValueError("account login expired") from exc
                 raise
 
     def status(self, connection_id: str) -> dict[str, Any]:
@@ -164,6 +213,8 @@ class AccountAuthManager:
             if self._clock() >= active.deadline:
                 self._expire_locked()
                 raise ValueError("account login expired")
+            if active.method_index is None or active.callback_method is None:
+                raise ValueError("account login is still starting")
             if active.callback_method == "code":
                 if not isinstance(code, str) or not code.strip() or len(code) > 4096:
                     raise ValueError("authorization code is required")
@@ -178,10 +229,24 @@ class AccountAuthManager:
                     method_index=active.method_index,
                     code=callback_code,
                 )
+                if active.is_expired():
+                    raise ValueError("account login expired")
                 if not completed:
                     raise ValueError("OpenCode did not complete account login")
-            finally:
-                self._cancel_locked()
+                if not active.finish():
+                    raise ValueError("account login expired")
+                if self._active is active:
+                    self._active = None
+            except Exception as exc:
+                expired = active.is_expired()
+                if self._active is active:
+                    self._active = None
+                if expired:
+                    self._last_terminal = (active.connection_id, "expired")
+                active.cancel()
+                if expired and str(exc) != "account login expired":
+                    raise ValueError("account login expired") from exc
+                raise
         self._refresh(True, connection_id)
         connection = self._validated_connection(connection_id)
         flow_status = (
@@ -244,20 +309,27 @@ class AccountAuthManager:
         active = self._active
         self._active = None
         if active is not None:
-            active.timer.cancel()
-            active.server.close()
+            active.cancel()
 
-    def _expire(self, generation: int) -> None:
+    def _expire(self, flow: _ActiveFlow) -> None:
+        if not flow.expire():
+            return
         with self._lock:
             active = self._active
-            if active is None or active.generation != generation:
+            if active is not flow:
                 return
-            self._expire_locked()
+            self._active = None
+            self._last_terminal = (flow.connection_id, "expired")
 
     def _expire_locked(self) -> None:
         active = self._active
         if active is None:
             return
-        connection_id = active.connection_id
-        self._cancel_locked()
-        self._last_terminal = (connection_id, "expired")
+        self._active = None
+        active.expire()
+        self._last_terminal = (active.connection_id, "expired")
+
+    @staticmethod
+    def _raise_if_expired(flow: _ActiveFlow) -> None:
+        if flow.is_expired():
+            raise ValueError("account login expired")
