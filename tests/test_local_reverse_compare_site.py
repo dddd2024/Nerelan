@@ -211,7 +211,7 @@ def test_result_schema_when_compare_site_not_found(tmp_path: Path, monkeypatch) 
 
 
 def test_readme_no_longer_recommends_old_local_samples_flow() -> None:
-    text = Path("README.txt").read_text(encoding="utf-8")
+    text = Path("README.md").read_text(encoding="utf-8")
 
     assert "python -m reverse_agent.local_samples add" not in text
     assert "python -m reverse_agent.local_samples solve" not in text
