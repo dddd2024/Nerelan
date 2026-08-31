@@ -23,6 +23,9 @@ export const ConnectionSecretStatusSchema = z.enum([
   "session",
   "environment",
   "not_applicable",
+  "stored",
+  "store_locked",
+  "replacement_required",
 ]);
 
 export const ExternalSessionStatusSchema = z.enum([
@@ -120,7 +123,8 @@ export function connectionVerificationCapability(
 
   if (connection.authMethod === "api_key") {
     return connection.secretStatus === "session" ||
-      connection.secretStatus === "environment"
+      connection.secretStatus === "environment" ||
+      connection.secretStatus === "stored"
       ? "supported"
       : "credential_missing";
   }

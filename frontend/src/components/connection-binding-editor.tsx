@@ -221,6 +221,17 @@ export function ConnectionBindingEditor({
     !busy;
   const savedApiKeyStatus =
     connection?.authMethod === "api_key" ? connection.secretStatus : "missing";
+  const durableStatusDetail = durableSecretStatusDetail(savedApiKeyStatus);
+  const authorityNoticeVisible =
+    (authorityChanged && connDraft.authMethod === "api_key") ||
+    discardingConfiguredCredential;
+  const canManageSavedSecret =
+    !creating &&
+    !!connection &&
+    connection.authMethod === "api_key" &&
+    connection.credentialConfigured &&
+    connDraft.authMethod === "api_key" &&
+    !authorityNoticeVisible;
 
   return (
     <div data-testid="connection-binding-editor">
@@ -319,24 +330,55 @@ export function ConnectionBindingEditor({
               />
             </Field>
             {connDraft.authMethod === "api_key" ? (
-              <Field
-                label={`API Key（${apiKeyStatusLabel(savedApiKeyStatus)}）`}
-                className="md:col-span-2"
-              >
-                <input
-                  aria-label="API Key"
-                  type="password"
-                  value={connApiKey}
-                  onChange={(event) => setConnApiKey(event.target.value)}
-                  className={inputClass}
-                  autoComplete="new-password"
-                  placeholder={
-                    connection?.credentialConfigured
-                      ? "已配置；留空表示不替换"
-                      : "尚未配置"
-                  }
-                />
-              </Field>
+              <>
+                <Field
+                  label={`API Key（${apiKeyStatusLabel(savedApiKeyStatus)}）`}
+                  className="md:col-span-2"
+                >
+                  <input
+                    aria-label="API Key"
+                    type="password"
+                    value={connApiKey}
+                    onChange={(event) => setConnApiKey(event.target.value)}
+                    className={inputClass}
+                    autoComplete="new-password"
+                    placeholder={
+                      connection?.credentialConfigured
+                        ? "已配置；留空表示不替换"
+                        : "尚未配置"
+                    }
+                  />
+                </Field>
+                {durableStatusDetail && (
+                  <p
+                    data-testid="connection-secret-status-detail"
+                    className="md:col-span-2 text-xs text-ra-text-tertiary"
+                  >
+                    {durableStatusDetail}
+                  </p>
+                )}
+                {canManageSavedSecret ? (
+                  <div
+                    data-testid="connection-secret-management"
+                    className="md:col-span-2 rounded-md border border-ra-border bg-ra-tertiary px-3 py-2 text-xs text-ra-text-secondary"
+                  >
+                    <p>
+                      已保存的密钥不会回显到浏览器。替换请在上方输入新 API Key 后保存；
+                      移除请勾选下方选项。
+                    </p>
+                    <label className="mt-2 inline-flex items-center gap-2 text-xs text-ra-text-secondary">
+                      <input
+                        type="checkbox"
+                        checked={connClearSecret}
+                        onChange={(event) =>
+                          setConnClearSecret(event.target.checked)
+                        }
+                      />
+                      移除已保存密钥（clear_secret）
+                    </label>
+                  </div>
+                ) : null}
+              </>
             ) : (
               <div
                 data-testid="connection-auth-guidance"
@@ -373,8 +415,7 @@ export function ConnectionBindingEditor({
             启用该连接
           </label>
 
-          {(authorityChanged && connDraft.authMethod === "api_key") ||
-          discardingConfiguredCredential ? (
+          {authorityNoticeVisible ? (
             <div
               data-testid="connection-authority-change-notice"
               className="rounded-md border border-ra-border bg-ra-tertiary px-3 py-2 text-xs text-ra-text-secondary"
@@ -645,7 +686,9 @@ function localizedProbeMessage(result: ConnectionProbeResult): string {
     case "connected":
       return "连接成功";
     case "credential_missing":
-      return "API Key 未配置";
+      return "API Key 未配置或需要重新输入";
+    case "credential_store_locked":
+      return "系统凭据库不可用或已锁定，暂时无法读取已保存的密钥";
     case "disabled":
       return "连接已禁用";
     case "live_probe_disabled":
@@ -686,10 +729,31 @@ function apiKeyStatusLabel(status: Connection["secretStatus"]): string {
       return "已配置（进程会话）";
     case "environment":
       return "已配置（环境变量）";
+    case "stored":
+      return "已安全保存（系统凭据库）";
+    case "store_locked":
+      return "系统凭据库不可用或已锁定";
+    case "replacement_required":
+      return "需要重新输入 API Key";
     case "missing":
       return "当前不可用";
     case "not_applicable":
       return "不适用";
+  }
+}
+
+function durableSecretStatusDetail(
+  status: Connection["secretStatus"],
+): string | null {
+  switch (status) {
+    case "stored":
+      return "密钥已保存在操作系统凭据库中，重启后无需重新输入；浏览器永远不会读取或回显密钥。";
+    case "store_locked":
+      return "系统凭据库当前不可用或已锁定。保存或替换密钥会失败，执行解析也会安全关闭；请解锁系统凭据库后重试。";
+    case "replacement_required":
+      return "系统凭据库中的密钥条目已不存在（可能被外部移除）。请重新输入 API Key 以恢复。";
+    default:
+      return null;
   }
 }
 

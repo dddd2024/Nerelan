@@ -379,6 +379,12 @@ function secretStatusLabel(status: Connection["secretStatus"]): string {
       return "环境变量";
     case "session":
       return "进程会话";
+    case "stored":
+      return "系统凭据库";
+    case "store_locked":
+      return "凭据库锁定";
+    case "replacement_required":
+      return "需重新输入";
     case "missing":
       return "未配置";
     case "not_applicable":

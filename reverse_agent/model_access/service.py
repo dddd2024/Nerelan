@@ -15,6 +15,7 @@ from urllib.parse import unquote, urlsplit
 from urllib.request import Request, urlopen
 
 from .contracts import Connection, ModelProfile, ProbeResult
+from .os_vault import VaultUnavailableError
 from .store import ModelProfileStore
 
 ProbeTransport = Callable[[str, dict[str, str], float], tuple[int, bytes]]
@@ -197,12 +198,22 @@ def probe_saved_connection(
         )
 
     if connection.auth_method == "api_key":
-        secret = store.resolve_connection_secret(connection_id)
+        try:
+            secret = store.resolve_connection_secret(connection_id)
+        except VaultUnavailableError:
+            # Locked or unavailable OS credential store: explicit typed
+            # fail-closed state; never a plaintext fallback.
+            return ProbeResult(
+                ok=False,
+                status="credential_store_locked",
+                message="Credential store is locked or unavailable",
+                latency_ms=None,
+            )
         if not secret:
             return ProbeResult(
                 ok=False,
                 status="credential_missing",
-                message="API key is not configured",
+                message="API key is not configured or needs to be re-entered",
                 latency_ms=None,
             )
         headers = {"Accept": "application/json", "Authorization": f"Bearer {secret}"}

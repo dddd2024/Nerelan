@@ -915,6 +915,87 @@ describe("auth-method-aware Connection verification UI", () => {
     ).toHaveTextContent(/请先配置并保存 API Key/);
   });
 
+  it("renders durable stored truth with restart guidance and never echoes a secret", () => {
+    const connection: Connection = {
+      connectionId: "stored-ui",
+      name: "Stored Key",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      credentialConfigured: true,
+      secretStatus: "stored",
+      externalSessionStatus: "not_applicable",
+    };
+
+    renderConnection(connection);
+
+    expect(screen.getByLabelText("API Key（已安全保存（系统凭据库））")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("connection-secret-status-detail"),
+    ).toHaveTextContent(/重启后无需重新输入/);
+    expect(screen.getByTestId("connection-secret-management")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("connection-secret-management"),
+    ).toHaveTextContent(/不会回显到浏览器/);
+    expect(screen.getByLabelText("API Key")).toHaveAttribute(
+      "placeholder",
+      "已配置；留空表示不替换",
+    );
+    expect(screen.getByLabelText("API Key")).toHaveValue("");
+    expect(screen.getByTestId("test-connection-button")).toBeEnabled();
+  });
+
+  it("renders an explicitly locked credential store without fabricating missing state", () => {
+    const connection: Connection = {
+      connectionId: "locked-ui",
+      name: "Locked Store",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      credentialConfigured: true,
+      secretStatus: "store_locked",
+      externalSessionStatus: "not_applicable",
+    };
+
+    renderConnection(connection);
+
+    expect(screen.getByLabelText("API Key（系统凭据库不可用或已锁定）")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("connection-secret-status-detail"),
+    ).toHaveTextContent(/保存或替换密钥会失败/);
+    expect(screen.getByTestId("test-connection-button")).toBeDisabled();
+    expect(
+      screen.getByTestId("connection-verification-capability"),
+    ).toHaveTextContent(/请先配置并保存 API Key/);
+  });
+
+  it("renders replacement-required truth when the stored item was removed externally", () => {
+    const connection: Connection = {
+      connectionId: "replacement-ui",
+      name: "Removed Item",
+      provider: "litellm-proxy",
+      baseUrl: "http://localhost:4000/v1",
+      authMethod: "api_key",
+      enabled: true,
+      credentialConfigured: true,
+      secretStatus: "replacement_required",
+      externalSessionStatus: "not_applicable",
+    };
+
+    renderConnection(connection);
+
+    expect(screen.getByLabelText("API Key（需要重新输入 API Key）")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("connection-secret-status-detail"),
+    ).toHaveTextContent(/密钥条目已不存在/);
+    expect(screen.getByTestId("test-connection-button")).toBeDisabled();
+    expect(
+      screen.getByTestId("connection-verification-capability"),
+    ).toHaveTextContent(/请先配置并保存 API Key/);
+  });
+
   it("disables verification before click for a disabled Connection", () => {
     const connection: Connection = {
       connectionId: "disabled-ui",

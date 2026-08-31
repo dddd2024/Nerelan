@@ -117,12 +117,46 @@ Key boundaries:
 
 This roadmap does not mean quota/billing is implemented in the current version.
 
+## Durable API-key persistence (OS credential store)
+
+On platforms with a supported OS credential store, an `api_key` Connection can persist its secret durably instead of keeping it only for the current process:
+
+- Windows: the Windows Credential Manager, reached from trusted-host Python code through the standard library only;
+- other platforms: no OS-backed adapter is instantiated; Connections keep the exact legacy process-local behavior.
+
+How it works:
+
+- Saving an API key writes the OS credential store item first; only then is sanitized state persisted. The sanitized state contains only a non-secret `credential_ref`; secret bytes never enter the state file, TaskStore, evidence, logs, public JSON or frontend storage.
+- The `credential_ref` is derived from and bound to the Connection authority (connection id, provider, base URL, auth method). Changing an authority-bearing field changes the reference, so a stale stored item can never be silently reused, and one Connection can never resolve another Connection's item.
+- After a trusted-host restart, a fresh store over the same sanitized state resolves the secret from the OS credential store without re-entry. Public reads report status only; the secret is never read back to the frontend after save or restart.
+- Execution resolves the secret at point of use through the credential store. A locked or unavailable store fails closed for execution and for saving; there is never a plaintext fallback.
+- Removing a saved key or deleting the Connection removes only the Nerelan-owned OS credential store item.
+
+Public `secret_status` vocabulary for the `api_key` path:
+
+```text
+missing               no credential configured
+session               in-process secret for the current service run
+environment           resolved by environment-variable name
+stored                durably saved and currently available in the OS store
+store_locked          OS credential store locked or unavailable
+replacement_required  stored item no longer exists (removed externally); re-enter the key
+```
+
+Uninstall / portable mode:
+
+- Vault items live in the OS credential store of the machine and user account that saved them. They are not part of the repository, the frontend bundle or any product directory.
+- Vault items are not exported with normal configuration or state backup: the persisted sanitized state carries only the non-secret `credential_ref`, and copying or exporting that state file does not carry the secret.
+- Uninstalling the application or deleting its data directory does not remove OS credential store items; remove a saved key explicitly in the Connection editor (clear secret) or delete it in the OS credential store itself.
+- Moving an exported sanitized state file to another machine or user account leaves `credential_ref` entries unresolvable there; they surface as `replacement_required` and the key must be re-entered.
+
 ## Security boundaries
 
 - The model-control service is loopback-only.
 - The browser does not call provider endpoints directly.
 - API keys are not written to localStorage, sessionStorage, fixtures, task objects, logs or API responses.
-- In-process secrets disappear when the model-control service restarts.
+- In-process secrets disappear when the model-control service restarts; vault-backed secrets are resolved again from the OS credential store at point of use.
+- No plaintext fallback exists: when the OS credential store is unavailable, saving, public status and execution all fail closed with an explicit typed state.
 - Environment-backed secrets are resolved only by variable name.
 - Live network probes fail closed unless explicitly enabled.
 - The module configures model access only; it does not prove that an OpenHands or Codex ACP execution completed.

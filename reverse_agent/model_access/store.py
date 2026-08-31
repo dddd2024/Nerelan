@@ -11,6 +11,11 @@ from typing import Any, Mapping
 import tempfile
 
 from .contracts import Binding, Connection, ExecutionSnapshot, ExecutorDescriptor, ModelProfile
+from .os_vault import (
+    VaultAdapter,
+    VaultItemMissingError,
+    connection_vault_ref,
+)
 
 
 # Schema version for persisted sanitized product setup state.
@@ -42,7 +47,9 @@ _FORBIDDEN_PERSISTED_FIELDS = frozenset({
     "executor_managed",
 })
 
-# Sanitized connection fields that are safe to persist.
+# Sanitized connection fields that are safe to persist. ``credential_ref`` is
+# a non-secret vault item reference; the referenced secret stays in the OS
+# credential store and never enters persisted state.
 _CONNECTION_SAFE_FIELDS = frozenset({
     "connection_id",
     "name",
@@ -51,6 +58,7 @@ _CONNECTION_SAFE_FIELDS = frozenset({
     "auth_method",
     "enabled",
     "api_key_env",
+    "credential_ref",
 })
 
 # Binding fields that are safe to persist.
@@ -80,6 +88,34 @@ def _sanitize_env_name(value: str | None) -> str | None:
         raise ValueError("api_key_env is not a valid environment variable name")
     if normalized.upper() != normalized:
         raise ValueError("api_key_env must use uppercase characters")
+    return normalized
+
+
+def _sanitize_credential_ref(value: Any) -> str | None:
+    """Validate a persisted non-secret vault reference.
+
+    The reference must match the store-owned namespace format. It is metadata
+    only; the referenced secret stays in the OS credential store.
+    """
+
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str):
+        raise ValueError("credential_ref must be a string or absent")
+    normalized = value.strip()
+    if len(normalized) > 240:
+        raise ValueError("credential_ref exceeds maximum length")
+    parts = normalized.split(":")
+    if (
+        len(parts) != 5
+        or parts[0] != "nerelan"
+        or parts[1] != "conn"
+        or parts[2] != "v1"
+        or not parts[3]
+        or len(parts[4]) != 16
+        or not all(char in "0123456789abcdef" for char in parts[4])
+    ):
+        raise ValueError("credential_ref is not a valid vault reference")
     return normalized
 
 
@@ -139,29 +175,35 @@ class _StoredConnection:
     connection: Connection
     api_key: str | None = None
     api_key_env: str | None = None
+    credential_ref: str | None = None
     external_session_status: str = "not_applicable"
 
     @property
     def credential_configured(self) -> bool:
         return (
             self.connection.auth_method == "api_key"
-            and bool(self.api_key or self.api_key_env)
+            and bool(self.api_key or self.api_key_env or self.credential_ref)
         )
 
     @property
     def secret_status(self) -> str:
         if self.connection.auth_method != "api_key":
             return "not_applicable"
+        if self.credential_ref:
+            # A durable reference exists; its live availability is resolved
+            # by the owning store (vault-backed status). Without a live vault
+            # probe the state is degraded, never fabricated as missing.
+            return "store_locked"
         if self.api_key:
             return "session"
         if self.api_key_env and os.environ.get(self.api_key_env) is not None:
             return "environment"
         return "missing"
 
-    def public(self) -> dict[str, Any]:
+    def public(self, secret_status: str | None = None) -> dict[str, Any]:
         return self.connection.to_public_dict(
             credential_configured=self.credential_configured,
-            secret_status=self.secret_status,
+            secret_status=secret_status if secret_status is not None else self.secret_status,
             external_session_status=self.external_session_status,
         )
 
@@ -176,6 +218,8 @@ class _StoredConnection:
         }
         if self.api_key_env:
             entry["api_key_env"] = self.api_key_env
+        if self.credential_ref:
+            entry["credential_ref"] = self.credential_ref
         return entry
 
     @classmethod
@@ -188,6 +232,7 @@ class _StoredConnection:
                 f"forbidden field(s) in persisted connection: {sorted(extra)}"
             )
         api_key_env = _sanitize_env_name(data.get("api_key_env"))
+        credential_ref = _sanitize_credential_ref(data.get("credential_ref"))
         conn = Connection.from_mapping(dict(data))
         auth_method = conn.auth_method
         if auth_method in {"account_login", "external_cli_session"}:
@@ -198,6 +243,7 @@ class _StoredConnection:
             connection=conn,
             api_key=None,
             api_key_env=api_key_env,
+            credential_ref=credential_ref,
             external_session_status=initial_status,
         )
 
@@ -210,12 +256,24 @@ class ModelProfileStore:
     provided the store persists a schema-versioned JSON document containing
     only sanitized Connection/Binding metadata.  Raw secrets, credentials,
     and session tokens are never written.
+
+    When ``vault`` is provided, API keys entered through the trusted setup
+    boundary are durably stored in the OS-backed credential vault and the
+    sanitized state persists only the non-secret ``credential_ref``. Without
+    a vault the store keeps its exact legacy process-local behavior; there
+    is never a plaintext fallback for durable storage.
     """
 
-    def __init__(self, state_path: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        state_path: str | Path | None = None,
+        *,
+        vault: VaultAdapter | None = None,
+    ) -> None:
         self._state_path: Path | None = None
         if state_path is not None:
             self._state_path = Path(state_path).resolve()
+        self._vault: VaultAdapter | None = vault
 
         self._profiles: dict[str, _StoredProfile] = {}
         self._connections: dict[str, _StoredConnection] = {}
@@ -233,9 +291,47 @@ class ModelProfileStore:
         if self._state_path is not None:
             self._load_from_disk()
 
+    def _connection_secret_status(self, stored: _StoredConnection) -> str:
+        """Compute the live public secret status for one Connection.
+
+        Vault-backed references probe the OS credential store so a locked or
+        missing item is reported explicitly instead of being fabricated as
+        ``missing``. Probing never returns the secret itself.
+        """
+
+        if stored.connection.auth_method != "api_key":
+            return "not_applicable"
+        if stored.credential_ref:
+            if self._vault is None:
+                return "store_locked"
+            probe_state = self._vault.probe(stored.credential_ref)
+            if probe_state == "available":
+                return "stored"
+            if probe_state == "locked":
+                return "store_locked"
+            return "replacement_required"
+        if stored.api_key:
+            return "session"
+        if stored.api_key_env and os.environ.get(stored.api_key_env) is not None:
+            return "environment"
+        return "missing"
+
+    def _vault_ref_for(self, connection: Connection) -> str:
+        """Return the authority-bound vault item reference for a Connection."""
+
+        return connection_vault_ref(
+            connection.connection_id,
+            connection.provider,
+            connection.base_url,
+            connection.auth_method,
+        )
+
     def list_connections_public(self) -> list[dict[str, Any]]:
         with self._lock:
-            return [stored.public() for stored in self._connections.values()]
+            return [
+                stored.public(self._connection_secret_status(stored))
+                for stored in self._connections.values()
+            ]
 
     def refresh_external_session_status(
         self,
@@ -289,7 +385,7 @@ class ModelProfileStore:
             stored = self._connections.get(connection_id)
             if stored is None:
                 raise KeyError(f"connection not found: {connection_id}")
-            return stored.public()
+            return stored.public(self._connection_secret_status(stored))
 
     def upsert_connection(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         _reject_derived_external_status(payload)
@@ -309,6 +405,7 @@ class ModelProfileStore:
 
             existing_api_key = existing.api_key if existing else None
             existing_api_key_env = existing.api_key_env if existing else None
+            existing_credential_ref = existing.credential_ref if existing else None
             external_status = (
                 existing.external_session_status if existing else "not_applicable"
             )
@@ -320,21 +417,50 @@ class ModelProfileStore:
                             "authority-bearing connection field changed; "
                             "replacement api_key/api_key_env or clear_secret=true is required"
                         )
+                new_credential_ref = self._vault_ref_for(connection)
                 if clear_secret:
+                    if self._vault is not None and existing_credential_ref:
+                        self._vault.delete(existing_credential_ref)
                     api_key = None
                     api_key_env = None
+                    credential_ref = None
                 elif incoming_api_key:
-                    api_key = incoming_api_key
+                    if self._vault is not None:
+                        # Store the vault item first; a locked or failing
+                        # vault aborts the upsert with prior state intact
+                        # and never falls back to plaintext retention.
+                        self._vault.store(new_credential_ref, incoming_api_key)
+                        if (
+                            existing_credential_ref
+                            and existing_credential_ref != new_credential_ref
+                        ):
+                            try:
+                                self._vault.delete(existing_credential_ref)
+                            except VaultItemMissingError:
+                                pass
+                        api_key = None
+                        credential_ref = new_credential_ref
+                    else:
+                        api_key = incoming_api_key
+                        credential_ref = None
                     api_key_env = None
                 elif incoming_api_key_env:
+                    if self._vault is not None and existing_credential_ref:
+                        try:
+                            self._vault.delete(existing_credential_ref)
+                        except VaultItemMissingError:
+                            pass
                     api_key = None
                     api_key_env = incoming_api_key_env
+                    credential_ref = None
                 elif existing is None:
                     api_key = existing_api_key
                     api_key_env = existing_api_key_env
+                    credential_ref = existing_credential_ref
                 else:
                     api_key = existing_api_key
                     api_key_env = existing_api_key_env
+                    credential_ref = existing_credential_ref
                 external_status = "not_applicable"
             else:
                 if incoming_api_key or incoming_api_key_env:
@@ -352,8 +478,15 @@ class ModelProfileStore:
                         "configured API-key credential would be discarded; "
                         "clear_secret=true is required"
                     )
+                if (
+                    clear_secret
+                    and self._vault is not None
+                    and existing_credential_ref
+                ):
+                    self._vault.delete(existing_credential_ref)
                 api_key = None
                 api_key_env = None
+                credential_ref = None
                 if connection.auth_method in {"account_login", "external_cli_session"}:
                     if (
                         not existing
@@ -367,17 +500,17 @@ class ModelProfileStore:
                 else:
                     external_status = "not_applicable"
 
-            old_stored = self._connections.get(connection.connection_id)
             snap_conns = dict(self._connections)
             snap_bindings = dict(self._bindings)
             stored = _StoredConnection(
                 connection=connection,
                 api_key=api_key,
                 api_key_env=api_key_env,
+                credential_ref=credential_ref,
                 external_session_status=external_status,
             )
             self._connections[connection.connection_id] = stored
-            result = stored.public()
+            result = stored.public(self._connection_secret_status(stored))
             if self._state_path is not None:
                 self._persist_with_rollback(
                     snap_conns, snap_bindings,
@@ -387,7 +520,8 @@ class ModelProfileStore:
 
     def delete_connection(self, connection_id: str) -> None:
         with self._lock:
-            if connection_id not in self._connections:
+            stored = self._connections.get(connection_id)
+            if stored is None:
                 raise KeyError(f"connection not found: {connection_id}")
             referenced_by = sorted(
                 binding.binding_id
@@ -398,6 +532,14 @@ class ModelProfileStore:
                 raise ValueError(
                     f"connection is referenced by binding: {referenced_by[0]}"
                 )
+            if (
+                self._vault is not None
+                and stored.credential_ref
+            ):
+                # Removing the owning Connection removes its Nerelan-owned
+                # vault item; a locked vault fails closed before any state
+                # mutation so no orphaned secret is left behind silently.
+                self._vault.delete(stored.credential_ref)
             snap_conns = dict(self._connections)
             snap_bindings = dict(self._bindings)
             del self._connections[connection_id]
@@ -412,11 +554,30 @@ class ModelProfileStore:
             stored = self._connections.get(connection_id)
             if stored is None:
                 raise KeyError(f"connection not found: {connection_id}")
-            if stored.api_key:
-                return stored.api_key
-            if stored.api_key_env:
-                return os.environ.get(stored.api_key_env)
-            return None
+            return self._resolve_stored_secret(stored)
+
+    def _resolve_stored_secret(self, stored: _StoredConnection) -> str | None:
+        """Resolve one Connection's secret at point of use (trusted only).
+
+        Vault-backed references resolve through the OS credential store. A
+        locked or unavailable vault raises ``VaultUnavailableError`` so the
+        caller fails closed; an externally missing item resolves to ``None``
+        so existing missing-credential fail-closed paths apply. Only the
+        owning Connection's own reference is ever resolved.
+        """
+
+        if stored.credential_ref:
+            if self._vault is None:
+                return None
+            try:
+                return self._vault.resolve(stored.credential_ref)
+            except VaultItemMissingError:
+                return None
+        if stored.api_key:
+            return stored.api_key
+        if stored.api_key_env:
+            return os.environ.get(stored.api_key_env)
+        return None
 
     def resolve_execution_snapshot(self, binding_id: str) -> ExecutionSnapshot:
         """Atomic private snapshot of one Binding + its Connection + secret.
@@ -435,10 +596,10 @@ class ModelProfileStore:
             conn = stored_conn.connection
             resolved_key: str | None = None
             if conn.auth_method == "api_key":
-                if stored_conn.api_key:
-                    resolved_key = stored_conn.api_key
-                elif stored_conn.api_key_env:
-                    resolved_key = os.environ.get(stored_conn.api_key_env)
+                # Resolves through the OS vault at point of use. A locked or
+                # unavailable vault raises VaultUnavailableError so execution
+                # fails closed; there is never a plaintext fallback.
+                resolved_key = self._resolve_stored_secret(stored_conn)
             return ExecutionSnapshot(
                 binding_id=binding.binding_id,
                 binding_enabled=binding.enabled,

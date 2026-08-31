@@ -32,6 +32,7 @@ from ..model_access.credential_relay import (
     ExecutionLease,
     _normalize_model_id,
 )
+from ..model_access.os_vault import default_vault_adapter
 from ..model_access.service import _handler_factory as _model_control_handler_factory
 from ..model_access.store import ModelProfileStore
 from .github_adapter import LiveGitHubAdapter
@@ -54,6 +55,11 @@ from .unattended_coordinator import UnattendedCoordinator
 class CombinedTrustedHost:
     """One-process host for Model Control + Task API + credential relay."""
 
+    # Sentinel: auto-constructed stores use the platform vault adapter
+    # (``default_vault_adapter()``). Passing ``vault=None`` forces the exact
+    # legacy process-local behavior; tests inject a fake adapter.
+    _PLATFORM_VAULT: Any = object()
+
     def __init__(
         self,
         *,
@@ -72,6 +78,7 @@ class CombinedTrustedHost:
         auth_list_probe: Callable[[], dict[str, str]] | None = None,
         auth_refresh_ttl_seconds: float = 5.0,
         auth_refresh_clock: Callable[[], float] = time.monotonic,
+        vault: Any = _PLATFORM_VAULT,
     ) -> None:
         if auth_refresh_ttl_seconds < 0:
             raise ValueError("auth_refresh_ttl_seconds must be non-negative")
@@ -80,7 +87,18 @@ class CombinedTrustedHost:
             self._store = store
         else:
             state_path = _resolve_store_state_path(task_store)
-            self._store = ModelProfileStore(state_path=state_path)
+            # Platforms without a supported OS vault adapter (None) keep the
+            # exact legacy process-local behavior; there is no plaintext
+            # fallback for durable storage.
+            resolved_vault = (
+                default_vault_adapter()
+                if vault is CombinedTrustedHost._PLATFORM_VAULT
+                else vault
+            )
+            self._store = ModelProfileStore(
+                state_path=state_path,
+                vault=resolved_vault,
+            )
         self._task_store = task_store
         self._relay_manager = relay_manager or CredentialRelayManager()
         self._router = ExecutorRouter()

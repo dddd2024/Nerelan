@@ -14,7 +14,15 @@ _AUTH_METHOD_VALUES = frozenset(
     {"api_key", "account_login", "external_cli_session", "none"}
 )
 _SECRET_STATUS_VALUES = frozenset(
-    {"missing", "session", "environment", "not_applicable"}
+    {
+        "missing",
+        "session",
+        "environment",
+        "not_applicable",
+        "stored",
+        "store_locked",
+        "replacement_required",
+    }
 )
 _EXTERNAL_SESSION_STATUS_VALUES = frozenset(
     {"missing", "available", "executor_managed", "not_applicable"}
