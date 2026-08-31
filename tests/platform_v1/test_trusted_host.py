@@ -19,9 +19,11 @@ import subprocess
 import tempfile
 import threading
 import time
+from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -52,6 +54,25 @@ def _make_git_worktree(path: Path) -> None:
 
 def _make_store(tmp_path: Path) -> TaskStore:
     return TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
+
+
+def _model_control_request(
+    base_url: str,
+    method: str,
+    path: str,
+    payload: dict[str, Any] | None = None,
+) -> tuple[int, Any]:
+    parsed = urlsplit(base_url)
+    connection = HTTPConnection(parsed.hostname, parsed.port, timeout=3)
+    body = None if payload is None else json.dumps(payload)
+    headers = {} if body is None else {"Content-Type": "application/json"}
+    try:
+        connection.request(method, path, body=body, headers=headers)
+        response = connection.getresponse()
+        raw = response.read()
+        return response.status, json.loads(raw.decode("utf-8"))
+    finally:
+        connection.close()
 
 
 def test_trusted_authority_sha_propagated_non_empty(tmp_path) -> None:
@@ -1072,6 +1093,372 @@ def test_host_default_startup_does_not_probe_and_keeps_executor_managed(tmp_path
         )["external_session_status"] == "executor_managed"
     finally:
         host.stop()
+
+
+@pytest.mark.parametrize(
+    "auth_method",
+    ["account_login", "external_cli_session"],
+)
+def test_external_session_get_refreshes_after_ttl_and_fails_closed(
+    tmp_path,
+    auth_method,
+) -> None:
+    clock = {"now": 0.0}
+    probe = {"result": {"sensetime": "api"}, "raises": False, "calls": 0}
+
+    def controlled_probe():
+        probe["calls"] += 1
+        if probe["raises"]:
+            raise RuntimeError("sanitized_auth_probe_failed")
+        return probe["result"]
+
+    host = CombinedTrustedHost(
+        task_store=_make_store(tmp_path),
+        auth_list_probe=controlled_probe,
+        auth_refresh_ttl_seconds=5.0,
+        auth_refresh_clock=lambda: clock["now"],
+    )
+    host.store.upsert_connection({
+        "connection_id": "external-conn",
+        "name": "External",
+        "provider": "sensetime",
+        "base_url": "https://api.sensenova.cn/v1",
+        "auth_method": auth_method,
+        "enabled": True,
+    })
+    try:
+        host.start(model_control_port=0, task_api_port=0)
+        assert probe["calls"] == 1
+
+        status, connection = _model_control_request(
+            host.model_control_url,
+            "GET",
+            "/api/connections/external-conn",
+        )
+        assert status == 200
+        assert connection["external_session_status"] == "available"
+        assert probe["calls"] == 1
+
+        probe["result"] = {}
+        clock["now"] = 5.0
+        _, connection = _model_control_request(
+            host.model_control_url,
+            "GET",
+            "/api/connections/external-conn",
+        )
+        assert connection["external_session_status"] == "missing"
+        assert probe["calls"] == 2
+
+        probe["result"] = {"sensetime": "api"}
+        clock["now"] = 10.0
+        _, connection = _model_control_request(
+            host.model_control_url,
+            "GET",
+            "/api/connections/external-conn",
+        )
+        assert connection["external_session_status"] == "available"
+        assert probe["calls"] == 3
+
+        probe["raises"] = True
+        clock["now"] = 15.0
+        _, connection = _model_control_request(
+            host.model_control_url,
+            "GET",
+            "/api/connections/external-conn",
+        )
+        assert connection["external_session_status"] == "missing"
+        assert probe["calls"] == 4
+    finally:
+        host.stop()
+
+
+def test_concurrent_external_session_reads_coalesce_one_probe(tmp_path) -> None:
+    started = threading.Event()
+    release = threading.Event()
+    calls = {"count": 0}
+
+    def blocking_probe():
+        calls["count"] += 1
+        started.set()
+        assert release.wait(timeout=3)
+        return {"sensetime": "api"}
+
+    host = CombinedTrustedHost(
+        task_store=_make_store(tmp_path),
+        auth_list_probe=blocking_probe,
+        auth_refresh_ttl_seconds=5.0,
+        auth_refresh_clock=lambda: 0.0,
+    )
+    host.store.upsert_connection({
+        "connection_id": "external-conn",
+        "name": "External",
+        "provider": "sensetime",
+        "base_url": "https://api.sensenova.cn/v1",
+        "auth_method": "external_cli_session",
+        "enabled": True,
+    })
+
+    threads = [
+        threading.Thread(
+            target=host._refresh_external_session_auth,
+            args=(False, "external-conn"),
+        )
+        for _ in range(8)
+    ]
+    for thread in threads:
+        thread.start()
+    assert started.wait(timeout=3)
+    release.set()
+    for thread in threads:
+        thread.join(timeout=3)
+        assert not thread.is_alive()
+
+    assert calls["count"] == 1
+    assert host.store.get_connection_public("external-conn")[
+        "external_session_status"
+    ] == "available"
+
+
+def test_connection_upsert_forces_external_refresh_before_response(tmp_path) -> None:
+    calls = {"count": 0}
+
+    def counting_probe():
+        calls["count"] += 1
+        return {"sensetime": "api"}
+
+    host = CombinedTrustedHost(
+        task_store=_make_store(tmp_path),
+        auth_list_probe=counting_probe,
+    )
+    try:
+        host.start(model_control_port=0, task_api_port=0)
+        assert calls["count"] == 0
+        status, connection = _model_control_request(
+            host.model_control_url,
+            "PUT",
+            "/api/connections/external-conn",
+            {
+                "name": "External",
+                "provider": "sensetime",
+                "base_url": "https://api.sensenova.cn/v1",
+                "auth_method": "external_cli_session",
+                "enabled": True,
+            },
+        )
+        assert status == 200
+        assert connection["external_session_status"] == "available"
+        assert calls["count"] == 1
+
+        _, renamed = _model_control_request(
+            host.model_control_url,
+            "PUT",
+            "/api/connections/external-conn",
+            {
+                "name": "Renamed only",
+                "provider": "sensetime",
+                "base_url": "https://api.sensenova.cn/v1",
+                "auth_method": "external_cli_session",
+                "enabled": True,
+            },
+        )
+        assert renamed["external_session_status"] == "available"
+        assert calls["count"] == 1
+
+        _, changed = _model_control_request(
+            host.model_control_url,
+            "PUT",
+            "/api/connections/external-conn",
+            {
+                "name": "Changed provider",
+                "provider": "other-provider",
+                "base_url": "https://models.example.test/v1",
+                "auth_method": "external_cli_session",
+                "enabled": True,
+            },
+        )
+        assert changed["external_session_status"] == "missing"
+        assert calls["count"] == 2
+    finally:
+        host.stop()
+
+
+def test_api_key_and_none_connection_reads_do_not_probe(tmp_path) -> None:
+    calls = {"count": 0}
+
+    def counting_probe():
+        calls["count"] += 1
+        return {"sensetime": "api"}
+
+    host = CombinedTrustedHost(
+        task_store=_make_store(tmp_path),
+        auth_list_probe=counting_probe,
+    )
+    for connection_id, auth_method in (
+        ("api-key-conn", "api_key"),
+        ("none-conn", "none"),
+    ):
+        host.store.upsert_connection({
+            "connection_id": connection_id,
+            "name": connection_id,
+            "provider": "openai-compatible",
+            "base_url": "https://models.example.test/v1",
+            "auth_method": auth_method,
+            "enabled": True,
+            **({"api_key": "test-only-secret"} if auth_method == "api_key" else {}),
+        })
+    try:
+        host.start(model_control_port=0, task_api_port=0)
+        for connection_id in ("api-key-conn", "none-conn"):
+            status, connection = _model_control_request(
+                host.model_control_url,
+                "GET",
+                f"/api/connections/{connection_id}",
+            )
+            assert status == 200
+            assert connection["external_session_status"] == "not_applicable"
+        status, connections = _model_control_request(
+            host.model_control_url,
+            "GET",
+            "/api/connections",
+        )
+        assert status == 200
+        assert len(connections) == 2
+        assert calls["count"] == 0
+    finally:
+        host.stop()
+
+
+def test_dispatch_forces_external_session_revalidation(tmp_path) -> None:
+    probe = {"result": {"sensetime": "api"}, "calls": 0}
+
+    def controlled_probe():
+        probe["calls"] += 1
+        return probe["result"]
+
+    host = CombinedTrustedHost(
+        task_store=_make_store(tmp_path),
+        auth_list_probe=controlled_probe,
+    )
+    host.store.upsert_connection({
+        "connection_id": "external-conn",
+        "name": "External",
+        "provider": "sensetime",
+        "base_url": "https://api.sensenova.cn/v1",
+        "auth_method": "external_cli_session",
+        "enabled": True,
+    })
+    host.store.upsert_binding({
+        "binding_id": "external-binding",
+        "name": "External Binding",
+        "executor_id": "opencode",
+        "connection_id": "external-conn",
+        "model_id": "sensechat-5",
+        "enabled": True,
+    })
+    try:
+        host.start(model_control_port=0, task_api_port=0)
+        resolver = host._binding_resolver_factory(host.model_control_url)
+
+        probe["result"] = {}
+        from reverse_agent.platform_v1.binding_resolver import BindingResolutionError
+
+        with pytest.raises(BindingResolutionError, match="external_session_unavailable"):
+            resolver.resolve("external-binding", task_executor="opencode")
+        assert probe["calls"] == 2
+
+        probe["result"] = {"sensetime": "api"}
+        resolution = resolver.resolve(
+            "external-binding",
+            task_executor="opencode",
+        )
+        assert resolution.external_session_status == "available"
+        assert probe["calls"] == 3
+    finally:
+        host.stop()
+
+
+def test_dispatch_rejects_unprobed_executor_managed_session(tmp_path) -> None:
+    host = CombinedTrustedHost(task_store=_make_store(tmp_path))
+    host.store.upsert_connection({
+        "connection_id": "external-conn",
+        "name": "External",
+        "provider": "sensetime",
+        "base_url": "https://api.sensenova.cn/v1",
+        "auth_method": "account_login",
+        "enabled": True,
+    })
+    host.store.upsert_binding({
+        "binding_id": "external-binding",
+        "name": "External Binding",
+        "executor_id": "opencode",
+        "connection_id": "external-conn",
+        "model_id": "sensechat-5",
+        "enabled": True,
+    })
+    try:
+        host.start(model_control_port=0, task_api_port=0)
+        resolver = host._binding_resolver_factory(host.model_control_url)
+        from reverse_agent.platform_v1.binding_resolver import BindingResolutionError
+
+        with pytest.raises(BindingResolutionError, match="external_session_unavailable"):
+            resolver.resolve("external-binding", task_executor="opencode")
+    finally:
+        host.stop()
+
+
+def test_production_entrypoint_wires_existing_sanitized_auth_probe(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import reverse_agent.platform_v1.trusted_host as trusted_host_module
+
+    captured: dict[str, Any] = {}
+    probe = lambda: {"sensetime": "api"}
+
+    class FakeServer:
+        def serve_forever(self):
+            raise KeyboardInterrupt
+
+    class FakeHost:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+            self.model_control_url = "http://127.0.0.1:1"
+            self.task_api_url = "http://127.0.0.1:2"
+            self.relay_url = "http://127.0.0.1:3"
+            self._model_server = FakeServer()
+
+        def start(self):
+            captured["started"] = True
+
+        def stop(self):
+            captured["stopped"] = True
+
+    monkeypatch.setattr(
+        trusted_host_module,
+        "execute_opencode_auth_list_probe",
+        probe,
+    )
+    monkeypatch.setattr(trusted_host_module, "CombinedTrustedHost", FakeHost)
+    monkeypatch.setattr(
+        trusted_host_module,
+        "_resolve_trusted_authority_sha",
+        lambda: "auth-sha",
+    )
+    monkeypatch.setattr(
+        trusted_host_module,
+        "_resolve_trusted_planning_sha",
+        lambda: "planning-sha",
+    )
+    monkeypatch.setenv("REVERSE_AGENT_TASK_DB_DIR", str(tmp_path))
+
+    trusted_host_module.run_combined_trusted_host()
+
+    assert captured["auth_list_probe"] is probe
+    assert captured["started"] is True
+    assert captured["stopped"] is True
+    assert json.loads((tmp_path / "trusted_host_meta.json").read_text("utf-8"))[
+        "execution_authority_sha"
+    ] == "auth-sha"
 
 
 def test_host_starts_inert_unattended_coordinator_only_when_explicitly_enabled(tmp_path, monkeypatch) -> None:

@@ -17,11 +17,13 @@ credential relay used internally during execution.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from http.server import ThreadingHTTPServer
 import json
 import os
 import subprocess
 import threading
+import time
 from typing import Any
 
 from ..model_access.contracts import ExecutionSnapshot
@@ -67,8 +69,12 @@ class CombinedTrustedHost:
         github_adapter: LiveGitHubAdapter | None = None,
         execution_authority_sha: str = "",
         planning_sha: str = "",
-        auth_list_probe: callable | None = None,
+        auth_list_probe: Callable[[], dict[str, str]] | None = None,
+        auth_refresh_ttl_seconds: float = 5.0,
+        auth_refresh_clock: Callable[[], float] = time.monotonic,
     ) -> None:
+        if auth_refresh_ttl_seconds < 0:
+            raise ValueError("auth_refresh_ttl_seconds must be non-negative")
         task_store = task_store or _make_task_store(task_db_path)
         if store is not None:
             self._store = store
@@ -82,6 +88,11 @@ class CombinedTrustedHost:
         self._execution_authority_sha = execution_authority_sha
         self._planning_sha = planning_sha
         self._auth_list_probe = auth_list_probe
+        self._auth_refresh_ttl_seconds = float(auth_refresh_ttl_seconds)
+        self._auth_refresh_clock = auth_refresh_clock
+        self._auth_refresh_condition = threading.Condition()
+        self._auth_refresh_in_progress = False
+        self._auth_refresh_last_completed: float | None = None
         self._control_store = PlatformControlStore(self._task_store)
         self._capability_registry = CapabilityRegistry(
             pack_dir=os.environ.get("REVERSE_AGENT_CAPABILITY_PACK_DIR") or None
@@ -116,12 +127,32 @@ class CombinedTrustedHost:
     def store(self) -> ModelProfileStore:
         return self._store
 
-    def _refresh_external_session_auth(self) -> None:
+    def _refresh_external_session_auth(
+        self,
+        force: bool = False,
+        connection_id: str | None = None,
+    ) -> None:
         probe = self._auth_list_probe
         if probe is None:
             return
-        if not self._has_external_session_connections():
+        if not self._connection_needs_external_session_refresh(connection_id):
             return
+
+        with self._auth_refresh_condition:
+            now = self._auth_refresh_clock()
+            last_completed = self._auth_refresh_last_completed
+            if (
+                not force
+                and last_completed is not None
+                and now - last_completed < self._auth_refresh_ttl_seconds
+            ):
+                return
+            if self._auth_refresh_in_progress:
+                while self._auth_refresh_in_progress:
+                    self._auth_refresh_condition.wait()
+                return
+            self._auth_refresh_in_progress = True
+
         provider_metadata: dict[str, str] = {}
         try:
             result = probe()
@@ -129,7 +160,29 @@ class CombinedTrustedHost:
                 provider_metadata = result
         except Exception:
             provider_metadata = {}
-        self._store.refresh_external_session_status(provider_metadata)
+        finally:
+            try:
+                self._store.refresh_external_session_status(provider_metadata)
+            finally:
+                with self._auth_refresh_condition:
+                    self._auth_refresh_last_completed = self._auth_refresh_clock()
+                    self._auth_refresh_in_progress = False
+                    self._auth_refresh_condition.notify_all()
+
+    def _connection_needs_external_session_refresh(
+        self,
+        connection_id: str | None,
+    ) -> bool:
+        if connection_id is None:
+            return self._has_external_session_connections()
+        try:
+            connection = self._store.get_connection_public(connection_id)
+        except KeyError:
+            return False
+        return connection["auth_method"] in {
+            "account_login",
+            "external_cli_session",
+        }
 
     def _has_external_session_connections(self) -> bool:
         return self._store.has_external_session_connections()
@@ -190,13 +243,44 @@ class CombinedTrustedHost:
 
         return _provider
 
+    def _binding_resolver_factory(self, base_url: str) -> Any:
+        from .binding_resolver import BindingResolutionError, BindingResolver
+
+        host = self
+        delegate = BindingResolver(base_url=base_url)
+
+        class FreshExternalSessionBindingResolver:
+            def resolve(self, binding_ref: str, *, task_executor: str) -> Any:
+                snapshot = host._store.resolve_execution_snapshot(binding_ref)
+                if snapshot.auth_method in {
+                    "account_login",
+                    "external_cli_session",
+                }:
+                    host._refresh_external_session_auth(
+                        True,
+                        snapshot.connection_id,
+                    )
+                resolution = delegate.resolve(
+                    binding_ref,
+                    task_executor=task_executor,
+                )
+                if (
+                    resolution.auth_method
+                    in {"account_login", "external_cli_session"}
+                    and resolution.external_session_status != "available"
+                ):
+                    raise BindingResolutionError("external_session_unavailable")
+                return resolution
+
+        return FreshExternalSessionBindingResolver()
+
     def start(
         self,
         *,
         model_control_port: int | None = None,
         task_api_port: int | None = None,
     ) -> None:
-        self._refresh_external_session_auth()
+        self._refresh_external_session_auth(True)
 
         # Startup reconciliation: find expired durable runs, mark stale
         # tasks INTERRUPTED with orphan_stale_lease classification.
@@ -218,6 +302,7 @@ class CombinedTrustedHost:
             self._store,
             live_enabled=live_enabled,
             allowed_origin=self._allowed_origin,
+            external_session_refresh=self._refresh_external_session_auth,
         )
         self._model_server = ThreadingHTTPServer(
             (self._model_control_host, mcp), mc_handler
@@ -236,8 +321,7 @@ class CombinedTrustedHost:
         self._relay_server_inner = relay_srv
         self.relay_url = f"http://127.0.0.1:{self._relay_server_port}"
 
-        from .binding_resolver import BindingResolver
-        binding_resolver = BindingResolver(base_url=self.model_control_url)
+        binding_resolver = self._binding_resolver_factory(self.model_control_url)
         live_github = self._github_adapter
         if live_github is None:
             live_github = LiveGitHubAdapter()
@@ -411,6 +495,7 @@ def run_combined_trusted_host() -> None:
     host = CombinedTrustedHost(
         execution_authority_sha=auth_sha,
         planning_sha=planning_sha,
+        auth_list_probe=execute_opencode_auth_list_probe,
     )
     host.start()
     metadata = {

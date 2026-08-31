@@ -230,6 +230,9 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
     store = ModelProfileStore()
     live_enabled = False
     allowed_origin = "http://localhost:5173"
+    external_session_refresh: Callable[[bool, str | None], None] = staticmethod(
+        lambda _force, _connection_id: None
+    )
 
     server_version = "reverse-agent-model-control/1"
 
@@ -256,9 +259,11 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.OK, self.store.list_public())
                 return
             if segments == ["api", "connections"]:
+                self.external_session_refresh(False, None)
                 self._send_json(HTTPStatus.OK, self.store.list_connections_public())
                 return
             if len(segments) == 3 and segments[:2] == ["api", "connections"]:
+                self.external_session_refresh(False, segments[2])
                 self._send_json(
                     HTTPStatus.OK,
                     self.store.get_connection_public(segments[2]),
@@ -299,9 +304,17 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
             if len(segments) == 3 and segments[:2] == ["api", "connections"]:
                 payload = self._read_json()
                 payload["connection_id"] = segments[2]
+                try:
+                    previous = self.store.get_connection_public(segments[2])
+                except KeyError:
+                    previous = None
+                self.store.upsert_connection(payload)
+                current = self.store.get_connection_public(segments[2])
+                if _external_session_truth_changed(previous, current):
+                    self.external_session_refresh(True, segments[2])
                 self._send_json(
                     HTTPStatus.OK,
-                    self.store.upsert_connection(payload),
+                    self.store.get_connection_public(segments[2]),
                 )
                 return
             if len(segments) == 3 and segments[:2] == ["api", "bindings"]:
@@ -478,11 +491,29 @@ def _optional_request_secret(payload: dict[str, Any]) -> str | None:
     return value
 
 
+def _external_session_truth_changed(
+    previous: dict[str, Any] | None,
+    current: dict[str, Any],
+) -> bool:
+    if current.get("auth_method") not in {
+        "account_login",
+        "external_cli_session",
+    }:
+        return False
+    if previous is None:
+        return True
+    return any(
+        previous.get(field) != current.get(field)
+        for field in ("provider", "base_url", "auth_method", "enabled")
+    )
+
+
 def _handler_factory(
     store: ModelProfileStore,
     *,
     live_enabled: bool,
     allowed_origin: str,
+    external_session_refresh: Callable[[bool, str | None], None] | None = None,
 ) -> type[_ModelControlHandler]:
     class ConfiguredHandler(_ModelControlHandler):
         pass
@@ -490,6 +521,9 @@ def _handler_factory(
     ConfiguredHandler.store = store
     ConfiguredHandler.live_enabled = live_enabled
     ConfiguredHandler.allowed_origin = allowed_origin
+    ConfiguredHandler.external_session_refresh = staticmethod(
+        external_session_refresh or (lambda _force, _connection_id: None)
+    )
     return ConfiguredHandler
 
 
