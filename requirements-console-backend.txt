@@ -1,0 +1,1 @@
+pywinpty==3.0.3 ; platform_system == "Windows" and python_version >= "3.9"
