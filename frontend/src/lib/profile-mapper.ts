@@ -11,7 +11,7 @@ import type { PermissionMode, PolicyContract } from "@/types";
  * means the operation cannot happen regardless of its budget cap.
  */
 
-const BASE_REPO = "dddd2024/reverse-agent";
+const BASE_REPO = "dddd2024/Nerelan";
 const FUTURE_EXPIRY = "2030-12-31T08:00:00Z";
 
 function baseWindow(expiresAt: string): PolicyContract["autonomousWindow"] {
