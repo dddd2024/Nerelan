@@ -12,6 +12,7 @@ import {
   Plus,
   Settings,
 } from "lucide-react";
+import { NerelanMark, NerelanWordmark } from "@/components/brand-logo";
 import { cn } from "@/lib/cn";
 import { AgentCanvasSidebarFrame } from "@/vendor/agent-canvas-v1.6.1/agent-canvas-sidebar-frame";
 import { SidebarCollapsedIconSlot } from "@/vendor/agent-canvas-v1.6.1/sidebar-collapsed-icon-slot";
@@ -89,7 +90,7 @@ function SidebarAction({
   );
 }
 
-/** Thin reverse-agent adapter around the pinned Agent Canvas sidebar frame. */
+/** Thin Nerelan adapter around the pinned Agent Canvas sidebar frame. */
 export function Sidebar({
   onNewTask,
   onOpenConversationPanel,
@@ -106,18 +107,22 @@ export function Sidebar({
   const logo = (
     <button
       type="button"
-      aria-label="reverse-agent"
+      aria-label="Nerelan"
       data-testid="sidebar-logo"
       onClick={() => {
         window.location.href = "/";
       }}
       className={cn(
-        "flex h-9 w-full items-center text-sm font-semibold tracking-tight",
-        "text-ra-text-secondary hover:text-ra-text",
+        "flex h-9 w-full items-center text-ra-text-secondary hover:text-ra-text",
         collapsed ? "justify-center" : "justify-start px-2.5",
       )}
+      title="Nerelan"
     >
-      {collapsed ? "RA" : "reverse-agent"}
+      {collapsed ? (
+        <NerelanMark className="h-7 w-7" />
+      ) : (
+        <NerelanWordmark className="h-[22px] w-[120px]" />
+      )}
     </button>
   );
 
