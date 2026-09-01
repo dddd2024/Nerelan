@@ -33,15 +33,9 @@ function getNavLabel(to: string): string {
 /**
  * OpenHands 1.8.0 root-layout adaptation with an accessible mobile drawer.
  *
- * Upstream sources (tag 1.8.0, commit c7a765d900df294cbbf0f405ae26c9cbbd0fcc29):
- *   frontend/src/routes/root-layout.tsx
- *   frontend/src/components/features/sidebar/sidebar-mobile-menu-bar.tsx
- *   frontend/src/components/features/sidebar/sidebar.tsx
- *   frontend/src/components/features/sidebar/sidebar-mobile-nav-context.tsx
- *
- * The desktop rail is controlled at the 768px `md` boundary. The mobile
- * trigger, backdrop and fixed drawer are the complementary `md:hidden`
- * surface. OpenHands runtime, backend and credential behavior is not used.
+ * The desktop surface is intentionally two-part: a quiet sidebar and one
+ * rounded primary workspace. The outer canvas is presentation-only and does
+ * not introduce a third application rail or a second navigation state source.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const location = useLocation();
@@ -167,6 +161,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       data-testid="app-shell"
       className={cn(
         "h-screen flex flex-col md:flex-row bg-ra-base text-ra-text overflow-hidden",
+        "md:gap-2 md:p-2",
       )}
     >
       <Sidebar
@@ -179,7 +174,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div
         data-testid="mobile-menu-bar"
         data-agent-canvas-source="v1.6.1"
-        className="md:hidden flex flex-row items-center gap-2 px-4 h-[54px] shrink-0 bg-ra-base border-b border-ra-border"
+        className="md:hidden flex flex-row items-center gap-2 px-4 h-[54px] shrink-0 bg-ra-base border-b border-ra-border/70"
         inert={mobileNavOpen ? true : undefined}
         aria-hidden={mobileNavOpen ? "true" : undefined}
       >
@@ -194,7 +189,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           className="flex items-center gap-2 text-ra-text-secondary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
         >
           <Menu className="h-5 w-5" aria-hidden="true" />
-          <span className="font-semibold text-ra-text">reverse-agent</span>
+          <span className="font-semibold tracking-[-0.015em] text-ra-text">Nerelan</span>
         </button>
       </div>
 
@@ -218,8 +213,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         className="fixed top-0 bottom-0 left-0 z-50 w-[min(300px,85vw)] md:hidden bg-ra-base flex flex-col border-r border-ra-border shadow-lg"
         style={{ display: mobileNavOpen ? "" : "none" }}
       >
-        <div className="flex items-center justify-between p-4 border-b border-ra-border">
-          <span className="text-sm font-semibold text-ra-text">reverse-agent</span>
+        <div className="flex items-center justify-between p-4 border-b border-ra-border/70">
+          <span className="text-sm font-semibold tracking-[-0.015em] text-ra-text">Nerelan</span>
           <button
             type="button"
             aria-label="关闭菜单"
@@ -254,7 +249,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
 
-        <div className="mt-auto flex flex-col gap-2 p-4 border-t border-ra-border">
+        <div className="mt-auto flex flex-col gap-2 p-4 border-t border-ra-border/70">
           <button
             type="button"
             data-testid="mobile-new-task-button"
@@ -284,7 +279,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div
         data-testid="app-shell-workspace"
         data-agent-canvas-source="v1.6.1"
-        className="flex flex-col w-full min-w-0 flex-1 h-full bg-ra-workspace"
+        className={cn(
+          "flex flex-col w-full min-w-0 flex-1 h-full bg-ra-workspace",
+          "md:overflow-hidden md:rounded-[18px] md:border md:border-ra-border/70",
+        )}
         inert={mobileNavOpen ? true : undefined}
         aria-hidden={mobileNavOpen ? "true" : undefined}
       >

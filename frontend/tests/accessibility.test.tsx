@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -6,6 +7,37 @@ import { PermissionSelector } from "@/components/permission-selector";
 import { CustomPolicyEditor } from "@/components/custom-policy-editor";
 import { Sidebar } from "@/components/sidebar";
 import { profileToPolicy } from "@/lib/profile-mapper";
+
+function read(relative: string) {
+  return readFileSync(relative, "utf8");
+}
+
+function srgbChannel(value: number) {
+  const channel = value / 255;
+  return channel <= 0.04045
+    ? channel / 12.92
+    : ((channel + 0.055) / 1.055) ** 2.4;
+}
+
+function relativeLuminance(hex: string) {
+  const value = Number.parseInt(hex.slice(1), 16);
+  const red = (value >> 16) & 0xff;
+  const green = (value >> 8) & 0xff;
+  const blue = value & 0xff;
+  return (
+    0.2126 * srgbChannel(red) +
+    0.7152 * srgbChannel(green) +
+    0.0722 * srgbChannel(blue)
+  );
+}
+
+function contrastRatio(a: string, b: string) {
+  const first = relativeLuminance(a);
+  const second = relativeLuminance(b);
+  const lighter = Math.max(first, second);
+  const darker = Math.min(first, second);
+  return (lighter + 0.05) / (darker + 0.05);
+}
 
 describe("accessibility", () => {
   it("permission selector opens via keyboard and is aria-labelled", async () => {
@@ -83,5 +115,15 @@ describe("accessibility", () => {
     await user.click(btn);
     expect(btn).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByTestId("body")).toBeInTheDocument();
+  });
+
+  it("keeps light tertiary text at WCAG AA contrast on both light surfaces", () => {
+    const css = read("src/index.css");
+
+    expect(css).not.toContain("--ra-text-tertiary: #77786f;");
+    expect(css).toContain("--ra-text-tertiary: #66675f;");
+    expect(css).toContain("--ra-text-tertiary: #8f8e88;");
+    expect(contrastRatio("#66675f", "#fffefa")).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio("#66675f", "#f1eee6")).toBeGreaterThanOrEqual(4.5);
   });
 });
