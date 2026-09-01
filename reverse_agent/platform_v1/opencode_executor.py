@@ -38,8 +38,10 @@ from typing import Any, Callable, Mapping
 
 from .binding_resolver import OpenCodeBindingResolution
 from .opencode_server_transport import (
+    ManagedOpenCodeServer,
     OpenCodeServerTransportError,
     run_managed_server_role,
+    start_managed_server,
 )
 from .task_runtime import (
     ExecutorCallback,
@@ -584,7 +586,7 @@ _SAFE_PROVIDER_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,127}$")
 
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 _TERMINAL_GLYPHS_RE = re.compile(
-    r"[●◆▪▸►■□▪▫├└┴┬┼│─┌┐┘└├┤┬┴┼░▒▓█]"
+    r"[•●◆▪▸►■□▪▫├└┴┬┼│─┌┐┘└├┤┬┴┼░▒▓█]"
 )
 _AUTH_TYPE_TOKEN_STRIP_RE = re.compile(r"[^A-Za-z0-9_]+$")
 
@@ -603,6 +605,57 @@ _AUTH_LIST_COMMANDS = ("auth", "list")
 _AUTH_LS_COMMANDS = ("auth", "ls")
 
 _AUTH_PROBE_ENV = dict(_OPENCODE_DISABLE_ENV)
+
+_ACCOUNT_AUTH_ENV_ALLOWLIST = (
+    "PATH",
+    "SystemRoot",
+    "COMSPEC",
+    "TEMP",
+    "TMP",
+    "USERPROFILE",
+    "LOCALAPPDATA",
+    "APPDATA",
+    "HOME",
+    "XDG_DATA_HOME",
+    "XDG_CONFIG_HOME",
+)
+
+
+def start_opencode_account_auth_server(
+    *,
+    opencode_exe: str | None = None,
+    cwd: str | None = None,
+    timeout: float = 300.0,
+) -> ManagedOpenCodeServer:
+    """Start the provider-owned OAuth surface with bounded non-secret env.
+
+    Default plugins remain enabled because the official OpenAI OAuth method is
+    supplied by OpenCode. Update, models-fetch, LSP-download and Claude import
+    side effects stay disabled. No provider token or credential value is copied
+    into the child environment.
+    """
+
+    cli_path, is_cmd = resolve_opencode_cli(exe=opencode_exe)
+    child_env: dict[str, str] = {}
+    for key in _ACCOUNT_AUTH_ENV_ALLOWLIST:
+        value = os.environ.get(key)
+        if isinstance(value, str) and value:
+            child_env[key] = value
+    child_env.update(
+        {
+            "OPENCODE_DISABLE_AUTOUPDATE": "true",
+            "OPENCODE_DISABLE_MODELS_FETCH": "true",
+            "OPENCODE_DISABLE_LSP_DOWNLOAD": "true",
+            "OPENCODE_DISABLE_CLAUDE_CODE": "true",
+        }
+    )
+    return start_managed_server(
+        cli_path=cli_path,
+        is_cmd=is_cmd,
+        cwd=os.path.abspath(cwd or os.getcwd()),
+        child_env=child_env,
+        timeout=timeout,
+    )
 
 
 def parse_opencode_auth_list(stdout: str) -> dict[str, str]:
@@ -791,6 +844,8 @@ def execute_opencode_auth_list_probe(
                 cwd=os.getcwd(),
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=15,
                 check=False,
                 env=child_env,
