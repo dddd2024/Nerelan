@@ -2,7 +2,7 @@
 
 Status: research-derived architecture baseline; **not an implementation claim**.
 
-Owner Work Item: #513  
+Owner Work Item: #513
 Parent/implementation owners: #179, #299, #303, #379, #252, #253, #137
 
 ## 1. Purpose
@@ -296,28 +296,28 @@ Exact schema is not fixed here.
 
 ### Required invariants
 
-1. **No authority inheritance**  
+1. **No authority inheritance**
    Memory can suggest; it cannot authorize.
 
-2. **Provenance required for consequential facts**  
+2. **Provenance required for consequential facts**
    Important architecture/security facts should point back to evidence, code, Issue/PR, run or explicit human decision where practical.
 
-3. **Version/applicability binding**  
+3. **Version/applicability binding**
    A lesson from one executor/model/repository version may not apply to another.
 
-4. **Freshness invalidation**  
+4. **Freshness invalidation**
    Upstream change can make a previously good memory stale.
 
-5. **Conflict handling**  
+5. **Conflict handling**
    Conflicting memories are surfaced/ordered/superseded; they are not silently blended into one synthetic fact.
 
-6. **Negative results are first class**  
+6. **Negative results are first class**
    Failed approaches may be retained, but only with applicability and evidence metadata.
 
-7. **Sensitive material exclusion**  
+7. **Sensitive material exclusion**
    Raw secrets, unrestricted environment dumps and private chain-of-thought are not general Project Knowledge.
 
-8. **Poisoning-aware retrieval**  
+8. **Poisoning-aware retrieval**
    High relevance does not automatically imply high trust.
 
 ---
