@@ -63,13 +63,13 @@ const LIVENESS_DOT_STYLES: Record<string, string> = {
 };
 
 const CATEGORY_TEXT_STYLES: Record<string, string> = {
-  BLOCKED: "text-amber-200",
-  OWNER_ACTION_REQUIRED: "text-amber-200",
-  VERIFY: "text-emerald-300",
-  TEST: "text-emerald-300",
-  CHECKPOINT: "text-emerald-300",
-  AGENT_STARTED: "text-sky-300",
-  COMMAND: "text-sky-300",
+  BLOCKED: "text-ra-status-error",
+  OWNER_ACTION_REQUIRED: "text-ra-status-error",
+  VERIFY: "text-ra-status-running",
+  TEST: "text-ra-status-running",
+  CHECKPOINT: "text-ra-status-running",
+  AGENT_STARTED: "text-ra-accent",
+  COMMAND: "text-ra-accent",
 };
 
 function enumKey(value: string | undefined) {
@@ -139,7 +139,11 @@ interface GoalCurrentActivityProps {
   limit?: number;
 }
 
-export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivityProps) {
+export function GoalCurrentActivity({
+  goal,
+  runs,
+  limit = 5,
+}: GoalCurrentActivityProps) {
   const linkedRuns = useMemo(() => {
     const ids = new Set((goal.task_links ?? []).map((link) => link.task_id));
     return runs.filter((run) => ids.has(run.task_id));
@@ -149,21 +153,38 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
     if (linkedRuns.length === 0) return null;
 
     const currentRuns = linkedRuns.filter(
-      (run) => run.state === "RUNNING" || livenessState(run) === "ACTIVE" || livenessState(run) === "VALIDATING",
+      (run) =>
+        run.state === "RUNNING" ||
+        livenessState(run) === "ACTIVE" ||
+        livenessState(run) === "VALIDATING",
     );
     const workingRuns = linkedRuns.filter(
-      (run) => livenessState(run) === "ACTIVE" || livenessState(run) === "VALIDATING",
+      (run) =>
+        livenessState(run) === "ACTIVE" ||
+        livenessState(run) === "VALIDATING",
     );
     const pool = currentRuns.length > 0 ? currentRuns : linkedRuns;
     const primary =
       pool.find((run) => run.current_activity) ??
-      [...pool].sort((a, b) => Date.parse(lastActivityAt(b) || "0") - Date.parse(lastActivityAt(a) || "0"))[0] ??
+      [...pool].sort(
+        (a, b) =>
+          Date.parse(lastActivityAt(b) || "0") -
+          Date.parse(lastActivityAt(a) || "0"),
+      )[0] ??
       linkedRuns[0];
 
-    const flattened: Array<{ event: PlatformRunActivityEvent; runId: string; key: string }> = [];
+    const flattened: Array<{
+      event: PlatformRunActivityEvent;
+      runId: string;
+      key: string;
+    }> = [];
     for (const run of linkedRuns) {
       for (const event of run.activity ?? run.events ?? []) {
-        flattened.push({ event, runId: run.task_id, key: eventKey(event, run.task_id) });
+        flattened.push({
+          event,
+          runId: run.task_id,
+          key: eventKey(event, run.task_id),
+        });
       }
     }
     const seen = new Set<string>();
@@ -173,7 +194,11 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
         seen.add(key);
         return true;
       })
-      .sort((a, b) => Date.parse(b.event.timestamp || "0") - Date.parse(a.event.timestamp || "0"))
+      .sort(
+        (a, b) =>
+          Date.parse(b.event.timestamp || "0") -
+          Date.parse(a.event.timestamp || "0"),
+      )
       .slice(0, limit);
 
     const agentSource = workingRuns.length > 0 ? workingRuns : [primary];
@@ -211,9 +236,12 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
   if (!view || linkedRuns.length === 0) return null;
 
   const livenessKey = view.liveness;
-  const livenessSeconds = view.lastActivity ? relativeSeconds(view.lastActivity) : null;
+  const livenessSeconds = view.lastActivity
+    ? relativeSeconds(view.lastActivity)
+    : null;
   const livenessTime = livenessTimeText(livenessSeconds);
-  const livenessLabel = LIVENESS_LABELS[livenessKey] ?? LIVENESS_LABELS.UNKNOWN;
+  const livenessLabel =
+    LIVENESS_LABELS[livenessKey] ?? LIVENESS_LABELS.UNKNOWN;
   const livenessText =
     livenessKey === "ACTIVE"
       ? livenessTime
@@ -246,7 +274,7 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
         >
           <span
             className={cn(
-              "h-2 w-2 rounded-full",
+              "h-1.5 w-1.5 rounded-full",
               LIVENESS_DOT_STYLES[livenessKey] ?? LIVENESS_DOT_STYLES.UNKNOWN,
             )}
             aria-hidden="true"
@@ -256,27 +284,45 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
       </div>
 
       {view.agentNames.length > 0 ? (
-        <p className="mb-3 flex flex-wrap items-center gap-2 text-xs text-ra-text-secondary" data-testid="goal-activity-agents">
-          <UserRound className="h-3.5 w-3.5 text-ra-text-tertiary" aria-hidden="true" />
-          {view.agentNames.length > 1 ? `${view.agentNames.length} 个 Agent 并行 · ` : ""}
+        <p
+          className="mb-3 flex flex-wrap items-center gap-2 text-xs text-ra-text-secondary"
+          data-testid="goal-activity-agents"
+        >
+          <UserRound
+            className="h-3.5 w-3.5 text-ra-text-tertiary"
+            aria-hidden="true"
+          />
+          {view.agentNames.length > 1
+            ? `${view.agentNames.length} 个 Agent 并行 · `
+            : ""}
           {view.agentNames.join(" / ")}
         </p>
       ) : null}
 
       {view.currentActivity ? (
         <div
-          className="mb-4 rounded-xl border border-ra-border/70 bg-ra-light/40 p-3"
+          className="mb-4 border-l-2 border-ra-border-strong pl-3"
           data-testid="goal-current-activity-now"
         >
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <Activity className={cn("h-3.5 w-3.5", categoryTextStyle(view.currentActivity.category))} aria-hidden="true" />
-            <span className="font-medium text-ra-text-secondary">当前：</span>
-            <span className="text-ra-text">{view.currentActivity.title}</span>
-            <span className="rounded-full bg-ra-light px-2 py-0.5 text-ra-text-tertiary">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs">
+            <Activity
+              className={cn(
+                "h-3.5 w-3.5 self-center",
+                categoryTextStyle(view.currentActivity.category),
+              )}
+              aria-hidden="true"
+            />
+            <span className="font-medium text-ra-text-secondary">当前</span>
+            <span className="min-w-0 text-ra-text">
+              {view.currentActivity.title}
+            </span>
+            <span className={categoryTextStyle(view.currentActivity.category)}>
               {categoryLabel(view.currentActivity.category)}
             </span>
             {currentAgent ? (
-              <span className="text-ra-accent">{agentLabel(currentAgent)}</span>
+              <span className="text-ra-text-tertiary">
+                · {agentLabel(currentAgent)}
+              </span>
             ) : null}
           </div>
           {view.currentActivity.description ? (
@@ -288,37 +334,59 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
       ) : null}
 
       {view.events.length > 0 ? (
-        <ul className="space-y-2" data-testid="goal-activity-events" aria-label="最近活动">
+        <ul
+          className="divide-y divide-ra-border/50"
+          data-testid="goal-activity-events"
+          aria-label="最近活动"
+        >
           {view.events.map(({ event, key }) => {
             const agent = eventAgent(event);
+            const metadata = [
+              agent ? agentLabel(agent) : "",
+              event.stage ? stageLabel(event.stage) : "",
+            ].filter(Boolean);
+
             return (
               <li
                 key={key}
-                className="flex min-w-0 items-baseline gap-3 text-xs"
+                className="flex min-w-0 items-baseline gap-3 py-2 text-xs"
                 data-testid={`goal-activity-event-${event.id}`}
               >
                 <span className="w-12 shrink-0 tabular-nums text-ra-text-tertiary">
                   {event.timestamp ? relativeTimeShort(event.timestamp) : "—"}
                 </span>
-                <span className={cn("w-20 shrink-0 font-medium", categoryTextStyle(event.category))}>
+                <span
+                  className={cn(
+                    "w-20 shrink-0 font-medium",
+                    categoryTextStyle(event.category),
+                  )}
+                >
                   {categoryLabel(event.category)}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-ra-text-secondary" title={event.title}>
+                <span
+                  className="min-w-0 flex-1 truncate text-ra-text-secondary"
+                  title={event.title}
+                >
                   {event.title}
-                  {event.path ? <span className="ml-2 font-mono text-ra-text-tertiary">{event.path}</span> : null}
+                  {event.path ? (
+                    <span className="ml-2 font-mono text-ra-text-tertiary">
+                      {event.path}
+                    </span>
+                  ) : null}
                   {event.command ? (
-                    <span className="ml-2 font-mono text-ra-text-tertiary">{event.command.summary}</span>
+                    <span className="ml-2 font-mono text-ra-text-tertiary">
+                      {event.command.summary}
+                    </span>
                   ) : null}
                   {event.test ? (
-                    <span className="ml-2 font-mono text-ra-text-tertiary">{event.test.summary}</span>
+                    <span className="ml-2 font-mono text-ra-text-tertiary">
+                      {event.test.summary}
+                    </span>
                   ) : null}
                 </span>
-                {agent ? (
-                  <span className="shrink-0 text-ra-text-tertiary">{agentLabel(agent)}</span>
-                ) : null}
-                {event.stage ? (
-                  <span className="shrink-0 rounded-full bg-ra-light px-2 py-0.5 text-ra-text-tertiary">
-                    {stageLabel(event.stage)}
+                {metadata.length > 0 ? (
+                  <span className="hidden shrink-0 text-ra-text-tertiary sm:inline">
+                    {metadata.join(" · ")}
                   </span>
                 ) : null}
               </li>
@@ -330,7 +398,10 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
       )}
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <p className="text-xs text-ra-text-tertiary" data-testid="goal-activity-change-summary">
+        <p
+          className="text-xs text-ra-text-tertiary"
+          data-testid="goal-activity-change-summary"
+        >
           {view.changeSummary.fileCount > 0
             ? `${view.changeSummary.fileCount} 个文件变更 · +${view.changeSummary.additions} -${view.changeSummary.deletions}`
             : "暂无变更统计"}
@@ -354,7 +425,11 @@ function relativeTimeShort(value: string) {
   const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
   const date = new Date(timestamp);
   if (seconds < 86400) {
-    return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+    return `${String(date.getHours()).padStart(2, "0")}:${String(
+      date.getMinutes(),
+    ).padStart(2, "0")}`;
   }
-  return `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return `${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate(),
+  ).padStart(2, "0")}`;
 }

@@ -1,7 +1,7 @@
 import { test, expect, open, settle } from "./fixtures";
 
 test.describe("home workspace", () => {
-  test("shows the three workspace sections and bounded navigation", async ({ appPage }) => {
+  test("shows the three workspace sections and task-first desktop navigation", async ({ appPage }) => {
     await open(appPage, "/");
     await settle(appPage);
     await expect(appPage.getByRole("heading", { name: "今天想完成什么？" })).toBeVisible();
@@ -12,8 +12,12 @@ test.describe("home workspace", () => {
     await expect(appPage.getByTestId("coordinator-status")).toContainText("协调器在线");
     await expect(appPage.getByText(/能力$/)).toHaveCount(0);
     if (await appPage.evaluate(() => window.innerWidth > 500)) {
-      await expect(appPage.getByTestId("sidebar-nav-首页")).toBeVisible();
-      await expect(appPage.getByTestId("sidebar-nav-Agent 运行")).toBeVisible();
+      await expect(appPage.getByTestId("new-task-button")).toBeVisible();
+      await expect(appPage.getByTestId("toggle-conversation-panel")).toBeVisible();
+      await expect(appPage.getByTestId("sidebar-section-recent")).toBeVisible();
+      await expect(appPage.getByTestId("sidebar-section-projects")).toBeVisible();
+      await expect(appPage.getByTestId("sidebar-nav-设置")).toBeVisible();
+      await expect(appPage.getByTestId("sidebar-nav-Agent 运行")).toBeHidden();
     } else {
       await expect(appPage.getByTestId("mobile-menu-button")).toBeVisible();
     }
