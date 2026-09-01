@@ -3,59 +3,70 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260901_issue444_auth_completion_r3_v5",
-  "round_id": "round_20260901_issue444_auth_completion_r3_v5",
+  "decision_id": "decision_20260901_issue492_final_visual_golden_r3_v11",
+  "round_id": "round_20260901_issue492_final_visual_golden_r3_v11",
   "status": "APPROVED",
   "mainline": "engineering_branch",
-  "skill_profiles": ["reverse-agent-iteration@v2"]
+  "skill_profiles": [
+    "reverse-agent-iteration@v2"
+  ]
 }
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260901_issue487_nerelan_runtime_brand_r2_v3",
-  "follows_last_round_id": "round_20260901_issue487_nerelan_runtime_brand_r2_v3",
-  "previous_audit_outcome": "PR497_ACCEPTED_V4_REPLAY_STALE_BASE_AFTER_PR490_MAIN_ADVANCE_REANCHOR_REQUIRED",
-  "supersedes_decision_id": "decision_20260901_issue444_auth_completion_r3_v4",
-  "workstream_id": "issue444-auth-completion-r3-v5",
-  "source_issue": 444,
-  "parent_issue": 438,
-  "historical_source_pr": 497,
-  "historical_source_head": "180ac417c488735c312bcf77089a1ac16c400074",
+  "follows_last_decision_id": "decision_20260901_issue444_auth_completion_r3_v5",
+  "follows_last_round_id": "round_20260901_issue444_auth_completion_r3_v5",
+  "previous_audit_outcome": "R3_V10_FAIL_CLOSED_OWNER_SIDE_UNAUTHORIZED_HANDOFF_PATH_AFTER_ACTIVATION_NO_PREFLIGHT_EXECUTED;R3_V9_FAIL_CLOSED_PRE_PRODUCT_OVERBROAD_SNAPSHOT_WILDCARD_AND_INACCURATE_V8_AUDIT_LABEL;R3_V8_FAIL_CLOSED_AFTER_VISUAL_REPLAY_GOLDEN_REPLAY_AND_PR522_WHEN_MAIN_ADVANCED_VIA_PR519;PR520_PLAYWRIGHT_40_PASS_8_SKIP_0_FAIL",
+  "workstream_id": "issue492-final-visual-golden-r3-v11",
+  "source_issue": 492,
+  "parent_issue": 448,
   "integration_base_ref": "main",
-  "base_sha": "1935e9c61fcb9dcc9f8d4ac72033c299423c1d9c",
-  "activation_base_sha": "1935e9c61fcb9dcc9f8d4ac72033c299423c1d9c",
-  "starting_head": "1935e9c61fcb9dcc9f8d4ac72033c299423c1d9c",
-  "required_branch": "owner/issue444-auth-completion-r3-v5",
+  "base_sha": "0feeb3f35ef164591678caba96fb46477b366f52",
+  "activation_base_sha": "0feeb3f35ef164591678caba96fb46477b366f52",
+  "starting_head": "0feeb3f35ef164591678caba96fb46477b366f52",
+  "required_branch": "owner/issue492-final-visual-golden-r3-v11",
   "fresh_worktree_creation_required": true,
   "semantic_replay_only": true,
   "history_reuse_allowed": false,
   "risk_tier": "R3",
-  "governance_artifact_risk_tier": "R2",
+  "governance_artifact_risk_tier": "R3",
   "authorized_risk_tier": "R3",
-  "workflow_profile": "baseline",
+  "workflow_profile": "browser_r3",
   "decision_commit_must_precede_implementation": true,
+  "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
   "decision_immutability_required": true,
+  "decision_immutability_check_required_in": [
+    "transition_preflight",
+    "transition_reconcile",
+    "worktree_publication_readiness"
+  ],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 1,
-  "generated_governance_commit_limit": 2,
+  "product_change_commit_limit": 3,
+  "generated_governance_commit_limit": 1,
   "post_publication_binding_commit_limit": 1,
   "normal_push_attempt_limit": 4,
   "draft_pr_creation_limit": 1,
+  "dependency_install_limit": 0,
+  "browser_install_limit": 0,
+  "browser_execution_limit": 0,
+  "docker_image_pull_limit": 0,
+  "docker_execution_limit": 0,
+  "snapshot_update_limit": 1,
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
   "live_model_call_limit": 0,
   "provider_network_call_limit": 0,
-  "credential_access_limit": 1,
-  "mark_ready_attempt_limit": 1,
-  "merge_attempt_limit": 1,
+  "credential_access_limit": 0,
+  "mark_ready_attempt_limit": 0,
+  "merge_attempt_limit": 0,
   "pr_creation_allowed": true,
   "issue_comment_allowed": true,
   "pull_request_comment_allowed": true,
-  "merge_allowed": true,
-  "mark_ready_allowed": true,
+  "merge_allowed": false,
+  "mark_ready_allowed": false,
   "workflow_rerun_allowed": false,
   "runner_dispatch_allowed": false,
   "direct_push_to_main_allowed": false,
@@ -65,19 +76,41 @@
   "dependency_install_allowed": false,
   "known_browser_execution_allowed": true,
   "live_provider_access_allowed": false,
-  "credential_access_allowed": true,
+  "credential_access_allowed": false,
   "allowed_merge_method": "merge",
   "mainline_merge_intent_required": true,
   "active_pr_binding_mode": "post_draft_pr_exact_remote_number",
   "issue_number_must_not_substitute_for_pr_number": true,
-  "test_semantics_changes_allowed": false,
-  "landing_revalidation_required_for_actions": ["ready_for_review", "merge"],
-  "landing_revalidation_required_when_draft": true,
-  "owner_attestation_required_for_ready_state": true,
-  "attestation_head_must_match_current_pr_head": true,
-  "ready_state_synchronize_must_revalidate": true,
-  "converted_to_draft_returns_to_draft_semantics": true,
-  "malformed_event_path_fail_closed": true,
+  "test_semantics_changes_allowed": true,
+  "browser_lock": {
+    "package": "@playwright/test",
+    "package_version": "1.62.1",
+    "browser_family": "chromium",
+    "browser_channel": "chromium",
+    "browser_title": "Chrome for Testing",
+    "browser_version": "151.0.7922.34",
+    "browser_revision": "1234",
+    "runner_os": "ubuntu-24.04",
+    "node_version": "22.23.1",
+    "desktop_viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "mobile_viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "workers": 1,
+    "fully_parallel": false,
+    "retries": 0,
+    "trace": "retain-on-failure",
+    "screenshot": "only-on-failure",
+    "video": "off",
+    "base_url": "http://127.0.0.1:4173",
+    "web_server_command": "npm run dev:mock -- --host 127.0.0.1 --port 4173 --strictPort",
+    "runtime_network_policy": "loopback_data_blob_only",
+    "snapshot_update_in_ci": false
+  },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
@@ -87,9 +120,8 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
-    "verify remote main remains 1935e9c61fcb9dcc9f8d4ac72033c299423c1d9c and the fresh target branch has zero commits beyond that base",
-    "verify PR 497 is closed stale-base historical evidence at accepted head 180ac417c488735c312bcf77089a1ac16c400074 and is not reused as landing authority",
-    "commit this complete immutable v5 R3 Decision as the unique first commit",
+    "verify exact main base 0feeb3f35ef164591678caba96fb46477b366f52 and fresh branch merge-base",
+    "commit this immutable R3 Decision as the unique first commit",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
@@ -97,15 +129,21 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "issue444v5.materialize_activation_packet",
-      "command": "after the unique immutable Decision activation commit run the repository-owned startup snapshot command-plan compiler transition lint and transition preflight; require PRE_EXECUTION_AUTHORIZED with zero blockers and commit only the five declared compiler-owned gate artifacts",
-      "phase": "gate",
+      "command_id": "issue492_r3v11.bootstrap_and_preflight",
+      "command": "verify exact main base 0feeb3f35ef164591678caba96fb46477b366f52 and fresh branch merge-base; commit this immutable R3 Decision as the unique first commit; run the governed startup snapshot command-plan compiler transition lint and transition preflight and require PRE_EXECUTION_AUTHORIZED before any visual replay or snapshot materialization",
+      "phase": "bootstrap",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["local_static_check", "commit"],
+      "operations": [
+        "code_read",
+        "local_static_check",
+        "commit"
+      ],
       "network_access": false,
-      "required_evidence_source": "local_command_evidence",
+      "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
         "project_state/gates/command_plan.json",
         "project_state/gates/startup_snapshot.json",
@@ -115,133 +153,196 @@
       ]
     },
     {
-      "command_id": "issue444v5.replay_accepted_authentication_semantics",
-      "command": "replay all twenty authorized authentication product source test and documentation paths byte-for-byte from closed stale-base PR 497 exact head 180ac417c488735c312bcf77089a1ac16c400074 onto locked current main without cherry-pick merge rebase or history reuse; preserve the already-integrated compact Settings layout durable Windows vault failure atomicity absolute OAuth deadline provider-owned token boundary and fresh external-session readiness",
+      "command_id": "issue492_r3v11.replay_visual_surface",
+      "command": "after PRE_EXECUTION_AUTHORIZED replay exactly frontend/e2e/fixtures.ts frontend/e2e/lifecycle-visual.spec.ts and frontend/design-qa.md byte-for-byte from the accepted PR520 pre-binding visual head 328e644461146229e0d31c3d8f7f01b9a46fb2a2; do not replay PR520 governance or intent history and do not modify production frontend runtime truth",
       "phase": "implementation",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["source_edit", "test_edit", "documentation_edit", "commit"],
+      "operations": [
+        "source_edit",
+        "local_static_check",
+        "commit"
+      ],
       "network_access": false,
       "required_evidence_source": "local_command_evidence",
       "allowed_mutated_paths": [
-        "reverse_agent/model_access/os_vault.py",
-        "reverse_agent/model_access/account_auth.py",
-        "reverse_agent/model_access/contracts.py",
-        "reverse_agent/model_access/store.py",
-        "reverse_agent/model_access/service.py",
-        "reverse_agent/platform_v1/opencode_server_transport.py",
-        "reverse_agent/platform_v1/opencode_executor.py",
-        "reverse_agent/platform_v1/trusted_host.py",
-        "tests/test_model_access.py",
-        "tests/platform_v1/test_opencode_server_transport.py",
-        "tests/platform_v1/test_opencode_executor.py",
-        "tests/platform_v1/test_trusted_host.py",
-        "frontend/src/schemas/model-access.ts",
-        "frontend/src/lib/model-control-client.ts",
-        "frontend/src/components/connection-binding-editor.tsx",
-        "frontend/src/routes/settings.tsx",
-        "frontend/tests/model-access-client.test.ts",
-        "frontend/tests/connection-binding-flow.test.tsx",
-        "docs/model-access.md",
-        "docs/architecture/CONNECTION_EXECUTOR_BINDING_ARCHITECTURE.md"
+        "frontend/e2e/fixtures.ts",
+        "frontend/e2e/lifecycle-visual.spec.ts",
+        "frontend/design-qa.md"
       ]
     },
     {
-      "command_id": "issue444v5.validate_product",
-      "command": "run the required focused Model Access OpenCode transport executor trusted-host and complete Platform V1 backend suites; run focused and full frontend unit typecheck lint build build-mock and repository Playwright with a known local browser; require every functional journey to pass and classify only the exact inherited eight Home and Settings light and dark desktop and mobile visual-golden mismatches as evidence-only; forbid snapshot mutation; run transition lint preflight publication readiness and git diff check without a real provider or model call",
-      "phase": "validation",
+      "command_id": "issue492_r3v11.materialize_locked_goldens",
+      "command": "replay exactly the 24 accepted PNG blobs from PR520 visual head 328e644461146229e0d31c3d8f7f01b9a46fb2a2, whose source artifact 9788256355 ZIP SHA256 is d1cdc719574547854887953978f0973f2987c5bd2ed8e5f59286c2d15f2638a7 and whose per-file SHA256 manifest is recorded in frontend/design-qa.md; perform no recapture and no local browser execution",
+      "phase": "implementation",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["unit_test", "integration_test", "lint", "build", "known_binary_execution", "local_static_check"],
+      "operations": [
+        "source_edit",
+        "local_static_check",
+        "commit"
+      ],
       "network_access": false,
-      "required_evidence_source": "local_command_evidence"
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": [
+        "frontend/e2e/snapshots/desktop-chromium/home-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
+        "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
+        "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/settings-dark.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-empty-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-running-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-waiting-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-validating-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-completed-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-failed-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-blocked-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-owner-action-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-large-changes-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-long-stream-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-multi-agent-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-empty-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-running-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-blocked-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-owner-action-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-long-stream-light.png"
+      ]
     },
     {
-      "command_id": "issue444v5.windows_vault_sentinel_proof",
-      "command": "on the trusted Windows host store resolve from a fresh adapter and delete exactly one generated non-user Nerelan sentinel in Windows Credential Manager; never inspect a real user credential never print or persist sentinel material and verify post-delete not-found",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["known_binary_execution", "credential_access", "local_static_check"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence"
-    },
-    {
-      "command_id": "issue444v5.publish_new_draft",
-      "command": "after all local validation normally push the exact fresh branch and create one new Draft PR against locked main; update only that PR body; require fresh exact-head CI State Gate Decision Preflight and Model Access success and run Frontend Playwright for explicit functional plus inherited-eight-case visual classification",
+      "command_id": "issue492_r3v11.validate_publish",
+      "command": "after exact blob and path-scope verification publish the bounded current R3 branch and create exactly one Draft PR against locked main; require repository-owned exact-head CI Decision Preflight State Gate Model Access and Frontend Playwright and do not update snapshots in CI",
       "phase": "publication",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["push", "draft_pr", "pull_request_update", "network_access"],
+      "operations": [
+        "push",
+        "draft_pr",
+        "network_access"
+      ],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue444v5.post_publication_binding",
-      "command": "after Draft PR creation archive the inherited schema-v3 PR 490 active mainline intent byte-for-byte and bind active intent exactly once to the actual new PR number locked base current immutable Decision current generated Command Plan baseline workflow profile and merge-only policy; commit and normally push that binding",
+      "command_id": "issue492_r3v11.post_publication_binding",
+      "command": "after the real Draft PR number is known archive the inherited schema-v3 PR499 active merge intent byte-for-byte as project_state/mainline_merge_intents/archive/pr499_v1.json and bind active.json once to the exact new PR locked base current Decision current Command Plan and browser_r3 workflow profile; schema-v3 required_workflows MUST contain exactly CI Decision Preflight and State Gate (pull_request), while Frontend Playwright and Model Access remain supplementary exact-head acceptance workflows outside required_workflows; merge policy remains merge-only",
       "phase": "post_publication_binding",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["commit", "push", "network_access"],
+      "operations": [
+        "source_edit",
+        "local_static_check",
+        "commit",
+        "push",
+        "network_access"
+      ],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
-      "allowed_only_after_validation": true,
       "allowed_mutated_paths": [
         "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr490_v3.json"
-      ]
+        "project_state/mainline_merge_intents/archive/pr499_v1.json"
+      ],
+      "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue444v5.independent_exact_head_audit",
-      "command": "an independent auditor that did not implement the replay reviews and reproduces the unchanged exact remote head including vault failure atomicity Windows adapter safety secret confinement absolute deadline account-auth lifecycle external-session reuse current Settings density and all required exact-head checks; the auditor must confirm zero functional Playwright failure and zero new visual failure beyond the exact inherited eight-case evidence set before recording ACCEPTED or REWORK_REQUIRED on the new PR",
+      "command_id": "issue492_r3v11.browser_exact_head_acceptance",
+      "command": "require exact-head CI Decision Preflight State Gate Model Access and Frontend Playwright terminal success on the bound Draft PR; Frontend Playwright must report 40 passed 8 skipped 0 failed on locked Ubuntu 24.04 Node 22.23.1 Playwright 1.62.1 Chromium 151.0.7922.34 revision 1234",
       "phase": "final_evidence",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "remote_observation",
-      "operations": ["code_read", "unit_test", "pull_request_comment", "network_access"],
-      "network_access": true,
+      "operations": [
+        "code_read",
+        "read_only_audit"
+      ],
+      "network_access": false,
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue444v5.owner_landing",
-      "command": "only after independent exact-head acceptance fresh successful exact-head workflows zero unresolved blockers unchanged locked base and head valid mainline intent and current repository-owned owner attestation mark the new PR ready once and merge once using merge commit with expected-head protection; verify natural post-merge main checks then close Issue 444 and reconcile Issues 441 and 438 where acceptance is satisfied",
-      "phase": "landing",
+      "command_id": "issue492_r3v11.finalize_design_qa",
+      "command": "only after the first exact-head browser acceptance update frontend/design-qa.md to record the current re-anchor and successful exact-head run and set Status PASSED; make no other file change, publish that documentation-only head, and require a fresh exact-head workflow set",
+      "phase": "implementation",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "local",
-      "operations": ["mark_ready", "merge", "issue_close", "network_access"],
+      "operations": [
+        "source_edit",
+        "local_static_check",
+        "commit",
+        "push",
+        "network_access"
+      ],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [
+        "frontend/design-qa.md"
+      ],
       "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue492_r3v11.final_exact_head_acceptance",
+      "command": "require fresh exact-head CI Decision Preflight State Gate Model Access and Frontend Playwright terminal success after design-qa finalization, zero unresolved blocking review threads, unchanged locked base and PR remaining Draft; no Ready or merge is performed by this Decision",
+      "phase": "final_evidence",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "remote_observation",
+      "operations": [
+        "code_read",
+        "read_only_audit"
+      ],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
     }
   ],
   "allowed_source_paths": [
-    "reverse_agent/model_access/os_vault.py",
-    "reverse_agent/model_access/account_auth.py",
-    "reverse_agent/model_access/contracts.py",
-    "reverse_agent/model_access/store.py",
-    "reverse_agent/model_access/service.py",
-    "reverse_agent/platform_v1/opencode_server_transport.py",
-    "reverse_agent/platform_v1/opencode_executor.py",
-    "reverse_agent/platform_v1/trusted_host.py",
-    "tests/test_model_access.py",
-    "tests/platform_v1/test_opencode_server_transport.py",
-    "tests/platform_v1/test_opencode_executor.py",
-    "tests/platform_v1/test_trusted_host.py",
-    "frontend/src/schemas/model-access.ts",
-    "frontend/src/lib/model-control-client.ts",
-    "frontend/src/components/connection-binding-editor.tsx",
-    "frontend/src/routes/settings.tsx",
-    "frontend/tests/model-access-client.test.ts",
-    "frontend/tests/connection-binding-flow.test.tsx",
-    "docs/model-access.md",
-    "docs/architecture/CONNECTION_EXECUTOR_BINDING_ARCHITECTURE.md"
+    "frontend/e2e/fixtures.ts",
+    "frontend/e2e/lifecycle-visual.spec.ts",
+    "frontend/design-qa.md",
+    "frontend/e2e/snapshots/desktop-chromium/home-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
+    "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
+    "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/settings-dark.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-empty-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-running-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-waiting-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-validating-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-completed-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-failed-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-blocked-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-owner-action-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-large-changes-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-long-stream-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-multi-agent-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-empty-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-running-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-blocked-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-owner-action-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-long-stream-light.png"
   ],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
@@ -251,27 +352,34 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr490_v3.json",
-    "reverse_agent/model_access/os_vault.py",
-    "reverse_agent/model_access/account_auth.py",
-    "reverse_agent/model_access/contracts.py",
-    "reverse_agent/model_access/store.py",
-    "reverse_agent/model_access/service.py",
-    "reverse_agent/platform_v1/opencode_server_transport.py",
-    "reverse_agent/platform_v1/opencode_executor.py",
-    "reverse_agent/platform_v1/trusted_host.py",
-    "tests/test_model_access.py",
-    "tests/platform_v1/test_opencode_server_transport.py",
-    "tests/platform_v1/test_opencode_executor.py",
-    "tests/platform_v1/test_trusted_host.py",
-    "frontend/src/schemas/model-access.ts",
-    "frontend/src/lib/model-control-client.ts",
-    "frontend/src/components/connection-binding-editor.tsx",
-    "frontend/src/routes/settings.tsx",
-    "frontend/tests/model-access-client.test.ts",
-    "frontend/tests/connection-binding-flow.test.tsx",
-    "docs/model-access.md",
-    "docs/architecture/CONNECTION_EXECUTOR_BINDING_ARCHITECTURE.md"
+    "project_state/mainline_merge_intents/archive/pr499_v1.json",
+    "frontend/e2e/fixtures.ts",
+    "frontend/e2e/lifecycle-visual.spec.ts",
+    "frontend/design-qa.md",
+    "frontend/e2e/snapshots/desktop-chromium/home-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
+    "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
+    "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/settings-dark.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-empty-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-running-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-waiting-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-validating-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-completed-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-failed-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-blocked-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-owner-action-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-large-changes-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-long-stream-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-multi-agent-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-empty-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-running-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-blocked-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-owner-action-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-long-stream-light.png"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
@@ -281,109 +389,181 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr490_v3.json",
-    "reverse_agent/model_access/os_vault.py",
-    "reverse_agent/model_access/account_auth.py",
-    "reverse_agent/model_access/contracts.py",
-    "reverse_agent/model_access/store.py",
-    "reverse_agent/model_access/service.py",
-    "reverse_agent/platform_v1/opencode_server_transport.py",
-    "reverse_agent/platform_v1/opencode_executor.py",
-    "reverse_agent/platform_v1/trusted_host.py",
-    "tests/test_model_access.py",
-    "tests/platform_v1/test_opencode_server_transport.py",
-    "tests/platform_v1/test_opencode_executor.py",
-    "tests/platform_v1/test_trusted_host.py",
-    "frontend/src/schemas/model-access.ts",
-    "frontend/src/lib/model-control-client.ts",
-    "frontend/src/components/connection-binding-editor.tsx",
-    "frontend/src/routes/settings.tsx",
-    "frontend/tests/model-access-client.test.ts",
-    "frontend/tests/connection-binding-flow.test.tsx",
-    "docs/model-access.md",
-    "docs/architecture/CONNECTION_EXECUTOR_BINDING_ARCHITECTURE.md"
+    "project_state/mainline_merge_intents/archive/pr499_v1.json",
+    "frontend/e2e/fixtures.ts",
+    "frontend/e2e/lifecycle-visual.spec.ts",
+    "frontend/design-qa.md",
+    "frontend/e2e/snapshots/desktop-chromium/home-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
+    "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
+    "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/settings-dark.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-empty-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-running-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-waiting-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-validating-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-completed-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-failed-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-blocked-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-owner-action-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-large-changes-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-long-stream-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-multi-agent-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-empty-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-running-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-blocked-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-owner-action-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-long-stream-light.png"
   ],
   "reference_paths": [
-    "AGENTS.md",
-    ".github/workflows/ci.yml",
-    ".github/workflows/state-gate.yml",
-    ".github/workflows/decision-preflight.yml",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/control_plane/transition.py",
-    "reverse_agent/control_plane/models.py",
-    "reverse_agent/control_plane/legacy_adapter.py",
-    "reverse_agent/mainline_landing.py",
-    "tests/test_project_gate.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_mainline_landing.py",
-    "tests/platform_v1/test_merge_intent.py",
-    "frontend/tests/settings-density.test.tsx",
-    "frontend/e2e/functional.spec.ts",
-    "frontend/e2e/visual.spec.ts"
+    "frontend/src/**",
+    "frontend/e2e/visual.spec.ts",
+    "frontend/playwright.config.ts"
+  ],
+  "reference_only_paths": [
+    "frontend/src/**",
+    "frontend/e2e/visual.spec.ts",
+    "frontend/playwright.config.ts"
+  ],
+  "source_test_mutation_authorized": true,
+  "source_test_authorized_paths": [
+    "frontend/e2e/fixtures.ts",
+    "frontend/e2e/lifecycle-visual.spec.ts",
+    "frontend/design-qa.md",
+    "frontend/e2e/snapshots/desktop-chromium/home-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
+    "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
+    "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/settings-dark.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-empty-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-running-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-waiting-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-validating-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-completed-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-failed-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-blocked-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-owner-action-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-large-changes-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-long-stream-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-multi-agent-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-empty-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-running-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-blocked-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-owner-action-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-long-stream-light.png"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr499_v1.json"
   ],
+  "generated_state_authorized_paths": [
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/mainline_merge_intents/active.json",
+    "project_state/mainline_merge_intents/archive/pr499_v1.json"
+  ],
+  "mainline_merge_intent_scope": {
+    "source_issue": 492,
+    "additive_only": true,
+    "scope_widening": false,
+    "required": true,
+    "active_path": "project_state/mainline_merge_intents/active.json",
+    "archive_path": "project_state/mainline_merge_intents/archive/pr499_v1.json",
+    "supersedes_intent_id": "pr499_issue444_auth_completion_r3_v5",
+    "supersedes_source_issue": 444,
+    "binding_mode": "post_draft_pr_exact_remote_number",
+    "expected_binding_state": "BOUND_TO_DRAFT_PR",
+    "rewrite_limit": 1,
+    "binding_update_limit": 1,
+    "archive_required": true,
+    "append_only_archive": true,
+    "duplicate_forbidden": true,
+    "archive_source": "project_state/mainline_merge_intents/active.json",
+    "archive_exact_content_required": true,
+    "stale_active_allowed_only_until_binding": true,
+    "allowed_merge_method": "merge",
+    "evidence_version": 3,
+    "required_schema_version": 3,
+    "workflow_profile": "browser_r3",
+    "required_workflow_names": [
+      "CI",
+      "Decision Preflight",
+      "State Gate (pull_request)"
+    ],
+    "required_workflows_via_profile": true,
+    "required_workflows_source": "bootstrap_active_intent",
+    "required_workflow_name_schema": "workflow_identity_v1",
+    "expected_workflows": [
+      "CI",
+      "Decision Preflight",
+      "State Gate (pull_request)",
+      "Model Access",
+      "Frontend Playwright"
+    ]
+  },
+  "merge_intent_validation": {
+    "semantic_fields": [
+      "schema_version",
+      "intent_id",
+      "source_issue",
+      "source_pr",
+      "decision_id",
+      "locked_base_sha",
+      "allowed_merge_method",
+      "workflow_profile",
+      "required_workflows",
+      "expected_head_sha",
+      "command_plan_sha256"
+    ],
+    "required_workflow_names": [
+      "CI",
+      "Decision Preflight",
+      "State Gate (pull_request)"
+    ],
+    "workflow_profile": "browser_r3",
+    "required_schema_version": 3
+  },
+  "required_evidence_sources": [
+    "local_command_evidence",
+    "repository_state_attestation",
+    "exact_head_ci"
+  ],
+  "prepared_by": "owner",
+  "approved_at": "2026-09-01T10:15:00Z",
   "forbidden_mutated_paths": [
     "AGENTS.md",
+    "docs/**",
     ".github/actions/**",
     ".github/workflows/**",
     ".codex-skills/**",
     "requirements*.txt",
     "pyproject.toml",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/control_plane/**",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/base_platform/**",
-    "frontend/tests/settings-density.test.tsx",
-    "frontend/e2e/snapshots/**",
-    "project_state/current_state.json",
-    "project_state/state_manifest.json",
-    "project_state/artifact_index.json",
-    "project_state/rounds/**",
-    "project_state/audits/**",
-    "project_state/integration_baselines/**",
-    "project_state/mainline_recoveries/**",
-    "project_state/schemas/**",
-    "project_state/context/**",
-    "project_state/evidence/**",
-    "project_state/proposed_state/**",
-    "project_state/domains/**",
-    "project_state/jobs/**",
-    "project_state/roadmap/**",
-    "project_state/solve_tasks/**"
-  ],
-  "forbidden_operations": [
-    "direct_push_main",
-    "auto_merge",
-    "force_push",
-    "rebase",
-    "merge_history",
-    "cherry_pick",
-    "reset",
-    "clean",
-    "stash",
-    "amend",
-    "squash",
-    "dependency_install",
-    "workflow_change",
-    "live_model_call",
-    "model_api_invocation",
-    "runner_dispatch",
-    "live_provider_access",
-    "tag_or_release",
-    "deployment",
-    "history_rewrite",
-    "unknown_binary_execution",
-    "external_reverse_tool_invocation",
-    "network_attack_or_offensive_security_work",
-    "plaintext_secret_storage",
-    "custom_oauth_implementation",
-    "real_user_credential_access"
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/playwright.config.ts",
+    "frontend/src/**",
+    "reverse_agent/**",
+    "tests/**",
+    "frontend/e2e/visual.spec.ts",
+    "project_state/owner_handoffs/**",
+    "README.md",
+    "README.txt",
+    "**/STOP",
+    "**/owner_handoffs/**"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -393,60 +573,18 @@
     "destructive_operations_allowed": false,
     "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
+    "local_network_exceptions": [
+      "after exact blob and path-scope verification publish the bounded current R3 branch and create exactly one Draft PR against locked main; require repository-owned exact-head CI Decision Preflight State Gate Model Access and Frontend Playwright and do not update snapshots in CI",
+      "after the real Draft PR number is known archive the inherited schema-v3 PR499 active merge intent byte-for-byte as project_state/mainline_merge_intents/archive/pr499_v1.json and bind active.json once to the exact new PR locked base current Decision current Command Plan and browser_r3 workflow profile; schema-v3 required_workflows MUST contain exactly CI Decision Preflight and State Gate (pull_request), while Frontend Playwright and Model Access remain supplementary exact-head acceptance workflows outside required_workflows; merge policy remains merge-only",
+      "only after the first exact-head browser acceptance update frontend/design-qa.md to record the current re-anchor and successful exact-head run and set Status PASSED; make no other file change, publish that documentation-only head, and require a fresh exact-head workflow set"
+    ],
+    "ci_network_exceptions": [],
+    "remote_observation_read_only_allowed": true,
     "direct_push_to_main_allowed": false,
-    "merge_allowed": true,
+    "merge_allowed": false,
     "force_push_allowed": false,
     "rebase_during_execution_allowed": false,
-    "tag_or_release_allowed": false,
-    "local_network_exceptions": [
-      "normal branch push and new Draft PR creation and body update after deterministic local validation",
-      "independent exact-head audit observation and PR comment",
-      "owner attestation mark-ready expected-head merge post-merge verification and issue reconciliation after every landing precondition passes"
-    ],
-    "ci_network_exceptions": [
-      "provider-free fake HTTP fixtures bound only to 127.0.0.1"
-    ],
-    "remote_observation_read_only_allowed": true
-  },
-  "path_risk_floor": [
-    {"pattern": "project_state/**", "minimum_risk": "R2"},
-    {"pattern": ".github/workflows/**", "minimum_risk": "R2"},
-    {"pattern": "**/secrets/**", "minimum_risk": "R3"},
-    {"pattern": "**/*credential*", "minimum_risk": "R3"},
-    {"pattern": "**/*oauth*", "minimum_risk": "R3"}
-  ],
-  "success_terminal": "AUTH_COMPLETION_R3_MERGED_CURRENT_MAIN_GREEN_ISSUES_RECONCILED",
-  "blocked_terminal": "AUTH_COMPLETION_R3_BLOCKED_WITH_EXACT_EVIDENCE"
+    "tag_or_release_allowed": false
+  }
 }
 ```
-
-## Goal
-
-Replay the independently accepted PR #497 authentication product tree byte-for-byte onto locked current main while preserving its reviewed security and current compact Settings semantics:
-
-1. an API key entered once is stored in Windows Credential Manager and reconstructed after trusted-host restart through a sanitized reference only;
-2. OpenAI/ChatGPT account login is delegated to OpenCode's official provider OAuth surface and OpenCode alone owns PKCE, callback, access/refresh/session tokens and durable session storage;
-3. existing external OpenCode CLI/account sessions are reused through one fresh sanitized executor-owned readiness probe without credential copying.
-
-## Acceptance
-
-1. This Decision is the unique first commit after `starting_head`, remains byte-identical thereafter, and every mutation stays within the exact v5 allowlist.
-2. All twenty authorized product/source/test/documentation paths are byte-for-byte equal to PR #497 exact head `180ac417c488735c312bcf77089a1ac16c400074`; no current-main validator requires a semantic deviation.
-3. API-key vault mutation and sanitized state persistence remain failure-atomic for create, same-ref replacement, authority-changing replacement, clear and Connection deletion; no orphan or split truth is created.
-4. The Windows adapter has correct ctypes signatures, distinguishes not-found from locked/unavailable errors, frees native memory, rejects invalid or oversized blobs, and never logs credential material.
-5. Persisted and browser-visible state contains only non-secret credential references and sanitized status; restart re-resolves through the OS vault and never reads secret material back to the browser.
-6. Account login is explicit-user-action only and delegates to an authenticated loopback OpenCode server using advertised provider methods. The absolute monotonic deadline governs discovery, authorization and completion at or after expiry.
-7. OpenCode exclusively owns OAuth and provider session tokens. Completion, failure, timeout, cancellation and logout-required states are explicit and secret-free, and existing external sessions use a fresh sanitized auth-list probe.
-8. Required backend, frontend, Windows sentinel, exact-head CI, State Gate, Decision Preflight and Model Access checks pass without a real provider/model call.
-9. Repository Playwright runs with a known browser. Every functional journey must pass. Only the inherited `home-light`, `home-dark`, `settings-light`, and `settings-dark` visual cases across desktop and mobile may be evidence-only mismatches; any additional or functional failure blocks. No file under `frontend/e2e/snapshots/**` may change.
-10. An independent auditor accepts the unchanged new-PR head and explicitly confirms zero new functional or visual failure beyond that inherited eight-case set.
-11. Landing occurs only with unchanged base/head, zero unresolved blockers, valid schema-v3 intent and current owner attestation, using one Ready action and one expected-head merge commit.
-12. Natural post-merge main checks are successful and Issues 444, 441 and 438 are reconciled only where their acceptance is satisfied. No auto-merge, direct-main push, rebase, cherry-pick, force push, snapshot refresh, tag, release or deployment occurs.
-
-## Execution policy
-
-- The owner explicitly authorized this bounded R3 v5 round and its publication lifecycle in the user request. That authority is represented only by this immutable Decision and its generated Command Plan; owner identity alone never bypasses a gate.
-- PR #497 at `180ac417c488735c312bcf77089a1ac16c400074` is accepted stale-base content evidence only. Reuse file content and semantics, never its history or landing authority.
-- Deterministic acceptance makes no real provider/model call and performs no live account consent. The only credential-store access is one generated non-user Nerelan sentinel that is stored, resolved from a fresh adapter, deleted, and confirmed absent without printing its material.
-- The inherited eight visual mismatches are evidence-only because they already exist on current main; this round cannot mutate visual goldens or weaken thresholds.
-- Any Decision mutation, base/head drift, out-of-scope path, failed functional check, new visual failure, credential leak, independent audit rejection, unresolved review thread or landing-attestation failure stops the round with exact evidence.
