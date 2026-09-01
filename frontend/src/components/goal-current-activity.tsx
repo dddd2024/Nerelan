@@ -1,4 +1,4 @@
-import { Activity, ChevronRight, UserRound } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useMemo } from "react";
 import { Link } from "react-router";
 import type {
@@ -52,24 +52,24 @@ const LIVENESS_LABELS: Record<string, string> = {
 };
 
 const LIVENESS_DOT_STYLES: Record<string, string> = {
-  ACTIVE: "bg-emerald-400",
-  WAITING: "bg-violet-300",
-  VALIDATING: "bg-sky-400",
-  BLOCKED: "bg-amber-300",
-  OWNER_ACTION_REQUIRED: "bg-amber-300",
-  STALE: "bg-red-400",
+  ACTIVE: "bg-ra-accent",
+  WAITING: "bg-ra-text-tertiary",
+  VALIDATING: "bg-ra-accent",
+  BLOCKED: "bg-ra-status-error",
+  OWNER_ACTION_REQUIRED: "bg-ra-status-error",
+  STALE: "bg-ra-status-error",
   TERMINAL: "bg-ra-text-tertiary",
   UNKNOWN: "bg-ra-text-tertiary",
 };
 
 const CATEGORY_TEXT_STYLES: Record<string, string> = {
-  BLOCKED: "text-amber-200",
-  OWNER_ACTION_REQUIRED: "text-amber-200",
-  VERIFY: "text-emerald-300",
-  TEST: "text-emerald-300",
-  CHECKPOINT: "text-emerald-300",
-  AGENT_STARTED: "text-sky-300",
-  COMMAND: "text-sky-300",
+  BLOCKED: "text-ra-status-error",
+  OWNER_ACTION_REQUIRED: "text-ra-status-error",
+  VERIFY: "text-ra-status-running",
+  TEST: "text-ra-status-running",
+  CHECKPOINT: "text-ra-status-running",
+  AGENT_STARTED: "text-ra-accent",
+  COMMAND: "text-ra-accent",
 };
 
 function enumKey(value: string | undefined) {
@@ -139,7 +139,11 @@ interface GoalCurrentActivityProps {
   limit?: number;
 }
 
-export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivityProps) {
+export function GoalCurrentActivity({
+  goal,
+  runs,
+  limit = 5,
+}: GoalCurrentActivityProps) {
   const linkedRuns = useMemo(() => {
     const ids = new Set((goal.task_links ?? []).map((link) => link.task_id));
     return runs.filter((run) => ids.has(run.task_id));
@@ -149,21 +153,38 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
     if (linkedRuns.length === 0) return null;
 
     const currentRuns = linkedRuns.filter(
-      (run) => run.state === "RUNNING" || livenessState(run) === "ACTIVE" || livenessState(run) === "VALIDATING",
+      (run) =>
+        run.state === "RUNNING" ||
+        livenessState(run) === "ACTIVE" ||
+        livenessState(run) === "VALIDATING",
     );
     const workingRuns = linkedRuns.filter(
-      (run) => livenessState(run) === "ACTIVE" || livenessState(run) === "VALIDATING",
+      (run) =>
+        livenessState(run) === "ACTIVE" ||
+        livenessState(run) === "VALIDATING",
     );
     const pool = currentRuns.length > 0 ? currentRuns : linkedRuns;
     const primary =
       pool.find((run) => run.current_activity) ??
-      [...pool].sort((a, b) => Date.parse(lastActivityAt(b) || "0") - Date.parse(lastActivityAt(a) || "0"))[0] ??
+      [...pool].sort(
+        (a, b) =>
+          Date.parse(lastActivityAt(b) || "0") -
+          Date.parse(lastActivityAt(a) || "0"),
+      )[0] ??
       linkedRuns[0];
 
-    const flattened: Array<{ event: PlatformRunActivityEvent; runId: string; key: string }> = [];
+    const flattened: Array<{
+      event: PlatformRunActivityEvent;
+      runId: string;
+      key: string;
+    }> = [];
     for (const run of linkedRuns) {
       for (const event of run.activity ?? run.events ?? []) {
-        flattened.push({ event, runId: run.task_id, key: eventKey(event, run.task_id) });
+        flattened.push({
+          event,
+          runId: run.task_id,
+          key: eventKey(event, run.task_id),
+        });
       }
     }
     const seen = new Set<string>();
@@ -173,7 +194,11 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
         seen.add(key);
         return true;
       })
-      .sort((a, b) => Date.parse(b.event.timestamp || "0") - Date.parse(a.event.timestamp || "0"))
+      .sort(
+        (a, b) =>
+          Date.parse(b.event.timestamp || "0") -
+          Date.parse(a.event.timestamp || "0"),
+      )
       .slice(0, limit);
 
     const agentSource = workingRuns.length > 0 ? workingRuns : [primary];
@@ -200,7 +225,6 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
       primary,
       events,
       agentNames,
-      activeCount: workingRuns.length,
       changeSummary,
       currentActivity: primary.current_activity ?? null,
       liveness: livenessState(primary),
@@ -211,9 +235,12 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
   if (!view || linkedRuns.length === 0) return null;
 
   const livenessKey = view.liveness;
-  const livenessSeconds = view.lastActivity ? relativeSeconds(view.lastActivity) : null;
+  const livenessSeconds = view.lastActivity
+    ? relativeSeconds(view.lastActivity)
+    : null;
   const livenessTime = livenessTimeText(livenessSeconds);
-  const livenessLabel = LIVENESS_LABELS[livenessKey] ?? LIVENESS_LABELS.UNKNOWN;
+  const livenessLabel =
+    LIVENESS_LABELS[livenessKey] ?? LIVENESS_LABELS.UNKNOWN;
   const livenessText =
     livenessKey === "ACTIVE"
       ? livenessTime
@@ -226,6 +253,8 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
         : livenessTime
           ? `${livenessLabel} · ${livenessTime}`
           : livenessLabel;
+  const quietLiveness =
+    livenessKey === "ACTIVE" || livenessKey === "TERMINAL";
   const currentAgent = view.currentActivity
     ? view.currentActivity.agent ?? eventAgent(view.currentActivity)
     : null;
@@ -234,19 +263,34 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
     <section
       data-testid="goal-current-activity"
       aria-label="当前执行活动"
-      className="mt-7 border-t border-ra-border/70 pt-6"
+      className="pt-1"
     >
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <p className="text-xs font-medium uppercase tracking-[0.16em] text-ra-text-tertiary">
-          Agent 活动
-        </p>
+      <span className="sr-only">Agent 活动</span>
+
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        {view.agentNames.length > 0 ? (
+          <p
+            className="text-[11px] text-ra-text-tertiary"
+            data-testid="goal-activity-agents"
+          >
+            {view.agentNames.length > 1
+              ? `${view.agentNames.length} 个 Agent 并行 · `
+              : ""}
+            {view.agentNames.join(" / ")}
+          </p>
+        ) : (
+          <span />
+        )}
         <p
-          className="flex items-center gap-2 text-xs text-ra-text-secondary"
+          className={cn(
+            "inline-flex items-center gap-1.5 text-[11px]",
+            quietLiveness ? "sr-only" : "text-ra-text-secondary",
+          )}
           data-testid="goal-activity-liveness"
         >
           <span
             className={cn(
-              "h-2 w-2 rounded-full",
+              "h-1.5 w-1.5 rounded-full",
               LIVENESS_DOT_STYLES[livenessKey] ?? LIVENESS_DOT_STYLES.UNKNOWN,
             )}
             aria-hidden="true"
@@ -255,32 +299,27 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
         </p>
       </div>
 
-      {view.agentNames.length > 0 ? (
-        <p className="mb-3 flex flex-wrap items-center gap-2 text-xs text-ra-text-secondary" data-testid="goal-activity-agents">
-          <UserRound className="h-3.5 w-3.5 text-ra-text-tertiary" aria-hidden="true" />
-          {view.agentNames.length > 1 ? `${view.agentNames.length} 个 Agent 并行 · ` : ""}
-          {view.agentNames.join(" / ")}
-        </p>
-      ) : null}
-
       {view.currentActivity ? (
         <div
-          className="mb-4 rounded-xl border border-ra-border/70 bg-ra-light/40 p-3"
+          className="mt-2 border-t border-ra-border/45 px-1 py-2.5"
           data-testid="goal-current-activity-now"
         >
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <Activity className={cn("h-3.5 w-3.5", categoryTextStyle(view.currentActivity.category))} aria-hidden="true" />
-            <span className="font-medium text-ra-text-secondary">当前：</span>
-            <span className="text-ra-text">{view.currentActivity.title}</span>
-            <span className="rounded-full bg-ra-light px-2 py-0.5 text-ra-text-tertiary">
+          <div className="flex min-w-0 items-baseline justify-between gap-4">
+            <p className="min-w-0 flex-1 truncate text-sm font-medium text-ra-text">
+              {view.currentActivity.title}
+            </p>
+            <span
+              className={cn(
+                "shrink-0 text-[10px]",
+                categoryTextStyle(view.currentActivity.category),
+              )}
+            >
               {categoryLabel(view.currentActivity.category)}
+              {currentAgent ? ` · ${agentLabel(currentAgent)}` : ""}
             </span>
-            {currentAgent ? (
-              <span className="text-ra-accent">{agentLabel(currentAgent)}</span>
-            ) : null}
           </div>
           {view.currentActivity.description ? (
-            <p className="mt-1 text-xs leading-5 text-ra-text-tertiary">
+            <p className="mt-0.5 text-xs leading-5 text-ra-text-tertiary">
               {view.currentActivity.description}
             </p>
           ) : null}
@@ -288,49 +327,65 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
       ) : null}
 
       {view.events.length > 0 ? (
-        <ul className="space-y-2" data-testid="goal-activity-events" aria-label="最近活动">
+        <ul
+          className="divide-y divide-ra-border/45 border-t border-ra-border/45"
+          data-testid="goal-activity-events"
+          aria-label="最近活动"
+        >
           {view.events.map(({ event, key }) => {
             const agent = eventAgent(event);
+            const metadata = [
+              categoryLabel(event.category),
+              event.stage ? stageLabel(event.stage) : "",
+              agent ? agentLabel(agent) : "",
+            ].filter(Boolean);
+            const detail = event.path
+              ? event.path
+              : event.command
+                ? event.command.summary
+                : event.test
+                  ? event.test.summary
+                  : "";
+
             return (
               <li
                 key={key}
-                className="flex min-w-0 items-baseline gap-3 text-xs"
+                className="flex min-w-0 items-baseline gap-4 px-1 py-2.5"
                 data-testid={`goal-activity-event-${event.id}`}
               >
-                <span className="w-12 shrink-0 tabular-nums text-ra-text-tertiary">
-                  {event.timestamp ? relativeTimeShort(event.timestamp) : "—"}
-                </span>
-                <span className={cn("w-20 shrink-0 font-medium", categoryTextStyle(event.category))}>
-                  {categoryLabel(event.category)}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-ra-text-secondary" title={event.title}>
-                  {event.title}
-                  {event.path ? <span className="ml-2 font-mono text-ra-text-tertiary">{event.path}</span> : null}
-                  {event.command ? (
-                    <span className="ml-2 font-mono text-ra-text-tertiary">{event.command.summary}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs text-ra-text-secondary" title={event.title}>
+                    {event.title}
+                  </p>
+                  {detail ? (
+                    <p className="mt-0.5 truncate font-mono text-[10px] text-ra-text-tertiary">
+                      {detail}
+                    </p>
                   ) : null}
-                  {event.test ? (
-                    <span className="ml-2 font-mono text-ra-text-tertiary">{event.test.summary}</span>
-                  ) : null}
+                </div>
+                <span
+                  className={cn(
+                    "hidden shrink-0 text-[10px] sm:inline",
+                    categoryTextStyle(event.category),
+                  )}
+                >
+                  {metadata.join(" · ")}
                 </span>
-                {agent ? (
-                  <span className="shrink-0 text-ra-text-tertiary">{agentLabel(agent)}</span>
-                ) : null}
-                {event.stage ? (
-                  <span className="shrink-0 rounded-full bg-ra-light px-2 py-0.5 text-ra-text-tertiary">
-                    {stageLabel(event.stage)}
-                  </span>
-                ) : null}
               </li>
             );
           })}
         </ul>
       ) : (
-        <p className="text-xs text-ra-text-tertiary">暂无结构化活动记录。</p>
+        <p className="border-t border-ra-border/45 px-1 py-3 text-xs text-ra-text-tertiary">
+          暂无结构化活动记录。
+        </p>
       )}
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <p className="text-xs text-ra-text-tertiary" data-testid="goal-activity-change-summary">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-ra-border/45 px-1 pt-3">
+        <p
+          className="text-[11px] text-ra-text-tertiary"
+          data-testid="goal-activity-change-summary"
+        >
           {view.changeSummary.fileCount > 0
             ? `${view.changeSummary.fileCount} 个文件变更 · +${view.changeSummary.additions} -${view.changeSummary.deletions}`
             : "暂无变更统计"}
@@ -338,23 +393,12 @@ export function GoalCurrentActivity({ goal, runs, limit = 5 }: GoalCurrentActivi
         <Link
           to="/runs"
           data-testid="goal-activity-full-run-link"
-          className="inline-flex items-center gap-1 rounded-lg text-xs font-medium text-ra-accent underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+          className="inline-flex items-center gap-1 rounded-lg text-[11px] font-medium text-ra-text-secondary underline-offset-2 hover:text-ra-text hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
         >
           查看完整 Run
-          <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+          <ChevronRight className="h-3 w-3" aria-hidden="true" />
         </Link>
       </div>
     </section>
   );
-}
-
-function relativeTimeShort(value: string) {
-  const timestamp = Date.parse(value);
-  if (Number.isNaN(timestamp)) return "—";
-  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
-  const date = new Date(timestamp);
-  if (seconds < 86400) {
-    return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-  }
-  return `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }

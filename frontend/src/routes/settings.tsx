@@ -174,10 +174,10 @@ export function SettingsPage() {
       data-testid="settings-page"
       className={cn(
         "h-full overflow-auto bg-transparent px-4 py-4 custom-scrollbar",
-        "lg:px-[42px] lg:py-[42px]",
+        "lg:px-7 lg:py-7",
       )}
     >
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
@@ -186,7 +186,7 @@ export function SettingsPage() {
                 连接与绑定
               </h1>
             </div>
-            <p className="mt-2 max-w-2xl text-sm text-ra-text-tertiary">
+            <p className="mt-1.5 max-w-2xl text-sm text-ra-text-tertiary">
               管理 Model Control 连接与 OpenCode 绑定。API Key 仅通过模型控制服务传输，
               不写入浏览器存储。
             </p>
@@ -225,10 +225,13 @@ export function SettingsPage() {
           </div>
         </header>
 
-        <div className="rounded-lg border border-ra-border bg-ra-secondary px-4 py-3 text-xs text-ra-text-tertiary">
+        <p
+          data-testid="settings-credential-note"
+          className="max-w-3xl text-xs leading-5 text-ra-text-tertiary"
+        >
           浏览器不会把 API Key 写入 localStorage、sessionStorage 或任务数据。
           绑定只保存执行器、连接和 Model ID 引用，不包含凭据。
-        </div>
+        </p>
 
         {status && (
           <p role="status" className="text-sm text-ra-status-running">
@@ -243,16 +246,22 @@ export function SettingsPage() {
 
         <ThemeSelector />
 
-        <div className="grid min-h-0 grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="flex flex-col gap-2 rounded-xl border border-ra-border bg-ra-secondary p-3">
-            <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-ra-text-tertiary">
+        <div
+          data-testid="settings-model-access-layout"
+          className="grid min-h-0 grid-cols-1 gap-5 lg:grid-cols-[224px_minmax(0,1fr)]"
+        >
+          <aside
+            data-testid="settings-model-access-index"
+            className="flex min-w-0 flex-col gap-1 self-start lg:pr-2"
+          >
+            <h2 className="px-2 text-xs font-semibold uppercase tracking-wide text-ra-text-tertiary">
               连接
             </h2>
             {(connectionsQuery.isLoading || executorsQuery.isLoading) && (
-              <p className="px-1 py-3 text-sm text-ra-text-tertiary">正在加载…</p>
+              <p className="px-2 py-2 text-sm text-ra-text-tertiary">正在加载…</p>
             )}
             {connections.length === 0 && !connectionsQuery.isLoading ? (
-              <p className="px-1 py-3 text-sm text-ra-text-tertiary">
+              <p className="px-2 py-2 text-sm text-ra-text-tertiary">
                 还没有连接。
               </p>
             ) : (
@@ -268,18 +277,18 @@ export function SettingsPage() {
                     setSelectedConnId(conn.connectionId);
                   }}
                   className={cn(
-                    "flex w-full flex-col gap-1 rounded-lg border px-3 py-2 text-left",
+                    "flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left transition-colors",
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
                     view === "connection" && !creating && selectedConnId === conn.connectionId
-                      ? "border-ra-accent bg-ra-tertiary"
-                      : "border-transparent hover:border-ra-border hover:bg-ra-tertiary",
+                      ? "bg-ra-tertiary"
+                      : "hover:bg-ra-tertiary/70",
                   )}
                 >
                   <span className="flex w-full items-center gap-2">
                     <span className="truncate text-sm font-medium text-ra-text">
                       {conn.name}
                     </span>
-                    <span className="ml-auto rounded-full bg-ra-accent/15 px-2 py-0.5 text-[10px] text-ra-accent">
+                    <span className="ml-auto shrink-0 text-[10px] font-medium text-ra-accent">
                       {conn.enabled ? "启用" : "禁用"}
                     </span>
                   </span>
@@ -301,11 +310,11 @@ export function SettingsPage() {
               ))
             )}
 
-            <h2 className="mt-3 px-1 text-xs font-semibold uppercase tracking-wide text-ra-text-tertiary">
+            <h2 className="mt-3 px-2 text-xs font-semibold uppercase tracking-wide text-ra-text-tertiary">
               绑定
             </h2>
             {bindings.length === 0 && !bindingsQuery.isLoading ? (
-              <p className="px-1 py-3 text-sm text-ra-text-tertiary">
+              <p className="px-2 py-2 text-sm text-ra-text-tertiary">
                 还没有绑定。
               </p>
             ) : (
@@ -321,18 +330,18 @@ export function SettingsPage() {
                     setSelectedBindId(bind.bindingId);
                   }}
                   className={cn(
-                    "flex w-full flex-col gap-1 rounded-lg border px-3 py-2 text-left",
+                    "flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left transition-colors",
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
                     view === "binding" && !creating && selectedBindId === bind.bindingId
-                      ? "border-ra-accent bg-ra-tertiary"
-                      : "border-transparent hover:border-ra-border hover:bg-ra-tertiary",
+                      ? "bg-ra-tertiary"
+                      : "hover:bg-ra-tertiary/70",
                   )}
                 >
                   <span className="flex w-full items-center gap-2">
                     <span className="truncate text-sm font-medium text-ra-text">
                       {bind.name}
                     </span>
-                    <span className="ml-auto rounded-full bg-ra-accent/15 px-2 py-0.5 text-[10px] text-ra-accent">
+                    <span className="ml-auto shrink-0 text-[10px] font-medium text-ra-accent">
                       {bind.enabled ? "启用" : "禁用"}
                     </span>
                   </span>
