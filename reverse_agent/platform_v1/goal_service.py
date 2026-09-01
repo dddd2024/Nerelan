@@ -50,7 +50,7 @@ class GoalService:
     def create(self, payload: Mapping[str, Any]) -> GoalRecord:
         objective = str(payload.get("objective", "")).strip()
         title = str(payload.get("title", "")).strip() or self._title_from_objective(objective)
-        repository = str(payload.get("repository", "dddd2024/reverse-agent")).strip()
+        repository = str(payload.get("repository", "dddd2024/Nerelan")).strip()
         idempotency_key = str(payload.get("idempotency_key", "")).strip()
         if not idempotency_key:
             raise TaskStoreError("goal_idempotency_key_required")
