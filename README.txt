@@ -5,17 +5,18 @@ Nerelan 是当前产品名称。本文件说明仓库中仍保留的逆向工程
 一、品牌与兼容标识
 
 当前品牌：Nerelan
+当前 GitHub 仓库：dddd2024/Nerelan
 逆向工程能力：Nerelan Reverse Engineering
 
-以下名称仍作为技术兼容标识保留，不代表当前品牌名称：
+以下名称仍作为技术兼容标识保留，不代表当前品牌名称或当前 canonical GitHub 仓库身份：
 
-- GitHub 仓库 slug：dddd2024/reverse-agent
+- 旧 GitHub 仓库 slug / GitHub redirect：dddd2024/reverse-agent
 - Python 包 / import namespace：reverse_agent
 - 环境变量前缀：REVERSE_AGENT_*
 - 兼容状态目录 / key：.reverse-agent、reverse-agent.appearance
 - 兼容启动器文件名：launch_reverse_agent.bat
 
-在 BRAND-1 软品牌迁移阶段，不应为了字符串统一而重命名这些接口，否则可能破坏已有配置、状态、脚本、import 或历史证据。
+BRAND-2B 之后，新的产品默认值、当前文档和未来治理 authority 使用 `dddd2024/Nerelan`。不得为了字符串统一而重命名上述技术兼容接口，也不得回写历史 Decisions、执行报告、旧分支、SHA 或证据。
 
 二、推荐启动方式
 
