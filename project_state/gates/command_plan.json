@@ -1,375 +1,277 @@
 {
-  "schema_version": 1,
-  "decision_id": "decision_20260901_issue444_auth_completion_r3_v5",
-  "round_id": "round_20260901_issue444_auth_completion_r3_v5",
   "commands": [
     {
-      "command_id": "issue444v5.materialize_activation_packet",
-      "command": "after the unique immutable Decision activation commit run the repository-owned startup snapshot command-plan compiler transition lint and transition preflight; require PRE_EXECUTION_AUTHORIZED with zero blockers and commit only the five declared compiler-owned gate artifacts",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": [
+        "project_state/gates/command_plan.json"
+      ],
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "command": "materialize the deterministic transition command plan for the immutable BRAND-2A repository-rename authority and commit only project_state/gates/command_plan.json",
+      "command_id": "issue525v3.materialize_command_plan",
+      "diagnostic_only": false,
+      "execution_surface": "local",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local",
+      "network_access": false,
       "operations": [
         "local_static_check",
         "commit"
       ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
+      "phase": "gate",
       "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/bootstrap_state.json",
-        "project_state/gates/transition_command_plan_preview.json",
-        "project_state/gates/transition_preflight_result.json"
-      ]
-    },
-    {
-      "command_id": "issue444v5.replay_accepted_authentication_semantics",
-      "command": "replay all twenty authorized authentication product source test and documentation paths byte-for-byte from closed stale-base PR 497 exact head 180ac417c488735c312bcf77089a1ac16c400074 onto locked current main without cherry-pick merge rebase or history reuse; preserve the already-integrated compact Settings layout durable Windows vault failure atomicity absolute OAuth deadline provider-owned token boundary and fresh external-session readiness",
-      "phase": "implementation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "test_edit",
-        "documentation_edit",
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
+      "subject_to_reconciliation": true
+    },
+    {
+      "allowed_mutated_paths": [],
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "reverse_agent/model_access/os_vault.py",
-        "reverse_agent/model_access/account_auth.py",
-        "reverse_agent/model_access/contracts.py",
-        "reverse_agent/model_access/store.py",
-        "reverse_agent/model_access/service.py",
-        "reverse_agent/platform_v1/opencode_server_transport.py",
-        "reverse_agent/platform_v1/opencode_executor.py",
-        "reverse_agent/platform_v1/trusted_host.py",
-        "tests/test_model_access.py",
-        "tests/platform_v1/test_opencode_server_transport.py",
-        "tests/platform_v1/test_opencode_executor.py",
-        "tests/platform_v1/test_trusted_host.py",
-        "frontend/src/schemas/model-access.ts",
-        "frontend/src/lib/model-control-client.ts",
-        "frontend/src/components/connection-binding-editor.tsx",
-        "frontend/src/routes/settings.tsx",
-        "frontend/tests/model-access-client.test.ts",
-        "frontend/tests/connection-binding-flow.test.tsx",
-        "docs/model-access.md",
-        "docs/architecture/CONNECTION_EXECUTOR_BINDING_ARCHITECTURE.md"
-      ]
-    },
-    {
-      "command_id": "issue444v5.validate_product",
-      "command": "run the required focused Model Access OpenCode transport executor trusted-host and complete Platform V1 backend suites; run focused and full frontend unit typecheck lint build build-mock and repository Playwright with a known local browser; require every functional journey to pass and classify only the exact inherited eight Home and Settings light and dark desktop and mobile visual-golden mismatches as evidence-only; forbid snapshot mutation; run transition lint preflight publication readiness and git diff check without a real provider or model call",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "unit_test",
-        "integration_test",
-        "lint",
-        "build",
-        "known_binary_execution",
-        "local_static_check"
-      ],
-      "network_access": false,
+      "command": "publish exactly one Draft validation-only PR for the immutable BRAND-2A repository-rename authority against locked main and keep it Draft and unmerged",
+      "command_id": "issue525v3.publish_validation_pr",
       "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue444v5.windows_vault_sentinel_proof",
-      "command": "on the trusted Windows host store resolve from a fresh adapter and delete exactly one generated non-user Nerelan sentinel in Windows Credential Manager; never inspect a real user credential never print or persist sentinel material and verify post-delete not-found",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "execution_surface": "remote_observation",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local",
-      "operations": [
-        "known_binary_execution",
-        "credential_access",
-        "local_static_check"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue444v5.publish_new_draft",
-      "command": "after all local validation normally push the exact fresh branch and create one new Draft PR against locked main; update only that PR body; require fresh exact-head CI State Gate Decision Preflight and Model Access success and run Frontend Playwright for explicit functional plus inherited-eight-case visual classification",
-      "phase": "publication",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
+      "network_access": true,
       "operations": [
         "push",
         "draft_pr",
         "pull_request_update",
         "network_access"
       ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": true,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
+      "phase": "publication",
       "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue444v5.post_publication_binding",
-      "command": "after Draft PR creation archive the inherited schema-v3 PR 490 active mainline intent byte-for-byte and bind active intent exactly once to the actual new PR number locked base current immutable Decision current generated Command Plan baseline workflow profile and merge-only policy; commit and normally push that binding",
-      "phase": "post_publication_binding",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "commit",
-        "push",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": true,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr490_v3.json"
-      ]
+      "subject_to_reconciliation": true
     },
     {
-      "command_id": "issue444v5.independent_exact_head_audit",
-      "command": "an independent auditor that did not implement the replay reviews and reproduces the unchanged exact remote head including vault failure atomicity Windows adapter safety secret confinement absolute deadline account-auth lifecycle external-session reuse current Settings density and all required exact-head checks; the auditor must confirm zero functional Playwright failure and zero new visual failure beyond the exact inherited eight-case evidence set before recording ACCEPTED or REWORK_REQUIRED on the new PR",
-      "phase": "final_evidence",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
+      "allowed_mutated_paths": [],
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "command": "observe fresh exact-head CI Decision Preflight and State Gate for the validation-only Draft PR without reruns and require all applicable governance checks to succeed",
+      "command_id": "issue525v3.validate_exact_head",
+      "diagnostic_only": false,
       "execution_surface": "remote_observation",
-      "operations": [
-        "code_read",
-        "unit_test",
-        "pull_request_comment",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue444v5.owner_landing",
-      "command": "only after independent exact-head acceptance fresh successful exact-head workflows zero unresolved blockers unchanged locked base and head valid mainline intent and current repository-owned owner attestation mark the new PR ready once and merge once using merge commit with expected-head protection; verify natural post-merge main checks then close Issue 444 and reconcile Issues 441 and 438 where acceptance is satisfied",
-      "phase": "landing",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local",
+      "network_access": true,
       "operations": [
-        "mark_ready",
-        "merge",
-        "issue_close",
+        "workflow_observation",
         "network_access"
       ],
-      "network_access": true,
-      "diagnostic_only": false,
+      "phase": "validation",
+      "produced_artifacts": [],
+      "required": true,
+      "required_evidence_source": "ci_check_attestation",
+      "subject_to_reconciliation": true
+    },
+    {
+      "allowed_mutated_paths": [],
       "allowed_only_after_validation": true,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.cc594d95ebb51bae6fe39f205cc98d8d0579d452db85ea021caf59ce641798d7",
-      "command": "verify remote main remains 1935e9c61fcb9dcc9f8d4ac72033c299423c1d9c and the fresh target branch has zero commits beyond that base",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "command": "immediately before repository rename verify target dddd2024/nerelan remains unoccupied current repository id is 1210115070 main remains the locked SHA and no open PR is Ready or being merged",
+      "command_id": "issue525v3.reobserve_cutover_preconditions",
+      "diagnostic_only": false,
+      "execution_surface": "remote_observation",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
+      "network_access": true,
+      "operations": [
+        "repository_read",
+        "pull_request_read",
+        "network_access"
+      ],
+      "phase": "pre_rename",
       "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "subject_to_reconciliation": true
     },
     {
-      "command_id": "bootstrap.e663994b1b329bb08de36ac0b02830ea141cb8649688e2e1eac68286ffc1a772",
-      "command": "verify PR 497 is closed stale-base historical evidence at accepted head 180ac417c488735c312bcf77089a1ac16c400074 and is not reused as landing authority",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": [],
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "command": "rename exactly repository dddd2024/reverse-agent to dddd2024/nerelan once using GitHub Settings General repository name only; do not transfer delete archive change visibility or change default branch",
+      "command_id": "issue525v3.manual_repository_rename",
+      "diagnostic_only": false,
+      "execution_surface": "remote_observation",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
+      "network_access": true,
+      "operations": [
+        "repository_rename",
+        "network_access"
+      ],
+      "phase": "rename",
       "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "subject_to_reconciliation": true
     },
     {
-      "command_id": "bootstrap.b4a89cf8ecc088fc669e46f9722dfb2671f3ec1eb2cbbc17d69393d38fe549b1",
-      "command": "commit this complete immutable v5 R3 Decision as the unique first commit",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": [],
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "command": "after rename verify dddd2024/nerelan has repository id 1210115070 unchanged main SHA unchanged Issues PRs branches and history preserved and the former dddd2024/reverse-agent URL resolves or redirects to the same repository",
+      "command_id": "issue525v3.postrename_verify",
+      "diagnostic_only": false,
+      "execution_surface": "remote_observation",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
+      "network_access": true,
+      "operations": [
+        "repository_read",
+        "pull_request_read",
+        "issue_read",
+        "network_access"
+      ],
+      "phase": "post_rename",
       "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "subject_to_reconciliation": true
     },
     {
-      "command_id": "bootstrap.8b36eaeb3ce665a698059342f0a478e3329fbe30d9dd5973c09b9a061f2c2091",
-      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": [],
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "command": "after successful post-rename verification close the validation-only Draft PR unmerged close Issue 525 completed record BRAND-2A rename cutover complete on tracker 262 and start BRAND-2B canonical-link and default cutover under dddd2024/nerelan",
+      "command_id": "issue525v3.close_validation_authority",
+      "diagnostic_only": false,
+      "execution_surface": "remote_observation",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
+      "network_access": true,
+      "operations": [
+        "pull_request_update",
+        "issue_close",
+        "issue_comment",
+        "network_access"
+      ],
+      "phase": "closeout",
+      "produced_artifacts": [],
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "subject_to_reconciliation": true
+    },
+    {
+      "allowed_mutated_paths": [],
       "allowed_only_after_validation": false,
       "authority_origin": "bootstrap_exception",
       "bootstrap_exception": true,
+      "command": "verify current main and branch activation base remain exactly 0feeb3f35ef164591678caba96fb46477b366f52",
+      "command_id": "bootstrap.4644632dd2c69af93855ed1f2bfe0a44d8461ced66446893f145e160fb16e5a8",
+      "diagnostic_only": false,
+      "execution_surface": "local",
+      "expected_exit_codes": [
+        0
+      ],
+      "network_access": false,
+      "operations": [],
+      "phase": "gate",
       "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "subject_to_reconciliation": true
     },
     {
-      "command_id": "bootstrap.748384806c2774ade5d9fec7d422f87ac5614c30035911ccf10bab2019aede3a",
+      "allowed_mutated_paths": [],
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "command": "commit this immutable BRAND-2A repository-rename authority as the unique first commit",
+      "command_id": "bootstrap.c8a89e67d884462aea0aa9c9878f959371a1fac24c373acd27dcc2e6339a7edd",
+      "diagnostic_only": false,
+      "execution_surface": "local",
+      "expected_exit_codes": [
+        0
+      ],
+      "network_access": false,
+      "operations": [],
+      "phase": "gate",
+      "produced_artifacts": [],
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "subject_to_reconciliation": true
+    },
+    {
+      "allowed_mutated_paths": [],
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
       "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "command_id": "bootstrap.748384806c2774ade5d9fec7d422f87ac5614c30035911ccf10bab2019aede3a",
+      "diagnostic_only": false,
+      "execution_surface": "local",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local",
-      "operations": [],
       "network_access": false,
-      "diagnostic_only": false,
+      "operations": [],
+      "phase": "gate",
+      "produced_artifacts": [],
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "subject_to_reconciliation": true
+    },
+    {
+      "allowed_mutated_paths": [],
       "allowed_only_after_validation": false,
       "authority_origin": "bootstrap_exception",
       "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.06e93636c7597d91a7cd0967908dfb4d618dcdc78d2640bf238a6300acdcf4d2",
       "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "command_id": "bootstrap.06e93636c7597d91a7cd0967908dfb4d618dcdc78d2640bf238a6300acdcf4d2",
+      "diagnostic_only": false,
+      "execution_surface": "local",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local",
-      "operations": [],
       "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
+      "operations": [],
+      "phase": "gate",
       "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "subject_to_reconciliation": true
     },
     {
-      "command_id": "bootstrap.677fc095a0ccb225c87b5528ad9885b37484c464961934f364a72d07e89bdcb3",
-      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
+      "allowed_mutated_paths": [],
       "allowed_only_after_validation": false,
       "authority_origin": "bootstrap_exception",
       "bootstrap_exception": true,
+      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
+      "command_id": "bootstrap.677fc095a0ccb225c87b5528ad9885b37484c464961934f364a72d07e89bdcb3",
+      "diagnostic_only": false,
+      "execution_surface": "local",
+      "expected_exit_codes": [
+        0
+      ],
+      "network_access": false,
+      "operations": [],
+      "phase": "gate",
       "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "subject_to_reconciliation": true
     }
-  ]
+  ],
+  "decision_id": "decision_20260901_issue525_brand2a_rename_authority_r3_v3",
+  "round_id": "round_20260901_issue525_brand2a_rename_authority_r3_v3",
+  "schema_version": 1
 }
