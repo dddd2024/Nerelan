@@ -1,0 +1,296 @@
+name: BRAND-2B v6 one-time branch patch
+
+on:
+  push:
+    branches:
+      - owner/issue530-brand2b-validation-r3-v6
+
+permissions:
+  contents: write
+
+jobs:
+  apply-brand2b-v6:
+    if: github.repository == 'dddd2024/Nerelan' && github.ref == 'refs/heads/owner/issue530-brand2b-validation-r3-v6'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact v6 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: owner/issue530-brand2b-validation-r3-v6
+
+      - name: Verify immutable v6 authority and locked ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "owner/issue530-brand2b-validation-r3-v6"
+          git merge-base --is-ancestor 0feeb3f35ef164591678caba96fb46477b366f52 HEAD
+          grep -Fq 'decision_20260901_issue530_brand2b_validation_r3_v6' project_state/decision_packet.md
+          test "$(git rev-list --count 0feeb3f35ef164591678caba96fb46477b366f52..HEAD)" -eq 3
+
+      - name: Replay reviewed v4 semantic blobs only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin refs/heads/owner/issue530-brand2b-validation-r3-v4:refs/remotes/origin/brand2b-v4-source
+          test "$(git rev-parse refs/remotes/origin/brand2b-v4-source)" = "8598e69a9091ffec57ed3232d1b6e1511cf6327e"
+          git checkout 8598e69a9091ffec57ed3232d1b6e1511cf6327e -- \
+            project_state/schemas/mainline_merge_intent_v4.schema.json \
+            project_state/schemas/merge_approval_attestation_v4.schema.json \
+            reverse_agent/mainline_landing.py \
+            reverse_agent/platform_v1/goal_service.py \
+            reverse_agent/platform_v1/inbox_service.py \
+            frontend/src/components/goal-composer.tsx \
+            frontend/src/lib/profile-mapper.ts \
+            README.txt
+
+      - name: Apply exact current-default and regression replacements
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          OLD = "dddd2024/reverse-agent"
+          NEW = "dddd2024/Nerelan"
+
+          def replace_exact(path: str, old: str, new: str, expected: int) -> None:
+              p = Path(path)
+              text = p.read_text(encoding="utf-8")
+              observed = text.count(old)
+              if observed != expected:
+                  raise SystemExit(f"replacement_count_mismatch:{path}:{old!r}:observed={observed}:expected={expected}")
+              p.write_text(text.replace(old, new), encoding="utf-8")
+              print(f"patched {path}: {expected} exact replacement(s)")
+
+          replace_exact(
+              "reverse_agent/platform_v1/run_store.py",
+              'repository: str = "dddd2024/reverse-agent",',
+              'repository: str = "dddd2024/Nerelan",',
+              1,
+          )
+          replace_exact(
+              "reverse_agent/platform_v1/control_store.py",
+              "repository TEXT NOT NULL DEFAULT 'dddd2024/reverse-agent'",
+              "repository TEXT NOT NULL DEFAULT 'dddd2024/Nerelan'",
+              1,
+          )
+          replace_exact(
+              "reverse_agent/platform_v1/control_store.py",
+              'repository: str = "dddd2024/reverse-agent",',
+              'repository: str = "dddd2024/Nerelan",',
+              1,
+          )
+          replace_exact(
+              "reverse_agent/platform_v1/control_store.py",
+              'repository = repository.strip() or "dddd2024/reverse-agent"',
+              'repository = repository.strip() or "dddd2024/Nerelan"',
+              1,
+          )
+          replace_exact(
+              "reverse_agent/platform_v1/task_service.py",
+              'repository = "dddd2024/reverse-agent"',
+              'repository = "dddd2024/Nerelan"',
+              1,
+          )
+
+          replace_exact(
+              "frontend/src/lib/platform-client.ts",
+              'repository: "dddd2024/reverse-agent"',
+              'repository: "dddd2024/Nerelan"',
+              6,
+          )
+          replace_exact(
+              "frontend/src/lib/platform-client.ts",
+              'repositories: ["dddd2024/reverse-agent"]',
+              'repositories: ["dddd2024/Nerelan"]',
+              1,
+          )
+          replace_exact(
+              "frontend/src/lib/platform-client.ts",
+              'input.repository || "dddd2024/reverse-agent"',
+              'input.repository || "dddd2024/Nerelan"',
+              1,
+          )
+
+          replace_exact(
+              "AGENTS.md",
+              'working in `dddd2024/reverse-agent`.',
+              'working in `dddd2024/Nerelan`.',
+              1,
+          )
+          replace_exact(
+              "docs/supervisor/audit-instructions.md",
+              '"repository": "dddd2024/reverse-agent"',
+              '"repository": "dddd2024/Nerelan"',
+              1,
+          )
+          replace_exact("scripts/supervisor_validate.py", OLD, NEW, 2)
+          replace_exact(
+              "scripts/supervisor_publish.py",
+              '--repository dddd2024/reverse-agent',
+              '--repository dddd2024/Nerelan',
+              1,
+          )
+
+          replace_exact(
+              "frontend/tests/compact-goal-composer.test.tsx",
+              'repository: "dddd2024/reverse-agent"',
+              'repository: "dddd2024/Nerelan"',
+              1,
+          )
+          replace_exact(
+              "tests/platform_v1/test_publication_controller.py",
+              '["dddd2024/reverse-agent"]',
+              '["dddd2024/Nerelan"]',
+              1,
+          )
+          replace_exact(
+              "tests/platform_v1/test_unattended_coordinator.py",
+              '["dddd2024/reverse-agent"]',
+              '["dddd2024/Nerelan"]',
+              7,
+          )
+          replace_exact(
+              "tests/platform_v1/test_run_read_model.py",
+              'repository="dddd2024/reverse-agent"',
+              'repository="dddd2024/Nerelan"',
+              3,
+          )
+          replace_exact(
+              "tests/platform_v1/test_run_read_model.py",
+              '["dddd2024/reverse-agent"]',
+              '["dddd2024/Nerelan"]',
+              1,
+          )
+
+          # Migrate only the current pre-merge test contract from schema v3 to
+          # v4. Keep all independent v1/v2/v3 historical-compatibility tests.
+          p = Path("tests/test_project_gate.py")
+          text = p.read_text(encoding="utf-8")
+
+          def test_block(source: str, name: str) -> tuple[int, int, str]:
+              marker = f"def {name}"
+              start = source.find(marker)
+              if start < 0:
+                  raise SystemExit(f"test_block_missing:{name}")
+              next_def = source.find("\ndef test_", start + len(marker))
+              end = len(source) if next_def < 0 else next_def + 1
+              return start, end, source[start:end]
+
+          current_name = "test_v3_exact_schema3_intent_event_remote_pr_and_attestation_pass"
+          start, end, block = test_block(text, current_name)
+          original = block
+
+          # If the repository already has v4 counterparts for helper names
+          # referenced by this v3-current test, use those existing helpers.
+          identifiers = sorted(set(re.findall(r"\b[A-Za-z_]\w*(?:v3|schema3)\w*\b", block)), key=len, reverse=True)
+          for identifier in identifiers:
+              candidate = identifier.replace("schema3", "schema4").replace("v3", "v4")
+              if candidate != identifier and candidate in text:
+                  block = block.replace(identifier, candidate)
+
+          block = block.replace(current_name, "test_v4_exact_schema4_intent_event_remote_pr_and_attestation_pass", 1)
+          block = block.replace('"schema_version": 3', '"schema_version": 4')
+          block = block.replace("'schema_version': 3", "'schema_version': 4")
+          block = re.sub(r"(?<![A-Za-z0-9_])schema_version\s*=\s*3(?![0-9])", "schema_version=4", block)
+          block = block.replace("mainline_merge_intent_v3.schema.json", "mainline_merge_intent_v4.schema.json")
+          block = block.replace("merge_approval_attestation_v3.schema.json", "merge_approval_attestation_v4.schema.json")
+          block = block.replace(OLD, NEW)
+          if block == original:
+              raise SystemExit("current_premerge_test_not_modified")
+          text = text[:start] + block + text[end:]
+
+          legacy_name = "test_legacy_schema_premerge_boundary_reports_explicit_schema_failures"
+          start, end, legacy = test_block(text, legacy_name)
+          observed = legacy.count("expected=3")
+          if observed != 1:
+              raise SystemExit(f"legacy_expected_count_mismatch:observed={observed}:expected=1")
+          legacy = legacy.replace("expected=3", "expected=4")
+          text = text[:start] + legacy + text[end:]
+          p.write_text(text, encoding="utf-8")
+          print("patched tests/test_project_gate.py current schema-v4 contract only")
+          PY
+
+      - name: Prove final path scope and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/issue530-brand2b-v6-patch.yml
+          test ! -e .github/workflows/issue530-brand2b-v6-patch.yml
+          python - <<'PY'
+          import subprocess
+
+          allowed = {
+              "project_state/decision_packet.md",
+              "project_state/gates/command_plan.json",
+              "project_state/schemas/mainline_merge_intent_v4.schema.json",
+              "project_state/schemas/merge_approval_attestation_v4.schema.json",
+              "reverse_agent/mainline_landing.py",
+              "reverse_agent/platform_v1/goal_service.py",
+              "reverse_agent/platform_v1/inbox_service.py",
+              "frontend/src/components/goal-composer.tsx",
+              "frontend/src/lib/profile-mapper.ts",
+              "README.txt",
+              "reverse_agent/platform_v1/run_store.py",
+              "reverse_agent/platform_v1/control_store.py",
+              "reverse_agent/platform_v1/task_service.py",
+              "frontend/src/lib/platform-client.ts",
+              "AGENTS.md",
+              "docs/supervisor/audit-instructions.md",
+              "scripts/supervisor_validate.py",
+              "scripts/supervisor_publish.py",
+              "tests/test_project_gate.py",
+              "frontend/tests/compact-goal-composer.test.tsx",
+              "tests/platform_v1/test_publication_controller.py",
+              "tests/platform_v1/test_unattended_coordinator.py",
+              "tests/platform_v1/test_run_read_model.py",
+          }
+          out = subprocess.check_output([
+              "git", "diff", "--name-only",
+              "0feeb3f35ef164591678caba96fb46477b366f52",
+          ], text=True)
+          changed = {line.strip() for line in out.splitlines() if line.strip()}
+          outside = sorted(changed - allowed)
+          missing = sorted({
+              "project_state/schemas/mainline_merge_intent_v4.schema.json",
+              "project_state/schemas/merge_approval_attestation_v4.schema.json",
+              "reverse_agent/mainline_landing.py",
+              "reverse_agent/platform_v1/goal_service.py",
+              "reverse_agent/platform_v1/inbox_service.py",
+              "frontend/src/components/goal-composer.tsx",
+              "frontend/src/lib/profile-mapper.ts",
+              "README.txt",
+              "reverse_agent/platform_v1/run_store.py",
+              "reverse_agent/platform_v1/control_store.py",
+              "reverse_agent/platform_v1/task_service.py",
+              "frontend/src/lib/platform-client.ts",
+              "AGENTS.md",
+              "docs/supervisor/audit-instructions.md",
+              "scripts/supervisor_validate.py",
+              "scripts/supervisor_publish.py",
+              "tests/test_project_gate.py",
+              "frontend/tests/compact-goal-composer.test.tsx",
+              "tests/platform_v1/test_publication_controller.py",
+              "tests/platform_v1/test_unattended_coordinator.py",
+              "tests/platform_v1/test_run_read_model.py",
+          } - changed)
+          print("changed=", sorted(changed))
+          print("outside=", outside)
+          print("missing=", missing)
+          if outside or missing:
+              raise SystemExit(1)
+          PY
+
+      - name: Commit and push one implementation commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "BRAND-2B: complete Nerelan canonical repository defaults"
+          test "$(git rev-list --count 0feeb3f35ef164591678caba96fb46477b366f52..HEAD)" -eq 4
+          git push origin HEAD:owner/issue530-brand2b-validation-r3-v6
