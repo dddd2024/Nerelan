@@ -65,7 +65,7 @@ describe("OpenHands-style workspace shell", () => {
     expect(screen.getByTestId("workspace-content")).toBeInTheDocument();
   });
 
-  it("sidebar is an icon rail with reverse-agent identity and new task entry", () => {
+  it("sidebar is an icon rail with Nerelan identity and new task entry", () => {
     renderWithProviders(
       <Sidebar
         onNewTask={() => {}}
@@ -83,7 +83,8 @@ describe("OpenHands-style workspace shell", () => {
       "slot-adapter",
     );
     expect(screen.getByTestId("sidebar-logo")).toBeInTheDocument();
-    expect(screen.getByLabelText("reverse-agent")).toBeInTheDocument();
+    expect(screen.getByLabelText("Nerelan")).toBeInTheDocument();
+    expect(screen.getByTestId("nerelan-mark")).toBeInTheDocument();
     expect(screen.getByTestId("new-task-button")).toBeInTheDocument();
     expect(screen.getByLabelText("新建任务")).toBeInTheDocument();
     expect(screen.getByTestId("toggle-conversation-panel")).toBeInTheDocument();
