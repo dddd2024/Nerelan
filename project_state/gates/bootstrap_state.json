@@ -1,6 +1,1 @@
-{
-  "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260830_issue367_landing_mode_fail_closed_r2_v12",
-  "round_id": "round_20260830_issue367_landing_mode_fail_closed_r2_v12",
-  "expired_at": "2026-08-30T10:14:53+00:00"
-}
+{"status":"BOOTSTRAP_EXPIRED","decision_id":"decision_20260901_issue487_pr490_owner_landing_r2_v4","round_id":"round_20260901_issue487_pr490_owner_landing_r2_v4","expired_at":"2026-09-01T06:00:50+00:00"}
