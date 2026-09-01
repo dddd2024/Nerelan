@@ -1,15 +1,15 @@
 {
   "schema_version": 3,
-  "intent_id": "pr490_issue487_nerelan_runtime_brand_r2_v3",
+  "intent_id": "pr499_issue444_auth_completion_r3_v5",
   "repository": "dddd2024/reverse-agent",
-  "source_pr": 490,
-  "locked_base_sha": "f1f366a9f5a3663430cd1eddb559ea07de434738",
+  "source_pr": 499,
+  "locked_base_sha": "1935e9c61fcb9dcc9f8d4ac72033c299423c1d9c",
   "allowed_merge_method": "merge",
   "decision_identity": {
-    "decision_id": "decision_20260901_issue487_nerelan_runtime_brand_r2_v3",
-    "decision_content_sha256": "1548b372dfb78247399521e675b7c5f8e010a322625781ed34ece422f502c1b8"
+    "decision_id": "decision_20260901_issue444_auth_completion_r3_v5",
+    "decision_content_sha256": "37c5979c03723b0d3c9951ca6ac82565fbd06d42409d9b23ade12a6fdc7af147"
   },
-  "command_plan_sha256": "ff82b556a5f9cfbec545105066b21fc7e9b3bf6ede37aa5773efa8899a25c8f3",
+  "command_plan_sha256": "41f2b2a58ca06354ba78280391f4608a7143568c9a64ab1b3efbd89211e89caa",
   "merge_tree_policy": "equal_to_accepted_head_tree",
   "workflow_profile": "baseline",
   "required_workflows": [
