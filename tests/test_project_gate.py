@@ -33238,7 +33238,7 @@ def _run_v3_landing_preflight(
     return result, remote
 
 
-def test_v3_exact_schema3_intent_event_remote_pr_and_attestation_pass(
+def test_v4_exact_schema4_intent_event_remote_pr_and_attestation_pass(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     fx = _v3_landing_fixture(tmp_path)
@@ -33260,11 +33260,11 @@ def test_legacy_schema_premerge_boundary_reports_explicit_schema_failures(
     assert result["gate_status"] == "BLOCKED", result
     assert checks["premerge_intent_schema_version"]["status"] == "FAIL"
     assert checks["premerge_intent_schema_version"]["detail"] == (
-        f"observed={schema_version!r} expected=3"
+        f"observed={schema_version!r} expected=4"
     )
     assert checks["premerge_attestation_schema_version"]["status"] == "FAIL"
     assert checks["premerge_attestation_schema_version"]["detail"] == (
-        f"observed={schema_version!r} expected=3"
+        f"observed={schema_version!r} expected=4"
     )
     assert "intent_canonical_validation" not in checks
     assert "attestation_canonical_validation" not in checks
