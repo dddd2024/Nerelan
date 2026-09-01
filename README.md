@@ -1,6 +1,8 @@
-# Reverse Agent
+# Nerelan
 
-Reverse Agent is a local-first, governed multi-Agent development platform. Give it a final goal; it persists a specification and plan, decomposes work into dependent tasks, coordinates reusable Agent runtimes, survives restarts, validates results, and can prepare an allowlisted Draft PR for review.
+Nerelan is a local-first, governed multi-Agent development platform. Give it a final goal; it persists a specification and plan, decomposes work into dependent tasks, coordinates reusable Agent runtimes, survives restarts, validates results, and can prepare an allowlisted Draft PR for review.
+
+> **Compatibility note.** The product name is now **Nerelan**. The repository remains `dddd2024/reverse-agent`, the Python package/import remains `reverse_agent`, and legacy automation identifiers remain available during the staged migration so existing workflows do not break.
 
 The product deliberately reuses mature components:
 
@@ -20,7 +22,7 @@ Requirements: Python 3.13+, Node.js, an existing `frontend/node_modules`, Git, G
 .\dev-up.ps1
 ```
 
-Or double-click `launch_reverse_agent.bat`. The launcher starts loopback-only services and opens `http://127.0.0.1:4173`:
+Or double-click `launch_nerelan.bat`. The legacy `launch_reverse_agent.bat` alias remains available for compatibility. The launcher starts loopback-only services and opens `http://127.0.0.1:4173`:
 
 ```text
 Frontend       127.0.0.1:4173
@@ -87,6 +89,7 @@ Renovate proposes dependency updates without automerge. The freshness registry r
 ## Reference documents
 
 - [AGENTS.md](AGENTS.md) — repository authority, risk, publication, and stop rules
+- [Nerelan F1.1 visual template](docs/brand/NERELAN_F1_1_VISUAL_TEMPLATE.md)
 - [active roadmap](docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md)
 - [source-of-truth matrix](docs/architecture/SOURCE_OF_TRUTH_MATRIX.md)
 - [R1 Work Item template](.github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml)
