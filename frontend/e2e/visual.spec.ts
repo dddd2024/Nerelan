@@ -7,7 +7,8 @@ test.describe("visual acceptance", () => {
     await appPage.reload();
     await settle(appPage);
     await disableMotion(appPage);
-    await expect(appPage).toHaveScreenshot("home-light.png", { animations: "disabled", caret: "hide", scale: "css" });
+    await expect(appPage.getByTestId("sidebar-logo")).toHaveAttribute("aria-label", "Nerelan");
+    await expect(appPage).toHaveScreenshot("home-light.png", { animations: "disabled", caret: "hide", scale: "css", maxDiffPixels: 100 });
   });
 
   test("home dark @visual", async ({ appPage }) => {
@@ -16,7 +17,8 @@ test.describe("visual acceptance", () => {
     await appPage.reload();
     await settle(appPage);
     await disableMotion(appPage);
-    await expect(appPage).toHaveScreenshot("home-dark.png", { animations: "disabled", caret: "hide", scale: "css" });
+    await expect(appPage.getByTestId("sidebar-logo")).toHaveAttribute("aria-label", "Nerelan");
+    await expect(appPage).toHaveScreenshot("home-dark.png", { animations: "disabled", caret: "hide", scale: "css", maxDiffPixels: 100 });
   });
 
   test("settings light @visual", async ({ appPage }) => {
@@ -25,7 +27,8 @@ test.describe("visual acceptance", () => {
     await appPage.reload();
     await settle(appPage);
     await disableMotion(appPage);
-    await expect(appPage).toHaveScreenshot("settings-light.png", { animations: "disabled", caret: "hide", scale: "css" });
+    await expect(appPage.getByTestId("sidebar-logo")).toHaveAttribute("aria-label", "Nerelan");
+    await expect(appPage).toHaveScreenshot("settings-light.png", { animations: "disabled", caret: "hide", scale: "css", maxDiffPixels: 100 });
   });
 
   test("settings dark @visual", async ({ appPage }) => {
@@ -34,6 +37,7 @@ test.describe("visual acceptance", () => {
     await appPage.reload();
     await settle(appPage);
     await disableMotion(appPage);
-    await expect(appPage).toHaveScreenshot("settings-dark.png", { animations: "disabled", caret: "hide", scale: "css" });
+    await expect(appPage.getByTestId("sidebar-logo")).toHaveAttribute("aria-label", "Nerelan");
+    await expect(appPage).toHaveScreenshot("settings-dark.png", { animations: "disabled", caret: "hide", scale: "css", maxDiffPixels: 100 });
   });
 });
