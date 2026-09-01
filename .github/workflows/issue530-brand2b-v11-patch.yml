@@ -1,0 +1,277 @@
+name: BRAND-2B v11 one-time branch patch
+
+on:
+  push:
+    branches:
+      - owner/issue530-brand2b-validation-r3-v11
+
+permissions:
+  contents: write
+
+jobs:
+  apply-brand2b-v11:
+    if: github.repository == 'dddd2024/Nerelan' && github.ref == 'refs/heads/owner/issue530-brand2b-validation-r3-v11'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact v11 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: owner/issue530-brand2b-validation-r3-v11
+
+      - name: Verify immutable v11 authority and locked ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "owner/issue530-brand2b-validation-r3-v11"
+          git merge-base --is-ancestor 0feeb3f35ef164591678caba96fb46477b366f52 HEAD
+          grep -Fq 'decision_20260901_issue530_brand2b_validation_r3_v11' project_state/decision_packet.md
+          test "$(git rev-list --count 0feeb3f35ef164591678caba96fb46477b366f52..HEAD)" -eq 3
+
+      - name: Replay reviewed v8 product blobs only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin refs/heads/owner/issue530-brand2b-validation-r3-v8:refs/remotes/origin/brand2b-v8-source
+          test "$(git rev-parse refs/remotes/origin/brand2b-v8-source)" = "2ac33e1d67ec0055bf2a650ebe147e6dec4beb71"
+          git checkout 2ac33e1d67ec0055bf2a650ebe147e6dec4beb71 -- \
+            project_state/schemas/mainline_merge_intent_v4.schema.json \
+            project_state/schemas/merge_approval_attestation_v4.schema.json \
+            reverse_agent/mainline_landing.py \
+            reverse_agent/platform_v1/goal_service.py \
+            reverse_agent/platform_v1/inbox_service.py \
+            frontend/src/components/goal-composer.tsx \
+            frontend/src/lib/profile-mapper.ts \
+            README.txt \
+            reverse_agent/platform_v1/run_store.py \
+            reverse_agent/platform_v1/control_store.py \
+            reverse_agent/platform_v1/task_service.py \
+            frontend/src/lib/platform-client.ts \
+            AGENTS.md \
+            docs/supervisor/audit-instructions.md \
+            scripts/supervisor_validate.py \
+            scripts/supervisor_publish.py \
+            tests/test_project_gate.py \
+            frontend/tests/compact-goal-composer.test.tsx \
+            tests/platform_v1/test_publication_controller.py \
+            tests/platform_v1/test_unattended_coordinator.py \
+            tests/platform_v1/test_run_read_model.py
+
+      - name: Derive complete isolated schema-v4 helper closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import ast
+          import hashlib
+          import re
+
+          path = Path("tests/test_project_gate.py")
+          original_text = path.read_text(encoding="utf-8")
+          original_lines = original_text.splitlines(keepends=True)
+          tree = ast.parse(original_text)
+
+          top = {
+              node.name: node
+              for node in tree.body
+              if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+          }
+
+          roots = ("_v3_landing_fixture", "_run_v3_landing_preflight")
+          for root in roots:
+              if root not in top:
+                  raise SystemExit(f"v11_missing_root:{root}")
+
+          def source_of(name: str, *, text=original_text, lines=original_lines, nodes=top) -> str:
+              node = nodes[name]
+              return "".join(lines[node.lineno - 1:node.end_lineno])
+
+          def is_v3_name(name: str) -> bool:
+              low = name.lower()
+              return "v3" in low or "schema3" in low
+
+          closure: set[str] = set()
+          pending = list(roots)
+          while pending:
+              name = pending.pop()
+              if name in closure:
+                  continue
+              closure.add(name)
+              node = top[name]
+              refs = {
+                  child.id
+                  for child in ast.walk(node)
+                  if isinstance(child, ast.Name)
+                  and child.id in top
+                  and is_v3_name(child.id)
+              }
+              pending.extend(sorted(refs - closure))
+
+          def v4_name(name: str) -> str:
+              return (
+                  name.replace("Schema3", "Schema4")
+                      .replace("schema3", "schema4")
+                      .replace("V3", "V4")
+                      .replace("v3", "v4")
+              )
+
+          mapping = {name: v4_name(name) for name in sorted(closure)}
+          if any(old == new for old, new in mapping.items()):
+              raise SystemExit(f"v11_unmapped_closure_name:{mapping}")
+          if len(set(mapping.values())) != len(mapping):
+              raise SystemExit(f"v11_mapping_collision:{mapping}")
+          collisions = sorted(new for new in mapping.values() if new in top)
+          if collisions:
+              raise SystemExit(f"v11_existing_v4_definition_collision:{collisions}")
+
+          original_digests = {
+              name: hashlib.sha256(source_of(name).encode("utf-8")).hexdigest()
+              for name in closure
+          }
+
+          def transform_source(name: str) -> str:
+              src = source_of(name)
+              out = src
+              for old in sorted(mapping, key=len, reverse=True):
+                  out = re.sub(rf"\b{re.escape(old)}\b", mapping[old], out)
+
+              # Any remaining v3/schema3 code identifier must already have a
+              # repository-defined v4 counterpart; otherwise stop closed.
+              identifiers = sorted(set(re.findall(r"\b[A-Za-z_]\w*\b", out)), key=len, reverse=True)
+              for ident in identifiers:
+                  if not is_v3_name(ident):
+                      continue
+                  candidate = v4_name(ident)
+                  if candidate == ident:
+                      continue
+                  if candidate not in original_text:
+                      # String/test IDs are handled by bounded literal rules below.
+                      if ident in {"intent_v3_test", "attestation_v3_test"}:
+                          continue
+                      raise SystemExit(f"v11_missing_v4_external_counterpart:{ident}->{candidate}")
+                  out = re.sub(rf"\b{re.escape(ident)}\b", candidate, out)
+
+              literal_replacements = [
+                  ("mainline_merge_intent_v3.schema.json", "mainline_merge_intent_v4.schema.json"),
+                  ("merge_approval_attestation_v3.schema.json", "merge_approval_attestation_v4.schema.json"),
+                  ('"dddd2024/reverse-agent"', '"dddd2024/Nerelan"'),
+                  ("'dddd2024/reverse-agent'", "'dddd2024/Nerelan'"),
+                  ('"intent_v3_test"', '"intent_v4_test"'),
+                  ("'intent_v3_test'", "'intent_v4_test'"),
+                  ('"attestation_v3_test"', '"attestation_v4_test"'),
+                  ("'attestation_v3_test'", "'attestation_v4_test'"),
+              ]
+              for old, new in literal_replacements:
+                  out = out.replace(old, new)
+              out = re.sub(r"(schema_version\s*:\s*int\s*=\s*)3\b", r"\g<1>4", out)
+              out = re.sub(r"(schema_version\s*==\s*)3\b", r"\g<1>4", out)
+              out = out.replace('"schema_version": 3', '"schema_version": 4')
+              out = out.replace("'schema_version': 3", "'schema_version': 4")
+              return out
+
+          # Dependency order: a definition may refer to later definitions in
+          # Python, so deterministic source order is sufficient.
+          ordered = sorted(closure, key=lambda name: top[name].lineno)
+          clones = [transform_source(name).rstrip() for name in ordered]
+          clone_text = "\n\n\n".join(clones) + "\n\n\n"
+
+          target = "test_v4_exact_schema4_intent_event_remote_pr_and_attestation_pass"
+          target_marker = f"def {target}"
+          target_start = original_text.find(target_marker)
+          if target_start < 0:
+              raise SystemExit("v11_target_test_missing")
+          next_test = original_text.find("\ndef test_", target_start + len(target_marker))
+          target_end = len(original_text) if next_test < 0 else next_test + 1
+          target_block = original_text[target_start:target_end]
+          if target_block.count("_v3_landing_fixture(tmp_path)") != 1:
+              raise SystemExit("v11_target_fixture_binding_shape_changed")
+          if target_block.count("_run_v3_landing_preflight(fx, tmp_path, monkeypatch)") != 1:
+              raise SystemExit("v11_target_preflight_binding_shape_changed")
+          target_block = target_block.replace("_v3_landing_fixture(tmp_path)", "_v4_landing_fixture(tmp_path)", 1)
+          target_block = target_block.replace(
+              "_run_v3_landing_preflight(fx, tmp_path, monkeypatch)",
+              "_run_v4_landing_preflight(fx, tmp_path, monkeypatch)",
+              1,
+          )
+
+          final_text = original_text[:target_start] + clone_text + target_block + original_text[target_end:]
+          ast.parse(final_text)
+          path.write_text(final_text, encoding="utf-8")
+
+          # Re-parse final file and prove originals stayed byte-for-byte.
+          final_lines = final_text.splitlines(keepends=True)
+          final_tree = ast.parse(final_text)
+          final_top = {
+              node.name: node
+              for node in final_tree.body
+              if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+          }
+          for name, digest in original_digests.items():
+              if name not in final_top:
+                  raise SystemExit(f"v11_original_helper_missing:{name}")
+              node = final_top[name]
+              src = "".join(final_lines[node.lineno - 1:node.end_lineno])
+              if hashlib.sha256(src.encode("utf-8")).hexdigest() != digest:
+                  raise SystemExit(f"v11_original_helper_changed:{name}")
+          for new_name in mapping.values():
+              if new_name not in final_top:
+                  raise SystemExit(f"v11_derived_helper_missing:{new_name}")
+
+          print("v11_closure=", ordered)
+          print("v11_mapping=", mapping)
+          print("v11_original_digests=", original_digests)
+          PY
+
+      - name: Install package for exact target validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e .
+
+      - name: Require exact target pytest before commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest -q tests/test_project_gate.py::test_v4_exact_schema4_intent_event_remote_pr_and_attestation_pass
+
+      - name: Prove final path scope and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/issue530-brand2b-v11-patch.yml
+          test ! -e .github/workflows/issue530-brand2b-v11-patch.yml
+          python - <<'PY'
+          import subprocess
+          allowed = {
+              "project_state/decision_packet.md", "project_state/gates/command_plan.json",
+              "project_state/schemas/mainline_merge_intent_v4.schema.json", "project_state/schemas/merge_approval_attestation_v4.schema.json",
+              "reverse_agent/mainline_landing.py", "reverse_agent/platform_v1/goal_service.py", "reverse_agent/platform_v1/inbox_service.py",
+              "frontend/src/components/goal-composer.tsx", "frontend/src/lib/profile-mapper.ts", "README.txt",
+              "reverse_agent/platform_v1/run_store.py", "reverse_agent/platform_v1/control_store.py", "reverse_agent/platform_v1/task_service.py",
+              "frontend/src/lib/platform-client.ts", "AGENTS.md", "docs/supervisor/audit-instructions.md",
+              "scripts/supervisor_validate.py", "scripts/supervisor_publish.py", "tests/test_project_gate.py",
+              "frontend/tests/compact-goal-composer.test.tsx", "tests/platform_v1/test_publication_controller.py",
+              "tests/platform_v1/test_unattended_coordinator.py", "tests/platform_v1/test_run_read_model.py",
+          }
+          out = subprocess.check_output(["git", "diff", "--name-only", "0feeb3f35ef164591678caba96fb46477b366f52"], text=True)
+          changed = {x.strip() for x in out.splitlines() if x.strip()}
+          outside = sorted(changed - allowed)
+          required = allowed - {"project_state/decision_packet.md", "project_state/gates/command_plan.json"}
+          missing = sorted(required - changed)
+          print("changed=", sorted(changed)); print("outside=", outside); print("missing=", missing)
+          if outside or missing:
+              raise SystemExit(1)
+          PY
+
+      - name: Commit and push one implementation commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "BRAND-2B: add schema-v4 landing helper closure"
+          test "$(git rev-list --count 0feeb3f35ef164591678caba96fb46477b366f52..HEAD)" -eq 4
+          git push origin HEAD:owner/issue530-brand2b-validation-r3-v11
