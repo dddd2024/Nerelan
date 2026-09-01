@@ -1,6 +1,1 @@
-{
-  "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260901_issue444_auth_completion_r3_v5",
-  "round_id": "round_20260901_issue444_auth_completion_r3_v5",
-  "expired_at": "2026-09-01T06:42:43+00:00"
-}
+{"status":"BOOTSTRAP_EXPIRED","decision_id":"decision_20260901_issue492_pr511_owner_landing_r2_v1","round_id":"round_20260901_issue492_pr511_owner_landing_r2_v1","expired_at":"2026-09-01T08:40:10+00:00"}
