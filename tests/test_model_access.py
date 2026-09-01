@@ -746,6 +746,7 @@ class _FakeAccountAuthServer:
     def __init__(self, *, callback_method: str = "code") -> None:
         self.callback_method = callback_method
         self.closed = False
+        self.close_calls = 0
         self.calls: list[tuple[Any, ...]] = []
 
     def provider_auth_methods(self, *, provider_id: str):
@@ -770,6 +771,7 @@ class _FakeAccountAuthServer:
         return True
 
     def close(self) -> None:
+        self.close_calls += 1
         self.closed = True
 
 
@@ -801,6 +803,90 @@ class _FakeAccountAuthTimerFactory:
         timer = _FakeAccountAuthTimer(seconds, callback)
         self.timers.append(timer)
         return timer
+
+
+class _MutableAccountAuthClock:
+    def __init__(self, value: float = 0.0) -> None:
+        self.value = value
+
+    def __call__(self) -> float:
+        return self.value
+
+
+class _DeadlineAdvancingAuthorizeServer(_FakeAccountAuthServer):
+    def __init__(self, clock: _MutableAccountAuthClock, target: float) -> None:
+        super().__init__()
+        self.clock = clock
+        self.target = target
+
+    def provider_oauth_authorize(self, *, provider_id: str, method_index: int):
+        authorization = super().provider_oauth_authorize(
+            provider_id=provider_id,
+            method_index=method_index,
+        )
+        self.clock.value = self.target
+        return authorization
+
+
+class _DeadlineAdvancingCallbackServer(_FakeAccountAuthServer):
+    def __init__(self, clock: _MutableAccountAuthClock, target: float) -> None:
+        super().__init__()
+        self.clock = clock
+        self.target = target
+
+    def provider_oauth_callback(
+        self, *, provider_id: str, method_index: int, code: str | None = None
+    ) -> bool:
+        completed = super().provider_oauth_callback(
+            provider_id=provider_id,
+            method_index=method_index,
+            code=code,
+        )
+        self.clock.value = self.target
+        return completed
+
+
+class _DeadlineAdvancingErrorServer(_FakeAccountAuthServer):
+    def __init__(
+        self,
+        clock: _MutableAccountAuthClock,
+        *,
+        target: float,
+        failure_phase: str,
+    ) -> None:
+        super().__init__()
+        self.clock = clock
+        self.target = target
+        self.failure_phase = failure_phase
+
+    def _fail(self, phase: str) -> None:
+        if self.failure_phase == phase:
+            self.clock.value = self.target
+            raise RuntimeError(f"provider {phase} failed")
+
+    def provider_auth_methods(self, *, provider_id: str):
+        methods = super().provider_auth_methods(provider_id=provider_id)
+        self._fail("methods")
+        return methods
+
+    def provider_oauth_authorize(self, *, provider_id: str, method_index: int):
+        authorization = super().provider_oauth_authorize(
+            provider_id=provider_id,
+            method_index=method_index,
+        )
+        self._fail("authorize")
+        return authorization
+
+    def provider_oauth_callback(
+        self, *, provider_id: str, method_index: int, code: str | None = None
+    ) -> bool:
+        completed = super().provider_oauth_callback(
+            provider_id=provider_id,
+            method_index=method_index,
+            code=code,
+        )
+        self._fail("callback")
+        return completed
 
 
 class _BlockingAuthorizeAccountAuthServer(_FakeAccountAuthServer):
@@ -1008,6 +1094,161 @@ def test_account_auth_deadline_closes_child_during_blocking_callback() -> None:
     assert server.close_during_callback is True
     assert server.closed is True
     assert manager.status("openai-account")["status"] == "expired"
+
+
+def test_account_auth_absolute_deadline_expires_during_delayed_timer_authorize() -> None:
+    store = _account_login_store()
+    clock = _MutableAccountAuthClock()
+    server = _DeadlineAdvancingAuthorizeServer(clock, target=5.0)
+    timers = _FakeAccountAuthTimerFactory()
+    manager = AccountAuthManager(
+        store=store,
+        server_factory=lambda: server,
+        refresh=lambda *_: pytest.fail("expired login must not refresh credentials"),
+        timeout_seconds=5,
+        clock=clock,
+        timer_factory=timers,
+    )
+
+    with pytest.raises(ValueError, match="expired"):
+        manager.start("openai-account")
+
+    assert timers.timers[0].started is True
+    assert timers.timers[0].canceled is True
+    assert server.close_calls == 1
+    assert manager.status("openai-account")["status"] == "expired"
+
+
+def test_account_auth_absolute_deadline_expires_during_delayed_timer_callback() -> None:
+    store = _account_login_store()
+    clock = _MutableAccountAuthClock()
+    server = _DeadlineAdvancingCallbackServer(clock, target=6.0)
+    timers = _FakeAccountAuthTimerFactory()
+    refreshes: list[tuple[bool, str | None]] = []
+    manager = AccountAuthManager(
+        store=store,
+        server_factory=lambda: server,
+        refresh=lambda force, connection_id: refreshes.append((force, connection_id)),
+        timeout_seconds=5,
+        clock=clock,
+        timer_factory=timers,
+    )
+    manager.start("openai-account")
+
+    with pytest.raises(ValueError, match="expired"):
+        manager.callback("openai-account", "TRANSIENT_CODE")
+
+    assert refreshes == []
+    assert timers.timers[0].canceled is True
+    assert server.close_calls == 1
+    assert manager.status("openai-account")["status"] == "expired"
+
+
+def test_account_auth_completion_just_before_deadline_remains_successful() -> None:
+    store = _account_login_store()
+    clock = _MutableAccountAuthClock()
+    server = _DeadlineAdvancingCallbackServer(clock, target=4.999)
+    timers = _FakeAccountAuthTimerFactory()
+    refreshes: list[tuple[bool, str | None]] = []
+    manager = AccountAuthManager(
+        store=store,
+        server_factory=lambda: server,
+        refresh=lambda force, connection_id: refreshes.append((force, connection_id)),
+        timeout_seconds=5,
+        clock=clock,
+        timer_factory=timers,
+    )
+    manager.start("openai-account")
+
+    result = manager.callback("openai-account", "TRANSIENT_CODE")
+
+    assert result["status"] == "verification_pending"
+    assert refreshes == [(True, "openai-account")]
+    assert timers.timers[0].canceled is True
+    assert server.close_calls == 1
+
+
+@pytest.mark.parametrize("failure_phase", ["methods", "authorize"])
+def test_account_auth_start_error_after_deadline_is_canonical_expiry(
+    failure_phase: str,
+) -> None:
+    store = _account_login_store()
+    clock = _MutableAccountAuthClock()
+    server = _DeadlineAdvancingErrorServer(
+        clock,
+        target=5.0,
+        failure_phase=failure_phase,
+    )
+    timers = _FakeAccountAuthTimerFactory()
+    manager = AccountAuthManager(
+        store=store,
+        server_factory=lambda: server,
+        refresh=lambda *_: pytest.fail("expired login must not refresh credentials"),
+        timeout_seconds=5,
+        clock=clock,
+        timer_factory=timers,
+    )
+
+    with pytest.raises(ValueError, match="account login expired"):
+        manager.start("openai-account")
+
+    assert timers.timers[0].canceled is True
+    assert server.close_calls == 1
+    assert manager.status("openai-account")["status"] == "expired"
+
+
+def test_account_auth_callback_error_after_deadline_is_canonical_expiry() -> None:
+    store = _account_login_store()
+    clock = _MutableAccountAuthClock()
+    server = _DeadlineAdvancingErrorServer(
+        clock,
+        target=6.0,
+        failure_phase="callback",
+    )
+    timers = _FakeAccountAuthTimerFactory()
+    refreshes: list[tuple[bool, str | None]] = []
+    manager = AccountAuthManager(
+        store=store,
+        server_factory=lambda: server,
+        refresh=lambda force, connection_id: refreshes.append((force, connection_id)),
+        timeout_seconds=5,
+        clock=clock,
+        timer_factory=timers,
+    )
+    manager.start("openai-account")
+
+    with pytest.raises(ValueError, match="account login expired"):
+        manager.callback("openai-account", "TRANSIENT_CODE")
+
+    assert refreshes == []
+    assert timers.timers[0].canceled is True
+    assert server.close_calls == 1
+    assert manager.status("openai-account")["status"] == "expired"
+
+
+def test_account_auth_provider_error_before_deadline_is_preserved() -> None:
+    store = _account_login_store()
+    clock = _MutableAccountAuthClock()
+    server = _DeadlineAdvancingErrorServer(
+        clock,
+        target=4.999,
+        failure_phase="callback",
+    )
+    manager = AccountAuthManager(
+        store=store,
+        server_factory=lambda: server,
+        refresh=lambda *_: pytest.fail("failed provider callback must not refresh"),
+        timeout_seconds=5,
+        clock=clock,
+        timer_factory=_FakeAccountAuthTimerFactory(),
+    )
+    manager.start("openai-account")
+
+    with pytest.raises(RuntimeError, match="provider callback failed"):
+        manager.callback("openai-account", "TRANSIENT_CODE")
+
+    assert server.close_calls == 1
+    assert manager.status("openai-account")["status"] == "idle"
 
 
 def test_account_auth_cancel_and_logout_are_explicit_provider_boundaries() -> None:

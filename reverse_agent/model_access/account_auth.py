@@ -74,18 +74,36 @@ class _ActiveFlow:
         self.server.close()
         return True
 
-    def finish(self) -> bool:
-        """Claim successful completion unless expiry already won the race."""
+    def expire_if_due(self, clock: Callable[[], float]) -> bool:
+        """Claim expiry from the absolute deadline even if the timer is late."""
 
         with self._state_lock:
             if self._closed:
+                return self._expired
+            if clock() < self.deadline:
                 return False
+            self._expired = True
             self._closed = True
             timer = self.timer
         if timer is not None:
             timer.cancel()
         self.server.close()
         return True
+
+    def finish(self, clock: Callable[[], float]) -> bool:
+        """Atomically claim success only while still before the deadline."""
+
+        with self._state_lock:
+            if self._closed:
+                return False
+            succeeded = clock() < self.deadline
+            self._expired = not succeeded
+            self._closed = True
+            timer = self.timer
+        if timer is not None:
+            timer.cancel()
+        self.server.close()
+        return succeeded
 
     def cancel(self) -> None:
         with self._state_lock:
@@ -174,11 +192,9 @@ class AccountAuthManager:
                     "expires_in_seconds": int(self._timeout_seconds),
                 }
             except Exception as exc:
-                expired = flow.is_expired()
+                expired = self._expire_if_needed(flow)
                 if self._active is flow:
                     self._active = None
-                if expired:
-                    self._last_terminal = (flow.connection_id, "expired")
                 flow.cancel()
                 if expired and str(exc) != "account login expired":
                     raise ValueError("account login expired") from exc
@@ -210,9 +226,7 @@ class AccountAuthManager:
             active = self._active
             if active is None or active.connection_id != connection_id:
                 raise ValueError("no active account login for this connection")
-            if self._clock() >= active.deadline:
-                self._expire_locked()
-                raise ValueError("account login expired")
+            self._raise_if_expired(active)
             if active.method_index is None or active.callback_method is None:
                 raise ValueError("account login is still starting")
             if active.callback_method == "code":
@@ -229,20 +243,17 @@ class AccountAuthManager:
                     method_index=active.method_index,
                     code=callback_code,
                 )
-                if active.is_expired():
-                    raise ValueError("account login expired")
+                self._raise_if_expired(active)
                 if not completed:
                     raise ValueError("OpenCode did not complete account login")
-                if not active.finish():
+                if not active.finish(self._clock):
                     raise ValueError("account login expired")
                 if self._active is active:
                     self._active = None
             except Exception as exc:
-                expired = active.is_expired()
+                expired = self._expire_if_needed(active)
                 if self._active is active:
                     self._active = None
-                if expired:
-                    self._last_terminal = (active.connection_id, "expired")
                 active.cancel()
                 if expired and str(exc) != "account login expired":
                     raise ValueError("account login expired") from exc
@@ -329,7 +340,14 @@ class AccountAuthManager:
         active.expire()
         self._last_terminal = (active.connection_id, "expired")
 
-    @staticmethod
-    def _raise_if_expired(flow: _ActiveFlow) -> None:
-        if flow.is_expired():
+    def _raise_if_expired(self, flow: _ActiveFlow) -> None:
+        if self._expire_if_needed(flow):
             raise ValueError("account login expired")
+
+    def _expire_if_needed(self, flow: _ActiveFlow) -> bool:
+        expired = flow.expire_if_due(self._clock) or flow.is_expired()
+        if expired:
+            if self._active is flow:
+                self._active = None
+            self._last_terminal = (flow.connection_id, "expired")
+        return expired
