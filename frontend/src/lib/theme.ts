@@ -1,4 +1,5 @@
-export const APPEARANCE_STORAGE_KEY = "reverse-agent.appearance";
+export const APPEARANCE_STORAGE_KEY = "nerelan.appearance";
+export const LEGACY_APPEARANCE_STORAGE_KEY = "reverse-agent.appearance";
 
 export const THEME_MODES = ["system", "light", "dark"] as const;
 export type ThemeMode = (typeof THEME_MODES)[number];
@@ -77,8 +78,21 @@ export function normalizeAppearance(value: unknown): Appearance {
 
 export function readAppearance(storage?: Storage): Appearance {
   try {
-    const raw = (storage ?? defaultStorage())?.getItem(APPEARANCE_STORAGE_KEY);
-    return raw ? normalizeAppearance(JSON.parse(raw)) : { ...DEFAULT_APPEARANCE };
+    const activeStorage = storage ?? defaultStorage();
+    const raw = activeStorage?.getItem(APPEARANCE_STORAGE_KEY);
+    if (raw) return normalizeAppearance(JSON.parse(raw));
+
+    const legacyRaw = activeStorage?.getItem(LEGACY_APPEARANCE_STORAGE_KEY);
+    if (!legacyRaw) return { ...DEFAULT_APPEARANCE };
+
+    const migrated = normalizeAppearance(JSON.parse(legacyRaw));
+    try {
+      activeStorage?.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify(migrated));
+      activeStorage?.removeItem(LEGACY_APPEARANCE_STORAGE_KEY);
+    } catch {
+      // Reading an existing preference is more important than cleanup.
+    }
+    return migrated;
   } catch {
     return { ...DEFAULT_APPEARANCE };
   }
