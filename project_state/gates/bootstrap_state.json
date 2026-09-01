@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260831_issue444_auth_completion_r3_v1",
-  "round_id": "round_20260831_issue444_auth_completion_r3_v1",
-  "expired_at": "2026-08-31T06:56:17+00:00"
+  "decision_id": "decision_20260901_issue444_oauth_deadline_repair_r3_v2",
+  "round_id": "round_20260901_issue444_oauth_deadline_repair_r3_v2",
+  "expired_at": "2026-09-01T00:41:05+00:00"
 }
