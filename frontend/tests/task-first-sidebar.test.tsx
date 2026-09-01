@@ -136,7 +136,7 @@ describe("task Search and project filtering", () => {
     });
 
     expect(screen.getByTestId("tasks-repository-filter")).toHaveTextContent("org/beta");
-    expect(screen.getByText("Beta validation task")).toBeInTheDocument();
-    expect(screen.queryByText("Newest alpha task")).not.toBeInTheDocument();
+    expect(screen.getByText(/Beta validation task/)).toBeInTheDocument();
+    expect(screen.queryByText(/Newest alpha task/)).not.toBeInTheDocument();
   });
 });

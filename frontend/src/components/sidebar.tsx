@@ -332,10 +332,9 @@ export function Sidebar({
 
         <div
           data-testid="sidebar-more-menu"
-          className={cn(
-            "absolute bottom-[34px] left-0 z-30 w-[205px] rounded-lg border border-ra-border/70 bg-ra-workspace p-1 shadow-[0_10px_30px_rgba(0,0,0,.12)]",
-            !moreOpen && "hidden",
-          )}
+          hidden={!moreOpen}
+          aria-hidden={!moreOpen}
+          className="absolute bottom-[34px] left-0 z-30 w-[205px] rounded-lg border border-ra-border/70 bg-ra-workspace p-1 shadow-[0_10px_30px_rgba(0,0,0,.12)]"
         >
           {SECONDARY_ROUTES.map((item) => {
             const Icon = item.icon;
@@ -391,15 +390,6 @@ export function Sidebar({
           )
         }
       </NavLink>
-
-      {!moreOpen && (
-        <div className="sr-only" aria-hidden="true">
-          <Link to="/tasks" data-testid="sidebar-nav-任务">任务</Link>
-          <Link to="/inbox" data-testid="sidebar-nav-收件箱">收件箱</Link>
-          <Link to="/roadmap" data-testid="sidebar-nav-路线图">路线图</Link>
-          <Link to="/runs" data-testid="sidebar-nav-Agent 运行">Agent 运行</Link>
-        </div>
-      )}
     </>
   );
 
