@@ -158,7 +158,7 @@ export function Sidebar({
   const logo = (
     <button
       type="button"
-      aria-label="reverse-agent"
+      aria-label="Nerelan"
       data-testid="sidebar-logo"
       onClick={() => navigate("/")}
       className={cn(

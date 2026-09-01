@@ -1,6 +1,8 @@
-# Reverse Agent
+# Nerelan
 
-Reverse Agent is a local-first, governed multi-Agent development platform. Give it a final goal; it persists a specification and plan, decomposes work into dependent tasks, coordinates reusable Agent runtimes, survives restarts, validates results, and can prepare an allowlisted Draft PR for review.
+Nerelan is a local-first, governed multi-Agent development platform. Give it a final goal; it persists a specification and plan, decomposes work into dependent tasks, coordinates reusable Agent runtimes, survives restarts, validates results, and can prepare an allowlisted Draft PR for review.
+
+The repository and Python package retain the legacy `reverse-agent` / `reverse_agent` technical identifiers during the staged brand migration. Those identifiers are compatibility surfaces, not the current product name.
 
 The product deliberately reuses mature components:
 
@@ -20,7 +22,7 @@ Requirements: Python 3.13+, Node.js, an existing `frontend/node_modules`, Git, G
 .\dev-up.ps1
 ```
 
-Or double-click `launch_reverse_agent.bat`. The launcher starts loopback-only services and opens `http://127.0.0.1:4173`:
+For compatibility, you can also double-click `launch_reverse_agent.bat`. The launcher starts loopback-only services and opens `http://127.0.0.1:4173`:
 
 ```text
 Frontend       127.0.0.1:4173
