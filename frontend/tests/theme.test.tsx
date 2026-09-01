@@ -7,6 +7,7 @@ import {
   ACCENTS,
   APPEARANCE_STORAGE_KEY,
   DEFAULT_APPEARANCE,
+  LEGACY_APPEARANCE_STORAGE_KEY,
   normalizeAppearance,
   readAppearance,
   setAppearance,
@@ -25,12 +26,23 @@ describe("presentation appearance", () => {
     expect(ACCENTS).toEqual(["cyan", "blue", "violet", "amber", "rose"]);
   });
 
-  it("applies and persists a presentation-only preference", () => {
+  it("applies and persists a presentation-only preference under the Nerelan key", () => {
     setAppearance({ mode: "light", accent: "violet" });
     expect(document.documentElement.dataset.theme).toBe("light");
     expect(document.documentElement.dataset.accent).toBe("violet");
     expect(readAppearance()).toEqual({ mode: "light", accent: "violet" });
     expect(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toContain("violet");
+  });
+
+  it("migrates an existing reverse-agent appearance preference without losing it", () => {
+    window.localStorage.setItem(
+      LEGACY_APPEARANCE_STORAGE_KEY,
+      JSON.stringify({ mode: "dark", accent: "amber" }),
+    );
+
+    expect(readAppearance()).toEqual({ mode: "dark", accent: "amber" });
+    expect(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toContain("amber");
+    expect(window.localStorage.getItem(LEGACY_APPEARANCE_STORAGE_KEY)).toBeNull();
   });
 
   it("exposes keyboard-accessible theme and accent radios", async () => {
