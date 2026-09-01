@@ -53,7 +53,7 @@ export function AgentCanvasSidebarFrame({
         "border-r border-[var(--oh-border)] transition-[width,min-width] duration-200",
         collapsed
           ? "w-[60px] min-w-[60px] px-2.5 sidebar-collapsed"
-          : "w-[300px] min-w-[300px] pb-2 pl-2.5 pr-0 sidebar-expanded",
+          : "w-[232px] min-w-[232px] pb-2 pl-2.5 pr-0 sidebar-expanded",
       )}
     >
       <div className="flex min-h-0 flex-1 flex-col items-stretch pt-2">
@@ -62,13 +62,16 @@ export function AgentCanvasSidebarFrame({
           {collapseToggle}
         </div>
 
-        <div className={cn(sidebarNavListClassName(collapsed), "mt-4")}>
+        <div className={cn(sidebarNavListClassName(collapsed), "mt-3")}>
           {primaryActions}
         </div>
 
         <nav
-          aria-label="主导航"
-          className={cn(sidebarNavListClassName(collapsed), "mt-5")}
+          aria-label="任务与项目"
+          className={cn(
+            sidebarNavListClassName(collapsed),
+            "mt-3 min-h-0 flex-1 overflow-y-auto custom-scrollbar",
+          )}
         >
           {navigation}
         </nav>

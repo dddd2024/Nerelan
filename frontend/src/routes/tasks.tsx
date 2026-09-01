@@ -1,16 +1,26 @@
+import { Link, useSearchParams } from "react-router";
+import { useMemo } from "react";
 import { useTasks } from "@/hooks/use-tasks";
 import { TaskInbox } from "@/components/task-inbox";
 import { cn } from "@/lib/cn";
 
 /**
- * OpenHands HomeScreen adaptation.
- * Source: frontend/src/routes/home.tsx (tag 1.8.0)
- * — `px-0 pt-4 bg-transparent h-full flex flex-col
- *    rounded-xl lg:px-[42px] lg:pt-[42px]`
- * License: MIT (inherited from OpenHands)
+ * Task collection surface. Repository filtering is presentation-only and uses
+ * the same authoritative task list; it does not introduce a second project
+ * store or backend query contract.
  */
 export function TasksPage() {
   const { data, isLoading, isError, error } = useTasks();
+  const [searchParams] = useSearchParams();
+  const repository = searchParams.get("repository")?.trim() ?? "";
+  const filtered = useMemo(
+    () =>
+      repository && data
+        ? data.filter((task) => task.repository === repository)
+        : data,
+    [data, repository],
+  );
+
   return (
     <div
       data-testid="tasks-page"
@@ -19,9 +29,23 @@ export function TasksPage() {
         "rounded-xl lg:px-[42px] lg:pt-[42px] custom-scrollbar-always",
       )}
     >
+      {repository ? (
+        <div
+          data-testid="tasks-repository-filter"
+          className="mb-3 flex items-center gap-2 px-4 text-xs text-ra-text-tertiary lg:px-0"
+        >
+          <span className="min-w-0 truncate">项目 · {repository}</span>
+          <Link
+            to="/tasks"
+            className="shrink-0 text-ra-text-secondary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+          >
+            查看全部
+          </Link>
+        </div>
+      ) : null}
       <div className="flex flex-col flex-1 min-h-0">
         <TaskInbox
-          tasks={data}
+          tasks={filtered}
           isLoading={isLoading}
           isError={isError}
           error={error}
