@@ -2739,6 +2739,74 @@ def test_auth_list_probe_uses_restricted_non_secret_child_env(monkeypatch) -> No
         assert allowed in env
 
 
+def test_auth_list_probe_forces_utf8_and_replaces_invalid_bytes() -> None:
+    from reverse_agent.platform_v1.opencode_executor import (
+        execute_opencode_auth_list_probe,
+    )
+
+    captured: dict[str, Any] = {}
+
+    def fake_run(argv, **kwargs):
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(
+            args=argv,
+            returncode=0,
+            stdout='{"providers":[{"id":"openai","authType":"oauth"}]}',
+            stderr="",
+        )
+
+    result = execute_opencode_auth_list_probe(
+        subprocess_run=fake_run,
+        opencode_exe="synthetic-opencode",
+    )
+
+    assert result == {"openai": "oauth"}
+    assert captured["text"] is True
+    assert captured["encoding"] == "utf-8"
+    assert captured["errors"] == "replace"
+
+
+def test_account_auth_server_uses_only_bounded_non_secret_location_env(
+    monkeypatch, tmp_path
+) -> None:
+    from reverse_agent.platform_v1 import opencode_executor as executor
+
+    captured: dict[str, Any] = {}
+    sentinel = object()
+
+    def fake_start_managed_server(**kwargs):
+        captured.update(kwargs)
+        return sentinel
+
+    monkeypatch.setenv("PATH", "C:/tools")
+    monkeypatch.setenv("SystemRoot", "C:/Windows")
+    monkeypatch.setenv("USERPROFILE", "C:/Users/tester")
+    monkeypatch.setenv("LOCALAPPDATA", "C:/Users/tester/AppData/Local")
+    monkeypatch.setenv("OPENAI_API_KEY", "MASTER_SECRET_SENTINEL")
+    monkeypatch.setenv("UNRELATED_SENTINEL", "must-not-cross")
+    monkeypatch.setattr(executor, "start_managed_server", fake_start_managed_server)
+
+    result = executor.start_opencode_account_auth_server(
+        opencode_exe="C:/tools/opencode.exe",
+        cwd=str(tmp_path),
+        timeout=120,
+    )
+
+    assert result is sentinel
+    assert captured["cli_path"] == "C:/tools/opencode.exe"
+    assert captured["is_cmd"] is False
+    assert captured["cwd"] == str(tmp_path.resolve())
+    assert captured["timeout"] == 120
+    child_env = captured["child_env"]
+    assert child_env["USERPROFILE"] == "C:/Users/tester"
+    assert child_env["LOCALAPPDATA"] == "C:/Users/tester/AppData/Local"
+    assert child_env["OPENCODE_DISABLE_AUTOUPDATE"] == "true"
+    assert "OPENCODE_DISABLE_DEFAULT_PLUGINS" not in child_env
+    assert "OPENAI_API_KEY" not in child_env
+    assert "UNRELATED_SENTINEL" not in child_env
+    assert "MASTER_SECRET_SENTINEL" not in json.dumps(child_env)
+
+
 # ===================================================================
 # ISSUE216 R2 V5 — Real-shaped text parser regressions (C–H)
 # ===================================================================
@@ -2756,6 +2824,22 @@ def test_auth_list_parser_real_text_shape_extracts_sensetime_api() -> None:
     )
     parsed = parse_opencode_auth_list(stdout)
     assert parsed == {"sensetime": "api"}
+
+
+def test_auth_list_parser_current_bullet_shape_reuses_safe_provider() -> None:
+    from reverse_agent.platform_v1.opencode_executor import parse_opencode_auth_list
+
+    stdout = (
+        "Credentials C:/redacted/auth.json\n"
+        "|\n"
+        "•  GitHub Copilot oauth\n"
+        "|\n"
+        "•  sensetime api\n"
+        "|\n"
+        "—  2 credentials\n"
+    )
+
+    assert parse_opencode_auth_list(stdout) == {"sensetime": "api"}
 
 
 def test_auth_list_parser_real_text_rejects_display_labels_with_spaces() -> None:

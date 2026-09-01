@@ -33,6 +33,19 @@ class _State:
         self.calls: list[tuple[str, str]] = []
         self.prompt_body: dict[str, Any] = {}
         self.events: list[dict[str, Any]] = []
+        self.auth_methods: Any = {
+            "openai": [
+                {"type": "api", "label": "API key"},
+                {"type": "oauth", "label": "ChatGPT Plus/Pro"},
+            ]
+        }
+        self.oauth_authorization: Any = {
+            "url": "https://auth.example.test/authorize?state=opaque",
+            "method": "code",
+            "instructions": "Paste the returned code.",
+        }
+        self.oauth_callback_result: Any = True
+        self.oauth_bodies: list[dict[str, Any]] = []
 
 
 def _handler(state: _State):
@@ -60,6 +73,10 @@ def _handler(state: _State):
             state.calls.append(("GET", parsed.path))
             if parsed.path == "/global/health":
                 self._json(200, {"healthy": True, "version": "test-1"})
+                return
+            if parsed.path == "/provider/auth":
+                assert parse_qs(parsed.query)["directory"] == [state.directory]
+                self._json(200, state.auth_methods)
                 return
             if parsed.path == "/event":
                 assert parse_qs(parsed.query)["directory"] == [state.directory]
@@ -111,6 +128,14 @@ def _handler(state: _State):
                 return
             if parsed.path == "/instance/dispose":
                 self._json(200, True)
+                return
+            if parsed.path == "/provider/openai/oauth/authorize":
+                state.oauth_bodies.append(body)
+                self._json(200, state.oauth_authorization)
+                return
+            if parsed.path == "/provider/openai/oauth/callback":
+                state.oauth_bodies.append(body)
+                self._json(200, state.oauth_callback_result)
                 return
             self._json(404, {"error": "not-found"})
 
@@ -199,6 +224,78 @@ def test_server_client_runs_exact_session_and_projects_usage(tmp_path) -> None:
         "providerID": "provider",
         "modelID": "model",
     }
+
+
+def test_provider_oauth_surface_is_bounded_and_sanitized(tmp_path) -> None:
+    state = _State(str(tmp_path.resolve()))
+    with _fake_server(state) as base_url:
+        client = _client(base_url)
+        methods = client.provider_auth_methods(
+            directory=state.directory, provider_id="openai"
+        )
+        authorization = client.provider_oauth_authorize(
+            directory=state.directory,
+            provider_id="openai",
+            method_index=methods[1].index,
+        )
+        completed = client.provider_oauth_callback(
+            directory=state.directory,
+            provider_id="openai",
+            method_index=methods[1].index,
+            code="TRANSIENT_CODE_SENTINEL",
+        )
+
+    assert [(method.index, method.type, method.label) for method in methods] == [
+        (0, "api", "API key"),
+        (1, "oauth", "ChatGPT Plus/Pro"),
+    ]
+    assert authorization.url.startswith("https://auth.example.test/")
+    assert authorization.method == "code"
+    assert completed is True
+    assert state.oauth_bodies == [
+        {"method": 1},
+        {"method": 1, "code": "TRANSIENT_CODE_SENTINEL"},
+    ]
+
+
+@pytest.mark.parametrize(
+    ("provider_id", "method_index"),
+    [("../openai", 0), ("openai/other", 0), ("openai", -1), ("openai", True)],
+)
+def test_provider_oauth_rejects_unadvertised_path_inputs(
+    tmp_path, provider_id: str, method_index: Any
+) -> None:
+    state = _State(str(tmp_path.resolve()))
+    with _fake_server(state) as base_url:
+        with pytest.raises(OpenCodeServerTransportError):
+            _client(base_url).provider_oauth_authorize(
+                directory=state.directory,
+                provider_id=provider_id,
+                method_index=method_index,
+            )
+
+
+@pytest.mark.parametrize(
+    "authorization",
+    [
+        {"url": "http://auth.example.test", "method": "auto", "instructions": ""},
+        {"url": "https://user:pass@auth.example.test", "method": "auto", "instructions": ""},
+        {"url": "https://auth.example.test/#token", "method": "auto", "instructions": ""},
+        {"url": "https://auth.example.test/", "method": "other", "instructions": ""},
+    ],
+)
+def test_provider_oauth_rejects_invalid_authorization_response(
+    tmp_path, authorization: dict[str, Any]
+) -> None:
+    state = _State(str(tmp_path.resolve()))
+    state.oauth_authorization = authorization
+    with _fake_server(state) as base_url:
+        with pytest.raises(OpenCodeServerTransportError):
+            _client(base_url).provider_oauth_authorize(
+                directory=state.directory,
+                provider_id="openai",
+                method_index=1,
+            )
 
 
 @pytest.mark.parametrize(
