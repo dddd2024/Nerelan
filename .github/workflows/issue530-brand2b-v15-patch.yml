@@ -1,0 +1,244 @@
+name: BRAND-2B v15 one-time branch patch
+
+on:
+  push:
+    branches:
+      - owner/issue530-brand2b-validation-r3-v15
+
+permissions:
+  contents: write
+
+jobs:
+  apply-brand2b-v15:
+    if: github.repository == 'dddd2024/Nerelan' && github.ref == 'refs/heads/owner/issue530-brand2b-validation-r3-v15'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact v15 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: owner/issue530-brand2b-validation-r3-v15
+
+      - name: Configure required Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Verify immutable v15 authority and locked ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "owner/issue530-brand2b-validation-r3-v15"
+          git merge-base --is-ancestor 0feeb3f35ef164591678caba96fb46477b366f52 HEAD
+          grep -Fq 'decision_20260901_issue530_brand2b_validation_r3_v15' project_state/decision_packet.md
+          test "$(git rev-list --count 0feeb3f35ef164591678caba96fb46477b366f52..HEAD)" -eq 3
+          python - <<'PY'
+          import sys
+          if sys.version_info < (3, 13):
+              raise SystemExit(f"v15_python_floor_not_met:{sys.version}")
+          PY
+
+      - name: Replay exact reviewed v14 semantic payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin refs/heads/owner/issue530-brand2b-validation-r3-v14:refs/remotes/origin/brand2b-v14-source
+          test "$(git rev-parse refs/remotes/origin/brand2b-v14-source)" = "b83bdfe00768cf337885363291349c829403a63f"
+          git checkout b83bdfe00768cf337885363291349c829403a63f -- \
+            project_state/schemas/mainline_merge_intent_v4.schema.json \
+            project_state/schemas/merge_approval_attestation_v4.schema.json \
+            reverse_agent/mainline_landing.py \
+            reverse_agent/platform_v1/goal_service.py \
+            reverse_agent/platform_v1/inbox_service.py \
+            frontend/src/components/goal-composer.tsx \
+            frontend/src/lib/profile-mapper.ts \
+            README.txt \
+            reverse_agent/platform_v1/run_store.py \
+            reverse_agent/platform_v1/control_store.py \
+            reverse_agent/platform_v1/task_service.py \
+            frontend/src/lib/platform-client.ts \
+            AGENTS.md \
+            docs/supervisor/audit-instructions.md \
+            scripts/supervisor_validate.py \
+            scripts/supervisor_publish.py \
+            tests/test_project_gate.py \
+            frontend/tests/compact-goal-composer.test.tsx \
+            tests/platform_v1/test_publication_controller.py \
+            tests/platform_v1/test_unattended_coordinator.py \
+            tests/platform_v1/test_run_read_model.py
+
+      - name: Update only mainline landing test semantics for schema v4
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import ast
+          import hashlib
+
+          path = Path("tests/test_mainline_landing.py")
+          original = path.read_text(encoding="utf-8")
+          tree = ast.parse(original)
+          lines = original.splitlines(keepends=True)
+
+          def block(name: str) -> tuple[int, int, str]:
+              matches = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == name]
+              if len(matches) != 1:
+                  raise SystemExit(f"v15_function_count:{name}:{len(matches)}")
+              n = matches[0]
+              start = sum(len(x) for x in lines[: n.lineno - 1])
+              end = sum(len(x) for x in lines[: n.end_lineno])
+              return start, end, original[start:end]
+
+          edits: list[tuple[int, int, str]] = []
+
+          # Make only the synthetic future-repo test fixture aware of current schema v4.
+          s, e, src = block("_future_repo")
+          fixture_before = hashlib.sha256(src.encode()).hexdigest()
+          replacements = [
+              ("if schema_version == 3 and workflow_profile is None:", "if schema_version in {3, 4} and workflow_profile is None:"),
+              ("if schema_version == 3 and decision_contract_profile is None:", "if schema_version in {3, 4} and decision_contract_profile is None:"),
+              ("elif schema_version == 3:", "elif schema_version in {3, 4}:"),
+              ("if schema_version == 3:\n        intent[\"workflow_profile\"] = workflow_profile", "if schema_version in {3, 4}:\n        intent[\"workflow_profile\"] = workflow_profile"),
+              ("if schema_version in {2, 3}:\n        attestation", "if schema_version in {2, 3, 4}:\n        attestation"),
+          ]
+          for old, new in replacements:
+              if src.count(old) != 1:
+                  raise SystemExit(f"v15_fixture_replacement_count:{old!r}:{src.count(old)}")
+              src = src.replace(old, new, 1)
+          anchor = "    contract_block = \"\"\n"
+          if src.count(anchor) != 1:
+              raise SystemExit("v15_repository_anchor_count")
+          src = src.replace(anchor, '    repository = "dddd2024/Nerelan" if schema_version == 4 else "dddd2024/reverse-agent"\n' + anchor, 1)
+          if src.count('"repository": "dddd2024/reverse-agent"') != 3:
+              raise SystemExit(f"v15_fixture_repository_literal_count:{src.count(chr(34) + 'repository' + chr(34) + ': ' + chr(34) + 'dddd2024/reverse-agent' + chr(34))}")
+          src = src.replace('"repository": "dddd2024/reverse-agent"', '"repository": repository')
+          edits.append((s, e, src))
+
+          # Future unsupported generation is now 5 because v4 is supported.
+          s, e, src = block("test_unsupported_intent_schema_version_fails_closed")
+          if src.count('intent["schema_version"] = 4') != 1 or src.count('unsupported_version=4') != 1:
+              raise SystemExit("v15_intent_unsupported_shape")
+          src = src.replace('intent["schema_version"] = 4', 'intent["schema_version"] = 5', 1)
+          src = src.replace('unsupported_version=4', 'unsupported_version=5', 1)
+          edits.append((s, e, src))
+
+          s, e, src = block("test_v2_attestation_unsupported_schema_version_fails_closed")
+          if src.count('bundle["attestation"]["schema_version"] = 4') != 1 or src.count('unsupported_version=4') != 1:
+              raise SystemExit("v15_attestation_unsupported_shape")
+          src = src.replace('bundle["attestation"]["schema_version"] = 4', 'bundle["attestation"]["schema_version"] = 5', 1)
+          src = src.replace('unsupported_version=4', 'unsupported_version=5', 1)
+          edits.append((s, e, src))
+
+          # Current pre-merge attestation success coverage follows current schema v4.
+          s, e, src = block("test_v3_premerge_attestation_does_not_require_merge_fields")
+          src = src.replace("def test_v3_premerge_attestation_does_not_require_merge_fields(", "def test_v4_premerge_attestation_does_not_require_merge_fields(", 1)
+          if src.count('schema_version=3, workflow_profile="baseline"') != 1:
+              raise SystemExit("v15_current_premerge_fixture_shape")
+          src = src.replace('schema_version=3, workflow_profile="baseline"', 'schema_version=4, workflow_profile="baseline"', 1)
+          edits.append((s, e, src))
+
+          # Historical v1/v2/v3 evidence remains post-merge-valid but is rejected by current v4 pre-merge wrappers.
+          s, e, src = block("test_legacy_schema_premerge_rejection_is_explicit_but_postmerge_passes")
+          # decorator is outside FunctionDef source, patch separately below after function edits
+          if src.count('expected=3') != 2:
+              raise SystemExit(f"v15_legacy_expected_count:{src.count('expected=3')}")
+          src = src.replace('expected=3', 'expected=4')
+          edits.append((s, e, src))
+
+          # Apply function edits back-to-front to preserve offsets.
+          final = original
+          for start, end, replacement in sorted(edits, reverse=True):
+              final = final[:start] + replacement + final[end:]
+
+          decorator_old = '@pytest.mark.parametrize("schema_version", [1, 2])\ndef test_legacy_schema_premerge_rejection_is_explicit_but_postmerge_passes('
+          decorator_new = '@pytest.mark.parametrize("schema_version", [1, 2, 3])\ndef test_legacy_schema_premerge_rejection_is_explicit_but_postmerge_passes('
+          if final.count(decorator_old) != 1:
+              raise SystemExit(f"v15_legacy_decorator_count:{final.count(decorator_old)}")
+          final = final.replace(decorator_old, decorator_new, 1)
+
+          ast.parse(final)
+          path.write_text(final, encoding="utf-8")
+          print("v15_fixture_before_sha256=", fixture_before)
+          print("v15_mainline_test_semantics_updated")
+          PY
+
+      - name: Install project test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[test]"
+
+      - name: Require exact previously failing CI group to pass before commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q
+          python -m pytest tests/test_project_gate.py::test_v4_exact_schema4_intent_event_remote_pr_and_attestation_pass -q
+
+      - name: Prove v14 replay fidelity and final path scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          replay_paths=(
+            project_state/schemas/mainline_merge_intent_v4.schema.json
+            project_state/schemas/merge_approval_attestation_v4.schema.json
+            reverse_agent/mainline_landing.py
+            reverse_agent/platform_v1/goal_service.py
+            reverse_agent/platform_v1/inbox_service.py
+            frontend/src/components/goal-composer.tsx
+            frontend/src/lib/profile-mapper.ts
+            README.txt
+            reverse_agent/platform_v1/run_store.py
+            reverse_agent/platform_v1/control_store.py
+            reverse_agent/platform_v1/task_service.py
+            frontend/src/lib/platform-client.ts
+            AGENTS.md
+            docs/supervisor/audit-instructions.md
+            scripts/supervisor_validate.py
+            scripts/supervisor_publish.py
+            tests/test_project_gate.py
+            frontend/tests/compact-goal-composer.test.tsx
+            tests/platform_v1/test_publication_controller.py
+            tests/platform_v1/test_unattended_coordinator.py
+            tests/platform_v1/test_run_read_model.py
+          )
+          for p in "${replay_paths[@]}"; do
+            git diff --quiet b83bdfe00768cf337885363291349c829403a63f -- "$p" || { echo "v15_v14_replay_drift:$p"; exit 1; }
+          done
+          git diff --quiet b83bdfe00768cf337885363291349c829403a63f -- tests/test_mainline_landing.py && { echo "v15_expected_mainline_test_delta_missing"; exit 1; }
+          rm .github/workflows/issue530-brand2b-v15-patch.yml
+          test ! -e .github/workflows/issue530-brand2b-v15-patch.yml
+          python - <<'PY'
+          import subprocess
+          allowed = {
+              "project_state/decision_packet.md", "project_state/gates/command_plan.json",
+              "project_state/schemas/mainline_merge_intent_v4.schema.json", "project_state/schemas/merge_approval_attestation_v4.schema.json",
+              "reverse_agent/mainline_landing.py", "reverse_agent/platform_v1/goal_service.py", "reverse_agent/platform_v1/inbox_service.py",
+              "frontend/src/components/goal-composer.tsx", "frontend/src/lib/profile-mapper.ts", "README.txt",
+              "reverse_agent/platform_v1/run_store.py", "reverse_agent/platform_v1/control_store.py", "reverse_agent/platform_v1/task_service.py",
+              "frontend/src/lib/platform-client.ts", "AGENTS.md", "docs/supervisor/audit-instructions.md",
+              "scripts/supervisor_validate.py", "scripts/supervisor_publish.py", "tests/test_project_gate.py", "tests/test_mainline_landing.py",
+              "frontend/tests/compact-goal-composer.test.tsx", "tests/platform_v1/test_publication_controller.py",
+              "tests/platform_v1/test_unattended_coordinator.py", "tests/platform_v1/test_run_read_model.py",
+          }
+          out = subprocess.check_output(["git", "diff", "--name-only", "0feeb3f35ef164591678caba96fb46477b366f52"], text=True)
+          changed = {x.strip() for x in out.splitlines() if x.strip()}
+          outside = sorted(changed - allowed)
+          missing = sorted(allowed - changed)
+          print("changed=", sorted(changed)); print("outside=", outside); print("missing=", missing)
+          if outside or missing:
+              raise SystemExit(1)
+          PY
+
+      - name: Commit and push one implementation commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "BRAND-2B: align mainline landing tests with schema v4"
+          test "$(git rev-list --count 0feeb3f35ef164591678caba96fb46477b366f52..HEAD)" -eq 4
+          git push origin HEAD:owner/issue530-brand2b-validation-r3-v15
