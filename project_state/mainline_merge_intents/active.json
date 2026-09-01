@@ -1,15 +1,15 @@
 {
   "schema_version": 3,
-  "intent_id": "pr430_issue367_landing_mode_fail_closed_r2_v12",
+  "intent_id": "pr490_issue487_nerelan_runtime_brand_r2_v3",
   "repository": "dddd2024/reverse-agent",
-  "source_pr": 430,
-  "locked_base_sha": "1dcb985dddf61204aecd57ca1260ec14f79a4f75",
+  "source_pr": 490,
+  "locked_base_sha": "f1f366a9f5a3663430cd1eddb559ea07de434738",
   "allowed_merge_method": "merge",
   "decision_identity": {
-    "decision_id": "decision_20260830_issue367_landing_mode_fail_closed_r2_v12",
-    "decision_content_sha256": "2db5e6df04d3a4f244c40d8cdc873d475bb530b8d739fc0447a8d0c96dcd1002"
+    "decision_id": "decision_20260901_issue487_nerelan_runtime_brand_r2_v3",
+    "decision_content_sha256": "1548b372dfb78247399521e675b7c5f8e010a322625781ed34ece422f502c1b8"
   },
-  "command_plan_sha256": "57c0c3b9f62a67043b877a9c372f82300fe5168828e0b7b2e87a0b46ca00a7cf",
+  "command_plan_sha256": "ff82b556a5f9cfbec545105066b21fc7e9b3bf6ede37aa5773efa8899a25c8f3",
   "merge_tree_policy": "equal_to_accepted_head_tree",
   "workflow_profile": "baseline",
   "required_workflows": [
@@ -17,5 +17,5 @@
     "Decision Preflight",
     "State Gate (pull_request)"
   ],
-  "expires_at": "2026-09-06T23:59:59Z"
+  "expires_at": "2026-09-08T23:59:59Z"
 }
