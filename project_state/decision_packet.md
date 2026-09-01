@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260901_issue444_oauth_deadline_repair_r3_v2",
-  "round_id": "round_20260901_issue444_oauth_deadline_repair_r3_v2",
+  "decision_id": "decision_20260901_issue444_oauth_deadline_repair_r3_v3",
+  "round_id": "round_20260901_issue444_oauth_deadline_repair_r3_v3",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,18 +14,18 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260831_issue444_auth_completion_r3_v1",
-  "follows_last_round_id": "round_20260831_issue444_auth_completion_r3_v1",
-  "previous_audit_outcome": "ISSUE444_PR445_FD44C6D5_EXACT_HEAD_REWORK_REQUIRED_DELAYED_TIMER_DEADLINE_BYPASS",
-  "supersedes_decision_id": "decision_20260831_issue444_auth_completion_r3_v1",
-  "workstream_id": "issue444-oauth-deadline-repair-r3-v2",
+  "follows_last_decision_id": "decision_20260901_issue444_oauth_deadline_repair_r3_v2",
+  "follows_last_round_id": "round_20260901_issue444_oauth_deadline_repair_r3_v2",
+  "previous_audit_outcome": "ISSUE444_V2_INTENT_BINDING_REJECTED_ACTIVATION_BASE_MISMATCH_BEFORE_PRODUCT_MUTATION",
+  "supersedes_decision_id": "decision_20260901_issue444_oauth_deadline_repair_r3_v2",
+  "workstream_id": "issue444-oauth-deadline-repair-r3-v3",
   "source_issue": 444,
   "parent_issue": 438,
   "source_pr": 445,
   "integration_base_ref": "main",
   "base_sha": "eb1cbfa520582988e90e83d798d53379ba537fa8",
-  "activation_base_sha": "fd44c6d50a5d3f083182c6c76ab485a8462fa5bb",
-  "starting_head": "fd44c6d50a5d3f083182c6c76ab485a8462fa5bb",
+  "activation_base_sha": "eb1cbfa520582988e90e83d798d53379ba537fa8",
+  "starting_head": "7775e63d5352d6f259e6de69f351ec214b206864",
   "required_branch": "owner/issue438-auth-completion-r3-v1",
   "preserved_worktree_reuse_allowed": true,
   "fresh_worktree_creation_required": false,
@@ -94,7 +94,7 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "issue444v2.materialize_activation_packet",
+      "command_id": "issue444v3.materialize_activation_packet",
       "command": "after the immutable Decision activation commit run startup snapshot command-plan compilation transition lint and preflight and commit only the declared generated gate artifacts",
       "phase": "gate",
       "required": true,
@@ -112,7 +112,7 @@
       ]
     },
     {
-      "command_id": "issue444v2.repair_absolute_deadline",
+      "command_id": "issue444v3.repair_absolute_deadline",
       "command": "make OAuth flow completion and start continuation atomically fail expired when the injected monotonic clock is at or beyond the absolute deadline even when the timer thread is delayed; preserve pre-deadline success invalid-code retry behavior provider-owned sessions and sanitized errors; add deterministic delayed-timer and legitimate-control tests",
       "phase": "implementation",
       "required": true,
@@ -127,7 +127,7 @@
       ]
     },
     {
-      "command_id": "issue444v2.bind_existing_pr",
+      "command_id": "issue444v3.bind_existing_pr",
       "command": "archive the prior PR 445 schema-v3 intent byte-for-byte and bind active intent exactly once to PR 445 locked base current successor Decision current generated Command Plan baseline workflow profile and merge-only policy",
       "phase": "post_publication_binding",
       "required": true,
@@ -143,7 +143,7 @@
       ]
     },
     {
-      "command_id": "issue444v2.validate_product",
+      "command_id": "issue444v3.validate_product",
       "command": "run the deterministic delayed-timer reproductions legitimate controls focused Model Access trusted-host and OpenCode transport suites full Platform V1 blocking suite mainline landing suites transition lint publication readiness and git diff check",
       "phase": "validation",
       "required": true,
@@ -154,7 +154,7 @@
       "required_evidence_source": "local_command_evidence"
     },
     {
-      "command_id": "issue444v2.publish_existing_draft",
+      "command_id": "issue444v3.publish_existing_draft",
       "command": "after all local validation normally push the exact existing PR 445 branch once update only its body and require fresh exact-head CI Model Access Frontend Playwright State Gate and Decision Preflight before independent audit",
       "phase": "publication",
       "required": true,
@@ -166,7 +166,7 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue444v2.independent_exact_head_audit",
+      "command_id": "issue444v3.independent_exact_head_audit",
       "command": "an independent auditor that did not implement the repair reproduces delayed timer behavior at before equal and after deadline checks both authorize and callback paths confirms no refresh or success after expiry and rechecks the exact remote head and required workflows then records ACCEPTED or REWORK_REQUIRED on PR 445",
       "phase": "final_evidence",
       "required": true,
@@ -177,7 +177,7 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue444v2.owner_landing",
+      "command_id": "issue444v3.owner_landing",
       "command": "only after independent exact-head acceptance fresh successful exact-head workflows zero unresolved threads unchanged locked base valid successor merge intent and repository-owned landing attestation mark PR 445 ready once merge once using merge commit with expected-head protection verify main and close Issues 444 441 and 438",
       "phase": "landing",
       "required": true,
