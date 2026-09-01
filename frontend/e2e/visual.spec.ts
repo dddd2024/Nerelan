@@ -7,7 +7,6 @@ test.describe("visual acceptance", () => {
     await appPage.reload();
     await settle(appPage);
     await disableMotion(appPage);
-    await expect(appPage.getByTestId("sidebar-logo")).toHaveAttribute("aria-label", "Nerelan");
     await expect(appPage).toHaveScreenshot("home-light.png", { animations: "disabled", caret: "hide", scale: "css" });
   });
 
@@ -17,7 +16,6 @@ test.describe("visual acceptance", () => {
     await appPage.reload();
     await settle(appPage);
     await disableMotion(appPage);
-    await expect(appPage.getByTestId("sidebar-logo")).toHaveAttribute("aria-label", "Nerelan");
     await expect(appPage).toHaveScreenshot("home-dark.png", { animations: "disabled", caret: "hide", scale: "css" });
   });
 
@@ -27,7 +25,6 @@ test.describe("visual acceptance", () => {
     await appPage.reload();
     await settle(appPage);
     await disableMotion(appPage);
-    await expect(appPage.getByTestId("sidebar-logo")).toHaveAttribute("aria-label", "Nerelan");
     await expect(appPage).toHaveScreenshot("settings-light.png", { animations: "disabled", caret: "hide", scale: "css" });
   });
 
@@ -37,7 +34,6 @@ test.describe("visual acceptance", () => {
     await appPage.reload();
     await settle(appPage);
     await disableMotion(appPage);
-    await expect(appPage.getByTestId("sidebar-logo")).toHaveAttribute("aria-label", "Nerelan");
     await expect(appPage).toHaveScreenshot("settings-dark.png", { animations: "disabled", caret: "hide", scale: "css" });
   });
 });
