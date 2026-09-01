@@ -2,8 +2,8 @@
 
 Status: research-derived architecture baseline; **not an implementation claim**.
 
-Owner Work Item: #513  
-Parent/implementation owners: #137, #260, #296, #379, #361  
+Owner Work Item: #513
+Parent/implementation owners: #137, #260, #296, #379, #361
 Related orchestration grounding: #508 / PR #509
 
 ## 1. Purpose
