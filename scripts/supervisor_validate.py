@@ -26,7 +26,7 @@ Fail-closed audit-result contract (v0.2):
 
     {
       "schema_version": "0.2",
-      "repository": "dddd2024/reverse-agent",
+      "repository": "dddd2024/Nerelan",
       "audited_main_sha": "<40-hex-char SHA-256 git commit>",
       "status": "continue | revise | stop",
       "findings": [
@@ -52,7 +52,7 @@ operation that is not in ``requested_operations``.
 Usage:
     python scripts/supervisor_validate.py \\
         --result audit_result.json \\
-        --repository dddd2024/reverse-agent \\
+        --repository dddd2024/Nerelan \\
         --main-sha 16526801bda2a816fc707342f903c1ad037de9bd
 """
 

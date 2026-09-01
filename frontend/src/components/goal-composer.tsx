@@ -25,7 +25,7 @@ function resizeObjectiveTextarea(element: HTMLTextAreaElement) {
 
 export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
   const [objective, setObjective] = useState("");
-  const [repository, setRepository] = useState("dddd2024/reverse-agent");
+  const [repository, setRepository] = useState("dddd2024/Nerelan");
   const [executorKind, setExecutorKind] =
     useState<StartGoalInput["executorKind"]>("opencode");
   const [bindingRef, setBindingRef] = useState("coding-default");

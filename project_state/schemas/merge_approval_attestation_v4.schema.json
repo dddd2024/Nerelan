@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "merge_approval_attestation_v4.schema.json",
+  "title": "Merge Approval Attestation V4 - Nerelan Canonical Repository Identity",
+  "description": "Schema version 4 is the current post-rename approval attestation. It binds new landing approval to canonical repository dddd2024/Nerelan and to the exact workflow profile selected by the paired v4 merge intent. Historical attestation semantics remain frozen.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "attestation_id",
+    "repository",
+    "source_pr",
+    "locked_base_sha",
+    "accepted_exact_head_sha",
+    "allowed_merge_method",
+    "intent_digest",
+    "workflow_observations",
+    "human_r2_approval",
+    "authorization_status",
+    "expires_at",
+    "superseded_by",
+    "content_digest"
+  ],
+  "properties": {
+    "schema_version": {"const": 4},
+    "attestation_id": {"type": "string", "minLength": 1},
+    "repository": {"const": "dddd2024/Nerelan"},
+    "source_pr": {"type": "integer", "minimum": 1},
+    "locked_base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "accepted_exact_head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "allowed_merge_method": {"const": "merge"},
+    "intent_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "workflow_observations": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "run_id",
+          "workflow_file",
+          "event",
+          "run_attempt",
+          "head_sha",
+          "conclusion"
+        ],
+        "properties": {
+          "name": {
+            "enum": [
+              "CI",
+              "Decision Preflight",
+              "State Gate (pull_request)",
+              "Frontend Playwright",
+              "Model Access"
+            ]
+          },
+          "run_id": {"type": "integer", "minimum": 1},
+          "workflow_file": {"type": "string", "minLength": 1},
+          "event": {"const": "pull_request"},
+          "run_attempt": {"type": "integer", "minimum": 1},
+          "head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+          "conclusion": {"const": "success"}
+        }
+      }
+    },
+    "human_r2_approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approver",
+        "approval_object_id",
+        "approval_payload",
+        "approval_content_digest"
+      ],
+      "properties": {
+        "approver": {"const": "dddd2024"},
+        "approval_object_id": {"type": "integer", "minimum": 1},
+        "approval_payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "source_pr",
+            "locked_base_sha",
+            "accepted_exact_head_sha",
+            "allowed_merge_method"
+          ],
+          "properties": {
+            "repository": {"const": "dddd2024/Nerelan"},
+            "source_pr": {"type": "integer", "minimum": 1},
+            "locked_base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+            "accepted_exact_head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+            "allowed_merge_method": {"const": "merge"}
+          }
+        },
+        "approval_content_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "authorization_status": {"const": "active"},
+    "expires_at": {"type": "string"},
+    "superseded_by": {"type": ["string", "null"]},
+    "content_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "_remote_comment_id": {"type": "integer", "minimum": 1},
+    "_remote_author": {"type": "string"},
+    "_remote_comment_created_at": {"type": "string"},
+    "_remote_comment_updated_at": {"type": "string"}
+  }
+}

@@ -33238,11 +33238,337 @@ def _run_v3_landing_preflight(
     return result, remote
 
 
-def test_v3_exact_schema3_intent_event_remote_pr_and_attestation_pass(
+def _v4_transition_fixture(
+    tmp_path: Path,
+    *,
+    intent_required: bool = False,
+    source_pr: int = 369,
+    workflow_profile: str = "baseline",
+) -> dict[str, Any]:
+    repo = tmp_path / "repo"
+    state = tmp_path / "state"
+    repo.mkdir()
+    (state / "gates").mkdir(parents=True)
+    _decision_test_git(repo, "init", "-b", "main")
+    _decision_test_git(repo, "config", "user.email", "test@example.com")
+    _decision_test_git(repo, "config", "user.name", "Test")
+    (repo / "base.txt").write_text("base\n", encoding="utf-8")
+    _decision_test_git(repo, "add", "base.txt")
+    _decision_test_git(repo, "commit", "-qm", "base")
+    base_sha = _decision_test_git(repo, "rev-parse", "HEAD")
+    _decision_test_git(repo, "checkout", "-qb", "test-branch")
+    decision_id = "decision_v4_test"
+    round_id = "round_v3_test"
+    contract = {
+        "transition_kernel_required": True,
+        "mainline_merge_intent_required": intent_required,
+        "required_branch": "test-branch",
+        "activation_base_sha": base_sha,
+        "allowed_paths": [
+            "project_state/decision_packet.md",
+            "project_state/mainline_merge_intents/active.json",
+            "project_state/gates/command_plan.json",
+        ],
+        "allowed_mutated_paths": [
+            "project_state/decision_packet.md",
+            "project_state/mainline_merge_intents/active.json",
+            "project_state/gates/command_plan.json",
+        ],
+        "forbidden_paths": ["docs/**"],
+        "forbidden_mutated_paths": ["docs/**"],
+        "forbidden_operations": ["direct_push_main", "merge", "mark_ready"],
+        "reference_paths": [],
+        "generated_artifact_paths": [],
+        "authorized_risk_paths": [],
+        "authorized_risk_tier": "",
+        "runner_managed_artifact_paths": [],
+        "workflow_profile": workflow_profile,
+        "owner_attestation_required_for_ready_state": True,
+        "attestation_head_must_match_current_pr_head": True,
+        "ready_state_synchronize_must_revalidate": True,
+        "converted_to_draft_returns_to_draft_semantics": True,
+        "bootstrap_exception_files": ["project_state/decision_packet.md"],
+        "bootstrap_exception_commands": [],
+        "direct_push_to_main_allowed": False,
+        "merge_allowed": False,
+        "mark_ready_allowed": False,
+        "workflow_rerun_allowed": False,
+        "runner_dispatch_allowed": False,
+        "force_push_allowed": False,
+        "rebase_during_execution_allowed": False,
+        "destructive_operations_allowed": False,
+        "unknown_binary_execution_allowed": False,
+        "model_api_invocation_allowed": False,
+        "external_reverse_tool_invocation_allowed": False,
+        "dependency_install_allowed": False,
+        "known_browser_execution_allowed": False,
+        "live_provider_access_allowed": False,
+        "credential_access_allowed": False,
+        "auto_merge_allowed": False,
+    }
+    decision_text = (
+        "```json decision_meta\n"
+        + json.dumps({
+            "schema_version": 1,
+            "status": "APPROVED",
+            "mainline": "engineering_branch",
+            "decision_id": decision_id,
+            "round_id": round_id,
+            "skill_profiles": ["test-skill"],
+        })
+        + "\n```\n```json decision_contract\n"
+        + json.dumps(contract)
+        + "\n```\n"
+    )
+    (state / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+    (repo / "project_state").mkdir()
+    (repo / "project_state" / "decision_packet.md").write_text(
+        decision_text, encoding="utf-8"
+    )
+    _decision_test_git(repo, "add", "project_state/decision_packet.md")
+    _decision_test_git(repo, "commit", "-qm", "Decision activation")
+    plan = {
+        "schema_version": 1,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "commands": [],
+    }
+    plan_path = state / "gates" / "command_plan.json"
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
+    (state / "gates" / "bootstrap_state.json").write_text(
+        json.dumps({"status": "BOOTSTRAP_EXPIRED"}), encoding="utf-8"
+    )
+    return {
+        "repo": repo,
+        "state": state,
+        "base_sha": base_sha,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "contract": contract,
+        "plan_sha": hashlib.sha256(plan_path.read_bytes()).hexdigest(),
+        "source_pr": source_pr,
+    }
+
+
+def _v4_event(
+    tmp_path: Path,
+    *,
+    action: str = "synchronize",
+    pr_number: int = 369,
+    head_sha: str = "a" * 40,
+    base_sha: str = "b" * 40,
+    draft: bool = True,
+    **overrides: Any,
+) -> Path:
+    payload: dict[str, Any] = {
+        "action": action,
+        "pull_request": {
+            "number": pr_number,
+            "head": {"sha": head_sha},
+            "base": {"sha": base_sha},
+            "draft": draft,
+        },
+    }
+    payload.update(overrides)
+    path = tmp_path / "event.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def _v4_landing_fixture(
+    tmp_path: Path, *, schema_version: int = 4
+) -> dict[str, Any]:
+    from reverse_agent.mainline_landing import (
+        CANONICAL_WORKFLOW_POLICY,
+        CURRENT_PREMERGE_WORKFLOW_POLICY,
+        canonical_digest,
+    )
+
+    fx = _v4_transition_fixture(tmp_path, intent_required=True)
+    plan_path = fx["state"] / "gates" / "command_plan.json"
+    repo_plan = fx["repo"] / "project_state" / "gates" / "command_plan.json"
+    repo_plan.parent.mkdir(parents=True, exist_ok=True)
+    repo_plan.write_bytes(plan_path.read_bytes())
+    # GitHub/Git blob evidence is canonical LF even though Windows working
+    # tree reads may expose CRLF.  Bind the intent to the blob bytes exactly.
+    decision_sha = hashlib.sha256(
+        (fx["repo"] / "project_state" / "decision_packet.md")
+        .read_bytes()
+        .replace(b"\r\n", b"\n")
+    ).hexdigest()
+    if schema_version == 1:
+        workflow_policy = CANONICAL_WORKFLOW_POLICY
+    else:
+        workflow_policy = CURRENT_PREMERGE_WORKFLOW_POLICY
+    intent = {
+        "schema_version": schema_version,
+        "intent_id": "intent_v4_test",
+        "repository": "dddd2024/Nerelan",
+        "source_pr": fx["source_pr"],
+        "locked_base_sha": fx["base_sha"],
+        "allowed_merge_method": "merge",
+        "decision_identity": {
+            "decision_id": fx["decision_id"],
+            "decision_content_sha256": decision_sha,
+        },
+        "command_plan_sha256": fx["plan_sha"],
+        "merge_tree_policy": "equal_to_accepted_head_tree",
+        "required_workflows": list(workflow_policy),
+        "expires_at": "2099-01-01T00:00:00Z",
+    }
+    if schema_version == 4:
+        intent["workflow_profile"] = "baseline"
+    active_path = fx["repo"] / "project_state" / "mainline_merge_intents" / "active.json"
+    active_path.parent.mkdir(parents=True, exist_ok=True)
+    active_path.write_text(json.dumps(intent, indent=2) + "\n", encoding="utf-8")
+    _decision_test_git(
+        fx["repo"], "add", "project_state/gates/command_plan.json",
+        "project_state/mainline_merge_intents/active.json",
+    )
+    _decision_test_git(fx["repo"], "commit", "-qm", "bind landing authority")
+    fx["head_sha"] = _decision_test_git(fx["repo"], "rev-parse", "HEAD")
+    fx["intent"] = intent
+    fx["intent_path"] = active_path
+    fx["decision_sha"] = decision_sha
+    observations = [
+        {
+            "name": name,
+            "run_id": 1000 + index,
+            "workflow_file": workflow_file,
+            "event": event,
+            "run_attempt": 1,
+            "head_sha": fx["head_sha"],
+            "conclusion": "success",
+        }
+        for index, (name, (workflow_file, event)) in enumerate(
+            workflow_policy.items(), 1
+        )
+    ]
+    approval_payload = {
+        "repository": "dddd2024/Nerelan",
+        "source_pr": fx["source_pr"],
+        "locked_base_sha": fx["base_sha"],
+        "accepted_exact_head_sha": fx["head_sha"],
+        "allowed_merge_method": "merge",
+    }
+    attestation: dict[str, Any] = {
+        "schema_version": schema_version,
+        "attestation_id": "attestation_v4_test",
+        "repository": "dddd2024/Nerelan",
+        "source_pr": fx["source_pr"],
+        "locked_base_sha": fx["base_sha"],
+        "accepted_exact_head_sha": fx["head_sha"],
+        "allowed_merge_method": "merge",
+        "intent_digest": canonical_digest(intent),
+        "workflow_observations": observations,
+        "human_r2_approval": {
+            "approver": "dddd2024",
+            "approval_object_id": 12345,
+            "approval_payload": approval_payload,
+            "approval_content_digest": canonical_digest(approval_payload),
+        },
+        "authorization_status": "active",
+        "expires_at": "2099-01-01T00:00:00Z",
+        "superseded_by": None,
+        "_remote_comment_id": 12345,
+        "_remote_author": "dddd2024",
+        "_remote_comment_created_at": "2098-12-01T00:00:00Z",
+        "_remote_comment_updated_at": "2098-12-01T00:00:00Z",
+    }
+    attestation["content_digest"] = canonical_digest(
+        attestation,
+        omit=(
+            "content_digest", "_remote_comment_id", "_remote_author",
+            "_remote_comment_created_at", "_remote_comment_updated_at",
+        ),
+    )
+    fx["attestation"] = attestation
+    return fx
+
+
+class _V4FakeRemoteVerifier:
+    def __init__(
+        self,
+        fixture: dict[str, Any],
+        *,
+        attestation: dict[str, Any] | None = None,
+        live_draft: bool = False,
+        load_error: str = "",
+    ) -> None:
+        self.fixture = fixture
+        self.attestation = attestation or fixture["attestation"]
+        self.live_draft = live_draft
+        self.load_error = load_error
+        self.verify_pr_calls: list[dict[str, Any]] = []
+
+    def verify_pr(self, **kwargs: Any) -> dict[str, Any]:
+        self.verify_pr_calls.append(kwargs)
+        ok = (
+            kwargs.get("pr_number") == self.fixture["source_pr"]
+            and kwargs.get("expected_head_sha") == self.fixture["head_sha"]
+            and kwargs.get("expected_base_sha") == self.fixture["base_sha"]
+            and not self.live_draft
+        )
+        return {
+            "verified": ok,
+            "reason": "verified" if ok else "remote_pr_mismatch",
+            "pr": {
+                "number": kwargs.get("pr_number"),
+                "merged": False,
+                "draft": self.live_draft,
+                "head": {"sha": kwargs.get("expected_head_sha")},
+                "base": {"sha": kwargs.get("expected_base_sha")},
+            },
+        }
+
+    def load_merge_attestation(self, **_: Any) -> dict[str, Any]:
+        if self.load_error:
+            from reverse_agent.github_remote_verifier import GitHubEvidenceError
+            raise GitHubEvidenceError(self.load_error)
+        return deepcopy(self.attestation)
+
+    def verify_workflow_run(self, **_: Any) -> dict[str, Any]:
+        return {"verified": True, "reason": "verified"}
+
+
+def _run_v4_landing_preflight(
+    fx: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    action: str = "synchronize",
+    pr_number: int | None = None,
+    head_sha: str | None = None,
+    base_sha: str | None = None,
+    draft: bool = False,
+    verifier: _V4FakeRemoteVerifier | None = None,
+) -> tuple[dict[str, Any], _V4FakeRemoteVerifier]:
+    monkeypatch.setattr(project_gate_module, "_active_transition_skills", lambda _: ("test-skill",))
+    remote = verifier or _V4FakeRemoteVerifier(fx)
+    monkeypatch.setattr(
+        project_gate_module.GitHubRemoteAcceptanceVerifier,
+        "from_env",
+        classmethod(lambda cls: remote),
+    )
+    event = _v4_event(
+        tmp_path,
+        action=action,
+        pr_number=pr_number if pr_number is not None else fx["source_pr"],
+        head_sha=head_sha if head_sha is not None else fx["head_sha"],
+        base_sha=base_sha if base_sha is not None else fx["base_sha"],
+        draft=draft,
+    )
+    result = project_gate_module.transition_preflight(
+        state_dir=fx["state"], repo_root=fx["repo"], event_path=str(event), write_result=False
+    )
+    return result, remote
+
+
+def test_v4_exact_schema4_intent_event_remote_pr_and_attestation_pass(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    fx = _v3_landing_fixture(tmp_path)
-    result, remote = _run_v3_landing_preflight(fx, tmp_path, monkeypatch)
+    fx = _v4_landing_fixture(tmp_path)
+    result, remote = _run_v4_landing_preflight(fx, tmp_path, monkeypatch)
     assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
     assert remote.verify_pr_calls, "landing preflight must revalidate the live PR"
     assert remote.verify_pr_calls[-1]["pr_number"] == fx["source_pr"]
@@ -33260,11 +33586,11 @@ def test_legacy_schema_premerge_boundary_reports_explicit_schema_failures(
     assert result["gate_status"] == "BLOCKED", result
     assert checks["premerge_intent_schema_version"]["status"] == "FAIL"
     assert checks["premerge_intent_schema_version"]["detail"] == (
-        f"observed={schema_version!r} expected=3"
+        f"observed={schema_version!r} expected=4"
     )
     assert checks["premerge_attestation_schema_version"]["status"] == "FAIL"
     assert checks["premerge_attestation_schema_version"]["detail"] == (
-        f"observed={schema_version!r} expected=3"
+        f"observed={schema_version!r} expected=4"
     )
     assert "intent_canonical_validation" not in checks
     assert "attestation_canonical_validation" not in checks

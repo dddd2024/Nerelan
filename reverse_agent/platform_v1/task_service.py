@@ -768,7 +768,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
         if require_repository_for_opencode and executor_kind == "opencode" and not repository:
             raise TaskStoreError("repository_required_for_opencode")
         if not repository:
-            repository = "dddd2024/reverse-agent"
+            repository = "dddd2024/Nerelan"
         orchestration_mode = str(payload.get("orchestration_mode", "single"))
         return self.store.create_task(
             title=title,
