@@ -57,9 +57,6 @@ from .unattended_coordinator import UnattendedCoordinator
 class CombinedTrustedHost:
     """One-process host for Model Control + Task API + credential relay."""
 
-    # Sentinel: auto-constructed stores use the platform vault adapter
-    # (``default_vault_adapter()``). Passing ``vault=None`` forces the exact
-    # legacy process-local behavior; tests inject a fake adapter.
     _PLATFORM_VAULT: Any = object()
 
     def __init__(
@@ -90,18 +87,12 @@ class CombinedTrustedHost:
             self._store = store
         else:
             state_path = _resolve_store_state_path(task_store)
-            # Platforms without a supported OS vault adapter (None) keep the
-            # exact legacy process-local behavior; there is no plaintext
-            # fallback for durable storage.
             resolved_vault = (
                 default_vault_adapter()
                 if vault is CombinedTrustedHost._PLATFORM_VAULT
                 else vault
             )
-            self._store = ModelProfileStore(
-                state_path=state_path,
-                vault=resolved_vault,
-            )
+            self._store = ModelProfileStore(state_path=state_path, vault=resolved_vault)
         self._task_store = task_store
         self._relay_manager = relay_manager or CredentialRelayManager()
         self._router = ExecutorRouter()
@@ -165,7 +156,6 @@ class CombinedTrustedHost:
             return
         if not self._connection_needs_external_session_refresh(connection_id):
             return
-
         with self._auth_refresh_condition:
             now = self._auth_refresh_clock()
             last_completed = self._auth_refresh_last_completed
@@ -180,7 +170,6 @@ class CombinedTrustedHost:
                     self._auth_refresh_condition.wait()
                 return
             self._auth_refresh_in_progress = True
-
         provider_metadata: dict[str, str] = {}
         try:
             result = probe()
@@ -207,10 +196,7 @@ class CombinedTrustedHost:
             connection = self._store.get_connection_public(connection_id)
         except KeyError:
             return False
-        return connection["auth_method"] in {
-            "account_login",
-            "external_cli_session",
-        }
+        return connection["auth_method"] in {"account_login", "external_cli_session"}
 
     def _has_external_session_connections(self) -> bool:
         return self._store.has_external_session_connections()
@@ -249,15 +235,9 @@ class CombinedTrustedHost:
             expected_model = _normalize_model_id(snapshot.provider, snapshot.raw_model_id)
             if expected_model != resolution.model_id:
                 raise RuntimeError("model_drift_before_lease")
-
-            lease = manager.create_lease(
-                snapshot,
-                relay_url=relay_url,
-            )
+            lease = manager.create_lease(snapshot, relay_url=relay_url)
             lease_id = lease.lease_id
-
-            provider_facing_model = lease.model_id
-            cli_model = f"reverse-agent-relay/{provider_facing_model}"
+            cli_model = f"reverse-agent-relay/{lease.model_id}"
 
             def _release() -> None:
                 manager.release_lease(lease_id)
@@ -280,21 +260,11 @@ class CombinedTrustedHost:
         class FreshExternalSessionBindingResolver:
             def resolve(self, binding_ref: str, *, task_executor: str) -> Any:
                 snapshot = host._store.resolve_execution_snapshot(binding_ref)
-                if snapshot.auth_method in {
-                    "account_login",
-                    "external_cli_session",
-                }:
-                    host._refresh_external_session_auth(
-                        True,
-                        snapshot.connection_id,
-                    )
-                resolution = delegate.resolve(
-                    binding_ref,
-                    task_executor=task_executor,
-                )
+                if snapshot.auth_method in {"account_login", "external_cli_session"}:
+                    host._refresh_external_session_auth(True, snapshot.connection_id)
+                resolution = delegate.resolve(binding_ref, task_executor=task_executor)
                 if (
-                    resolution.auth_method
-                    in {"account_login", "external_cli_session"}
+                    resolution.auth_method in {"account_login", "external_cli_session"}
                     and resolution.external_session_status != "available"
                 ):
                     raise BindingResolutionError("external_session_unavailable")
@@ -309,22 +279,13 @@ class CombinedTrustedHost:
         task_api_port: int | None = None,
     ) -> None:
         self._refresh_external_session_auth(True)
-
-        # Startup reconciliation: find expired durable runs, mark stale
-        # tasks INTERRUPTED with orphan_stale_lease classification.
-        # Does NOT call any model/provider; reconciliation only.
-        dur_svc = DurableExecutionService(
-            store=self._task_store,
-            router=self._router,
-        )
+        dur_svc = DurableExecutionService(store=self._task_store, router=self._router)
         try:
             dur_svc.reconcile_expired_runs()
         except Exception:
             pass
-
         mcp = model_control_port if model_control_port is not None else self._model_control_port
         tap = task_api_port if task_api_port is not None else self._task_api_port
-
         try:
             live_enabled = os.environ.get("REVERSE_AGENT_MODEL_CONTROL_LIVE") == "1"
             mc_handler = _model_control_handler_factory(
@@ -334,9 +295,7 @@ class CombinedTrustedHost:
                 external_session_refresh=self._refresh_external_session_auth,
                 account_auth=self._account_auth,
             )
-            self._model_server = ThreadingHTTPServer(
-                (self._model_control_host, mcp), mc_handler
-            )
+            self._model_server = ThreadingHTTPServer((self._model_control_host, mcp), mc_handler)
             actual_mc_port = self._model_server.server_address[1]
             self.model_control_url = f"http://{self._model_control_host}:{actual_mc_port}"
 
@@ -352,9 +311,7 @@ class CombinedTrustedHost:
             self.relay_url = f"http://127.0.0.1:{self._relay_server_port}"
 
             binding_resolver = self._binding_resolver_factory(self.model_control_url)
-            live_github = self._github_adapter
-            if live_github is None:
-                live_github = LiveGitHubAdapter()
+            live_github = self._github_adapter or LiveGitHubAdapter()
             self._publication_controller = PublicationController(
                 store=self._task_store,
                 control_store=self._control_store,
@@ -393,16 +350,14 @@ class CombinedTrustedHost:
                 publication_controller=self._publication_controller,
                 coordinator=self._coordinator,
             )
-            self._task_server = ThreadingHTTPServer(
-                (self._task_api_host, tap), task_handler
-            )
+            self._task_server = ThreadingHTTPServer((self._task_api_host, tap), task_handler)
             actual_task_port = self._task_server.server_address[1]
             self.task_api_url = f"http://{self._task_api_host}:{actual_task_port}"
 
             for server in (self._model_server, self._task_server, relay_srv):
-                t = threading.Thread(target=server.serve_forever, daemon=True)
-                t.start()
-                self._threads.append(t)
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                self._threads.append(thread)
                 self._started_servers.append(server)
             if os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and self._coordinator:
                 self._coordinator.start()
@@ -421,27 +376,18 @@ class CombinedTrustedHost:
                 self._coordinator.stop()
             except Exception:
                 pass
-
-        started_servers = tuple(self._started_servers)
-        for server in started_servers:
+        for server in tuple(self._started_servers):
             try:
                 server.shutdown()
             except Exception:
                 pass
-
         for thread in tuple(self._threads):
             try:
                 thread.join(timeout=3.0)
             except Exception:
                 pass
-
-        created_servers = (
-            self._model_server,
-            self._task_server,
-            self._relay_server_inner,
-        )
         seen: set[int] = set()
-        for server in created_servers:
+        for server in (self._model_server, self._task_server, self._relay_server_inner):
             if server is None or id(server) in seen:
                 continue
             seen.add(id(server))
@@ -449,7 +395,6 @@ class CombinedTrustedHost:
                 server.server_close()
             except Exception:
                 pass
-
         self._threads.clear()
         self._started_servers.clear()
         self._model_server = None
@@ -469,9 +414,7 @@ def _make_task_store(db_path: str | None) -> TaskStore:
         os.path.join(os.getcwd(), ".platform_v1_runtime"),
     )
     os.makedirs(runtime_dir, exist_ok=True)
-    return TaskStore(
-        db_path=os.path.join(runtime_dir, "tasks.sqlite3")
-    )
+    return TaskStore(db_path=os.path.join(runtime_dir, "tasks.sqlite3"))
 
 
 def _resolve_store_state_path(task_store: TaskStore) -> str:
@@ -489,16 +432,6 @@ def _resolve_store_state_path(task_store: TaskStore) -> str:
 
 
 def _resolve_trusted_authority_sha() -> str:
-    """Resolve trusted execution authority SHA from trusted runtime config.
-
-    HTTP request bodies MUST NOT supply this value. Resolution order:
-    1. REVERSE_AGENT_EXECUTION_AUTHORITY_SHA env var (explicit trusted config)
-    2. Repository git HEAD SHA from REVERSE_AGENT_REPO_DIR
-    3. Empty string if none available (causes fail-closed on durable /execute)
-
-    REVERSE_AGENT_PLANNING_SHA is NOT a valid execution authority source.
-    Authority and planning SHA are independent dimensions.
-    """
     explicit = os.environ.get("REVERSE_AGENT_EXECUTION_AUTHORITY_SHA", "").strip()
     if explicit:
         return explicit
@@ -507,7 +440,10 @@ def _resolve_trusted_authority_sha() -> str:
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
-                cwd=repo_dir, capture_output=True, text=True, check=True,
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                check=True,
                 timeout=10,
             )
             sha = result.stdout.strip()
@@ -519,13 +455,6 @@ def _resolve_trusted_authority_sha() -> str:
 
 
 def _resolve_trusted_planning_sha() -> str:
-    """Resolve trusted planning SHA from trusted runtime config.
-
-    HTTP request bodies MUST NOT supply this value. Resolution order:
-    1. REVERSE_AGENT_PLANNING_SHA env var (explicit trusted config)
-    2. Repository git HEAD SHA from REVERSE_AGENT_REPO_DIR
-    3. Empty string if none available (causes fail-closed on durable /execute)
-    """
     explicit = os.environ.get("REVERSE_AGENT_PLANNING_SHA", "").strip()
     if explicit:
         return explicit
@@ -534,7 +463,10 @@ def _resolve_trusted_planning_sha() -> str:
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
-                cwd=repo_dir, capture_output=True, text=True, check=True,
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                check=True,
                 timeout=10,
             )
             sha = result.stdout.strip()
@@ -546,13 +478,7 @@ def _resolve_trusted_planning_sha() -> str:
 
 
 def _wait_for_owned_serving_threads(host: Any, *, poll_interval: float = 0.1) -> None:
-    """Wait while at least one serving thread owned by ``host`` is alive.
-
-    ``CombinedTrustedHost.start()`` owns every serving loop.  This helper only
-    observes those owned threads; it never starts a second loop.  A provider-free
-    test double with no owned threads returns immediately instead of waiting on
-    a producer-less event.
-    """
+    """Wait while at least one serving thread owned by ``host`` is alive."""
     if poll_interval <= 0:
         raise ValueError("poll_interval must be positive")
     while True:
@@ -597,7 +523,6 @@ def run_combined_trusted_host() -> None:
         print(f"  Relay:         {host.relay_url}")
         print(f"  Authority SHA: {auth_sha or '(empty - durable execute will fail closed)'}")
         print(f"  Planning SHA:  {planning_sha or '(empty - durable execute will fail closed)'}")
-
         _wait_for_owned_serving_threads(host)
     except (KeyboardInterrupt, SystemExit):
         pass
