@@ -31,7 +31,7 @@ class App(tk.Tk):
 
     def __init__(self) -> None:
         super().__init__()
-        self.title("Reverse Agent - 逆向解题助手")
+        self.title("Nerelan - 逆向工程")
         self.geometry("1040x820")
 
         detected_copilot_cmd = self._detect_copilot_command_template()
