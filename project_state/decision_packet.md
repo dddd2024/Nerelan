@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260830_issue367_landing_mode_fail_closed_r2_v12",
-  "round_id": "round_20260830_issue367_landing_mode_fail_closed_r2_v12",
+  "decision_id": "decision_20260901_issue487_nerelan_runtime_brand_r2_v3",
+  "round_id": "round_20260901_issue487_nerelan_runtime_brand_r2_v3",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,16 +14,16 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260829_issue367_landing_stage_check_identity_r2_v11",
-  "follows_last_round_id": "round_20260829_issue367_landing_stage_check_identity_r2_v11",
-  "previous_audit_outcome": "PR422_READY_LANDING_CONTEXT_FALSE_GREEN_EXACT_EVIDENCE",
-  "workstream_id": "issue367-landing-mode-fail-closed-r2-v12",
-  "source_issue": 367,
+  "follows_last_decision_id": "decision_20260901_issue487_nerelan_runtime_brand_r2_v2",
+  "follows_last_round_id": "round_20260901_issue487_nerelan_runtime_brand_r2_v2",
+  "previous_audit_outcome": "R2_V2_EXACT_HEAD_ACCEPTED_BUT_LOCKED_BASE_ADVANCED_BY_PR486",
+  "workstream_id": "issue487-nerelan-runtime-brand-r2-v3",
+  "source_issue": 487,
   "integration_base_ref": "main",
-  "base_sha": "1dcb985dddf61204aecd57ca1260ec14f79a4f75",
-  "activation_base_sha": "1dcb985dddf61204aecd57ca1260ec14f79a4f75",
-  "starting_head": "1dcb985dddf61204aecd57ca1260ec14f79a4f75",
-  "required_branch": "owner/issue367-landing-mode-failclosed-r2-v12",
+  "base_sha": "f1f366a9f5a3663430cd1eddb559ea07de434738",
+  "activation_base_sha": "f1f366a9f5a3663430cd1eddb559ea07de434738",
+  "starting_head": "f1f366a9f5a3663430cd1eddb559ea07de434738",
+  "required_branch": "owner/issue487-nerelan-runtime-brand-r2-v3",
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "authorized_risk_tier": "R2",
@@ -35,9 +35,10 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr416_v3.json",
-    ".github/workflows/state-gate.yml",
-    "tests/test_ci_responsibility.py"
+    "project_state/mainline_merge_intents/archive/pr430_v3.json",
+    "reverse_agent/gui.py",
+    "reverse_agent/harness.py",
+    "reverse_agent/olly_scripts/collect_evidence.py"
   ],
   "workflow_profile": "baseline",
   "decision_commit_must_precede_implementation": true,
@@ -47,7 +48,7 @@
   "product_change_commit_limit": 1,
   "generated_governance_commit_limit": 2,
   "post_publication_binding_commit_limit": 1,
-  "normal_push_attempt_limit": 3,
+  "normal_push_attempt_limit": 4,
   "draft_pr_creation_limit": 1,
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
@@ -92,8 +93,7 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
-    "verify exact main base 1dcb985dddf61204aecd57ca1260ec14f79a4f75 and fresh branch merge-base",
-    "verify PR #422 Ready run 33285993694 false-green landing evidence remains immutable",
+    "verify exact main base f1f366a9f5a3663430cd1eddb559ea07de434738 and fresh branch merge-base",
     "commit this immutable R2 Decision as the unique first commit",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
@@ -103,78 +103,86 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "issue367_r2v12.materialize_activation_packet",
-      "command": "run the repository-owned startup snapshot command-plan compiler transition lint and preflight locally; materialize the exact v12 activation packet and commit only the five declared generated gate artifacts",
-      "phase": "gate",
+      "command_id": "issue487_r2v3.activation_publication",
+      "command": "publish the immutable Decision-only activation head to owner/issue487-nerelan-runtime-brand-r2-v3 and create exactly one Draft PR against locked main f1f366a9f5a3663430cd1eddb559ea07de434738 so repository-owned State Gate can evaluate transition authority before product implementation",
+      "phase": "activation_publication",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["local_static_check", "commit"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "allowed_mutated_paths": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/bootstrap_state.json",
-        "project_state/gates/transition_command_plan_preview.json",
-        "project_state/gates/transition_preflight_result.json"
-      ]
-    },
-    {
-      "command_id": "issue367_r2v12.implement_fail_closed_mode_detection",
-      "command": "make both existing State Gate control-plane mode detectors fail before writing GitHub output when the repository-owned detector fails; remove the landing detector literal-quote event-path bug; reuse the existing validation kernels and update only tests/test_ci_responsibility.py for exact shell-shape and fail-closed responsibility regression",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["source_edit", "unit_test", "local_static_check", "commit"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "allowed_mutated_paths": [".github/workflows/state-gate.yml", "tests/test_ci_responsibility.py"]
-    },
-    {
-      "command_id": "issue367_r2v12.validate_publish",
-      "command": "run deterministic CI responsibility and governance regression locally then push the exact branch and create one Draft PR against locked main; require fresh baseline State Gate and Decision Preflight before independent audit",
-      "phase": "publication",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["unit_test", "lint", "local_static_check", "push", "draft_pr", "network_access"],
+      "operations": ["push", "draft_pr", "network_access"],
       "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_only_after_validation": true
+      "required_evidence_source": "repository_truth"
     },
     {
-      "command_id": "issue367_r2v12.post_publication_binding",
-      "command": "after Draft PR publication archive the existing schema-v3 PR416 landing intent byte-for-byte and bind active intent exactly once to the actual PR number locked base current Decision current Command Plan workflow profile and merge policy",
+      "command_id": "issue487_r2v3.post_publication_binding",
+      "command": "after Draft PR creation archive the inherited schema-v3 PR430 merge intent byte-for-byte and bind project_state/mainline_merge_intents/active.json exactly once to the actual remote PR number locked base current Decision current Command Plan workflow profile and merge policy; never substitute Issue #487 for the PR number",
       "phase": "post_publication_binding",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["commit", "push", "network_access"],
       "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_only_after_validation": true,
+      "required_evidence_source": "repository_truth",
       "allowed_mutated_paths": [
         "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr416_v3.json"
+        "project_state/mainline_merge_intents/archive/pr430_v3.json"
       ]
     },
     {
-      "command_id": "issue367_r2v12.final_exact_head_acceptance",
-      "command": "require exact-head baseline State Gate Decision Preflight and distinct landing-stage evidence proving the matching kernel executed rather than skipped; require zero unresolved threads and unchanged locked base before Owner landing lifecycle",
+      "command_id": "issue487_r2v3.implement_runtime_brand_copy",
+      "command": "after PRE_EXECUTION_AUTHORIZED replay only the already-audited current user-facing Nerelan product-brand text in reverse_agent/gui.py reverse_agent/harness.py and reverse_agent/olly_scripts/collect_evidence.py without changing runtime logic schemas compatibility identifiers subprocess behavior or execution policy",
+      "phase": "implementation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["source_edit", "local_static_check", "commit"],
+      "network_access": false,
+      "required_evidence_source": "local_provenance",
+      "allowed_mutated_paths": [
+        "reverse_agent/gui.py",
+        "reverse_agent/harness.py",
+        "reverse_agent/olly_scripts/collect_evidence.py"
+      ]
+    },
+    {
+      "command_id": "issue487_r2v3.validate_runtime_brand_copy",
+      "command": "run python -m compileall -q reverse_agent and git diff --check and inspect the exact diff to prove the replay remains the same bounded product-brand-only change on the new base",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["unit_test", "lint", "local_static_check"],
+      "network_access": false,
+      "required_evidence_source": "local_provenance"
+    },
+    {
+      "command_id": "issue487_r2v3.publish_implementation",
+      "command": "after validation push the exact implementation head to the already-bound branch and update only the existing Draft PR; require fresh State Gate Decision Preflight CI and exact-head audit",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["push", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_truth",
+      "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue487_r2v3.final_exact_head_acceptance",
+      "command": "require exact-head CI State Gate and Decision Preflight success plus diff audit and verify main still equals locked base f1f366a9f5a3663430cd1eddb559ea07de434738 before any Owner-controlled landing lifecycle",
       "phase": "final_evidence",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "remote_observation",
       "operations": ["code_read"],
       "network_access": false,
-      "required_evidence_source": "repository_state_attestation"
+      "required_evidence_source": "repository_truth"
     }
   ],
   "allowed_source_paths": [
-    ".github/workflows/state-gate.yml",
-    "tests/test_ci_responsibility.py"
+    "reverse_agent/gui.py",
+    "reverse_agent/harness.py",
+    "reverse_agent/olly_scripts/collect_evidence.py"
   ],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
@@ -183,21 +191,23 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    ".github/workflows/state-gate.yml",
-    "tests/test_ci_responsibility.py",
     "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr416_v3.json"
+    "project_state/mainline_merge_intents/archive/pr430_v3.json",
+    "reverse_agent/gui.py",
+    "reverse_agent/harness.py",
+    "reverse_agent/olly_scripts/collect_evidence.py"
   ],
   "reference_paths": [
     "AGENTS.md",
     "reverse_agent/project_gate.py",
     "reverse_agent/control_plane/transition.py",
-    "reverse_agent/control_plane/models.py",
-    "reverse_agent/mainline_landing.py",
-    "tests/test_project_gate.py",
+    "reverse_agent/control_plane/legacy_adapter.py",
     "tests/test_control_plane_transition.py",
+    "tests/test_project_gate.py",
     "tests/test_mainline_landing.py",
-    "tests/platform_v1/test_merge_intent.py"
+    "tests/platform_v1/test_merge_intent.py",
+    "README.txt",
+    "README.md"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -209,19 +219,17 @@
   "forbidden_mutated_paths": [
     "AGENTS.md",
     "docs/**",
-    ".github/actions/**",
-    ".github/workflows/ci.yml",
-    ".github/workflows/decision-preflight.yml",
+    ".github/**",
     ".codex-skills/**",
     "requirements*.txt",
     "pyproject.toml",
-    "reverse_agent/project_gate.py",
     "reverse_agent/control_plane/**",
-    "reverse_agent/mainline_landing.py",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/platform_v1/**",
     "reverse_agent/model_access/**",
     "reverse_agent/base_platform/**",
-    "reverse_agent/platform_v1/**",
-    "frontend/**"
+    "frontend/**",
+    "tests/**"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -232,8 +240,9 @@
     "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
     "local_network_exceptions": [
-      "run deterministic CI responsibility and governance regression locally then push the exact branch and create one Draft PR against locked main; require fresh baseline State Gate and Decision Preflight before independent audit",
-      "after Draft PR publication archive the existing schema-v3 PR405 landing intent byte-for-byte and bind active intent exactly once to the actual PR number locked base current Decision current Command Plan workflow profile and merge policy"
+      "publish the immutable Decision-only activation head to owner/issue487-nerelan-runtime-brand-r2-v3 and create exactly one Draft PR against locked main f1f366a9f5a3663430cd1eddb559ea07de434738 so repository-owned State Gate can evaluate transition authority before product implementation",
+      "after Draft PR creation archive the inherited schema-v3 PR430 merge intent byte-for-byte and bind project_state/mainline_merge_intents/active.json exactly once to the actual remote PR number locked base current Decision current Command Plan workflow profile and merge policy; never substitute Issue #487 for the PR number",
+      "after validation push the exact implementation head to the already-bound branch and update only the existing Draft PR; require fresh State Gate Decision Preflight CI and exact-head audit"
     ],
     "ci_network_exceptions": [],
     "remote_observation_read_only_allowed": true,
@@ -251,3 +260,11 @@
   ]
 }
 ```
+
+## Goal
+
+Rebase the already-audited Nerelan legacy runtime brand copy onto the current locked main after PR #486 advanced the base, without using git rebase and without altering runtime behavior or technical compatibility identifiers.
+
+## Stop conditions
+
+Stop if transition preflight does not return PRE_EXECUTION_AUTHORIZED, if main advances from f1f366a9f5a3663430cd1eddb559ea07de434738 before Owner landing, if the active merge-intent binding cannot use the actual remote PR number, if any path outside the declared runtime and governance paths is required, or if validation reveals a behavioral/schema/compatibility change.
