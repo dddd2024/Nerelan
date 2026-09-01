@@ -427,7 +427,7 @@ def main(argv: list[str] | None = None) -> int:
     if argv and argv[0] == "compare":
         return _main_compare(argv[1:])
 
-    parser = argparse.ArgumentParser(description="Run the Nerelan reverse-engineering harness.")
+    parser = argparse.ArgumentParser(description="Run reverse-agent as a reproducible harness.")
     parser.add_argument("--dataset", required=True, help="Path to a JSON dataset file.")
     parser.add_argument("--run-name", default="", help="Stable run name. Reuse it to resume.")
     parser.add_argument("--reports-dir", default="solve_reports", help="Reports root directory.")
@@ -549,7 +549,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _main_compare(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="Compare two Nerelan reverse-engineering harness runs.")
+    parser = argparse.ArgumentParser(description="Compare two reverse-agent harness runs.")
     parser.add_argument("--base-run", required=True, help="Base harness run name.")
     parser.add_argument("--head-run", required=True, help="Head harness run name.")
     parser.add_argument("--reports-dir", default="solve_reports", help="Reports root directory.")
@@ -913,7 +913,7 @@ def _write_summary_markdown(
         for category, rate in summary.solve_rate_by_category.items()
     ] or ["| `uncategorized` | 0.00 |"]
     lines = [
-        "# Nerelan Reverse Engineering Harness Summary",
+        "# Reverse Agent Harness Summary",
         "",
         f"- Run: `{summary.run_name}`",
         f"- Total cases: `{summary.total_cases}`",

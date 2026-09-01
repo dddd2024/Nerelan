@@ -109,7 +109,7 @@ def _run_candidate_probe(target: Path, candidate: str, timeout_seconds: int = 4)
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Nerelan reverse-engineering OllyDbg evidence collector")
+    parser = argparse.ArgumentParser(description="Reverse Agent OllyDbg evidence collector")
     parser.add_argument("--olly", required=True, help="Path to ollydbg executable")
     parser.add_argument("--target", required=True, help="Path to target executable")
     parser.add_argument("--out", required=True, help="Output JSON path")
