@@ -23,6 +23,9 @@ export const ConnectionSecretStatusSchema = z.enum([
   "session",
   "environment",
   "not_applicable",
+  "stored",
+  "store_locked",
+  "replacement_required",
 ]);
 
 export const ExternalSessionStatusSchema = z.enum([
@@ -120,7 +123,8 @@ export function connectionVerificationCapability(
 
   if (connection.authMethod === "api_key") {
     return connection.secretStatus === "session" ||
-      connection.secretStatus === "environment"
+      connection.secretStatus === "environment" ||
+      connection.secretStatus === "stored"
       ? "supported"
       : "credential_missing";
   }
@@ -138,3 +142,24 @@ export const ConnectionProbeResultSchema = z.object({
 });
 
 export type ConnectionProbeResult = z.infer<typeof ConnectionProbeResultSchema>;
+
+export const AccountAuthStatusSchema = z.object({
+  status: z.enum([
+    "idle",
+    "busy",
+    "awaiting_browser",
+    "expired",
+    "canceled",
+    "authenticated",
+    "verification_pending",
+    "provider_logout_required",
+  ]),
+  provider: z.literal("openai"),
+  externalSessionStatus: ExternalSessionStatusSchema.optional(),
+  authorizationUrl: z.string().url().optional(),
+  callbackMethod: z.enum(["auto", "code"]).optional(),
+  instructions: z.string().max(2000).optional(),
+  expiresInSeconds: z.number().int().positive().max(900).optional(),
+});
+
+export type AccountAuthStatus = z.infer<typeof AccountAuthStatusSchema>;

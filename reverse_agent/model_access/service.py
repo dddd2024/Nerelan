@@ -14,7 +14,9 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlsplit
 from urllib.request import Request, urlopen
 
+from .account_auth import AccountAuthManager
 from .contracts import Connection, ModelProfile, ProbeResult
+from .os_vault import VaultUnavailableError
 from .store import ModelProfileStore
 
 ProbeTransport = Callable[[str, dict[str, str], float], tuple[int, bytes]]
@@ -197,12 +199,22 @@ def probe_saved_connection(
         )
 
     if connection.auth_method == "api_key":
-        secret = store.resolve_connection_secret(connection_id)
+        try:
+            secret = store.resolve_connection_secret(connection_id)
+        except VaultUnavailableError:
+            # Locked or unavailable OS credential store: explicit typed
+            # fail-closed state; never a plaintext fallback.
+            return ProbeResult(
+                ok=False,
+                status="credential_store_locked",
+                message="Credential store is locked or unavailable",
+                latency_ms=None,
+            )
         if not secret:
             return ProbeResult(
                 ok=False,
                 status="credential_missing",
-                message="API key is not configured",
+                message="API key is not configured or needs to be re-entered",
                 latency_ms=None,
             )
         headers = {"Accept": "application/json", "Authorization": f"Bearer {secret}"}
@@ -233,6 +245,7 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
     external_session_refresh: Callable[[bool, str | None], None] = staticmethod(
         lambda _force, _connection_id: None
     )
+    account_auth: AccountAuthManager | None = None
 
     server_version = "reverse-agent-model-control/1"
 
@@ -267,6 +280,16 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
                 self._send_json(
                     HTTPStatus.OK,
                     self.store.get_connection_public(segments[2]),
+                )
+                return
+            if (
+                len(segments) == 4
+                and segments[:2] == ["api", "connections"]
+                and segments[3] == "account-auth"
+            ):
+                self._send_json(
+                    HTTPStatus.OK,
+                    self._account_auth().status(segments[2]),
                 )
                 return
             if segments == ["api", "executors"]:
@@ -395,6 +418,34 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
                 )
                 self._send_json(HTTPStatus.OK, result.to_dict())
                 return
+            if (
+                len(segments) == 5
+                and segments[:2] == ["api", "connections"]
+                and segments[3] == "account-auth"
+            ):
+                action = segments[4]
+                if action == "start":
+                    _require_empty_payload(self._read_json(optional=True))
+                    result = self._account_auth().start(segments[2])
+                elif action == "callback":
+                    payload = self._read_json(optional=True)
+                    if set(payload).difference({"code"}):
+                        raise ValueError("account auth callback accepts only code")
+                    code = payload.get("code")
+                    if code is not None and not isinstance(code, str):
+                        raise ValueError("authorization code must be a string")
+                    result = self._account_auth().callback(segments[2], code)
+                elif action == "cancel":
+                    _require_empty_payload(self._read_json(optional=True))
+                    result = self._account_auth().cancel(segments[2])
+                elif action == "logout":
+                    _require_empty_payload(self._read_json(optional=True))
+                    result = self._account_auth().logout(segments[2])
+                else:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "route not found"})
+                    return
+                self._send_json(HTTPStatus.OK, result)
+                return
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "route not found"})
         except Exception as error:  # handler boundary
             self._send_exception(error)
@@ -402,6 +453,12 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
     def _segments(self) -> list[str]:
         path = urlsplit(self.path).path
         return [unquote(part) for part in path.split("/") if part]
+
+    def _account_auth(self) -> AccountAuthManager:
+        manager = self.account_auth
+        if manager is None:
+            raise ValueError("native account login is unavailable on this host")
+        return manager
 
     def _read_json(self, *, optional: bool = False) -> dict[str, Any]:
         raw_length = self.headers.get("Content-Length")
@@ -491,6 +548,11 @@ def _optional_request_secret(payload: dict[str, Any]) -> str | None:
     return value
 
 
+def _require_empty_payload(payload: dict[str, Any]) -> None:
+    if payload:
+        raise ValueError("request body must be an empty JSON object")
+
+
 def _external_session_truth_changed(
     previous: dict[str, Any] | None,
     current: dict[str, Any],
@@ -514,6 +576,7 @@ def _handler_factory(
     live_enabled: bool,
     allowed_origin: str,
     external_session_refresh: Callable[[bool, str | None], None] | None = None,
+    account_auth: AccountAuthManager | None = None,
 ) -> type[_ModelControlHandler]:
     class ConfiguredHandler(_ModelControlHandler):
         pass
@@ -524,6 +587,7 @@ def _handler_factory(
     ConfiguredHandler.external_session_refresh = staticmethod(
         external_session_refresh or (lambda _force, _connection_id: None)
     )
+    ConfiguredHandler.account_auth = account_auth
     return ConfiguredHandler
 
 

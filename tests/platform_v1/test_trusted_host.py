@@ -24,6 +24,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
 
 import pytest
 
@@ -40,6 +41,12 @@ from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 
 import tempfile as _tempfile
 from pathlib import Path as _Path
+
+from reverse_agent.model_access.os_vault import (
+    FakeVault,
+    WindowsVaultAdapter,
+    default_vault_adapter,
+)
 
 
 def _make_git_worktree(path: Path) -> None:
@@ -73,6 +80,120 @@ def _model_control_request(
         return response.status, json.loads(raw.decode("utf-8"))
     finally:
         connection.close()
+
+
+def test_account_auth_http_lifecycle_delegates_and_refreshes_openai_session(
+    tmp_path,
+) -> None:
+    available = [False]
+    created: list[Any] = []
+
+    class FakeAuthServer:
+        def __init__(self) -> None:
+            self.closed = False
+            self.callback_code: str | None = None
+
+        def provider_auth_methods(self, *, provider_id: str):
+            assert provider_id == "openai"
+            return (
+                type("Method", (), {"index": 3, "type": "oauth", "label": "ChatGPT"})(),
+            )
+
+        def provider_oauth_authorize(self, *, provider_id: str, method_index: int):
+            assert (provider_id, method_index) == ("openai", 3)
+            return type(
+                "Authorization",
+                (),
+                {
+                    "url": "https://auth.example.test/continue?state=opaque",
+                    "method": "code",
+                    "instructions": "Continue in the browser.",
+                },
+            )()
+
+        def provider_oauth_callback(
+            self, *, provider_id: str, method_index: int, code: str | None = None
+        ) -> bool:
+            assert (provider_id, method_index) == ("openai", 3)
+            self.callback_code = code
+            available[0] = True
+            return True
+
+        def close(self) -> None:
+            self.closed = True
+
+    def factory():
+        server = FakeAuthServer()
+        created.append(server)
+        return server
+
+    host = CombinedTrustedHost(
+        task_store=_make_store(tmp_path),
+        auth_list_probe=lambda: {"openai": "oauth"} if available[0] else {},
+        auth_refresh_ttl_seconds=0,
+        account_auth_server_factory=factory,
+    )
+    host.store.upsert_connection(
+        {
+            "connection_id": "openai-gpt",
+            "name": "OpenAI ChatGPT",
+            "provider": "openai",
+            "base_url": "https://api.openai.com/v1",
+            "auth_method": "account_login",
+            "enabled": True,
+        }
+    )
+    host.start(model_control_port=0, task_api_port=0)
+    try:
+        status, started = _model_control_request(
+            host.model_control_url,
+            "POST",
+            "/api/connections/openai-gpt/account-auth/start",
+            {},
+        )
+        assert status == 200
+        assert started["status"] == "awaiting_browser"
+        assert started["provider"] == "openai"
+        assert started["callback_method"] == "code"
+        assert started["authorization_url"].startswith("https://auth.example.test/")
+
+        transient_code = "TRANSIENT_HTTP_CODE_SENTINEL"
+        status, completed = _model_control_request(
+            host.model_control_url,
+            "POST",
+            "/api/connections/openai-gpt/account-auth/callback",
+            {"code": transient_code},
+        )
+        assert status == 200
+        assert completed == {
+            "status": "authenticated",
+            "provider": "openai",
+            "external_session_status": "available",
+        }
+        assert created[0].callback_code == transient_code
+        assert created[0].closed is True
+        assert transient_code not in json.dumps(completed)
+
+        status, public = _model_control_request(
+            host.model_control_url,
+            "GET",
+            "/api/connections/openai-gpt",
+        )
+        assert status == 200
+        assert public["external_session_status"] == "available"
+        assert transient_code not in json.dumps(public)
+
+        status, logout = _model_control_request(
+            host.model_control_url,
+            "POST",
+            "/api/connections/openai-gpt/account-auth/logout",
+            {},
+        )
+        assert status == 200
+        assert logout["status"] == "provider_logout_required"
+        assert "OpenCode" in logout["instructions"]
+    finally:
+        host.stop()
 
 
 def test_trusted_authority_sha_propagated_non_empty(tmp_path) -> None:
@@ -642,18 +763,20 @@ def test_real_resolver_planning_only_yields_empty_authority(tmp_path) -> None:
 def test_combined_trusted_host_restart_restores_sanitized_metadata(tmp_path) -> None:
     """A fresh CombinedTrustedHost using the same runtime path must automatically
     restore Connection and Binding metadata persisted by a previous host.
-    No raw credential must be exposed through the public API or persisted state.
+    With a vault-backed store the API key resolves again after restart without
+    re-entry, while no raw credential is ever exposed through the public API or
+    persisted state (C11 restart proof at host level).
     """
     from reverse_agent.platform_v1.trusted_host import _resolve_store_state_path
-    from reverse_agent.model_access.store import StoreError
 
-    db_path = str(tmp_path / "tasks.sqlite3")
     store = _make_store(tmp_path)
+    vault = FakeVault()
 
     host1 = CombinedTrustedHost(
         task_store=store,
         execution_authority_sha="auth_host1",
         planning_sha="plan_host1",
+        vault=vault,
     )
 
     raw_secret = "HOST1-RAW-SECRET-NEVER-PERSIST"
@@ -677,13 +800,14 @@ def test_combined_trusted_host_restart_restores_sanitized_metadata(tmp_path) -> 
 
     conn1_public = host1.store.list_connections_public()
     assert conn1_public[0]["connection_id"] == "restored-conn"
-    assert conn1_public[0]["secret_status"] == "session"
+    assert conn1_public[0]["secret_status"] == "stored"
     assert raw_secret not in json.dumps(conn1_public)
 
     state_path = _resolve_store_state_path(store)
     raw_bytes = Path(state_path).read_bytes()
     assert raw_secret.encode("utf-8") not in raw_bytes
     assert b"HOST1-RAW" not in raw_bytes
+    assert b"nerelan:conn:v1:restored-conn:" in raw_bytes
 
     host1.stop()
     del host1
@@ -692,6 +816,7 @@ def test_combined_trusted_host_restart_restores_sanitized_metadata(tmp_path) -> 
         task_store=store,
         execution_authority_sha="auth_host2",
         planning_sha="plan_host2",
+        vault=vault,
     )
 
     conn2_public = host2.store.list_connections_public()
@@ -703,7 +828,7 @@ def test_combined_trusted_host_restart_restores_sanitized_metadata(tmp_path) -> 
     assert c2["base_url"] == "https://restored.example.test/v1"
     assert c2["auth_method"] == "api_key"
     assert c2["enabled"] is True
-    assert c2["secret_status"] == "missing"
+    assert c2["secret_status"] == "stored"
     assert raw_secret not in json.dumps(conn2_public)
 
     binding2_public = host2.store.list_bindings_public()
@@ -715,7 +840,8 @@ def test_combined_trusted_host_restart_restores_sanitized_metadata(tmp_path) -> 
     assert b2["model_id"] == "restored-model-v1"
     assert b2["enabled"] is True
 
-    assert host2.store.resolve_connection_secret("restored-conn") is None
+    # Restart resolves the stored secret again without re-entry.
+    assert host2.store.resolve_connection_secret("restored-conn") == raw_secret
 
     new_raw = "HOST2-NEW-SECRET"
     host2.store.upsert_connection({
@@ -740,10 +866,11 @@ def test_combined_trusted_host_restart_restores_sanitized_metadata(tmp_path) -> 
         task_store=store,
         execution_authority_sha="auth_host3",
         planning_sha="plan_host3",
+        vault=vault,
     )
     conn3_public = host3.store.list_connections_public()
-    assert conn3_public[0]["secret_status"] == "missing"
-    assert host3.store.resolve_connection_secret("restored-conn") is None
+    assert conn3_public[0]["secret_status"] == "stored"
+    assert host3.store.resolve_connection_secret("restored-conn") == new_raw
 
     assert host3.store.get_connection_public("restored-conn")["connection_id"] == "restored-conn"
     assert host3.store.get_binding_public("restored-binding")["binding_id"] == "restored-binding"
@@ -1292,6 +1419,7 @@ def test_api_key_and_none_connection_reads_do_not_probe(tmp_path) -> None:
     host = CombinedTrustedHost(
         task_store=_make_store(tmp_path),
         auth_list_probe=counting_probe,
+        vault=None,
     )
     for connection_id, auth_method in (
         ("api-key-conn", "api_key"),
@@ -1477,3 +1605,247 @@ def test_host_starts_inert_unattended_coordinator_only_when_explicitly_enabled(t
         assert status["executions"] == 0
     finally:
         host.stop()
+
+
+# ===================================================================
+# ISSUE441 R1 — Durable OS-backed API-key persistence (CRED-1..CRED-4)
+# ===================================================================
+
+import sys as _sys
+
+from http.server import BaseHTTPRequestHandler as _BaseHTTPRequestHandler
+
+from reverse_agent.model_access.os_vault import (
+    VaultUnavailableError as _VaultUnavailableError,
+)
+
+
+def test_trusted_host_default_vault_wiring_is_platform_scoped(tmp_path) -> None:
+    """The auto-constructed host store selects the OS vault adapter by
+    platform: win32 gets the Windows Credential Manager adapter, every other
+    platform gets None (exact legacy process-local behavior). Construction
+    performs no vault writes."""
+    adapter = default_vault_adapter()
+    if _sys.platform == "win32":
+        assert isinstance(adapter, WindowsVaultAdapter)
+    else:
+        assert adapter is None
+
+    host = CombinedTrustedHost(
+        task_store=_make_store(tmp_path),
+        execution_authority_sha="auth_vault",
+        planning_sha="plan_vault",
+    )
+    try:
+        if _sys.platform == "win32":
+            assert isinstance(host.store._vault, WindowsVaultAdapter)
+        else:
+            assert host.store._vault is None
+    finally:
+        host.stop()
+
+
+def test_explicit_none_vault_keeps_legacy_process_local_store(tmp_path) -> None:
+    """vault=None forces the exact legacy process-local store even on win32."""
+    host = CombinedTrustedHost(
+        task_store=_make_store(tmp_path),
+        execution_authority_sha="auth_legacy",
+        planning_sha="plan_legacy",
+        vault=None,
+    )
+    try:
+        assert host.store._vault is None
+        public = host.store.upsert_connection({
+            "connection_id": "legacy-conn",
+            "name": "Legacy",
+            "provider": "openai-compatible",
+            "base_url": "https://models.example.test/v1",
+            "auth_method": "api_key",
+            "enabled": True,
+            "api_key": "legacy-session-secret",
+        })
+        assert public["secret_status"] == "session"
+        assert host.store.resolve_connection_secret("legacy-conn") == "legacy-session-secret"
+    finally:
+        host.stop()
+
+
+def _start_capturing_upstream(port_holder: dict) -> ThreadingHTTPServer:
+    captured: list[dict[str, Any]] = []
+    port_holder["captured"] = captured
+
+    class Handler(_BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+        def do_POST(self) -> None:  # noqa: N802
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            captured.append({
+                "path": self.path,
+                "authorization": self.headers.get("Authorization", ""),
+            })
+            body = json.dumps({"id": "chatcmpl-test", "object": "chat.completion"}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port_holder["port"] = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    port_holder["server"] = server
+    return server
+
+
+def test_vault_backed_lease_serves_only_selected_connection_secret(tmp_path) -> None:
+    """C9 + C10: an execution lease over a vault-backed Connection resolves
+    only that Connection's secret through the relay; unrelated vault material
+    never reaches the child executor path, and no raw credential enters the
+    TaskStore database."""
+    from reverse_agent.platform_v1.binding_resolver import OpenCodeBindingResolution
+
+    upstream: dict[str, Any] = {}
+    _start_capturing_upstream(upstream)
+    upstream_port = upstream["port"]
+    captured: list[dict[str, Any]] = upstream["captured"]
+
+    vault = FakeVault()
+    task_store = _make_store(tmp_path)
+    host = CombinedTrustedHost(
+        task_store=task_store,
+        execution_authority_sha="auth_vault_exec",
+        planning_sha="plan_vault_exec",
+        vault=vault,
+    )
+
+    secret_a = "VAULT-SECRET-CONNECTION-A-ONLY"
+    secret_b = "VAULT-SECRET-CONNECTION-B-NEVER-RELAYED"
+    base_url = f"http://127.0.0.1:{upstream_port}/v1"
+    for connection_id, name, secret in (
+        ("conn-a", "Connection A", secret_a),
+        ("conn-b", "Connection B", secret_b),
+    ):
+        host.store.upsert_connection({
+            "connection_id": connection_id,
+            "name": name,
+            "provider": "openai-compatible",
+            "base_url": base_url,
+            "auth_method": "api_key",
+            "enabled": True,
+            "api_key": secret,
+        })
+    for binding_id, connection_id in (("binding-a", "conn-a"), ("binding-b", "conn-b")):
+        host.store.upsert_binding({
+            "binding_id": binding_id,
+            "name": binding_id,
+            "executor_id": "opencode",
+            "connection_id": connection_id,
+            "model_id": "gpt-4o",
+            "enabled": True,
+        })
+
+    try:
+        host.start(model_control_port=0, task_api_port=0)
+        resolution = OpenCodeBindingResolution(
+            binding_ref="binding-a",
+            connection_id="conn-a",
+            executor_id="opencode",
+            provider_id="openai-compatible",
+            model_id="openai-compatible/gpt-4o",
+            base_url=base_url,
+            auth_method="api_key",
+            external_session_status="not_applicable",
+            relay_required=True,
+        )
+        handle = host._lease_provider_factory()(resolution)
+        assert handle.lease_id
+        assert host.relay_manager.has_active_lease(handle.lease_id)
+
+        # The lease handle itself carries no secret bytes: the child executor
+        # receives only the lease id, relay URL and relay model id.
+        handle_serialized = json.dumps({
+            "lease_id": handle.lease_id,
+            "relay_url": handle.relay_url,
+            "model_id": handle.model_id,
+        })
+        assert secret_a not in handle_serialized
+        assert secret_b not in handle_serialized
+
+        # Relay request for binding-a resolves only Connection A's secret.
+        request = Request(
+            f"{host.relay_url}/chat/completions",
+            data=json.dumps({"model": "gpt-4o", "messages": []}).encode(),
+            headers={"Authorization": f"Bearer {handle.lease_id}"},
+            method="POST",
+        )
+        with urlopen(request, timeout=10) as response:  # noqa: S310 - loopback relay
+            assert int(response.status) == 200
+
+        assert len(captured) == 1
+        assert captured[0]["authorization"] == f"Bearer {secret_a}"
+        assert secret_b not in json.dumps(captured)
+
+        # No raw credential entered the TaskStore database or the vault ref
+        # state, and the vault holds exactly the two connection items.
+        db_bytes = Path(task_store.db_path).read_bytes()
+        assert secret_a.encode("utf-8") not in db_bytes
+        assert secret_b.encode("utf-8") not in db_bytes
+        assert len(vault.item_refs()) == 2
+
+        handle.release()
+        assert not host.relay_manager.has_active_lease(handle.lease_id)
+    finally:
+        host.stop()
+        upstream["server"].shutdown()
+        upstream["server"].server_close()
+
+
+def test_locked_vault_fails_execution_lease_creation_closed(tmp_path) -> None:
+    """A locked OS vault fails closed at execution resolution; no lease is
+    created and no plaintext fallback is used."""
+    from reverse_agent.platform_v1.binding_resolver import OpenCodeBindingResolution
+
+    vault = FakeVault()
+    host = CombinedTrustedHost(
+        task_store=_make_store(tmp_path),
+        execution_authority_sha="auth_vault_lock",
+        planning_sha="plan_vault_lock",
+        vault=vault,
+    )
+    host.store.upsert_connection({
+        "connection_id": "conn-locked",
+        "name": "Locked",
+        "provider": "openai-compatible",
+        "base_url": "https://models.example.test/v1",
+        "auth_method": "api_key",
+        "enabled": True,
+        "api_key": "locked-away-secret",
+    })
+    host.store.upsert_binding({
+        "binding_id": "binding-locked",
+        "name": "Locked Binding",
+        "executor_id": "opencode",
+        "connection_id": "conn-locked",
+        "model_id": "gpt-4o",
+        "enabled": True,
+    })
+
+    vault.locked = True
+    resolution = OpenCodeBindingResolution(
+        binding_ref="binding-locked",
+        connection_id="conn-locked",
+        executor_id="opencode",
+        provider_id="openai-compatible",
+        model_id="openai-compatible/gpt-4o",
+        base_url="https://models.example.test/v1",
+        auth_method="api_key",
+        external_session_status="not_applicable",
+        relay_required=True,
+    )
+    with pytest.raises(_VaultUnavailableError):
+        host._lease_provider_factory()(resolution)
+    assert host.relay_manager.lease_count() == 0
+    host.stop()

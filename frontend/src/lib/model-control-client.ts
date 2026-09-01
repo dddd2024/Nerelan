@@ -10,6 +10,7 @@ import {
   ConnectionInputSchema,
   ConnectionSchema,
   ConnectionProbeResultSchema,
+  AccountAuthStatusSchema,
   ExecutorSchema,
   BindingInputSchema,
   BindingSchema,
@@ -19,6 +20,7 @@ import {
   type Binding,
   type BindingInput,
   type ConnectionProbeResult,
+  type AccountAuthStatus,
 } from "@/schemas/model-access";
 
 export interface ModelControlClient {
@@ -32,6 +34,11 @@ export interface ModelControlClient {
   upsertConnection(input: ConnectionInput): Promise<Connection>;
   deleteConnection(connectionId: string): Promise<void>;
   testConnection(connectionId: string): Promise<ConnectionProbeResult>;
+  getAccountAuthStatus(connectionId: string): Promise<AccountAuthStatus>;
+  startAccountAuth(connectionId: string): Promise<AccountAuthStatus>;
+  completeAccountAuth(connectionId: string, code?: string): Promise<AccountAuthStatus>;
+  cancelAccountAuth(connectionId: string): Promise<AccountAuthStatus>;
+  logoutAccountAuth(connectionId: string): Promise<AccountAuthStatus>;
   listExecutors(): Promise<Executor[]>;
   listBindings(): Promise<Binding[]>;
   upsertBinding(input: BindingInput): Promise<Binding>;
@@ -139,6 +146,20 @@ function normalizeBinding(value: unknown): Binding {
     connectionId: raw.connectionId ?? raw.connection_id,
     modelId: raw.modelId ?? raw.model_id,
     enabled: raw.enabled,
+  });
+}
+
+function normalizeAccountAuth(value: unknown): AccountAuthStatus {
+  const raw = value as Record<string, unknown>;
+  return AccountAuthStatusSchema.parse({
+    status: raw.status,
+    provider: raw.provider,
+    externalSessionStatus:
+      raw.externalSessionStatus ?? raw.external_session_status,
+    authorizationUrl: raw.authorizationUrl ?? raw.authorization_url,
+    callbackMethod: raw.callbackMethod ?? raw.callback_method,
+    instructions: raw.instructions,
+    expiresInSeconds: raw.expiresInSeconds ?? raw.expires_in_seconds,
   });
 }
 
@@ -340,6 +361,48 @@ export function createHttpModelControlClient(
         message: raw.message,
         latencyMs: raw.latencyMs ?? raw.latency_ms ?? null,
       });
+    },
+
+    async getAccountAuthStatus(connectionId) {
+      const payload = await requestJson(
+        `${connectionsUrl}/${encodeURIComponent(connectionId)}/account-auth`,
+      );
+      return normalizeAccountAuth(payload);
+    },
+
+    async startAccountAuth(connectionId) {
+      const payload = await requestJson(
+        `${connectionsUrl}/${encodeURIComponent(connectionId)}/account-auth/start`,
+        { method: "POST", body: JSON.stringify({}) },
+      );
+      return normalizeAccountAuth(payload);
+    },
+
+    async completeAccountAuth(connectionId, code) {
+      const payload = await requestJson(
+        `${connectionsUrl}/${encodeURIComponent(connectionId)}/account-auth/callback`,
+        {
+          method: "POST",
+          body: JSON.stringify(code ? { code } : {}),
+        },
+      );
+      return normalizeAccountAuth(payload);
+    },
+
+    async cancelAccountAuth(connectionId) {
+      const payload = await requestJson(
+        `${connectionsUrl}/${encodeURIComponent(connectionId)}/account-auth/cancel`,
+        { method: "POST", body: JSON.stringify({}) },
+      );
+      return normalizeAccountAuth(payload);
+    },
+
+    async logoutAccountAuth(connectionId) {
+      const payload = await requestJson(
+        `${connectionsUrl}/${encodeURIComponent(connectionId)}/account-auth/logout`,
+        { method: "POST", body: JSON.stringify({}) },
+      );
+      return normalizeAccountAuth(payload);
     },
 
     async listExecutors() {
@@ -579,6 +642,65 @@ export function createMockModelControlClient(
         status: "connected",
         message: "连接成功",
         latencyMs: 18,
+      };
+    },
+
+    async getAccountAuthStatus(connectionId) {
+      const connection = connections.find((c) => c.connectionId === connectionId);
+      if (!connection) throw new Error(`Connection not found: ${connectionId}`);
+      return {
+        status: "idle",
+        provider: "openai",
+        externalSessionStatus: connection.externalSessionStatus,
+      };
+    },
+
+    async startAccountAuth(connectionId) {
+      const connection = connections.find((c) => c.connectionId === connectionId);
+      if (!connection || connection.authMethod !== "account_login") {
+        throw new Error("connection does not use account_login");
+      }
+      return {
+        status: "awaiting_browser",
+        provider: "openai",
+        authorizationUrl: "https://auth.example.test/authorize",
+        callbackMethod: "code",
+        instructions: "在浏览器中完成授权。",
+        expiresInSeconds: 300,
+      };
+    },
+
+    async completeAccountAuth(connectionId) {
+      connections = connections.map((connection) =>
+        connection.connectionId === connectionId
+          ? { ...connection, externalSessionStatus: "available" }
+          : connection,
+      );
+      return {
+        status: "authenticated",
+        provider: "openai",
+        externalSessionStatus: "available",
+      };
+    },
+
+    async cancelAccountAuth(connectionId) {
+      const connection = connections.find((c) => c.connectionId === connectionId);
+      if (!connection) throw new Error(`Connection not found: ${connectionId}`);
+      return {
+        status: "canceled",
+        provider: "openai",
+        externalSessionStatus: connection.externalSessionStatus,
+      };
+    },
+
+    async logoutAccountAuth(connectionId) {
+      const connection = connections.find((c) => c.connectionId === connectionId);
+      if (!connection) throw new Error(`Connection not found: ${connectionId}`);
+      return {
+        status: "provider_logout_required",
+        provider: "openai",
+        externalSessionStatus: connection.externalSessionStatus,
+        instructions: "Use OpenCode `auth logout` to remove the provider-owned session.",
       };
     },
 
