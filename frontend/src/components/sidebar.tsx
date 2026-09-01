@@ -89,7 +89,7 @@ function SidebarAction({
   );
 }
 
-/** Thin reverse-agent adapter around the pinned Agent Canvas sidebar frame. */
+/** Thin Nerelan adapter around the pinned Agent Canvas sidebar frame. */
 export function Sidebar({
   onNewTask,
   onOpenConversationPanel,
@@ -106,7 +106,7 @@ export function Sidebar({
   const logo = (
     <button
       type="button"
-      aria-label="reverse-agent"
+      aria-label="Nerelan"
       data-testid="sidebar-logo"
       onClick={() => {
         window.location.href = "/";
@@ -117,7 +117,7 @@ export function Sidebar({
         collapsed ? "justify-center" : "justify-start px-2.5",
       )}
     >
-      {collapsed ? "RA" : "reverse-agent"}
+      {collapsed ? "N" : "Nerelan"}
     </button>
   );
 

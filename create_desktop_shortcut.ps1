@@ -8,14 +8,14 @@ if (!(Test-Path $launcher)) {
 }
 
 $desktop = [Environment]::GetFolderPath("Desktop")
-$shortcutPath = Join-Path $desktop "ReverseAgent.lnk"
+$shortcutPath = Join-Path $desktop "Nerelan.lnk"
 
 $wsh = New-Object -ComObject WScript.Shell
 $shortcut = $wsh.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $launcher
 $shortcut.WorkingDirectory = $projectDir
 $shortcut.IconLocation = "$env:SystemRoot\System32\shell32.dll,220"
-$shortcut.Description = "Reverse Agent unattended multi-agent platform"
+$shortcut.Description = "Nerelan unattended multi-agent platform"
 $shortcut.Save()
 
 Write-Output "Shortcut created: $shortcutPath"
