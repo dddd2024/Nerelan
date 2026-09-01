@@ -1,15 +1,15 @@
 {
   "schema_version": 3,
-  "intent_id": "pr430_issue367_landing_mode_fail_closed_r2_v12",
+  "intent_id": "pr493_issue492_final_visual_golden_r3_v1",
   "repository": "dddd2024/reverse-agent",
-  "source_pr": 430,
-  "locked_base_sha": "1dcb985dddf61204aecd57ca1260ec14f79a4f75",
+  "source_pr": 493,
+  "locked_base_sha": "f1f366a9f5a3663430cd1eddb559ea07de434738",
   "allowed_merge_method": "merge",
   "decision_identity": {
-    "decision_id": "decision_20260830_issue367_landing_mode_fail_closed_r2_v12",
-    "decision_content_sha256": "2db5e6df04d3a4f244c40d8cdc873d475bb530b8d739fc0447a8d0c96dcd1002"
+    "decision_id": "decision_20260901_issue492_final_visual_golden_r3_v1",
+    "decision_content_sha256": "30ce24e8da991477df0e9617970568bb248474a4ba3c8c3a10d4d18b2ed3f2f3"
   },
-  "command_plan_sha256": "57c0c3b9f62a67043b877a9c372f82300fe5168828e0b7b2e87a0b46ca00a7cf",
+  "command_plan_sha256": "b5aee09183a6a7174c4e8a2296a6df3fded51b76405926690c104c4d39301ba7",
   "merge_tree_policy": "equal_to_accepted_head_tree",
   "workflow_profile": "baseline",
   "required_workflows": [
