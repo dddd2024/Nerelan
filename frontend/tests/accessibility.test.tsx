@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -9,10 +8,8 @@ import { CustomPolicyEditor } from "@/components/custom-policy-editor";
 import { Sidebar } from "@/components/sidebar";
 import { profileToPolicy } from "@/lib/profile-mapper";
 
-const ROOT = fileURLToPath(new URL("../", import.meta.url));
-
 function read(relative: string) {
-  return readFileSync(`${ROOT}${relative}`, "utf8");
+  return readFileSync(relative, "utf8");
 }
 
 function srgbChannel(value: number) {
