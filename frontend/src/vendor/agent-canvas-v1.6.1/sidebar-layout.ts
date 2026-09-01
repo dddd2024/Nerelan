@@ -10,10 +10,10 @@ export const navInteractiveTransitionClassName =
   "transition-none motion-reduce:transition-none";
 
 export const SIDEBAR_ICON_SLOT_CLASS =
-  "flex h-9 w-[18px] shrink-0 items-center justify-center";
+  "flex h-[30px] w-[18px] shrink-0 items-center justify-center";
 
 export const SIDEBAR_COLLAPSED_ICON_SLOT_CLASS =
-  "relative h-9 min-h-9 max-h-9 w-full shrink-0";
+  "relative h-[30px] min-h-[30px] max-h-[30px] w-full shrink-0";
 
 export const SIDEBAR_HEADER_ROW_CLASS =
   "flex h-10 min-h-10 shrink-0 items-center gap-2 pl-2.5 pr-2.5 w-full";
@@ -26,8 +26,8 @@ export function sidebarHeaderRowClassName(collapsed: boolean): string {
 }
 
 export const SIDEBAR_ROW_INTERACTIVE_CLASS = {
-  active: "bg-ra-tertiary text-white font-normal",
-  idle: "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
+  active: "bg-ra-tertiary text-ra-text font-normal",
+  idle: "text-[var(--oh-muted)] hover:text-ra-text hover:bg-[var(--oh-surface-raised)]",
 } as const;
 
 export function sidebarNavListClassName(collapsed: boolean): string {
@@ -43,9 +43,9 @@ export function sidebarNavRowClassName(options?: {
 }): string {
   const { indent = false, collapsed = false } = options ?? {};
   return cn(
-    "flex h-9 min-h-9 min-w-0 items-center rounded-md",
+    "flex h-[30px] min-h-[30px] min-w-0 items-center rounded-md",
     navInteractiveTransitionClassName,
-    "text-sm leading-5 w-full",
+    "text-[13px] leading-4 w-full",
     collapsed
       ? "group gap-0 px-0 overflow-visible bg-transparent hover:bg-transparent"
       : "gap-2 px-2.5 overflow-hidden",
@@ -67,8 +67,8 @@ export function sidebarCollapsedIconGlyphClassName(active: boolean): string {
   return cn(
     "relative z-[1] flex h-full w-full items-center justify-start pl-2.5 [&_svg]:shrink-0",
     active
-      ? "text-white font-normal"
-      : "text-[var(--oh-muted)] group-hover:text-white",
+      ? "text-ra-text font-normal"
+      : "text-[var(--oh-muted)] group-hover:text-ra-text",
   );
 }
 
@@ -92,5 +92,5 @@ export const SIDEBAR_COLLAPSE_TOGGLE_OVERLAY_CLASS = cn(
   "items-center justify-center rounded-md",
   navInteractiveTransitionClassName,
   "cursor-pointer",
-  "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
+  "text-[var(--oh-muted)] hover:text-ra-text hover:bg-[var(--oh-surface-raised)]",
 );

@@ -1,25 +1,11 @@
 @import "tailwindcss";
 
 /* ===========================================================================
-   reverse-agent Frontend V1 — OpenHands-adapted design tokens
-   Structured-port adaptation of the OpenHands 1.8.0 dark visual language.
-
-   Source: OpenHands/OpenHands 1.8.0
-     - frontend/tailwind.config.js (colors: --bg-dark, --bg-light, --bg-input,
-       --bg-workspace, --border, --text-editor-base, --text-editor-active,
-       --bg-editor-sidebar, --bg-editor-active, --border-editor-sidebar,
-       --bg-neutral-muted)
-     - frontend/src/index.css (body, scrollbars, markdown-body, code)
-     - frontend/src/app.css (skeleton, custom-scrollbar, etc.)
-
-   Modifications: OpenHands brand text/colors replaced with reverse-agent
-   identity; business semantics (tasks, authority, policy) substituted for
-   conversations and agent runtime. No OpenHands runtime/sandbox/api code
-   imported.
-   License: MIT (inherited from OpenHands)
+   Nerelan frontend presentation tokens.
+   The runtime and data model remain reverse-agent owned; these variables only
+   define the quiet two-surface product presentation.
    =========================================================================== */
 
-/* ---- Tailwind 4 theme: OpenHands 1.8.0 dark-palette, structurally ported ---- */
 @theme {
   --color-ra-base: var(--ra-base);
   --color-ra-light: var(--ra-light);
@@ -40,34 +26,32 @@
 }
 
 :root {
-  --ra-base: #0d0f10;
-  --ra-light: #171717;
-  --ra-workspace: #1f2228;
-  --ra-sidebar: #25272d;
-  --ra-tertiary: #2a2a32;
-  --ra-input: #393939;
-  --ra-border: #3c3c4a;
-  --ra-border-strong: #525252;
-  --ra-text: #ffffff;
-  --ra-text-secondary: #a3a3a3;
-  --ra-text-tertiary: #9299aa;
-  --ra-text-code: #9099ac;
-  --ra-accent: #18c6cf;
-  --ra-accent-hover: #36dce2;
-  --ra-status-running: #bcff8c;
-  --ra-status-starting: #ffd43b;
-  --ra-status-stopped: #ffffff;
-  --ra-status-error: #ff684e;
-  --ra-panel-bg: #171717;
-  --ra-panel-input: #27272a;
+  --ra-base: #171816;
+  --ra-light: #232421;
+  --ra-workspace: #1d1e1c;
+  --ra-sidebar: #1a1b19;
+  --ra-tertiary: #2a2b27;
+  --ra-input: #2d2e2a;
+  --ra-border: #383a35;
+  --ra-border-strong: #51534c;
+  --ra-text: #f4f3ef;
+  --ra-text-secondary: #b7b5ae;
+  --ra-text-tertiary: #8f8e88;
+  --ra-text-code: #aaa9a3;
+  --ra-accent: #7ea7a2;
+  --ra-accent-hover: #98bbb7;
+  --ra-status-running: #9ccf91;
+  --ra-status-starting: #d8b868;
+  --ra-status-stopped: #d7d5cf;
+  --ra-status-error: #e27b6c;
+  --ra-panel-bg: #20211e;
+  --ra-panel-input: #292a26;
 
-  /* Agent Canvas v1.6.1 presentation compatibility aliases.
-     These map the pinned source fork onto the existing reverse-agent palette;
-     they are aliases, not a second theme or runtime design system. */
+  /* Pinned Agent Canvas presentation aliases. */
   --oh-border: var(--ra-border);
   --oh-muted: var(--ra-text-secondary);
   --oh-surface: var(--ra-workspace);
-  --oh-surface-raised: var(--ra-sidebar);
+  --oh-surface-raised: var(--ra-tertiary);
 }
 
 html[data-accent="blue"] {
@@ -92,52 +76,52 @@ html[data-accent="rose"] {
 
 html[data-theme="light"],
 html[data-theme="system"] {
-  --ra-base: #f7f8fa;
-  --ra-light: #ffffff;
-  --ra-workspace: #f1f3f6;
-  --ra-sidebar: #e9edf2;
-  --ra-tertiary: #e2e7ed;
-  --ra-input: #ffffff;
-  --ra-border: #d6dce5;
-  --ra-border-strong: #b7c0cc;
-  --ra-text: #16191f;
-  --ra-text-secondary: #4d5664;
-  --ra-text-tertiary: #596473;
-  --ra-text-code: #4b5563;
-  --ra-panel-bg: #ffffff;
-  --ra-panel-input: #f4f6f8;
-  --ra-status-running: #16794a;
-  --ra-status-starting: #a05f00;
-  --ra-status-stopped: #4d5664;
-  --ra-status-error: #be3e3e;
+  --ra-base: #f1eee6;
+  --ra-light: #f7f4ed;
+  --ra-workspace: #fffefa;
+  --ra-sidebar: #ece8de;
+  --ra-tertiary: #ebe7dd;
+  --ra-input: #fffefa;
+  --ra-border: #ddd8cd;
+  --ra-border-strong: #c4beb2;
+  --ra-text: #20211f;
+  --ra-text-secondary: #585a55;
+  --ra-text-tertiary: #66675f;
+  --ra-text-code: #555851;
+  --ra-panel-bg: #fffefa;
+  --ra-panel-input: #f6f2ea;
+  --ra-status-running: #2f7d50;
+  --ra-status-starting: #956313;
+  --ra-status-stopped: #65665f;
+  --ra-status-error: #b9473f;
 }
 
 @media (prefers-color-scheme: dark) {
   html[data-theme="system"] {
-    --ra-base: #0d0f10;
-    --ra-light: #171717;
-    --ra-workspace: #1f2228;
-    --ra-sidebar: #25272d;
-    --ra-tertiary: #2a2a32;
-    --ra-input: #393939;
-    --ra-border: #3c3c4a;
-    --ra-border-strong: #525252;
-    --ra-text: #ffffff;
-    --ra-text-secondary: #a3a3a3;
-    --ra-text-tertiary: #9299aa;
-    --ra-text-code: #9099ac;
-    --ra-panel-bg: #171717;
-    --ra-panel-input: #27272a;
-    --ra-status-running: #bcff8c;
-    --ra-status-starting: #ffd43b;
-    --ra-status-stopped: #ffffff;
-    --ra-status-error: #ff684e;
+    --ra-base: #171816;
+    --ra-light: #232421;
+    --ra-workspace: #1d1e1c;
+    --ra-sidebar: #1a1b19;
+    --ra-tertiary: #2a2b27;
+    --ra-input: #2d2e2a;
+    --ra-border: #383a35;
+    --ra-border-strong: #51534c;
+    --ra-text: #f4f3ef;
+    --ra-text-secondary: #b7b5ae;
+    --ra-text-tertiary: #8f8e88;
+    --ra-text-code: #aaa9a3;
+    --ra-panel-bg: #20211e;
+    --ra-panel-input: #292a26;
+    --ra-status-running: #9ccf91;
+    --ra-status-starting: #d8b868;
+    --ra-status-stopped: #d7d5cf;
+    --ra-status-error: #e27b6c;
   }
 }
 
 html[data-theme="light"][data-accent="cyan"] {
-  --ra-accent: #08727a;
-  --ra-accent-hover: #075e64;
+  --ra-accent: #507f7a;
+  --ra-accent-hover: #3f6d68;
 }
 
 html[data-theme="light"][data-accent="blue"] {
@@ -162,8 +146,8 @@ html[data-theme="light"][data-accent="rose"] {
 
 @media (prefers-color-scheme: light) {
   html[data-theme="system"][data-accent="cyan"] {
-    --ra-accent: #08727a;
-    --ra-accent-hover: #075e64;
+    --ra-accent: #507f7a;
+    --ra-accent-hover: #3f6d68;
   }
 
   html[data-theme="system"][data-accent="blue"] {
@@ -187,15 +171,22 @@ html[data-theme="light"][data-accent="rose"] {
   }
 }
 
-/* Agent Canvas contributes a few fixed white utility classes. Keep them
-   presentation-aware inside the adapter boundary only. */
+/* Agent Canvas contributes fixed white utility classes. Keep those aliases
+   presentation-aware only at the bounded sidebar adapter. */
 [data-testid="sidebar"] [class~="text-white"],
 [data-testid="sidebar"] [class~="hover:text-white"]:hover,
 [data-testid="sidebar"] [class~="group-hover:text-white"] {
   color: var(--ra-text) !important;
 }
 
-/* Dark mode by default (OpenHands uses darkMode: "class") */
+@media (min-width: 768px) {
+  [data-testid="app-shell"] > [data-testid="sidebar"] {
+    height: 100%;
+    border-right-color: transparent;
+    background: var(--ra-base);
+  }
+}
+
 html {
   color-scheme: dark;
   background: var(--ra-base);
@@ -230,7 +221,6 @@ code {
     "Liberation Mono", "Courier New", monospace;
 }
 
-/* ---- Box-model reset ---- */
 *,
 *::before,
 *::after {
@@ -239,48 +229,50 @@ code {
   padding: 0;
 }
 
-/* ---- Smooth focus rings ---- */
 :focus-visible {
   outline: none;
 }
 
-/* ---- Custom scrollbar (OpenHands custom-scrollbar classes) ---- */
 .custom-scrollbar,
 .custom-scrollbar-always {
   scrollbar-width: thin;
-  scrollbar-color: #525252 transparent;
+  scrollbar-color: var(--ra-border-strong) transparent;
 }
+
 .custom-scrollbar::-webkit-scrollbar,
 .custom-scrollbar-always::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb,
 .custom-scrollbar-always::-webkit-scrollbar-thumb {
-  background-color: #525252;
+  background-color: var(--ra-border-strong);
   border-radius: 4px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-track,
 .custom-scrollbar-always::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* ---- Skeleton animation (OpenHands style) ---- */
 .skeleton {
-  background-color: #3a3a42;
+  background-color: var(--ra-tertiary);
   background-image: linear-gradient(
     90deg,
-    rgba(58, 58, 66, 0.4) 0%,
-    rgba(82, 82, 90, 0.4) 50%,
-    rgba(58, 58, 66, 0.4) 100%
+    color-mix(in srgb, var(--ra-tertiary) 72%, transparent) 0%,
+    color-mix(in srgb, var(--ra-border-strong) 70%, transparent) 50%,
+    color-mix(in srgb, var(--ra-tertiary) 72%, transparent) 100%
   );
   background-size: 200% 100%;
   animation: skeleton-loading 1.5s ease-in-out infinite;
   border-radius: 4px;
 }
+
 .skeleton-round {
   border-radius: 9999px;
 }
+
 @keyframes skeleton-loading {
   0% {
     background-position: 200% 0;
@@ -290,34 +282,36 @@ code {
   }
 }
 
-/* ---- Markdown rendering (from OpenHands index.css) ---- */
 .markdown-body code {
   padding: 0.2em 0.4em;
   margin: 0;
   font-size: 85%;
   white-space: break-spaces;
-  background-color: #2a3038;
+  background-color: var(--ra-tertiary);
   border-radius: 4px;
-  color: #e6edf3;
-  border: 1px solid #30363d;
+  color: var(--ra-text);
+  border: 1px solid var(--ra-border);
   letter-spacing: -0.2px;
 }
+
 .markdown-body pre code {
   padding: 0;
   background-color: inherit;
 }
+
 .markdown-body {
   white-space: pre-wrap;
 }
+
 .markdown-body th {
   text-align: left;
 }
+
 .markdown-body th,
 .markdown-body td {
   padding: 0.1rem 1rem;
 }
 
-/* ---- Reduced motion ---- */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

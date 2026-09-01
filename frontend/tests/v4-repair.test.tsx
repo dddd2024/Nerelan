@@ -82,8 +82,8 @@ function renderShell(initialEntry = "/") {
   );
 }
 
-describe("sidebar collapse/expand — OpenHands 1.8.0 adaptation", () => {
-  it("starts at the 60px collapsed contract", () => {
+describe("sidebar collapse/expand — Nerelan desktop contract", () => {
+  it("starts expanded for ordinary desktop use", () => {
     mockMatchMedia(true);
     renderWithProviders(
       <Sidebar
@@ -95,15 +95,16 @@ describe("sidebar collapse/expand — OpenHands 1.8.0 adaptation", () => {
     );
 
     const sidebar = screen.getByTestId("sidebar");
-    expect(sidebar).toHaveAttribute("data-collapsed", "true");
-    expect(sidebar).toHaveClass("sidebar-collapsed");
+    expect(sidebar).toHaveAttribute("data-collapsed", "false");
+    expect(sidebar).toHaveClass("sidebar-expanded");
+    expect(screen.getByText("Nerelan")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-collapse-toggle")).toHaveAttribute(
       "aria-pressed",
-      "false",
+      "true",
     );
   });
 
-  it("expands to the 300px state by pointer or keyboard", async () => {
+  it("collapses and can expand again by pointer or keyboard", async () => {
     mockMatchMedia(true);
     const user = userEvent.setup();
     renderWithProviders(
@@ -116,10 +117,17 @@ describe("sidebar collapse/expand — OpenHands 1.8.0 adaptation", () => {
     );
 
     const toggle = screen.getByTestId("sidebar-collapse-toggle");
+    await user.click(toggle);
+
+    expect(screen.getByTestId("sidebar")).toHaveAttribute(
+      "data-collapsed",
+      "true",
+    );
+    expect(screen.getByTestId("sidebar")).toHaveClass("sidebar-collapsed");
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+
     toggle.focus();
-    await user.keyboard("{Space}");
-    // jsdom does not fire click on Space; simulate browser default
-    fireEvent.click(toggle);
+    await user.keyboard("{Enter}");
 
     expect(screen.getByTestId("sidebar")).toHaveAttribute(
       "data-collapsed",
