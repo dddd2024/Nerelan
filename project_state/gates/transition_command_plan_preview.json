@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260901_issue345_platform_v1_profile_regression_r2_v1",
-  "round_id": "round_20260901_issue345_platform_v1_profile_regression_r2_v1",
+  "decision_id": "decision_20260902_issue585_desktop0_tauri_r2_v3",
+  "round_id": "round_20260902_issue585_desktop0_tauri_r2_v3",
   "commands": [
     {
-      "command_id": "issue345_regression_r2v1.bootstrap_and_preflight",
-      "command": "verify exact locked main and fresh branch; commit this immutable R2 Decision first; run startup snapshot command-plan compiler transition lint and transition preflight and require PRE_EXECUTION_AUTHORIZED before any test mutation",
+      "command_id": "issue585_desktop0_v3.bootstrap_and_preflight",
+      "command": "perform only a bounded read-only clone/fetch of dddd2024/Nerelan at the exact R2 v3 branch into an isolated local worktree; verify exact locked main and fresh branch; run startup snapshot, transition command-plan compiler, transition lint, transition preflight, and publication-readiness checks; require PRE_EXECUTION_AUTHORIZED before dependency or product mutation",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -18,7 +18,7 @@
         "local_static_check",
         "commit"
       ],
-      "network_access": false,
+      "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
@@ -34,8 +34,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue345_regression_r2v1.repair_platform_v1_profile_assertions",
-      "command": "after PRE_EXECUTION_AUTHORIZED repair only the stale Platform V1 schema-v3 required_workflows assertions so schema v1 and v2 historical semantics remain frozen while schema v3 resolves the production-owned workflow_profile: baseline requires exactly CI Decision Preflight and State Gate (pull_request); browser_r3 requires exactly those three plus Frontend Playwright and Model Access; State Gate (push) remains excluded; add explicit baseline and browser_r3 regression coverage and keep unknown/invented/missing specialized workflow cases fail closed",
+      "command_id": "issue585_desktop0_v3.rematerialize_local_semantic_diff",
+      "command": "after PRE_EXECUTION_AUTHORIZED, re-materialize at file level the exact already-observed local semantic diff from v2 generated-governance head e52eeded through local-only implementation head 68a4ec4e, restricted to frontend/package.json, frontend/package-lock.json and frontend/src-tauri/**; do not cherry-pick or reuse the v2 governance/history; if those local objects are unavailable, independently reproduce the same bounded semantics from #585/#600",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -45,25 +45,77 @@
       "execution_surface": "local",
       "operations": [
         "source_edit",
-        "unit_test",
         "local_static_check",
         "commit"
       ],
       "network_access": false,
       "diagnostic_only": false,
-      "allowed_only_after_validation": false,
+      "allowed_only_after_validation": true,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
-        "tests/platform_v1/test_merge_intent.py",
-        "tests/platform_v1/test_contracts.py"
+        "frontend/package.json",
+        "frontend/package-lock.json",
+        "frontend/src-tauri/**"
       ]
     },
     {
-      "command_id": "issue345_regression_r2v1.validate_and_publish",
-      "command": "run tests/platform_v1/test_merge_intent.py tests/platform_v1/test_contracts.py tests/test_mainline_landing.py and the CI-equivalent blocking Platform V1 suite plus git diff --check; after all blocking validation passes push the exact branch and create exactly one Draft PR",
+      "command_id": "issue585_desktop0_v3.materialize_tauri_dependencies",
+      "command": "after PRE_EXECUTION_AUTHORIZED, update only frontend/package.json, frontend/package-lock.json and frontend/src-tauri Cargo manifests/lock/config needed for the current supported Tauri 2 desktop shell; use only bounded official npm/crates package registry access required to resolve the declared Tauri dependencies; do not alter unrelated dependencies",
+      "phase": "implementation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "dependency_install",
+        "source_edit",
+        "local_static_check",
+        "commit"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "frontend/package.json",
+        "frontend/package-lock.json",
+        "frontend/src-tauri/**"
+      ]
+    },
+    {
+      "command_id": "issue585_desktop0_v3.rust_toolchain_if_missing",
+      "command": "if rustc/cargo are absent after PRE_EXECUTION_AUTHORIZED, provision only a current stable official Rust toolchain needed for cargo check using bounded official Rust distribution access and a user-scoped or temporary toolchain location outside repository state; do not install unrelated system packages, do not read credentials, and do not mutate repository files as part of toolchain provisioning",
+      "phase": "implementation",
+      "required": false,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "dependency_install",
+        "local_static_check"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue585_desktop0_v3.validate_and_publish",
+      "command": "run npm --prefix frontend run typecheck, npm --prefix frontend test, npm --prefix frontend run build, npm --prefix frontend run tauri -- info, cargo check --manifest-path frontend/src-tauri/Cargo.toml, targeted static checks proving no generic WebView shell bridge, git diff --check, then rerun transition-preflight --mode pre and worktree-publication-readiness on the exact implementation head; require all blocking validation green before pushing the exact branch and creating exactly one Draft PR against locked main",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -73,8 +125,8 @@
       "execution_surface": "local",
       "operations": [
         "unit_test",
+        "lint",
         "local_static_check",
-        "commit",
         "push",
         "draft_pr",
         "network_access"
@@ -89,37 +141,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue345_regression_r2v1.post_publication_binding",
-      "command": "after the real Draft PR number is known archive the inherited PR499 schema-v3 baseline intent byte-for-byte as project_state/mainline_merge_intents/archive/pr499_v1.json and bind active.json exactly once to the new PR current Decision current Command Plan locked base and baseline workflow_profile with required_workflows exactly CI Decision Preflight and State Gate (pull_request)",
-      "phase": "post_publication_binding",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "local_static_check",
-        "commit",
-        "push",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": true,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr499_v1.json"
-      ]
-    },
-    {
-      "command_id": "issue345_regression_r2v1.exact_head_acceptance",
-      "command": "require exact-head CI Decision Preflight and State Gate (pull_request) terminal success on the bound Draft PR and independently audit that no unauthorized paths changed; keep the PR Draft and do not Ready or merge under this Decision",
+      "command_id": "issue585_desktop0_v3.exact_head_acceptance",
+      "command": "require exact-head CI, Decision Preflight and State Gate terminal success on the Draft PR; independently audit changed paths, successful Rust cargo check evidence, Tauri capability boundary, immutable Decision chronology and locked base; keep the PR Draft and do not mark-ready or merge under this Decision",
       "phase": "final_evidence",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -141,8 +164,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.4257bc4e1bd3a86eb29b93466892abba6c1242ad9abf77534b07f2a1ddf4e386",
-      "command": "verify exact main base 0feeb3f35ef164591678caba96fb46477b366f52 and fresh branch merge-base",
+      "command_id": "bootstrap.e637b696ed1e97e1ac0f61cac4b4cfab5b0651c491a4d384669b3a1ac283d22c",
+      "command": "bounded read-only clone/fetch of dddd2024/Nerelan at owner/desktop0-tauri-r2-v3 solely to execute repository-owned local gate commands",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -161,8 +184,28 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.234f8ef150ef2c4adfece3cb131177275c83ffd977f9e1a451805af4525ea5d0",
-      "command": "commit this immutable R2 Decision as the unique first commit",
+      "command_id": "bootstrap.1bcfe488323afe3f6f8df5f6ffa9e004217aa6b8e337b9bd024c0196489634b9",
+      "command": "verify exact main base af7d3ffc566a30116fecf3dc5d337e4896615a6c and fresh branch merge-base",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.1baaf1bc0cae3b0096fddea9acd719f57c2c82a3b3d503edc8c97e4ec6635a83",
+      "command": "commit this immutable R2 Decision as the unique first new commit",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -243,6 +286,26 @@
     {
       "command_id": "bootstrap.677fc095a0ccb225c87b5528ad9885b37484c464961934f364a72d07e89bdcb3",
       "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.ec3489d9c07e649d7b634f4dba2c97608dbc6d7d75d429f1f629c4b5f6a197fe",
+      "command": "python -m reverse_agent.project_gate worktree-publication-readiness --state-dir project_state",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
