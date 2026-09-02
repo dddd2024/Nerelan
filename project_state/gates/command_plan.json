@@ -1,23 +1,43 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260902_issue156_execution_surface_cutover_r2_v1",
-  "round_id": "round_20260902_issue156_execution_surface_cutover_r2_v1",
+  "decision_id": "decision_20260902_issue156_pr573_owner_landing_r2_v3",
+  "round_id": "round_20260902_issue156_pr573_owner_landing_r2_v3",
   "commands": [
     {
-      "command_id": "issue156_cutover_r2v1.implement_execution_surface_cutover",
-      "command": "after PRE_EXECUTION_AUTHORIZED implement Issue156 G2-0 through G2-2 by removing stale tracked command-plan bootstrap from transition lint adding explicit execution-surface semantics separating GitHub control-plane operations trusted checked-out worker commands CI read-only observation and machine-specific user-local execution while retaining only narrow explicit historical local compatibility and reusing TrustedCommandRunner evidence",
-      "phase": "implementation",
+      "command_id": "issue156_pr573_owner_landing_r2v3.create_validation_pr",
+      "command": "create exactly one validation-only Draft PR from owner/issue156-pr573-owner-landing-r2-v3 to locked main; the initial head is evidence-bootstrap only and may fail CI only at the four enumerated Platform V1 pre-materialization assertions while Decision Preflight and State Gate must successfully generate and validate the current deterministic landing command plan",
+      "phase": "publication",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local",
+      "execution_surface": "github_control_plane",
       "operations": [
-        "source_edit",
-        "unit_test",
-        "local_static_check",
-        "commit"
+        "draft_pr",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue156_pr573_owner_landing_r2v3.obtain_ci_generated_command_plan",
+      "command": "observe the initial validation PR repository-owned Decision Preflight or State Gate and require transition lint and transition command-plan generation on the immutable v3 Decision; obtain the uploaded project-gate-evidence artifact and use only its exact current-v3 command_plan.json bytes; never synthesize project-gate evidence",
+      "phase": "evidence_bootstrap",
+      "required": true,
+      "required_evidence_source": "ci_check_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "ci_only",
+      "operations": [
+        "ci_validation"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -26,45 +46,51 @@
       "bootstrap_exception": false,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "reverse_agent/control_plane/models.py",
-        "reverse_agent/control_plane/legacy_adapter.py",
-        "reverse_agent/control_plane/command_authority.py",
-        "reverse_agent/control_plane/evidence_recorder.py",
-        "reverse_agent/control_plane/transition.py",
-        "reverse_agent/project_gate.py",
-        ".github/workflows/decision-preflight.yml",
-        "tests/test_control_plane_transition.py",
-        "tests/test_project_gate.py",
-        "tests/test_execution_evidence.py",
-        "tests/test_trusted_command_runner.py",
-        "tests/test_decision_preflight.py",
-        "tests/test_authority_closure.py",
-        "tests/test_provenance_integration.py",
-        "tests/test_mainline_landing.py"
-      ]
+      "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue156_cutover_r2v1.validate_and_publish",
-      "command": "run focused transition command authority evidence runner decision preflight and mainline landing tests plus CI-equivalent blocking suites and git diff --check then push the exact branch and create exactly one Draft PR",
-      "phase": "publication",
+      "command_id": "issue156_pr573_owner_landing_r2v3.materialize_validation_prebinding_state",
+      "command": "after genuine CI-generated current-v3 command-plan evidence is obtained create one atomic governance commit that changes exactly project_state/gates/command_plan.json to the exact artifact bytes and project_state/mainline_merge_intents/active.json to exact locked-main 0da78df5d2c5337ffeab17e3a00651df507637f0 bytes; preserve target PR573 and its branch unchanged",
+      "phase": "validation_materialization",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local",
+      "execution_surface": "github_control_plane",
       "operations": [
-        "unit_test",
-        "local_static_check",
+        "source_edit",
         "commit",
-        "push",
-        "draft_pr",
         "network_access"
       ],
       "network_access": true,
       "diagnostic_only": false,
-      "allowed_only_after_validation": true,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/command_plan.json",
+        "project_state/mainline_merge_intents/active.json"
+      ]
+    },
+    {
+      "command_id": "issue156_pr573_owner_landing_r2v3.validate_authority",
+      "command": "on the post-materialization exact validation head require natural CI Decision Preflight and State Gate terminal success including Platform V1 blocking gate success; no workflow rerun and validation PR remains Draft and never merges",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "ci_check_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "ci_only",
+      "operations": [
+        "ci_validation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
@@ -72,20 +98,17 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue156_cutover_r2v1.post_publication_binding",
-      "command": "after the real Draft PR number is known archive locked-main PR537 schema-v3 baseline intent byte-for-byte as project_state/mainline_merge_intents/archive/pr537_v1.json and bind active.json exactly once to the new PR current immutable Decision current Command Plan locked base and baseline workflow profile with required workflows exactly CI Decision Preflight and State Gate pull_request",
-      "phase": "post_publication_binding",
+      "command_id": "issue156_pr573_owner_landing_r2v3.mark_ready",
+      "command": "after final validation-only authority checks succeed and exact readback confirms unchanged target PR573 head base target active schema-v3 intent attestation Ruleset contexts and zero unresolved threads mark PR573 Ready exactly once",
+      "phase": "landing",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local",
+      "execution_surface": "github_control_plane",
       "operations": [
-        "source_edit",
-        "local_static_check",
-        "commit",
-        "push",
+        "mark_ready",
         "network_access"
       ],
       "network_access": true,
@@ -93,17 +116,14 @@
       "allowed_only_after_validation": true,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
-      "produced_artifacts": [],
+      "produced__artifacts": [],
       "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr537_v1.json"
-      ]
+      "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue156_cutover_r2v1.exact_head_acceptance",
-      "command": "require exact-head CI Decision Preflight and State Gate pull_request terminal success on the bound Draft PR and independently audit that the cutover acceptance tests prove stale-plan bootstrap removal explicit surfaces trusted-worker routing machine-specific user-local gating and no security regression; keep the PR Draft and do not Ready or merge under this Decision",
-      "phase": "final_evidence",
+      "command_id": "issue156_pr573_owner_landing_r2v3.verify_ready",
+      "command": "observe the Ready-triggered formal landing-state-gate and State Gate on unchanged PR573 head and require all Ruleset contexts terminal success without rerun",
+      "phase": "landing_evidence",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
@@ -124,81 +144,47 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.8b36eaeb3ce665a698059342f0a478e3329fbe30d9dd5973c09b9a061f2c2091",
-      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "phase": "gate",
+      "command_id": "issue156_pr573_owner_landing_r2v3.merge",
+      "command": "after Ready-triggered landing-state-gate and required contexts are terminal success and immediate no-drift readback still matches merge PR573 exactly once using merge method merge and expected head ec63227f005551bd6cd7dcf33d2469a67d691e10",
+      "phase": "landing",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "merge",
+        "network_access"
+      ],
+      "network_access": true,
       "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.748384806c2774ade5d9fec7d422f87ac5614c30035911ccf10bab2019aede3a",
-      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
-      "phase": "gate",
+      "command_id": "issue156_pr573_owner_landing_r2v3.postmerge_verify",
+      "command": "observe PR573 merged merge commit parent topology accepted-head tree equality and natural exact-new-main CI push plus State Gate push terminal success before closing Issue156 and resuming PR555 landing",
+      "phase": "final_evidence",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.06e93636c7597d91a7cd0967908dfb4d618dcdc78d2640bf238a6300acdcf4d2",
-      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
+      "execution_surface": "remote_observation",
+      "operations": [
+        "code_read",
+        "read_only_audit"
       ],
-      "execution_surface": "local",
-      "operations": [],
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.677fc095a0ccb225c87b5528ad9885b37484c464961934f364a72d07e89bdcb3",
-      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": []
