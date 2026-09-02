@@ -1,55 +1,24 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260901_issue345_platform_v1_profile_regression_r2_v1",
-  "round_id": "round_20260901_issue345_platform_v1_profile_regression_r2_v1",
+  "decision_id": "decision_20260902_issue530_brand2b_prevalidation_r3_v31",
+  "round_id": "round_20260902_issue530_brand2b_prevalidation_r3_v31",
   "commands": [
     {
-      "command_id": "issue345_regression_r2v1.bootstrap_and_preflight",
-      "command": "verify exact locked main and fresh branch; commit this immutable R2 Decision first; run startup snapshot command-plan compiler transition lint and transition preflight and require PRE_EXECUTION_AUTHORIZED before any test mutation",
-      "phase": "bootstrap",
+      "command_id": "issue530v31.compile_plan",
+      "command": "on the prevalidation branch, use the read-only helper to generate the deterministic command plan in the runner worktree and upload it as an artifact without committing or pushing",
+      "phase": "gate",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local",
+      "execution_surface": "remote_observation",
       "operations": [
-        "code_read",
+        "workflow_edit",
         "local_static_check",
-        "commit"
+        "network_access"
       ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/bootstrap_state.json",
-        "project_state/gates/transition_command_plan_preview.json",
-        "project_state/gates/transition_preflight_result.json"
-      ],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue345_regression_r2v1.repair_platform_v1_profile_assertions",
-      "command": "after PRE_EXECUTION_AUTHORIZED repair only the stale Platform V1 schema-v3 required_workflows assertions so schema v1 and v2 historical semantics remain frozen while schema v3 resolves the production-owned workflow_profile: baseline requires exactly CI Decision Preflight and State Gate (pull_request); browser_r3 requires exactly those three plus Frontend Playwright and Model Access; State Gate (push) remains excluded; add explicit baseline and browser_r3 regression coverage and keep unknown/invented/missing specialized workflow cases fail closed",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "unit_test",
-        "local_static_check",
-        "commit"
-      ],
-      "network_access": false,
+      "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
@@ -57,26 +26,86 @@
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
-        "tests/platform_v1/test_merge_intent.py",
-        "tests/platform_v1/test_contracts.py"
+        ".github/workflows/issue530-brand2b-v31-prevalidate.yml",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json",
+        "project_state/gates/transition_preflight_result.json",
+        "project_state/gates/bootstrap_state.json",
+        "project_state/gates/startup_snapshot.json"
       ]
     },
     {
-      "command_id": "issue345_regression_r2v1.validate_and_publish",
-      "command": "run tests/platform_v1/test_merge_intent.py tests/platform_v1/test_contracts.py tests/test_mainline_landing.py and the CI-equivalent blocking Platform V1 suite plus git diff --check; after all blocking validation passes push the exact branch and create exactly one Draft PR",
+      "command_id": "issue530v31.prevalidate",
+      "command": "after exact deterministic command plan materialization, require transition-lint and transition-preflight; replay the accepted v16 product payload, apply only the three validated mainline fixture substitutions and the minimal non-inserting schema-v4 Platform contract compatibility edits; run py_compile and pytest collect-only before long suites; run landing and Platform V1 blocking suites on the pre-binding candidate; then build an isolated never-pushed schema-v4 bound-equivalent clone with a synthetic positive PR number, archive the locked-main PR537 active blob byte-for-byte, and require full landing/audit and Platform V1 blocking suites to pass under schema v4; helper must not commit or push the real checkout",
+      "phase": "implementation",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "remote_observation",
+      "operations": [
+        "workflow_edit",
+        "test_edit",
+        "unit_test",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        ".github/workflows/issue530-brand2b-v31-prevalidate.yml",
+        "AGENTS.md",
+        "README.txt",
+        "docs/supervisor/audit-instructions.md",
+        "frontend/src/components/goal-composer.tsx",
+        "frontend/src/lib/platform-client.ts",
+        "frontend/src/lib/profile-mapper.ts",
+        "frontend/tests/compact-goal-composer.test.tsx",
+        "project_state/schemas/mainline_merge_intent_v4.schema.json",
+        "project_state/schemas/merge_approval_attestation_v4.schema.json",
+        "reverse_agent/mainline_landing.py",
+        "reverse_agent/platform_v1/control_store.py",
+        "reverse_agent/platform_v1/goal_service.py",
+        "reverse_agent/platform_v1/inbox_service.py",
+        "reverse_agent/platform_v1/run_store.py",
+        "reverse_agent/platform_v1/task_service.py",
+        "scripts/supervisor_publish.py",
+        "scripts/supervisor_validate.py",
+        "tests/platform_v1/test_goal_service.py",
+        "tests/platform_v1/test_publication_controller.py",
+        "tests/platform_v1/test_run_read_model.py",
+        "tests/platform_v1/test_task_service.py",
+        "tests/platform_v1/test_unattended_coordinator.py",
+        "tests/test_mainline_landing.py",
+        "tests/test_project_gate.py",
+        "tests/platform_v1/test_contracts.py",
+        "tests/platform_v1/test_merge_intent.py",
+        "project_state/mainline_merge_intents/active.json",
+        "project_state/mainline_merge_intents/archive/pr537_v1.json",
+        "project_state/gates/bootstrap_state.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/gates/transition_command_plan_preview.json",
+        "project_state/gates/transition_preflight_result.json"
+      ]
+    },
+    {
+      "command_id": "issue530v31.publish",
+      "command": "only after prevalidation success create exactly one Draft PR from the same branch, then require natural run_attempt=1 Decision Preflight, State Gate and full CI success before product materialization",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local",
+      "execution_surface": "remote_observation",
       "operations": [
-        "unit_test",
-        "local_static_check",
-        "commit",
-        "push",
         "draft_pr",
+        "workflow_observation",
         "network_access"
       ],
       "network_access": true,
@@ -89,18 +118,94 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue345_regression_r2v1.post_publication_binding",
-      "command": "after the real Draft PR number is known archive the inherited PR499 schema-v3 baseline intent byte-for-byte as project_state/mainline_merge_intents/archive/pr499_v1.json and bind active.json exactly once to the new PR current Decision current Command Plan locked base and baseline workflow_profile with required_workflows exactly CI Decision Preflight and State Gate (pull_request)",
+      "command_id": "issue530v31.materialize_product",
+      "command": "after formal Draft PR activation success create one Owner-authored fast-forward Git-data product commit that removes the helper, preserves Decision and command plan, replays the 23 exact v16 fidelity blobs, retains only the three validated mainline fixture substitutions, and applies only the prevalidated two-file Platform schema-v4 compatibility patch; no snapshots",
+      "phase": "implementation",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "remote_observation",
+      "operations": [
+        "source_edit",
+        "commit",
+        "push",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        ".github/workflows/issue530-brand2b-v31-prevalidate.yml",
+        "AGENTS.md",
+        "README.txt",
+        "docs/supervisor/audit-instructions.md",
+        "frontend/src/components/goal-composer.tsx",
+        "frontend/src/lib/platform-client.ts",
+        "frontend/src/lib/profile-mapper.ts",
+        "frontend/tests/compact-goal-composer.test.tsx",
+        "project_state/schemas/mainline_merge_intent_v4.schema.json",
+        "project_state/schemas/merge_approval_attestation_v4.schema.json",
+        "reverse_agent/mainline_landing.py",
+        "reverse_agent/platform_v1/control_store.py",
+        "reverse_agent/platform_v1/goal_service.py",
+        "reverse_agent/platform_v1/inbox_service.py",
+        "reverse_agent/platform_v1/run_store.py",
+        "reverse_agent/platform_v1/task_service.py",
+        "scripts/supervisor_publish.py",
+        "scripts/supervisor_validate.py",
+        "tests/platform_v1/test_goal_service.py",
+        "tests/platform_v1/test_publication_controller.py",
+        "tests/platform_v1/test_run_read_model.py",
+        "tests/platform_v1/test_task_service.py",
+        "tests/platform_v1/test_unattended_coordinator.py",
+        "tests/test_mainline_landing.py",
+        "tests/test_project_gate.py",
+        "tests/platform_v1/test_contracts.py",
+        "tests/platform_v1/test_merge_intent.py"
+      ]
+    },
+    {
+      "command_id": "issue530v31.verify_prebinding",
+      "command": "require helper absent and fresh natural Owner-authored product-head Decision Preflight, State Gate and full CI success; exact product fidelity and no snapshots",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "remote_observation",
+      "operations": [
+        "code_read",
+        "repository_diff",
+        "workflow_observation",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue530v31.bind",
+      "command": "archive locked-main PR537 active intent byte-for-byte and bind active.json exactly once as schema-v4 dddd2024/Nerelan intent to the actual Draft PR and v31 Decision/plan digests",
       "phase": "post_publication_binding",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local",
+      "execution_surface": "remote_observation",
       "operations": [
-        "source_edit",
-        "local_static_check",
         "commit",
         "push",
         "network_access"
@@ -114,13 +219,36 @@
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
         "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr499_v1.json"
+        "project_state/mainline_merge_intents/archive/pr537_v1.json"
       ]
     },
     {
-      "command_id": "issue345_regression_r2v1.exact_head_acceptance",
-      "command": "require exact-head CI Decision Preflight and State Gate (pull_request) terminal success on the bound Draft PR and independently audit that no unauthorized paths changed; keep the PR Draft and do not Ready or merge under this Decision",
-      "phase": "final_evidence",
+      "command_id": "issue530v31.validate_bound",
+      "command": "require fresh natural final-bound CI, Decision Preflight, State Gate and Model Access; Playwright may fail only the exact inherited eight golden mismatches; no reruns",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "ci_check_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "remote_observation",
+      "operations": [
+        "workflow_observation",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue530v31.audit_attest_land",
+      "command": "after exact-head audit ACCEPTED publish valid schema-v4 attestation, revalidate, mark Ready once, observe any Ready checks, and merge once with merge method plus expected-head protection",
+      "phase": "landing",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
@@ -129,11 +257,15 @@
       "execution_surface": "remote_observation",
       "operations": [
         "code_read",
-        "read_only_audit"
+        "pull_request_comment",
+        "mark_ready",
+        "workflow_observation",
+        "merge",
+        "network_access"
       ],
-      "network_access": false,
+      "network_access": true,
       "diagnostic_only": false,
-      "allowed_only_after_validation": false,
+      "allowed_only_after_validation": true,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
@@ -141,8 +273,34 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.4257bc4e1bd3a86eb29b93466892abba6c1242ad9abf77534b07f2a1ddf4e386",
-      "command": "verify exact main base 0feeb3f35ef164591678caba96fb46477b366f52 and fresh branch merge-base",
+      "command_id": "issue530v31.closeout",
+      "command": "verify expected main advance and post-merge State Gate push, close Issue 530, update parent 262, close PR539 if still open, and record evidence",
+      "phase": "closeout",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "remote_observation",
+      "operations": [
+        "workflow_observation",
+        "issue_comment",
+        "issue_close",
+        "pull_request_update",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.0c2931f1479032d696ffa2eb43c43f2c67bc8c36fbd734dd157fc7d81b2e75cd",
+      "command": "verify current main remains exactly 0da78df5d2c5337ffeab17e3a00651df507637f0 and repository id remains 1210115070",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -161,8 +319,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.234f8ef150ef2c4adfece3cb131177275c83ffd977f9e1a451805af4525ea5d0",
-      "command": "commit this immutable R2 Decision as the unique first commit",
+      "command_id": "bootstrap.f365312b6efa62ed6fea6ab29734de1d08fb7ae7ef235e61a4a276865e152721",
+      "command": "commit this immutable BRAND-2B v31 Decision as the unique first commit",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -181,8 +339,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.8b36eaeb3ce665a698059342f0a478e3329fbe30d9dd5973c09b9a061f2c2091",
-      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+      "command_id": "bootstrap.31045a4f75c6da34e9060f369a8cf4cfa2dcf725b4f7d9dd02bccc1758920a8f",
+      "command": "install the branch-scoped v31 prevalidation helper after the Decision commit",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -203,6 +361,26 @@
     {
       "command_id": "bootstrap.748384806c2774ade5d9fec7d422f87ac5614c30035911ccf10bab2019aede3a",
       "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.eb7e8b21faabae0ea6fbadfc00e0f96722e5357b45a8f961eecfc8e33f973fe3",
+      "command": "materialize the helper-generated deterministic v31 command_plan.json as the only generated-governance commit",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
