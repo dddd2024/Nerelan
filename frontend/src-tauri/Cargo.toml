@@ -1,0 +1,23 @@
+[package]
+name = "nerelan-desktop"
+version = "0.1.0"
+description = "Nerelan desktop shell — Tauri 2 native startup bridge over the existing reverse-agent runtime"
+authors = ["Nerelan"]
+license = "MIT"
+repository = "https://github.com/dddd2024/reverse-agent"
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "nerelan_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3" }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tauri = { version = "2.11.3" }
