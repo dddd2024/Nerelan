@@ -99,7 +99,7 @@ The audit result MUST match this closed schema. Unknown fields at any level
 ```json
 {
   "schema_version": "0.2",
-  "repository": "dddd2024/reverse-agent",
+  "repository": "dddd2024/Nerelan",
   "audited_main_sha": "<full 40-hex-char SHA>",
   "status": "continue | revise | stop",
   "findings": [
