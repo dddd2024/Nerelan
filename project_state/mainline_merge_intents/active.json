@@ -1,15 +1,15 @@
 {
   "schema_version": 3,
-  "intent_id": "pr537_issue345_platform_v1_profile_regression_r2_v1",
+  "intent_id": "pr587_issue156_control_plane_correction_r2_v3",
   "repository": "dddd2024/reverse-agent",
-  "source_pr": 537,
-  "locked_base_sha": "0feeb3f35ef164591678caba96fb46477b366f52",
+  "source_pr": 587,
+  "locked_base_sha": "af7d3ffc566a30116fecf3dc5d337e4896615a6c",
   "allowed_merge_method": "merge",
   "decision_identity": {
-    "decision_id": "decision_20260901_issue345_platform_v1_profile_regression_r2_v1",
-    "decision_content_sha256": "f34b182e6e183adfe3b1b27152dc391a1e3a0ff87c8dcacfe8d62d9a9e8d86aa"
+    "decision_id": "decision_20260902_issue156_control_plane_correction_r2_v3",
+    "decision_content_sha256": "900c9685e5ddf4cc2ab6f783c668f5e9c9db6d043ac3b0b807a0d5759f5c97ce"
   },
-  "command_plan_sha256": "574f18d248e057e188bbe862b858cf5009dba9f155236d2c911e5a8d56c4e1ec",
+  "command_plan_sha256": "af5418819d7f05a04c042477a209c9b6542261b3e11ed41ead4ea41975f8b8ac",
   "merge_tree_policy": "equal_to_accepted_head_tree",
   "workflow_profile": "baseline",
   "required_workflows": [
@@ -17,5 +17,5 @@
     "Decision Preflight",
     "State Gate (pull_request)"
   ],
-  "expires_at": "2026-09-08T23:59:59Z"
+  "expires_at": "2026-09-09T23:59:59Z"
 }
