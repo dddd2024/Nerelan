@@ -146,3 +146,98 @@ def test_decision_preflight_uses_event_aware_mode_and_explicit_path_a_delegation
     assert "transition-preflight" not in path_a_step
     assert "path-a-r1-gate" not in path_a_step
     assert "github.event.pull_request.number" not in workflow
+
+
+def _write_routing_decision(
+    state_dir: Path,
+    *,
+    branch: str = "owner/decision-bound-r2",
+    decision_id: str = "decision_routing",
+    round_id: str = "round_routing",
+) -> Path:
+    state_dir.mkdir(parents=True, exist_ok=True)
+    path = state_dir / "decision_packet.md"
+    path.write_text(
+        "```json decision_meta\n"
+        + json.dumps(
+            {
+                "decision_id": decision_id,
+                "round_id": round_id,
+                "status": "APPROVED",
+                "mainline": "engineering_branch",
+                "skill_profiles": ["reverse-agent-iteration@v2"],
+            }
+        )
+        + "\n```\n\n```json decision_contract\n"
+        + json.dumps(
+            {
+                "transition_kernel_required": True,
+                "required_branch": branch,
+                "activation_base_sha": "a" * 40,
+                "bootstrap_exception_files": [],
+                "bootstrap_exception_commands": [],
+            }
+        )
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _pr_event(branch: str, *, pr_number: int | None = None) -> dict:
+    event = {"pull_request": {"head": {"ref": branch}}}
+    if pr_number is not None:
+        event["pull_request"]["number"] = pr_number
+    return event
+
+
+def test_shared_pr_routing_ordinary_r1_pr_chooses_path_a(tmp_path: Path) -> None:
+    """Section 6: an ordinary R1 PR plus an unrelated active Decision must route
+    State Gate AND Decision Preflight to Path A (path_a_r1)."""
+
+    from reverse_agent.control_plane.legacy_adapter import detect_control_plane_mode
+
+    decision = _write_routing_decision(tmp_path / "project_state", branch="owner/decision-bound-r2")
+    event = _pr_event("codex/ordinary-r1")
+    assert detect_control_plane_mode(decision, event=event) == "path_a_r1"
+
+
+def test_shared_pr_routing_decision_bound_branch_chooses_transition(tmp_path: Path) -> None:
+    """Section 6: a Decision-bound R2/R3 branch must route State Gate AND
+    Decision Preflight to transition."""
+
+    from reverse_agent.control_plane.legacy_adapter import detect_control_plane_mode
+
+    decision = _write_routing_decision(tmp_path / "project_state", branch="owner/decision-bound-r2")
+    event = _pr_event("owner/decision-bound-r2")
+    assert detect_control_plane_mode(decision, event=event) == "transition"
+
+
+def test_shared_pr_routing_has_no_pr_number_specific_exceptions(tmp_path: Path) -> None:
+    """Section 6: mode selection must never depend on the PR number."""
+
+    from reverse_agent.control_plane.legacy_adapter import detect_control_plane_mode
+
+    decision = _write_routing_decision(tmp_path / "project_state", branch="owner/decision-bound-r2")
+    for pr_number in (1, 49, 151, 555, 9999):
+        assert detect_control_plane_mode(
+            decision,
+            event=_pr_event("codex/ordinary-r1", pr_number=pr_number),
+        ) == "path_a_r1"
+        assert detect_control_plane_mode(
+            decision,
+            event=_pr_event("owner/decision-bound-r2", pr_number=pr_number),
+        ) == "transition"
+
+
+def test_shared_pr_routing_both_workflows_use_same_event_aware_contract() -> None:
+    """Section 6: State Gate and Decision Preflight must use the same
+    event-aware control-plane-mode selection contract (PR event context, not
+    repository-state-only inspection). The Detect control-plane mode block must
+    never branch on a PR number."""
+
+    for name in ("state-gate.yml", "decision-preflight.yml"):
+        workflow = (REPO_ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
+        assert 'control-plane-mode --state-dir project_state --event-path "$GITHUB_EVENT_PATH"' in workflow
+        detect_block = workflow.split("Detect control-plane mode", 1)[1].split("      - name:", 1)[0]
+        assert "github.event.pull_request.number" not in detect_block

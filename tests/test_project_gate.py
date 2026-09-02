@@ -1,5 +1,6 @@
 import json
 import hashlib
+import os
 import shutil
 import subprocess
 from copy import deepcopy
@@ -32769,6 +32770,107 @@ class TestLiveDecisionImmutability:
         result = project_gate_module.worktree_publication_readiness(state_dir=state, repo_root=repo)
         assert result["gate_status"] == "BLOCKED"
         assert "decision_worktree_or_index_dirty" in result["blocking_reasons"]
+
+    def test_synthetic_merge_ref_is_not_product_head_for_chronology(self, tmp_path: Path) -> None:
+        """F regression: a GitHub synthetic merge ref (refs/pull/<n>/merge) must
+        never be treated as the Decision chronology product HEAD.
+
+        GitHub creates refs/pull/<n>/merge by merging the PR product head into
+        the CURRENT base tip, which normally has ADVANCED past the PR's
+        starting_head with commits that are NOT in the PR history.  When the
+        exact PR product head is checked out (as the pinned workflows do), the
+        Decision-first chronology validates cleanly; when the synthetic merge
+        ref is checked out instead, the advanced base tip precedes the Decision
+        commit and the chronology fails closed (the false block this round
+        removes).
+        """
+        repo = tmp_path / "synth-repo"
+        repo.mkdir(parents=True)
+        _decision_test_git(repo, "init", "-q", "-b", "main")
+        _decision_test_git(repo, "config", "user.email", "tests@example.invalid")
+        _decision_test_git(repo, "config", "user.name", "tests")
+
+        def commit_with_date(message: str, date: int) -> str:
+            iso = f"2026-01-01T00:00:{date:02d}Z"
+            subprocess.run(
+                ["git", "commit", "-qm", message],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+                env={**os.environ, "GIT_AUTHOR_DATE": iso, "GIT_COMMITTER_DATE": iso},
+            )
+            return _decision_test_git(repo, "rev-parse", "HEAD")
+
+        (repo / "base.txt").write_text("base\n", encoding="utf-8")
+        _decision_test_git(repo, "add", "base.txt")
+        commit_with_date("base", 1)
+        base = _decision_test_git(repo, "rev-parse", "HEAD")
+
+        # Advance main with a commit that is NOT part of the PR history.
+        (repo / "main_advance.txt").write_text("advance\n", encoding="utf-8")
+        _decision_test_git(repo, "add", "main_advance.txt")
+        commit_with_date("main advance", 2)
+        advanced_base = _decision_test_git(repo, "rev-parse", "HEAD")
+
+        # Build the PR branch from the locked starting_head with a Decision-first
+        # history: Decision activation, then implementation.
+        _decision_test_git(repo, "checkout", "-q", "-b", "pr", base)
+        (repo / "project_state").mkdir(parents=True, exist_ok=True)
+        (repo / "project_state" / "decision_packet.md").write_text("decision\n", encoding="utf-8")
+        _decision_test_git(repo, "add", "project_state/decision_packet.md")
+        commit_with_date("Decision activation", 3)
+        activation = _decision_test_git(repo, "rev-parse", "HEAD")
+        (repo / "implementation.py").write_text("implementation\n", encoding="utf-8")
+        _decision_test_git(repo, "add", "implementation.py")
+        commit_with_date("implementation", 4)
+        product_head = _decision_test_git(repo, "rev-parse", "HEAD")
+
+        # Simulate GitHub's synthetic merge ref: merge the PR product head into
+        # the advanced base (first parent = advanced base tip).
+        _decision_test_git(repo, "checkout", "-q", "main")
+        _decision_test_git(repo, "merge", "-q", "--no-ff", "-m", "Merge PR", product_head)
+        synthetic_head = _decision_test_git(repo, "rev-parse", "HEAD")
+        assert synthetic_head != product_head
+
+        # Check out the exact product head (the pinned checkout the workflows
+        # must use) and verify the chronology validates cleanly.
+        _decision_test_git(repo, "checkout", "-q", product_head)
+        result = project_gate_module._decision_content_immutability_check(repo, _decision_contract(base))
+        assert result["passed"] is True, result["blocking_reasons"]
+        assert result["head"] == product_head
+        assert result["decision_commit"] == activation
+        assert "decision_commit_not_before_implementation" not in result["blocking_reasons"]
+
+        # The synthetic merge ref itself must never be used as the product HEAD.
+        # If it were checked out, the advanced base tip precedes the Decision
+        # commit and the chronology fails closed (this is the false block that
+        # the exact-product-head checkout fixes).
+        _decision_test_git(repo, "checkout", "-q", synthetic_head)
+        result = project_gate_module._decision_content_immutability_check(repo, _decision_contract(base))
+        assert result["passed"] is False
+        assert result["head"] == synthetic_head
+        assert "decision_commit_not_before_implementation" in result["blocking_reasons"]
+
+    def test_exact_head_mismatch_still_fails_closed(self, tmp_path: Path) -> None:
+        """F regression: an exact-head mismatch (HEAD is not the Decision-first
+        product head) still fails closed; the checkout fix does not weaken the
+        expected-head protection."""
+        repo, base, _ = _decision_history(tmp_path)
+        # HEAD is a divergent head where implementation precedes the Decision
+        # commit, i.e. the chronology is NOT Decision-first.  This is the
+        # exact-head-mismatch case that must keep failing closed.
+        _decision_test_git(repo, "checkout", "-qb", "wrong-head", base)
+        (repo / "implementation.py").write_text("implementation\n", encoding="utf-8")
+        _decision_test_git(repo, "add", "implementation.py")
+        _decision_test_git(repo, "commit", "-qm", "implementation")
+        (repo / "project_state").mkdir(parents=True, exist_ok=True)
+        (repo / "project_state" / "decision_packet.md").write_text("late\n", encoding="utf-8")
+        _decision_test_git(repo, "add", "project_state/decision_packet.md")
+        _decision_test_git(repo, "commit", "-qm", "late Decision")
+        result = project_gate_module._decision_content_immutability_check(repo, _decision_contract(base))
+        assert result["passed"] is False
+        assert "decision_commit_not_before_implementation" in result["blocking_reasons"]
 
 
 # ---------------------------------------------------------------------------
