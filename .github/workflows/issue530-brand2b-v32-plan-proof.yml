@@ -35,8 +35,6 @@ jobs:
           expected = 'abc3f255c606e58cbedb337666e663bae25b5b6c0464db7b51ca641b1c53f01e'
           assert got == expected, (got, expected)
           PY
-      - name: Transition lint
-        run: python -m reverse_agent.project_gate transition-lint --state-dir project_state
       - name: Generate deterministic v32 command plan
         run: |
           set -euo pipefail
@@ -56,6 +54,10 @@ jobs:
               f'git_blob_sha={git_sha}\nsha256={sha256}\n', encoding='utf-8'
           )
           PY
+      - name: Transition lint on generated plan
+        run: python -m reverse_agent.project_gate transition-lint --state-dir project_state
+      - name: Transition preflight on generated plan
+        run: python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre
       - name: Verify committed plan when sealed
         run: |
           set -euo pipefail
@@ -82,15 +84,6 @@ jobs:
             echo 'committed plan differs from generated plan; initial materialization required'
             printf 'unsealed\n' > /tmp/committed-plan-manifest.txt
           fi
-      - name: Transition preflight
-        run: python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre
-      - name: Restore tracked worktree and prove no helper commit/push
-        if: always()
-        run: |
-          git reset --hard HEAD
-          git clean -fd
-          test -z "$(git status --porcelain)"
-          echo "helper did not commit or push"
       - name: Upload generated command plan
         uses: actions/upload-artifact@v4
         with:
@@ -107,3 +100,10 @@ jobs:
             /tmp/committed-plan-manifest.txt
           if-no-files-found: error
           retention-days: 7
+      - name: Restore tracked worktree and prove no helper commit/push
+        if: always()
+        run: |
+          git reset --hard HEAD
+          git clean -fd
+          test -z "$(git status --porcelain)"
+          echo "helper did not commit or push"
