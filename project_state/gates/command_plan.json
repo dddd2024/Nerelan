@@ -1,87 +1,20 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260901_issue345_platform_v1_profile_regression_r2_v1",
-  "round_id": "round_20260901_issue345_platform_v1_profile_regression_r2_v1",
+  "decision_id": "decision_20260902_issue156_control_plane_correction_r2_v4",
+  "round_id": "round_20260902_issue156_control_plane_correction_r2_v4",
   "commands": [
     {
-      "command_id": "issue345_regression_r2v1.bootstrap_and_preflight",
-      "command": "verify exact locked main and fresh branch; commit this immutable R2 Decision first; run startup snapshot command-plan compiler transition lint and transition preflight and require PRE_EXECUTION_AUTHORIZED before any test mutation",
-      "phase": "bootstrap",
+      "command_id": "issue156_correction_r2v4.bootstrap_publish",
+      "command": "create exactly one Draft PR from owner/issue156-control-plane-correction-r2-v4 to locked current main 34e70267b03f78690742351b99dd93845c87a189 after the immutable Decision, deterministic Command Plan, and bootstrap-only Decision Preflight exact-head checkout correction are committed; use the PR only to obtain genuine repository-owned exact-head pre-execution validation before replaying PR587 or applying either P1 fix",
+      "phase": "bootstrap_publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "code_read",
-        "local_static_check",
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/bootstrap_state.json",
-        "project_state/gates/transition_command_plan_preview.json",
-        "project_state/gates/transition_preflight_result.json"
-      ],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue345_regression_r2v1.repair_platform_v1_profile_assertions",
-      "command": "after PRE_EXECUTION_AUTHORIZED repair only the stale Platform V1 schema-v3 required_workflows assertions so schema v1 and v2 historical semantics remain frozen while schema v3 resolves the production-owned workflow_profile: baseline requires exactly CI Decision Preflight and State Gate (pull_request); browser_r3 requires exactly those three plus Frontend Playwright and Model Access; State Gate (push) remains excluded; add explicit baseline and browser_r3 regression coverage and keep unknown/invented/missing specialized workflow cases fail closed",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "unit_test",
-        "local_static_check",
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "tests/platform_v1/test_merge_intent.py",
-        "tests/platform_v1/test_contracts.py"
-      ]
-    },
-    {
-      "command_id": "issue345_regression_r2v1.validate_and_publish",
-      "command": "run tests/platform_v1/test_merge_intent.py tests/platform_v1/test_contracts.py tests/test_mainline_landing.py and the CI-equivalent blocking Platform V1 suite plus git diff --check; after all blocking validation passes push the exact branch and create exactly one Draft PR",
-      "phase": "publication",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "unit_test",
-        "local_static_check",
-        "commit",
-        "push",
-        "draft_pr",
-        "network_access"
-      ],
+      "operations": ["commit", "push", "draft_pr", "network_access"],
       "network_access": true,
       "diagnostic_only": false,
-      "allowed_only_after_validation": true,
+      "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
@@ -89,48 +22,50 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue345_regression_r2v1.post_publication_binding",
-      "command": "after the real Draft PR number is known archive the inherited PR499 schema-v3 baseline intent byte-for-byte as project_state/mainline_merge_intents/archive/pr499_v1.json and bind active.json exactly once to the new PR current Decision current Command Plan locked base and baseline workflow_profile with required_workflows exactly CI Decision Preflight and State Gate (pull_request)",
+      "command_id": "issue156_correction_r2v4.post_publication_binding",
+      "command": "after the real Draft PR number is known and bootstrap exact-head transition preflight succeeds, archive inherited PR537 schema-v3 active intent byte-for-byte as project_state/mainline_merge_intents/archive/pr537_before_issue156_v4.json and bind active.json exactly once to that exact PR, current immutable Decision, current deterministic Command Plan, locked current main 34e70267b03f78690742351b99dd93845c87a189, baseline workflow profile, and required workflows CI Decision Preflight and State Gate pull_request",
       "phase": "post_publication_binding",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "local_static_check",
-        "commit",
-        "push",
-        "network_access"
-      ],
+      "operations": ["source_edit", "local_static_check", "commit", "push", "network_access"],
       "network_access": true,
       "diagnostic_only": false,
-      "allowed_only_after_validation": true,
+      "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr499_v1.json"
-      ]
+      "allowed_mutated_paths": ["project_state/mainline_merge_intents/active.json", "project_state/mainline_merge_intents/archive/pr537_before_issue156_v4.json"]
     },
     {
-      "command_id": "issue345_regression_r2v1.exact_head_acceptance",
-      "command": "require exact-head CI Decision Preflight and State Gate (pull_request) terminal success on the bound Draft PR and independently audit that no unauthorized paths changed; keep the PR Draft and do not Ready or merge under this Decision",
-      "phase": "final_evidence",
+      "command_id": "issue156_correction_r2v4.replay_and_fix",
+      "command": "only after bootstrap exact-head transition preflight succeeds, semantically replay the accepted PR587 control-plane correction onto the fresh base and fix both unresolved P1 findings: enforce reference/read-only path disjointness inside the shared transition authority loader against both top-level writable scope and command-level writable grants including produced artifacts; and require post-execution required-command evidence to match stable command_id plus exact execution_surface so an execution on another subprocess surface cannot satisfy coverage; preserve the PR587 exact-head Decision Preflight checkout, explicit execution-surface cutover, stale-plan bootstrap removal, TrustedCommandRunner restrictions, and prior security invariants; add focused fail-closed regression tests",
+      "phase": "implementation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["source_edit", "unit_test", "local_static_check", "commit"],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": ["reverse_agent/control_plane/models.py", "reverse_agent/control_plane/legacy_adapter.py", "reverse_agent/control_plane/command_authority.py", "reverse_agent/control_plane/evidence_recorder.py", "reverse_agent/control_plane/transition.py", "reverse_agent/project_gate.py", ".github/workflows/decision-preflight.yml", "tests/test_control_plane_transition.py", "tests/test_project_gate.py", "tests/test_execution_evidence.py", "tests/test_trusted_command_runner.py", "tests/test_decision_preflight.py", "tests/test_authority_closure.py", "tests/test_provenance_integration.py"]
+    },
+    {
+      "command_id": "issue156_correction_r2v4.validate",
+      "command": "require natural exact-head CI Decision Preflight and State Gate pull_request success on the final bound implementation head without workflow rerun; inspect focused transition, authority, evidence, runner, mainline-landing and Platform V1 blocking coverage",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [0],
       "execution_surface": "remote_observation",
-      "operations": [
-        "code_read",
-        "read_only_audit"
-      ],
+      "operations": ["code_read", "read_only_audit"],
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
@@ -141,14 +76,30 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.4257bc4e1bd3a86eb29b93466892abba6c1242ad9abf77534b07f2a1ddf4e386",
-      "command": "verify exact main base 0feeb3f35ef164591678caba96fb46477b366f52 and fresh branch merge-base",
+      "command_id": "issue156_correction_r2v4.exact_head_acceptance",
+      "command": "independently audit the exact final head and require both P1 review findings to be substantively fixed with regression coverage, PR587 accepted semantics preserved, no unauthorized frontend or dependency mutation, active intent exact-PR bound, and zero unresolved review threads on the replacement PR; keep the PR Draft and do not Ready or merge under this engineering Decision",
+      "phase": "final_evidence",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [0],
+      "execution_surface": "remote_observation",
+      "operations": ["code_read", "read_only_audit"],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.04d89a059fe2ef5a6ba7ebf48f7f28477268f4e30591b755ce2bb9ea06b22c0a",
+      "command": "verify exact main base 34e70267b03f78690742351b99dd93845c87a189, semantic source PR587 head 0832364cbba9f91e5a16c1b11f6710d50ffafb7e, and review findings 3913157282 3913157289 before mutation",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": [],
       "network_access": false,
@@ -166,9 +117,7 @@
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": [],
       "network_access": false,
@@ -186,9 +135,7 @@
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": [],
       "network_access": false,
@@ -206,9 +153,7 @@
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": [],
       "network_access": false,
@@ -226,9 +171,7 @@
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": [],
       "network_access": false,
@@ -246,9 +189,7 @@
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": [],
       "network_access": false,
