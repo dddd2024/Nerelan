@@ -23,6 +23,65 @@ natural-language goal
 
 Repository-owned capability remains a thin trust layer: risk and authority classification, bounded path/operation policy, autonomous-window budgets, durable claims/idempotency, evidence confinement, exact-path Draft publication, and deterministic acceptance. Spec Kit, LangGraph, OpenCode, OpenHands Agent Canvas, and GitHub provide the mature planning, orchestration, execution, presentation, and repository surfaces.
 
+## Capability-aware critical-path scheduling
+
+**Priority and execution capability are separate axes.** Product and milestone priority determines what matters most; the execution surfaces currently available determine which ready slice of that priority can be executed now.
+
+A missing user-local shell or runtime is therefore not a project-level blocker while useful work on the active critical path remains executable through GitHub, CI, remote observation, or a trusted worker. GitHub-native implementation, review, CI, static verification, documentation, and repository-state work are real development when they advance the current milestone.
+
+The permanent scheduling loop is:
+
+```text
+1. choose the highest-priority active milestone;
+2. enumerate its remaining implementation, verification, and validation slices;
+3. classify each slice by the execution surface it actually requires;
+4. execute the highest-value slice that is runnable on the surfaces currently available;
+5. keep unavailable slices explicitly BLOCKED_BY_CAPABILITY, not BLOCKED_PROJECT;
+6. do not jump to unrelated lower-priority feature work merely because one
+   higher-priority runtime-validation slice is temporarily unavailable;
+7. use remote/CI-capable work to prepare implementation, fixtures, telemetry,
+   evidence, and deterministic checks so later runtime windows are spent on
+   real validation rather than avoidable setup;
+8. when trusted-worker or user-local capacity appears, consume the
+   highest-priority accumulated runtime-validation backlog first.
+```
+
+Scheduling classes align with the execution-surface model owned by #156:
+
+```text
+GitHub / remote-preparable
+  code changes, Issue/PR work, review, static analysis, CI, deterministic tests,
+  documentation, governance, and other repository-native work.
+
+trusted_worker / ci_only
+  real checkout, build, test, headless browser E2E, provider/model execution,
+  restart/recovery exercises, and other runtime evidence that can execute away
+  from the user's workstation.
+
+user_local
+  genuinely machine-specific validation only: Windows-only local state,
+  desktop/local UX, hardware, local applications, or credentials/sessions that
+  cannot safely or technically execute elsewhere.
+```
+
+`github_control_plane`, `trusted_worker`, `ci_only`, `remote_observation`, and `user_local` remain distinct execution surfaces under #156. This roadmap section does not redefine their authority or permit an unavailable surface to be silently substituted with a broader one.
+
+The scheduling distinction is:
+
+```text
+BLOCKED_BY_CAPABILITY
+  the slice cannot run on any execution surface currently available;
+  the milestone remains active and other runnable critical-path slices continue.
+
+BLOCKED_PROJECT
+  no useful authorized slice of the active milestone can progress on any
+  currently available surface, or an actual project-level dependency blocks it.
+```
+
+When real-provider dogfood or another top-priority validation requires a temporarily unavailable runtime, development should continue on remote-preparable prerequisites and blockers for that same milestone. Once an appropriate trusted-worker or user-local window becomes available, runtime validation takes precedence over ordinary lower-priority remote work.
+
+This is a scheduling rule, not execution authority. Every selected slice still follows the applicable Path A or Path B authority, risk, publication, and exact-head verification rules below.
+
 ## Two authority paths
 
 ### Path A — ordinary R0/R1
