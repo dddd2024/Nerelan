@@ -35,7 +35,7 @@ def _runtime_with_one_task(tmp_path, *, task_executor=None):
             "owner_identity": "owner",
             "starts_at": (now - timedelta(seconds=2)).isoformat(),
             "expires_at": (now + timedelta(hours=1)).isoformat(),
-            "repositories": ["dddd2024/reverse-agent"],
+            "repositories": ["dddd2024/Nerelan"],
             "capabilities": ["execute_task"],
             "max_concurrent_tasks": 1,
             "max_tasks": 2,
