@@ -1,0 +1,311 @@
+name: BRAND-2B v31 prevalidate final tree
+
+on:
+  push:
+    branches:
+      - owner/issue530-brand2b-prevalidation-r3-v31
+
+permissions:
+  contents: read
+
+jobs:
+  prevalidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Verify immutable v31 Decision and determine phase
+        id: phase
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "owner/issue530-brand2b-prevalidation-r3-v31"
+          git fetch origin main owner/issue530-brand2b-validation-r3-v16
+          test "$(git rev-parse origin/main)" = "0da78df5d2c5337ffeab17e3a00651df507637f0"
+          git cat-file -e 4847d6fd441c0c359eb25ea5b8acc9389a057d96^{commit}
+          git merge-base --is-ancestor 8e00110583bb7f17f79ef3d8baa110bef6c5429d HEAD
+          git diff --exit-code 8e00110583bb7f17f79ef3d8baa110bef6c5429d HEAD -- project_state/decision_packet.md
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          wanted = "decision_20260902_issue530_brand2b_prevalidation_r3_v31"
+          try:
+              plan = json.loads(Path("project_state/gates/command_plan.json").read_text(encoding="utf-8"))
+          except Exception:
+              plan = {}
+          print(f"needs_plan={'false' if plan.get('decision_id') == wanted else 'true'}")
+          PY
+
+      - name: Compile deterministic command plan in runner only
+        if: steps.phase.outputs.needs_plan == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m reverse_agent.project_gate transition-command-plan --state-dir project_state
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          plan = json.loads(Path("project_state/gates/command_plan.json").read_text(encoding="utf-8"))
+          assert plan["decision_id"] == "decision_20260902_issue530_brand2b_prevalidation_r3_v31"
+          assert plan["round_id"] == "round_20260902_issue530_brand2b_prevalidation_r3_v31"
+          print("deterministic v31 command plan compiled")
+          PY
+
+      - name: Upload deterministic command plan
+        if: steps.phase.outputs.needs_plan == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: v31-deterministic-command-plan
+          path: project_state/gates/command_plan.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Verify committed deterministic authority
+        if: steps.phase.outputs.needs_plan == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m reverse_agent.project_gate transition-lint --state-dir project_state
+          python -m reverse_agent.project_gate transition-command-plan --state-dir project_state
+          git diff --exit-code -- project_state/gates/command_plan.json
+          python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+          allowed = {
+              "project_state/gates/bootstrap_state.json",
+              "project_state/gates/startup_snapshot.json",
+              "project_state/gates/transition_command_plan_preview.json",
+              "project_state/gates/transition_preflight_result.json",
+          }
+          def status():
+              return subprocess.check_output(
+                  ["git","status","--porcelain=v1","--untracked-files=all","--","project_state/gates"],
+                  text=True,
+              )
+          dirty = set()
+          for line in status().splitlines():
+              assert len(line) >= 4, line
+              path = line[3:]
+              assert " -> " not in path, line
+              dirty.add(path)
+          assert not (dirty - allowed), sorted(dirty - allowed)
+          for path in sorted(dirty):
+              tracked = subprocess.run(
+                  ["git","ls-files","--error-unmatch","--",path],
+                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+              ).returncode == 0
+              if tracked:
+                  subprocess.check_call(["git","restore","--source=HEAD","--staged","--worktree","--",path])
+              else:
+                  Path(path).unlink(missing_ok=True)
+          assert not status().strip(), status()
+          PY
+          git diff --exit-code 8e00110583bb7f17f79ef3d8baa110bef6c5429d HEAD -- project_state/decision_packet.md
+
+      - name: Replay accepted candidate and apply minimal schema-v4 contract closure
+        if: steps.phase.outputs.needs_plan == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC=4847d6fd441c0c359eb25ea5b8acc9389a057d96
+          paths=(
+            project_state/schemas/mainline_merge_intent_v4.schema.json
+            project_state/schemas/merge_approval_attestation_v4.schema.json
+            reverse_agent/mainline_landing.py
+            reverse_agent/platform_v1/goal_service.py
+            reverse_agent/platform_v1/inbox_service.py
+            frontend/src/components/goal-composer.tsx
+            frontend/src/lib/profile-mapper.ts
+            README.txt
+            reverse_agent/platform_v1/run_store.py
+            reverse_agent/platform_v1/control_store.py
+            reverse_agent/platform_v1/task_service.py
+            frontend/src/lib/platform-client.ts
+            AGENTS.md
+            docs/supervisor/audit-instructions.md
+            scripts/supervisor_validate.py
+            scripts/supervisor_publish.py
+            tests/test_project_gate.py
+            tests/test_mainline_landing.py
+            frontend/tests/compact-goal-composer.test.tsx
+            tests/platform_v1/test_publication_controller.py
+            tests/platform_v1/test_unattended_coordinator.py
+            tests/platform_v1/test_run_read_model.py
+            tests/platform_v1/test_goal_service.py
+            tests/platform_v1/test_task_service.py
+          )
+          test "${#paths[@]}" -eq 24
+          git restore --source="$SRC" --worktree --staged -- "${paths[@]}"
+          git restore --source=origin/main --worktree --staged -- tests/platform_v1/test_contracts.py tests/platform_v1/test_merge_intent.py
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          src = "4847d6fd441c0c359eb25ea5b8acc9389a057d96"
+          rel = "tests/test_mainline_landing.py"
+          source = subprocess.check_output(["git","show",f"{src}:{rel}"])
+          start = source.index(b"def test_production_pre_merge_simulation")
+          end = source.index(b"\ndef test_state_gate_permissions_are_read_only_and_complete", start)
+          block = source[start:end].decode("utf-8")
+          assert block.count('"repository": "dddd2024/reverse-agent"') == 2
+          block = block.replace('"repository": "dddd2024/reverse-agent"', '"repository": intent[\'repository\']')
+          assert block.count("if intent_schema_version in {2, 3}:") == 1
+          block = block.replace("if intent_schema_version in {2, 3}:", "if intent_schema_version in {2, 3, 4}:")
+          Path(rel).write_bytes(source[:start] + block.encode("utf-8") + source[end:])
+          numstat = subprocess.check_output(["git","diff","--numstat",src,"--",rel], text=True).strip()
+          assert numstat == "3\t3\ttests/test_mainline_landing.py", numstat
+
+          rel = "tests/platform_v1/test_contracts.py"
+          p = Path(rel)
+          s = p.read_text(encoding="utf-8")
+          assert s.count("SUPPORTED_ACTIVE_SCHEMA_VERSIONS = (1, 2, 3)") == 1
+          s = s.replace("SUPPORTED_ACTIVE_SCHEMA_VERSIONS = (1, 2, 3)", "SUPPORTED_ACTIVE_SCHEMA_VERSIONS = (1, 2, 3, 4)")
+          needle = 'if schema_version == 3:\n        return list(resolve_premerge_workflow_profile(active["workflow_profile"]))'
+          assert s.count(needle) == 1
+          s = s.replace(needle, 'if schema_version in {3, 4}:\n        return list(resolve_premerge_workflow_profile(active["workflow_profile"]))')
+          assert s.count('assert self._active["schema_version"] == 3') == 5
+          s = s.replace('assert self._active["schema_version"] == 3', 'assert self._active["schema_version"] == 4')
+          assert s.count('for schema_version in (4, 5, "3", None, False):') == 1
+          s = s.replace('for schema_version in (4, 5, "3", None, False):', 'for schema_version in (5, "3", None, False):', 1)
+          p.write_text(s, encoding="utf-8")
+
+          rel = "tests/platform_v1/test_merge_intent.py"
+          p = Path(rel)
+          s = p.read_text(encoding="utf-8")
+          needle = 'if schema_version == 3:\n        return list(resolve_premerge_workflow_profile(intent["workflow_profile"]))'
+          assert s.count(needle) == 1
+          s = s.replace(needle, 'if schema_version in {3, 4}:\n        return list(resolve_premerge_workflow_profile(intent["workflow_profile"]))')
+          assert s.count('assert data["schema_version"] in {1, 2, 3}') == 2
+          s = s.replace('assert data["schema_version"] in {1, 2, 3}', 'assert data["schema_version"] in {1, 2, 3, 4}')
+          assert s.count('for schema_version in (4, 5, "3", None, False):') == 1
+          s = s.replace('for schema_version in (4, 5, "3", None, False):', 'for schema_version in (5, "3", None, False):', 1)
+          p.write_text(s, encoding="utf-8")
+          PY
+          git add "${paths[@]}" tests/platform_v1/test_contracts.py tests/platform_v1/test_merge_intent.py
+
+      - name: Prove candidate fidelity and syntax before long tests
+        if: steps.phase.outputs.needs_plan == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC=4847d6fd441c0c359eb25ea5b8acc9389a057d96
+          other_paths=(
+            project_state/schemas/mainline_merge_intent_v4.schema.json
+            project_state/schemas/merge_approval_attestation_v4.schema.json
+            reverse_agent/mainline_landing.py
+            reverse_agent/platform_v1/goal_service.py
+            reverse_agent/platform_v1/inbox_service.py
+            frontend/src/components/goal-composer.tsx
+            frontend/src/lib/profile-mapper.ts
+            README.txt
+            reverse_agent/platform_v1/run_store.py
+            reverse_agent/platform_v1/control_store.py
+            reverse_agent/platform_v1/task_service.py
+            frontend/src/lib/platform-client.ts
+            AGENTS.md
+            docs/supervisor/audit-instructions.md
+            scripts/supervisor_validate.py
+            scripts/supervisor_publish.py
+            tests/test_project_gate.py
+            frontend/tests/compact-goal-composer.test.tsx
+            tests/platform_v1/test_publication_controller.py
+            tests/platform_v1/test_unattended_coordinator.py
+            tests/platform_v1/test_run_read_model.py
+            tests/platform_v1/test_goal_service.py
+            tests/platform_v1/test_task_service.py
+          )
+          test "${#other_paths[@]}" -eq 23
+          for p in "${other_paths[@]}"; do git diff --exit-code "$SRC" -- "$p"; done
+          git diff --check
+          test -z "$(git diff --name-only origin/main -- frontend/e2e/snapshots frontend/tests/e2e)"
+          python -m py_compile tests/test_mainline_landing.py tests/platform_v1/test_contracts.py tests/platform_v1/test_merge_intent.py
+          python -m pytest tests/platform_v1/test_contracts.py tests/platform_v1/test_merge_intent.py --collect-only -q
+
+      - name: Install test dependencies
+        if: steps.phase.outputs.needs_plan == 'false'
+        run: python -m pip install -e '.[test]'
+
+      - name: Run pre-binding blocking suites
+        if: steps.phase.outputs.needs_plan == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest tests/test_project_gate.py -q
+          python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q
+          python -m pytest tests/platform_v1 -q \
+            --deselect=tests/platform_v1/test_task3c_v6_production_relay.py::TestCombinedTrustedHostInstalledOpenCodeE2E::test_real_task_api_opencode_relay_fake_provider_end_to_end \
+            --deselect=tests/platform_v1/test_task3c_v4_repairs.py::TestInstalledOpenCodeFakeProviderSmoke::test_installed_opencode_fake_provider_end_to_end \
+            --deselect=tests/platform_v1/test_task3c_v5_opencode_probe.py::TestDirectFakeProviderControl::test_opencode_direct_fake_provider \
+            --deselect=tests/platform_v1/test_task3c_v5_opencode_probe.py::TestRelayFakeProviderRun::test_opencode_relay_fake_provider
+
+      - name: Prove schema-v4 bound-equivalent final tree in isolated clone
+        if: steps.phase.outputs.needs_plan == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "$TMP"' EXIT
+          git diff --binary HEAD > "$TMP/candidate.patch"
+          git clone --no-hardlinks . "$TMP/simulation"
+          cd "$TMP/simulation"
+          git config user.email "v31-prevalidation@example.com"
+          git config user.name "V31 Prevalidation"
+          git apply --index "$TMP/candidate.patch"
+          mkdir -p project_state/mainline_merge_intents/archive
+          git show origin/main:project_state/mainline_merge_intents/active.json > project_state/mainline_merge_intents/archive/pr537_v1.json
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          decision = Path("project_state/decision_packet.md").read_bytes()
+          plan = Path("project_state/gates/command_plan.json").read_bytes()
+          synthetic_pr = 999999
+          intent = {
+              "schema_version": 4,
+              "intent_id": f"pr{synthetic_pr}_issue530_brand2b_prevalidation_r3_v31",
+              "repository": "dddd2024/Nerelan",
+              "source_pr": synthetic_pr,
+              "locked_base_sha": "0da78df5d2c5337ffeab17e3a00651df507637f0",
+              "allowed_merge_method": "merge",
+              "decision_identity": {
+                  "decision_id": "decision_20260902_issue530_brand2b_prevalidation_r3_v31",
+                  "decision_content_sha256": hashlib.sha256(decision).hexdigest(),
+              },
+              "command_plan_sha256": hashlib.sha256(plan).hexdigest(),
+              "merge_tree_policy": "equal_to_accepted_head_tree",
+              "workflow_profile": "baseline",
+              "required_workflows": ["CI", "Decision Preflight", "State Gate (pull_request)"],
+              "expires_at": "2026-09-09T23:59:59Z",
+          }
+          Path("project_state/mainline_merge_intents/active.json").write_text(
+              json.dumps(intent, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
+          git add project_state/mainline_merge_intents/active.json project_state/mainline_merge_intents/archive/pr537_v1.json
+          python -m py_compile tests/test_mainline_landing.py tests/platform_v1/test_contracts.py tests/platform_v1/test_merge_intent.py
+          python -m pytest tests/platform_v1/test_contracts.py tests/platform_v1/test_merge_intent.py --collect-only -q
+          git commit -m "v31 isolated schema-v4 bound-equivalent validation"
+          python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q
+          python -m pytest tests/platform_v1 -q \
+            --deselect=tests/platform_v1/test_task3c_v6_production_relay.py::TestCombinedTrustedHostInstalledOpenCodeE2E::test_real_task_api_opencode_relay_fake_provider_end_to_end \
+            --deselect=tests/platform_v1/test_task3c_v4_repairs.py::TestInstalledOpenCodeFakeProviderSmoke::test_installed_opencode_fake_provider_end_to_end \
+            --deselect=tests/platform_v1/test_task3c_v5_opencode_probe.py::TestDirectFakeProviderControl::test_opencode_direct_fake_provider \
+            --deselect=tests/platform_v1/test_task3c_v5_opencode_probe.py::TestRelayFakeProviderRun::test_opencode_relay_fake_provider
+
+      - name: Prove helper did not commit or push real checkout
+        if: steps.phase.outputs.needs_plan == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "v31 prevalidation completed without real-checkout commit or push"
