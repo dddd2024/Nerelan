@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260901_issue345_platform_v1_profile_regression_r2_v1",
-  "round_id": "round_20260901_issue345_platform_v1_profile_regression_r2_v1",
+  "decision_id": "decision_20260902_issue585_desktop0_tauri_r2_v3",
+  "round_id": "round_20260902_issue585_desktop0_tauri_r2_v3",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,19 +14,17 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260901_issue444_auth_completion_r3_v5",
-  "follows_last_round_id": "round_20260901_issue444_auth_completion_r3_v5",
-  "previous_audit_outcome": "R3_V12_FAIL_CLOSED_EXACT_HEAD_CI_PLATFORM_V1_STALE_SCHEMA_V3_PROFILE_ASSERTIONS",
-  "workstream_id": "issue345-platform-v1-profile-regression-r2-v1",
-  "source_issue": 345,
-  "parent_issue": 343,
-  "trigger_issue": 492,
-  "trigger_pr": 533,
+  "follows_last_decision_id": "decision_20260901_issue345_platform_v1_profile_regression_r2_v1",
+  "follows_last_round_id": "round_20260901_issue345_platform_v1_profile_regression_r2_v1",
+  "previous_audit_outcome": "R2_V2_PREAUTHORIZED_AND_IMPLEMENTED_LOCALLY_THEN_FAIL_CLOSED_BECAUSE_FRONTEND_PACKAGE_JSON_WAS_SIMULTANEOUSLY_MUTABLE_AND_REFERENCE_READ_ONLY",
+  "workstream_id": "issue585-desktop0-tauri-native-startup-bridge-r2-v3",
+  "source_issue": 600,
+  "parent_issue": 585,
   "integration_base_ref": "main",
-  "base_sha": "0feeb3f35ef164591678caba96fb46477b366f52",
-  "activation_base_sha": "0feeb3f35ef164591678caba96fb46477b366f52",
-  "starting_head": "0feeb3f35ef164591678caba96fb46477b366f52",
-  "required_branch": "owner/issue345-platform-v1-profile-regression-r2-v1",
+  "base_sha": "af7d3ffc566a30116fecf3dc5d337e4896615a6c",
+  "activation_base_sha": "af7d3ffc566a30116fecf3dc5d337e4896615a6c",
+  "starting_head": "af7d3ffc566a30116fecf3dc5d337e4896615a6c",
+  "required_branch": "owner/desktop0-tauri-r2-v3",
   "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
   "risk_tier": "R2",
@@ -41,7 +39,7 @@
   "decision_activation_commit_limit": 1,
   "product_change_commit_limit": 2,
   "generated_governance_commit_limit": 1,
-  "post_publication_binding_commit_limit": 1,
+  "post_publication_binding_commit_limit": 0,
   "normal_push_attempt_limit": 4,
   "draft_pr_creation_limit": 1,
   "workflow_rerun_limit": 0,
@@ -62,20 +60,15 @@
   "auto_merge_allowed": false,
   "force_push_allowed": false,
   "rebase_during_execution_allowed": false,
-  "dependency_install_allowed": false,
+  "dependency_install_allowed": true,
   "known_browser_execution_allowed": false,
   "live_provider_access_allowed": false,
   "credential_access_allowed": false,
   "allowed_merge_method": "merge",
-  "mainline_merge_intent_required": true,
-  "active_pr_binding_mode": "post_draft_pr_exact_remote_number",
-  "issue_number_must_not_substitute_for_pr_number": true,
-  "test_semantics_changes_allowed": true,
-  "source_test_mutation_authorized": true,
-  "source_test_authorized_paths": [
-    "tests/platform_v1/test_merge_intent.py",
-    "tests/platform_v1/test_contracts.py"
-  ],
+  "mainline_merge_intent_required": false,
+  "active_pr_binding_mode": "draft_pr_body_only",
+  "test_semantics_changes_allowed": false,
+  "source_test_mutation_authorized": false,
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
@@ -85,23 +78,25 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "bootstrap_exception_commands": [
-    "verify exact main base 0feeb3f35ef164591678caba96fb46477b366f52 and fresh branch merge-base",
-    "commit this immutable R2 Decision as the unique first commit",
+    "bounded read-only clone/fetch of dddd2024/Nerelan at owner/desktop0-tauri-r2-v3 solely to execute repository-owned local gate commands",
+    "verify exact main base af7d3ffc566a30116fecf3dc5d337e4896615a6c and fresh branch merge-base",
+    "commit this immutable R2 Decision as the unique first new commit",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
-    "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre"
+    "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
+    "python -m reverse_agent.project_gate worktree-publication-readiness --state-dir project_state"
   ],
   "allowed_commands": [
     {
-      "command_id": "issue345_regression_r2v1.bootstrap_and_preflight",
-      "command": "verify exact locked main and fresh branch; commit this immutable R2 Decision first; run startup snapshot command-plan compiler transition lint and transition preflight and require PRE_EXECUTION_AUTHORIZED before any test mutation",
+      "command_id": "issue585_desktop0_v3.bootstrap_and_preflight",
+      "command": "perform only a bounded read-only clone/fetch of dddd2024/Nerelan at the exact R2 v3 branch into an isolated local worktree; verify exact locked main and fresh branch; run startup snapshot, transition command-plan compiler, transition lint, transition preflight, and publication-readiness checks; require PRE_EXECUTION_AUTHORIZED before dependency or product mutation",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["code_read", "local_static_check", "commit"],
-      "network_access": false,
+      "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "produced_artifacts": [
         "project_state/gates/command_plan.json",
@@ -112,51 +107,58 @@
       ]
     },
     {
-      "command_id": "issue345_regression_r2v1.repair_platform_v1_profile_assertions",
-      "command": "after PRE_EXECUTION_AUTHORIZED repair only the stale Platform V1 schema-v3 required_workflows assertions so schema v1 and v2 historical semantics remain frozen while schema v3 resolves the production-owned workflow_profile: baseline requires exactly CI Decision Preflight and State Gate (pull_request); browser_r3 requires exactly those three plus Frontend Playwright and Model Access; State Gate (push) remains excluded; add explicit baseline and browser_r3 regression coverage and keep unknown/invented/missing specialized workflow cases fail closed",
+      "command_id": "issue585_desktop0_v3.rematerialize_local_semantic_diff",
+      "command": "after PRE_EXECUTION_AUTHORIZED, re-materialize at file level the exact already-observed local semantic diff from v2 generated-governance head e52eeded through local-only implementation head 68a4ec4e, restricted to frontend/package.json, frontend/package-lock.json and frontend/src-tauri/**; do not cherry-pick or reuse the v2 governance/history; if those local objects are unavailable, independently reproduce the same bounded semantics from #585/#600",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["source_edit", "unit_test", "local_static_check", "commit"],
+      "operations": ["source_edit", "local_static_check", "commit"],
       "network_access": false,
       "required_evidence_source": "local_command_evidence",
-      "allowed_mutated_paths": [
-        "tests/platform_v1/test_merge_intent.py",
-        "tests/platform_v1/test_contracts.py"
-      ]
+      "allowed_mutated_paths": ["frontend/package.json", "frontend/package-lock.json", "frontend/src-tauri/**"],
+      "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue345_regression_r2v1.validate_and_publish",
-      "command": "run tests/platform_v1/test_merge_intent.py tests/platform_v1/test_contracts.py tests/test_mainline_landing.py and the CI-equivalent blocking Platform V1 suite plus git diff --check; after all blocking validation passes push the exact branch and create exactly one Draft PR",
+      "command_id": "issue585_desktop0_v3.materialize_tauri_dependencies",
+      "command": "after PRE_EXECUTION_AUTHORIZED, update only frontend/package.json, frontend/package-lock.json and frontend/src-tauri Cargo manifests/lock/config needed for the current supported Tauri 2 desktop shell; use only bounded official npm/crates package registry access required to resolve the declared Tauri dependencies; do not alter unrelated dependencies",
+      "phase": "implementation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["dependency_install", "source_edit", "local_static_check", "commit"],
+      "network_access": true,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": ["frontend/package.json", "frontend/package-lock.json", "frontend/src-tauri/**"],
+      "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue585_desktop0_v3.rust_toolchain_if_missing",
+      "command": "if rustc/cargo are absent after PRE_EXECUTION_AUTHORIZED, provision only a current stable official Rust toolchain needed for cargo check using bounded official Rust distribution access and a user-scoped or temporary toolchain location outside repository state; do not install unrelated system packages, do not read credentials, and do not mutate repository files as part of toolchain provisioning",
+      "phase": "implementation",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["dependency_install", "local_static_check"],
+      "network_access": true,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue585_desktop0_v3.validate_and_publish",
+      "command": "run npm --prefix frontend run typecheck, npm --prefix frontend test, npm --prefix frontend run build, npm --prefix frontend run tauri -- info, cargo check --manifest-path frontend/src-tauri/Cargo.toml, targeted static checks proving no generic WebView shell bridge, git diff --check, then rerun transition-preflight --mode pre and worktree-publication-readiness on the exact implementation head; require all blocking validation green before pushing the exact branch and creating exactly one Draft PR against locked main",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["unit_test", "local_static_check", "commit", "push", "draft_pr", "network_access"],
+      "operations": ["unit_test", "lint", "local_static_check", "push", "draft_pr", "network_access"],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue345_regression_r2v1.post_publication_binding",
-      "command": "after the real Draft PR number is known archive the inherited PR499 schema-v3 baseline intent byte-for-byte as project_state/mainline_merge_intents/archive/pr499_v1.json and bind active.json exactly once to the new PR current Decision current Command Plan locked base and baseline workflow_profile with required_workflows exactly CI Decision Preflight and State Gate (pull_request)",
-      "phase": "post_publication_binding",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["source_edit", "local_static_check", "commit", "push", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr499_v1.json"
-      ],
-      "allowed_only_after_validation": true
-    },
-    {
-      "command_id": "issue345_regression_r2v1.exact_head_acceptance",
-      "command": "require exact-head CI Decision Preflight and State Gate (pull_request) terminal success on the bound Draft PR and independently audit that no unauthorized paths changed; keep the PR Draft and do not Ready or merge under this Decision",
+      "command_id": "issue585_desktop0_v3.exact_head_acceptance",
+      "command": "require exact-head CI, Decision Preflight and State Gate terminal success on the Draft PR; independently audit changed paths, successful Rust cargo check evidence, Tauri capability boundary, immutable Decision chronology and locked base; keep the PR Draft and do not mark-ready or merge under this Decision",
       "phase": "final_evidence",
       "required": true,
       "expected_exit_codes": [0],
@@ -166,6 +168,11 @@
       "required_evidence_source": "repository_state_attestation"
     }
   ],
+  "allowed_source_paths": [
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/src-tauri/**"
+  ],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
@@ -173,22 +180,23 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr499_v1.json",
-    "tests/platform_v1/test_merge_intent.py",
-    "tests/platform_v1/test_contracts.py"
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/src-tauri/**"
   ],
   "reference_paths": [
     "AGENTS.md",
-    "reverse_agent/mainline_landing.py",
-    "tests/test_mainline_landing.py",
-    "project_state/schemas/mainline_merge_intent_v3.schema.json"
+    "dev-up.ps1",
+    "dev-down.ps1",
+    "frontend/vite.config.ts",
+    "docs/roadmap/REPOSITORY_MODERNIZATION_V2_PLAN.md"
   ],
   "reference_only_paths": [
     "AGENTS.md",
-    "reverse_agent/mainline_landing.py",
-    "tests/test_mainline_landing.py",
-    "project_state/schemas/mainline_merge_intent_v3.schema.json"
+    "dev-up.ps1",
+    "dev-down.ps1",
+    "frontend/vite.config.ts",
+    "docs/roadmap/REPOSITORY_MODERNIZATION_V2_PLAN.md"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -199,29 +207,61 @@
   ],
   "forbidden_mutated_paths": [
     "AGENTS.md",
-    "docs/**",
     ".github/**",
     ".codex-skills/**",
-    "frontend/**",
+    "reverse_agent/**",
+    "tests/**",
+    "dev-up.ps1",
+    "dev-down.ps1",
+    "launch_nerelan.bat",
+    "launch_reverse_agent.bat",
+    "frontend/src/**",
+    "frontend/e2e/**",
+    "frontend/tests/**",
+    "frontend/playwright.config.ts",
+    "frontend/vite.config.ts",
     "requirements*.txt",
     "pyproject.toml",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/control_plane/**",
-    "reverse_agent/platform_v1/**",
-    "project_state/schemas/**",
-    "project_state/current_state.json",
-    "project_state/state_manifest.json",
-    "project_state/artifact_index.json",
-    "README.md",
-    "README.txt",
-    "**/STOP",
-    "**/owner_handoffs/**"
+    "project_state/mainline_merge_intents/**",
+    "docs/**",
+    "README.md"
   ],
   "forbidden_operations": [
-    "direct_push_main", "auto_merge", "merge", "mark_ready", "force_push", "rebase", "squash", "reset", "clean", "stash", "restore", "amend", "history_rewrite",
-    "unknown_binary_execution", "secrets", "destructive_delete", "privileged_remote_execution", "model_api_invocation", "provider_network_call", "credential_access", "auth_store_read",
-    "runner_dispatch", "workflow_rerun", "tag_or_release", "deployment", "dependency_install", "browser_execution", "snapshot_update", "arbitrary_remote_browsing", "external_url_navigation",
-    "second_decision_commit", "modify_production_workflow_profile_mapping", "modify_schema_v3", "weaken_baseline_three_workflow_requirement", "allow_free_form_workflow_names", "make_state_gate_push_pre_merge"
+    "direct_push_main",
+    "auto_merge",
+    "merge",
+    "mark_ready",
+    "force_push",
+    "rebase",
+    "squash",
+    "reset",
+    "clean",
+    "stash",
+    "restore",
+    "amend",
+    "history_rewrite",
+    "unknown_binary_execution",
+    "secrets",
+    "destructive_delete",
+    "privileged_remote_execution",
+    "model_api_invocation",
+    "provider_network_call",
+    "credential_access",
+    "auth_store_read",
+    "runner_dispatch",
+    "workflow_rerun",
+    "tag_or_release",
+    "deployment",
+    "browser_execution",
+    "arbitrary_remote_browsing",
+    "external_url_navigation",
+    "modify_dev_up",
+    "modify_dev_down",
+    "arbitrary_webview_shell_bridge",
+    "public_installer_release",
+    "code_signing",
+    "auto_update",
+    "modify_transition_gate_for_issue585"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -238,44 +278,29 @@
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [
-      "push the exact validated branch and create exactly one Draft PR",
-      "push the single post-publication merge-intent binding commit"
+      "bounded read-only clone/fetch of dddd2024/Nerelan at owner/desktop0-tauri-r2-v3 solely for repository-owned bootstrap/preflight execution",
+      "bounded official npm/crates package registry access required to resolve the declared Tauri dependencies after PRE_EXECUTION_AUTHORIZED",
+      "bounded official Rust distribution access to provision a stable rustc/cargo toolchain outside repository state when absent",
+      "push the exact validated branch and create exactly one Draft PR"
     ],
     "ci_network_exceptions": []
   },
   "path_risk_floor": [
-    {"pattern": "project_state/mainline_merge_intents/**", "minimum_risk": "R2"},
     {"pattern": "project_state/gates/**", "minimum_risk": "R2"},
-    {"pattern": "tests/platform_v1/**", "minimum_risk": "R2"},
+    {"pattern": "frontend/package.json", "minimum_risk": "R2"},
+    {"pattern": "frontend/package-lock.json", "minimum_risk": "R2"},
+    {"pattern": "frontend/src-tauri/**", "minimum_risk": "R2"},
     {"pattern": "**/secrets/**", "minimum_risk": "R3"}
   ],
   "authorized_risk_paths": [
-    "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr499_v1.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "tests/platform_v1/test_merge_intent.py",
-    "tests/platform_v1/test_contracts.py"
-  ],
-  "mainline_merge_intent_scope": {
-    "schema_version": 3,
-    "inherits_active_intent_id": "pr499_issue444_auth_completion_r3_v5",
-    "archive_inherited_active_path": "project_state/mainline_merge_intents/archive/pr499_v1.json",
-    "active_path": "project_state/mainline_merge_intents/active.json",
-    "workflow_profile": "baseline",
-    "required_workflow_names": ["CI", "Decision Preflight", "State Gate (pull_request)"],
-    "merge_tree_policy": "equal_to_accepted_head_tree",
-    "allowed_merge_method": "merge"
-  },
-  "merge_intent_validation": {
-    "schema_version": 3,
-    "workflow_profile": "baseline",
-    "required_workflow_names": ["CI", "Decision Preflight", "State Gate (pull_request)"],
-    "state_gate_push_premerge": false,
-    "expected_workflows": ["CI", "Decision Preflight", "State Gate (pull_request)"]
-  }
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/src-tauri/**"
+  ]
 }
 ```
