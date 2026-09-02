@@ -1,26 +1,29 @@
 # Decision Packet
 
 ```json decision_meta
-{"schema_version":1,"decision_id":"decision_20260902_issue156_execution_surface_cutover_r2_v1","round_id":"round_20260902_issue156_execution_surface_cutover_r2_v1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
+{"schema_version":1,"decision_id":"decision_20260902_issue156_execution_surface_cutover_r2_v2","round_id":"round_20260902_issue156_execution_surface_cutover_r2_v2","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260901_issue345_platform_v1_profile_regression_r2_v1",
-  "follows_last_round_id": "round_20260901_issue345_platform_v1_profile_regression_r2_v1",
-  "previous_audit_outcome": "PR559_FAIL_CLOSED_ACTIVE_PR_BINDING_MODE_CONTRACT_AND_USER_LOCAL_BOOTSTRAP_DEBT_CANONICALIZED_IN_ISSUE156",
-  "workstream_id": "issue156-execution-surface-cutover-r2-v1",
+  "follows_last_decision_id": "decision_20260902_issue156_execution_surface_cutover_r2_v1",
+  "follows_last_round_id": "round_20260902_issue156_execution_surface_cutover_r2_v1",
+  "previous_audit_outcome": "PR583_FAIL_CLOSED_DECISION_PREFLIGHT_SYNTHETIC_MERGE_CHECKOUT_PLUS_MAIN_DRIFT_AF7D3FFC",
+  "workstream_id": "issue156-execution-surface-cutover-r2-v2",
   "source_issue": 156,
+  "supersedes_pr": 573,
   "trigger_issue": 492,
   "trigger_pr": 555,
   "integration_base_ref": "main",
-  "base_sha": "0da78df5d2c5337ffeab17e3a00651df507637f0",
-  "activation_base_sha": "0da78df5d2c5337ffeab17e3a00651df507637f0",
-  "starting_head": "0da78df5d2c5337ffeab17e3a00651df507637f0",
-  "required_branch": "owner/issue156-execution-surface-cutover-r2-v1",
-  "fresh_worktree_creation_required": true,
-  "history_reuse_allowed": false,
+  "base_sha": "af7d3ffc566a30116fecf3dc5d337e4896615a6c",
+  "activation_base_sha": "ec63227f005551bd6cd7dcf33d2469a67d691e10",
+  "starting_head": "ec63227f005551bd6cd7dcf33d2469a67d691e10",
+  "required_integration_main_sha": "af7d3ffc566a30116fecf3dc5d337e4896615a6c",
+  "required_branch": "owner/issue156-execution-surface-cutover-r2-v2",
+  "reanchor_mode": "two_parent_merge_current_main_after_decision",
+  "main_reanchor_merge_allowed": true,
+  "main_reanchor_overlap_paths": [],
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "authorized_risk_tier": "R2",
@@ -29,7 +32,7 @@
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
   "decision_immutability_required": true,
-  "decision_immutability_check_required_in": ["transition_preflight", "transition_reconcile", "worktree_publication_readiness"],
+  "decision_immutability_check_required_in": ["transition_preflight","transition_reconcile","worktree_publication_readiness"],
   "decision_activation_commit_limit": 1,
   "product_change_commit_limit": 2,
   "generated_governance_commit_limit": 1,
@@ -64,87 +67,94 @@
   "issue_number_must_not_substitute_for_pr_number": true,
   "test_semantics_changes_allowed": true,
   "source_test_mutation_authorized": true,
-  "legacy_local_surface_migration_round": true,
-  "cutover_target_surfaces": ["github_control_plane", "trusted_worker", "ci_only", "remote_observation", "user_local"],
-  "bootstrap_exception_files": [
-    "project_state/decision_packet.md",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
-  ],
-  "bootstrap_exception_commands": [
-    "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-    "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
-    "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
-    "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre"
-  ],
+  "execution_surface_cutover_required": true,
+  "user_local_execution_allowed": false,
+  "bootstrap_exception_files": ["project_state/decision_packet.md"],
+  "bootstrap_exception_commands": [],
   "allowed_commands": [
     {
-      "command_id": "issue156_cutover_r2v1.implement_execution_surface_cutover",
-      "command": "after PRE_EXECUTION_AUTHORIZED implement Issue156 G2-0 through G2-2 by removing stale tracked command-plan bootstrap from transition lint adding explicit execution-surface semantics separating GitHub control-plane operations trusted checked-out worker commands CI read-only observation and machine-specific user-local execution while retaining only narrow explicit historical local compatibility and reusing TrustedCommandRunner evidence",
-      "phase": "implementation",
+      "command_id": "issue156_cutover_r2v2.publish_decision_only_draft",
+      "command": "publish exactly one Draft PR for the immutable v2 Decision so repository-owned transition lint command-plan and preflight establish current authority before any new mutation; intermediate CI may be non-authoritative until final binding",
+      "phase": "authority_bootstrap",
       "required": true,
       "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["source_edit", "unit_test", "local_static_check", "commit"],
+      "execution_surface": "github_control_plane",
+      "operations": ["draft_pr","network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "issue156_cutover_r2v2.observe_pre_execution_authority",
+      "command": "observe the Decision-only Draft PR and require Decision Preflight plus State Gate transition lint command-plan and preflight success; obtain genuine current-v2 command-plan evidence from repository-owned artifacts; no workflow rerun",
+      "phase": "authority_evidence",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "ci_only",
+      "operations": ["ci_validation"],
       "network_access": false,
-      "required_evidence_source": "local_command_evidence",
+      "required_evidence_source": "ci_check_attestation"
+    },
+    {
+      "command_id": "issue156_cutover_r2v2.reanchor_current_main",
+      "command": "after pre-execution authority succeeds create exactly one two-parent reanchor commit whose first parent is the Decision head and second parent is main af7d3ffc566a30116fecf3dc5d337e4896615a6c; import only the five non-overlapping Issue386 mainline paths byte-for-byte from that main and preserve all accepted Issue156 paths",
+      "phase": "reanchor",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "github_control_plane",
+      "operations": ["source_edit","commit","network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "reverse_agent/control_plane/models.py",
-        "reverse_agent/control_plane/legacy_adapter.py",
-        "reverse_agent/control_plane/command_authority.py",
-        "reverse_agent/control_plane/evidence_recorder.py",
-        "reverse_agent/control_plane/transition.py",
-        "reverse_agent/project_gate.py",
-        ".github/workflows/decision-preflight.yml",
-        "tests/test_control_plane_transition.py",
-        "tests/test_project_gate.py",
-        "tests/test_execution_evidence.py",
-        "tests/test_trusted_command_runner.py",
-        "tests/test_decision_preflight.py",
-        "tests/test_authority_closure.py",
-        "tests/test_provenance_integration.py",
-        "tests/test_mainline_landing.py"
+        "reverse_agent/platform_v1/task_runtime.py",
+        "tests/platform_v1/test_durable_execution.py",
+        "tests/platform_v1/test_task_runtime.py",
+        "tests/platform_v1/test_task_service.py",
+        "tests/platform_v1/test_unattended_coordinator.py"
       ]
     },
     {
-      "command_id": "issue156_cutover_r2v1.validate_and_publish",
-      "command": "run focused transition command authority evidence runner decision preflight and mainline landing tests plus CI-equivalent blocking suites and git diff --check then push the exact branch and create exactly one Draft PR",
-      "phase": "publication",
+      "command_id": "issue156_cutover_r2v2.repair_decision_preflight_exact_head_checkout",
+      "command": "after reanchor change only Decision Preflight checkout semantics and its regression test so pull_request validation checks out github.event.pull_request.head.sha with fetch-depth zero and persist-credentials false exactly like State Gate; retain event-aware routing and add a test proving both workflows validate the exact PR head rather than GitHub synthetic merge refs",
+      "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["unit_test", "local_static_check", "commit", "push", "draft_pr", "network_access"],
+      "execution_surface": "github_control_plane",
+      "operations": ["source_edit","commit","network_access"],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
-      "allowed_only_after_validation": true
+      "allowed_mutated_paths": [".github/workflows/decision-preflight.yml","tests/test_decision_preflight.py"]
     },
     {
-      "command_id": "issue156_cutover_r2v1.post_publication_binding",
-      "command": "after the real Draft PR number is known archive locked-main PR537 schema-v3 baseline intent byte-for-byte as project_state/mainline_merge_intents/archive/pr537_v1.json and bind active.json exactly once to the new PR current immutable Decision current Command Plan locked base and baseline workflow profile with required workflows exactly CI Decision Preflight and State Gate pull_request",
+      "command_id": "issue156_cutover_r2v2.bind_mainline_intent",
+      "command": "after the real Draft PR number is known materialize the exact genuine current-v2 command_plan.json evidence and bind active.json to that PR current immutable Decision locked base af7d3ffc566a30116fecf3dc5d337e4896615a6c and baseline workflow profile while preserving the inherited PR537 intent in archive/pr537_v1.json",
       "phase": "post_publication_binding",
       "required": true,
       "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["source_edit", "local_static_check", "commit", "push", "network_access"],
+      "execution_surface": "github_control_plane",
+      "operations": ["source_edit","commit","network_access"],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr537_v1.json"
-      ],
-      "allowed_only_after_validation": true
+      "allowed_mutated_paths": ["project_state/gates/command_plan.json","project_state/mainline_merge_intents/active.json","project_state/mainline_merge_intents/archive/pr537_v1.json"]
     },
     {
-      "command_id": "issue156_cutover_r2v1.exact_head_acceptance",
-      "command": "require exact-head CI Decision Preflight and State Gate pull_request terminal success on the bound Draft PR and independently audit that the cutover acceptance tests prove stale-plan bootstrap removal explicit surfaces trusted-worker routing machine-specific user-local gating and no security regression; keep the PR Draft and do not Ready or merge under this Decision",
+      "command_id": "issue156_cutover_r2v2.final_validation",
+      "command": "on the final bound exact head require natural CI Decision Preflight and State Gate terminal success including focused exact-head checkout regression Platform V1 blocking gate and zero unresolved review threads; no rerun",
       "phase": "final_evidence",
       "required": true,
       "expected_exit_codes": [0],
+      "execution_surface": "ci_only",
+      "operations": ["ci_validation"],
+      "network_access": false,
+      "required_evidence_source": "ci_check_attestation"
+    },
+    {
+      "command_id": "issue156_cutover_r2v2.exact_head_acceptance",
+      "command": "independently audit final exact-head evidence and keep the PR Draft; Ready and Merge require a separate Owner landing authority",
+      "phase": "acceptance",
+      "required": true,
+      "expected_exit_codes": [0],
       "execution_surface": "remote_observation",
-      "operations": ["code_read", "read_only_audit"],
+      "operations": ["code_read","read_only_audit"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation"
     }
@@ -152,72 +162,23 @@
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
     "project_state/mainline_merge_intents/active.json",
     "project_state/mainline_merge_intents/archive/pr537_v1.json",
-    "reverse_agent/control_plane/models.py",
-    "reverse_agent/control_plane/legacy_adapter.py",
-    "reverse_agent/control_plane/command_authority.py",
-    "reverse_agent/control_plane/evidence_recorder.py",
-    "reverse_agent/control_plane/transition.py",
-    "reverse_agent/project_gate.py",
     ".github/workflows/decision-preflight.yml",
-    "tests/test_control_plane_transition.py",
-    "tests/test_project_gate.py",
-    "tests/test_execution_evidence.py",
-    "tests/test_trusted_command_runner.py",
     "tests/test_decision_preflight.py",
-    "tests/test_authority_closure.py",
-    "tests/test_provenance_integration.py",
-    "tests/test_mainline_landing.py"
+    "reverse_agent/platform_v1/task_runtime.py",
+    "tests/platform_v1/test_durable_execution.py",
+    "tests/platform_v1/test_task_runtime.py",
+    "tests/platform_v1/test_task_service.py",
+    "tests/platform_v1/test_unattended_coordinator.py"
   ],
-  "reference_paths": [
-    "AGENTS.md",
-    ".github/workflows/state-gate.yml",
-    ".github/workflows/ci.yml",
-    "reverse_agent/mainline_landing.py",
-    "project_state/schemas/mainline_merge_intent_v3.schema.json"
-  ],
-  "reference_only_paths": [
-    "AGENTS.md",
-    ".github/workflows/state-gate.yml",
-    ".github/workflows/ci.yml",
-    "reverse_agent/mainline_landing.py",
-    "project_state/schemas/mainline_merge_intent_v3.schema.json"
-  ],
-  "generated_artifact_paths": [
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
-  ],
-  "forbidden_mutated_paths": [
-    "AGENTS.md",
-    "docs/**",
-    "frontend/**",
-    "requirements*.txt",
-    "pyproject.toml",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/platform_v1/**",
-    "project_state/schemas/**",
-    "project_state/current_state.json",
-    "project_state/state_manifest.json",
-    "project_state/artifact_index.json",
-    "README.md",
-    "README.txt",
-    "**/STOP",
-    "**/owner_handoffs/**"
-  ],
-  "forbidden_operations": [
-    "direct_push_main", "auto_merge", "merge", "mark_ready", "force_push", "rebase", "squash", "reset", "clean", "stash", "restore", "amend", "history_rewrite",
-    "unknown_binary_execution", "secrets", "destructive_delete", "privileged_remote_execution", "model_api_invocation", "provider_network_call", "credential_access", "auth_store_read",
-    "runner_dispatch", "workflow_rerun", "tag_or_release", "deployment", "dependency_install", "browser_execution", "snapshot_update", "arbitrary_remote_browsing", "external_url_navigation",
-    "second_decision_commit", "weaken_decision_immutability", "weaken_expected_head_protection", "weaken_required_checks", "implicit_user_local_fallback", "second_command_runner"
-  ],
+  "reference_paths": ["AGENTS.md",".github/workflows/state-gate.yml",".github/workflows/ci.yml","reverse_agent/mainline_landing.py","reverse_agent/github_remote_verifier.py","project_state/schemas/mainline_merge_intent_v3.schema.json"],
+  "reference_only_paths": ["AGENTS.md",".github/workflows/state-gate.yml",".github/workflows/ci.yml","reverse_agent/mainline_landing.py","reverse_agent/github_remote_verifier.py","project_state/schemas/mainline_merge_intent_v3.schema.json"],
+  "generated_artifact_paths": ["project_state/gates/command_plan.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"],
+  "forbidden_mutated_paths": ["AGENTS.md",".codex-skills/**","docs/**","requirements*.txt","pyproject.toml","reverse_agent/mainline_landing.py","project_state/schemas/**","frontend/**","README.md","README.txt"],
+  "forbidden_operations": ["direct_push_main","auto_merge","merge_target_pr","mark_ready","force_push","rebase","squash","reset","clean","stash","restore","amend","history_rewrite","unknown_binary_execution","secrets","destructive_delete","privileged_remote_execution","model_api_invocation","provider_network_call","credential_access","auth_store_read","runner_dispatch","workflow_rerun","tag_or_release","deployment","dependency_install","browser_execution","snapshot_update","implicit_user_local_fallback","user_local_execution","second_command_runner","second_decision_commit","weaken_decision_immutability","weaken_expected_head_protection","weaken_required_checks","synthesize_project_gate_evidence"],
   "capability_policy": {
     "runner_dispatch_allowed": false,
     "model_api_invocation_allowed": false,
@@ -232,10 +193,15 @@
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
-    "local_network_exceptions": [
-      "run focused transition command authority evidence runner decision preflight and mainline landing tests plus CI-equivalent blocking suites and git diff --check then push the exact branch and create exactly one Draft PR",
-      "after the real Draft PR number is known archive locked-main PR537 schema-v3 baseline intent byte-for-byte as project_state/mainline_merge_intents/archive/pr537_v1.json and bind active.json exactly once to the new PR current immutable Decision current Command Plan locked base and baseline workflow profile with required workflows exactly CI Decision Preflight and State Gate pull_request"
+    "local_network_exceptions": [],
+    "trusted_worker_network_exceptions": [],
+    "github_control_plane_network_exceptions": [
+      "publish exactly one Draft PR for the immutable v2 Decision so repository-owned transition lint command-plan and preflight establish current authority before any new mutation; intermediate CI may be non-authoritative until final binding",
+      "after pre-execution authority succeeds create exactly one two-parent reanchor commit whose first parent is the Decision head and second parent is main af7d3ffc566a30116fecf3dc5d337e4896615a6c; import only the five non-overlapping Issue386 mainline paths byte-for-byte from that main and preserve all accepted Issue156 paths",
+      "after reanchor change only Decision Preflight checkout semantics and its regression test so pull_request validation checks out github.event.pull_request.head.sha with fetch-depth zero and persist-credentials false exactly like State Gate; retain event-aware routing and add a test proving both workflows validate the exact PR head rather than GitHub synthetic merge refs",
+      "after the real Draft PR number is known materialize the exact genuine current-v2 command_plan.json evidence and bind active.json to that PR current immutable Decision locked base af7d3ffc566a30116fecf3dc5d337e4896615a6c and baseline workflow profile while preserving the inherited PR537 intent in archive/pr537_v1.json"
     ],
+    "user_local_network_exceptions": [],
     "ci_network_exceptions": []
   },
   "mainline_merge_intent_scope": {
@@ -244,41 +210,18 @@
     "archive_inherited_active_path": "project_state/mainline_merge_intents/archive/pr537_v1.json",
     "active_path": "project_state/mainline_merge_intents/active.json",
     "workflow_profile": "baseline",
-    "required_workflow_names": ["CI", "Decision Preflight", "State Gate (pull_request)"],
+    "required_workflow_names": ["CI","Decision Preflight","State Gate (pull_request)"],
     "merge_tree_policy": "equal_to_accepted_head_tree",
     "allowed_merge_method": "merge",
     "expires_at": "2026-09-09T23:59:59Z"
   },
   "path_risk_floor": [
-    {"pattern": "project_state/**", "minimum_risk": "R2"},
-    {"pattern": ".github/workflows/**", "minimum_risk": "R2"},
-    {"pattern": "reverse_agent/control_plane/**", "minimum_risk": "R2"},
-    {"pattern": "reverse_agent/project_gate.py", "minimum_risk": "R2"},
-    {"pattern": "**/secrets/**", "minimum_risk": "R3"}
+    {"pattern":"project_state/**","minimum_risk":"R2"},
+    {"pattern":".github/workflows/**","minimum_risk":"R2"},
+    {"pattern":"reverse_agent/control_plane/**","minimum_risk":"R2"},
+    {"pattern":"reverse_agent/project_gate.py","minimum_risk":"R2"},
+    {"pattern":"**/secrets/**","minimum_risk":"R3"}
   ],
-  "authorized_risk_paths": [
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr537_v1.json",
-    "reverse_agent/control_plane/models.py",
-    "reverse_agent/control_plane/legacy_adapter.py",
-    "reverse_agent/control_plane/command_authority.py",
-    "reverse_agent/control_plane/evidence_recorder.py",
-    "reverse_agent/control_plane/transition.py",
-    "reverse_agent/project_gate.py",
-    ".github/workflows/decision-preflight.yml",
-    "tests/test_control_plane_transition.py",
-    "tests/test_project_gate.py",
-    "tests/test_execution_evidence.py",
-    "tests/test_trusted_command_runner.py",
-    "tests/test_decision_preflight.py",
-    "tests/test_authority_closure.py",
-    "tests/test_provenance_integration.py",
-    "tests/test_mainline_landing.py"
-  ]
+  "authorized_risk_paths": ["project_state/gates/command_plan.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json","project_state/mainline_merge_intents/active.json","project_state/mainline_merge_intents/archive/pr537_v1.json",".github/workflows/decision-preflight.yml"]
 }
 ```
