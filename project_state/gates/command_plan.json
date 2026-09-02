@@ -1,23 +1,24 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260901_issue444_auth_completion_r3_v5",
-  "round_id": "round_20260901_issue444_auth_completion_r3_v5",
+  "decision_id": "decision_20260902_issue345_pr537_owner_landing_r2_v1",
+  "round_id": "round_20260902_issue345_pr537_owner_landing_r2_v1",
   "commands": [
     {
-      "command_id": "issue444v5.materialize_activation_packet",
-      "command": "after the unique immutable Decision activation commit run the repository-owned startup snapshot command-plan compiler transition lint and transition preflight; require PRE_EXECUTION_AUTHORIZED with zero blockers and commit only the five declared compiler-owned gate artifacts",
+      "command_id": "issue345_pr537_owner_landing_r2v1.materialize_authority",
+      "command": "materialize the complete five-file Owner landing gate artifact packet from exact GitHub repository readback and commit it as the single generated-governance commit; preserve the existing PR537 schema-v3 active intent without rebinding it to the validation-only PR",
       "phase": "gate",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
       "execution_surface": "local",
       "operations": [
         "local_static_check",
-        "commit"
+        "commit",
+        "network_access"
       ],
-      "network_access": false,
+      "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
@@ -33,105 +34,8 @@
       ]
     },
     {
-      "command_id": "issue444v5.replay_accepted_authentication_semantics",
-      "command": "replay all twenty authorized authentication product source test and documentation paths byte-for-byte from closed stale-base PR 497 exact head 180ac417c488735c312bcf77089a1ac16c400074 onto locked current main without cherry-pick merge rebase or history reuse; preserve the already-integrated compact Settings layout durable Windows vault failure atomicity absolute OAuth deadline provider-owned token boundary and fresh external-session readiness",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "test_edit",
-        "documentation_edit",
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "reverse_agent/model_access/os_vault.py",
-        "reverse_agent/model_access/account_auth.py",
-        "reverse_agent/model_access/contracts.py",
-        "reverse_agent/model_access/store.py",
-        "reverse_agent/model_access/service.py",
-        "reverse_agent/platform_v1/opencode_server_transport.py",
-        "reverse_agent/platform_v1/opencode_executor.py",
-        "reverse_agent/platform_v1/trusted_host.py",
-        "tests/test_model_access.py",
-        "tests/platform_v1/test_opencode_server_transport.py",
-        "tests/platform_v1/test_opencode_executor.py",
-        "tests/platform_v1/test_trusted_host.py",
-        "frontend/src/schemas/model-access.ts",
-        "frontend/src/lib/model-control-client.ts",
-        "frontend/src/components/connection-binding-editor.tsx",
-        "frontend/src/routes/settings.tsx",
-        "frontend/tests/model-access-client.test.ts",
-        "frontend/tests/connection-binding-flow.test.tsx",
-        "docs/model-access.md",
-        "docs/architecture/CONNECTION_EXECUTOR_BINDING_ARCHITECTURE.md"
-      ]
-    },
-    {
-      "command_id": "issue444v5.validate_product",
-      "command": "run the required focused Model Access OpenCode transport executor trusted-host and complete Platform V1 backend suites; run focused and full frontend unit typecheck lint build build-mock and repository Playwright with a known local browser; require every functional journey to pass and classify only the exact inherited eight Home and Settings light and dark desktop and mobile visual-golden mismatches as evidence-only; forbid snapshot mutation; run transition lint preflight publication readiness and git diff check without a real provider or model call",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "unit_test",
-        "integration_test",
-        "lint",
-        "build",
-        "known_binary_execution",
-        "local_static_check"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue444v5.windows_vault_sentinel_proof",
-      "command": "on the trusted Windows host store resolve from a fresh adapter and delete exactly one generated non-user Nerelan sentinel in Windows Credential Manager; never inspect a real user credential never print or persist sentinel material and verify post-delete not-found",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "known_binary_execution",
-        "credential_access",
-        "local_static_check"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue444v5.publish_new_draft",
-      "command": "after all local validation normally push the exact fresh branch and create one new Draft PR against locked main; update only that PR body; require fresh exact-head CI State Gate Decision Preflight and Model Access success and run Frontend Playwright for explicit functional plus inherited-eight-case visual classification",
+      "command_id": "issue345_pr537_owner_landing_r2v1.validate_authority",
+      "command": "publish exactly one Draft Owner-landing authority validation PR against locked main and require CI Decision Preflight and State Gate terminal success including mainline landing and Platform V1 merge-intent invariants without changing target PR537 or active merge intent",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -140,10 +44,8 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "push",
-        "draft_pr",
-        "pull_request_update",
-        "network_access"
+        "network_access",
+        "draft_pr"
       ],
       "network_access": true,
       "diagnostic_only": false,
@@ -155,60 +57,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue444v5.post_publication_binding",
-      "command": "after Draft PR creation archive the inherited schema-v3 PR 490 active mainline intent byte-for-byte and bind active intent exactly once to the actual new PR number locked base current immutable Decision current generated Command Plan baseline workflow profile and merge-only policy; commit and normally push that binding",
-      "phase": "post_publication_binding",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "commit",
-        "push",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": true,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr490_v3.json"
-      ]
-    },
-    {
-      "command_id": "issue444v5.independent_exact_head_audit",
-      "command": "an independent auditor that did not implement the replay reviews and reproduces the unchanged exact remote head including vault failure atomicity Windows adapter safety secret confinement absolute deadline account-auth lifecycle external-session reuse current Settings density and all required exact-head checks; the auditor must confirm zero functional Playwright failure and zero new visual failure beyond the exact inherited eight-case evidence set before recording ACCEPTED or REWORK_REQUIRED on the new PR",
-      "phase": "final_evidence",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "remote_observation",
-      "operations": [
-        "code_read",
-        "unit_test",
-        "pull_request_comment",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue444v5.owner_landing",
-      "command": "only after independent exact-head acceptance fresh successful exact-head workflows zero unresolved blockers unchanged locked base and head valid mainline intent and current repository-owned owner attestation mark the new PR ready once and merge once using merge commit with expected-head protection; verify natural post-merge main checks then close Issue 444 and reconcile Issues 441 and 438 where acceptance is satisfied",
+      "command_id": "issue345_pr537_owner_landing_r2v1.mark_ready",
+      "command": "after exact readback of unchanged PR537 head base active schema-v3 attestation Ruleset landing context and zero unresolved threads mark PR537 Ready exactly once",
       "phase": "landing",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -217,10 +67,8 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "mark_ready",
-        "merge",
-        "issue_close",
-        "network_access"
+        "network_access",
+        "mark_ready"
       ],
       "network_access": true,
       "diagnostic_only": false,
@@ -232,8 +80,75 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.cc594d95ebb51bae6fe39f205cc98d8d0579d452db85ea021caf59ce641798d7",
-      "command": "verify remote main remains 1935e9c61fcb9dcc9f8d4ac72033c299423c1d9c and the fresh target branch has zero commits beyond that base",
+      "command_id": "issue345_pr537_owner_landing_r2v1.verify_ready",
+      "command": "observe the newly triggered formal landing-state-gate and Ready State Gate reach terminal success on unchanged PR537 head with all required contexts successful",
+      "phase": "landing_evidence",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "remote_observation",
+      "operations": [
+        "code_read"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue345_pr537_owner_landing_r2v1.merge",
+      "command": "after immediate reobservation merge PR537 exactly once with merge method merge and expected head 4ffb723d6f89bb41f4fde67ee6c9c952c167251f",
+      "phase": "landing",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "network_access",
+        "merge"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue345_pr537_owner_landing_r2v1.postmerge_verify",
+      "command": "observe PR537 merged exact merge commit parent topology and natural exact-new-main CI push plus State Gate push terminal success before Issue345 closure",
+      "phase": "final_evidence",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "remote_observation",
+      "operations": [
+        "code_read"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.d7c4bd3976f0ba07c94360bb07b8d14d3886531f8bf869bc4892c0404650e0ab",
+      "command": "verify exact main base PR537 head audit attestation Ruleset required contexts and zero unresolved review threads",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -252,108 +167,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.e663994b1b329bb08de36ac0b02830ea141cb8649688e2e1eac68286ffc1a772",
-      "command": "verify PR 497 is closed stale-base historical evidence at accepted head 180ac417c488735c312bcf77089a1ac16c400074 and is not reused as landing authority",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.b4a89cf8ecc088fc669e46f9722dfb2671f3ec1eb2cbbc17d69393d38fe549b1",
-      "command": "commit this complete immutable v5 R3 Decision as the unique first commit",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.8b36eaeb3ce665a698059342f0a478e3329fbe30d9dd5973c09b9a061f2c2091",
-      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.748384806c2774ade5d9fec7d422f87ac5614c30035911ccf10bab2019aede3a",
-      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.06e93636c7597d91a7cd0967908dfb4d618dcdc78d2640bf238a6300acdcf4d2",
-      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.677fc095a0ccb225c87b5528ad9885b37484c464961934f364a72d07e89bdcb3",
-      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
+      "command_id": "bootstrap.dc09278eedcc4f4dc4a108ead71ef669be6e69c9a8cf528feeb54ff80f7dcac9",
+      "command": "commit this immutable R2 Owner landing Decision as the unique first commit",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
