@@ -3159,7 +3159,7 @@ def test_single_execute_dispatches_executor_once(tmp_path) -> None:
             return getattr(self._inner, name)
 
     router = ExecutorRouter()
-    router.register("deterministic_fixture", CountingFixtureExecutor)
+    router.replace("deterministic_fixture", CountingFixtureExecutor)
 
     service = DurableExecutionService(
         store=store, router=router,
@@ -3196,7 +3196,7 @@ def test_single_duplicate_execute_fails_closed(tmp_path) -> None:
             return getattr(self._inner, name)
 
     router = ExecutorRouter()
-    router.register("deterministic_fixture", CountingFixtureExecutor2)
+    router.replace("deterministic_fixture", CountingFixtureExecutor2)
 
     service = DurableExecutionService(
         store=store, router=router,
@@ -3346,7 +3346,7 @@ def test_single_crash_before_dispatch_can_recover(tmp_path) -> None:
             return getattr(self._inner, name)
 
     router = ExecutorRouter()
-    router.register("deterministic_fixture", CountingFixtureExecutor3)
+    router.replace("deterministic_fixture", CountingFixtureExecutor3)
 
     lease = store._acquire_durable_lease(
         task_id=task.id, execution_id=task.execution_id,
