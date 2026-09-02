@@ -310,6 +310,70 @@ def test_transition_lint_rejects_manually_changed_plan(tmp_path: Path, monkeypat
     assert any(item["name"] == "command_plan_provenance" and item["status"] == "FAIL" for item in result["checks"])
 
 
+def test_transition_lint_stale_previous_decision_plan_passes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """G2-0: a tracked command_plan.json belonging to an OLDER Decision/round is
+    stale historical generated evidence and must NOT block a fresh Decision
+    bootstrap. transition-lint validates the deterministic projection instead."""
+    state_dir = tmp_path / "project_state"
+    _write_decision(state_dir, decision_id="decision_old", round_id="round_old")
+    _registry(tmp_path)
+    project_gate.transition_command_plan(state_dir=state_dir)
+    _write_decision(state_dir, decision_id="decision_fresh", round_id="round_fresh")
+    monkeypatch.setattr(project_gate, "_derive_repo_root", lambda _state_dir: tmp_path)
+    result = project_gate.transition_lint(state_dir=state_dir)
+    assert result["gate_status"] == "PASSED"
+    provenance = next(item for item in result["checks"] if item["name"] == "command_plan_provenance")
+    assert provenance["status"] == "PASS"
+    identity = next(item for item in result["checks"] if item["name"] == "command_plan_identity")
+    assert identity["status"] == "PASS"
+
+
+def test_transition_lint_missing_previous_plan_passes_when_bootstrap_allowed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """G2-0: with no tracked command_plan.json at all, transition-lint must
+    validate the deterministic projection and pass where the contract allows
+    bootstrap."""
+    state_dir = tmp_path / "project_state"
+    _write_decision(state_dir)
+    _registry(tmp_path)
+    monkeypatch.setattr(project_gate, "_derive_repo_root", lambda _state_dir: tmp_path)
+    result = project_gate.transition_lint(state_dir=state_dir)
+    assert result["gate_status"] == "PASSED"
+    provenance = next(item for item in result["checks"] if item["name"] == "command_plan_provenance")
+    assert provenance["status"] == "PASS"
+
+
+def test_transition_lint_current_plan_manually_changed_blocks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """G2-0: a tracked plan that claims to belong to the CURRENT Decision/round
+    but diverges from the deterministic projection must FAIL CLOSED."""
+    state_dir = tmp_path / "project_state"
+    _write_decision(state_dir, decision_id="decision_current", round_id="round_current")
+    _registry(tmp_path)
+    project_gate.transition_command_plan(state_dir=state_dir)
+    plan_path = state_dir / "gates" / "command_plan.json"
+    payload = json.loads(plan_path.read_text(encoding="utf-8"))
+    payload["commands"][0]["execution_surface"] = "trusted_worker"
+    plan_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(project_gate, "_derive_repo_root", lambda _state_dir: tmp_path)
+    result = project_gate.transition_lint(state_dir=state_dir)
+    assert result["gate_status"] == "BLOCKED"
+    provenance = next(item for item in result["checks"] if item["name"] == "command_plan_provenance")
+    assert provenance["status"] == "FAIL"
+
+
+def test_transition_command_plan_generated_equals_deterministic_projection(tmp_path: Path) -> None:
+    """G2-0: transition-command-plan persists exactly the deterministic
+    projection that transition-lint validated."""
+    state_dir = tmp_path / "project_state"
+    _write_decision(state_dir, decision_id="decision_projection", round_id="round_projection")
+    generated = project_gate.transition_command_plan(state_dir=state_dir)
+    assert generated["plan_status"] == "PASSED"
+    decision, contract = project_gate.load_transition_decision(state_dir / "decision_packet.md")
+    projected = project_gate.build_transition_command_plan(decision, contract)
+    persisted = json.loads((state_dir / "gates" / "command_plan.json").read_text(encoding="utf-8"))
+    assert persisted == projected.to_dict()
+    assert generated["commands"] == projected.to_dict()["commands"]
+
+
 def _install_envelope_git_stub(
     monkeypatch: pytest.MonkeyPatch,
     *,

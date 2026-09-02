@@ -36,6 +36,11 @@ from .models import (
     TransitionCommandPlan,
 )
 
+from .command_authority import (
+    MACHINE_SPECIFIC_EXECUTION_OPERATION,
+    SUBPROCESS_EXECUTABLE_SURFACES,
+)
+
 
 # ---------------------------------------------------------------------------
 # Format validators
@@ -500,6 +505,17 @@ class TrustedCommandRunner:
         if plan_entry is None:
             raise KeyError(f"unknown_command_id:{command_id}")
 
+        # G2-2: only subprocess-executable surfaces may be executed by a
+        # trusted runner (trusted_worker, user_local, legacy local).
+        if plan_entry.execution_surface not in SUBPROCESS_EXECUTABLE_SURFACES:
+            raise ValueError(
+                f"execution_surface_mismatch:{command_id}:{plan_entry.execution_surface}"
+            )
+        if plan_entry.execution_surface == "user_local" and MACHINE_SPECIFIC_EXECUTION_OPERATION not in plan_entry.operations:
+            raise ValueError(
+                f"user_local_requires_machine_specific_execution:{command_id}"
+            )
+
         head_before = self._git_head_sha()
         started_at = _now_utc()
 
@@ -946,8 +962,17 @@ class TrustedExecutionContext:
             reasons.append(f"unknown_command_id:{command_id}")
             return AuthorizationResult(status="BLOCKED", reasons=tuple(reasons))
 
-        if entry.execution_surface != "local":
+        # G2-2: Trusted subprocess execution may run only on subprocess-
+        # executable surfaces (trusted_worker, user_local, legacy local).
+        # GitHub-native control-plane operations, repository CI, and read-only
+        # remote observation must never be subprocess-executed.
+        if entry.execution_surface not in SUBPROCESS_EXECUTABLE_SURFACES:
             reasons.append(f"execution_surface_mismatch:{command_id}:{entry.execution_surface}")
+
+        # G2-1: user_local is machine-specific only. Without the explicit
+        # machine-specific capability declaration the command must fail closed.
+        if entry.execution_surface == "user_local" and MACHINE_SPECIFIC_EXECUTION_OPERATION not in entry.operations:
+            reasons.append(f"user_local_requires_machine_specific_execution:{command_id}")
 
         if self.decision_status != "APPROVED":
             reasons.append(f"decision_not_approved:{self.decision_status}")

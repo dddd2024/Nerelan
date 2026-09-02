@@ -69,15 +69,37 @@ def _capability_forbidden_operations(policy: CapabilityPolicy) -> tuple[str, ...
     return tuple(dict.fromkeys(operations))
 
 
+def _network_exceptions_for_surface(policy: CapabilityPolicy, surface: str) -> tuple[str, ...]:
+    """Map an execution surface to its declared network exception list.
+
+    Defaults remain deny: an unknown surface or a surface without a declared
+    exception list yields an empty (deny) tuple. ``remote_observation`` is
+    read-only and never carries network exceptions.
+    """
+
+    mapping = {
+        "local": policy.local_network_exceptions,
+        "ci_only": policy.ci_network_exceptions,
+        "trusted_worker": policy.trusted_worker_network_exceptions,
+        "github_control_plane": policy.github_control_plane_network_exceptions,
+        "user_local": policy.user_local_network_exceptions,
+        "remote_observation": (),
+    }
+    return mapping.get(surface, ())
+
+
 def _envelope_network_violations(
     envelopes: tuple[ExecutionEnvelope, ...],
     policy: CapabilityPolicy,
 ) -> tuple[str, ...]:
     """Check that network access honors the capability policy.
 
-    Local envelopes must not declare network operations unless they appear in
-    ``local_network_exceptions``. CI envelopes must not declare network
-    operations unless they appear in ``ci_network_exceptions``.
+    Network operations must be allowed only through the exception list bound
+    to the exact execution surface of the envelope (``local`` maps to
+    ``local_network_exceptions``, ``ci_only`` to ``ci_network_exceptions``,
+    ``trusted_worker`` to ``trusted_worker_network_exceptions``,
+    ``github_control_plane`` to ``github_control_plane_network_exceptions``,
+    and ``user_local`` to ``user_local_network_exceptions``).
     """
 
     violations: list[str] = []
@@ -85,12 +107,7 @@ def _envelope_network_violations(
     for envelope in envelopes:
         if not any(op in network_operations for op in envelope.operations):
             continue
-        if envelope.execution_surface == "local":
-            allowed_exceptions = policy.local_network_exceptions
-        elif envelope.execution_surface == "ci_only":
-            allowed_exceptions = policy.ci_network_exceptions
-        else:
-            allowed_exceptions = ()
+        allowed_exceptions = _network_exceptions_for_surface(policy, envelope.execution_surface)
         requested = canonical_command(envelope.command)
         if requested in {canonical_command(item) for item in allowed_exceptions}:
             continue
@@ -157,7 +174,7 @@ def _plan_network_policy_violations(
     """
 
     violations: list[str] = []
-    envelope_by_surface: dict[str, list[ExecutionEnvelope]] = {"local": [], "ci_only": [], "remote_observation": []}
+    envelope_by_surface: dict[str, list[ExecutionEnvelope]] = {}
     for env in envelopes:
         envelope_by_surface.setdefault(env.execution_surface, []).append(env)
     for cmd in plan.commands:
@@ -166,12 +183,7 @@ def _plan_network_policy_violations(
         if cmd.authority_origin == "bootstrap_exception":
             continue
         surface = cmd.execution_surface
-        if surface == "local":
-            allowed_exceptions = policy.local_network_exceptions
-        elif surface == "ci_only":
-            allowed_exceptions = policy.ci_network_exceptions
-        else:
-            allowed_exceptions = ()
+        allowed_exceptions = _network_exceptions_for_surface(policy, surface)
         requested = canonical_command(cmd.command)
         if requested in {canonical_command(item) for item in allowed_exceptions}:
             continue
@@ -261,10 +273,14 @@ def _required_command_coverage_missing(
         and not cmd.diagnostic_only
         and cmd.authority_origin != "bootstrap_exception"
     ]
+    # G2-2: local command evidence is produced by trusted subprocess execution,
+    # which may run on trusted_worker, user_local, or legacy local surfaces.
+    from .command_authority import SUBPROCESS_EXECUTABLE_SURFACES
+
     observed_local_canonical = {
         canonical_command(env.command)
         for env in envelopes
-        if env.execution_surface == "local"
+        if env.execution_surface in SUBPROCESS_EXECUTABLE_SURFACES
     }
     missing: list[str] = []
     for cmd in required_commands:

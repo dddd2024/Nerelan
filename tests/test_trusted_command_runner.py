@@ -689,6 +689,247 @@ def test_authorize_before_execute_blocks_non_local_surface(tmp_path: Path) -> No
     assert any("execution_surface_mismatch" in reason for reason in result.reasons)
 
 
+@pytest.mark.parametrize(
+    "surface",
+    ["github_control_plane", "ci_only", "remote_observation"],
+)
+def test_trusted_execution_refuses_non_subprocess_surfaces(tmp_path: Path, surface: str) -> None:
+    """G2-2: github_control_plane, ci_only and remote_observation must never be
+    subprocess-executed by a trusted runner."""
+
+    from reverse_agent.control_plane.evidence_recorder import TrustedExecutionContext
+
+    _init_repo(tmp_path)
+    state_dir = tmp_path / "project_state"
+    _write_state_decision(
+        state_dir,
+        allowed_commands=[
+            {
+                "command_id": f"surface.{surface}",
+                "command": "python -c \"print('should not run')\"",
+                "phase": "status",
+                "required": False,
+                "required_evidence_source": "local_command_evidence",
+                "expected_exit_codes": [0],
+                "execution_surface": surface,
+                "operations": ["repository_observation"],
+                "network_access": False,
+                "authority_origin": "normal_plan",
+                "allowed_mutated_paths": [],
+                "produced_artifacts": [],
+            }
+        ],
+    )
+    context = TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+    result = context.authorize_before_execute(f"surface.{surface}")
+    assert result.status == "BLOCKED"
+    assert any("execution_surface_mismatch" in reason for reason in result.reasons)
+    with pytest.raises(RuntimeError, match="command_blocked"):
+        context.run_command(f"surface.{surface}")
+
+
+@pytest.mark.parametrize(
+    "surface",
+    ["trusted_worker", "user_local", "local"],
+)
+def test_trusted_execution_allows_subprocess_surfaces(tmp_path: Path, surface: str) -> None:
+    """G2-2: trusted_worker, user_local and legacy local are the only
+    subprocess-executable surfaces for the trusted runner."""
+
+    from reverse_agent.control_plane.evidence_recorder import TrustedExecutionContext
+
+    _init_repo(tmp_path)
+    state_dir = tmp_path / "project_state"
+    operations = ["repository_observation"]
+    if surface == "user_local":
+        operations.append("machine_specific_execution")
+    _write_state_decision(
+        state_dir,
+        allowed_commands=[
+            {
+                "command_id": f"surface.{surface}",
+                "command": "git rev-parse HEAD",
+                "phase": "status",
+                "required": False,
+                "required_evidence_source": "local_command_evidence",
+                "expected_exit_codes": [0],
+                "execution_surface": surface,
+                "operations": operations,
+                "network_access": False,
+                "authority_origin": "normal_plan",
+                "allowed_mutated_paths": [],
+                "produced_artifacts": [],
+            }
+        ],
+    )
+    context = TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+    result = context.authorize_before_execute(f"surface.{surface}")
+    assert result.status == "AUTHORIZED", result.reasons
+    record = context.run_command(f"surface.{surface}")
+    assert record.execution_surface == surface
+
+
+def test_trusted_execution_blocks_user_local_without_machine_specific(tmp_path: Path) -> None:
+    """G2-1: a user_local command without the explicit machine_specific_execution
+    declaration must FAIL CLOSED. The trusted authority gate (which rebuilds the
+    plan from the active Decision) must refuse to construct authority for such a
+    command, and the runner-level gate must refuse to execute it."""
+
+    import json as _json
+
+    from reverse_agent.control_plane.evidence_recorder import (
+        TrustedCommandRunner,
+        TrustedExecutionContext,
+    )
+    from reverse_agent.control_plane.models import TransitionCommand, TransitionCommandPlan
+
+    _init_repo(tmp_path)
+    state_dir = tmp_path / "project_state"
+    decision_id = "decision_trusted"
+    round_id = "round_trusted"
+    gates = state_dir / "gates"
+    gates.mkdir(parents=True)
+    (state_dir / "decision_packet.md").write_text(
+        "```json decision_meta\n"
+        + _json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": decision_id,
+                "round_id": round_id,
+                "status": "APPROVED",
+                "mainline": "engineering_branch",
+                "skill_profiles": ["reverse-agent-iteration@v2"],
+            }
+        )
+        + "\n```\n\n```json decision_contract\n"
+        + _json.dumps(
+            {
+                "transition_kernel_required": True,
+                "required_branch": "main",
+                "activation_base_sha": subprocess.run(
+                    ["git", "rev-parse", "HEAD"], cwd=str(tmp_path),
+                    capture_output=True, text=True, check=True,
+                ).stdout.strip(),
+                "bootstrap_exception_files": ["reverse_agent/project_gate.py"],
+                "bootstrap_exception_commands": [],
+                "allowed_commands": [
+                    {
+                        "command_id": "user_local.undeclared",
+                        "command": "git rev-parse HEAD",
+                        "phase": "status",
+                        "required": False,
+                        "required_evidence_source": "local_command_evidence",
+                        "expected_exit_codes": [0],
+                        "execution_surface": "user_local",
+                        "operations": ["repository_observation"],
+                        "network_access": False,
+                        "authority_origin": "normal_plan",
+                        "allowed_mutated_paths": [],
+                        "produced_artifacts": [],
+                    }
+                ],
+                "allowed_mutated_paths": ["reverse_agent/control_plane/**"],
+                "forbidden_mutated_paths": ["frontend/**"],
+                "capability_policy": {
+                    "network_access_default_allowed": False,
+                    "local_network_exceptions": [],
+                    "ci_network_exceptions": [],
+                },
+                "path_risk_floor": [],
+            }
+        )
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    # The authority gate rebuilds the plan from the active Decision and must
+    # fail closed on a user_local command lacking the declaration.
+    (gates / "command_plan.json").write_text(
+        _json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": decision_id,
+                "round_id": round_id,
+                "commands": [
+                    {
+                        "command": "git rev-parse HEAD",
+                        "phase": "status",
+                        "required": False,
+                        "required_evidence_source": "local_command_evidence",
+                        "expected_exit_codes": [0],
+                        "execution_surface": "user_local",
+                        "operations": ["repository_observation"],
+                        "network_access": False,
+                        "authority_origin": "normal_plan",
+                        "command_id": "user_local.undeclared",
+                        "allowed_mutated_paths": [],
+                        "produced_artifacts": [],
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="user_local_requires_machine_specific_execution"):
+        TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+
+    # The runner-level gate must refuse to subprocess-execute a user_local
+    # command even when a plan is injected directly (defense in depth).
+    plan = TransitionCommandPlan(
+        decision_id=decision_id,
+        round_id=round_id,
+        commands=(
+            TransitionCommand(
+                command="git rev-parse HEAD",
+                phase="status",
+                required=False,
+                expected_exit_codes=(0,),
+                execution_surface="user_local",
+                operations=("repository_observation",),
+                command_id="user_local.undeclared",
+                authority_origin="normal_plan",
+            ),
+        ),
+    )
+    runner = TrustedCommandRunner.for_test(
+        repo_root=tmp_path,
+        plan=plan,
+        evidence_dir=tmp_path / "evidence",
+    )
+    with pytest.raises(ValueError, match="user_local_requires_machine_specific_execution"):
+        runner.run_command(command_id="user_local.undeclared")
+
+
+def test_trusted_command_runner_refuses_non_subprocess_surface(tmp_path: Path) -> None:
+    """G2-2: the injected TrustedCommandRunner also refuses to subprocess-
+    execute github_control_plane/ci_only/remote_observation commands."""
+
+    _init_repo(tmp_path)
+    plan = TransitionCommandPlan(
+        decision_id="decision_trusted",
+        round_id="round_trusted",
+        commands=(
+            TransitionCommand(
+                command="git rev-parse HEAD",
+                phase="status",
+                required=False,
+                expected_exit_codes=(0,),
+                execution_surface="github_control_plane",
+                operations=("pr_create",),
+                command_id="gh.create_pr",
+                authority_origin="normal_plan",
+            ),
+        ),
+    )
+    runner = TrustedCommandRunner.for_test(
+        repo_root=tmp_path,
+        plan=plan,
+        evidence_dir=tmp_path / "evidence",
+    )
+    with pytest.raises(ValueError, match="execution_surface_mismatch"):
+        runner.run_command(command_id="gh.create_pr")
+
+
 def test_authorize_before_execute_blocks_allowed_only_after_validation(tmp_path: Path) -> None:
     """F5: a command with allowed_only_after_validation must BLOCKED until the seal is LOCAL_RECONCILED."""
 

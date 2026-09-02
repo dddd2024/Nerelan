@@ -133,7 +133,18 @@ def _exception_list(payload: Mapping[str, Any], name: str) -> tuple[str, ...]:
     return items
 
 
-_VALID_EXECUTION_SURFACES = frozenset({"local", "ci_only", "remote_observation"})
+_VALID_EXECUTION_SURFACES = frozenset({
+    "github_control_plane",
+    "trusted_worker",
+    "ci_only",
+    "remote_observation",
+    "user_local",
+    "local",
+})
+
+_LEGACY_LOCAL_SURFACE = "local"
+
+_MACHINE_SPECIFIC_EXECUTION_OPERATION = "machine_specific_execution"
 
 
 def _parse_structured_command(raw: Mapping[str, Any], *, bootstrap_exception: bool) -> TransitionCommand:
@@ -147,13 +158,22 @@ def _parse_structured_command(raw: Mapping[str, Any], *, bootstrap_exception: bo
     if not isinstance(raw_codes, list) or not raw_codes:
         raise ValueError(f"missing_expected_exit_codes:{command}")
     codes = tuple(int(code) for code in raw_codes)
-    surface = str(raw.get("execution_surface") or "local")
+    # Current/new structured commands must declare an explicit execution
+    # surface. A missing or blank surface fails closed; only the narrow
+    # ``load_legacy_command_plan`` compatibility path may normalize a
+    # historical missing surface to the legacy ``local`` token.
+    surface_raw = raw.get("execution_surface")
+    if not isinstance(surface_raw, str) or not surface_raw.strip():
+        raise ValueError(f"missing_execution_surface:{command}")
+    surface = surface_raw.strip()
     if surface not in _VALID_EXECUTION_SURFACES:
         raise ValueError(f"invalid_execution_surface:{surface}:{command}")
     operations_raw = raw.get("operations") or []
     if not isinstance(operations_raw, list):
         raise ValueError(f"invalid_operations_for_command:{command}")
     operations = tuple(str(item).strip() for item in operations_raw if isinstance(item, str) and item.strip())
+    if surface == "user_local" and _MACHINE_SPECIFIC_EXECUTION_OPERATION not in operations:
+        raise ValueError(f"user_local_requires_machine_specific_execution:{command}")
     return TransitionCommand(
         command=command,
         phase=phase,
@@ -299,6 +319,9 @@ def load_capability_policy(contract: Mapping[str, Any]) -> CapabilityPolicy:
     if isinstance(structured, Mapping):
         local_exceptions = _exception_list(structured, "local_network_exceptions")
         ci_exceptions = _exception_list(structured, "ci_network_exceptions")
+        trusted_worker_exceptions = _exception_list(structured, "trusted_worker_network_exceptions")
+        github_control_plane_exceptions = _exception_list(structured, "github_control_plane_network_exceptions")
+        user_local_exceptions = _exception_list(structured, "user_local_network_exceptions")
         return CapabilityPolicy(
             runner_dispatch_allowed=bool(structured.get("runner_dispatch_allowed", False)),
             model_api_invocation_allowed=bool(structured.get("model_api_invocation_allowed", False)),
@@ -326,6 +349,9 @@ def load_capability_policy(contract: Mapping[str, Any]) -> CapabilityPolicy:
             tag_or_release_allowed=bool(structured.get("tag_or_release_allowed", False)),
             local_network_exceptions=local_exceptions,
             ci_network_exceptions=ci_exceptions,
+            trusted_worker_network_exceptions=trusted_worker_exceptions,
+            github_control_plane_network_exceptions=github_control_plane_exceptions,
+            user_local_network_exceptions=user_local_exceptions,
             remote_observation_read_only_allowed=bool(
                 structured.get("remote_observation_read_only_allowed", False)
             ),
