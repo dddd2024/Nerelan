@@ -1,68 +1,53 @@
 # Decision Packet
 
 ```json decision_meta
-{
-  "schema_version": 1,
-  "decision_id": "decision_20260901_issue345_platform_v1_profile_regression_r2_v1",
-  "round_id": "round_20260901_issue345_platform_v1_profile_regression_r2_v1",
-  "status": "APPROVED",
-  "mainline": "engineering_branch",
-  "skill_profiles": ["reverse-agent-iteration@v2"]
-}
+{"schema_version":1,"decision_id":"decision_20260902_issue530_brand2b_landing_r3_v23","round_id":"round_20260902_issue530_brand2b_landing_r3_v23","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260901_issue444_auth_completion_r3_v5",
-  "follows_last_round_id": "round_20260901_issue444_auth_completion_r3_v5",
-  "previous_audit_outcome": "R3_V12_FAIL_CLOSED_EXACT_HEAD_CI_PLATFORM_V1_STALE_SCHEMA_V3_PROFILE_ASSERTIONS",
-  "workstream_id": "issue345-platform-v1-profile-regression-r2-v1",
-  "source_issue": 345,
-  "parent_issue": 343,
-  "trigger_issue": 492,
-  "trigger_pr": 533,
+  "follows_last_decision_id": "decision_20260901_issue345_platform_v1_profile_regression_r2_v1",
+  "follows_last_round_id": "round_20260901_issue345_platform_v1_profile_regression_r2_v1",
+  "supersedes_decision_id": "decision_20260902_issue530_brand2b_landing_r3_v22",
+  "previous_audit_outcome": "V22_FAIL_CLOSED_MISSING_DECISION_COMMIT_PRECEDENCE_INVARIANT",
+  "workstream_id": "issue530-brand2b-landing-r3-v23",
+  "source_issue": 530,
+  "parent_issue": 262,
   "integration_base_ref": "main",
-  "base_sha": "0feeb3f35ef164591678caba96fb46477b366f52",
-  "activation_base_sha": "0feeb3f35ef164591678caba96fb46477b366f52",
-  "starting_head": "0feeb3f35ef164591678caba96fb46477b366f52",
-  "required_branch": "owner/issue345-platform-v1-profile-regression-r2-v1",
-  "fresh_worktree_creation_required": true,
-  "history_reuse_allowed": false,
-  "risk_tier": "R2",
+  "base_sha": "0da78df5d2c5337ffeab17e3a00651df507637f0",
+  "activation_base_sha": "0da78df5d2c5337ffeab17e3a00651df507637f0",
+  "starting_head": "0da78df5d2c5337ffeab17e3a00651df507637f0",
+  "required_branch": "owner/issue530-brand2b-landing-r3-v23",
+  "risk_tier": "R3",
   "governance_artifact_risk_tier": "R2",
-  "authorized_risk_tier": "R2",
+  "authorized_risk_tier": "R3",
   "workflow_profile": "baseline",
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
   "decision_immutability_required": true,
-  "decision_immutability_check_required_in": ["transition_preflight", "transition_reconcile", "worktree_publication_readiness"],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 2,
   "generated_governance_commit_limit": 1,
+  "product_change_commit_limit": 1,
   "post_publication_binding_commit_limit": 1,
-  "normal_push_attempt_limit": 4,
   "draft_pr_creation_limit": 1,
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
-  "live_model_call_limit": 0,
-  "provider_network_call_limit": 0,
-  "credential_access_limit": 0,
-  "mark_ready_attempt_limit": 0,
-  "merge_attempt_limit": 0,
+  "mark_ready_attempt_limit": 1,
+  "merge_attempt_limit": 1,
   "pr_creation_allowed": true,
   "issue_comment_allowed": true,
   "pull_request_comment_allowed": true,
-  "merge_allowed": false,
-  "mark_ready_allowed": false,
+  "merge_allowed": true,
+  "mark_ready_allowed": true,
   "workflow_rerun_allowed": false,
   "runner_dispatch_allowed": false,
   "direct_push_to_main_allowed": false,
   "auto_merge_allowed": false,
   "force_push_allowed": false,
   "rebase_during_execution_allowed": false,
-  "dependency_install_allowed": false,
+  "dependency_install_allowed": true,
   "known_browser_execution_allowed": false,
   "live_provider_access_allowed": false,
   "credential_access_allowed": false,
@@ -70,212 +55,103 @@
   "mainline_merge_intent_required": true,
   "active_pr_binding_mode": "post_draft_pr_exact_remote_number",
   "issue_number_must_not_substitute_for_pr_number": true,
-  "test_semantics_changes_allowed": true,
-  "source_test_mutation_authorized": true,
-  "source_test_authorized_paths": [
-    "tests/platform_v1/test_merge_intent.py",
-    "tests/platform_v1/test_contracts.py"
-  ],
-  "bootstrap_exception_files": [
-    "project_state/decision_packet.md",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
-  ],
+  "expected_head_protection_required": true,
+  "historical_evidence_rewrite_allowed": false,
+  "current_repository": "dddd2024/Nerelan",
+  "legacy_repository_alias": "dddd2024/reverse-agent",
+  "repository_id_must_remain": 1210115070,
+  "historical_intent_versions_frozen": [1,2,3],
+  "current_intent_version": 4,
+  "current_attestation_version": 4,
+  "reviewed_v16_semantic_source_head": "4847d6fd441c0c359eb25ea5b8acc9389a057d96",
+  "v16_validation_pr": 539,
+  "failed_landing_prs": [545,546,551],
+  "inherited_active_intent_id": "pr537_issue345_platform_v1_profile_regression_r2_v1",
+  "inherited_active_source_pr": 537,
+  "inherited_active_archive_path": "project_state/mainline_merge_intents/archive/pr537_v1.json",
+  "authorized_test_change": "inside test_production_pre_merge_simulation only, derive approval_payload.repository and attestation.repository from intent['repository'] instead of hard-coded dddd2024/reverse-agent",
+  "implementation_mode": "direct_git_tree_atomic_replay_without_temporary_workflow",
+  "visual_snapshot_updates_allowed": false,
+  "known_inherited_visual_mismatch_set": "exactly eight Home/Settings light/dark desktop/mobile golden mismatches from pre-BRAND-2B baseline",
+  "bootstrap_exception_files": ["project_state/decision_packet.md","project_state/gates/command_plan.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"],
   "bootstrap_exception_commands": [
-    "verify exact main base 0feeb3f35ef164591678caba96fb46477b366f52 and fresh branch merge-base",
-    "commit this immutable R2 Decision as the unique first commit",
-    "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+    "verify current main remains exactly 0da78df5d2c5337ffeab17e3a00651df507637f0 and repository id remains 1210115070",
+    "verify accepted validation PR 539 remains at 4847d6fd441c0c359eb25ea5b8acc9389a057d96, failed landing PRs 545, 546, and 551 are closed unmerged, merged PR 537 is the sole main advance from 0feeb3f35ef164591678caba96fb46477b366f52, and active intent source_pr is 537",
+    "commit this immutable BRAND-2B v23 Decision as the unique first commit",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
     "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre"
   ],
   "allowed_commands": [
     {
-      "command_id": "issue345_regression_r2v1.bootstrap_and_preflight",
-      "command": "verify exact locked main and fresh branch; commit this immutable R2 Decision first; run startup snapshot command-plan compiler transition lint and transition preflight and require PRE_EXECUTION_AUTHORIZED before any test mutation",
-      "phase": "bootstrap",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["code_read", "local_static_check", "commit"],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
-      "produced_artifacts": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/bootstrap_state.json",
-        "project_state/gates/transition_command_plan_preview.json",
-        "project_state/gates/transition_preflight_result.json"
-      ]
+      "command_id": "issue530v23.materialize",
+      "command": "materialize the deterministic v23 command plan; compiler transition preview and preflight result are authorized ephemeral R2 gate artifacts but commit only command_plan.json",
+      "phase": "gate","required": true,"expected_exit_codes": [0],"execution_surface": "local","operations": ["local_static_check","commit"],"network_access": false,"required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": ["project_state/gates/command_plan.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"]
     },
     {
-      "command_id": "issue345_regression_r2v1.repair_platform_v1_profile_assertions",
-      "command": "after PRE_EXECUTION_AUTHORIZED repair only the stale Platform V1 schema-v3 required_workflows assertions so schema v1 and v2 historical semantics remain frozen while schema v3 resolves the production-owned workflow_profile: baseline requires exactly CI Decision Preflight and State Gate (pull_request); browser_r3 requires exactly those three plus Frontend Playwright and Model Access; State Gate (push) remains excluded; add explicit baseline and browser_r3 regression coverage and keep unknown/invented/missing specialized workflow cases fail closed",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["source_edit", "unit_test", "local_static_check", "commit"],
-      "network_access": false,
-      "required_evidence_source": "local_command_evidence",
-      "allowed_mutated_paths": [
-        "tests/platform_v1/test_merge_intent.py",
-        "tests/platform_v1/test_contracts.py"
-      ]
+      "command_id": "issue530v23.publish_activation_draft",
+      "command": "after immutable Decision and deterministic command plan are committed on the fresh v23 branch and locked main is unchanged, create exactly one Draft BRAND-2B landing PR against main so natural pull_request checks can establish PRE_EXECUTION_AUTHORIZED and full activation CI success before any product replay; keep the PR Draft and do not bind active intent yet",
+      "phase": "publication","required": true,"expected_exit_codes": [0],"execution_surface": "remote_observation","operations": ["draft_pr","network_access"],"network_access": true,"required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue345_regression_r2v1.validate_and_publish",
-      "command": "run tests/platform_v1/test_merge_intent.py tests/platform_v1/test_contracts.py tests/test_mainline_landing.py and the CI-equivalent blocking Platform V1 suite plus git diff --check; after all blocking validation passes push the exact branch and create exactly one Draft PR",
-      "phase": "publication",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["unit_test", "local_static_check", "commit", "push", "draft_pr", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_only_after_validation": true
+      "command_id": "issue530v23.authorize_execution",
+      "command": "on the activation-only Draft PR exact head require natural run_attempt=1 Decision Preflight PRE_EXECUTION_AUTHORIZED, State Gate success, and full CI success including Platform V1 blocking gate; do not rerun workflows",
+      "phase": "validation","required": true,"expected_exit_codes": [0],"execution_surface": "remote_observation","operations": ["workflow_observation","network_access"],"network_access": true,"required_evidence_source": "ci_check_attestation"
     },
     {
-      "command_id": "issue345_regression_r2v1.post_publication_binding",
-      "command": "after the real Draft PR number is known archive the inherited PR499 schema-v3 baseline intent byte-for-byte as project_state/mainline_merge_intents/archive/pr499_v1.json and bind active.json exactly once to the new PR current Decision current Command Plan locked base and baseline workflow_profile with required_workflows exactly CI Decision Preflight and State Gate (pull_request)",
-      "phase": "post_publication_binding",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["source_edit", "local_static_check", "commit", "push", "network_access"],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr499_v1.json"
-      ],
-      "allowed_only_after_validation": true
+      "command_id": "issue530v23.replay_atomic_candidate",
+      "command": "only after activation Decision Preflight, State Gate, and full CI all succeed, construct one Git tree on the v23 branch that replays all twenty-four accepted BRAND-2B v16 product schema documentation and regression files from 4847d6fd441c0c359eb25ea5b8acc9389a057d96 onto locked main; preserve twenty-three files byte-for-byte; only inside tests/test_mainline_landing.py test_production_pre_merge_simulation replace the two hard-coded dddd2024/reverse-agent repository values in approval_payload and attestation with intent['repository']; prove exactly two replacements and no other change in that file; preserve merged PR537 schema-v3 workflow-profile repair outside the candidate set; create exactly one product commit and fast-forward only the v23 branch; create no workflow and use no secrets model provider or external service calls",
+      "phase": "implementation","required": true,"expected_exit_codes": [0],"execution_surface": "remote_observation","operations": ["code_read","test_edit","commit","push","network_access"],"network_access": true,"required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": ["AGENTS.md","README.txt","docs/supervisor/audit-instructions.md","frontend/src/components/goal-composer.tsx","frontend/src/lib/platform-client.ts","frontend/src/lib/profile-mapper.ts","frontend/tests/compact-goal-composer.test.tsx","project_state/schemas/mainline_merge_intent_v4.schema.json","project_state/schemas/merge_approval_attestation_v4.schema.json","reverse_agent/mainline_landing.py","reverse_agent/platform_v1/control_store.py","reverse_agent/platform_v1/goal_service.py","reverse_agent/platform_v1/inbox_service.py","reverse_agent/platform_v1/run_store.py","reverse_agent/platform_v1/task_service.py","scripts/supervisor_publish.py","scripts/supervisor_validate.py","tests/platform_v1/test_goal_service.py","tests/platform_v1/test_publication_controller.py","tests/platform_v1/test_run_read_model.py","tests/platform_v1/test_task_service.py","tests/platform_v1/test_unattended_coordinator.py","tests/test_mainline_landing.py","tests/test_project_gate.py"]
     },
     {
-      "command_id": "issue345_regression_r2v1.exact_head_acceptance",
-      "command": "require exact-head CI Decision Preflight and State Gate (pull_request) terminal success on the bound Draft PR and independently audit that no unauthorized paths changed; keep the PR Draft and do not Ready or merge under this Decision",
-      "phase": "final_evidence",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "remote_observation",
-      "operations": ["code_read", "read_only_audit"],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation"
+      "command_id": "issue530v23.verify_prebinding",
+      "command": "verify exactly twenty-four candidate product paths plus immutable Decision and command plan differ from locked main; twenty-three replayed files are byte-identical to v16; tests/test_mainline_landing.py differs from v16 only by the authorized two-line production simulation repository derivation; PR537 changes outside the candidate set remain intact; no workflow or visual snapshot changed; require natural exact product-head Decision Preflight, State Gate, and CI success before binding",
+      "phase": "validation","required": true,"expected_exit_codes": [0],"execution_surface": "remote_observation","operations": ["code_read","repository_diff","workflow_observation","network_access"],"network_access": true,"required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "issue530v23.bind",
+      "command": "using the already assigned Draft landing PR number, archive the inherited active PR537 schema-v3 intent byte-for-byte as project_state/mainline_merge_intents/archive/pr537_v1.json and replace active.json exactly once with schema-v4 dddd2024/Nerelan intent bound to the actual PR, locked base, v23 Decision and command-plan digests, baseline workflow profile and merge-only policy",
+      "phase": "post_publication_binding","required": true,"expected_exit_codes": [0],"execution_surface": "remote_observation","operations": ["commit","push","network_access"],"network_access": true,"required_evidence_source": "repository_state_attestation","allowed_mutated_paths": ["project_state/mainline_merge_intents/active.json","project_state/mainline_merge_intents/archive/pr537_v1.json"],"allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue530v23.validate",
+      "command": "on the final bound exact head observe fresh natural run_attempt=1 CI Decision Preflight State Gate and Model Access without reruns; require all functional governance checks success; Frontend Playwright may fail only for the exact inherited eight Home/Settings light/dark desktop/mobile golden mismatches",
+      "phase": "validation","required": true,"expected_exit_codes": [0],"execution_surface": "remote_observation","operations": ["workflow_observation","network_access"],"network_access": true,"required_evidence_source": "ci_check_attestation","allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue530v23.audit",
+      "command": "perform independent read-only exact-head audit confirming v16 product semantics plus only the authorized two-line simulation fixture repair, preservation of PR537 schema-v3 workflow-profile repair, immutable authority, valid active v4 PR/Nerelan intent, byte-identical PR537 archive, no snapshot changes or unresolved blockers and preserved v1-v3 historical semantics; record ACCEPTED or REWORK_REQUIRED",
+      "phase": "final_evidence","required": true,"expected_exit_codes": [0],"execution_surface": "remote_observation","operations": ["code_read","repository_diff","pull_request_comment","network_access"],"network_access": true,"required_evidence_source": "repository_state_attestation","allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue530v23.attest",
+      "command": "only after audit ACCEPTED publish one canonical-digest-valid unexpired schema-v4 MAINLINE_MERGE_APPROVAL_ATTESTATION for exact accepted head using owner dddd2024 and exact successful baseline workflow observations",
+      "phase": "final_evidence","required": true,"expected_exit_codes": [0],"execution_surface": "remote_observation","operations": ["pull_request_comment","network_access"],"network_access": true,"required_evidence_source": "repository_state_attestation","allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue530v23.land",
+      "command": "revalidate unchanged locked main and accepted head, active v4 intent, owner attestation, audit and zero blockers; mark Ready exactly once, observe fresh natural Ready-event required checks if emitted, then merge exactly once using merge method and expected-head protection",
+      "phase": "landing","required": true,"expected_exit_codes": [0],"execution_surface": "remote_observation","operations": ["mark_ready","workflow_observation","merge","network_access"],"network_access": true,"required_evidence_source": "repository_state_attestation","allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue530v23.closeout",
+      "command": "after merge verify main advanced through the expected merge and natural post-merge State Gate push succeeds; close Issue530 completed, update parent Issue262, close validation PR539 as superseded if still open, and record final merge evidence",
+      "phase": "closeout","required": true,"expected_exit_codes": [0],"execution_surface": "remote_observation","operations": ["workflow_observation","issue_comment","issue_close","pull_request_update","network_access"],"network_access": true,"required_evidence_source": "repository_state_attestation","allowed_only_after_validation": true
     }
   ],
-  "allowed_mutated_paths": [
-    "project_state/decision_packet.md",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr499_v1.json",
-    "tests/platform_v1/test_merge_intent.py",
-    "tests/platform_v1/test_contracts.py"
-  ],
-  "reference_paths": [
-    "AGENTS.md",
-    "reverse_agent/mainline_landing.py",
-    "tests/test_mainline_landing.py",
-    "project_state/schemas/mainline_merge_intent_v3.schema.json"
-  ],
-  "reference_only_paths": [
-    "AGENTS.md",
-    "reverse_agent/mainline_landing.py",
-    "tests/test_mainline_landing.py",
-    "project_state/schemas/mainline_merge_intent_v3.schema.json"
-  ],
-  "generated_artifact_paths": [
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
-  ],
-  "forbidden_mutated_paths": [
-    "AGENTS.md",
-    "docs/**",
-    ".github/**",
-    ".codex-skills/**",
-    "frontend/**",
-    "requirements*.txt",
-    "pyproject.toml",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/control_plane/**",
-    "reverse_agent/platform_v1/**",
-    "project_state/schemas/**",
-    "project_state/current_state.json",
-    "project_state/state_manifest.json",
-    "project_state/artifact_index.json",
-    "README.md",
-    "README.txt",
-    "**/STOP",
-    "**/owner_handoffs/**"
-  ],
-  "forbidden_operations": [
-    "direct_push_main", "auto_merge", "merge", "mark_ready", "force_push", "rebase", "squash", "reset", "clean", "stash", "restore", "amend", "history_rewrite",
-    "unknown_binary_execution", "secrets", "destructive_delete", "privileged_remote_execution", "model_api_invocation", "provider_network_call", "credential_access", "auth_store_read",
-    "runner_dispatch", "workflow_rerun", "tag_or_release", "deployment", "dependency_install", "browser_execution", "snapshot_update", "arbitrary_remote_browsing", "external_url_navigation",
-    "second_decision_commit", "modify_production_workflow_profile_mapping", "modify_schema_v3", "weaken_baseline_three_workflow_requirement", "allow_free_form_workflow_names", "make_state_gate_push_pre_merge"
-  ],
-  "capability_policy": {
-    "runner_dispatch_allowed": false,
-    "model_api_invocation_allowed": false,
-    "external_reverse_tool_invocation_allowed": false,
-    "unknown_binary_execution_allowed": false,
-    "destructive_operations_allowed": false,
-    "bmad_installation_allowed": false,
-    "network_access_default_allowed": false,
-    "direct_push_to_main_allowed": false,
-    "merge_allowed": false,
-    "force_push_allowed": false,
-    "rebase_during_execution_allowed": false,
-    "tag_or_release_allowed": false,
-    "remote_observation_read_only_allowed": true,
-    "local_network_exceptions": [
-      "push the exact validated branch and create exactly one Draft PR",
-      "push the single post-publication merge-intent binding commit"
-    ],
-    "ci_network_exceptions": []
-  },
+  "allowed_mutated_paths": ["project_state/gates/command_plan.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json","project_state/mainline_merge_intents/active.json","project_state/mainline_merge_intents/archive/pr537_v1.json","AGENTS.md","README.txt","docs/supervisor/audit-instructions.md","frontend/src/components/goal-composer.tsx","frontend/src/lib/platform-client.ts","frontend/src/lib/profile-mapper.ts","frontend/tests/compact-goal-composer.test.tsx","project_state/schemas/mainline_merge_intent_v4.schema.json","project_state/schemas/merge_approval_attestation_v4.schema.json","reverse_agent/mainline_landing.py","reverse_agent/platform_v1/control_store.py","reverse_agent/platform_v1/goal_service.py","reverse_agent/platform_v1/inbox_service.py","reverse_agent/platform_v1/run_store.py","reverse_agent/platform_v1/task_service.py","scripts/supervisor_publish.py","scripts/supervisor_validate.py","tests/platform_v1/test_goal_service.py","tests/platform_v1/test_publication_controller.py","tests/platform_v1/test_run_read_model.py","tests/platform_v1/test_task_service.py","tests/platform_v1/test_unattended_coordinator.py","tests/test_mainline_landing.py","tests/test_project_gate.py"],
+  "authorized_risk_paths": ["project_state/gates/command_plan.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json","project_state/mainline_merge_intents/active.json","project_state/mainline_merge_intents/archive/pr537_v1.json","reverse_agent/mainline_landing.py","project_state/schemas/mainline_merge_intent_v4.schema.json","project_state/schemas/merge_approval_attestation_v4.schema.json","tests/test_project_gate.py","tests/test_mainline_landing.py"],
+  "forbidden_mutated_paths": ["project_state/rounds/**","project_state/mainline_recoveries/**","project_state/integration_baselines/**",".github/workflows/**","frontend/e2e/snapshots/**","frontend/tests/e2e/**/*.png","frontend/tests/e2e/**/__screenshots__/**","pyproject.toml","reverse_agent/__init__.py"],
+  "capability_policy": {"runner_dispatch_allowed":false,"model_api_invocation_allowed":false,"external_reverse_tool_invocation_allowed":false,"unknown_binary_execution_allowed":false,"destructive_operations_allowed":false,"bmad_installation_allowed":false,"network_access_default_allowed":true,"local_network_exceptions":[],"ci_network_exceptions":[],"remote_observation_read_only_allowed":false,"direct_push_to_main_allowed":false,"merge_allowed":true,"force_push_allowed":false,"rebase_during_execution_allowed":false,"tag_or_release_allowed":false},
   "path_risk_floor": [
-    {"pattern": "project_state/mainline_merge_intents/**", "minimum_risk": "R2"},
-    {"pattern": "project_state/gates/**", "minimum_risk": "R2"},
-    {"pattern": "tests/platform_v1/**", "minimum_risk": "R2"},
-    {"pattern": "**/secrets/**", "minimum_risk": "R3"}
-  ],
-  "authorized_risk_paths": [
-    "project_state/mainline_merge_intents/active.json",
-    "project_state/mainline_merge_intents/archive/pr499_v1.json",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "tests/platform_v1/test_merge_intent.py",
-    "tests/platform_v1/test_contracts.py"
-  ],
-  "mainline_merge_intent_scope": {
-    "schema_version": 3,
-    "inherits_active_intent_id": "pr499_issue444_auth_completion_r3_v5",
-    "archive_inherited_active_path": "project_state/mainline_merge_intents/archive/pr499_v1.json",
-    "active_path": "project_state/mainline_merge_intents/active.json",
-    "workflow_profile": "baseline",
-    "required_workflow_names": ["CI", "Decision Preflight", "State Gate (pull_request)"],
-    "merge_tree_policy": "equal_to_accepted_head_tree",
-    "allowed_merge_method": "merge"
-  },
-  "merge_intent_validation": {
-    "schema_version": 3,
-    "workflow_profile": "baseline",
-    "required_workflow_names": ["CI", "Decision Preflight", "State Gate (pull_request)"],
-    "state_gate_push_premerge": false,
-    "expected_workflows": ["CI", "Decision Preflight", "State Gate (pull_request)"]
-  }
+    {"pattern":"project_state/**","minimum_risk":"R2"},
+    {"pattern":"reverse_agent/mainline_landing.py","minimum_risk":"R3"},
+    {"pattern":"project_state/schemas/mainline_merge_intent_v4.schema.json","minimum_risk":"R3"},
+    {"pattern":"project_state/schemas/merge_approval_attestation_v4.schema.json","minimum_risk":"R3"},
+    {"pattern":"tests/test_project_gate.py","minimum_risk":"R3"},
+    {"pattern":"tests/test_mainline_landing.py","minimum_risk":"R3"}
+  ]
 }
 ```
