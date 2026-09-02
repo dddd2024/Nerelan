@@ -1,0 +1,109 @@
+name: BRAND-2B v32 plan proof
+
+on:
+  push:
+    branches:
+      - owner/issue530-brand2b-digest-correction-r3-v32
+
+permissions:
+  contents: read
+
+jobs:
+  plan-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install package
+        run: python -m pip install -e '.[test]'
+      - name: Verify v32 Decision identity
+        run: |
+          set -euo pipefail
+          test "$(git hash-object project_state/decision_packet.md)" = "4768852c9ff49c42cec8106d5371f6cb22efd965"
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          data = Path('project_state/decision_packet.md').read_bytes()
+          got = hashlib.sha256(data).hexdigest()
+          expected = 'abc3f255c606e58cbedb337666e663bae25b5b6c0464db7b51ca641b1c53f01e'
+          assert got == expected, (got, expected)
+          PY
+      - name: Transition lint
+        run: python -m reverse_agent.project_gate transition-lint --state-dir project_state
+      - name: Generate deterministic v32 command plan
+        run: |
+          set -euo pipefail
+          python -m reverse_agent.project_gate transition-command-plan --state-dir project_state
+          cp project_state/gates/command_plan.json /tmp/v32-command-plan.json
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json, subprocess
+          p = Path('/tmp/v32-command-plan.json')
+          data = p.read_bytes()
+          json.loads(data)
+          sha256 = hashlib.sha256(data).hexdigest()
+          git_sha = subprocess.check_output(['git','hash-object',str(p)], text=True).strip()
+          print(f'generated_git_blob_sha={git_sha}')
+          print(f'generated_sha256={sha256}')
+          Path('/tmp/generated-plan-manifest.txt').write_text(
+              f'git_blob_sha={git_sha}\nsha256={sha256}\n', encoding='utf-8'
+          )
+          PY
+      - name: Verify committed plan when sealed
+        run: |
+          set -euo pipefail
+          git show HEAD:project_state/gates/command_plan.json > /tmp/committed-command-plan.json
+          if cmp -s /tmp/committed-command-plan.json /tmp/v32-command-plan.json; then
+            python - <<'PY'
+          from pathlib import Path
+          import hashlib, subprocess
+          p = Path('/tmp/committed-command-plan.json')
+          data = p.read_bytes()
+          sha256 = hashlib.sha256(data).hexdigest()
+          git_sha = subprocess.check_output(['git','rev-parse','HEAD:project_state/gates/command_plan.json'], text=True).strip()
+          generated_git_sha = subprocess.check_output(['git','hash-object','/tmp/v32-command-plan.json'], text=True).strip()
+          generated_sha256 = hashlib.sha256(Path('/tmp/v32-command-plan.json').read_bytes()).hexdigest()
+          assert git_sha == generated_git_sha, (git_sha, generated_git_sha)
+          assert sha256 == generated_sha256, (sha256, generated_sha256)
+          print(f'SEALED committed_git_blob_sha={git_sha}')
+          print(f'SEALED committed_sha256={sha256}')
+          Path('/tmp/committed-plan-manifest.txt').write_text(
+              f'git_blob_sha={git_sha}\nsha256={sha256}\n', encoding='utf-8'
+          )
+          PY
+          else
+            echo 'committed plan differs from generated plan; initial materialization required'
+            printf 'unsealed\n' > /tmp/committed-plan-manifest.txt
+          fi
+      - name: Transition preflight
+        run: python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre
+      - name: Restore tracked worktree and prove no helper commit/push
+        if: always()
+        run: |
+          git reset --hard HEAD
+          git clean -fd
+          test -z "$(git status --porcelain)"
+          echo "helper did not commit or push"
+      - name: Upload generated command plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: v32-command-plan
+          path: /tmp/v32-command-plan.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload digest manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: v32-command-plan-proof
+          path: |
+            /tmp/generated-plan-manifest.txt
+            /tmp/committed-plan-manifest.txt
+          if-no-files-found: error
+          retention-days: 7
