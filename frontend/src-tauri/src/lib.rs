@@ -139,7 +139,7 @@ fn start_runtime() -> RuntimeStartResult {
   match child {
     Ok(child) => RuntimeStartResult {
       started: true,
-      pid: child.id(),
+      pid: Some(child.id()),
       repo_root: Some(repo_root.display().to_string()),
       error: None,
     },
