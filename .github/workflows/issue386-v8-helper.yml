@@ -1,0 +1,234 @@
+name: Issue 386 V8 transport helper
+
+on:
+  push:
+    branches:
+      - owner/issue386-executor-router-collision-r1-v8-helper
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    if: "${{ github.actor == 'dddd2024' && github.event.head_commit.message == 'chore: install Issue 386 V8 transport helper' }}"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout helper branch
+        uses: actions/checkout@v4
+        with:
+          ref: owner/issue386-executor-router-collision-r1-v8-helper
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install package
+        run: python -m pip install -e ".[test]"
+
+      - name: Apply bounded Issue 386 patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          BASE = "0da78df5d2c5337ffeab17e3a00651df507637f0"
+
+          def replace_exact(path: str, old: str, new: str, expected: int) -> None:
+              p = Path(path)
+              text = p.read_text(encoding="utf-8")
+              actual = text.count(old)
+              if actual != expected:
+                  raise SystemExit(f"{path}: expected {expected} matches, found {actual}")
+              p.write_text(text.replace(old, new), encoding="utf-8")
+
+          runtime_path = "reverse_agent/platform_v1/task_runtime.py"
+          marker_old = (
+              "# ---------------------------------------------------------------------------\n"
+              "# ExecutorRouter\n"
+              "# ---------------------------------------------------------------------------\n\n"
+              "class ExecutorRouter:"
+          )
+          marker_new = (
+              "# ---------------------------------------------------------------------------\n"
+              "# ExecutorRouter\n"
+              "# ---------------------------------------------------------------------------\n\n"
+              "def _normalize_executor_kind(kind: str) -> str:\n"
+              "    if not isinstance(kind, str) or not kind.strip():\n"
+              "        raise ExecutorRuntimeError(\"executor_kind_must_be_non_empty\")\n"
+              "    return kind.strip().casefold()\n\n\n"
+              "class ExecutorRouter:"
+          )
+          replace_exact(runtime_path, marker_old, marker_new, 1)
+
+          register_old = (
+              "    def register(self, kind: str, factory: Callable[..., Executor]) -> None:\n"
+              "        if not isinstance(kind, str) or not kind.strip():\n"
+              "            raise ExecutorRuntimeError(\"executor_kind_must_be_non_empty\")\n"
+              "        self._registry[kind] = factory\n"
+          )
+          register_new = (
+              "    def register(self, kind: str, factory: Callable[..., Executor]) -> None:\n"
+              "        normalized_kind = _normalize_executor_kind(kind)\n"
+              "        if normalized_kind in self._registry:\n"
+              "            raise ExecutorRuntimeError(f\"duplicate_executor_kind:{normalized_kind}\")\n"
+              "        self._registry[normalized_kind] = factory\n\n"
+              "    def replace(self, kind: str, factory: Callable[..., Executor]) -> None:\n"
+              "        normalized_kind = _normalize_executor_kind(kind)\n"
+              "        if normalized_kind not in self._registry:\n"
+              "            raise ExecutorRuntimeError(f\"unknown_executor_kind:{normalized_kind}\")\n"
+              "        self._registry[normalized_kind] = factory\n"
+          )
+          replace_exact(runtime_path, register_old, register_new, 1)
+
+          lookup_old = (
+              "        factory = self._registry.get(executor_kind)\n"
+              "        if factory is None:\n"
+              "            raise ExecutorRuntimeError(f\"unknown_executor_kind:{executor_kind}\")"
+          )
+          lookup_new = (
+              "        normalized_kind = _normalize_executor_kind(executor_kind)\n"
+              "        factory = self._registry.get(normalized_kind)\n"
+              "        if factory is None:\n"
+              "            raise ExecutorRuntimeError(f\"unknown_executor_kind:{normalized_kind}\")"
+          )
+          replace_exact(runtime_path, lookup_old, lookup_new, 2)
+
+          test_path = Path("tests/platform_v1/test_task_runtime.py")
+          test_text = test_path.read_text(encoding="utf-8")
+          sentinel = "def test_registration_rejects_duplicate_normalized_kind_and_preserves_factory()"
+          if sentinel in test_text:
+              raise SystemExit("focused tests already patched unexpectedly")
+          focused_tests = r'''
+
+          def test_registration_rejects_duplicate_normalized_kind_and_preserves_factory() -> None:
+              router = ExecutorRouter()
+              first_factory = lambda: object()
+              router.register(" Custom ", first_factory)
+              with pytest.raises(ExecutorRuntimeError, match=r"^duplicate_executor_kind:custom$"):
+                  router.register("CUSTOM", lambda: object())
+              assert router._registry["custom"] is first_factory
+
+
+          def test_registration_cannot_shadow_builtin_executor_aliases() -> None:
+              router = ExecutorRouter()
+              fixture_factory = router._registry["deterministic_fixture"]
+              opencode_factory = router._registry["opencode"]
+              with pytest.raises(ExecutorRuntimeError, match=r"^duplicate_executor_kind:deterministic_fixture$"):
+                  router.register(" DETERMINISTIC_FIXTURE ", lambda: object())
+              with pytest.raises(ExecutorRuntimeError, match=r"^duplicate_executor_kind:opencode$"):
+                  router.register(" OpenCode ", lambda: object())
+              assert router._registry["deterministic_fixture"] is fixture_factory
+              assert router._registry["opencode"] is opencode_factory
+
+
+          def test_explicit_replace_normalizes_existing_kind() -> None:
+              router = ExecutorRouter()
+              replacement = lambda: object()
+              router.replace(" DETERMINISTIC_FIXTURE ", replacement)
+              assert router._registry["deterministic_fixture"] is replacement
+
+
+          def test_explicit_replace_rejects_unknown_kind() -> None:
+              router = ExecutorRouter()
+              with pytest.raises(ExecutorRuntimeError, match=r"^unknown_executor_kind:missing$"):
+                  router.replace(" Missing ", lambda: object())
+
+
+          def test_normalized_dispatch_lookup_preserves_builtin_fixture() -> None:
+              with tempfile.TemporaryDirectory() as td:
+                  router = ExecutorRouter()
+                  result = router.dispatch_execute(
+                      task_id="task-normalized-fixture",
+                      store=TaskStore(":memory:"),
+                      executor_kind=" DETERMINISTIC_FIXTURE ",
+                      workspace_root=td,
+                  )
+              assert result.success is True
+
+
+          def test_normalized_create_executor_lookup_preserves_opencode() -> None:
+              from reverse_agent.platform_v1.opencode_executor import OpenCodeExecutor
+              router = ExecutorRouter()
+              executor = router.create_executor(
+                  executor_kind=" OpenCode ",
+                  model_id="sensetime/sensenova-6.7-flash-lite",
+                  opencode_exe="/fake/opencode",
+              )
+              assert isinstance(executor, OpenCodeExecutor)
+
+
+          def test_registration_and_replace_reject_empty_kind() -> None:
+              router = ExecutorRouter()
+              with pytest.raises(ExecutorRuntimeError, match=r"^executor_kind_must_be_non_empty$"):
+                  router.register("   ", lambda: object())
+              with pytest.raises(ExecutorRuntimeError, match=r"^executor_kind_must_be_non_empty$"):
+                  router.replace("   ", lambda: object())
+          '''
+          test_path.write_text(test_text.rstrip() + focused_tests + "\n", encoding="utf-8")
+
+          caller_counts = {
+              "tests/platform_v1/test_durable_execution.py": 3,
+              "tests/platform_v1/test_task_service.py": 4,
+              "tests/platform_v1/test_unattended_coordinator.py": 1,
+          }
+          old_call = 'router.register("deterministic_fixture",'
+          new_call = 'router.replace("deterministic_fixture",'
+          for path, expected in caller_counts.items():
+              replace_exact(path, old_call, new_call, expected)
+
+          allowed = {
+              runtime_path,
+              "tests/platform_v1/test_task_runtime.py",
+              *caller_counts.keys(),
+          }
+          changed = set(
+              subprocess.check_output(["git", "diff", "--name-only", BASE, "--"], text=True).splitlines()
+          )
+          if changed != allowed:
+              raise SystemExit(f"unexpected changed paths after patch: {sorted(changed)}")
+          PY
+
+      - name: Focused ExecutorRouter tests
+        run: python -m pytest tests/platform_v1/test_task_runtime.py -q
+
+      - name: Intentional fixture caller tests
+        run: python -m pytest tests/platform_v1/test_durable_execution.py tests/platform_v1/test_task_service.py tests/platform_v1/test_unattended_coordinator.py -q
+
+      - name: Platform V1 blocking suite
+        run: python -m pytest tests/platform_v1 -q
+
+      - name: Diff check
+        run: git diff --check
+
+      - name: Remove helper and verify net product tree
+        shell: bash
+        run: |
+          git rm .github/workflows/issue386-v8-helper.yml
+          python - <<'PY'
+          import subprocess
+          base = "0da78df5d2c5337ffeab17e3a00651df507637f0"
+          expected = {
+              "reverse_agent/platform_v1/task_runtime.py",
+              "tests/platform_v1/test_task_runtime.py",
+              "tests/platform_v1/test_durable_execution.py",
+              "tests/platform_v1/test_task_service.py",
+              "tests/platform_v1/test_unattended_coordinator.py",
+          }
+          changed = set(
+              subprocess.check_output(["git", "diff", "--name-only", base, "--"], text=True).splitlines()
+          )
+          if changed != expected:
+              raise SystemExit(f"net candidate paths mismatch: {sorted(changed)}")
+          PY
+
+      - name: Commit tested candidate
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: prepare Issue 386 V8 product tree"
+          git push origin HEAD:owner/issue386-executor-router-collision-r1-v8-helper
