@@ -338,7 +338,7 @@ def test_parallel_batch_reuses_shared_connection_durable_fixture_runs_repeatedly
             )
 
     router = ExecutorRouter()
-    router.register("deterministic_fixture", lambda **_: BarrierFixtureExecutor())
+    router.replace("deterministic_fixture", lambda **_: BarrierFixtureExecutor())
     coordinator = UnattendedCoordinator(
         store=store, control_store=control, autonomy=autonomy,
         router=router, workspace_root=tmp_path / "workspaces",
