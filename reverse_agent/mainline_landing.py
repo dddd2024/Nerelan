@@ -23,6 +23,8 @@ from .project_state import extract_markdown_json_block
 INTEGRATION_BASELINE_NAME = "architecture_spine_v1.json"
 MERGE_INTENT_PATH = "project_state/mainline_merge_intents/active.json"
 PR60_RECOVERY_NAME = "pr60.json"
+LEGACY_REPOSITORY = "dddd2024/reverse-agent"
+CURRENT_REPOSITORY = "dddd2024/Nerelan"
 CANONICAL_WORKFLOW_POLICY: dict[str, tuple[str, str]] = {
     "CI": (".github/workflows/ci.yml", "pull_request"),
     "Decision Preflight": (
@@ -226,7 +228,7 @@ def _decision_contract_profile(repo_root: Path, commit_sha: str) -> Any:
     """Read the Decision-declared workflow_profile from a committed Decision contract.
 
     Returns ``None`` when the committed Decision contract predates the
-    scope-aware profile policy and declares no ``workflow_profile``; a v3
+    scope-aware profile policy and declares no ``workflow_profile``; a v3/v4
     intent must never match such a Decision.
     """
 
@@ -385,7 +387,7 @@ def _validate_intent(
         workflow_policy = CANONICAL_WORKFLOW_POLICY
     elif schema_version == 2:
         workflow_policy = CURRENT_PREMERGE_WORKFLOW_POLICY
-    elif schema_version == 3:
+    elif schema_version in {3, 4}:
         try:
             workflow_policy = resolve_premerge_workflow_profile(intent_profile)
         except ValueError:
@@ -407,12 +409,13 @@ def _validate_intent(
             _check("intent_workflow_policy", False, "unsupported_version"),
             _check("intent_expiry", False, "unsupported_version"),
         ]
-    if schema_version == 3:
+    if schema_version in {3, 4}:
         intent_fields = intent_fields | {"workflow_profile"}
+    expected_repository = CURRENT_REPOSITORY if schema_version == 4 else LEGACY_REPOSITORY
     checks = [
         _check("intent_fields", set(intent) == intent_fields, f"observed={sorted(intent)}"),
-        _check("intent_schema_version", schema_version in {1, 2, 3}, f"observed={schema_version}"),
-        _check("intent_repository", intent.get("repository") == "dddd2024/reverse-agent", f"observed={intent.get('repository')}"),
+        _check("intent_schema_version", schema_version in {1, 2, 3, 4}, f"observed={schema_version}"),
+        _check("intent_repository", intent.get("repository") == expected_repository, f"observed={intent.get('repository')} expected={expected_repository}"),
         _check("intent_source_pr", intent.get("source_pr") == source_pr, f"observed={intent.get('source_pr')} expected={source_pr}"),
         _check("intent_locked_base", intent.get("locked_base_sha") == locked_base, f"observed={intent.get('locked_base_sha')} expected={locked_base}"),
         _check("intent_merge_method", intent.get("allowed_merge_method") == "merge", f"observed={intent.get('allowed_merge_method')}"),
@@ -425,7 +428,7 @@ def _validate_intent(
         _check("intent_workflow_policy", required == list(workflow_policy), f"observed={required}"),
         _check("intent_expiry", not_expired, f"expires_at={expiry} now={now.isoformat()}"),
     ]
-    if schema_version == 3:
+    if schema_version in {3, 4}:
         decision_profile = _decision_contract_profile(repo_root, accepted_head)
         checks.append(
             _check(
@@ -479,7 +482,7 @@ def _validate_attestation(
     elif schema_version == 2:
         workflow_policy = CURRENT_PREMERGE_WORKFLOW_POLICY
         required_observation_count = 3
-    elif schema_version == 3:
+    elif schema_version in {3, 4}:
         try:
             workflow_policy = resolve_premerge_workflow_profile(
                 intent.get("workflow_profile")
@@ -552,7 +555,7 @@ def _validate_attestation(
         "_remote_comment_updated_at",
     }
     expected_fields = attestation_fields
-    if schema_version in {2, 3}:
+    if schema_version in {2, 3, 4}:
         expected_fields = attestation_fields | runtime_timestamp_fields
     observed_fields_valid = set(attestation) == expected_fields or (
         schema_version == 1 and set(attestation) == attestation_fields | runtime_timestamp_fields
@@ -566,11 +569,12 @@ def _validate_attestation(
         "head_sha",
         "conclusion",
     }
+    expected_repository = CURRENT_REPOSITORY if schema_version == 4 else LEGACY_REPOSITORY
     checks.extend(
         [
             _check("attestation_fields", observed_fields_valid, f"observed={sorted(attestation)}"),
-            _check("attestation_schema_version", schema_version in {1, 2, 3}, f"observed={schema_version}"),
-            _check("attestation_repository", attestation.get("repository") == "dddd2024/reverse-agent", f"observed={attestation.get('repository')}"),
+            _check("attestation_schema_version", schema_version in {1, 2, 3, 4}, f"observed={schema_version}"),
+            _check("attestation_repository", attestation.get("repository") == expected_repository, f"observed={attestation.get('repository')} expected={expected_repository}"),
             _check("attestation_source_pr", attestation.get("source_pr") == source_pr, f"observed={attestation.get('source_pr')} expected={source_pr}"),
             _check("attestation_base", attestation.get("locked_base_sha") == locked_base, f"observed={attestation.get('locked_base_sha')}"),
             _check("attestation_head", attestation.get("accepted_exact_head_sha") == accepted_head, f"observed={attestation.get('accepted_exact_head_sha')}"),
@@ -585,7 +589,7 @@ def _validate_attestation(
             _check("approval_remote_identity", remote_comment_id > 0 and approval.get("approval_object_id") == remote_comment_id and attestation.get("_remote_author") in {"dddd2024"}, f"comment={remote_comment_id} author={attestation.get('_remote_author')}"),
             _check("approval_fields", set(approval) == {"approver", "approval_object_id", "approval_payload", "approval_content_digest"}, f"observed={sorted(approval)}"),
             _check("approval_approver", approval.get("approver") == attestation.get("_remote_author") == "dddd2024", f"observed={approval.get('approver')}"),
-            _check("approval_payload", approval_payload == {"repository":"dddd2024/reverse-agent","source_pr":source_pr,"locked_base_sha":locked_base,"accepted_exact_head_sha":accepted_head,"allowed_merge_method":"merge"}, f"observed={approval_payload}"),
+            _check("approval_payload", approval_payload == {"repository":expected_repository,"source_pr":source_pr,"locked_base_sha":locked_base,"accepted_exact_head_sha":accepted_head,"allowed_merge_method":"merge"}, f"observed={approval_payload}"),
             _check("approval_content_digest", approval.get("approval_content_digest") == canonical_digest(approval_payload), f"observed={approval.get('approval_content_digest')}"),
         ]
     )
@@ -594,7 +598,7 @@ def _validate_attestation(
         "expected_head_sha": accepted_head,
         "expected_base_sha": locked_base,
     }
-    if schema_version in {2, 3}:
+    if schema_version in {2, 3, 4}:
         verify_kwargs.update(
             expected_merge_commit_sha=merge_commit_sha,
             require_merged=True,
@@ -607,7 +611,7 @@ def _validate_attestation(
         verify_kwargs["require_merged"] = False
     pr = verifier.verify_pr(**verify_kwargs)
     checks.append(_check("remote_pr_binding", bool(pr.get("verified")), str(pr.get("reason") or "verified")))
-    if schema_version in {2, 3} and not premerge:
+    if schema_version in {2, 3, 4} and not premerge:
         remote_pr = pr.get("pr") if isinstance(pr.get("pr"), Mapping) else {}
         merged_at = remote_pr.get("merged_at")
         if not isinstance(merged_at, str) or not merged_at:
@@ -710,13 +714,13 @@ def validate_active_merge_intent(
     if (
         isinstance(schema_version, bool)
         or not isinstance(schema_version, int)
-        or schema_version != 3
+        or schema_version != 4
     ):
         return [
             _check(
                 "premerge_intent_schema_version",
                 False,
-                f"observed={schema_version!r} expected=3",
+                f"observed={schema_version!r} expected=4",
             )
         ]
     try:
@@ -755,13 +759,13 @@ def validate_premerge_attestation(
     if (
         isinstance(schema_version, bool)
         or not isinstance(schema_version, int)
-        or schema_version != 3
+        or schema_version != 4
     ):
         return [
             _check(
                 "premerge_attestation_schema_version",
                 False,
-                f"observed={schema_version!r} expected=3",
+                f"observed={schema_version!r} expected=4",
             )
         ]
     try:
@@ -891,7 +895,7 @@ def validate_pr60_recovery(
             _check("recovery_schema_version", record.get("schema_version") == 1, f"observed={record.get('schema_version')}"),
             _check("recovery_status", record.get("status") == "EXACT_HISTORICAL_RECOVERY", f"status={record.get('status')}"),
             _check("non_retroactive", record.get("non_retroactive") is True, f"observed={record.get('non_retroactive')}"),
-            _check("exact_repository", record.get("repository") == "dddd2024/reverse-agent", f"observed={record.get('repository')}"),
+            _check("exact_repository", record.get("repository") == LEGACY_REPOSITORY, f"observed={record.get('repository')}"),
             _check("exact_pr", record.get("source_pr") == 60, f"observed={record.get('source_pr')}"),
             _check("exact_merge", merge == "68026521710c50fa9a70f3851472941605d9ead1", f"observed={merge}"),
             _check("ordered_parents", parents == [base, head] == record.get("expected_parent_shas"), f"observed={parents}"),
