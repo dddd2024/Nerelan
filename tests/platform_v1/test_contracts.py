@@ -959,6 +959,33 @@ def _contract_defers_pr_binding() -> bool:
 SUPPORTED_ACTIVE_SCHEMA_VERSIONS = (1, 2, 3)
 
 
+def _expected_active_workflows(active: dict) -> list[str]:
+    """Resolve the exact production-owned premerge workflows for an active intent.
+
+    schema v1 -> the four-run canonical policy;
+    schema v2 -> the three-run current premerge policy;
+    schema v3 -> the bounded trusted ``workflow_profile`` resolved through
+    production ``resolve_premerge_workflow_profile`` (fail closed for unknown
+    or invented profile names);
+    anything else -> fail closed instead of silently falling back to baseline.
+    """
+
+    from reverse_agent.mainline_landing import (
+        CANONICAL_WORKFLOW_POLICY,
+        CURRENT_PREMERGE_WORKFLOW_POLICY,
+        resolve_premerge_workflow_profile,
+    )
+
+    schema_version = active.get("schema_version")
+    if schema_version == 1:
+        return list(CANONICAL_WORKFLOW_POLICY)
+    if schema_version == 2:
+        return list(CURRENT_PREMERGE_WORKFLOW_POLICY)
+    if schema_version == 3:
+        return list(resolve_premerge_workflow_profile(active["workflow_profile"]))
+    raise AssertionError(f"unsupported_schema_version:{schema_version!r}")
+
+
 def _active_intent_blob_at(repo_root: Path, base_sha: str) -> bytes:
     """Read the active-intent bytes from the Decision's locked Git base."""
 
@@ -1178,16 +1205,9 @@ class TestActiveMergeIntentV6:
         assert self._active["allowed_merge_method"] == "merge"
 
     def test_active_binds_required_workflows(self) -> None:
-        workflows = self._active["required_workflows"]
-        assert "CI" in workflows
-        assert "Decision Preflight" in workflows
-        assert "State Gate (pull_request)" in workflows
-        if int(self._active.get("schema_version") or 1) == 1:
-            assert "State Gate (push)" in workflows
-            assert len(workflows) == 4
-        else:
-            assert "State Gate (push)" not in workflows
-            assert len(workflows) == 3
+        assert self._active["required_workflows"] == _expected_active_workflows(
+            self._active
+        )
 
     def test_active_has_bounded_expiry(self) -> None:
         expires = self._active.get("expires_at", "")
@@ -1987,3 +2007,79 @@ class TestStateGateBootstrapPathTreeSealV6:
             repo_root / ".github" / "workflows" / "state-gate.yml"
         ).read_text(encoding="utf-8")
         assert validator_dump(old_workflow) == validator_dump(current_workflow)
+
+
+# ---------------------------------------------------------------------------
+# Profile-aware premerge workflow policy (Issue #345 regression)
+# ---------------------------------------------------------------------------
+
+class TestProfileAwarePremergeWorkflowPolicy:
+    """required_workflows must be exactly the production-owned profile set.
+
+    Schema v1 and v2 keep their legacy exact sets.  Schema v3 resolves the
+    bounded trusted ``workflow_profile`` through production
+    ``resolve_premerge_workflow_profile``; baseline is exactly 3, browser_r3
+    is exactly 5, and unknown/invented profiles fail closed.
+    """
+
+    def test_schema_v1_requires_exact_four_run_policy(self) -> None:
+        assert _expected_active_workflows({"schema_version": 1}) == [
+            "CI",
+            "Decision Preflight",
+            "State Gate (pull_request)",
+            "State Gate (push)",
+        ]
+
+    def test_schema_v2_requires_exact_three_run_policy(self) -> None:
+        assert _expected_active_workflows({"schema_version": 2}) == [
+            "CI",
+            "Decision Preflight",
+            "State Gate (pull_request)",
+        ]
+
+    def test_schema_v3_baseline_is_exactly_three(self) -> None:
+        assert _expected_active_workflows(
+            {"schema_version": 3, "workflow_profile": "baseline"}
+        ) == [
+            "CI",
+            "Decision Preflight",
+            "State Gate (pull_request)",
+        ]
+
+    def test_schema_v3_browser_r3_is_exactly_five(self) -> None:
+        assert _expected_active_workflows(
+            {"schema_version": 3, "workflow_profile": "browser_r3"}
+        ) == [
+            "CI",
+            "Decision Preflight",
+            "State Gate (pull_request)",
+            "Frontend Playwright",
+            "Model Access",
+        ]
+
+    def test_schema_v3_browser_r3_includes_specialized_workflows(self) -> None:
+        workflows = _expected_active_workflows(
+            {"schema_version": 3, "workflow_profile": "browser_r3"}
+        )
+        assert "Frontend Playwright" in workflows
+        assert "Model Access" in workflows
+
+    def test_state_gate_push_excluded_from_all_schema_v3_premerge_profiles(
+        self,
+    ) -> None:
+        for profile in ("baseline", "browser_r3"):
+            workflows = _expected_active_workflows(
+                {"schema_version": 3, "workflow_profile": profile}
+            )
+            assert "State Gate (push)" not in workflows, profile
+
+    def test_unknown_workflow_profile_fails_closed(self) -> None:
+        with pytest.raises(ValueError):
+            _expected_active_workflows(
+                {"schema_version": 3, "workflow_profile": "invented"}
+            )
+
+    def test_unsupported_schema_version_fails_closed(self) -> None:
+        for schema_version in (4, 5, "3", None, False):
+            with pytest.raises(AssertionError):
+                _expected_active_workflows({"schema_version": schema_version})
