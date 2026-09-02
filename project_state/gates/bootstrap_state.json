@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260901_issue345_platform_v1_profile_regression_r2_v1",
-  "round_id": "round_20260901_issue345_platform_v1_profile_regression_r2_v1",
-  "expired_at": "2026-09-01T13:52:47+00:00"
+  "decision_id": "decision_20260902_issue156_execution_surface_cutover_r2_v1",
+  "round_id": "round_20260902_issue156_execution_surface_cutover_r2_v1",
+  "expired_at": "2026-09-02T04:54:10+00:00"
 }
