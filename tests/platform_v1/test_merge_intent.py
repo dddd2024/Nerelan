@@ -101,7 +101,7 @@ def _expected_premerge_workflows(intent: dict) -> list[str]:
         return list(CANONICAL_WORKFLOW_POLICY)
     if schema_version == 2:
         return list(CURRENT_PREMERGE_WORKFLOW_POLICY)
-    if schema_version == 3:
+    if schema_version in {3, 4}:
         return list(resolve_premerge_workflow_profile(intent["workflow_profile"]))
     raise AssertionError(f"unsupported_schema_version:{schema_version!r}")
 
@@ -203,7 +203,7 @@ class TestActiveMergeIntent:
         contract = _parse_decision_contract()
         if not _active_intent_binds_current_decision():
             assert _contract_defers_pr_binding()
-            assert data["schema_version"] in {1, 2, 3}
+            assert data["schema_version"] in {1, 2, 3, 4}
             return
         expected_base = contract["activation_base_sha"]
         assert data["locked_base_sha"] == expected_base
@@ -221,7 +221,7 @@ class TestActiveMergeIntent:
         meta = _parse_decision_meta()
         if not _active_intent_binds_current_decision():
             assert _contract_defers_pr_binding()
-            assert data["schema_version"] in {1, 2, 3}
+            assert data["schema_version"] in {1, 2, 3, 4}
             assert (
                 data["decision_identity"]["decision_id"] != meta["decision_id"]
             ), "pre-binding interim must preserve the previous landing decision"
@@ -394,7 +394,7 @@ class TestProfileAwarePremergeWorkflowPolicy:
             )
 
     def test_unsupported_schema_version_fails_closed(self) -> None:
-        for schema_version in (4, 5, "3", None, False):
+        for schema_version in (5, "3", None, False):
             with pytest.raises(AssertionError):
                 _expected_premerge_workflows({"schema_version": schema_version})
 

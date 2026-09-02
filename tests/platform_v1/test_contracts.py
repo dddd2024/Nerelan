@@ -956,7 +956,7 @@ def _contract_defers_pr_binding() -> bool:
     )
 
 
-SUPPORTED_ACTIVE_SCHEMA_VERSIONS = (1, 2, 3)
+SUPPORTED_ACTIVE_SCHEMA_VERSIONS = (1, 2, 3, 4)
 
 
 def _expected_active_workflows(active: dict) -> list[str]:
@@ -981,7 +981,7 @@ def _expected_active_workflows(active: dict) -> list[str]:
         return list(CANONICAL_WORKFLOW_POLICY)
     if schema_version == 2:
         return list(CURRENT_PREMERGE_WORKFLOW_POLICY)
-    if schema_version == 3:
+    if schema_version in {3, 4}:
         return list(resolve_premerge_workflow_profile(active["workflow_profile"]))
     raise AssertionError(f"unsupported_schema_version:{schema_version!r}")
 
@@ -1097,7 +1097,7 @@ class TestActiveMergeIntentV6:
                 != meta["decision_id"]
             ), "pre-binding interim must preserve the previous landing decision"
             return
-        assert self._active["schema_version"] == 3
+        assert self._active["schema_version"] == 4
         assert self._active["decision_identity"]["decision_id"] == meta["decision_id"]
 
     @pytest.mark.skipif(
@@ -1109,7 +1109,7 @@ class TestActiveMergeIntentV6:
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
         if _active_intent_binds_current_decision():
-            assert self._active["schema_version"] == 3
+            assert self._active["schema_version"] == 4
             assert sha == hashlib.sha256(self._decision_path.read_bytes()).hexdigest()
         else:
             assert _contract_defers_pr_binding()
@@ -1126,7 +1126,7 @@ class TestActiveMergeIntentV6:
         assert isinstance(sha, str) and len(sha) == 64
         assert all(c in "0123456789abcdef" for c in sha)
         if _active_intent_binds_current_decision():
-            assert self._active["schema_version"] == 3
+            assert self._active["schema_version"] == 4
             assert sha == hashlib.sha256(self._command_plan_path.read_bytes()).hexdigest()
         else:
             assert _contract_defers_pr_binding()
@@ -1146,7 +1146,7 @@ class TestActiveMergeIntentV6:
             assert _contract_defers_pr_binding()
             assert self._active["schema_version"] in SUPPORTED_ACTIVE_SCHEMA_VERSIONS
             return
-        assert self._active["schema_version"] == 3
+        assert self._active["schema_version"] == 4
         expected_base = contract["base_sha"]
         assert self._active["locked_base_sha"] == expected_base
 
@@ -1188,7 +1188,7 @@ class TestActiveMergeIntentV6:
         meta = extract_markdown_json_block(
             self._decision_path.read_text(encoding="utf-8"), "decision_meta"
         )
-        assert self._active["schema_version"] == 3
+        assert self._active["schema_version"] == 4
         assert self._active["decision_identity"]["decision_id"] == meta["decision_id"]
         assert self._active["decision_identity"]["decision_content_sha256"] == (
             hashlib.sha256(self._decision_path.read_bytes()).hexdigest()
@@ -2080,6 +2080,6 @@ class TestProfileAwarePremergeWorkflowPolicy:
             )
 
     def test_unsupported_schema_version_fails_closed(self) -> None:
-        for schema_version in (4, 5, "3", None, False):
+        for schema_version in (5, "3", None, False):
             with pytest.raises(AssertionError):
                 _expected_active_workflows({"schema_version": schema_version})
