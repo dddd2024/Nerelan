@@ -35,7 +35,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -49,6 +51,32 @@ jobs:
         id: control_plane
         shell: bash
         run: echo "mode=$(python -m reverse_agent.project_gate control-plane-mode --state-dir project_state --event-path "$GITHUB_EVENT_PATH")" >> "$GITHUB_OUTPUT"
+
+      - name: Validate transition path-class contract
+        if: steps.control_plane.outputs.mode == 'transition'
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from reverse_agent.control_plane.legacy_adapter import load_transition_decision
+
+          _, contract = load_transition_decision(Path("project_state/decision_packet.md"))
+          allowed = {
+              str(item).strip()
+              for item in contract.get("allowed_mutated_paths", [])
+              if isinstance(item, str) and item.strip()
+          }
+          references = {
+              str(item).strip()
+              for key in ("reference_paths", "reference_only_paths")
+              for item in contract.get(key, [])
+              if isinstance(item, str) and item.strip()
+          }
+          overlap = sorted(allowed & references)
+          if overlap:
+              raise SystemExit(f"allowed_reference_path_conflict:{overlap}")
+          print("transition path classes are disjoint")
+          PY
 
       - name: Path-A R1 authority delegated to State Gate
         if: steps.control_plane.outputs.mode == 'path_a_r1'
@@ -64,7 +92,7 @@ jobs:
 
       - name: Transition preflight
         if: steps.control_plane.outputs.mode == 'transition'
-        run: python -m reverse_agent.project_gate transition-preflight --state-dir project_state
+        run: python -m reverse_agent.project_gate transition-preflight --state-dir project_state --event-path "$GITHUB_EVENT_PATH"
 
       - name: Project gate preflight
         if: steps.control_plane.outputs.mode == 'legacy'
