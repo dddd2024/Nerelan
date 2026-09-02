@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260901_issue345_platform_v1_profile_regression_r2_v1",
-  "round_id": "round_20260901_issue345_platform_v1_profile_regression_r2_v1",
+  "decision_id": "decision_20260902_issue492_final_visual_golden_r3_v14",
+  "round_id": "round_20260902_issue492_final_visual_golden_r3_v14",
   "commands": [
     {
-      "command_id": "issue345_regression_r2v1.bootstrap_and_preflight",
-      "command": "verify exact locked main and fresh branch; commit this immutable R2 Decision first; run startup snapshot command-plan compiler transition lint and transition preflight and require PRE_EXECUTION_AUTHORIZED before any test mutation",
+      "command_id": "issue492_r3v14.bootstrap_and_preflight",
+      "command": "verify exact main base 0da78df5d2c5337ffeab17e3a00651df507637f0 and fresh branch merge-base; commit this immutable R3 Decision as the unique first commit; run the governed startup snapshot command-plan compiler transition lint and transition preflight and require PRE_EXECUTION_AUTHORIZED before any visual replay or snapshot materialization",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -23,19 +23,19 @@
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
-      "produced_artifacts": [
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
         "project_state/gates/command_plan.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/gates/bootstrap_state.json",
         "project_state/gates/transition_command_plan_preview.json",
         "project_state/gates/transition_preflight_result.json"
-      ],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
+      ]
     },
     {
-      "command_id": "issue345_regression_r2v1.repair_platform_v1_profile_assertions",
-      "command": "after PRE_EXECUTION_AUTHORIZED repair only the stale Platform V1 schema-v3 required_workflows assertions so schema v1 and v2 historical semantics remain frozen while schema v3 resolves the production-owned workflow_profile: baseline requires exactly CI Decision Preflight and State Gate (pull_request); browser_r3 requires exactly those three plus Frontend Playwright and Model Access; State Gate (push) remains excluded; add explicit baseline and browser_r3 regression coverage and keep unknown/invented/missing specialized workflow cases fail closed",
+      "command_id": "issue492_r3v14.replay_visual_surface",
+      "command": "after PRE_EXECUTION_AUTHORIZED replay exactly frontend/e2e/fixtures.ts frontend/e2e/lifecycle-visual.spec.ts and frontend/design-qa.md byte-for-byte from the accepted PR520 pre-binding visual head 328e644461146229e0d31c3d8f7f01b9a46fb2a2; do not replay prior governance or intent history and do not modify production frontend runtime truth",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -45,7 +45,6 @@
       "execution_surface": "local",
       "operations": [
         "source_edit",
-        "unit_test",
         "local_static_check",
         "commit"
       ],
@@ -57,13 +56,63 @@
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
-        "tests/platform_v1/test_merge_intent.py",
-        "tests/platform_v1/test_contracts.py"
+        "frontend/e2e/fixtures.ts",
+        "frontend/e2e/lifecycle-visual.spec.ts",
+        "frontend/design-qa.md"
       ]
     },
     {
-      "command_id": "issue345_regression_r2v1.validate_and_publish",
-      "command": "run tests/platform_v1/test_merge_intent.py tests/platform_v1/test_contracts.py tests/test_mainline_landing.py and the CI-equivalent blocking Platform V1 suite plus git diff --check; after all blocking validation passes push the exact branch and create exactly one Draft PR",
+      "command_id": "issue492_r3v14.materialize_locked_goldens",
+      "command": "replay exactly the 24 accepted PNG blobs from PR520 visual head 328e644461146229e0d31c3d8f7f01b9a46fb2a2, whose source artifact 9788256355 ZIP SHA256 is d1cdc719574547854887953978f0973f2987c5bd2ed8e5f59286c2d15f2638a7 and whose per-file SHA256 manifest is recorded in frontend/design-qa.md; perform no recapture and no local browser execution",
+      "phase": "implementation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "source_edit",
+        "local_static_check",
+        "commit"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "frontend/e2e/snapshots/desktop-chromium/home-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
+        "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
+        "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/settings-dark.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-empty-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-running-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-waiting-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-validating-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-completed-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-failed-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-blocked-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-owner-action-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-large-changes-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-long-stream-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-multi-agent-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-empty-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-running-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-blocked-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-owner-action-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-long-stream-light.png"
+      ]
+    },
+    {
+      "command_id": "issue492_r3v14.validate_publish",
+      "command": "after exact blob and path-scope verification publish the bounded current R3 branch and create exactly one Draft PR against locked main; require repository-owned exact-head CI Decision Preflight State Gate Model Access and Frontend Playwright and do not update snapshots in CI",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -72,9 +121,6 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "unit_test",
-        "local_static_check",
-        "commit",
         "push",
         "draft_pr",
         "network_access"
@@ -89,8 +135,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue345_regression_r2v1.post_publication_binding",
-      "command": "after the real Draft PR number is known archive the inherited PR499 schema-v3 baseline intent byte-for-byte as project_state/mainline_merge_intents/archive/pr499_v1.json and bind active.json exactly once to the new PR current Decision current Command Plan locked base and baseline workflow_profile with required_workflows exactly CI Decision Preflight and State Gate (pull_request)",
+      "command_id": "issue492_r3v14.post_publication_binding",
+      "command": "after the real Draft PR number is known archive the inherited schema-v3 PR537 active merge intent byte-for-byte as project_state/mainline_merge_intents/archive/pr537_v1.json and bind active.json once to the exact new PR locked base current Decision current Command Plan and browser_r3 workflow profile; schema-v3 required_workflows MUST contain exactly the five trusted browser_r3 premerge workflows CI Decision Preflight State Gate (pull_request) Frontend Playwright and Model Access; merge policy remains merge-only",
       "phase": "post_publication_binding",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -114,12 +160,12 @@
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
         "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr499_v1.json"
+        "project_state/mainline_merge_intents/archive/pr537_v1.json"
       ]
     },
     {
-      "command_id": "issue345_regression_r2v1.exact_head_acceptance",
-      "command": "require exact-head CI Decision Preflight and State Gate (pull_request) terminal success on the bound Draft PR and independently audit that no unauthorized paths changed; keep the PR Draft and do not Ready or merge under this Decision",
+      "command_id": "issue492_r3v14.browser_exact_head_acceptance",
+      "command": "require exact-head CI Decision Preflight State Gate Model Access and Frontend Playwright terminal success on the bound Draft PR; Frontend Playwright must report 40 passed 8 skipped 0 failed on locked Ubuntu 24.04 Node 22.23.1 Playwright 1.62.1 Chromium 151.0.7922.34 revision 1234",
       "phase": "final_evidence",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -141,8 +187,59 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.4257bc4e1bd3a86eb29b93466892abba6c1242ad9abf77534b07f2a1ddf4e386",
-      "command": "verify exact main base 0feeb3f35ef164591678caba96fb46477b366f52 and fresh branch merge-base",
+      "command_id": "issue492_r3v14.finalize_design_qa",
+      "command": "only after the first exact-head browser acceptance update frontend/design-qa.md to record the current re-anchor and successful exact-head run and set Status PASSED; make no other file change, publish that documentation-only head, and require a fresh exact-head workflow set",
+      "phase": "implementation",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "source_edit",
+        "local_static_check",
+        "commit",
+        "push",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "frontend/design-qa.md"
+      ]
+    },
+    {
+      "command_id": "issue492_r3v14.final_exact_head_acceptance",
+      "command": "require fresh exact-head CI Decision Preflight State Gate Model Access and Frontend Playwright terminal success after design-qa finalization, zero unresolved blocking review threads, unchanged locked base and PR remaining Draft; no Ready or merge is performed by this Decision",
+      "phase": "final_evidence",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "remote_observation",
+      "operations": [
+        "code_read",
+        "read_only_audit"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.234e85715cc1407d669549320ed7f9fd6a6bbe2c8a5f81d495065078b0ec09b7",
+      "command": "verify exact main base 0da78df5d2c5337ffeab17e3a00651df507637f0 and fresh branch merge-base",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -161,8 +258,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.234f8ef150ef2c4adfece3cb131177275c83ffd977f9e1a451805af4525ea5d0",
-      "command": "commit this immutable R2 Decision as the unique first commit",
+      "command_id": "bootstrap.f7de96f0ecd62e5c5e93dbf9fb14e886efd716e0a3e5080bc6b044dfe85f545c",
+      "command": "commit this immutable R3 Decision as the unique first commit",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
