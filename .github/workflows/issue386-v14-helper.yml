@@ -1,0 +1,31 @@
+name: Issue 386 V14 transport helper
+
+on:
+  push:
+    branches:
+      - owner/issue386-executor-router-collision-r1-v14-helper
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    if: "${{ github.actor == 'dddd2024' && github.event.head_commit.message == 'chore: install Issue 386 V14 transport helper' }}"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout helper branch
+        uses: actions/checkout@v4
+        with:
+          ref: owner/issue386-executor-router-collision-r1-v14-helper
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install package
+        run: python -m pip install -e ".[test]"
+
+      - name: Prepare, verify, and publish clean V14 candidate
+        run: python .github/issue386-v14-helper.py
