@@ -1,0 +1,193 @@
+name: BRAND-2B v19 patch
+
+on:
+  push:
+    branches:
+      - owner/issue530-brand2b-landing-r3-v19
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Verify authority and locked base
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "owner/issue530-brand2b-landing-r3-v19"
+          git fetch origin main owner/issue530-brand2b-validation-r3-v16
+          test "$(git rev-parse origin/main)" = "0feeb3f35ef164591678caba96fb46477b366f52"
+          git cat-file -e 4847d6fd441c0c359eb25ea5b8acc9389a057d96^{commit}
+          python -m reverse_agent.project_gate transition-command-plan --state-dir project_state
+          python -m reverse_agent.project_gate transition-lint --state-dir project_state
+          python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre
+          sha256sum project_state/decision_packet.md project_state/gates/command_plan.json
+          rm -f project_state/gates/transition_command_plan_preview.json project_state/gates/transition_preflight_result.json
+          test -z "$(git status --short project_state/gates/transition_command_plan_preview.json project_state/gates/transition_preflight_result.json)"
+
+      - name: Replay accepted v16 payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC=4847d6fd441c0c359eb25ea5b8acc9389a057d96
+          paths=(
+            project_state/schemas/mainline_merge_intent_v4.schema.json
+            project_state/schemas/merge_approval_attestation_v4.schema.json
+            reverse_agent/mainline_landing.py
+            reverse_agent/platform_v1/goal_service.py
+            reverse_agent/platform_v1/inbox_service.py
+            frontend/src/components/goal-composer.tsx
+            frontend/src/lib/profile-mapper.ts
+            README.txt
+            reverse_agent/platform_v1/run_store.py
+            reverse_agent/platform_v1/control_store.py
+            reverse_agent/platform_v1/task_service.py
+            frontend/src/lib/platform-client.ts
+            AGENTS.md
+            docs/supervisor/audit-instructions.md
+            scripts/supervisor_validate.py
+            scripts/supervisor_publish.py
+            tests/test_project_gate.py
+            tests/test_mainline_landing.py
+            frontend/tests/compact-goal-composer.test.tsx
+            tests/platform_v1/test_publication_controller.py
+            tests/platform_v1/test_unattended_coordinator.py
+            tests/platform_v1/test_run_read_model.py
+            tests/platform_v1/test_goal_service.py
+            tests/platform_v1/test_task_service.py
+          )
+          git restore --source="$SRC" --worktree --staged -- "${paths[@]}"
+
+      - name: Apply exact schema-v4 simulation repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          src = "4847d6fd441c0c359eb25ea5b8acc9389a057d96"
+          path = Path("tests/test_mainline_landing.py")
+          source = subprocess.check_output(
+              ["git", "show", f"{src}:tests/test_mainline_landing.py"],
+              text=True,
+          )
+          start = source.index("def test_production_pre_merge_simulation")
+          end = source.index("\ndef test_state_gate_permissions_are_read_only_and_complete", start)
+          block = source[start:end]
+          needle = '"repository": "dddd2024/reverse-agent"'
+          replacement = '"repository": intent["repository"]'
+          assert block.count(needle) == 2, block.count(needle)
+          repaired = block.replace(needle, replacement)
+          assert repaired.count(replacement) == 2
+          expected = source[:start] + repaired + source[end:]
+          path.write_text(expected, encoding="utf-8")
+          observed = path.read_text(encoding="utf-8")
+          assert observed == expected
+          assert observed[:start] == source[:start]
+          assert observed[end + (len(repaired) - len(block)):] == expected[end + (len(repaired) - len(block)):]
+          print("authorized production simulation replacements: 2")
+          PY
+          git add tests/test_mainline_landing.py
+
+      - name: Prove replay fidelity and scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC=4847d6fd441c0c359eb25ea5b8acc9389a057d96
+          other_paths=(
+            project_state/schemas/mainline_merge_intent_v4.schema.json
+            project_state/schemas/merge_approval_attestation_v4.schema.json
+            reverse_agent/mainline_landing.py
+            reverse_agent/platform_v1/goal_service.py
+            reverse_agent/platform_v1/inbox_service.py
+            frontend/src/components/goal-composer.tsx
+            frontend/src/lib/profile-mapper.ts
+            README.txt
+            reverse_agent/platform_v1/run_store.py
+            reverse_agent/platform_v1/control_store.py
+            reverse_agent/platform_v1/task_service.py
+            frontend/src/lib/platform-client.ts
+            AGENTS.md
+            docs/supervisor/audit-instructions.md
+            scripts/supervisor_validate.py
+            scripts/supervisor_publish.py
+            tests/test_project_gate.py
+            frontend/tests/compact-goal-composer.test.tsx
+            tests/platform_v1/test_publication_controller.py
+            tests/platform_v1/test_unattended_coordinator.py
+            tests/platform_v1/test_run_read_model.py
+            tests/platform_v1/test_goal_service.py
+            tests/platform_v1/test_task_service.py
+          )
+          for p in "${other_paths[@]}"; do
+            git diff --exit-code "$SRC" -- "$p"
+          done
+          test -z "$(git status --short project_state/decision_packet.md project_state/gates/command_plan.json)"
+
+      - name: Install test dependencies
+        run: python -m pip install -e '.[test]'
+
+      - name: Run landing blocking tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest tests/test_mainline_landing.py -q
+          python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q
+
+      - name: Self-delete and commit exact implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/issue530-brand2b-v19-patch.yml
+          git add -A
+          python - <<'PY'
+          import subprocess
+          expected = {
+              ".github/workflows/issue530-brand2b-v19-patch.yml",
+              "project_state/schemas/mainline_merge_intent_v4.schema.json",
+              "project_state/schemas/merge_approval_attestation_v4.schema.json",
+              "reverse_agent/mainline_landing.py",
+              "reverse_agent/platform_v1/goal_service.py",
+              "reverse_agent/platform_v1/inbox_service.py",
+              "frontend/src/components/goal-composer.tsx",
+              "frontend/src/lib/profile-mapper.ts",
+              "README.txt",
+              "reverse_agent/platform_v1/run_store.py",
+              "reverse_agent/platform_v1/control_store.py",
+              "reverse_agent/platform_v1/task_service.py",
+              "frontend/src/lib/platform-client.ts",
+              "AGENTS.md",
+              "docs/supervisor/audit-instructions.md",
+              "scripts/supervisor_validate.py",
+              "scripts/supervisor_publish.py",
+              "tests/test_project_gate.py",
+              "tests/test_mainline_landing.py",
+              "frontend/tests/compact-goal-composer.test.tsx",
+              "tests/platform_v1/test_publication_controller.py",
+              "tests/platform_v1/test_unattended_coordinator.py",
+              "tests/platform_v1/test_run_read_model.py",
+              "tests/platform_v1/test_goal_service.py",
+              "tests/platform_v1/test_task_service.py",
+          }
+          observed = set(subprocess.check_output(["git", "diff", "--cached", "--name-only"], text=True).splitlines())
+          assert observed == expected, (sorted(observed - expected), sorted(expected - observed))
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'BRAND-2B v19: repair schema-v4 production simulation fixture'
+          git push origin HEAD:owner/issue530-brand2b-landing-r3-v19
