@@ -264,9 +264,9 @@ export async function executeTask(taskId: string): Promise<Record<string, unknow
     return {
       id: taskId,
       title: "mock task",
-      issueNumber: 0,
+      issueNumber: null,
       state: "READY_FOR_HUMAN",
-      riskTier: "R1",
+      riskTier: "UNKNOWN",
       updatedAt: new Date().toISOString(),
       nextAction: "mock fixture execution",
       permissionProfile: "ASK_FOR_APPROVAL",
@@ -284,9 +284,9 @@ export async function executeTask(taskId: string): Promise<Record<string, unknow
         { id: "ev-1", category: "Validation", label: "git_diff_check", value: "0", status: "pass", detail: "", rawJson: "" },
         { id: "ev-2", category: "Executor", label: "executor_kind", value: "deterministic_fixture", status: "pass", detail: "", rawJson: "" },
       ],
-      authorityStatus: "APPROVED",
+      authorityStatus: "MISSING",
       testStatus: "PASS",
-      workflowStatus: "PENDING",
+      workflowStatus: "UNKNOWN",
       executor: "fixture/provider-free",
     };
   }
@@ -323,9 +323,9 @@ export async function createTask(
     return {
       id: `mock-${timestamp}`,
       title,
-      issueNumber: 0,
+      issueNumber: null,
       state: "WAITING_FOR_OWNER",
-      riskTier: "R1",
+      riskTier: "UNKNOWN",
       updatedAt: new Date().toISOString(),
       nextAction: "mock backend task plane",
       permissionProfile: "ASK_FOR_APPROVAL",
@@ -333,9 +333,9 @@ export async function createTask(
       activity: [],
       changes: [],
       evidence: [],
-      authorityStatus: "APPROVED",
+      authorityStatus: "MISSING",
       testStatus: "PENDING",
-      workflowStatus: "PENDING",
+      workflowStatus: "UNKNOWN",
       executor: "fixture/provider-free",
     };
   }
