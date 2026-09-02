@@ -1,0 +1,65 @@
+name: v32 Decision blob transport
+
+on:
+  push:
+    branches:
+      - owner/bootstrap-v32-decision-transport
+
+permissions:
+  contents: write
+
+jobs:
+  transport:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Materialize exact verified v32 Decision blob only
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64, hashlib, json, os, re, urllib.request
+          candidate = "53f3c0d003fe877612ea8eeb89a967e19dc867cd"
+          expected_blob = "4768852c9ff49c42cec8106d5371f6cb22efd965"
+          expected_sha256 = "abc3f255c606e58cbedb337666e663bae25b5b6c0464db7b51ca641b1c53f01e"
+          repo = os.environ["REPO"]
+          token = os.environ["GITHUB_TOKEN"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+          req = urllib.request.Request(f"https://api.github.com/repos/{repo}/git/blobs/{candidate}", headers=headers)
+          with urllib.request.urlopen(req, timeout=30) as r:
+              payload = json.load(r)
+          data = base64.b64decode(payload["content"])
+          text = data.decode("utf-8")
+          assert text.count('"pul_request_comment"') == 1
+          text = text.replace('"pul_request_comment"', '"pull_request_comment"')
+          assert text.count('"allowed_only_after_validation":true,},') == 1
+          text = text.replace('"allowed_only_after_validation":true,},', '"allowed_only_after_validation":true},')
+          data = text.encode("utf-8")
+          git_sha = hashlib.sha1(f"blob {len(data)}\0".encode("ascii") + data).hexdigest()
+          digest = hashlib.sha256(data).hexdigest()
+          if git_sha != expected_blob or digest != expected_sha256:
+              raise SystemExit(f"exact_decision_identity_mismatch:{git_sha}:{digest}")
+          for label in ("decision_meta", "decision_contract"):
+              m = re.search(rf"```json {label}\n(.*?)\n```", text, re.S)
+              assert m, label
+              json.loads(m.group(1))
+          body = json.dumps({"content": base64.b64encode(data).decode("ascii"), "encoding": "base64"}).encode()
+          req = urllib.request.Request(
+              f"https://api.github.com/repos/{repo}/git/blobs",
+              data=body,
+              method="POST",
+              headers={**headers, "Content-Type": "application/json"},
+          )
+          with urllib.request.urlopen(req, timeout=30) as r:
+              out = json.load(r)
+          if out.get("sha") != expected_blob:
+              raise SystemExit(f"remote_blob_mismatch:{out.get('sha')}:{expected_blob}")
+          print(f"uploaded exact v32 Decision blob {expected_blob} sha256={expected_sha256}")
+          print("no commit or branch mutation performed by this workflow")
+          PY
