@@ -42,6 +42,25 @@ def _paths_in_forbidden(paths: Iterable[str], patterns: tuple[str, ...]) -> tupl
     )
 
 
+def _path_grant_conflicts(
+    writable_patterns: tuple[str, ...],
+    reference_patterns: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Return writable/reference grant overlaps using shared path semantics.
+
+    Both orientations are checked because either side may be the broader glob
+    (for example ``docs/**`` versus ``docs/roadmap/example.md``).  This is an
+    authority check, so it runs before any mutation is observed.
+    """
+
+    conflicts: list[str] = []
+    for writable in writable_patterns:
+        for reference in reference_patterns:
+            if _path_matches(writable, reference) or _path_matches(reference, writable):
+                conflicts.append(f"{writable}->{reference}")
+    return tuple(dict.fromkeys(conflicts))
+
+
 def _capability_forbidden_operations(policy: CapabilityPolicy) -> tuple[str, ...]:
     """Map capability flags to forbidden operations.
 
@@ -248,23 +267,14 @@ def _required_command_coverage_missing(
     plan: Any,
     envelopes: tuple[ExecutionEnvelope, ...],
 ) -> tuple[str, ...]:
-    """Phase B/F1: validate all required commands have evidence by source.
+    """Validate required evidence using stable command identity and surface.
 
-    Required commands are partitioned by ``required_evidence_source``
-    (Phase C normalized tokens):
-    - ``local_command_evidence`` commands must have a matching local envelope
-      in the execution log.
-    - ``ci_check_attestation`` commands cannot be satisfied by local provenance
-      alone; they require external CI observation, so we flag them as
-      missing until the post-execution gate receives a CI-bound observation.
-    - ``repository_state_attestation`` commands are validated via Git ancestry;
-      treat them as satisfied if their envelope is observed locally.
-
-    Diagnostic-only and optional commands are excluded from the required set.
-    Bootstrap-exception commands are also excluded: they belong to the
-    bootstrap window (which has already expired by the time post-execution
-    reconciliation runs) and must not be counted as completion evidence
-    for the normal plan.
+    ``reconcile_executions`` is responsible for validating command text,
+    exit codes, operations, and other execution details.  Coverage itself is
+    deliberately narrower and stricter: a required command is observed only
+    when an envelope carries the exact ``(command_id, execution_surface)``
+    pair authorized by the plan.  Identical command text on another surface,
+    or evidence attached to another command ID, cannot satisfy coverage.
     """
 
     required_commands = [
@@ -273,19 +283,23 @@ def _required_command_coverage_missing(
         and not cmd.diagnostic_only
         and cmd.authority_origin != "bootstrap_exception"
     ]
-    # G2-2: local command evidence is produced by trusted subprocess execution,
-    # which may run on trusted_worker, user_local, or legacy local surfaces.
-    from .command_authority import SUBPROCESS_EXECUTABLE_SURFACES
-
-    observed_local_canonical = {
-        canonical_command(env.command)
+    observed_identities = {
+        (env.command_id, env.execution_surface)
         for env in envelopes
-        if env.execution_surface in SUBPROCESS_EXECUTABLE_SURFACES
+        if env.command_id and env.execution_surface
     }
     missing: list[str] = []
     for cmd in required_commands:
-        if cmd.required_evidence_source == "local_command_evidence":
-            if canonical_command(cmd.command) not in observed_local_canonical:
+        identity = (cmd.command_id, cmd.execution_surface)
+        if cmd.required_evidence_source in {
+            "local_command_evidence",
+            "repository_state_attestation",
+        }:
+            if (
+                not cmd.command_id
+                or not cmd.execution_surface
+                or identity not in observed_identities
+            ):
                 missing.append(cmd.command_id or cmd.command)
         elif cmd.required_evidence_source == "ci_check_attestation":
             # Local provenance cannot satisfy CI evidence; flag as missing
@@ -293,11 +307,6 @@ def _required_command_coverage_missing(
             # currently only sees local envelopes, so required CI commands
             # always fail closed from a local-only log.
             missing.append(cmd.command_id or cmd.command)
-        elif cmd.required_evidence_source == "repository_state_attestation":
-            # Repository-truth commands are validated via Git ancestry; treat
-            # them as satisfied if their envelope is observed locally.
-            if canonical_command(cmd.command) not in observed_local_canonical:
-                missing.append(cmd.command_id or cmd.command)
     return tuple(dict.fromkeys(missing))
 
 
@@ -366,6 +375,31 @@ def validate_transition(
     plan_errors = validate_command_plan(authority.command_plan)
     checks.append(_check("command_plan_contract", not plan_errors, f"errors={list(plan_errors)}"))
 
+    # P1 closure: read-only path classes are incompatible with every writable
+    # grant, not merely observed mutations.  Validate this before the pre-mode
+    # return so direct/shared transition callers fail closed before execution.
+    command_granted_paths: tuple[str, ...] = ()
+    for entry in authority.command_plan.commands:
+        command_granted_paths = (
+            *command_granted_paths,
+            *entry.produced_artifacts,
+            *entry.allowed_mutated_paths,
+        )
+    writable_grants = tuple(dict.fromkeys((
+        *authority.allowed_paths,
+        *command_granted_paths,
+        *authority.runner_managed_artifact_paths,
+    )))
+    reference_write_conflicts = _path_grant_conflicts(
+        writable_grants,
+        authority.reference_paths,
+    )
+    checks.append(_check(
+        "reference_write_grants_disjoint",
+        not reference_write_conflicts,
+        f"conflicts={list(reference_write_conflicts)}",
+    ))
+
     mutated_paths = tuple(dict.fromkeys(
         (*authority.observed_paths, *(path for envelope in envelopes for path in envelope.mutated_paths))
     ))
@@ -376,9 +410,6 @@ def validate_transition(
     # enforced separately by ``mutation_grants_enforced`` (rule #1).
     # F9/F4: runner-managed artifact paths (executor provenance) are also
     # authorized for write by the trusted execution context itself.
-    command_granted_paths: tuple[str, ...] = ()
-    for entry in authority.command_plan.commands:
-        command_granted_paths = (*command_granted_paths, *entry.produced_artifacts, *entry.allowed_mutated_paths)
     effective_allowed_scope = tuple(dict.fromkeys((
         *authority.allowed_paths,
         *command_granted_paths,

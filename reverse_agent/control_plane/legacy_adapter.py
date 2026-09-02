@@ -407,18 +407,29 @@ def load_path_risk_floor(contract: Mapping[str, Any]) -> PathRiskFloor:
 
 
 def load_reference_paths(contract: Mapping[str, Any]) -> tuple[str, ...]:
-    """Load read-only reference paths declared by the Decision.
+    """Load every Decision-declared read-only reference path.
 
-    Reference paths are distinct from ``allowed_mutated_paths``: being named in
-    the Decision does not grant write access.
+    ``reference_paths`` and ``reference_only_paths`` are aliases for the same
+    immutable path class.  Neither field grants write access, and callers must
+    enforce the merged set against every writable grant.
     """
 
-    raw = contract.get("reference_paths")
-    if raw is None:
-        return ()
-    if not isinstance(raw, list):
-        raise ValueError("missing_or_invalid_contract_field:reference_paths")
-    return tuple(str(item).strip() for item in raw if isinstance(item, str) and item.strip())
+    references: list[str] = []
+    for field in ("reference_paths", "reference_only_paths"):
+        raw = contract.get(field)
+        if raw is None:
+            continue
+        if not isinstance(raw, list):
+            raise ValueError(f"missing_or_invalid_contract_field:{field}")
+        items = tuple(
+            str(item).strip()
+            for item in raw
+            if isinstance(item, str) and str(item).strip()
+        )
+        if len(items) != len(raw):
+            raise ValueError(f"missing_or_invalid_contract_field:{field}")
+        references.extend(items)
+    return tuple(dict.fromkeys(references))
 
 
 def load_generated_artifact_paths(contract: Mapping[str, Any]) -> tuple[str, ...]:
@@ -468,7 +479,7 @@ def load_transition_scope(
         for name in allowed_fields:
             allowed.extend(_string_list(contract, name))
 
-    # ``reference_paths`` must NOT be added to allowed mutable scope.
+    # Read-only paths must never be added to mutable scope.
     reference_paths = load_reference_paths(contract)
 
     # Phase E: ``generated_artifact_paths`` is a separate group. It must not
@@ -517,7 +528,9 @@ def load_transition_scope(
             if not value:
                 operations.append(operation)
 
-    # Detect explicit allowed/forbidden path conflicts.
+    # Detect explicit path-class conflicts at the shared scope loader. Pattern
+    # overlap and command-level grants are checked later by validate_transition,
+    # where the command plan is available.
     allowed_set = {p for p in allowed}
     forbidden_set = {p for p in forbidden}
     reference_set = {p for p in reference_paths}
@@ -525,6 +538,11 @@ def load_transition_scope(
     overlap = allowed_set & forbidden_set
     if overlap:
         raise ValueError(f"allowed_forbidden_path_conflict:{sorted(overlap)}")
+    allowed_reference_overlap = allowed_set & reference_set
+    if allowed_reference_overlap:
+        raise ValueError(
+            f"allowed_reference_path_conflict:{sorted(allowed_reference_overlap)}"
+        )
     # Phase E: four-group mutual exclusivity checks.
     reference_generated_overlap = reference_set & generated_set
     if reference_generated_overlap:

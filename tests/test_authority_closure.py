@@ -25,12 +25,16 @@ from reverse_agent.control_plane.models import (
     CapabilityPolicy,
     ExecutionEnvelope,
     PathRiskFloor,
+    TransitionAuthority,
     TransitionCommand,
+    TransitionCommandPlan,
     TransitionDecision,
 )
 from reverse_agent.control_plane.transition import (
     _capability_forbidden_operations,
     _envelope_network_violations,
+    _required_command_coverage_missing,
+    validate_transition,
 )
 
 
@@ -108,6 +112,34 @@ def _structured_command(
         "operations": list(operations),
         "network_access": network_access,
     }
+
+
+def _transition_authority(
+    decision: TransitionDecision,
+    plan: TransitionCommandPlan,
+    *,
+    allowed_paths: tuple[str, ...] = ("reverse_agent/example/**",),
+    reference_paths: tuple[str, ...] = (),
+) -> TransitionAuthority:
+    return TransitionAuthority(
+        decision=decision,
+        command_plan=plan,
+        expected_decision_id=decision.decision_id,
+        expected_round_id=decision.round_id,
+        active_skills=("reverse-agent-iteration@v2",),
+        legal_mainlines=("engineering_branch",),
+        expected_branch="codex/example-v1",
+        actual_branch="codex/example-v1",
+        base_sha="a" * 40,
+        merge_base_sha="a" * 40,
+        decision_commit_sha="b" * 40,
+        decision_is_ancestor=True,
+        observed_paths=(),
+        allowed_paths=allowed_paths,
+        forbidden_paths=("frontend/**",),
+        forbidden_operations=(),
+        reference_paths=reference_paths,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -387,7 +419,7 @@ def test_load_capability_policy_reads_surface_network_exceptions() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 10: allowed/forbidden path conflicts block
+# Test 10: allowed/forbidden and reference path conflicts block
 # ---------------------------------------------------------------------------
 
 
@@ -400,6 +432,56 @@ def test_allowed_forbidden_path_conflict_blocks_scope_loading() -> None:
     contract["forbidden_mutated_paths"] = ["reverse_agent/example/**"]
     with pytest.raises(ValueError, match="allowed_forbidden_path_conflict"):
         load_transition_scope(decision, contract)
+
+
+def test_allowed_reference_path_conflict_blocks_scope_loading() -> None:
+    decision = _decision()
+    contract = _structured_contract(allowed_commands=[])
+    contract["allowed_mutated_paths"] = ["docs/roadmap/example.md"]
+    contract["reference_paths"] = ["docs/roadmap/example.md"]
+    with pytest.raises(ValueError, match="allowed_reference_path_conflict"):
+        load_transition_scope(decision, contract)
+
+
+def test_reference_only_paths_share_the_read_only_path_class() -> None:
+    decision = _decision()
+    contract = _structured_contract(allowed_commands=[])
+    contract["allowed_mutated_paths"] = ["docs/reference-only/example.md"]
+    contract["reference_only_paths"] = ["docs/reference-only/example.md"]
+    with pytest.raises(ValueError, match="allowed_reference_path_conflict"):
+        load_transition_scope(decision, contract)
+
+
+@pytest.mark.parametrize("grant_field", ["allowed_mutated_paths", "produced_artifacts"])
+def test_command_writable_grants_cannot_overlap_reference_paths(grant_field: str) -> None:
+    decision = _decision()
+    raw_command = _structured_command(
+        "python -m pytest tests/test_authority_closure.py -q",
+        phase="test",
+        command_id="test.reference_grant",
+        operations=("unit_test",),
+    )
+    raw_command[grant_field] = ["docs/roadmap/**"]
+    contract = _structured_contract(
+        allowed_commands=[raw_command],
+        reference_paths=["docs/roadmap/example.md"],
+    )
+    plan = build_transition_command_plan(decision, contract)
+    authority = _transition_authority(
+        decision,
+        plan,
+        reference_paths=("docs/roadmap/example.md",),
+    )
+
+    result = validate_transition(authority, mode="pre")
+
+    assert result.gate_status == "BLOCKED"
+    check = next(
+        item for item in result.checks
+        if item["name"] == "reference_write_grants_disjoint"
+    )
+    assert check["status"] == "FAIL"
+    assert "docs/roadmap" in check["detail"]
 
 
 def test_load_path_risk_floor_rejects_invalid_risk() -> None:
@@ -491,3 +573,52 @@ def test_reconcile_executions_blocks_when_no_envelopes() -> None:
     assert outcome.status == "PRE_EXECUTION_AUTHORIZED"
     assert outcome.missing_evidence is True
     assert "missing_execution_evidence" in outcome.blocking_reasons
+
+
+# ---------------------------------------------------------------------------
+# P1: required evidence identity must bind command_id + execution_surface
+# ---------------------------------------------------------------------------
+
+
+def test_required_command_coverage_binds_command_id_and_exact_surface() -> None:
+    command = TransitionCommand(
+        command="python -m pytest tests/test_authority_closure.py -q",
+        phase="test",
+        required=True,
+        expected_exit_codes=(0,),
+        execution_surface="trusted_worker",
+        operations=("unit_test",),
+        command_id="validation.authority_closure",
+        required_evidence_source="local_command_evidence",
+    )
+    plan = TransitionCommandPlan(
+        decision_id="decision_evidence_identity",
+        round_id="round_evidence_identity",
+        commands=(command,),
+    )
+    wrong_surface = ExecutionEnvelope(
+        command=command.command,
+        command_id=command.command_id,
+        execution_surface="user_local",
+        exit_code=0,
+    )
+    wrong_id = ExecutionEnvelope(
+        command=command.command,
+        command_id="validation.other",
+        execution_surface=command.execution_surface,
+        exit_code=0,
+    )
+    exact = ExecutionEnvelope(
+        command=command.command,
+        command_id=command.command_id,
+        execution_surface=command.execution_surface,
+        exit_code=0,
+    )
+
+    assert _required_command_coverage_missing(plan, (wrong_surface,)) == (
+        command.command_id,
+    )
+    assert _required_command_coverage_missing(plan, (wrong_id,)) == (
+        command.command_id,
+    )
+    assert _required_command_coverage_missing(plan, (exact,)) == ()
