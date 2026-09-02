@@ -1,6 +1,6 @@
 # Design QA
 
-Status: R3 VISUAL CANDIDATE ACCEPTED — GOLDEN MATERIALIZATION PENDING
+Status: PASSED
 
 ## Reference and capture contract
 
@@ -61,6 +61,61 @@ The following SHA256 values are computed from the exact `*-actual.png` files emi
 - frontend/e2e/snapshots/mobile-chromium/settings-dark.png — 56848abfc843b93261d104caecf5f7c3dbfe52a31e3d048e8e283806b230a122
 - frontend/e2e/snapshots/mobile-chromium/settings-light.png — 3e58ee1126fb7e51849299bb58416b0b93c3c87c47b04c4e0dffd64195e87877
 
+## Issue #492 R3 v14 final re-anchor
+
+- Branch: `owner/issue492-final-visual-golden-r3-v14`
+
+- Draft PR: `#555`
+
+- Locked integration base: `main@0da78df5d2c5337ffeab17e3a00651df507637f0`
+
+- Accepted visual-source replay commit: `1cb438b3`
+
+- Accepted golden materialization commit: `97d1a203`
+
+- Bound first-acceptance head: `39ece65b56266e464ff73121dc33a442f44d1300`
+
+- Mainline intent: schema v3 / `workflow_profile=browser_r3`
+
+- Required workflows exactly:
+  `CI`
+  `Decision Preflight`
+  `State Gate (pull_request)`
+  `Frontend Playwright`
+  `Model Access`
+
+- First exact-head workflow evidence:
+  CI `33586127647` — SUCCESS
+  Decision Preflight `33586127603` — SUCCESS
+  State Gate `33586127592` — SUCCESS
+  Model Access `33586127608` — SUCCESS
+  Frontend Playwright `33586127616` — SUCCESS
+
+- Frontend Playwright:
+  `40 passed / 8 skipped / 0 failed`
+  `48 total`
+
+- Runtime:
+  Ubuntu 24.04.4
+  Node 22.23.1
+  @playwright/test 1.62.1
+  Chrome for Testing 151.0.7922.34
+  Chromium revision 1234
+  workers 1
+
+- No production `frontend/src/**` mutation
+- No snapshot recapture
+- No local browser execution
+- 3/3 accepted visual text source blob replay verified
+- 24/24 PNG source blob replay verified
+- 24/24 accepted SHA256 manifest verified
+- connection-degraded Goal/Run state remains
+  `NOT_APPLICABLE_TO_GOAL_RUN_VISUAL_MATRIX`
+  unless the existing document already expresses this in equivalent
+  accepted wording; do not invent runtime truth.
+
+`FIRST_EXACT_HEAD_BROWSER_ACCEPTANCE = PASSED`
+
 ## Governance disposition
 
 `PRODUCT_DESIGN_CANDIDATE = ACCEPTED`
@@ -69,6 +124,10 @@ The following SHA256 values are computed from the exact `*-actual.png` files emi
 
 `SNAPSHOT_CANDIDATE_SET = LOCKED_BY_SHA256`
 
-`SNAPSHOT_MATERIALIZATION = PENDING`
+`SNAPSHOT_MATERIALIZATION = COMPLETE`
 
-The snapshot mutation has not been consumed by this documentation commit. The next operation must copy exactly the 24 accepted candidate PNG byte streams above into their allowlisted snapshot paths in one bounded materialization, verify the hashes byte-for-byte, rerun the governed Playwright suite, and require all exact-head workflows to terminate successfully. No production frontend/runtime/dependency/workflow mutation is permitted.
+`FIRST_EXACT_HEAD_BROWSER_ACCEPTANCE = PASSED`
+
+`DESIGN_QA = PASSED`
+
+The accepted PNG set has been materialized exactly once; first exact-head browser acceptance succeeded. This documentation-only finalization is the final semantic mutation authorized by v14. A fresh exact-head five-workflow set is required on the new head. PR remains Draft; Ready/Merge remain unauthorized.
