@@ -152,3 +152,67 @@ def test_registration_allows_new_executor_kind() -> None:
             workspace_root=td,
         )
         assert result.validation_command_id == "noop"
+
+def test_registration_rejects_duplicate_normalized_kind_and_preserves_factory() -> None:
+    router = ExecutorRouter()
+    first_factory = lambda: object()
+    router.register(" Custom ", first_factory)
+    with pytest.raises(ExecutorRuntimeError, match=r"^duplicate_executor_kind:custom$"):
+        router.register("CUSTOM", lambda: object())
+    assert router._registry["custom"] is first_factory
+
+
+def test_registration_cannot_shadow_builtin_executor_aliases() -> None:
+    router = ExecutorRouter()
+    fixture_factory = router._registry["deterministic_fixture"]
+    opencode_factory = router._registry["opencode"]
+    with pytest.raises(ExecutorRuntimeError, match=r"^duplicate_executor_kind:deterministic_fixture$"):
+        router.register(" DETERMINISTIC_FIXTURE ", lambda: object())
+    with pytest.raises(ExecutorRuntimeError, match=r"^duplicate_executor_kind:opencode$"):
+        router.register(" OpenCode ", lambda: object())
+    assert router._registry["deterministic_fixture"] is fixture_factory
+    assert router._registry["opencode"] is opencode_factory
+
+
+def test_explicit_replace_normalizes_existing_kind() -> None:
+    router = ExecutorRouter()
+    replacement = lambda: object()
+    router.replace(" DETERMINISTIC_FIXTURE ", replacement)
+    assert router._registry["deterministic_fixture"] is replacement
+
+
+def test_explicit_replace_rejects_unknown_kind() -> None:
+    router = ExecutorRouter()
+    with pytest.raises(ExecutorRuntimeError, match=r"^unknown_executor_kind:missing$"):
+        router.replace(" Missing ", lambda: object())
+
+
+def test_normalized_dispatch_lookup_preserves_builtin_fixture() -> None:
+    with tempfile.TemporaryDirectory() as td:
+        router = ExecutorRouter()
+        result = router.dispatch_execute(
+            task_id="task-normalized-fixture",
+            store=TaskStore(":memory:"),
+            executor_kind=" DETERMINISTIC_FIXTURE ",
+            workspace_root=td,
+        )
+    assert result.success is True
+
+
+def test_normalized_create_executor_lookup_preserves_opencode() -> None:
+    from reverse_agent.platform_v1.opencode_executor import OpenCodeExecutor
+    router = ExecutorRouter()
+    executor = router.create_executor(
+        executor_kind=" OpenCode ",
+        model_id="sensetime/sensenova-6.7-flash-lite",
+        opencode_exe="/fake/opencode",
+    )
+    assert isinstance(executor, OpenCodeExecutor)
+
+
+def test_registration_and_replace_reject_empty_kind() -> None:
+    router = ExecutorRouter()
+    with pytest.raises(ExecutorRuntimeError, match=r"^executor_kind_must_be_non_empty$"):
+        router.register("   ", lambda: object())
+    with pytest.raises(ExecutorRuntimeError, match=r"^executor_kind_must_be_non_empty$"):
+        router.replace("   ", lambda: object())
