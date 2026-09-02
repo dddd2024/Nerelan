@@ -241,3 +241,15 @@ def test_shared_pr_routing_both_workflows_use_same_event_aware_contract() -> Non
         assert 'control-plane-mode --state-dir project_state --event-path "$GITHUB_EVENT_PATH"' in workflow
         detect_block = workflow.split("Detect control-plane mode", 1)[1].split("      - name:", 1)[0]
         assert "github.event.pull_request.number" not in detect_block
+
+
+def test_decision_preflight_and_state_gate_checkout_exact_pr_head() -> None:
+    """Transition validation must inspect the exact PR head, never GitHub's synthetic merge ref."""
+
+    expected_ref = "ref: ${{ github.event.pull_request.head.sha || github.sha }}"
+    for name in ("state-gate.yml", "decision-preflight.yml"):
+        workflow = (REPO_ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
+        checkout_block = workflow.split("- name: Checkout", 1)[1].split("- name:", 1)[0]
+        assert expected_ref in checkout_block
+        assert "fetch-depth: 0" in checkout_block
+        assert "persist-credentials: false" in checkout_block
