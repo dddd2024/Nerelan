@@ -308,6 +308,84 @@ def test_ci_network_access_allowed_only_for_exact_exception() -> None:
     assert any("pip install" in v for v in violations)
 
 
+@pytest.mark.parametrize(
+    ("surface", "exceptions_field", "command"),
+    [
+        ("local", "local_network_exceptions", "git push origin codex/example-v1"),
+        ("ci_only", "ci_network_exceptions", "python -m pip install -e ."),
+        ("trusted_worker", "trusted_worker_network_exceptions", "python -m pytest -q"),
+        ("github_control_plane", "github_control_plane_network_exceptions", "gh pr create"),
+        ("user_local", "user_local_network_exceptions", "docker compose up -d"),
+    ],
+)
+def test_network_exceptions_are_surface_aware(
+    surface: str,
+    exceptions_field: str,
+    command: str,
+) -> None:
+    """G2-2: network exceptions must be routed by exact execution surface."""
+
+    policy = CapabilityPolicy(
+        network_access_default_allowed=False,
+        **{exceptions_field: (command,)},
+    )
+    allowed = ExecutionEnvelope(
+        command=command,
+        execution_surface=surface,
+        operations=("network_access",),
+        exit_code=0,
+    )
+    # An identical command on a different surface with no exception must deny.
+    other_surface = "ci_only" if surface != "ci_only" else "local"
+    forbidden = ExecutionEnvelope(
+        command=command,
+        execution_surface=other_surface,
+        operations=("network_access",),
+        exit_code=0,
+    )
+    assert _envelope_network_violations((allowed,), policy) == ()
+    violations = _envelope_network_violations((forbidden,), policy)
+    assert any("network_access_violation" in v for v in violations)
+
+
+def test_remote_observation_network_is_always_denied() -> None:
+    """G2-2: remote_observation is read-only and never carries a network
+    exception, so any network operation on it must fail closed."""
+
+    policy = CapabilityPolicy(
+        network_access_default_allowed=False,
+        remote_observation_read_only_allowed=True,
+    )
+    envelope = ExecutionEnvelope(
+        command="gh api repos/dddd2024/reverse-agent",
+        execution_surface="remote_observation",
+        operations=("read_only_audit", "network_access"),
+        exit_code=0,
+    )
+    violations = _envelope_network_violations((envelope,), policy)
+    assert any("network_access_violation" in v for v in violations)
+
+
+def test_load_capability_policy_reads_surface_network_exceptions() -> None:
+    """G2-2: load_capability_policy must parse the surface-aware exception
+    lists from the structured capability policy."""
+
+    contract = _structured_contract(allowed_commands=[])
+    contract["capability_policy"] = {
+        "network_access_default_allowed": False,
+        "local_network_exceptions": ["git push origin codex/example-v1"],
+        "ci_network_exceptions": ["python -m pip install -e ."],
+        "trusted_worker_network_exceptions": ["python -m pytest -q"],
+        "github_control_plane_network_exceptions": ["gh pr create"],
+        "user_local_network_exceptions": ["docker compose up -d"],
+        "remote_observation_read_only_allowed": True,
+    }
+    policy = load_capability_policy(contract)
+    assert "python -m pytest -q" in policy.trusted_worker_network_exceptions
+    assert "gh pr create" in policy.github_control_plane_network_exceptions
+    assert "docker compose up -d" in policy.user_local_network_exceptions
+
+
 # ---------------------------------------------------------------------------
 # Test 10: allowed/forbidden path conflicts block
 # ---------------------------------------------------------------------------

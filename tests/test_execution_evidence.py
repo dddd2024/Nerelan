@@ -7,6 +7,8 @@ BOOTSTRAP_EXPIRED lifecycle.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from reverse_agent.control_plane.legacy_adapter import (
@@ -87,6 +89,129 @@ def test_structured_command_plan_carries_command_id() -> None:
     plan = build_transition_command_plan(decision, contract)
     assert plan.commands[0].command_id == "status.git_status"
     assert plan.commands[0].authority_origin == "normal_plan"
+
+
+# --- G2-1: explicit execution surfaces ----------------------------------
+
+
+def test_structured_command_requires_explicit_execution_surface() -> None:
+    """A current/new structured command with a missing execution_surface must
+    FAIL CLOSED. Only load_legacy_command_plan may normalize a historical
+    missing surface to the legacy ``local`` token."""
+
+    from reverse_agent.control_plane.command_authority import validate_command_plan
+
+    decision = _decision()
+    raw = _structured_command("status.git_status")
+    raw.pop("execution_surface")
+    contract = _structured_contract(allowed_commands=[raw])
+    with pytest.raises(ValueError, match="missing_execution_surface"):
+        build_transition_command_plan(decision, contract)
+
+
+def test_structured_command_blank_execution_surface_fails_closed() -> None:
+    decision = _decision()
+    raw = _structured_command("status.git_status")
+    raw["execution_surface"] = "   "
+    contract = _structured_contract(allowed_commands=[raw])
+    with pytest.raises(ValueError, match="missing_execution_surface"):
+        build_transition_command_plan(decision, contract)
+
+
+@pytest.mark.parametrize(
+    "surface",
+    ["github_control_plane", "trusted_worker", "ci_only", "remote_observation", "user_local", "local"],
+)
+def test_canonical_execution_surfaces_parse(surface: str) -> None:
+    from reverse_agent.control_plane.command_authority import validate_command_plan
+
+    decision = _decision()
+    raw = _structured_command("status.git_status")
+    raw["execution_surface"] = surface
+    if surface == "user_local":
+        raw["operations"] = ["machine_specific_execution"]
+    contract = _structured_contract(allowed_commands=[raw])
+    plan = build_transition_command_plan(decision, contract)
+    assert plan.commands[0].execution_surface == surface
+    assert validate_command_plan(plan) == ()
+
+
+def test_user_local_requires_machine_specific_declaration() -> None:
+    """G2-1: a user_local command without the explicit machine-specific
+    capability declaration must be BLOCKED."""
+
+    from reverse_agent.control_plane.command_authority import validate_command_plan
+    from reverse_agent.control_plane.models import TransitionCommandPlan, TransitionDecision
+
+    decision = _decision()
+    raw = _structured_command("status.git_status")
+    raw["execution_surface"] = "user_local"
+    raw["operations"] = ["repository_observation"]
+    contract = _structured_contract(allowed_commands=[raw])
+    with pytest.raises(ValueError, match="user_local_requires_machine_specific_execution"):
+        build_transition_command_plan(decision, contract)
+
+    # Direct model construction without the declaration also fails closed.
+    plan = TransitionCommandPlan(
+        decision_id=decision.decision_id,
+        round_id=decision.round_id,
+        commands=(
+            TransitionCommand(
+                command="git status --short",
+                phase="status",
+                required=True,
+                expected_exit_codes=(0,),
+                execution_surface="user_local",
+                operations=("repository_observation",),
+                command_id="status.git_status",
+            ),
+        ),
+    )
+    errors = validate_command_plan(plan)
+    assert any("user_local_requires_machine_specific_execution" in err for err in errors)
+
+
+def test_legacy_local_remains_readable_but_not_authoring_default() -> None:
+    """G2-1: explicit historical ``local`` remains readable for historical
+    Decisions and this migration round, but is not the authoring default."""
+
+    decision = _decision()
+    raw = _structured_command("status.git_status")
+    raw["execution_surface"] = "local"
+    contract = _structured_contract(allowed_commands=[raw])
+    plan = build_transition_command_plan(decision, contract)
+    assert plan.commands[0].execution_surface == "local"
+
+
+def test_load_legacy_command_plan_normalizes_missing_surface_to_local(tmp_path) -> None:
+    """G2-1: only load_legacy_command_plan may normalize a historical missing
+    execution_surface to ``local``. This is the narrow implicit compatibility
+    path and must not be removed."""
+
+    from reverse_agent.control_plane.legacy_adapter import load_legacy_command_plan
+
+    gates = tmp_path / "gates"
+    gates.mkdir(parents=True)
+    (gates / "command_plan.json").write_text(
+        json.dumps({
+            "schema_version": 1,
+            "decision_id": "decision_legacy",
+            "round_id": "round_legacy",
+            "commands": [
+                {
+                    "command": "git status --short",
+                    "phase": "status",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                    "operations": ["repository_observation"],
+                    "command_id": "status.git_status",
+                }
+            ],
+        }),
+        encoding="utf-8",
+    )
+    plan = load_legacy_command_plan(gates / "command_plan.json")
+    assert plan.commands[0].execution_surface == "local"
 
 
 def test_command_id_and_surface_must_match_record() -> None:
