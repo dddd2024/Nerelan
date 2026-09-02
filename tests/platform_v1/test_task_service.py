@@ -1058,7 +1058,7 @@ def test_router_injection_http_execute(task_server) -> None:
 
     store = TaskStore(":memory:")
     router = ExecutorRouter()
-    router.register("deterministic_fixture", _TracingFixtureExecutor)
+    router.replace("deterministic_fixture", _TracingFixtureExecutor)
 
     from http.server import ThreadingHTTPServer
 
@@ -1111,7 +1111,7 @@ def test_task_service_executor_runs_while_state_is_running_not_validating(tmp_pa
             return getattr(self._inner, name)
 
     router = ExecutorRouter()
-    router.register("deterministic_fixture", _TimelineFixtureExecutor)
+    router.replace("deterministic_fixture", _TimelineFixtureExecutor)
 
     handler_cls = _handler_factory(
         store, router,
@@ -1167,7 +1167,7 @@ def test_task_service_validator_runs_after_executor(tmp_path) -> None:
             return getattr(self._inner, name)
 
     router = ExecutorRouter()
-    router.register("deterministic_fixture", _StateObserverExecutor)
+    router.replace("deterministic_fixture", _StateObserverExecutor)
 
     handler_cls = _handler_factory(
         store, router,
@@ -1912,7 +1912,7 @@ def test_single_mode_execute_backward_compatible_http(tmp_path) -> None:
             return getattr(self._inner, name)
 
     router = ExecutorRouter()
-    router.register("deterministic_fixture", _TraceFixtureExecutor)
+    router.replace("deterministic_fixture", _TraceFixtureExecutor)
 
     handler_cls = _handler_factory(
         store, router,
