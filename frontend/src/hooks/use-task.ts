@@ -5,18 +5,18 @@ import type { ActivityEventType, ChangedFile, EvidenceItem, Task } from "@/types
 const EMPTY_TASK: Task = {
   id: "",
   title: "",
-  issueNumber: 0,
+  issueNumber: null,
   state: "WAITING_FOR_OWNER",
-  riskTier: "R1",
+  riskTier: "UNKNOWN",
   updatedAt: "",
   permissionProfile: "ASK_FOR_APPROVAL",
   branch: "",
   activity: [],
   changes: [],
   evidence: [],
-  authorityStatus: "APPROVED",
+  authorityStatus: "MISSING",
   testStatus: "PENDING",
-  workflowStatus: "PENDING",
+  workflowStatus: "UNKNOWN",
 };
 
 type UnknownEvent = Record<string, unknown> | undefined;
@@ -55,10 +55,19 @@ function _state(v: unknown, fallback: Task["state"]): Task["state"] {
   return fallback;
 }
 
+function _issueNumber(v: unknown): Task["issueNumber"] {
+  if (v === null || v === undefined || v === "") return null;
+  const parsed = typeof v === "number" ? v : Number(v);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
 function _riskTier(v: unknown): Task["riskTier"] {
-  if (typeof v === "string" && (v in { R0: 0, R1: 0, R2: 0, R3: 0 }))
+  if (
+    typeof v === "string" &&
+    (v in { R0: 0, R1: 0, R2: 0, R3: 0, UNKNOWN: 0 })
+  )
     return v as Task["riskTier"];
-  return "R1";
+  return "UNKNOWN";
 }
 
 function _permission(v: unknown): Task["permissionProfile"] {
@@ -79,7 +88,7 @@ function _authority(v: unknown): Task["authorityStatus"] {
     MISSING: 0,
     REVOKED: 0,
   })) return v as Task["authorityStatus"];
-  return "APPROVED";
+  return "MISSING";
 }
 
 function _testStatus(v: unknown): Task["testStatus"] {
@@ -97,7 +106,7 @@ function _workflowStatus(v: unknown): Task["workflowStatus"] {
     NEUTRALIZED: 0,
     UNKNOWN: 0,
   })) return v as Task["workflowStatus"];
-  return "PENDING";
+  return "UNKNOWN";
 }
 
 function _toTask(raw: Record<string, unknown> | undefined): Task {
@@ -112,7 +121,7 @@ function _toTask(raw: Record<string, unknown> | undefined): Task {
   return {
     id: String(source.id ?? raw.id ?? ""),
     title: String(source.title ?? raw.title ?? ""),
-    issueNumber: Number(source.issueNumber ?? 0),
+    issueNumber: _issueNumber(source.issueNumber),
     state: _state(source.state ?? raw.status, "WAITING_FOR_OWNER"),
     riskTier: _riskTier(source.riskTier),
     updatedAt: String(source.updatedAt ?? raw.updated_at ?? ""),
@@ -192,9 +201,9 @@ function _toTask(raw: Record<string, unknown> | undefined): Task {
         ),
       };
     }),
-    authorityStatus: _authority(source.authorityStatus ?? "APPROVED"),
+    authorityStatus: _authority(source.authorityStatus),
     testStatus: _testStatus(source.testStatus ?? "PENDING"),
-    workflowStatus: _workflowStatus(source.workflowStatus ?? "PENDING"),
+    workflowStatus: _workflowStatus(source.workflowStatus),
     executor:
       (String(source.executor ?? raw.executor_kind ?? "") ||
         undefined) as Task["executor"],
