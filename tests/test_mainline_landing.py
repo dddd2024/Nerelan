@@ -124,10 +124,11 @@ def _future_repo(
     decision_path.parent.mkdir(parents=True)
     plan_path.parent.mkdir(parents=True)
     round_id = "round_20260801_later_mainline_landing_v4"
-    if schema_version == 3 and workflow_profile is None:
+    if schema_version in {3, 4} and workflow_profile is None:
         workflow_profile = "baseline"
-    if schema_version == 3 and decision_contract_profile is None:
+    if schema_version in {3, 4} and decision_contract_profile is None:
         decision_contract_profile = workflow_profile
+    repository = "dddd2024/Nerelan" if schema_version == 4 else "dddd2024/reverse-agent"
     contract_block = ""
     if decision_contract_profile is not None:
         contract_block = (
@@ -182,7 +183,7 @@ def _future_repo(
     ).hexdigest()
     if schema_version == 1:
         workflow_policy = CANONICAL_WORKFLOW_POLICY
-    elif schema_version == 3:
+    elif schema_version in {3, 4}:
         try:
             workflow_policy = resolve_premerge_workflow_profile(workflow_profile)
         except ValueError:
@@ -192,7 +193,7 @@ def _future_repo(
     intent = {
         "schema_version": schema_version,
         "intent_id": "intent_pr67_v1",
-        "repository": "dddd2024/reverse-agent",
+        "repository": repository,
         "source_pr": 67,
         "locked_base_sha": base,
         "allowed_merge_method": "merge",
@@ -205,7 +206,7 @@ def _future_repo(
         "required_workflows": list(workflow_policy),
         "expires_at": "2026-08-28T00:00:00Z",
     }
-    if schema_version == 3:
+    if schema_version in {3, 4}:
         intent["workflow_profile"] = workflow_profile
     intent_path = repo / "project_state" / "mainline_merge_intents" / "active.json"
     intent_path.parent.mkdir(parents=True)
@@ -218,7 +219,7 @@ def _future_repo(
     _git(repo, "merge", "--no-ff", "feature", "-m", "merge")
     merge = _git(repo, "rev-parse", "HEAD")
     approval_payload = {
-        "repository": "dddd2024/reverse-agent",
+        "repository": repository,
         "source_pr": 67,
         "locked_base_sha": base,
         "accepted_exact_head_sha": head,
@@ -242,7 +243,7 @@ def _future_repo(
     attestation = {
         "schema_version": schema_version,
         "attestation_id": "attestation_pr67_v1",
-        "repository": "dddd2024/reverse-agent",
+        "repository": repository,
         "source_pr": 67,
         "locked_base_sha": base,
         "accepted_exact_head_sha": head,
@@ -261,7 +262,7 @@ def _future_repo(
         "_remote_comment_id": 12345,
         "_remote_author": "dddd2024",
     }
-    if schema_version in {2, 3}:
+    if schema_version in {2, 3, 4}:
         attestation["_remote_comment_created_at"] = "2026-07-25T00:00:00Z"
         attestation["_remote_comment_updated_at"] = "2026-07-26T00:00:00Z"
     attestation["content_digest"] = canonical_digest(
@@ -1537,7 +1538,7 @@ def test_v2_wrong_accepted_head_still_blocks(tmp_path: Path) -> None:
 def test_unsupported_intent_schema_version_fails_closed(tmp_path: Path) -> None:
     bundle = _future_repo(tmp_path, schema_version=1)
     intent = dict(bundle["intent"])
-    intent["schema_version"] = 4
+    intent["schema_version"] = 5
     repo = bundle["repo"]
     _git(repo, "checkout", "feature")
     intent_path = repo / "project_state" / "mainline_merge_intents" / "active.json"
@@ -1563,7 +1564,7 @@ def test_unsupported_intent_schema_version_fails_closed(tmp_path: Path) -> None:
     result = _validate(bundle)
     assert result["gate_status"] == "BLOCKED"
     assert any(
-        "intent_schema_version: unsupported_version=4" in item
+        "intent_schema_version: unsupported_version=5" in item
         for item in result["blocking_reasons"]
     )
 
@@ -1572,11 +1573,11 @@ def test_v2_attestation_unsupported_schema_version_fails_closed(
     tmp_path: Path,
 ) -> None:
     bundle = _future_repo(tmp_path, schema_version=2)
-    bundle["attestation"]["schema_version"] = 4
+    bundle["attestation"]["schema_version"] = 5
     result = _validate(bundle)
     assert result["gate_status"] == "BLOCKED"
     assert any(
-        "attestation_schema_version: unsupported_version=4" in item
+        "attestation_schema_version: unsupported_version=5" in item
         for item in result["blocking_reasons"]
     )
 
@@ -1951,12 +1952,12 @@ def test_v3_post_merge_validation_runs_unchanged(tmp_path: Path) -> None:
     assert before == after
 
 
-def test_v3_premerge_attestation_does_not_require_merge_fields(
+def test_v4_premerge_attestation_does_not_require_merge_fields(
     tmp_path: Path,
 ) -> None:
     """Pre-merge checks keep owner/digest/workflow proof without post-merge facts."""
 
-    bundle = _future_repo(tmp_path, schema_version=3, workflow_profile="baseline")
+    bundle = _future_repo(tmp_path, schema_version=4, workflow_profile="baseline")
     checks = validate_premerge_attestation(
         bundle["attestation"],
         verifier=FakeVerifier(merged=False, merged_at=None),
@@ -1969,7 +1970,7 @@ def test_v3_premerge_attestation_does_not_require_merge_fields(
     assert not any(check["name"] == "remote_pr_merged_at" for check in checks)
 
 
-@pytest.mark.parametrize("schema_version", [1, 2])
+@pytest.mark.parametrize("schema_version", [1, 2, 3])
 def test_legacy_schema_premerge_rejection_is_explicit_but_postmerge_passes(
     tmp_path: Path, schema_version: int
 ) -> None:
@@ -1996,14 +1997,14 @@ def test_legacy_schema_premerge_rejection_is_explicit_but_postmerge_passes(
         {
             "name": "premerge_intent_schema_version",
             "status": "FAIL",
-            "detail": f"observed={schema_version!r} expected=3",
+            "detail": f"observed={schema_version!r} expected=4",
         }
     ]
     assert attestation_checks == [
         {
             "name": "premerge_attestation_schema_version",
             "status": "FAIL",
-            "detail": f"observed={schema_version!r} expected=3",
+            "detail": f"observed={schema_version!r} expected=4",
         }
     ]
     postmerge = _validate(bundle)

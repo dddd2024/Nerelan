@@ -16,7 +16,7 @@ def _services():
     return store, control, autonomy, GoalService(store=store, control_store=control)
 
 
-def _window_payload():
+def _window_payload(repository: str = "dddd2024/reverse-agent"):
     now = datetime.now(timezone.utc)
     return {
         "policy_id": "owner-window-1",
@@ -24,7 +24,7 @@ def _window_payload():
         "owner_identity": "owner@example",
         "starts_at": (now - timedelta(seconds=5)).isoformat(),
         "expires_at": (now + timedelta(hours=1)).isoformat(),
-        "repositories": ["dddd2024/reverse-agent"],
+        "repositories": [repository],
         "capabilities": ["execute_task", "validate_task"],
         "max_concurrent_tasks": 2,
         "max_tasks": 10,
@@ -107,7 +107,7 @@ def test_goal_response_status_uses_the_returned_link_snapshot(
         tasks=[{"id": "T001", "title": "step", "instruction": "run"}],
     )
     goals.approve(goal.id, expected_revision=1, policy_ref="owner-window-1")
-    window = autonomy.activate(_window_payload())
+    window = autonomy.activate(_window_payload(repository=goal.repository))
     goals.launch(goal.id, expected_revision=1, window_id=window.id)
     task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
 
