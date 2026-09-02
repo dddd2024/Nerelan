@@ -64,7 +64,7 @@ jobs:
 
       - name: Transition preflight
         if: steps.control_plane.outputs.mode == 'transition'
-        run: python -m reverse_agent.project_gate transition-preflight --state-dir project_state
+        run: python -m reverse_agent.project_gate transition-preflight --state-dir project_state --event-path "$GITHUB_EVENT_PATH"
 
       - name: Project gate preflight
         if: steps.control_plane.outputs.mode == 'legacy'

@@ -71,7 +71,7 @@ class TransitionCommand:
             phase=str(payload.get("phase") or ""),
             required=bool(payload.get("required", False)),
             expected_exit_codes=codes,
-            execution_surface=str(payload.get("execution_surface") or "local"),
+            execution_surface=str(payload.get("execution_surface") or ""),
             operations=_strings(payload.get("operations")),
             network_access=bool(payload.get("network_access", False)),
             diagnostic_only=bool(payload.get("diagnostic_only", False)),
@@ -388,6 +388,9 @@ class CapabilityPolicy:
     tag_or_release_allowed: bool = False
     local_network_exceptions: tuple[str, ...] = ()
     ci_network_exceptions: tuple[str, ...] = ()
+    trusted_worker_network_exceptions: tuple[str, ...] = ()
+    github_control_plane_network_exceptions: tuple[str, ...] = ()
+    user_local_network_exceptions: tuple[str, ...] = ()
     remote_observation_read_only_allowed: bool = False
 
     def to_dict(self) -> dict[str, Any]:
@@ -406,6 +409,9 @@ class CapabilityPolicy:
             "tag_or_release_allowed": self.tag_or_release_allowed,
             "local_network_exceptions": list(self.local_network_exceptions),
             "ci_network_exceptions": list(self.ci_network_exceptions),
+            "trusted_worker_network_exceptions": list(self.trusted_worker_network_exceptions),
+            "github_control_plane_network_exceptions": list(self.github_control_plane_network_exceptions),
+            "user_local_network_exceptions": list(self.user_local_network_exceptions),
             "remote_observation_read_only_allowed": self.remote_observation_read_only_allowed,
         }
 
