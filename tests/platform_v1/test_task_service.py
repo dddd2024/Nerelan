@@ -2094,7 +2094,7 @@ def test_agent_runs_listing_and_detail_over_http(task_server) -> None:
         "policy_id": "runs-window-1", "policy_revision": 1, "owner_identity": "owner",
         "starts_at": (now - timedelta(seconds=1)).isoformat(),
         "expires_at": (now + timedelta(hours=1)).isoformat(),
-        "repositories": ["dddd2024/reverse-agent"], "capabilities": ["execute_task"],
+        "repositories": [goal["repository"]], "capabilities": ["execute_task"],
         "max_concurrent_tasks": 1, "max_tasks": 5, "max_retries": 0,
         "confirmation": "ACTIVATE",
     })
