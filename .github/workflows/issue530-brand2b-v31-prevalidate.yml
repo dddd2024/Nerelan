@@ -305,6 +305,18 @@ jobs:
             --deselect=tests/platform_v1/test_task3c_v5_opencode_probe.py::TestDirectFakeProviderControl::test_opencode_direct_fake_provider \
             --deselect=tests/platform_v1/test_task3c_v5_opencode_probe.py::TestRelayFakeProviderRun::test_opencode_relay_fake_provider
 
+      - name: Upload exact prevalidated product file bundle
+        if: steps.phase.outputs.needs_plan == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: v31-prevalidated-product-files
+          path: |
+            tests/test_mainline_landing.py
+            tests/platform_v1/test_contracts.py
+            tests/platform_v1/test_merge_intent.py
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Prove helper did not commit or push real checkout
         if: steps.phase.outputs.needs_plan == 'false'
         shell: bash
