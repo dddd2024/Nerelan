@@ -1,8 +1,10 @@
 import { Link, useSearchParams } from "react-router";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useTasks } from "@/hooks/use-tasks";
 import { TaskInbox } from "@/components/task-inbox";
 import { cn } from "@/lib/cn";
+
+export const TASK_LIST_REFRESH_INTERVAL_MS = 2_500;
 
 /**
  * Task collection surface. Repository filtering is presentation-only and uses
@@ -10,7 +12,7 @@ import { cn } from "@/lib/cn";
  * store or backend query contract.
  */
 export function TasksPage() {
-  const { data, isLoading, isError, error } = useTasks();
+  const { data, isLoading, isError, error, refetch } = useTasks();
   const [searchParams] = useSearchParams();
   const repository = searchParams.get("repository")?.trim() ?? "";
   const filtered = useMemo(
@@ -20,6 +22,32 @@ export function TasksPage() {
         : data,
     [data, repository],
   );
+  const hasRunningTask = filtered?.some((task) => task.state === "RUNNING") ?? false;
+
+  useEffect(() => {
+    if (!hasRunningTask) return;
+
+    const intervalId = window.setInterval(() => {
+      void refetch().catch(() => undefined);
+    }, TASK_LIST_REFRESH_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [hasRunningTask, refetch]);
+
+  useEffect(() => {
+    const reconcile = () => {
+      void refetch().catch(() => undefined);
+    };
+
+    window.addEventListener("focus", reconcile);
+    window.addEventListener("online", reconcile);
+    document.addEventListener("visibilitychange", reconcile);
+    return () => {
+      window.removeEventListener("focus", reconcile);
+      window.removeEventListener("online", reconcile);
+      document.removeEventListener("visibilitychange", reconcile);
+    };
+  }, [refetch]);
 
   return (
     <div
