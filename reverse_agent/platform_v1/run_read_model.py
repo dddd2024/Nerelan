@@ -510,6 +510,7 @@ class RunReadModel:
     def run_detail(self, task_id: str) -> dict[str, Any]:
         task = self.store.get_task(task_id, event_limit=MAX_DETAIL_EVENTS)
         detail = self._run_summary(task)
+        durable_run = self._durable_run(task.id)
         projected_events = [
             _event_projection(event, task=task)
             for event in task.events
@@ -522,6 +523,7 @@ class RunReadModel:
         detail["changed_files"] = self._changed_files(task.changed_files)
         detail["controls"] = {
             "cancel": self.store.queue_cancel_capability(task.id),
+            "resume": self._resume_control(task, durable_run),
         }
         return detail
 
@@ -533,6 +535,29 @@ class RunReadModel:
             return reader(task_id)
         except TaskStoreError:
             return None
+
+    @staticmethod
+    def _resume_control(task: Any, durable_run: Any | None) -> dict[str, str]:
+        mode = _safe_text(getattr(task, "orchestration_mode", ""), limit=32)
+        status = _safe_text(getattr(task, "status", ""), limit=64)
+        if mode not in {"single", "sequential_team"}:
+            availability = "UNAVAILABLE"
+            reason_code = "ORCHESTRATION_MODE_UNSUPPORTED"
+        elif status != "INTERRUPTED":
+            availability = "UNAVAILABLE"
+            reason_code = "STATUS_NOT_INTERRUPTED"
+        elif durable_run is None:
+            availability = "UNAVAILABLE"
+            reason_code = "NO_DURABLE_RUN"
+        else:
+            availability = "AVAILABLE"
+            reason_code = "INTERRUPTED_DURABLE_READY"
+        return {
+            "action": "RESUME",
+            "scope": "DURABLE_RECOVERY",
+            "availability": availability,
+            "reason_code": reason_code,
+        }
 
     def _run_summary(self, task: Any) -> dict[str, Any]:
         goal_id = ""
