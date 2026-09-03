@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260901_issue345_platform_v1_profile_regression_r2_v1",
-  "round_id": "round_20260901_issue345_platform_v1_profile_regression_r2_v1",
+  "decision_id": "decision_20260903_issue156_control_plane_correction_r2_v6",
+  "round_id": "round_20260903_issue156_control_plane_correction_r2_v6",
   "commands": [
     {
-      "command_id": "issue345_regression_r2v1.bootstrap_and_preflight",
-      "command": "verify exact locked main and fresh branch; commit this immutable R2 Decision first; run startup snapshot command-plan compiler transition lint and transition preflight and require PRE_EXECUTION_AUTHORIZED before any test mutation",
+      "command_id": "issue156_correction_r2v6.bootstrap_and_preflight",
+      "command": "verify exact fresh locked main cf8822d25dbe56dd79b496268360d46a7cb1246f and fresh branch merge-base; commit this immutable R2 Decision first; run startup snapshot command-plan compiler transition lint and transition preflight pre; require PRE_EXECUTION_AUTHORIZED before any semantic mutation",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -34,11 +34,11 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue345_regression_r2v1.repair_platform_v1_profile_assertions",
-      "command": "after PRE_EXECUTION_AUTHORIZED repair only the stale Platform V1 schema-v3 required_workflows assertions so schema v1 and v2 historical semantics remain frozen while schema v3 resolves the production-owned workflow_profile: baseline requires exactly CI Decision Preflight and State Gate (pull_request); browser_r3 requires exactly those three plus Frontend Playwright and Model Access; State Gate (push) remains excluded; add explicit baseline and browser_r3 regression coverage and keep unknown/invented/missing specialized workflow cases fail closed",
+      "command_id": "issue156_correction_r2v6.rematerialize_semantics_close_p1",
+      "command": "after PRE_EXECUTION_AUTHORIZED re-materialize the accepted PR #614 semantic head 1dfa2dc5dbfbe5cd986521d63c4e425a114362db control-plane and project-gate semantics at file level (models legacy_adapter command_authority evidence_recorder transition project_gate plus exact-head workflow checkout fix in decision-preflight.yml and ci.yml plus the matching deterministic tests); reuse the validated local Ready false/none repair commit 15baa104a780011d6865602c7fcd04fff25d52ed semantics without any old Decision/governance identity; then close all four real P1 review findings 3921389187 3921389194 3921389199 3921697391 with deterministic negative regressions; preserve legacy mainline_merge_intent_required=true post_draft_pr_exact_remote_number behavior and the no-legacy-intent READ_ONLY_LANDING_CANDIDATE_VALIDATION mode; do not weaken Decision immutability, expected-head protection, required checks, or target/base drift detection",
       "phase": "implementation",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
@@ -56,14 +56,34 @@
       "bootstrap_exception": false,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "tests/platform_v1/test_merge_intent.py",
-        "tests/platform_v1/test_contracts.py"
-      ]
+      "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue345_regression_r2v1.validate_and_publish",
-      "command": "run tests/platform_v1/test_merge_intent.py tests/platform_v1/test_contracts.py tests/test_mainline_landing.py and the CI-equivalent blocking Platform V1 suite plus git diff --check; after all blocking validation passes push the exact branch and create exactly one Draft PR",
+      "command_id": "issue156_correction_r2v6.validate",
+      "command": "run focused tests/test_project_gate.py plus the governance regression files actually containing the four P1 closures plus control-plane transition execution-evidence trusted-command-runner decision-preflight authority-closure ci-responsibility and exact-head workflow regressions; require git diff --check clean; do not mechanically re-run the full 700+ extended local baseline when the focused and governance regressions are green",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "unit_test",
+        "local_static_check"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue156_correction_r2v6.validate_and_publish",
+      "command": "run the CI-equivalent blocking deterministic suites and git diff --check; after all blocking validation passes push the exact branch owner/issue156-control-plane-correction-r2-v6 to locked main cf8822d25dbe56dd79b496268360d46a7cb1246f and create exactly one Draft PR",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -89,37 +109,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue345_regression_r2v1.post_publication_binding",
-      "command": "after the real Draft PR number is known archive the inherited PR499 schema-v3 baseline intent byte-for-byte as project_state/mainline_merge_intents/archive/pr499_v1.json and bind active.json exactly once to the new PR current Decision current Command Plan locked base and baseline workflow_profile with required_workflows exactly CI Decision Preflight and State Gate (pull_request)",
-      "phase": "post_publication_binding",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "source_edit",
-        "local_static_check",
-        "commit",
-        "push",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": true,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/mainline_merge_intents/active.json",
-        "project_state/mainline_merge_intents/archive/pr499_v1.json"
-      ]
-    },
-    {
-      "command_id": "issue345_regression_r2v1.exact_head_acceptance",
-      "command": "require exact-head CI Decision Preflight and State Gate (pull_request) terminal success on the bound Draft PR and independently audit that no unauthorized paths changed; keep the PR Draft and do not Ready or merge under this Decision",
+      "command_id": "issue156_correction_r2v6.exact_head_acceptance",
+      "command": "require natural exact-head CI Decision Preflight and State Gate observations on the Draft PR and independently audit that no unauthorized paths changed; keep the PR Draft and do NOT Ready or merge under this Decision; never rerun or dispatch workflows to manufacture green",
       "phase": "final_evidence",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -141,8 +132,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.4257bc4e1bd3a86eb29b93466892abba6c1242ad9abf77534b07f2a1ddf4e386",
-      "command": "verify exact main base 0feeb3f35ef164591678caba96fb46477b366f52 and fresh branch merge-base",
+      "command_id": "bootstrap.afbb1400eb472ceedd43f11f9d14823773304aa0a9415c67be09c48c4b5d86be",
+      "command": "verify exact fresh main cf8822d25dbe56dd79b496268360d46a7cb1246f and fresh branch merge-base",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
