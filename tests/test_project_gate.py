@@ -1,5 +1,6 @@
 import json
 import hashlib
+import os
 import shutil
 import subprocess
 from copy import deepcopy
@@ -32770,6 +32771,107 @@ class TestLiveDecisionImmutability:
         assert result["gate_status"] == "BLOCKED"
         assert "decision_worktree_or_index_dirty" in result["blocking_reasons"]
 
+    def test_synthetic_merge_ref_is_not_product_head_for_chronology(self, tmp_path: Path) -> None:
+        """F regression: a GitHub synthetic merge ref (refs/pull/<n>/merge) must
+        never be treated as the Decision chronology product HEAD.
+
+        GitHub creates refs/pull/<n>/merge by merging the PR product head into
+        the CURRENT base tip, which normally has ADVANCED past the PR's
+        starting_head with commits that are NOT in the PR history.  When the
+        exact PR product head is checked out (as the pinned workflows do), the
+        Decision-first chronology validates cleanly; when the synthetic merge
+        ref is checked out instead, the advanced base tip precedes the Decision
+        commit and the chronology fails closed (the false block this round
+        removes).
+        """
+        repo = tmp_path / "synth-repo"
+        repo.mkdir(parents=True)
+        _decision_test_git(repo, "init", "-q", "-b", "main")
+        _decision_test_git(repo, "config", "user.email", "tests@example.invalid")
+        _decision_test_git(repo, "config", "user.name", "tests")
+
+        def commit_with_date(message: str, date: int) -> str:
+            iso = f"2026-01-01T00:00:{date:02d}Z"
+            subprocess.run(
+                ["git", "commit", "-qm", message],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+                env={**os.environ, "GIT_AUTHOR_DATE": iso, "GIT_COMMITTER_DATE": iso},
+            )
+            return _decision_test_git(repo, "rev-parse", "HEAD")
+
+        (repo / "base.txt").write_text("base\n", encoding="utf-8")
+        _decision_test_git(repo, "add", "base.txt")
+        commit_with_date("base", 1)
+        base = _decision_test_git(repo, "rev-parse", "HEAD")
+
+        # Advance main with a commit that is NOT part of the PR history.
+        (repo / "main_advance.txt").write_text("advance\n", encoding="utf-8")
+        _decision_test_git(repo, "add", "main_advance.txt")
+        commit_with_date("main advance", 2)
+        advanced_base = _decision_test_git(repo, "rev-parse", "HEAD")
+
+        # Build the PR branch from the locked starting_head with a Decision-first
+        # history: Decision activation, then implementation.
+        _decision_test_git(repo, "checkout", "-q", "-b", "pr", base)
+        (repo / "project_state").mkdir(parents=True, exist_ok=True)
+        (repo / "project_state" / "decision_packet.md").write_text("decision\n", encoding="utf-8")
+        _decision_test_git(repo, "add", "project_state/decision_packet.md")
+        commit_with_date("Decision activation", 3)
+        activation = _decision_test_git(repo, "rev-parse", "HEAD")
+        (repo / "implementation.py").write_text("implementation\n", encoding="utf-8")
+        _decision_test_git(repo, "add", "implementation.py")
+        commit_with_date("implementation", 4)
+        product_head = _decision_test_git(repo, "rev-parse", "HEAD")
+
+        # Simulate GitHub's synthetic merge ref: merge the PR product head into
+        # the advanced base (first parent = advanced base tip).
+        _decision_test_git(repo, "checkout", "-q", "main")
+        _decision_test_git(repo, "merge", "-q", "--no-ff", "-m", "Merge PR", product_head)
+        synthetic_head = _decision_test_git(repo, "rev-parse", "HEAD")
+        assert synthetic_head != product_head
+
+        # Check out the exact product head (the pinned checkout the workflows
+        # must use) and verify the chronology validates cleanly.
+        _decision_test_git(repo, "checkout", "-q", product_head)
+        result = project_gate_module._decision_content_immutability_check(repo, _decision_contract(base))
+        assert result["passed"] is True, result["blocking_reasons"]
+        assert result["head"] == product_head
+        assert result["decision_commit"] == activation
+        assert "decision_commit_not_before_implementation" not in result["blocking_reasons"]
+
+        # The synthetic merge ref itself must never be used as the product HEAD.
+        # If it were checked out, the advanced base tip precedes the Decision
+        # commit and the chronology fails closed (this is the false block that
+        # the exact-product-head checkout fixes).
+        _decision_test_git(repo, "checkout", "-q", synthetic_head)
+        result = project_gate_module._decision_content_immutability_check(repo, _decision_contract(base))
+        assert result["passed"] is False
+        assert result["head"] == synthetic_head
+        assert "decision_commit_not_before_implementation" in result["blocking_reasons"]
+
+    def test_exact_head_mismatch_still_fails_closed(self, tmp_path: Path) -> None:
+        """F regression: an exact-head mismatch (HEAD is not the Decision-first
+        product head) still fails closed; the checkout fix does not weaken the
+        expected-head protection."""
+        repo, base, _ = _decision_history(tmp_path)
+        # HEAD is a divergent head where implementation precedes the Decision
+        # commit, i.e. the chronology is NOT Decision-first.  This is the
+        # exact-head-mismatch case that must keep failing closed.
+        _decision_test_git(repo, "checkout", "-qb", "wrong-head", base)
+        (repo / "implementation.py").write_text("implementation\n", encoding="utf-8")
+        _decision_test_git(repo, "add", "implementation.py")
+        _decision_test_git(repo, "commit", "-qm", "implementation")
+        (repo / "project_state").mkdir(parents=True, exist_ok=True)
+        (repo / "project_state" / "decision_packet.md").write_text("late\n", encoding="utf-8")
+        _decision_test_git(repo, "add", "project_state/decision_packet.md")
+        _decision_test_git(repo, "commit", "-qm", "late Decision")
+        result = project_gate_module._decision_content_immutability_check(repo, _decision_contract(base))
+        assert result["passed"] is False
+        assert "decision_commit_not_before_implementation" in result["blocking_reasons"]
+
 
 # ---------------------------------------------------------------------------
 # Issue #367 v3: supplied-event typing and landing-boundary regressions.
@@ -32784,6 +32886,7 @@ def _v3_transition_fixture(
     intent_required: bool = False,
     source_pr: int = 369,
     workflow_profile: str = "baseline",
+    binding_mode: str | None = None,
 ) -> dict[str, Any]:
     repo = tmp_path / "repo"
     state = tmp_path / "state"
@@ -32846,6 +32949,8 @@ def _v3_transition_fixture(
         "credential_access_allowed": False,
         "auto_merge_allowed": False,
     }
+    if binding_mode is not None:
+        contract["active_pr_binding_mode"] = binding_mode
     decision_text = (
         "```json decision_meta\n"
         + json.dumps({
@@ -33000,29 +33105,38 @@ def test_v3_valid_draft_event_runs_normal_preflight(
     assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
 
 
-@pytest.mark.parametrize(
-    ("action", "draft", "must_block"),
-    [
-        ("ready_for_review", False, True),
-        ("synchronize", False, True),
-        ("converted_to_draft", True, False),
-    ],
-)
-def test_v3_engineering_decision_boundary_semantics(
+def test_v3_engineering_cutover_boundary_never_intent_rejection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-    action: str, draft: bool, must_block: bool,
 ) -> None:
-    fx = _v3_transition_fixture(tmp_path, intent_required=False)
+    """A Ready event on a false/none engineering Decision must not be rejected
+    solely because ``mainline_merge_intent_required=false`` was observed.
+
+    The obsolete ``engineering_pr_not_landing_authorized`` rejection is
+    replaced by the no-legacy-intent cutover landing candidate validation:
+    Draft events keep ordinary preflight semantics, while a Ready event with a
+    mismatched target base still fails closed on base identity.
+    """
+    fx = _v3_transition_fixture(tmp_path, intent_required=False, binding_mode="none")
     monkeypatch.setattr(project_gate_module, "_active_transition_skills", lambda _: ("test-skill",))
-    event = _v3_event(tmp_path, action=action, draft=draft)
+
+    event = _v3_event(tmp_path, action="converted_to_draft", draft=True)
     result = project_gate_module.transition_preflight(
         state_dir=fx["state"], repo_root=fx["repo"], event_path=str(event), write_result=False
     )
-    if must_block:
-        assert result["gate_status"] == "BLOCKED", result
-        assert "engineering_pr_not_landing_authorized" in result["blocking_reasons"]
-    else:
-        assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
+
+    event = _v3_event(tmp_path, action="ready_for_review", draft=False)
+    result = project_gate_module.transition_preflight(
+        state_dir=fx["state"], repo_root=fx["repo"], event_path=str(event), write_result=False
+    )
+    assert result["gate_status"] == "BLOCKED", result
+    assert "engineering_pr_not_landing_authorized" not in result["blocking_reasons"]
+    assert "landing_event_base_mismatch" in result["blocking_reasons"]
+    assert "landing_mainline_merge_intent_required" not in [
+        check["name"] for check in result["checks"]
+        if check.get("name") == "landing_mainline_merge_intent_required"
+        and check.get("status") == "FAIL"
+    ]
 
 
 @pytest.mark.parametrize(
@@ -33170,7 +33284,7 @@ class _V3FakeRemoteVerifier:
         load_error: str = "",
     ) -> None:
         self.fixture = fixture
-        self.attestation = attestation or fixture["attestation"]
+        self.attestation = attestation or fixture.get("attestation")
         self.live_draft = live_draft
         self.load_error = load_error
         self.verify_pr_calls: list[dict[str, Any]] = []
@@ -33337,3 +33451,195 @@ def test_v3_intent_binding_and_digest_shape_fail_closed(
     # must validate the live bytes and fail closed rather than trust history.
     result, _ = _run_v3_landing_preflight(fx, tmp_path, monkeypatch)
     assert result["gate_status"] == "BLOCKED", result
+
+
+# ---------------------------------------------------------------------------
+# Issue #614 R2 v1: Repair the Ready-stage false/none landing contract.
+#
+# PR #614 reached the Ready boundary with ``mainline_merge_intent_required=
+# false`` and ``active_pr_binding_mode=none``. The Ready event was wrongly
+# blocked because the old gate equated ``false`` with "this PR can never be a
+# landing candidate".  These regressions prove the no-legacy-intent cutover
+# mode validates the landing candidate read-only (never as ownership/mutation
+# authority) while the legacy merge-intent mode keeps its exact behavior.
+# ---------------------------------------------------------------------------
+
+
+def _v3_cutover_fixture(tmp_path: Path) -> dict[str, Any]:
+    """Return a false/none engineering Decision fixture with an exact head.
+
+    ``_v3_transition_fixture`` commits the Decision on the test branch; the
+    fixture head is that commit.  No ``active.json`` exists, mirroring the
+    real cutover contract where a legacy merge intent is not required.
+    """
+
+    fx = _v3_transition_fixture(tmp_path, intent_required=False, binding_mode="none")
+    fx["head_sha"] = _decision_test_git(fx["repo"], "rev-parse", "HEAD")
+    return fx
+
+
+class _V3FakeRemoteHeadMismatch(_V3FakeRemoteVerifier):
+    """Remote PR whose exact head differs from the event head."""
+
+    def verify_pr(self, **kwargs: Any) -> dict[str, Any]:
+        result = dict(super().verify_pr(**kwargs))
+        result["verified"] = False
+        result["reason"] = "remote_pr_mismatch"
+        pr = dict(result["pr"])
+        pr["head"] = {"sha": "0" * 40}
+        result["pr"] = pr
+        return result
+
+
+def test_v3_cutover_false_none_ready_event_not_blocked_by_intent_required(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression #614: a Ready event on false/none must not be rejected for
+    ``landing_mainline_merge_intent_required observed=False`` and must keep
+    validating the remaining landing invariants."""
+    fx = _v3_cutover_fixture(tmp_path)
+    result, remote = _run_v3_landing_preflight(
+        fx, tmp_path, monkeypatch, action="ready_for_review"
+    )
+    assert remote.verify_pr_calls, "cutover landing must still validate the live PR"
+    assert remote.verify_pr_calls[-1]["pr_number"] == fx["source_pr"]
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
+    assert "engineering_pr_not_landing_authorized" not in result["blocking_reasons"]
+    assert "landing_mainline_merge_intent_required" not in result["blocking_reasons"]
+
+
+def test_v3_cutover_landing_check_list_is_read_only_candidate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The false/none cutover landing check list is read-only candidate
+    validation: shared base/remote-PR invariants PASS, the legacy merge-intent
+    gates are skipped, and no Ready/Merge authority is ever implied."""
+    fx = _v3_cutover_fixture(tmp_path)
+    remote = _V3FakeRemoteVerifier(fx)
+    monkeypatch.setattr(
+        project_gate_module.GitHubRemoteAcceptanceVerifier,
+        "from_env",
+        classmethod(lambda cls: remote),
+    )
+    checks, reasons = project_gate_module._check_landing_authority(
+        contract=fx["contract"],
+        event_payload={
+            "action": "ready_for_review",
+            "pr_number": fx["source_pr"],
+            "head_sha": fx["head_sha"],
+            "base_sha": fx["base_sha"],
+            "draft": False,
+        },
+        decision_id=fx["decision_id"],
+        decision_sha256="sha256:unused",
+        locked_base_sha=fx["base_sha"],
+        state_dir=fx["state"],
+        repo_root=fx["repo"],
+    )
+    assert reasons == (), reasons
+    by_name = {check["name"]: check for check in checks}
+    assert by_name["landing_mainline_merge_intent_required"]["status"] == "PASS"
+    assert (
+        by_name["landing_mainline_merge_intent_required"]["detail"]
+        == "cutover_no_legacy_intent_mode"
+    )
+    assert by_name["landing_authority_scope"]["status"] == "PASS"
+    assert by_name["landing_authority_scope"]["detail"] == (
+        "READ_ONLY_LANDING_CANDIDATE_VALIDATION_NOT_OWNER_MUTATION_AUTHORITY"
+    )
+    assert by_name["landing_event_base_locked"]["status"] == "PASS"
+    assert by_name["landing_remote_pr_binding"]["status"] == "PASS"
+    assert "landing_active_intent_exists" not in by_name
+    assert "landing_active_intent_readable" not in by_name
+    assert "landing_attestation_load" not in by_name
+
+
+def test_v3_cutover_ready_exact_head_mismatch_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """false/none still fail closed when the remote exact head mismatches."""
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_landing_preflight(
+        fx, tmp_path, monkeypatch,
+        action="ready_for_review",
+        verifier=_V3FakeRemoteHeadMismatch(fx),
+    )
+    assert result["gate_status"] == "BLOCKED", result
+    assert "landing_remote_pr_mismatch" in result["blocking_reasons"]
+
+
+def test_v3_cutover_ready_target_base_drift_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """false/none still fail closed on target/base freshness drift."""
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_landing_preflight(
+        fx, tmp_path, monkeypatch, action="ready_for_review", base_sha="b" * 40
+    )
+    assert result["gate_status"] == "BLOCKED", result
+    assert "landing_event_base_mismatch" in result["blocking_reasons"]
+
+
+def test_v3_legacy_ready_missing_active_intent_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Legacy mode continues to BLOCK when the active merge intent is
+    missing/invalid, exactly as before the cutover repair."""
+    fx = _v3_transition_fixture(tmp_path, intent_required=True)
+    fx["head_sha"] = _decision_test_git(fx["repo"], "rev-parse", "HEAD")
+    active = fx["repo"] / "project_state" / "mainline_merge_intents" / "active.json"
+    assert not active.exists()
+    result, _ = _run_v3_landing_preflight(
+        fx, tmp_path, monkeypatch, action="ready_for_review"
+    )
+    assert result["gate_status"] == "BLOCKED", result
+    assert "landing_authority_required" in result["blocking_reasons"]
+    checks = {check["name"]: check for check in result["checks"]}
+    assert checks["landing_active_intent_exists"]["status"] == "FAIL"
+
+
+def test_v3_cutover_active_json_independence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """false/none never requires, and never creates, the legacy active intent.
+    The test stays green without rewriting active.json."""
+    fx = _v3_cutover_fixture(tmp_path)
+    active = fx["repo"] / "project_state" / "mainline_merge_intents" / "active.json"
+    assert not active.exists()
+    result, _ = _run_v3_landing_preflight(
+        fx, tmp_path, monkeypatch, action="ready_for_review"
+    )
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
+    assert not active.exists(), "cutover mode must never create active.json"
+
+
+@pytest.mark.parametrize(
+    ("intent_required", "binding_mode"),
+    [
+        (False, "post_draft_pr_exact_remote_number"),
+        (True, "none"),
+    ],
+)
+def test_v3_incoherent_landing_contract_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    intent_required: bool,
+    binding_mode: str,
+) -> None:
+    """Contradictory intent contracts fail closed at the shared contract
+    validation point, even for a Draft event, instead of silently blessing
+    either the legacy or the cutover path."""
+    fx = _v3_transition_fixture(
+        tmp_path, intent_required=intent_required, binding_mode=binding_mode
+    )
+    monkeypatch.setattr(
+        project_gate_module, "_active_transition_skills", lambda _: ("test-skill",)
+    )
+    event = _v3_event(tmp_path, draft=True)
+    result = project_gate_module.transition_preflight(
+        state_dir=fx["state"], repo_root=fx["repo"], event_path=str(event), write_result=False
+    )
+    assert result["gate_status"] == "BLOCKED", result
+    assert "landing_intent_contract_incoherent" in result["blocking_reasons"]
+    checks = {check["name"]: check for check in result["checks"]}
+    assert checks["landing_intent_contract_coherent"]["status"] == "FAIL"

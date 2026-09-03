@@ -36366,7 +36366,7 @@ def transition_lint(*, state_dir: Path) -> dict[str, Any]:
     try:
         decision, contract = load_transition_decision(state_dir / "decision_packet.md")
         expected_plan = build_transition_command_plan(decision, contract)
-        plan = load_legacy_command_plan(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+        projection_errors = validate_transition_command_plan(expected_plan)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         return {
             "schema_version": 1,
@@ -36378,13 +36378,47 @@ def transition_lint(*, state_dir: Path) -> dict[str, Any]:
             "blocking_reasons": [f"invalid_transition_authority:{exc}"],
         }
 
-    plan_errors = validate_transition_command_plan(plan)
+    # G2-0: the tracked command_plan.json is historical generated evidence, not
+    # a bootstrap authority. transition-lint validates the deterministic
+    # projection of the active Decision. A tracked plan belonging to an older
+    # Decision/round is stale historical evidence and must not block a fresh
+    # Decision bootstrap. Only a tracked plan that claims to belong to the
+    # CURRENT Decision/round but diverges from the projection fails closed.
+    tracked_plan = None
+    tracked_is_current = False
+    tracked_path = state_dir / "gates" / COMMAND_PLAN_RESULT_NAME
+    if tracked_path.exists():
+        try:
+            tracked_plan = load_legacy_command_plan(tracked_path)
+            tracked_is_current = (
+                tracked_plan.decision_id == decision.decision_id
+                and tracked_plan.round_id == decision.round_id
+            )
+        except (OSError, ValueError, json.JSONDecodeError):
+            tracked_plan = None
+
+    if tracked_is_current:
+        provenance_ok = tracked_plan.to_dict() == expected_plan.to_dict()
+        provenance_detail = (
+            "plan matches deterministic active Decision projection"
+            if provenance_ok
+            else "tracked command_plan.json claims the current Decision/round but diverges from the deterministic projection"
+        )
+        plan_errors = validate_transition_command_plan(tracked_plan)
+    else:
+        provenance_ok = True
+        provenance_detail = (
+            "tracked command_plan.json is stale/absent historical generated evidence; "
+            "validating deterministic active Decision projection"
+        )
+        plan_errors = projection_errors
+
     checks = [
         check("transition_contract", is_transition_decision(contract), "transition kernel is explicitly selected"),
         check("decision_approved", decision.status == "APPROVED", f"status={decision.status}"),
         check("active_skills", all(skill in _active_transition_skills(repo_root) for skill in decision.skill_profiles), f"skills={list(decision.skill_profiles)}"),
-        check("command_plan_identity", plan.decision_id == decision.decision_id and plan.round_id == decision.round_id, f"plan={plan.decision_id}/{plan.round_id}"),
-        check("command_plan_provenance", plan.to_dict() == expected_plan.to_dict(), "plan matches deterministic active Decision projection"),
+        check("command_plan_identity", expected_plan.decision_id == decision.decision_id and expected_plan.round_id == decision.round_id, f"plan={expected_plan.decision_id}/{expected_plan.round_id}"),
+        check("command_plan_provenance", provenance_ok, provenance_detail),
         check("command_plan_contract", not plan_errors, f"errors={list(plan_errors)}"),
     ]
     blocking = [f"{item['name']}: {item['detail']}" for item in checks if item["status"] == "FAIL"]
@@ -36532,6 +36566,48 @@ def _is_malformed_supplied_event(event_path: str) -> bool:
     return error is not None
 
 
+_LEGACY_INTENT_BINDING_MODE = "post_draft_pr_exact_remote_number"
+_CUTOVER_NO_LEGACY_INTENT_BINDING_MODE = "none"
+
+
+def resolve_landing_intent_contract(contract: Mapping[str, Any]) -> tuple[str, str]:
+    """Classify the landing intent contract into an explicit validation mode.
+
+    Returns ``(mode, detail)`` where ``mode`` is one of:
+
+    * ``"legacy"``      - ``mainline_merge_intent_required=true``: the active
+      legacy merge intent and premerge attestation remain mandatory.
+    * ``"cutover"``     - ``mainline_merge_intent_required=false`` with no
+      active PR binding: a read-only no-legacy-intent landing candidate
+      validation mode. It never requires, reads, or rewrites the legacy
+      ``active.json`` and is never interpreted as Ready or Merge authority.
+    * ``"incoherent"``  - the contract contradicts itself and must fail
+      closed instead of silently blessing one path.
+
+    ``active_pr_binding_mode`` is optional in the contract.  When absent,
+    ``true`` keeps the historical legacy default and ``false`` adopts the
+    cutover default, so existing Decisions and test fixtures remain coherent.
+    An unknown explicit binding mode always fails closed.
+    """
+
+    intent_required = contract.get("mainline_merge_intent_required", True) is not False
+    binding_mode = contract.get("active_pr_binding_mode")
+    if binding_mode is None:
+        mode = "cutover" if not intent_required else "legacy"
+    elif binding_mode == _LEGACY_INTENT_BINDING_MODE:
+        mode = "legacy" if intent_required else "incoherent"
+    elif binding_mode == _CUTOVER_NO_LEGACY_INTENT_BINDING_MODE:
+        mode = "cutover" if not intent_required else "incoherent"
+    else:
+        return "incoherent", f"unsupported_active_pr_binding_mode:{binding_mode}"
+    if mode == "incoherent":
+        return mode, (
+            "mainline_merge_intent_required="
+            f"{intent_required} active_pr_binding_mode={binding_mode}"
+        )
+    return mode, f"{mode}_intent_mode"
+
+
 def _check_landing_authority(
     *,
     contract: Mapping[str, Any],
@@ -36551,16 +36627,45 @@ def _check_landing_authority(
     event_base = event_payload.get("base_sha")
     event_draft = event_payload.get("draft")
 
-    intent_required = contract.get("mainline_merge_intent_required", True) is not False
-    checks.append(
-        {
-            "name": "landing_mainline_merge_intent_required",
-            "status": "PASS" if intent_required else "FAIL",
-            "detail": f"observed={intent_required}",
-        }
-    )
-    if not intent_required:
-        return checks, ("engineering_pr_not_landing_authorized",)
+    intent_mode, intent_mode_detail = resolve_landing_intent_contract(contract)
+    if intent_mode == "incoherent":
+        checks.append(
+            {
+                "name": "landing_intent_contract_coherent",
+                "status": "FAIL",
+                "detail": intent_mode_detail,
+            }
+        )
+        return checks, ("landing_intent_contract_incoherent",)
+    if intent_mode == "cutover":
+        # The false/none cutover contract is a legal READ ONLY landing
+        # candidate validation mode.  It must never produce a FAIL merely for
+        # ``mainline_merge_intent_required=false`` and it must never be
+        # interpreted as Ready/Merge authority (see landing_authority_scope).
+        checks.append(
+            {
+                "name": "landing_mainline_merge_intent_required",
+                "status": "PASS",
+                "detail": "cutover_no_legacy_intent_mode",
+            }
+        )
+        checks.append(
+            {
+                "name": "landing_authority_scope",
+                "status": "PASS",
+                "detail": "READ_ONLY_LANDING_CANDIDATE_VALIDATION_NOT_OWNER_MUTATION_AUTHORITY",
+            }
+        )
+    else:
+        # Legacy merge-intent mode: the active legacy intent and premerge
+        # attestation remain mandatory in the intent-bound section below.
+        checks.append(
+            {
+                "name": "landing_mainline_merge_intent_required",
+                "status": "PASS",
+                "detail": "legacy_intent_mode_active",
+            }
+        )
 
     if event_base != locked_base_sha:
         checks.append(
@@ -36622,6 +36727,15 @@ def _check_landing_authority(
     )
     if not all(remote_checks.values()):
         return checks, ("landing_remote_pr_mismatch",)
+
+    if intent_mode == "cutover":
+        # No-legacy-intent cutover mode shares every fail-closed invariant
+        # above (target base identity and exact remote PR/head/base binding)
+        # and then stops: it never requires, reads, generates, or rewrites
+        # ``project_state/mainline_merge_intents/active.json`` and never
+        # demands a legacy premerge attestation. A green cutover result is
+        # candidate validation only; it grants no Ready/Merge authority.
+        return checks, ()
 
     active_path = repo_root / "project_state" / "mainline_merge_intents" / "active.json"
     if not active_path.exists():
@@ -36745,6 +36859,28 @@ def transition_preflight(
             "checks": [],
             "blocking_reasons": ["transition kernel is not selected by the active Decision"],
         }
+    intent_mode, intent_mode_detail = resolve_landing_intent_contract(contract)
+    if intent_mode == "incoherent":
+        result = {
+            "schema_version": 1,
+            "gate_name": "transition-preflight",
+            "gate_status": "BLOCKED",
+            "decision_id": decision.decision_id,
+            "round_id": decision.round_id,
+            "checks": [
+                {
+                    "name": "landing_intent_contract_coherent",
+                    "status": "FAIL",
+                    "detail": intent_mode_detail,
+                }
+            ],
+            "blocking_reasons": ["landing_intent_contract_incoherent"],
+        }
+        if write_result:
+            path = state_dir / "gates" / TRANSITION_PREFLIGHT_RESULT_NAME
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(result, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+        return result
     event_payload, event_error = _read_transition_event(event_path)
     if event_error:
         result = {
@@ -36864,6 +37000,7 @@ def transition_preflight(
         authorized_risk_paths=tuple(scope.get("authorized_risk_paths", ())),
         authorized_risk_tier=str(scope.get("authorized_risk_tier", "")),
         runner_managed_artifact_paths=tuple(scope.get("runner_managed_artifact_paths", ())),
+        bootstrap_exception_files=tuple(scope.get("bootstrap_exception_files", ())),
     )
     # Pre-execution: do NOT consume historical execution_log as completion
     # evidence. Pass empty envelopes so the execution_evidence_present check
@@ -37001,6 +37138,7 @@ def transition_reconcile(*, state_dir: Path, repo_root: Path | None = None, writ
         authorized_risk_paths=tuple(scope.get("authorized_risk_paths", ())),
         authorized_risk_tier=str(scope.get("authorized_risk_tier", "")),
         runner_managed_artifact_paths=tuple(scope.get("runner_managed_artifact_paths", ())),
+        bootstrap_exception_files=tuple(scope.get("bootstrap_exception_files", ())),
     )
     result = validate_transition(authority, envelopes=envelopes, mode="post").to_dict()
     result.setdefault("checks", []).append(live_check)

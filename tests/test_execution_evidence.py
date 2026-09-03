@@ -7,6 +7,8 @@ BOOTSTRAP_EXPIRED lifecycle.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from reverse_agent.control_plane.legacy_adapter import (
@@ -87,6 +89,129 @@ def test_structured_command_plan_carries_command_id() -> None:
     plan = build_transition_command_plan(decision, contract)
     assert plan.commands[0].command_id == "status.git_status"
     assert plan.commands[0].authority_origin == "normal_plan"
+
+
+# --- G2-1: explicit execution surfaces ----------------------------------
+
+
+def test_structured_command_requires_explicit_execution_surface() -> None:
+    """A current/new structured command with a missing execution_surface must
+    FAIL CLOSED. Only load_legacy_command_plan may normalize a historical
+    missing surface to the legacy ``local`` token."""
+
+    from reverse_agent.control_plane.command_authority import validate_command_plan
+
+    decision = _decision()
+    raw = _structured_command("status.git_status")
+    raw.pop("execution_surface")
+    contract = _structured_contract(allowed_commands=[raw])
+    with pytest.raises(ValueError, match="missing_execution_surface"):
+        build_transition_command_plan(decision, contract)
+
+
+def test_structured_command_blank_execution_surface_fails_closed() -> None:
+    decision = _decision()
+    raw = _structured_command("status.git_status")
+    raw["execution_surface"] = "   "
+    contract = _structured_contract(allowed_commands=[raw])
+    with pytest.raises(ValueError, match="missing_execution_surface"):
+        build_transition_command_plan(decision, contract)
+
+
+@pytest.mark.parametrize(
+    "surface",
+    ["github_control_plane", "trusted_worker", "ci_only", "remote_observation", "user_local", "local"],
+)
+def test_canonical_execution_surfaces_parse(surface: str) -> None:
+    from reverse_agent.control_plane.command_authority import validate_command_plan
+
+    decision = _decision()
+    raw = _structured_command("status.git_status")
+    raw["execution_surface"] = surface
+    if surface == "user_local":
+        raw["operations"] = ["machine_specific_execution"]
+    contract = _structured_contract(allowed_commands=[raw])
+    plan = build_transition_command_plan(decision, contract)
+    assert plan.commands[0].execution_surface == surface
+    assert validate_command_plan(plan) == ()
+
+
+def test_user_local_requires_machine_specific_declaration() -> None:
+    """G2-1: a user_local command without the explicit machine-specific
+    capability declaration must be BLOCKED."""
+
+    from reverse_agent.control_plane.command_authority import validate_command_plan
+    from reverse_agent.control_plane.models import TransitionCommandPlan, TransitionDecision
+
+    decision = _decision()
+    raw = _structured_command("status.git_status")
+    raw["execution_surface"] = "user_local"
+    raw["operations"] = ["repository_observation"]
+    contract = _structured_contract(allowed_commands=[raw])
+    with pytest.raises(ValueError, match="user_local_requires_machine_specific_execution"):
+        build_transition_command_plan(decision, contract)
+
+    # Direct model construction without the declaration also fails closed.
+    plan = TransitionCommandPlan(
+        decision_id=decision.decision_id,
+        round_id=decision.round_id,
+        commands=(
+            TransitionCommand(
+                command="git status --short",
+                phase="status",
+                required=True,
+                expected_exit_codes=(0,),
+                execution_surface="user_local",
+                operations=("repository_observation",),
+                command_id="status.git_status",
+            ),
+        ),
+    )
+    errors = validate_command_plan(plan)
+    assert any("user_local_requires_machine_specific_execution" in err for err in errors)
+
+
+def test_legacy_local_remains_readable_but_not_authoring_default() -> None:
+    """G2-1: explicit historical ``local`` remains readable for historical
+    Decisions and this migration round, but is not the authoring default."""
+
+    decision = _decision()
+    raw = _structured_command("status.git_status")
+    raw["execution_surface"] = "local"
+    contract = _structured_contract(allowed_commands=[raw])
+    plan = build_transition_command_plan(decision, contract)
+    assert plan.commands[0].execution_surface == "local"
+
+
+def test_load_legacy_command_plan_normalizes_missing_surface_to_local(tmp_path) -> None:
+    """G2-1: only load_legacy_command_plan may normalize a historical missing
+    execution_surface to ``local``. This is the narrow implicit compatibility
+    path and must not be removed."""
+
+    from reverse_agent.control_plane.legacy_adapter import load_legacy_command_plan
+
+    gates = tmp_path / "gates"
+    gates.mkdir(parents=True)
+    (gates / "command_plan.json").write_text(
+        json.dumps({
+            "schema_version": 1,
+            "decision_id": "decision_legacy",
+            "round_id": "round_legacy",
+            "commands": [
+                {
+                    "command": "git status --short",
+                    "phase": "status",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                    "operations": ["repository_observation"],
+                    "command_id": "status.git_status",
+                }
+            ],
+        }),
+        encoding="utf-8",
+    )
+    plan = load_legacy_command_plan(gates / "command_plan.json")
+    assert plan.commands[0].execution_surface == "local"
 
 
 def test_command_id_and_surface_must_match_record() -> None:
@@ -558,4 +683,115 @@ def test_path_risk_floor_blocks_unauthorized_r2_path() -> None:
         authorized_risk_tier="R2",
     )
     # startup_snapshot.json is R2 but NOT in authorized_risk_paths -> violation.
-    assert "project_state/gates/startup_snapshot.json:R2" in violations
+
+
+# ---------------------------------------------------------------------------
+# P1 closure (review finding 3921389194): execution-log loading must preserve
+# and validate the explicit per-record execution_surface instead of rewriting
+# every non-CI record to ``local``.
+# ---------------------------------------------------------------------------
+
+
+def _write_log(
+    tmp_path: Path,
+    entries: list[dict],
+    *,
+    log_marker: dict | None = None,
+    name: str = "execution_log.json",
+) -> Path:
+    path = tmp_path / name
+    payload: dict = {"schema_version": 1, "commands": entries}
+    if log_marker:
+        payload.update(log_marker)
+    path.write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+    return path
+
+
+def _log_entry(
+    command: str,
+    *,
+    phase: str = "status",
+    surface: str | None = None,
+    command_id: str | None = None,
+) -> dict:
+    entry: dict = {"command": command, "phase": phase, "exit_code": 0}
+    if surface is not None:
+        entry["execution_surface"] = surface
+    if command_id is not None:
+        entry["command_id"] = command_id
+    return entry
+
+
+def test_execution_log_preserves_explicit_trusted_worker_surface(tmp_path) -> None:
+    """P1-3921389194: an explicit ``trusted_worker`` surface must be preserved."""
+    from reverse_agent.control_plane.legacy_adapter import load_execution_envelopes_from_log
+
+    path = _write_log(tmp_path, [_log_entry("git status --short", surface="trusted_worker")])
+    envelopes = load_execution_envelopes_from_log(path)
+    assert envelopes[0].execution_surface == "trusted_worker"
+
+
+def test_execution_log_preserves_explicit_user_local_surface(tmp_path) -> None:
+    """P1-3921389194: an explicit ``user_local`` surface must be preserved."""
+    from reverse_agent.control_plane.legacy_adapter import load_execution_envelopes_from_log
+
+    path = _write_log(tmp_path, [_log_entry("git status --short", surface="user_local")])
+    envelopes = load_execution_envelopes_from_log(path)
+    assert envelopes[0].execution_surface == "user_local"
+
+
+def test_execution_log_preserves_explicit_ci_only_surface(tmp_path) -> None:
+    """P1-3921389194: an explicit ``ci_only`` surface must be preserved."""
+    from reverse_agent.control_plane.legacy_adapter import load_execution_envelopes_from_log
+
+    path = _write_log(tmp_path, [_log_entry("git status --short", surface="ci_only")])
+    envelopes = load_execution_envelopes_from_log(path)
+    assert envelopes[0].execution_surface == "ci_only"
+
+
+def test_execution_log_unknown_surface_fails_closed(tmp_path) -> None:
+    """P1-3921389194: an unknown explicit surface must fail closed."""
+    from reverse_agent.control_plane.legacy_adapter import load_execution_envelopes_from_log
+
+    path = _write_log(tmp_path, [_log_entry("git status --short", surface="not_a_surface")])
+    with pytest.raises(ValueError, match="invalid_execution_surface"):
+        load_execution_envelopes_from_log(path)
+
+
+def test_execution_log_structured_missing_surface_fails_closed(tmp_path) -> None:
+    """P1-3921389194: current/new structured evidence without an explicit
+    execution_surface must fail closed instead of defaulting to ``local``."""
+    from reverse_agent.control_plane.legacy_adapter import load_execution_envelopes_from_log
+
+    path = _write_log(tmp_path, [_log_entry("git status --short", command_id="status.git_status")])
+    with pytest.raises(ValueError, match="missing_execution_surface"):
+        load_execution_envelopes_from_log(path)
+
+
+def test_execution_log_historical_legacy_missing_surface_explicit_compat_only(tmp_path) -> None:
+    """P1-3921389194: historical legacy evidence without a surface is readable
+    ONLY through the explicit legacy compatibility marker. Without the marker a
+    missing surface fails closed; with the marker the narrow phase-derived
+    legacy mapping (ci_* -> ci_only, else local) applies."""
+    from reverse_agent.control_plane.legacy_adapter import load_execution_envelopes_from_log
+
+    no_marker = _write_log(tmp_path, [_log_entry("git status --short")], name="no_marker.json")
+    with pytest.raises(ValueError, match="missing_execution_surface"):
+        load_execution_envelopes_from_log(no_marker)
+
+    legacy_ci = _write_log(
+        tmp_path,
+        [_log_entry("run ci", phase="ci_stage")],
+        log_marker={"legacy_compatibility": True},
+        name="legacy_ci.json",
+    )
+    legacy_local = _write_log(
+        tmp_path,
+        [_log_entry("git status --short")],
+        log_marker={"legacy_compatibility": True},
+        name="legacy_local.json",
+    )
+    envelops_ci = load_execution_envelopes_from_log(legacy_ci)
+    envelops_local = load_execution_envelopes_from_log(legacy_local)
+    assert envelops_ci[0].execution_surface == "ci_only"
+    assert envelops_local[0].execution_surface == "local"

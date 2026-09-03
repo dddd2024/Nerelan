@@ -495,3 +495,150 @@ def test_frontend_playwright_workflow_contract() -> None:
         "openrouter.ai",
     ):
         assert provider_url not in content
+
+
+DECISION_PREFLIGHT_PATH = WORKFLOWS_DIR / "decision-preflight.yml"
+
+# The single exact-product-head resolver shared by every history-sensitive
+# workflow.  For pull_request events the checked-out ref is the PR product
+# head (github.event.pull_request.head.sha), never the synthetic merge ref
+# (refs/pull/<n>/merge); for push/main events it falls back to github.sha.
+EXACT_PRODUCT_HEAD_REF = "${{ github.event.pull_request.head.sha || github.sha }}"
+
+
+def _extract_checkout_ref(content: str) -> str | None:
+    """Return the ``ref:`` value of the first actions/checkout step."""
+    marker = "uses: actions/checkout@v4"
+    idx = content.find(marker)
+    if idx == -1:
+        return None
+    block = content[idx:]
+    # The checkout step is: uses + with: (indented). Find the ref: line.
+    match = re.search(r"^\s*ref:\s*(.*)$", block, re.MULTILINE)
+    return match.group(1).strip() if match else None
+
+
+def _checkout_has_persist_credentials_false(content: str) -> bool:
+    marker = "uses: actions/checkout@v4"
+    idx = content.find(marker)
+    if idx == -1:
+        return False
+    block = content[idx:]
+    next_step = block.find("uses: actions/setup-python@v5")
+    if next_step == -1:
+        next_step = len(block)
+    checkout_block = block[:next_step]
+    return "persist-credentials: false" in checkout_block
+
+
+@pytest.mark.parametrize(
+    "workflow_path",
+    [
+        STATE_GATE_PATH,
+        DECISION_PREFLIGHT_PATH,
+        CI_PATH,
+    ],
+    ids=["state-gate", "decision-preflight", "ci"],
+)
+def test_history_sensitive_workflow_checkout_uses_exact_product_head(
+    workflow_path: Path,
+) -> None:
+    """F regression 1: every history-sensitive workflow checks out the exact PR
+    product head for pull_request events.
+
+    Git history-sensitive validation (decision chronology, immutability,
+    expected-head protection) must run on the PR product head
+    ``github.event.pull_request.head.sha``, never on GitHub's synthetic merge
+    ref ``refs/pull/<n>/merge``.
+    """
+    content = workflow_path.read_text(encoding="utf-8")
+    ref = _extract_checkout_ref(content)
+    assert ref is not None, f"{workflow_path.name} must have an actions/checkout step"
+    assert ref == EXACT_PRODUCT_HEAD_REF, (
+        f"{workflow_path.name} checkout must use the exact-product-head resolver "
+        f"{EXACT_PRODUCT_HEAD_REF}; got {ref!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    "workflow_path",
+    [
+        STATE_GATE_PATH,
+        DECISION_PREFLIGHT_PATH,
+        CI_PATH,
+    ],
+    ids=["state-gate", "decision-preflight", "ci"],
+)
+def test_history_sensitive_workflow_checkout_falls_back_to_github_sha(
+    workflow_path: Path,
+) -> None:
+    """F regression 2: on push/main events (no pull_request object) the same
+    resolver falls back to ``github.sha``. No second head resolver is created.
+    """
+    content = workflow_path.read_text(encoding="utf-8")
+    ref = _extract_checkout_ref(content)
+    assert ref is not None
+    assert "github.sha" in ref
+    assert "pull_request.head.sha" in ref
+
+
+@pytest.mark.parametrize(
+    "workflow_path",
+    [
+        STATE_GATE_PATH,
+        DECISION_PREFLIGHT_PATH,
+        CI_PATH,
+    ],
+    ids=["state-gate", "decision-preflight", "ci"],
+)
+def test_history_sensitive_workflow_never_uses_synthetic_merge_ref(
+    workflow_path: Path,
+) -> None:
+    """F regression 3: the synthetic merge ref ``refs/pull/<n>/merge`` must not
+    be used as the product HEAD for decision chronology.
+    """
+    content = workflow_path.read_text(encoding="utf-8")
+    ref = _extract_checkout_ref(content)
+    assert ref is not None
+    assert "refs/pull" not in ref
+    assert "/merge" not in ref
+    assert "merge_commit_sha" not in ref
+
+
+@pytest.mark.parametrize(
+    "workflow_path",
+    [
+        STATE_GATE_PATH,
+        DECISION_PREFLIGHT_PATH,
+        CI_PATH,
+    ],
+    ids=["state-gate", "decision-preflight", "ci"],
+)
+def test_history_sensitive_workflow_checkout_disables_persisted_credentials(
+    workflow_path: Path,
+) -> None:
+    """F regression 4: checkout must not persist credentials (read-only work)."""
+    content = workflow_path.read_text(encoding="utf-8")
+    assert _checkout_has_persist_credentials_false(content), (
+        f"{workflow_path.name} checkout must set persist-credentials: false"
+    )
+
+
+def test_decision_preflight_keeps_required_checks() -> None:
+    """F regression 5: the Decision Preflight workflow retains transition
+    lint / command-plan / preflight steps (no weakening of required checks)."""
+    content = DECISION_PREFLIGHT_PATH.read_text(encoding="utf-8")
+    assert "transition-lint --state-dir project_state" in content
+    assert "transition-command-plan --state-dir project_state" in content
+    assert "transition-preflight --state-dir project_state" in content
+    assert "transition-preflight --state-dir project_state --event-path" in content
+
+
+def test_state_gate_keeps_target_base_and_exact_head_checks() -> None:
+    """F regression 6: State Gate retains history-sensitive validation steps
+    (decision chronology, exact-head, base drift) after the checkout fix."""
+    content = _read_state_gate()
+    assert "transition-preflight" in content
+    assert "control-plane-mode" in content
+    # The checkout fix must not remove the path-a / transition dispatch.
+    assert "path-a-r1-gate" in content or "path_a_r1" in content

@@ -42,6 +42,110 @@ def _paths_in_forbidden(paths: Iterable[str], patterns: tuple[str, ...]) -> tupl
     )
 
 
+_GLOB_META_CHARS = frozenset("*?[")
+
+
+def _split_pattern_segments(pattern: str) -> tuple[str, ...]:
+    """Split a normalized path pattern into ``/``-separated segments.
+
+    Leading ``./`` and redundant slashes are stripped.  ``**`` is preserved as
+    a zero-or-more path-segment wildcard; ``*``, ``?`` and character classes
+    apply within a single segment.
+    """
+
+    normalized = pattern.replace("\\", "/").lstrip("./")
+    return tuple(segment for segment in normalized.split("/") if segment)
+
+
+def _segment_has_glob_meta(segment: str) -> bool:
+    return any(char in segment for char in _GLOB_META_CHARS)
+
+
+def _segment_may_match(left: str, right: str) -> bool:
+    """Return whether two single-segment patterns may match one segment.
+
+    This is an authority check: it must never produce a false negative.  An
+    exact/literal segment only matches itself; a literal-vs-glob comparison is
+    decided with ``fnmatch``; glob-vs-glob is conservatively treated as
+    may-match unless it is provably disjoint.
+    """
+
+    if left == right:
+        return True
+    left_meta = _segment_has_glob_meta(left)
+    right_meta = _segment_has_glob_meta(right)
+    if not left_meta and not right_meta:
+        return False
+    if not left_meta:
+        return fnmatch(left, right)
+    if not right_meta:
+        return fnmatch(right, left)
+    # Two glob segments can always produce a concrete string (e.g. all ``a``,
+    # or one of the two literals embedded in either pattern).  Conservatively
+    # treat as may-match; the only provably-disjoint glob pair would require a
+    # full language-intersection proof, which is intentionally NOT attempted.
+    return True
+
+
+def _patterns_may_intersect(left: tuple[str, ...], right: tuple[str, ...]) -> bool:
+    """Return whether two segment tuples may match a common path.
+
+    ``**`` matches zero or more whole segments.  A conservative existential
+    search is used: any assignment that satisfies both patterns means the
+    grants may overlap, and an inability to find one is treated as disjoint
+    only when both patterns are fully consumed or provably mismatched.  This
+    is an authority check, so any residual uncertainty keeps the may-intersect
+    result (failing closed in the caller).
+    """
+
+    left = tuple(segment for segment in left if segment)
+    right = tuple(segment for segment in right if segment)
+    if not left and not right:
+        return True
+    if not left:
+        return all(segment == "**" for segment in right)
+    if not right:
+        return all(segment == "**" for segment in left)
+    if left[0] == "**" or right[0] == "**":
+        if left[0] == "**":
+            return _patterns_may_intersect(left[1:], right) or _patterns_may_intersect(left, right[1:])
+        return _patterns_may_intersect(left, right[1:]) or _patterns_may_intersect(left[1:], right)
+    if not _segment_may_match(left[0], right[0]):
+        return False
+    return _patterns_may_intersect(left[1:], right[1:])
+
+
+def _patterns_may_intersect_text(left: str, right: str) -> bool:
+    """Return whether two path patterns may match a common concrete path."""
+
+    return _patterns_may_intersect(
+        _split_pattern_segments(left),
+        _split_pattern_segments(right),
+    )
+
+
+def _path_grant_conflicts(
+    writable_patterns: tuple[str, ...],
+    reference_patterns: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Return writable/reference grant overlaps using shared path semantics.
+
+    P1 closure (review finding 3921697391): a conflict exists whenever the two
+    pattern languages MAY intersect, not merely when one pattern string matches
+    the other.  ``docs/*.md`` and ``docs/example.*`` share ``docs/example.md``
+    even though neither ``_path_matches`` orientation holds.  This is an
+    authority check, so it fails closed: unless the patterns are provably
+    disjoint, they are reported as a conflict.
+    """
+
+    conflicts: list[str] = []
+    for writable in writable_patterns:
+        for reference in reference_patterns:
+            if _patterns_may_intersect_text(writable, reference):
+                conflicts.append(f"{writable}->{reference}")
+    return tuple(dict.fromkeys(conflicts))
+
+
 def _capability_forbidden_operations(policy: CapabilityPolicy) -> tuple[str, ...]:
     """Map capability flags to forbidden operations.
 
@@ -69,15 +173,37 @@ def _capability_forbidden_operations(policy: CapabilityPolicy) -> tuple[str, ...
     return tuple(dict.fromkeys(operations))
 
 
+def _network_exceptions_for_surface(policy: CapabilityPolicy, surface: str) -> tuple[str, ...]:
+    """Map an execution surface to its declared network exception list.
+
+    Defaults remain deny: an unknown surface or a surface without a declared
+    exception list yields an empty (deny) tuple. ``remote_observation`` is
+    read-only and never carries network exceptions.
+    """
+
+    mapping = {
+        "local": policy.local_network_exceptions,
+        "ci_only": policy.ci_network_exceptions,
+        "trusted_worker": policy.trusted_worker_network_exceptions,
+        "github_control_plane": policy.github_control_plane_network_exceptions,
+        "user_local": policy.user_local_network_exceptions,
+        "remote_observation": (),
+    }
+    return mapping.get(surface, ())
+
+
 def _envelope_network_violations(
     envelopes: tuple[ExecutionEnvelope, ...],
     policy: CapabilityPolicy,
 ) -> tuple[str, ...]:
     """Check that network access honors the capability policy.
 
-    Local envelopes must not declare network operations unless they appear in
-    ``local_network_exceptions``. CI envelopes must not declare network
-    operations unless they appear in ``ci_network_exceptions``.
+    Network operations must be allowed only through the exception list bound
+    to the exact execution surface of the envelope (``local`` maps to
+    ``local_network_exceptions``, ``ci_only`` to ``ci_network_exceptions``,
+    ``trusted_worker`` to ``trusted_worker_network_exceptions``,
+    ``github_control_plane`` to ``github_control_plane_network_exceptions``,
+    and ``user_local`` to ``user_local_network_exceptions``).
     """
 
     violations: list[str] = []
@@ -85,12 +211,7 @@ def _envelope_network_violations(
     for envelope in envelopes:
         if not any(op in network_operations for op in envelope.operations):
             continue
-        if envelope.execution_surface == "local":
-            allowed_exceptions = policy.local_network_exceptions
-        elif envelope.execution_surface == "ci_only":
-            allowed_exceptions = policy.ci_network_exceptions
-        else:
-            allowed_exceptions = ()
+        allowed_exceptions = _network_exceptions_for_surface(policy, envelope.execution_surface)
         requested = canonical_command(envelope.command)
         if requested in {canonical_command(item) for item in allowed_exceptions}:
             continue
@@ -157,7 +278,7 @@ def _plan_network_policy_violations(
     """
 
     violations: list[str] = []
-    envelope_by_surface: dict[str, list[ExecutionEnvelope]] = {"local": [], "ci_only": [], "remote_observation": []}
+    envelope_by_surface: dict[str, list[ExecutionEnvelope]] = {}
     for env in envelopes:
         envelope_by_surface.setdefault(env.execution_surface, []).append(env)
     for cmd in plan.commands:
@@ -166,12 +287,7 @@ def _plan_network_policy_violations(
         if cmd.authority_origin == "bootstrap_exception":
             continue
         surface = cmd.execution_surface
-        if surface == "local":
-            allowed_exceptions = policy.local_network_exceptions
-        elif surface == "ci_only":
-            allowed_exceptions = policy.ci_network_exceptions
-        else:
-            allowed_exceptions = ()
+        allowed_exceptions = _network_exceptions_for_surface(policy, surface)
         requested = canonical_command(cmd.command)
         if requested in {canonical_command(item) for item in allowed_exceptions}:
             continue
@@ -236,23 +352,19 @@ def _required_command_coverage_missing(
     plan: Any,
     envelopes: tuple[ExecutionEnvelope, ...],
 ) -> tuple[str, ...]:
-    """Phase B/F1: validate all required commands have evidence by source.
+    """Validate required evidence using stable, coherent command identity.
 
-    Required commands are partitioned by ``required_evidence_source``
-    (Phase C normalized tokens):
-    - ``local_command_evidence`` commands must have a matching local envelope
-      in the execution log.
-    - ``ci_check_attestation`` commands cannot be satisfied by local provenance
-      alone; they require external CI observation, so we flag them as
-      missing until the post-execution gate receives a CI-bound observation.
-    - ``repository_state_attestation`` commands are validated via Git ancestry;
-      treat them as satisfied if their envelope is observed locally.
-
-    Diagnostic-only and optional commands are excluded from the required set.
-    Bootstrap-exception commands are also excluded: they belong to the
-    bootstrap window (which has already expired by the time post-execution
-    reconciliation runs) and must not be counted as completion evidence
-    for the normal plan.
+    P1 closure (review finding 3921389187): a required command is observed
+    only when a single execution envelope carries the exact
+    ``(command_id, execution_surface, canonical_command)`` triple authorized
+    by the plan entry.  The canonical executed command must belong to the
+    SAME plan entry that owns ``command_id`` + ``execution_surface``; mixing
+    a required command's ID/surface with the text of a different optional
+    command must never satisfy coverage.  ``reconcile_executions`` still
+    validates command text, exit codes, operations and other execution
+    details independently, but coverage can no longer be assembled from two
+    separate validations.  Command-plan ``command_id`` uniqueness continues to
+    fail closed in ``validate_command_plan``.
     """
 
     required_commands = [
@@ -261,15 +373,34 @@ def _required_command_coverage_missing(
         and not cmd.diagnostic_only
         and cmd.authority_origin != "bootstrap_exception"
     ]
-    observed_local_canonical = {
-        canonical_command(env.command)
+    plan_command_by_identity = {
+        (cmd.command_id, cmd.execution_surface): canonical_command(cmd.command)
+        for cmd in plan.commands
+        if cmd.command_id and cmd.execution_surface
+    }
+    observed_identities = {
+        (env.command_id, env.execution_surface, canonical_command(env.command))
         for env in envelopes
-        if env.execution_surface == "local"
+        if env.command_id and env.execution_surface and canonical_command(env.command)
     }
     missing: list[str] = []
     for cmd in required_commands:
-        if cmd.required_evidence_source == "local_command_evidence":
-            if canonical_command(cmd.command) not in observed_local_canonical:
+        if cmd.required_evidence_source in {
+            "local_command_evidence",
+            "repository_state_attestation",
+        }:
+            requested = canonical_command(cmd.command)
+            expected = plan_command_by_identity.get(
+                (cmd.command_id, cmd.execution_surface)
+            )
+            identity = (cmd.command_id, cmd.execution_surface, requested)
+            if (
+                not cmd.command_id
+                or not cmd.execution_surface
+                or not requested
+                or expected != requested
+                or identity not in observed_identities
+            ):
                 missing.append(cmd.command_id or cmd.command)
         elif cmd.required_evidence_source == "ci_check_attestation":
             # Local provenance cannot satisfy CI evidence; flag as missing
@@ -277,11 +408,6 @@ def _required_command_coverage_missing(
             # currently only sees local envelopes, so required CI commands
             # always fail closed from a local-only log.
             missing.append(cmd.command_id or cmd.command)
-        elif cmd.required_evidence_source == "repository_state_attestation":
-            # Repository-truth commands are validated via Git ancestry; treat
-            # them as satisfied if their envelope is observed locally.
-            if canonical_command(cmd.command) not in observed_local_canonical:
-                missing.append(cmd.command_id or cmd.command)
     return tuple(dict.fromkeys(missing))
 
 
@@ -350,6 +476,35 @@ def validate_transition(
     plan_errors = validate_command_plan(authority.command_plan)
     checks.append(_check("command_plan_contract", not plan_errors, f"errors={list(plan_errors)}"))
 
+    # P1 closure: read-only path classes are incompatible with every writable
+    # grant, not merely observed mutations.  Validate this before the pre-mode
+    # return so direct/shared transition callers fail closed before execution.
+    command_granted_paths: tuple[str, ...] = ()
+    for entry in authority.command_plan.commands:
+        command_granted_paths = (
+            *command_granted_paths,
+            *entry.produced_artifacts,
+            *entry.allowed_mutated_paths,
+        )
+    # P1 closure (review finding 3921389199): ``bootstrap_exception_files`` are
+    # a pre-preflight writable grant and must participate in the reference/write
+    # disjointness check exactly like every other writable grant.
+    writable_grants = tuple(dict.fromkeys((
+        *authority.allowed_paths,
+        *command_granted_paths,
+        *authority.runner_managed_artifact_paths,
+        *authority.bootstrap_exception_files,
+    )))
+    reference_write_conflicts = _path_grant_conflicts(
+        writable_grants,
+        authority.reference_paths,
+    )
+    checks.append(_check(
+        "reference_write_grants_disjoint",
+        not reference_write_conflicts,
+        f"conflicts={list(reference_write_conflicts)}",
+    ))
+
     mutated_paths = tuple(dict.fromkeys(
         (*authority.observed_paths, *(path for envelope in envelopes for path in envelope.mutated_paths))
     ))
@@ -360,9 +515,6 @@ def validate_transition(
     # enforced separately by ``mutation_grants_enforced`` (rule #1).
     # F9/F4: runner-managed artifact paths (executor provenance) are also
     # authorized for write by the trusted execution context itself.
-    command_granted_paths: tuple[str, ...] = ()
-    for entry in authority.command_plan.commands:
-        command_granted_paths = (*command_granted_paths, *entry.produced_artifacts, *entry.allowed_mutated_paths)
     effective_allowed_scope = tuple(dict.fromkeys((
         *authority.allowed_paths,
         *command_granted_paths,
