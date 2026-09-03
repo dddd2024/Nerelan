@@ -66,27 +66,54 @@ class UnattendedCoordinator:
         self.owner = owner or f"coordinator-{os.getpid()}-{uuid.uuid4().hex[:8]}"
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._lifecycle_lock = threading.RLock()
+        self._dispatch_active = False
         self._last_error = ""
         self._last_batch: dict[str, Any] = {}
         self._ticks = 0
         self._executions = 0
 
     def start(self) -> None:
-        if self._thread and self._thread.is_alive():
-            return
-        Path(self.workspace_root).mkdir(parents=True, exist_ok=True)
-        self.reconcile()
-        self._stop.clear()
-        self._thread = threading.Thread(
-            target=self._run, name="reverse-agent-unattended", daemon=True
-        )
-        self._thread.start()
+        with self._lifecycle_lock:
+            thread = self._thread
+            if thread is not None and thread.is_alive():
+                if self._stop.is_set():
+                    self._last_error = "coordinator_still_draining"
+                return
+            if thread is not None:
+                self._thread = None
+            Path(self.workspace_root).mkdir(parents=True, exist_ok=True)
+            self.reconcile()
+            self._stop.clear()
+            thread = threading.Thread(
+                target=self._run, name="reverse-agent-unattended", daemon=True
+            )
+            self._thread = thread
+            thread.start()
 
     def stop(self, *, timeout: float = 5.0) -> None:
-        self._stop.set()
-        if self._thread:
-            self._thread.join(timeout=timeout)
-        self._thread = None
+        with self._lifecycle_lock:
+            self._stop.set()
+            thread = self._thread
+        if thread is None:
+            return
+        if thread is threading.current_thread():
+            self._last_error = "coordinator_stop_requested_from_worker"
+            return
+        thread.join(timeout=max(0.0, timeout))
+        with self._lifecycle_lock:
+            if self._thread is not thread:
+                return
+            if thread.is_alive():
+                self._last_error = "coordinator_stop_timeout"
+                return
+            self._thread = None
+            if self._last_error in {
+                "coordinator_stop_timeout",
+                "coordinator_still_draining",
+                "coordinator_stop_requested_from_worker",
+            }:
+                self._last_error = ""
 
     def reconcile(self) -> tuple[str, ...]:
         durable = self._durable_service()
@@ -109,7 +136,11 @@ class UnattendedCoordinator:
         return tuple(reconciled)
 
     def tick(self) -> int:
+        if self._stop.is_set():
+            return 0
         self._ticks += 1
+        if self._stop.is_set():
+            return 0
         window = self.control_store.active_window()
         if window is None:
             return 0
@@ -117,7 +148,11 @@ class UnattendedCoordinator:
         for task_id in self.control_store.runnable_tasks(
             window.id, limit=window.max_concurrent_tasks
         ):
+            if self._stop.is_set():
+                break
             task = self.store.get_task(task_id)
+            if self._stop.is_set():
+                break
             operation = "resume_task" if task.status == "INTERRUPTED" else "execute_task"
             if not self.autonomy.authorize(
                 window_id=window.id,
@@ -127,6 +162,8 @@ class UnattendedCoordinator:
                 input_payload={"task_id": task_id, "status": task.status},
             ):
                 continue
+            if self._stop.is_set():
+                break
             try:
                 epoch, _ = self.control_store.claim_task(
                     window_id=window.id,
@@ -146,9 +183,64 @@ class UnattendedCoordinator:
                 self._last_error = str(exc)
                 continue
             claimed[task_id] = epoch
+            if self._stop.is_set():
+                break
         if not claimed:
             return 0
-        return self._execute_claimed_batch(window_id=window.id, claimed=claimed)
+        if not self._begin_dispatch():
+            self._abandon_claimed_before_dispatch(
+                window_id=window.id,
+                claimed=claimed,
+                reason="coordinator_stop_requested_before_dispatch",
+            )
+            return 0
+        try:
+            return self._execute_claimed_batch(window_id=window.id, claimed=claimed)
+        finally:
+            self._finish_dispatch()
+
+    def _begin_dispatch(self) -> bool:
+        """Linearize batch dispatch against stop intent without holding the lock while work runs."""
+        with self._lifecycle_lock:
+            if self._stop.is_set() or self._dispatch_active:
+                return False
+            self._dispatch_active = True
+            return True
+
+    def _finish_dispatch(self) -> None:
+        with self._lifecycle_lock:
+            self._dispatch_active = False
+
+    def _abandon_claimed_before_dispatch(
+        self,
+        *,
+        window_id: str,
+        claimed: dict[str, int],
+        reason: str,
+    ) -> None:
+        failures: list[str] = []
+        for task_id, epoch in claimed.items():
+            try:
+                self.control_store.abandon_task_claim(
+                    window_id=window_id,
+                    task_id=task_id,
+                    owner=self.owner,
+                    epoch=epoch,
+                    reason=reason,
+                )
+            except TaskStoreError as exc:
+                failures.append(f"{task_id}:{type(exc).__name__}")
+        self._refresh_claimed_goals(tuple(claimed))
+        if failures:
+            self._last_error = "coordinator_stop_claim_cleanup_failed"
+        self._last_batch = {
+            "accepted": False,
+            "size": 0,
+            "claimed_size": len(claimed),
+            "task_ids": sorted(claimed),
+            "reasons": [reason],
+            "cleanup_failures": failures,
+        }
 
     def _execute_claimed_batch(
         self,
@@ -302,8 +394,22 @@ class UnattendedCoordinator:
 
     def status(self) -> dict[str, Any]:
         active = self.control_store.active_window()
+        with self._lifecycle_lock:
+            thread = self._thread
+            alive = thread is not None and thread.is_alive()
+            if alive and self._stop.is_set():
+                lifecycle = "DRAINING"
+            elif alive:
+                lifecycle = "RUNNING"
+            else:
+                lifecycle = "STOPPED"
+            accepting_work = lifecycle == "RUNNING"
+            inflight_batch = self._dispatch_active
         return {
-            "enabled": self._thread is not None and self._thread.is_alive(),
+            "enabled": alive,
+            "lifecycle": lifecycle,
+            "accepting_work": accepting_work,
+            "inflight_batch": inflight_batch,
             "owner": self.owner,
             "ticks": self._ticks,
             "executions": self._executions,
@@ -314,12 +420,25 @@ class UnattendedCoordinator:
         }
 
     def _run(self) -> None:
-        while not self._stop.is_set():
-            try:
-                self.tick()
-            except Exception as exc:
-                self._last_error = f"coordinator_tick_failed:{type(exc).__name__}"
-            self._stop.wait(self.poll_interval)
+        current = threading.current_thread()
+        try:
+            while not self._stop.is_set():
+                try:
+                    self.tick()
+                except Exception as exc:
+                    self._last_error = f"coordinator_tick_failed:{type(exc).__name__}"
+                self._stop.wait(self.poll_interval)
+        finally:
+            with self._lifecycle_lock:
+                self._dispatch_active = False
+                if self._thread is current:
+                    self._thread = None
+                if self._last_error in {
+                    "coordinator_stop_timeout",
+                    "coordinator_still_draining",
+                    "coordinator_stop_requested_from_worker",
+                }:
+                    self._last_error = ""
 
     def _execute_task(self, task_id: str) -> Any:
         if self.task_executor is not None:
