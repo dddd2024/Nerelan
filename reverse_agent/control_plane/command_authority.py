@@ -8,7 +8,30 @@ from .legacy_adapter import canonical_command
 from .models import ExecutionEnvelope, ExecutionRecord, TransitionCommand, TransitionCommandPlan
 
 
-VALID_EXECUTION_SURFACES = frozenset({"local", "ci_only", "remote_observation"})
+VALID_EXECUTION_SURFACES = frozenset({
+    "github_control_plane",
+    "trusted_worker",
+    "ci_only",
+    "remote_observation",
+    "user_local",
+    "local",
+})
+
+# Legacy compatibility token kept for historical Decisions and the migration
+# round; ``local`` must never be the authoring default for new Decisions.
+LEGACY_LOCAL_SURFACE = "local"
+
+# Surfaces that represent shell/checked-out repository execution that a
+# TrustedCommandRunner subprocess may execute. GitHub-native, CI, and
+# read-only observation surfaces must never be subprocess-executed.
+SUBPROCESS_EXECUTABLE_SURFACES = frozenset({
+    "trusted_worker",
+    "user_local",
+    LEGACY_LOCAL_SURFACE,
+})
+
+# Explicit machine-specific capability declaration required for user_local.
+MACHINE_SPECIFIC_EXECUTION_OPERATION = "machine_specific_execution"
 
 
 def validate_command_plan(plan: TransitionCommandPlan) -> tuple[str, ...]:
@@ -31,6 +54,8 @@ def validate_command_plan(plan: TransitionCommandPlan) -> tuple[str, ...]:
             seen_command_ids.add(entry.command_id)
         if entry.execution_surface not in VALID_EXECUTION_SURFACES:
             errors.append(f"invalid_execution_surface:{entry.execution_surface}")
+        if entry.execution_surface == "user_local" and MACHINE_SPECIFIC_EXECUTION_OPERATION not in entry.operations:
+            errors.append(f"user_local_requires_machine_specific_execution:{identity[0]}")
         if not entry.expected_exit_codes:
             errors.append(f"missing_expected_exit_codes:{identity[0]}")
         if not entry.phase:
