@@ -56,6 +56,11 @@
       "detail": "errors=[]"
     },
     {
+      "name": "reference_write_grants_disjoint",
+      "status": "PASS",
+      "detail": "conflicts=[]"
+    },
+    {
       "name": "allowed_path_scope",
       "status": "PASS",
       "detail": "outside=[]"
@@ -104,9 +109,11 @@
         "applicable": true,
         "decision_content_immutable_after_activation": true,
         "starting_head": "cf8822d25dbe56dd79b496268360d46a7cb1246f",
-        "head": "5839cb89152414d3e678b9acdd9a8acd5493387b",
+        "head": "422ebf340a59b79569b8cf11f1a65ecd497d78e2",
         "commits": [
-          "5839cb89152414d3e678b9acdd9a8acd5493387b"
+          "5839cb89152414d3e678b9acdd9a8acd5493387b",
+          "3f6dc6c9ed07d153f1cffc7d47ed7ec08498a694",
+          "422ebf340a59b79569b8cf11f1a65ecd497d78e2"
         ],
         "decision_commits": [
           "5839cb89152414d3e678b9acdd9a8acd5493387b"
@@ -132,9 +139,11 @@
     "applicable": true,
     "decision_content_immutable_after_activation": true,
     "starting_head": "cf8822d25dbe56dd79b496268360d46a7cb1246f",
-    "head": "5839cb89152414d3e678b9acdd9a8acd5493387b",
+    "head": "422ebf340a59b79569b8cf11f1a65ecd497d78e2",
     "commits": [
-      "5839cb89152414d3e678b9acdd9a8acd5493387b"
+      "5839cb89152414d3e678b9acdd9a8acd5493387b",
+      "3f6dc6c9ed07d153f1cffc7d47ed7ec08498a694",
+      "422ebf340a59b79569b8cf11f1a65ecd497d78e2"
     ],
     "decision_commits": [
       "5839cb89152414d3e678b9acdd9a8acd5493387b"
