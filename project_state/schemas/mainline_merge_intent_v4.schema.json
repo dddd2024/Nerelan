@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mainline_merge_intent_v4.schema.json",
+  "title": "Mainline Merge Intent V4 - Nerelan Canonical Repository Identity",
+  "description": "Schema version 4 is the current post-rename mainline intent. It preserves the scope-aware trusted workflow profile semantics of v3 while binding new landing authority to canonical repository dddd2024/Nerelan. Schema versions 1, 2 and 3 remain frozen historical semantics and continue to bind the legacy repository identity recorded when they were created.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "intent_id",
+    "repository",
+    "source_pr",
+    "locked_base_sha",
+    "allowed_merge_method",
+    "decision_identity",
+    "command_plan_sha256",
+    "merge_tree_policy",
+    "workflow_profile",
+    "required_workflows",
+    "expires_at"
+  ],
+  "properties": {
+    "schema_version": {"const": 4},
+    "intent_id": {"type": "string", "minLength": 1},
+    "repository": {"const": "dddd2024/Nerelan"},
+    "source_pr": {"type": "integer", "minimum": 1},
+    "locked_base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "allowed_merge_method": {"const": "merge"},
+    "decision_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision_id", "decision_content_sha256"],
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 200,
+          "pattern": "^decision_[A-Za-z0-9][A-Za-z0-9_.-]+$"
+        },
+        "decision_content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "command_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "merge_tree_policy": {"const": "equal_to_accepted_head_tree"},
+    "workflow_profile": {"enum": ["baseline", "browser_r3"]},
+    "required_workflows": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "CI",
+          "Decision Preflight",
+          "State Gate (pull_request)",
+          "Frontend Playwright",
+          "Model Access"
+        ]
+      },
+      "minItems": 3,
+      "maxItems": 5,
+      "uniqueItems": true
+    },
+    "expires_at": {"type": "string"}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"workflow_profile": {"const": "baseline"}},
+        "required": ["workflow_profile"]
+      },
+      "then": {
+        "properties": {
+          "required_workflows": {
+            "minItems": 3,
+            "maxItems": 3,
+            "prefixItems": [
+              {"const": "CI"},
+              {"const": "Decision Preflight"},
+              {"const": "State Gate (pull_request)"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"workflow_profile": {"const": "browser_r3"}},
+        "required": ["workflow_profile"]
+      },
+      "then": {
+        "properties": {
+          "required_workflows": {
+            "minItems": 5,
+            "maxItems": 5,
+            "prefixItems": [
+              {"const": "CI"},
+              {"const": "Decision Preflight"},
+              {"const": "State Gate (pull_request)"},
+              {"const": "Frontend Playwright"},
+              {"const": "Model Access"}
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

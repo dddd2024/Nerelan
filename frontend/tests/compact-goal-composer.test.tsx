@@ -55,7 +55,7 @@ describe("GoalComposer compact progressive disclosure", () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit).toHaveBeenCalledWith({
       objective: "完成 provider-free 多 Agent 验证",
-      repository: "dddd2024/reverse-agent",
+      repository: "dddd2024/Nerelan",
       executorKind: "deterministic_fixture",
       bindingRef: "coding-default",
       autonomyHours: 2,

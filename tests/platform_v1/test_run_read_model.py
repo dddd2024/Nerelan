@@ -26,12 +26,12 @@ def _seed_goal_with_task(control, store, key: str):
     goal = control.create_goal(
         title=f"goal-{key}",
         objective="objective",
-        repository="dddd2024/reverse-agent",
+        repository="dddd2024/Nerelan",
         idempotency_key=key,
     )
     task = store.create_task(
         title=f"task-{key}",
-        repository="dddd2024/reverse-agent",
+        repository="dddd2024/Nerelan",
         executor_kind="deterministic_fixture",
     )
     control.link_goal_task(
@@ -91,7 +91,7 @@ def test_publication_pr_link_is_derived(read_model) -> None:
     _, task = _seed_goal_with_task(control, store, "rm-pub")
     control.upsert_publication(
         task_id=task.id,
-        repository="dddd2024/reverse-agent",
+        repository="dddd2024/Nerelan",
         base_branch="main",
         branch="codex/demo",
         status="COMPLETE",
@@ -596,7 +596,7 @@ def test_run_view_exposes_numeric_usage_role_provenance_and_window_budget(read_m
         "owner_identity": "owner",
         "starts_at": (now - timedelta(seconds=2)).isoformat(),
         "expires_at": (now + timedelta(hours=1)).isoformat(),
-        "repositories": ["dddd2024/reverse-agent"],
+        "repositories": ["dddd2024/Nerelan"],
         "capabilities": ["execute_task"],
         "max_concurrent_tasks": 1, "max_tasks": 2, "max_retries": 0,
         "max_token_units": 1000, "per_task_token_reservation": 400,

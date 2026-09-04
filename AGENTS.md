@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Repository operating guide for agents, maintainers, and reviewers working in `dddd2024/reverse-agent`.
+Repository operating guide for agents, maintainers, and reviewers working in `dddd2024/Nerelan`.
 
 ## Repository purpose
 

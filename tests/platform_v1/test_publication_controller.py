@@ -26,7 +26,7 @@ def _window(autonomy):
         "policy_id": "publish-1", "policy_revision": 1, "owner_identity": "owner",
         "starts_at": (now - timedelta(seconds=1)).isoformat(),
         "expires_at": (now + timedelta(hours=1)).isoformat(),
-        "repositories": ["dddd2024/reverse-agent"], "capabilities": ["open_draft_pr"],
+        "repositories": ["dddd2024/Nerelan"], "capabilities": ["open_draft_pr"],
         "max_concurrent_tasks": 1, "max_tasks": 3, "max_retries": 0,
         "confirmation": "ACTIVATE",
     })

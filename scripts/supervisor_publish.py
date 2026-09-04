@@ -41,7 +41,7 @@ Pure standard library. No real Codex/model calls.
 Usage (dry-run):
     python scripts/supervisor_publish.py plan \\
         --result audit_result.json \\
-        --repository dddd2024/reverse-agent \\
+        --repository dddd2024/Nerelan \\
         --main-sha 16526801bda2a816fc707342f903c1ad037de9bd
 """
 

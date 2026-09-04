@@ -563,7 +563,7 @@ class TaskStore:
         self,
         *,
         title: str,
-        repository: str = "dddd2024/reverse-agent",
+        repository: str = "dddd2024/Nerelan",
         executor_kind: str = "deterministic_fixture",
         model_profile_ref: str = "",
         binding_ref: str = "",

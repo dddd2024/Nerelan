@@ -337,7 +337,7 @@ class PlatformControlStore:
                     id TEXT PRIMARY KEY,
                     title TEXT NOT NULL,
                     objective TEXT NOT NULL,
-                    repository TEXT NOT NULL DEFAULT 'dddd2024/reverse-agent',
+                    repository TEXT NOT NULL DEFAULT 'dddd2024/Nerelan',
                     status TEXT NOT NULL DEFAULT 'CAPTURED',
                     promoted_goal_id TEXT NOT NULL DEFAULT '',
                     created_at TEXT NOT NULL,
@@ -1268,11 +1268,11 @@ class PlatformControlStore:
         *,
         title: str,
         objective: str,
-        repository: str = "dddd2024/reverse-agent",
+        repository: str = "dddd2024/Nerelan",
     ) -> InboxItemRecord:
         title = title.strip()
         objective = objective.strip()
-        repository = repository.strip() or "dddd2024/reverse-agent"
+        repository = repository.strip() or "dddd2024/Nerelan"
         if not title or not objective:
             raise TaskStoreError("inbox_item_title_and_objective_required")
         reject_sensitive_keys({"title": title, "objective": objective})

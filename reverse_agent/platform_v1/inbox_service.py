@@ -30,7 +30,7 @@ class InboxService:
         reject_sensitive_keys(dict(payload))
         objective = str(payload.get("objective", "")).strip()
         title = str(payload.get("title", "")).strip() or objective[:77]
-        repository = str(payload.get("repository", "")).strip() or "dddd2024/reverse-agent"
+        repository = str(payload.get("repository", "")).strip() or "dddd2024/Nerelan"
         return self.control_store.capture_inbox_item(
             title=title, objective=objective, repository=repository
         )
