@@ -70,7 +70,7 @@ export function TaskCard({ task }: TaskCardProps) {
             className="text-xs leading-6 font-semibold bg-transparent truncate overflow-hidden"
             title={task.title}
           >
-            #{task.issueNumber} — {task.title}
+            {task.issueNumber ? `#${task.issueNumber} — ` : ""}{task.title}
           </span>
         </div>
         <span className="text-xs text-ra-text-tertiary ml-2">

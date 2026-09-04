@@ -10,7 +10,7 @@
 // Risk & Run state
 // ---------------------------------------------------------------------------
 
-export type RiskTier = "R0" | "R1" | "R2" | "R3";
+export type RiskTier = "R0" | "R1" | "R2" | "R3" | "UNKNOWN";
 
 export type RunState =
   | "READY_FOR_HUMAN"
@@ -111,7 +111,7 @@ export interface DraftPr {
 export interface Task {
   id: string;
   title: string;
-  issueNumber: number;
+  issueNumber: number | null;
   state: RunState;
   riskTier: RiskTier;
   updatedAt: string;
