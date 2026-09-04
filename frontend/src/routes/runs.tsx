@@ -106,6 +106,50 @@ const CANCEL_REASON_LABELS: Record<string, string> = {
   ALREADY_CANCELLED: "任务已取消。",
 };
 
+type PlatformRunResumeControl = {
+  action: "RESUME";
+  scope: "DURABLE_RECOVERY";
+  availability: "AVAILABLE" | "UNAVAILABLE";
+  reason_code:
+    | "INTERRUPTED_DURABLE_READY"
+    | "STATUS_NOT_INTERRUPTED"
+    | "NO_DURABLE_RUN"
+    | "ORCHESTRATION_MODE_UNSUPPORTED";
+};
+
+type PlatformAgentRunDetailWithResume = Omit<PlatformAgentRunDetail, "controls"> & {
+  controls?: {
+    cancel: PlatformRunCancelControl;
+    resume?: PlatformRunResumeControl;
+  };
+};
+
+const RESUME_REASON_LABELS: Record<string, string> = {
+  INTERRUPTED_DURABLE_READY: "可从持久化恢复记录继续；提交时服务端会重新校验恢复条件。",
+  STATUS_NOT_INTERRUPTED: "当前运行不是可恢复的中断状态。",
+  NO_DURABLE_RUN: "没有可供恢复的持久化运行记录。",
+  ORCHESTRATION_MODE_UNSUPPORTED: "当前编排模式不支持持久化恢复。",
+};
+
+const TASK_API_BASE = import.meta.env.VITE_TASK_API_BASE ?? "http://127.0.0.1:8766";
+
+async function resumeRunTask(taskId: string): Promise<void> {
+  const response = await fetch(`${TASK_API_BASE}/api/tasks/${encodeURIComponent(taskId)}/resume`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  if (response.ok) return;
+  let code = "platform_request_failed";
+  try {
+    const payload = await response.json() as { error?: unknown };
+    if (typeof payload.error === "string") code = payload.error;
+  } catch {
+    // The status code remains authoritative when an error body is unavailable.
+  }
+  throw new PlatformClientError(response.status, code);
+}
+
 function formatUnits(value: number) {
   return new Intl.NumberFormat("zh-CN").format(value);
 }
@@ -204,6 +248,11 @@ function cancelReason(control?: PlatformRunCancelControl) {
   return CANCEL_REASON_LABELS[control.reason_code] ?? "当前任务不支持安全取消。";
 }
 
+function resumeReason(control?: PlatformRunResumeControl) {
+  if (!control) return "服务器未提供可用的持久化恢复能力。";
+  return RESUME_REASON_LABELS[control.reason_code] ?? "当前运行不支持安全恢复。";
+}
+
 function RunCancelControl({
   taskId,
   control,
@@ -285,10 +334,93 @@ function RunCancelControl({
   );
 }
 
+function RunResumeControl({
+  taskId,
+  control,
+  confirming,
+  pending,
+  error,
+  onRequest,
+  onConfirm,
+  onBack,
+  onRetry,
+}: {
+  taskId: string;
+  control?: PlatformRunResumeControl;
+  confirming: boolean;
+  pending: boolean;
+  error: string;
+  onRequest: () => void;
+  onConfirm: () => void;
+  onBack: () => void;
+  onRetry: () => void;
+}) {
+  const resumeButtonRef = useRef<HTMLButtonElement>(null);
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const retryButtonRef = useRef<HTMLButtonElement>(null);
+  const available = control?.action === "RESUME"
+    && control.scope === "DURABLE_RECOVERY"
+    && control.availability === "AVAILABLE";
+  const reason = resumeReason(control);
+
+  useEffect(() => {
+    if (confirming && !pending) confirmButtonRef.current?.focus();
+  }, [confirming, pending]);
+
+  useEffect(() => {
+    if (error && !pending) retryButtonRef.current?.focus();
+  }, [error, pending]);
+
+  const retry = () => {
+    onRetry();
+    resumeButtonRef.current?.focus();
+  };
+
+  return (
+    <section aria-labelledby={`run-resume-heading-${taskId}`} data-testid={`run-resume-control-${taskId}`} className="rounded-xl border border-ra-border/70 bg-ra-light/40 p-3">
+      <h3 id={`run-resume-heading-${taskId}`} className="text-xs font-semibold uppercase tracking-wide text-ra-text-tertiary">恢复控制</h3>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 text-xs text-ra-text-secondary">
+          <p>恢复中断运行</p>
+          <p id={`run-resume-help-${taskId}`} data-testid={`run-resume-help-${taskId}`} className="mt-1 text-ra-text-tertiary">{reason}</p>
+        </div>
+        <button
+          type="button"
+          ref={resumeButtonRef}
+          data-testid={`run-resume-${taskId}`}
+          disabled={!available || pending}
+          aria-describedby={`run-resume-help-${taskId}`}
+          onClick={onRequest}
+          className="inline-flex min-h-10 items-center justify-center rounded-lg border border-ra-border px-3 py-2 text-xs font-medium text-ra-text-secondary hover:bg-ra-light disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+        >
+          {pending ? "正在提交恢复请求…" : "恢复运行"}
+        </button>
+      </div>
+      {confirming && available && !pending ? (
+        <div role="group" aria-label="确认恢复中断运行" data-testid={`run-resume-confirm-${taskId}`} className="mt-3 rounded-lg border border-ra-border bg-ra-base p-3 text-xs text-ra-text-secondary">
+          <p>恢复会使用持久化运行记录继续执行；服务端仍会重新校验检查点、租约、工作区和执行权限，当前提示不代表恢复一定成功。</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" ref={confirmButtonRef} onClick={onConfirm} className="inline-flex min-h-10 items-center justify-center rounded-lg bg-ra-accent px-3 py-2 font-medium text-ra-base focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">确认恢复</button>
+            <button type="button" onClick={onBack} className="inline-flex min-h-10 items-center justify-center rounded-lg border border-ra-border px-3 py-2 text-ra-text-secondary hover:bg-ra-light focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">返回</button>
+          </div>
+        </div>
+      ) : null}
+      {error ? (
+        <div role="alert" data-testid={`run-resume-error-${taskId}`} className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-ra-status-error/40 bg-ra-status-error/10 p-3 text-xs text-ra-status-error">
+          <span>{error}</span>
+          <button type="button" ref={retryButtonRef} onClick={retry} className="inline-flex min-h-9 items-center rounded-lg border border-ra-status-error/50 px-2.5 py-1.5 font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">重试</button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function RunDetail({ run, open }: { run: PlatformAgentRun; open: boolean }) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
   const [cancelError, setCancelError] = useState("");
+  const [resumeConfirming, setResumeConfirming] = useState(false);
+  const [resumeError, setResumeError] = useState("");
   const lifecycleRef = useRef({ taskId: run.task_id, open, generation: 0, mounted: true });
   if (lifecycleRef.current.taskId !== run.task_id || lifecycleRef.current.open !== open) {
     lifecycleRef.current = {
@@ -305,7 +437,7 @@ function RunDetail({ run, open }: { run: PlatformAgentRun; open: boolean }) {
       && lifecycleRef.current.taskId === run.task_id
       && lifecycleRef.current.generation === generation,
   );
-  const detailQuery = useQuery<PlatformAgentRunDetail>({
+  const detailQuery = useQuery<PlatformAgentRunDetailWithResume>({
     queryKey: ["run", run.task_id],
     queryFn: () => fetchRun(run.task_id),
     enabled: open,
@@ -316,12 +448,14 @@ function RunDetail({ run, open }: { run: PlatformAgentRun; open: boolean }) {
   useEffect(() => {
     setConfirming(false);
     setCancelError("");
+    setResumeConfirming(false);
+    setResumeError("");
   }, [open, run.task_id]);
 
   useEffect(() => {
     lifecycleRef.current.mounted = true;
     return () => {
-    lifecycleRef.current.mounted = false;
+      lifecycleRef.current.mounted = false;
     };
   }, []);
 
@@ -357,6 +491,38 @@ function RunDetail({ run, open }: { run: PlatformAgentRun; open: boolean }) {
     },
   });
 
+  const resumeMutation = useMutation({
+    mutationFn: () => resumeRunTask(run.task_id),
+    onMutate: () => {
+      setResumeError("");
+      return { generation: lifecycleRef.current.generation };
+    },
+    onSuccess: async (_result, _variables, context) => {
+      if (!isCurrent(context?.generation)) return;
+      setResumeConfirming(false);
+      setResumeError("");
+      await Promise.all([
+        detailQuery.refetch(),
+        queryClient.refetchQueries({ queryKey: ["runs"] }),
+        queryClient.refetchQueries({ queryKey: ["goals"] }),
+      ]);
+    },
+    onError: async (error, _variables, context) => {
+      if (!isCurrent(context?.generation)) return;
+      setResumeConfirming(false);
+      if (error instanceof PlatformClientError && error.status === 409) {
+        await Promise.all([
+          detailQuery.refetch(),
+          queryClient.refetchQueries({ queryKey: ["runs"] }),
+        ]).catch(() => undefined);
+        if (!isCurrent(context?.generation)) return;
+        setResumeError("恢复请求与最新运行状态冲突，已重新读取服务器状态，请重试。");
+        return;
+      }
+      setResumeError("恢复请求未完成，请稍后重试。");
+    },
+  });
+
   if (!open) return null;
 
   return (
@@ -366,7 +532,7 @@ function RunDetail({ run, open }: { run: PlatformAgentRun; open: boolean }) {
       ) : detailQuery.isError ? (
         <div role="alert" data-testid={`run-detail-error-${run.task_id}`} className="rounded-xl border border-dashed border-ra-border py-8 text-center">
           <p className="text-sm text-ra-text-secondary">暂时无法加载运行详情。</p>
-          <button type="button" onClick={() => { setCancelError(""); setConfirming(false); void detailQuery.refetch(); }} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-ra-border px-3 py-1.5 text-xs text-ra-text-secondary hover:bg-ra-light focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />重试</button>
+          <button type="button" onClick={() => { setCancelError(""); setConfirming(false); setResumeError(""); setResumeConfirming(false); void detailQuery.refetch(); }} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-ra-border px-3 py-1.5 text-xs text-ra-text-secondary hover:bg-ra-light focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />重试</button>
         </div>
       ) : (
         <>
@@ -381,6 +547,19 @@ function RunDetail({ run, open }: { run: PlatformAgentRun; open: boolean }) {
             onBack={() => { setCancelError(""); setConfirming(false); }}
             onRetry={() => { setCancelError(""); setConfirming(false); cancelMutation.mutate(); }}
           />
+          <div className="mt-3">
+            <RunResumeControl
+              taskId={run.task_id}
+              control={detailQuery.data?.controls?.resume}
+              confirming={resumeConfirming}
+              pending={resumeMutation.isPending}
+              error={resumeError}
+              onRequest={() => { setResumeError(""); setResumeConfirming(true); }}
+              onConfirm={() => { resumeMutation.mutate(); }}
+              onBack={() => { setResumeError(""); setResumeConfirming(false); }}
+              onRetry={() => { setResumeError(""); setResumeConfirming(false); resumeMutation.mutate(); }}
+            />
+          </div>
           <div className="mt-5">
             <RunDetailContent run={detailQuery.data ?? { ...run, events: [], changed_files: [] }} />
           </div>

@@ -647,7 +647,13 @@ def test_queue_cancel_control_and_event_projection_are_bounded(read_model) -> No
             "scope": "QUEUE_ONLY",
             "availability": "AVAILABLE",
             "reason_code": "QUEUED_UNCLAIMED",
-        }
+        },
+        "resume": {
+            "action": "RESUME",
+            "scope": "DURABLE_RECOVERY",
+            "availability": "UNAVAILABLE",
+            "reason_code": "STATUS_NOT_INTERRUPTED",
+        },
     }
 
     store.cancel_queued_task(task.id)
