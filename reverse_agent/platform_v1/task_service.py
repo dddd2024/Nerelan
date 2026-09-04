@@ -116,9 +116,9 @@ def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "id": _map_task_field(task, "id", ""),
         "title": _map_task_field(task, "title", ""),
-        "issueNumber": 0,
+        "issueNumber": None,
         "state": state,
-        "riskTier": "R1",
+        "riskTier": "UNKNOWN",
         "updatedAt": _map_task_field(task, "updated_at", ""),
         "blocker": blocker,
         "nextAction": next_action,
@@ -130,9 +130,9 @@ def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
         "evidence": _map_frontend_evidence(
             _map_task_seq(task, "evidence_refs") or _map_task_seq(task, "evidence")
         ),
-        "authorityStatus": "APPROVED",
+        "authorityStatus": "MISSING",
         "testStatus": test_status,
-        "workflowStatus": "PENDING",
+        "workflowStatus": "UNKNOWN",
         "executor": "fixture/provider-free"
         if _map_task_field(task, "executor_kind", "") == "deterministic_fixture"
         else _map_task_field(task, "executor_kind", ""),

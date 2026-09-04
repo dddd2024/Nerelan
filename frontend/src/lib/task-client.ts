@@ -98,6 +98,12 @@ function _statusOf(event: Record<string, unknown> | undefined) {
   return String((event as { type?: string }).type ?? "");
 }
 
+function _issueNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
 function _normalizeTask(raw: Record<string, unknown>) {
   const ft = raw.frontend_task as Record<string, unknown> | undefined;
   const source = ft ?? raw;
@@ -125,9 +131,9 @@ function _normalizeTask(raw: Record<string, unknown>) {
   return {
     id,
     title,
-    issueNumber: Number(source.issueNumber ?? 0),
+    issueNumber: _issueNumber(source.issueNumber),
     state,
-    riskTier: (source.riskTier as string) ?? "R1",
+    riskTier: (source.riskTier as string) ?? "UNKNOWN",
     updatedAt: String(source.updatedAt ?? raw.updated_at ?? ""),
     blocker: (source.blocker as string | undefined) ?? "",
     nextAction: (source.nextAction as string | undefined) ?? "",
@@ -170,9 +176,9 @@ function _normalizeTask(raw: Record<string, unknown>) {
       detail: String(ev.detail ?? ""),
       rawJson: String((ev as { raw_json_digest?: string }).raw_json_digest ?? ""),
     })),
-    authorityStatus: (source.authorityStatus as string) ?? "APPROVED",
+    authorityStatus: (source.authorityStatus as string) ?? "MISSING",
     testStatus: _deriveTestStatus(raw),
-    workflowStatus: (source.workflowStatus as string) ?? "PENDING",
+    workflowStatus: (source.workflowStatus as string) ?? "UNKNOWN",
     executor:
       (source.executor as string | undefined) ??
       (raw.executor_kind as string | undefined) ??
