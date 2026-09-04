@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260903_issue156_control_plane_correction_r2_v6",
-  "round_id": "round_20260903_issue156_control_plane_correction_r2_v6",
+  "decision_id": "decision_20260903_issue156_postmerge_validator_cutover_r1",
+  "round_id": "round_20260903_issue156_postmerge_validator_cutover_r1",
   "commands": [
     {
-      "command_id": "issue156_correction_r2v6.bootstrap_and_preflight",
-      "command": "verify exact fresh locked main cf8822d25dbe56dd79b496268360d46a7cb1246f and fresh branch merge-base; commit this immutable R2 Decision first; run startup snapshot command-plan compiler transition lint and transition preflight pre; require PRE_EXECUTION_AUTHORIZED before any semantic mutation",
+      "command_id": "issue156_postmerge_cutover_r1.bootstrap_and_preflight",
+      "command": "verify exact fresh locked main cfe5fd3819009fdcb6a4d8402aa6b818947f9d0c and fresh branch merge-base; commit this immutable R2 Decision first; run startup snapshot command-plan compiler transition lint and transition preflight pre; require PRE_EXECUTION_AUTHORIZED before any semantic mutation",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -34,8 +34,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue156_correction_r2v6.rematerialize_semantics_close_p1",
-      "command": "after PRE_EXECUTION_AUTHORIZED re-materialize the accepted PR #614 semantic head 1dfa2dc5dbfbe5cd986521d63c4e425a114362db control-plane and project-gate semantics at file level (models legacy_adapter command_authority evidence_recorder transition project_gate plus exact-head workflow checkout fix in decision-preflight.yml and ci.yml plus the matching deterministic tests); reuse the validated local Ready false/none repair commit 15baa104a780011d6865602c7fcd04fff25d52ed semantics without any old Decision/governance identity; then close all four real P1 review findings 3921389187 3921389194 3921389199 3921697391 with deterministic negative regressions; preserve legacy mainline_merge_intent_required=true post_draft_pr_exact_remote_number behavior and the no-legacy-intent READ_ONLY_LANDING_CANDIDATE_VALIDATION mode; do not weaken Decision immutability, expected-head protection, required checks, or target/base drift detection",
+      "command_id": "issue156_postmerge_cutover_r1.implement",
+      "command": "after PRE_EXECUTION_AUTHORIZED implement the policy-aware post-merge landing validator: read the merge second-parent committed Decision contract; when mainline_merge_intent_required=true keep the existing v1/v2/v3 legacy active-intent plus external attestation validator unchanged and fail closed on missing/mismatched intent; when mainline_merge_intent_required=false and active_pr_binding_mode=none do NOT consult project_state/mainline_merge_intents/active.json as landing identity; instead resolve the true merged target PR from the exact merge topology and verify a unique pre-merge Owner-authored OWNER_LANDING_MERGE_ATTESTATION comment, the committed false/none target Decision id+digest, the independent validation-only Owner landing authority sidecar PR (unmerged, exact head/base, committed authority Decision digests binding the target PR/head/base and the bounded Owner Ready/Merge scope, expected-head protection, no workflow rerun, no active.json rewrite), the authority natural CI/Decision Preflight/State Gate runs, the Owner exact-head review, the Ready-triggered state-gate run and exact-head required contexts baseline/state-gate/landing-state-gate (never the draft-inert name), and the live repository Ruleset 21023698 required contexts; any contradictory false+non-none or true+none combination, missing/duplicate/after-merge attestation, wrong target PR/head/base/Decision, merged sidecar, missing or failed authority workflow, wrong Owner review, or weakened required-check evidence must BLOCK",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -59,8 +59,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue156_correction_r2v6.validate",
-      "command": "run focused tests/test_project_gate.py plus the governance regression files actually containing the four P1 closures plus control-plane transition execution-evidence trusted-command-runner decision-preflight authority-closure ci-responsibility and exact-head workflow regressions; require git diff --check clean; do not mechanically re-run the full 700+ extended local baseline when the focused and governance regressions are green",
+      "command_id": "issue156_postmerge_cutover_r1.validate",
+      "command": "run python -m pytest tests/test_mainline_landing.py tests/test_project_gate.py plus the State Gate focused suite tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py when control-plane routing is touched; require git diff --check clean and transition-lint/transition-command-plan/transition-preflight revalidation",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -82,8 +82,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue156_correction_r2v6.validate_and_publish",
-      "command": "run the CI-equivalent blocking deterministic suites and git diff --check; after all blocking validation passes push the exact branch owner/issue156-control-plane-correction-r2-v6 to locked main cf8822d25dbe56dd79b496268360d46a7cb1246f and create exactly one Draft PR",
+      "command_id": "issue156_postmerge_cutover_r1.validate_and_publish",
+      "command": "run the CI-equivalent blocking deterministic suites plus git diff --check; after all blocking validation passes push the exact branch owner/issue156-postmerge-validator-cutover-r1 to locked main cfe5fd3819009fdcb6a4d8402aa6b818947f9d0c and create exactly one Draft PR with body P0 post-merge validator cutover; never mark Ready or merge under this Decision; never rerun or dispatch workflows",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -109,8 +109,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue156_correction_r2v6.exact_head_acceptance",
-      "command": "require natural exact-head CI Decision Preflight and State Gate observations on the Draft PR and independently audit that no unauthorized paths changed; keep the PR Draft and do NOT Ready or merge under this Decision; never rerun or dispatch workflows to manufacture green",
+      "command_id": "issue156_postmerge_cutover_r1.exact_head_acceptance",
+      "command": "require natural exact-head CI Decision Preflight and State Gate observations on the Draft PR and independently audit that no unauthorized paths changed and the legacy true/bound post-merge regressions remain green; keep the PR Draft and do NOT Ready or merge under this Decision; never rerun or dispatch workflows to manufacture green",
       "phase": "final_evidence",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -132,8 +132,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.afbb1400eb472ceedd43f11f9d14823773304aa0a9415c67be09c48c4b5d86be",
-      "command": "verify exact fresh main cf8822d25dbe56dd79b496268360d46a7cb1246f and fresh branch merge-base",
+      "command_id": "bootstrap.f6d5c93369442589414f6489cdf7b80e2167608b438889de9d89182ea15f62c7",
+      "command": "verify exact fresh main cfe5fd3819009fdcb6a4d8402aa6b818947f9d0c and fresh branch merge-base",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
