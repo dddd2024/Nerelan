@@ -249,12 +249,16 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
             >
               ←
             </Link>
-            <span className="text-xs text-ra-text-tertiary font-mono">
-              #{displayTask.issueNumber}
-            </span>
-            <span aria-hidden="true" className="text-ra-text-tertiary">
-              ·
-            </span>
+            {displayTask.issueNumber ? (
+              <>
+                <span className="text-xs text-ra-text-tertiary font-mono">
+                  #{displayTask.issueNumber}
+                </span>
+                <span aria-hidden="true" className="text-ra-text-tertiary">
+                  ·
+                </span>
+              </>
+            ) : null}
             <span className="font-mono text-xs text-ra-text-tertiary truncate">
               {displayTask.branch}
             </span>

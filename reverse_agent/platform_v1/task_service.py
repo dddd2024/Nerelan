@@ -68,6 +68,15 @@ FAILURE_CLASSIFICATION_TO_TEST_STATUS: dict[str, str] = {
     "policy_worktree_violation": "FAIL",
 }
 
+_RISK_TIERS = frozenset({"R0", "R1", "R2", "R3"})
+_AUTHORITY_STATUSES = frozenset(
+    {"APPROVED", "CANDIDATE", "EXPIRED", "MISSING", "REVOKED"}
+)
+_WORKFLOW_STATUSES = frozenset(
+    {"SUCCESS", "FAILURE", "PENDING", "RUNNING", "NEUTRALIZED", "UNKNOWN"}
+)
+_GOVERNANCE_MISSING = object()
+
 
 class _EventView:
     """Attribute-access wrapper around an event dict for uniform response formatting."""
@@ -97,6 +106,33 @@ def _map_task_status_to_frontend_state(status: str) -> str:
     return backend_status_to_frontend_state(status)
 
 
+def _governance_value(task: Mapping[str, Any], snake_key: str, camel_key: str) -> Any:
+    value = _map_task_field(task, snake_key, _GOVERNANCE_MISSING)
+    if value is not _GOVERNANCE_MISSING:
+        return value
+    return _map_task_field(task, camel_key, _GOVERNANCE_MISSING)
+
+
+def _governance_issue_number(task: Mapping[str, Any]) -> int | None:
+    value = _governance_value(task, "issue_number", "issueNumber")
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        return None
+    return value
+
+
+def _governance_enum(
+    task: Mapping[str, Any],
+    snake_key: str,
+    camel_key: str,
+    allowed: frozenset[str],
+    fallback: str,
+) -> str:
+    value = _governance_value(task, snake_key, camel_key)
+    if isinstance(value, str) and value in allowed:
+        return value
+    return fallback
+
+
 def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
     state = _map_task_status_to_frontend_state(str(_map_task_field(task, "status", "")))
     failure_class = str(_map_task_field(task, "failure_classification", "") or "")
@@ -116,9 +152,11 @@ def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "id": _map_task_field(task, "id", ""),
         "title": _map_task_field(task, "title", ""),
-        "issueNumber": 0,
+        "issueNumber": _governance_issue_number(task),
         "state": state,
-        "riskTier": "R1",
+        "riskTier": _governance_enum(
+            task, "risk_tier", "riskTier", _RISK_TIERS, "UNKNOWN"
+        ),
         "updatedAt": _map_task_field(task, "updated_at", ""),
         "blocker": blocker,
         "nextAction": next_action,
@@ -130,9 +168,21 @@ def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
         "evidence": _map_frontend_evidence(
             _map_task_seq(task, "evidence_refs") or _map_task_seq(task, "evidence")
         ),
-        "authorityStatus": "APPROVED",
+        "authorityStatus": _governance_enum(
+            task,
+            "authority_status",
+            "authorityStatus",
+            _AUTHORITY_STATUSES,
+            "MISSING",
+        ),
         "testStatus": test_status,
-        "workflowStatus": "PENDING",
+        "workflowStatus": _governance_enum(
+            task,
+            "workflow_status",
+            "workflowStatus",
+            _WORKFLOW_STATUSES,
+            "UNKNOWN",
+        ),
         "executor": "fixture/provider-free"
         if _map_task_field(task, "executor_kind", "") == "deterministic_fixture"
         else _map_task_field(task, "executor_kind", ""),
