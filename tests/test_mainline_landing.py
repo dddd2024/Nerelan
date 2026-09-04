@@ -29,6 +29,8 @@ from reverse_agent.mainline_landing import (
     validate_premerge_attestation,
     validate_future_merge,
     validate_pr60_recovery,
+    owner_landing_content_digest,
+    FALSE_NONE_REQUIRED_CONTEXTS,
 )
 
 
@@ -2008,3 +2010,807 @@ def test_legacy_schema_premerge_rejection_is_explicit_but_postmerge_passes(
     ]
     postmerge = _validate(bundle)
     assert postmerge["gate_status"] == "PASSED", postmerge
+
+
+# ---------------------------------------------------------------------------
+# Issue #156 post-merge validator cutover: false/none Owner landing authority
+#
+# A committed second-parent Decision with ``mainline_merge_intent_required=
+# false`` + ``active_pr_binding_mode=none`` must be post-merge validated
+# against a fresh pre-merge ``OWNER_LANDING_MERGE_ATTESTATION`` instead of the
+# historical ``project_state/mainline_merge_intents/active.json``.  The legacy
+# true/bound validator stays unchanged, and every contradictory or missing
+# authority shape fails closed.
+# ---------------------------------------------------------------------------
+
+
+def _false_none_repo(tmp_path: Path, *, contract_extra: dict[str, Any] | None = None) -> dict[str, Any]:
+    repo = tmp_path / "fnrepo"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test")
+    (repo / "base.txt").write_text("base\n", encoding="utf-8")
+    _git(repo, "add", "base.txt")
+    _git(repo, "commit", "-m", "base")
+    base = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-b", "feature")
+    decision_path = repo / "project_state" / "decision_packet.md"
+    decision_path.parent.mkdir(parents=True)
+    contract = {
+        "transition_kernel_required": True,
+        "mainline_merge_intent_required": False,
+        "active_pr_binding_mode": "none",
+    }
+    if contract_extra:
+        contract.update(contract_extra)
+    decision_id = "decision_20260903_issue156_postmerge_validator_cutover_r1"
+    decision_text = (
+        "# Decision Packet\n\n"
+        "```json decision_meta\n"
+        + json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": decision_id,
+                "round_id": "round_" + decision_id[len("decision_") :],
+                "status": "APPROVED",
+                "mainline": "engineering_branch",
+            },
+            separators=(",", ":"),
+        )
+        + "\n```\n\n"
+        "```json decision_contract\n"
+        + json.dumps(contract, separators=(",", ":"))
+        + "\n```\n"
+    )
+    decision_path.write_text(decision_text, encoding="utf-8")
+    (repo / "feature.txt").write_text("feature\n", encoding="utf-8")
+    _git(repo, "add", "project_state/decision_packet.md", "feature.txt")
+    _git(repo, "commit", "-m", "false-none feature")
+    head = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "main")
+    _git(repo, "merge", "--no-ff", "feature", "-m", "merge false-none")
+    merge = _git(repo, "rev-parse", "HEAD")
+    decision_digest = hashlib.sha256(
+        subprocess.check_output(
+            ["git", "show", f"{head}:project_state/decision_packet.md"], cwd=repo
+        )
+    ).hexdigest()
+    return {
+        "repo": repo,
+        "state_dir": repo / "project_state",
+        "base": base,
+        "head": head,
+        "merge": merge,
+        "decision_id": decision_id,
+        "decision_digest": decision_digest,
+    }
+
+
+_FALSE_NONE_AUTHORITY_RUN_SPEC = [
+    ("CI", 8101, ".github/workflows/ci.yml"),
+    ("Decision Preflight", 8102, ".github/workflows/decision-preflight.yml"),
+    ("State Gate (pull_request)", 8103, ".github/workflows/state-gate.yml"),
+]
+
+
+def _authority_decision_text(
+    decision_id: str,
+    *,
+    target_pr: int,
+    head: str,
+    base: str,
+    bind_target: bool = True,
+    owner_scope: bool = True,
+) -> str:
+    contract: dict[str, Any] = {
+        "transition_kernel_required": True,
+        "decision_scope": "OWNER_LANDING_AUTHORITY_SIDECAR",
+        "sidecar_authority": True,
+        "target_pr": target_pr if bind_target else 0,
+        "accepted_exact_head_sha": head if bind_target else "0" * 40,
+        "base_sha": base if bind_target else "0" * 40,
+        "integration_base_ref": "main",
+        "mark_ready_allowed": owner_scope,
+        "merge_allowed": owner_scope,
+        "expected_head_protection_required": owner_scope,
+        "allowed_merge_method": "merge",
+        "workflow_rerun_allowed": False,
+        "auto_merge_allowed": False,
+        "direct_push_to_main_allowed": False,
+        "force_push_allowed": False,
+        "forbidden_operations": ["active_json_rewrite", "workflow_rerun", "direct_push_main"],
+        "forbidden_mutated_paths": ["project_state/mainline_merge_intents/**"],
+        "mainline_merge_intent_required": False,
+        "active_pr_binding_mode": "none",
+    }
+    return (
+        "# Decision Packet\n\n"
+        "```json decision_meta\n"
+        + json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": decision_id,
+                "round_id": "round_" + decision_id[len("decision_") :],
+                "status": "APPROVED",
+                "mainline": "engineering_branch",
+            },
+            separators=(",", ":"),
+        )
+        + "\n```\n\n"
+        "```json decision_contract\n"
+        + json.dumps(contract, separators=(",", ":"))
+        + "\n```\n"
+    )
+
+
+class FalseNoneVerifier:
+    def __init__(
+        self,
+        bundle: dict[str, Any],
+        *,
+        source_pr: int = 809,
+        authority_pr: int = 810,
+        authority_head: str = "5" * 40,
+        authority_base: str = "6" * 40,
+        authority_decision_id: str = "decision_20260903_issue156_postmerge_validator_cutover_r1_authority_v1",
+        authority_merged: bool = False,
+        bind_target: bool = True,
+        owner_scope: bool = True,
+        review_commit: str | None = None,
+        review_author: str = "dddd2024",
+        review_submitted_at: str = "2026-09-03T11:10:00Z",
+        review_id: int = 555,
+        ready_run_id: int = 7001,
+        ready_run_ok: bool = True,
+        ready_head_ok: bool = True,
+        merged_at: str = "2026-09-03T11:30:00Z",
+        check_names: set[str] | None = None,
+        ruleset_ok: bool = True,
+        authority_workflow_ok: bool = True,
+        attestations: list[dict[str, Any]] | None = None,
+    ) -> None:
+        self.bundle = bundle
+        self.source_pr = source_pr
+        self.authority_pr = authority_pr
+        self.authority_head = authority_head
+        self.authority_base = authority_base
+        self.authority_decision_id = authority_decision_id
+        self.authority_merged = authority_merged
+        self.bind_target = bind_target
+        self.owner_scope = owner_scope
+        self.review_commit = review_commit if review_commit is not None else bundle["head"]
+        self.review_author = review_author
+        self.review_submitted_at = review_submitted_at
+        self.review_id = review_id
+        self.ready_run_id = ready_run_id
+        self.ready_run_ok = ready_run_ok
+        self.ready_head_ok = ready_head_ok
+        self.merged_at = merged_at
+        self.check_names = (
+            check_names if check_names is not None else set(FALSE_NONE_REQUIRED_CONTEXTS)
+        )
+        self.ruleset_ok = ruleset_ok
+        self.authority_workflow_ok = authority_workflow_ok
+        self.attestations = attestations
+        self.authority_decision_text = _authority_decision_text(
+            authority_decision_id,
+            target_pr=source_pr,
+            head=bundle["head"],
+            base=bundle["base"],
+            bind_target=bind_target,
+            owner_scope=owner_scope,
+        )
+        self.authority_decision_sha = hashlib.sha256(
+            self.authority_decision_text.encode("utf-8")
+        ).hexdigest()
+
+    def resolve_merged_pull_request(self, *, merge_commit_sha: str) -> dict[str, Any]:
+        return {
+            "number": self.source_pr,
+            "merged": True,
+            "merged_at": self.merged_at,
+            "merge_commit_sha": self.bundle["merge"],
+            "head": {"sha": self.bundle["head"]},
+            "base": {"repo": {"full_name": "dddd2024/Nerelan"}, "sha": self.bundle["base"]},
+        }
+
+    def load_owner_landing_merge_attestations(self, *, pr_number: int) -> list[dict[str, Any]]:
+        if pr_number != self.source_pr:
+            return []
+        return list(self.attestations or [])
+
+    def verify_pr(self, **kwargs: Any) -> dict[str, Any]:
+        pr_number = kwargs.get("pr_number")
+        expected_merge = kwargs.get("expected_merge_commit_sha")
+        require_merged = kwargs.get("require_merged")
+        if pr_number == self.source_pr:
+            merged = True
+            head = self.bundle["head"]
+            base = self.bundle["base"]
+            merge_commit = self.bundle["merge"]
+        elif pr_number == self.authority_pr:
+            merged = self.authority_merged
+            head = self.authority_head
+            base = self.authority_base
+            merge_commit = None
+        else:
+            return {"verified": False, "reason": f"pr_mismatch:pr={pr_number}"}
+        checks = {
+            "repository": True,
+            "head": kwargs.get("expected_head_sha") == head,
+            "base": kwargs.get("expected_base_sha") == base,
+        }
+        if expected_merge is not None:
+            checks["merge_commit"] = merge_commit == expected_merge
+        if require_merged is not None:
+            checks["merged"] = merged is require_merged
+        if not all(checks.values()):
+            return {"verified": False, "reason": f"pr_mismatch:{checks}"}
+        return {
+            "verified": True,
+            "pr": {
+                "number": pr_number,
+                "merged": merged,
+                "merged_at": self.merged_at,
+                "merge_commit_sha": merge_commit,
+                "head": {"sha": head},
+                "base": {"sha": base},
+            },
+        }
+
+    def verify_workflow_run(self, **kwargs: Any) -> dict[str, Any]:
+        run_id = int(kwargs.get("run_id") or 0)
+        expected_head = kwargs.get("expected_head_sha")
+        ok = False
+        for name, spec_run_id, _workflow_file in _FALSE_NONE_AUTHORITY_RUN_SPEC:
+            if run_id == spec_run_id:
+                ok = (
+                    self.authority_workflow_ok
+                    and expected_head == self.authority_head
+                    and kwargs.get("expected_workflow_file") == _workflow_file
+                    and kwargs.get("expected_event") == "pull_request"
+                )
+                break
+        if run_id == self.ready_run_id:
+            ok = (
+                self.ready_run_ok
+                and self.ready_head_ok
+                and expected_head == self.bundle["head"]
+                and kwargs.get("expected_workflow_file") == ".github/workflows/state-gate.yml"
+                and kwargs.get("expected_event") == "pull_request"
+            )
+        if not ok:
+            return {"verified": False, "reason": "workflow_mismatch"}
+        return {"verified": True, "reason": "", "run": kwargs}
+
+    def verify_pull_request_review(self, **kwargs: Any) -> dict[str, Any]:
+        ok = (
+            kwargs.get("pr_number") == self.source_pr
+            and self.review_author in kwargs.get("allowed_authors", ())
+            and kwargs.get("expected_commit_sha") == self.review_commit
+        )
+        if not ok:
+            return {"verified": False, "reason": "review_mismatch"}
+        return {
+            "verified": True,
+            "review": {
+                "user": {"login": self.review_author},
+                "commit_id": self.review_commit,
+                "submitted_at": self.review_submitted_at,
+            },
+        }
+
+    def verify_check_run_contexts(self, *, head_sha: str, required_contexts: Any) -> dict[str, Any]:
+        runs = [
+            {"name": name, "status": "completed", "conclusion": "success"}
+            for name in sorted(self.check_names)
+        ]
+        contexts = {context: (context in self.check_names) for context in required_contexts}
+        ok = all(contexts.values())
+        reason = "" if ok else f"check_contexts_missing:{[c for c, v in contexts.items() if not v]}"
+        return {"verified": ok, "reason": reason, "contexts": contexts, "check_runs": runs}
+
+    def verify_repository_ruleset(self, **kwargs: Any) -> dict[str, Any]:
+        return {
+            "verified": self.ruleset_ok,
+            "reason": "" if self.ruleset_ok else "ruleset_mismatch",
+            "ruleset": {},
+        }
+
+    def load_ref_file_bytes(self, *, ref: str, path: str) -> dict[str, Any]:
+        if ref != self.authority_head:
+            return {"verified": False, "reason": "ref_mismatch"}
+        return {"verified": True, "bytes": self.authority_decision_text.encode("utf-8")}
+
+
+def _false_none_attestation(bundle: dict[str, Any], verifier: FalseNoneVerifier) -> dict[str, Any]:
+    att: dict[str, Any] = {
+        "schema_version": 1,
+        "attestation_id": f"owner_landing_{verifier.source_pr}_v1",
+        "repository": "dddd2024/Nerelan",
+        "source_pr": verifier.source_pr,
+        "locked_base_sha": bundle["base"],
+        "accepted_exact_head_sha": bundle["head"],
+        "target_decision_id": bundle["decision_id"],
+        "target_decision_content_sha256": bundle["decision_digest"],
+        "allowed_merge_method": "merge",
+        "authority_pr": verifier.authority_pr,
+        "authority_head_sha": verifier.authority_head,
+        "authority_base_sha": verifier.authority_base,
+        "authority_decision_id": verifier.authority_decision_id,
+        "authority_decision_content_sha256": verifier.authority_decision_sha,
+        "authority_natural_runs": [
+            {
+                "name": name,
+                "run_id": run_id,
+                "workflow_file": workflow_file,
+                "event": "pull_request",
+                "run_attempt": 1,
+                "head_sha": verifier.authority_head,
+                "conclusion": "success",
+            }
+            for name, run_id, workflow_file in _FALSE_NONE_AUTHORITY_RUN_SPEC
+        ],
+        "owner_exact_head_review_id": verifier.review_id,
+        "ready_state_gate_run_id": verifier.ready_run_id,
+        "ruleset_id": 21023698,
+        "required_status_contexts": list(FALSE_NONE_REQUIRED_CONTEXTS),
+        "mainline_merge_intent_required": False,
+        "active_pr_binding_mode": "none",
+        "authorization_status": "active",
+        "superseded_by": None,
+        "_remote_comment_id": 71000,
+        "_remote_author": verifier.review_author,
+        "_remote_comment_created_at": "2026-09-03T11:00:00Z",
+        "_remote_comment_updated_at": "2026-09-03T11:01:00Z",
+        "_remote_comment_body": "OWNER_LANDING_MERGE_ATTESTATION\n```json owner_landing_merge_attestation\n{}\n```",
+    }
+    att["content_digest"] = owner_landing_content_digest(att)
+    return att
+
+
+def _false_none_pair(
+    bundle: dict[str, Any],
+    *,
+    att_overrides: dict[str, Any] | None = None,
+    **verifier_kwargs: Any,
+) -> tuple[FalseNoneVerifier, dict[str, Any]]:
+    verifier = FalseNoneVerifier(bundle, **verifier_kwargs)
+    att = _false_none_attestation(bundle, verifier)
+    if att_overrides:
+        att.update(att_overrides)
+    att["content_digest"] = owner_landing_content_digest(att)
+    verifier.attestations = [att]
+    return verifier, att
+
+
+def _false_none_validate(bundle: dict[str, Any], verifier: FalseNoneVerifier) -> dict[str, Any]:
+    return validate_future_merge(
+        repo_root=bundle["repo"],
+        state_dir=bundle["state_dir"],
+        attestation={},
+        verifier=verifier,
+        commit_sha=bundle["merge"],
+        validation_time=NOW,
+    )
+
+
+def test_false_none_valid_owner_landing_passes(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "PASSED", result
+    by_name = {check["name"]: check["status"] for check in result["checks"]}
+    assert by_name["landing_policy_mode"] == "PASS"
+    assert by_name["false_none_target_pr_resolution"] == "PASS"
+    assert by_name["false_none_attestation_unique"] == "PASS"
+    assert by_name["false_none_authority_unmerged"] == "PASS"
+    assert by_name["false_none_landing_context_is_formal"] == "PASS"
+    assert result["target_pr"] == 809
+    assert result["authority_pr"] == 810
+
+
+def test_false_none_missing_attestation_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle)
+    verifier.attestations = []
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_attestation_unique: observed=0" in item
+        for item in result["blocking_reasons"]
+    )
+
+
+def test_false_none_duplicate_attestation_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, att = _false_none_pair(bundle)
+    duplicate = dict(att)
+    duplicate["attestation_id"] = "owner_landing_809_duplicate"
+    verifier.attestations = [att, duplicate]
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_attestation_unique: observed=2" in item
+        for item in result["blocking_reasons"]
+    )
+
+
+def test_false_none_wrong_target_pr_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle, att_overrides={"source_pr": 999})
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_attestation_unique" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_wrong_target_head_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(
+        bundle, att_overrides={"accepted_exact_head_sha": "1" * 40}
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_attestation_unique" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_wrong_target_base_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(
+        bundle, att_overrides={"locked_base_sha": "2" * 40}
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_attestation_locked_base" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_wrong_target_decision_id_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(
+        bundle, att_overrides={"target_decision_id": "decision_other_target_v1"}
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_target_decision_id" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_wrong_target_decision_digest_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(
+        bundle, att_overrides={"target_decision_content_sha256": "0" * 64}
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_target_decision_digest" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_attestation_created_after_merge_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(
+        bundle, att_overrides={"_remote_comment_created_at": "2026-09-03T12:00:00Z"}
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_attestation_created_before_merge" in item
+        for item in result["blocking_reasons"]
+    )
+
+
+def test_false_none_attestation_updated_after_merge_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(
+        bundle, att_overrides={"_remote_comment_updated_at": "2026-09-03T12:00:00Z"}
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_attestation_updated_before_merge" in item
+        for item in result["blocking_reasons"]
+    )
+
+
+def test_false_none_non_owner_comment_author_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(
+        bundle, att_overrides={"_remote_author": "attacker"}
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_attestation_author" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_wrong_authority_pr_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle, att_overrides={"authority_pr": 999})
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_authority_pr_identity" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_wrong_authority_head_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle, att_overrides={"authority_head_sha": "7" * 40})
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_authority_pr_identity" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_wrong_authority_base_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle, att_overrides={"authority_base_sha": "8" * 40})
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_authority_pr_identity" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_wrong_authority_decision_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(
+        bundle, att_overrides={"authority_decision_id": "decision_other_authority_v1"}
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_authority_decision_id" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_authority_sidecar_merged_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle, authority_merged=True)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_authority_unmerged" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_authority_decision_not_binding_target_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle, bind_target=False)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_authority_decision_binds_target" in item
+        for item in result["blocking_reasons"]
+    )
+
+
+def test_false_none_authority_workflow_missing_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(
+        bundle,
+        att_overrides={"authority_natural_runs": []},
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_authority_runs" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_authority_workflow_failed_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle, authority_workflow_ok=False)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_authority_workflow:CI" in item for item in result["blocking_reasons"]
+    )
+
+
+def test_false_none_authority_workflow_wrong_head_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    att = _false_none_attestation(
+        bundle, FalseNoneVerifier(bundle)
+    )
+    runs = att["authority_natural_runs"]
+    runs[0] = {**runs[0], "head_sha": "0" * 40}
+    verifier, _ = _false_none_pair(
+        bundle, att_overrides={"authority_natural_runs": runs}
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_authority_workflow:CI" in item for item in result["blocking_reasons"]
+    )
+
+
+def test_false_none_owner_review_wrong_commit_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle, review_commit="0" * 40)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_owner_review" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_owner_review_wrong_author_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle, review_author="attacker")
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_owner_review_author" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_ready_state_gate_wrong_head_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle, ready_head_ok=False)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_ready_state_gate_run" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_ready_state_gate_failed_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle, ready_run_ok=False)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_ready_state_gate_run" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_formal_landing_state_gate_missing_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(
+        bundle,
+        check_names={"baseline", "state-gate"},
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_required_contexts_executed" in item
+        for item in result["blocking_reasons"]
+    )
+    assert any("false_none_landing_context_is_formal" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_only_draft_inert_landing_context_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(
+        bundle,
+        check_names={"baseline", "state-gate", "landing-state-gate-draft-inert"},
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_required_contexts_executed" in item
+        for item in result["blocking_reasons"]
+    )
+    assert any("false_none_landing_context_is_formal" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_required_baseline_missing_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(
+        bundle,
+        check_names={"state-gate", "landing-state-gate"},
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_required_contexts_executed" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_required_state_gate_missing_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(
+        bundle,
+        check_names={"baseline", "landing-state-gate"},
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_required_contexts_executed" in item for item in result["blocking_reasons"])
+
+
+def test_false_plus_non_none_contradictory_combination_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(
+        tmp_path,
+        contract_extra={"active_pr_binding_mode": "post_draft_pr_exact_remote_number"},
+    )
+    verifier, _ = _false_none_pair(bundle)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("landing_policy_mode" in item for item in result["blocking_reasons"])
+
+
+def test_true_plus_none_contradictory_combination_blocks(tmp_path: Path) -> None:
+    bundle = _false_none_repo(
+        tmp_path,
+        contract_extra={"mainline_merge_intent_required": True},
+    )
+    verifier, _ = _false_none_pair(bundle)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("landing_policy_mode" in item for item in result["blocking_reasons"])
+
+
+def test_legacy_true_bound_normal_merge_still_passes(tmp_path: Path) -> None:
+    bundle = _future_repo(tmp_path, schema_version=3, workflow_profile="baseline")
+    result = _validate(bundle)
+    assert result["gate_status"] == "PASSED", result
+
+
+def _legacy_repo_no_active_intent(tmp_path: Path) -> dict[str, Any]:
+    repo = tmp_path / "legacyrepo"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test")
+    (repo / "base.txt").write_text("base\n", encoding="utf-8")
+    _git(repo, "add", "base.txt")
+    _git(repo, "commit", "-m", "base")
+    base = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-b", "feature")
+    decision_path = repo / "project_state" / "decision_packet.md"
+    decision_path.parent.mkdir(parents=True)
+    contract = {
+        "transition_kernel_required": True,
+        "mainline_merge_intent_required": True,
+        "active_pr_binding_mode": "post_draft_pr_exact_remote_number",
+    }
+    decision_id = "decision_20260903_legacy_true_bound_v1"
+    decision_text = (
+        "# Decision Packet\n\n"
+        "```json decision_meta\n"
+        + json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": decision_id,
+                "round_id": "round_" + decision_id[len("decision_") :],
+                "status": "APPROVED",
+                "mainline": "engineering_branch",
+            },
+            separators=(",", ":"),
+        )
+        + "\n```\n\n"
+        "```json decision_contract\n"
+        + json.dumps(contract, separators=(",", ":"))
+        + "\n```\n"
+    )
+    decision_path.write_text(decision_text, encoding="utf-8")
+    (repo / "feature.txt").write_text("feature\n", encoding="utf-8")
+    _git(repo, "add", "project_state/decision_packet.md", "feature.txt")
+    _git(repo, "commit", "-m", "legacy feature without active intent")
+    head = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "main")
+    _git(repo, "merge", "--no-ff", "feature", "-m", "merge legacy")
+    merge = _git(repo, "rev-parse", "HEAD")
+    return {
+        "repo": repo,
+        "state_dir": repo / "project_state",
+        "base": base,
+        "head": head,
+        "merge": merge,
+    }
+
+
+def test_legacy_true_bound_missing_intent_still_blocks(tmp_path: Path) -> None:
+    bundle = _legacy_repo_no_active_intent(tmp_path)
+    result = validate_future_merge(
+        repo_root=bundle["repo"],
+        state_dir=bundle["state_dir"],
+        attestation={},
+        verifier=FakeVerifier(),
+        commit_sha=bundle["merge"],
+        validation_time=NOW,
+    )
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("merge_intent_present" in item for item in result["blocking_reasons"])
+
+
+def test_legacy_true_bound_mismatched_intent_still_blocks(tmp_path: Path) -> None:
+    bundle = _future_repo(
+        tmp_path,
+        intent_decision_id="decision_20260801_other_authority_v1",
+    )
+    result = _validate(bundle)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("intent_decision_id" in item for item in result["blocking_reasons"])
+
+
+def test_false_none_receipt_is_output_only(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle)
+    before = _git(bundle["repo"], "rev-parse", "HEAD")
+    result = _false_none_validate(bundle, verifier)
+    receipt = emit_mainline_integration_receipt(result, emitted_at=NOW)
+    after = _git(bundle["repo"], "rev-parse", "HEAD")
+    assert result["gate_status"] == "PASSED", result
+    assert receipt["receipt_status"] == "EMITTED"
+    assert receipt["target_pr"] == "809"
+    assert receipt["landing_policy"] == "false_none_owner_landing_authority"
+    assert before == after

@@ -68,6 +68,7 @@ from .mainline_landing import (
     validate_premerge_attestation,
     validate_future_merge,
     validate_pr60_recovery,
+    _post_merge_landing_policy,
 )
 
 from .project_ci import (
@@ -38126,13 +38127,14 @@ def main(argv: list[str] | None = None) -> int:
                 check=True,
             ).stdout.strip()
             parents, intent = load_merge_intent(repo_root, merge_commit)
-            if len(parents) != 2 or intent is None:
-                attestation: dict[str, Any] = {}
-            else:
-                attestation = verifier.load_merge_attestation(
-                    pr_number=int(intent.get("source_pr") or 0),
-                    expected_head_sha=parents[1],
-                )
+            attestation: dict[str, Any] = {}
+            if len(parents) == 2:
+                policy_mode, _ = _post_merge_landing_policy(repo_root, parents[1])
+                if policy_mode == "legacy" and intent is not None:
+                    attestation = verifier.load_merge_attestation(
+                        pr_number=int(intent.get("source_pr") or 0),
+                        expected_head_sha=parents[1],
+                    )
             result = validate_future_merge(
                 repo_root=repo_root,
                 state_dir=state_dir,

@@ -18,6 +18,10 @@ import urllib.request
 from typing import Any
 
 
+OWNER_LANDING_ATTESTATION_MARKER = "OWNER_LANDING_MERGE_ATTESTATION"
+OWNER_LANDING_ATTESTATION_BLOCK = "owner_landing_merge_attestation"
+
+
 class GitHubEvidenceError(RuntimeError):
     """Raised when trusted GitHub evidence cannot be obtained or verified."""
 
@@ -250,3 +254,242 @@ class GitHubRemoteAcceptanceVerifier:
             if isinstance(exc, GitHubEvidenceError):
                 raise
             raise GitHubEvidenceError(f"invalid_attestation_comment:{type(exc).__name__}") from exc
+
+    # ------------------------------------------------------------------
+    # False/none (no-legacy-intent) post-merge landing evidence (Issue #156)
+    # ------------------------------------------------------------------
+
+    def resolve_merged_pull_request(self, *, merge_commit_sha: str) -> dict[str, Any]:
+        """Resolve exactly one merged PR for an exact merge commit.
+
+        Ambiguity fails closed: zero or multiple associated PRs are rejected.
+        """
+
+        try:
+            pulls = self._request_json(
+                f"/repos/{self.repository}/commits/{merge_commit_sha}/pulls?per_page=100"
+            )
+            if not isinstance(pulls, list) or len(pulls) != 1:
+                observed = len(pulls) if isinstance(pulls, list) else "invalid"
+                raise GitHubEvidenceError(f"expected_one_merged_pr:observed={observed}")
+            pr = pulls[0]
+            if not isinstance(pr, dict) or not bool(pr.get("merged")):
+                raise GitHubEvidenceError("resolved_pr_not_merged")
+            reflected = str(((pr.get("base") or {}).get("repo") or {}).get("full_name") or "")
+            if reflected != self.repository:
+                raise GitHubEvidenceError(
+                    f"resolved_pr_repository_mismatch:{reflected}"
+                )
+            return pr
+        except (GitHubEvidenceError, TypeError, ValueError) as exc:
+            raise GitHubEvidenceError(f"resolve_merged_pr_failed:{exc}") from exc
+
+    def load_owner_landing_merge_attestations(
+        self, *, pr_number: int
+    ) -> list[dict[str, Any]]:
+        """Return every OWNER_LANDING_MERGE_ATTESTATION payload on a PR.
+
+        Runtime identity fields are always appended from the live GitHub
+        comment and never trusted from user-written payload bytes.  Duplicate
+        or later-timestamp validation is the caller's responsibility so that
+        every active-matching candidate can be counted deterministically.
+        """
+
+        try:
+            comments = self._request_json(
+                f"/repos/{self.repository}/issues/{int(pr_number)}/comments?per_page=100"
+            )
+        except GitHubEvidenceError as exc:
+            raise GitHubEvidenceError(
+                f"load_owner_landing_attestation_failed:{exc}"
+            ) from exc
+        pattern = re.compile(
+            r"```json\s+owner_landing_merge_attestation\s*\n"
+            r"(?P<payload>\{.*?\})\s*\n```",
+            re.DOTALL,
+        )
+        matches: list[dict[str, Any]] = []
+        for comment in comments if isinstance(comments, list) else []:
+            body = str(comment.get("body") or "")
+            if OWNER_LANDING_ATTESTATION_MARKER not in body:
+                continue
+            match = pattern.search(body)
+            if not match:
+                continue
+            try:
+                payload = json.loads(match.group("payload"))
+            except json.JSONDecodeError as exc:
+                raise GitHubEvidenceError("invalid_owner_landing_attestation_json") from exc
+            if not isinstance(payload, dict):
+                raise GitHubEvidenceError("invalid_owner_landing_attestation_shape")
+            payload["_remote_comment_id"] = int(comment.get("id") or 0)
+            payload["_remote_author"] = str(
+                (comment.get("user") or {}).get("login") or ""
+            )
+            payload["_remote_comment_created_at"] = str(
+                comment.get("created_at") or ""
+            )
+            payload["_remote_comment_updated_at"] = str(
+                comment.get("updated_at") or ""
+            )
+            payload["_remote_comment_body"] = body
+            matches.append(payload)
+        return matches
+
+    def verify_pull_request_review(
+        self,
+        *,
+        review_id: int,
+        pr_number: int,
+        allowed_authors: tuple[str, ...],
+        expected_commit_sha: str,
+    ) -> dict[str, Any]:
+        try:
+            review = self._request_json(
+                f"/repos/{self.repository}/pulls/{int(pr_number)}/reviews/{int(review_id)}"
+            )
+        except (GitHubEvidenceError, TypeError, ValueError) as exc:
+            return {"verified": False, "reason": str(exc)}
+        checks = {
+            "pull_request": str(review.get("pull_request_url") or "").endswith(
+                f"/pulls/{int(pr_number)}"
+            ),
+            "author": str((review.get("user") or {}).get("login") or "")
+            in allowed_authors,
+            "commit_id": str(review.get("commit_id") or "") == expected_commit_sha,
+        }
+        if not all(checks.values()):
+            return {"verified": False, "reason": f"review_mismatch:{checks}"}
+        return {"verified": True, "review": review}
+
+    def verify_check_run_contexts(
+        self,
+        *,
+        head_sha: str,
+        required_contexts: tuple[str, ...] | list[str],
+    ) -> dict[str, Any]:
+        """Verify exact required status-check contexts on one exact head.
+
+        Only exact-name completed success runs satisfy a required context.  A
+        Draft ``landing-state-gate-draft-inert`` run never satisfies the formal
+        ``landing-state-gate`` context because the names differ.
+        """
+
+        try:
+            payload = self._request_json(
+                f"/repos/{self.repository}/commits/{head_sha}/check-runs?per_page=100"
+            )
+        except (GitHubEvidenceError, TypeError, ValueError) as exc:
+            return {"verified": False, "reason": str(exc)}
+        runs = payload.get("check_runs") if isinstance(payload, dict) else []
+        if not isinstance(runs, list):
+            return {"verified": False, "reason": "invalid_check_runs_payload"}
+        by_name: dict[str, dict[str, bool]] = {}
+        for run in runs:
+            if not isinstance(run, dict):
+                continue
+            name = str(run.get("name") or "")
+            if not name:
+                continue
+            entry = by_name.setdefault(name, {"completed": False, "success": False})
+            if str(run.get("status") or "") == "completed":
+                entry["completed"] = True
+                if str(run.get("conclusion") or "") == "success":
+                    entry["success"] = True
+        contexts: dict[str, bool] = {}
+        for required in required_contexts:
+            entry = by_name.get(str(required))
+            contexts[str(required)] = bool(entry and entry.get("success"))
+        if not all(contexts.values()):
+            missing = [name for name, ok in contexts.items() if not ok]
+            return {
+                "verified": False,
+                "reason": f"check_contexts_missing:{missing}",
+                "contexts": contexts,
+                "check_runs": runs,
+            }
+        return {"verified": True, "contexts": contexts, "check_runs": runs}
+
+    def verify_repository_ruleset(
+        self,
+        *,
+        ruleset_id: int,
+        required_status_contexts: tuple[str, ...] | list[str],
+        allowed_merge_methods: tuple[str, ...] | list[str],
+    ) -> dict[str, Any]:
+        """Verify the live repository Ruleset agrees with the attested policy.
+
+        The attested Ruleset id must exist, be active, and require exactly the
+        same status-check contexts and the exact ``merge`` pull-request merge
+        method declared by the landing authority.  No comment text is trusted.
+        """
+
+        try:
+            ruleset = self._request_json(
+                f"/repos/{self.repository}/rulesets/{int(ruleset_id)}"
+            )
+        except (GitHubEvidenceError, TypeError, ValueError) as exc:
+            return {"verified": False, "reason": str(exc)}
+        checks = {
+            "id": int(ruleset.get("id") or 0) == int(ruleset_id),
+            "enforcement": ruleset.get("enforcement") == "active",
+            "source_type": ruleset.get("source_type") == "Repository",
+        }
+        rules = ruleset.get("rules") if isinstance(ruleset.get("rules"), list) else []
+        status_checks_rule: Any = None
+        pull_request_rule: Any = None
+        for rule in rules:
+            if not isinstance(rule, dict):
+                continue
+            if rule.get("type") == "required_status_checks":
+                status_checks_rule = rule
+            if rule.get("type") == "pull_request":
+                pull_request_rule = rule
+        if isinstance(status_checks_rule, dict):
+            params = status_checks_rule.get("parameters")
+            params = params if isinstance(params, dict) else {}
+            contexts_raw = params.get("required_status_checks")
+            contexts: list[str] = []
+            if isinstance(contexts_raw, list):
+                for item in contexts_raw:
+                    if isinstance(item, dict) and isinstance(item.get("context"), str):
+                        contexts.append(item.get("context"))
+            expected = set(str(context) for context in required_status_contexts)
+            checks["status_checks"] = set(contexts) == expected
+        else:
+            checks["status_checks"] = False
+        if isinstance(pull_request_rule, dict):
+            params = pull_request_rule.get("parameters")
+            params = params if isinstance(params, dict) else {}
+            methods = params.get("allowed_merge_methods")
+            expected = set(str(method) for method in allowed_merge_methods)
+            checks["merge_methods"] = (
+                isinstance(methods, list)
+                and len(methods) > 0
+                and set(methods) == expected
+            )
+        else:
+            checks["merge_methods"] = False
+        if not all(checks.values()):
+            return {"verified": False, "reason": f"ruleset_mismatch:{checks}"}
+        return {"verified": True, "ruleset": ruleset}
+
+    def load_ref_file_bytes(self, *, ref: str, path: str) -> dict[str, Any]:
+        """Return committed raw bytes at an exact ref via the contents API."""
+
+        try:
+            payload = self._request_json(
+                f"/repos/{self.repository}/contents/{path}?ref={ref}"
+            )
+        except (GitHubEvidenceError, TypeError, ValueError) as exc:
+            return {"verified": False, "reason": str(exc)}
+        if payload.get("encoding") != "base64":
+            return {"verified": False, "reason": "unexpected_content_encoding"}
+        content = payload.get("content")
+        if not isinstance(content, str):
+            return {"verified": False, "reason": "invalid_content_type"}
+        try:
+            raw = _decode_github_contents_base64(content)
+        except (binascii.Error, ValueError) as exc:
+            return {"verified": False, "reason": str(exc)}
+        return {"verified": True, "bytes": raw}

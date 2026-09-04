@@ -5,6 +5,12 @@ This module separates three lifecycles:
 * the frozen Architecture Spine historical invariant;
 * normal future exact-head merge intent plus trusted external attestation;
 * the exact, non-retroactive PR #60 recovery record.
+
+Since Issue #156 post-merge cutover the current-main validator is also
+policy-aware: a committed false/none Decision
+(``mainline_merge_intent_required=false`` + ``active_pr_binding_mode=none``)
+is validated against a fresh pre-merge Owner landing authority instead of the
+historical ``project_state/mainline_merge_intents/active.json``.
 """
 
 from __future__ import annotations
@@ -17,6 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+from .github_remote_verifier import GitHubEvidenceError
 from .project_state import extract_markdown_json_block
 
 
@@ -86,6 +93,36 @@ TRUSTED_PREMERGE_WORKFLOW_PROFILES: dict[str, dict[str, tuple[str, str]]] = {
         "Model Access": (".github/workflows/model-access.yml", "pull_request"),
     },
 }
+
+# Owner landing merge attestation for the false/none post-merge authority.
+OWNER_LANDING_ATTESTATION_MARKER = "OWNER_LANDING_MERGE_ATTESTATION"
+OWNER_LANDING_ATTESTATION_BLOCK = "owner_landing_merge_attestation"
+FALSE_NONE_REQUIRED_CONTEXTS: tuple[str, ...] = (
+    "baseline",
+    "state-gate",
+    "landing-state-gate",
+)
+FALSE_NONE_ALLOWED_OWNERS: tuple[str, ...] = ("dddd2024",)
+_FALSE_NONE_AUTHORITY_WORKFLOW_POLICY: dict[str, tuple[str, str]] = {
+    "CI": (".github/workflows/ci.yml", "pull_request"),
+    "Decision Preflight": (
+        ".github/workflows/decision-preflight.yml",
+        "pull_request",
+    ),
+    "State Gate (pull_request)": (
+        ".github/workflows/state-gate.yml",
+        "pull_request",
+    ),
+}
+OWNER_LANDING_RUNTIME_FIELDS: tuple[str, ...] = (
+    "_remote_comment_id",
+    "_remote_author",
+    "_remote_comment_created_at",
+    "_remote_comment_updated_at",
+    "_remote_comment_body",
+)
+SIGNED_BRANCH_BINDING_MODE = "post_draft_pr_exact_remote_number"
+CUTOVER_NONE_BINDING_MODE = "none"
 
 
 def resolve_premerge_workflow_profile(profile_name: Any) -> dict[str, tuple[str, str]]:
@@ -261,6 +298,65 @@ def _sha(value: Any) -> bool:
 
 def _sha256(value: Any) -> bool:
     return isinstance(value, str) and re.fullmatch(r"(?:sha256:)?[0-9a-f]{64}", value) is not None
+
+
+def owner_landing_content_digest(payload: Mapping[str, Any]) -> str:
+    """Canonical digest over an owner landing attestation without runtime fields."""
+
+    return canonical_digest(
+        payload,
+        omit=("content_digest",) + OWNER_LANDING_RUNTIME_FIELDS,
+    )
+
+
+def _decision_contract_fields(repo_root: Path, commit_sha: str) -> dict[str, Any]:
+    """Return the committed ``decision_contract`` block, ``{}`` when absent.
+
+    Routing is conservative: an absent or malformed contract must take the
+    legacy intent-required path rather than silently choosing the cutover path.
+    """
+
+    path = "project_state/decision_packet.md"
+    raw = _blob(repo_root, commit_sha, path)
+    if raw is None:
+        return {}
+    text = raw.decode("utf-8", errors="strict")
+    match_count = sum(
+        1
+        for line in text.splitlines()
+        if line.strip().startswith("```")
+        and "json" in line.strip()[3:].strip().split()
+        and "decision_contract" in line.strip()[3:].strip().split()
+    )
+    if match_count != 1:
+        return {}
+    parsed = extract_markdown_json_block(text, "decision_contract")
+    if not parsed.get("found") or parsed.get("parse_error"):
+        return {}
+    return {
+        key: value
+        for key, value in parsed.items()
+        if key not in {"found", "parse_error"}
+    }
+
+
+def _post_merge_landing_policy(
+    repo_root: Path, commit_sha: str
+) -> tuple[str, dict[str, Any]]:
+    """Classify the committed second-parent Decision post-merge policy."""
+
+    contract = _decision_contract_fields(repo_root, commit_sha)
+    intent_required = contract.get("mainline_merge_intent_required", True) is not False
+    binding_mode = contract.get("active_pr_binding_mode")
+    if binding_mode is None:
+        mode = "cutover" if not intent_required else "legacy"
+    elif binding_mode == CUTOVER_NONE_BINDING_MODE:
+        mode = "cutover" if not intent_required else "incoherent"
+    elif binding_mode == SIGNED_BRANCH_BINDING_MODE:
+        mode = "legacy" if intent_required else "incoherent"
+    else:
+        mode = "incoherent"
+    return mode, contract
 
 
 def _read_object(path: Path) -> dict[str, Any]:
@@ -781,6 +877,686 @@ def validate_premerge_attestation(
         ]
 
 
+_OWNER_LANDING_ATTESTATION_FIELDS: set[str] = {
+    "schema_version",
+    "attestation_id",
+    "repository",
+    "source_pr",
+    "locked_base_sha",
+    "accepted_exact_head_sha",
+    "target_decision_id",
+    "target_decision_content_sha256",
+    "allowed_merge_method",
+    "authority_pr",
+    "authority_head_sha",
+    "authority_base_sha",
+    "authority_decision_id",
+    "authority_decision_content_sha256",
+    "authority_natural_runs",
+    "owner_exact_head_review_id",
+    "ready_state_gate_run_id",
+    "ruleset_id",
+    "required_status_contexts",
+    "mainline_merge_intent_required",
+    "active_pr_binding_mode",
+    "authorization_status",
+    "superseded_by",
+    "content_digest",
+    "_remote_comment_id",
+    "_remote_author",
+    "_remote_comment_created_at",
+    "_remote_comment_updated_at",
+    "_remote_comment_body",
+}
+
+_FALSE_NONE_RUN_FIELDS: set[str] = {
+    "name",
+    "run_id",
+    "workflow_file",
+    "event",
+    "run_attempt",
+    "head_sha",
+    "conclusion",
+}
+
+
+def _load_remote_decision_contract(verifier: Any, ref: str) -> dict[str, Any]:
+    """Read and parse the committed Decision at a remote exact ref."""
+
+    result = verifier.load_ref_file_bytes(ref=ref, path="project_state/decision_packet.md")
+    if not result.get("verified"):
+        return {"verified": False, "reason": str(result.get("reason") or "load_failed")}
+    raw = result.get("bytes")
+    if not isinstance(raw, bytes):
+        return {"verified": False, "reason": "missing_content"}
+    try:
+        text = raw.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        return {"verified": False, "reason": f"undecodable:{exc}"}
+    parsed_meta = extract_markdown_json_block(text, "decision_meta")
+    parsed_contract = extract_markdown_json_block(text, "decision_contract")
+    if not parsed_meta.get("found") or parsed_meta.get("parse_error"):
+        return {"verified": False, "reason": "invalid_decision_meta"}
+    if not parsed_contract.get("found") or parsed_contract.get("parse_error"):
+        return {"verified": False, "reason": "invalid_decision_contract"}
+    meta = {
+        key: value
+        for key, value in parsed_meta.items()
+        if key not in {"found", "parse_error"}
+    }
+    contract = {
+        key: value
+        for key, value in parsed_contract.items()
+        if key not in {"found", "parse_error"}
+    }
+    return {
+        "verified": True,
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "meta_id": str(meta.get("decision_id") or ""),
+        "contract": contract,
+    }
+
+
+def _authority_contract_binds_target(
+    contract: Mapping[str, Any],
+    *,
+    source_pr: int,
+    accepted_head: str,
+    locked_base: str,
+) -> bool:
+    target_pr = contract.get("target_pr", contract.get("source_pr"))
+    return (
+        target_pr == source_pr
+        and contract.get("accepted_exact_head_sha") == accepted_head
+        and contract.get("base_sha") == locked_base
+    )
+
+
+def _authority_contract_owner_merge_scope(contract: Mapping[str, Any]) -> bool:
+    forbidden = contract.get("forbidden_operations")
+    forbidden = forbidden if isinstance(forbidden, list) else []
+    forbidden_paths = contract.get("forbidden_mutated_paths")
+    forbidden_paths = forbidden_paths if isinstance(forbidden_paths, list) else []
+    return (
+        contract.get("mark_ready_allowed") is True
+        and contract.get("merge_allowed") is True
+        and contract.get("expected_head_protection_required") is True
+        and contract.get("allowed_merge_method") == "merge"
+        and contract.get("workflow_rerun_allowed") is False
+        and contract.get("auto_merge_allowed") is False
+        and contract.get("direct_push_to_main_allowed") is False
+        and contract.get("force_push_allowed") is False
+        and "active_json_rewrite" in forbidden
+        and any("mainline_merge_intents" in str(path) for path in forbidden_paths)
+    )
+
+
+def _validate_false_none_attestation(
+    att: Mapping[str, Any],
+    *,
+    verifier: Any,
+    repo_root: Path,
+    source_pr: int,
+    first_parent: str,
+    second_parent: str,
+    target_decision_id: str,
+    target_decision_digest: str,
+    merged_time: datetime | None,
+    now: datetime,
+) -> list[dict[str, str]]:
+    """Validate the single active Owner landing merge attestation and every
+    remote truth it binds (authority PR/Decision/runs, Owner review, Ready
+    State Gate, required contexts, Ruleset)."""
+
+    checks: list[dict[str, str]] = []
+
+    fields_valid = set(att) == _OWNER_LANDING_ATTESTATION_FIELDS
+    schema_ok = att.get("schema_version") == 1
+    author_ok = att.get("_remote_author") in FALSE_NONE_ALLOWED_OWNERS
+    repo_ok = att.get("repository") == "dddd2024/Nerelan"
+    status_ok = (
+        att.get("authorization_status") == "active" and not att.get("superseded_by")
+    )
+    policy_ok = (
+        att.get("mainline_merge_intent_required") is False
+        and att.get("active_pr_binding_mode") == CUTOVER_NONE_BINDING_MODE
+    )
+    digest_ok = att.get("content_digest") == owner_landing_content_digest(att)
+    checks.extend(
+        [
+            _check(
+                "false_none_attestation_schema_version",
+                schema_ok,
+                f"observed={att.get('schema_version')!r}",
+            ),
+            _check("false_none_attestation_fields", fields_valid, f"observed={sorted(att)}"),
+            _check("false_none_attestation_repository", repo_ok, f"observed={att.get('repository')}"),
+            _check(
+                "false_none_attestation_source_pr",
+                att.get("source_pr") == source_pr,
+                f"observed={att.get('source_pr')} expected={source_pr}",
+            ),
+            _check(
+                "false_none_attestation_locked_base",
+                att.get("locked_base_sha") == first_parent,
+                f"observed={att.get('locked_base_sha')} expected={first_parent}",
+            ),
+            _check(
+                "false_none_attestation_accepted_head",
+                att.get("accepted_exact_head_sha") == second_parent,
+                f"observed={att.get('accepted_exact_head_sha')}",
+            ),
+            _check(
+                "false_none_attestation_merge_method",
+                att.get("allowed_merge_method") == "merge",
+                f"observed={att.get('allowed_merge_method')}",
+            ),
+            _check(
+                "false_none_attestation_author",
+                author_ok,
+                f"author={att.get('_remote_author')}",
+            ),
+            _check("false_none_attestation_status", status_ok, f"status={att.get('authorization_status')} superseded_by={att.get('superseded_by')}"),
+            _check(
+                "false_none_attestation_policy_declaration",
+                policy_ok,
+                f"mainline_merge_intent_required={att.get('mainline_merge_intent_required')} active_pr_binding_mode={att.get('active_pr_binding_mode')}",
+            ),
+            _check("false_none_attestation_content_digest", digest_ok, "content_digest"),
+        ]
+    )
+
+    # Target Decision binding (committed second-parent truth vs attestation).
+    target_digest = str(att.get("target_decision_content_sha256") or "")
+    checks.extend(
+        [
+            _check(
+                "false_none_target_decision_id",
+                att.get("target_decision_id") == target_decision_id,
+                f"observed={att.get('target_decision_id')} expected={target_decision_id}",
+            ),
+            _check(
+                "false_none_target_decision_digest",
+                _sha256(target_digest) and target_digest == target_decision_digest,
+                f"observed={target_digest}",
+            ),
+        ]
+    )
+
+    # Attestation comment timestamps must all predate the remote merged_at.
+    comment_times: dict[str, datetime] = {}
+    for field, check_name in (
+        ("_remote_comment_created_at", "false_none_attestation_created_before_merge"),
+        ("_remote_comment_updated_at", "false_none_attestation_updated_before_merge"),
+    ):
+        value = att.get(field)
+        if not isinstance(value, str) or not value:
+            checks.append(_check(check_name, False, "missing"))
+            continue
+        try:
+            parsed = _parse_time(value)
+            if parsed.tzinfo is None:
+                raise ValueError("timezone_required")
+        except (TypeError, ValueError) as exc:
+            checks.append(_check(check_name, False, f"invalid:{exc}"))
+            continue
+        comment_times[field] = parsed
+        if merged_time is None:
+            checks.append(_check(check_name, False, "remote_pr_merged_at_unavailable"))
+        else:
+            checks.append(
+                _check(
+                    check_name,
+                    parsed < merged_time,
+                    f"comment={parsed.isoformat()} merged_at={merged_time.isoformat()}",
+                )
+            )
+    created_time = comment_times.get("_remote_comment_created_at")
+    updated_time = comment_times.get("_remote_comment_updated_at")
+    if created_time is not None and updated_time is not None:
+        checks.append(
+            _check(
+                "false_none_attestation_comment_order",
+                created_time <= updated_time,
+                f"created={created_time.isoformat()} updated={updated_time.isoformat()}",
+            )
+        )
+
+    # Independent Owner landing authority sidecar PR.
+    authority_pr = int(att.get("authority_pr") or 0)
+    authority_head = str(att.get("authority_head_sha") or "")
+    authority_base = str(att.get("authority_base_sha") or "")
+    authority_decision_id = str(att.get("authority_decision_id") or "")
+    authority_decision_digest = str(att.get("authority_decision_content_sha256") or "")
+    authority_pr_result = verifier.verify_pr(
+        pr_number=authority_pr,
+        expected_head_sha=authority_head,
+        expected_base_sha=authority_base,
+        require_merged=False,
+    )
+    checks.append(
+        _check(
+            "false_none_authority_pr_identity",
+            bool(authority_pr_result.get("verified")),
+            str(authority_pr_result.get("reason") or "verified"),
+        )
+    )
+    remote_authority_pr = (
+        authority_pr_result.get("pr") if isinstance(authority_pr_result.get("pr"), Mapping) else {}
+    )
+    checks.append(
+        _check(
+            "false_none_authority_unmerged",
+            remote_authority_pr.get("merged") is False,
+            f"merged={remote_authority_pr.get('merged')}",
+        )
+    )
+
+    # Authority committed Decision identity, digest, and binding contract.
+    authority_decision = _load_remote_decision_contract(verifier, authority_head)
+    if authority_decision.get("verified"):
+        ad_meta_id = str(authority_decision.get("meta_id") or "")
+        ad_sha = str(authority_decision.get("sha256") or "")
+        ad_contract = authority_decision.get("contract")
+        ad_contract = ad_contract if isinstance(ad_contract, Mapping) else {}
+        checks.extend(
+            [
+                _check(
+                    "false_none_authority_decision_id",
+                    ad_meta_id == authority_decision_id,
+                    f"observed={ad_meta_id} expected={authority_decision_id}",
+                ),
+                _check(
+                    "false_none_authority_decision_digest",
+                    _sha256(authority_decision_digest)
+                    and ad_sha == authority_decision_digest,
+                    f"observed={ad_sha}",
+                ),
+            ]
+        )
+        if (
+            ad_meta_id == authority_decision_id
+            and authority_decision_digest == ad_sha
+            and ad_contract.get("mainline_merge_intent_required") is False
+            and ad_contract.get("active_pr_binding_mode") == CUTOVER_NONE_BINDING_MODE
+        ):
+            checks.extend(
+                [
+                    _check(
+                        "false_none_authority_decision_binds_target",
+                        _authority_contract_binds_target(
+                            ad_contract,
+                            source_pr=source_pr,
+                            accepted_head=second_parent,
+                            locked_base=first_parent,
+                        ),
+                        f"target_pr={ad_contract.get('target_pr') or ad_contract.get('source_pr')} head={ad_contract.get('accepted_exact_head_sha')} base={ad_contract.get('base_sha')}",
+                    ),
+                    _check(
+                        "false_none_authority_decision_owner_scope",
+                        _authority_contract_owner_merge_scope(ad_contract),
+                        "mark_ready_allowed+merge_allowed+expected_head+merge_method+no_rerun+no_active_json",
+                    ),
+                    _check(
+                        "false_none_authority_decision_policy",
+                        True,
+                        "false/none authority Decision",
+                    ),
+                ]
+            )
+        else:
+            checks.append(
+                _check(
+                    "false_none_authority_decision_policy",
+                    False,
+                    "authority Decision digest/identity/policy mismatch",
+                )
+            )
+    else:
+        checks.append(
+            _check(
+                "false_none_authority_decision_read",
+                False,
+                str(authority_decision.get("reason") or "load_failed"),
+            )
+        )
+
+    # Authority natural run observations (CI / Decision Preflight / State Gate).
+    runs = att.get("authority_natural_runs")
+    runs = runs if isinstance(runs, list) else []
+    run_names = [item.get("name") for item in runs if isinstance(item, Mapping)]
+    run_ids = [
+        int(item.get("run_id") or 0) for item in runs if isinstance(item, Mapping)
+    ]
+    checks.extend(
+        [
+            _check(
+                "false_none_authority_runs",
+                len(runs) == 3
+                and set(run_names) == set(_FALSE_NONE_AUTHORITY_WORKFLOW_POLICY),
+                f"names={run_names}",
+            ),
+            _check(
+                "false_none_authority_runs_unique",
+                len(run_ids) == len(set(run_ids)) == 3,
+                f"run_ids={run_ids}",
+            ),
+        ]
+    )
+    for index, (name, (expected_file, expected_event)) in enumerate(
+        _FALSE_NONE_AUTHORITY_WORKFLOW_POLICY.items()
+    ):
+        if index >= len(runs) or not isinstance(runs[index], Mapping):
+            checks.append(_check(f"false_none_authority_workflow:{name}", False, "missing"))
+            continue
+        observation = runs[index]
+        locally_bound = (
+            observation.get("name") == name
+            and observation.get("workflow_file") == expected_file
+            and observation.get("event") == expected_event
+            and observation.get("head_sha") == authority_head
+            and observation.get("conclusion") == "success"
+            and int(observation.get("run_attempt") or 0) >= 1
+            and set(observation) == _FALSE_NONE_RUN_FIELDS
+        )
+        verified = verifier.verify_workflow_run(
+            run_id=int(observation.get("run_id") or 0),
+            expected_head_sha=authority_head,
+            expected_workflow_file=expected_file,
+            expected_event=expected_event,
+            expected_run_attempt=int(observation.get("run_attempt") or 0),
+        )
+        checks.append(
+            _check(
+                f"false_none_authority_workflow:{name}",
+                locally_bound and bool(verified.get("verified")),
+                str(verified.get("reason") or "verified"),
+            )
+        )
+
+    # Owner exact-head review.
+    review_id = int(att.get("owner_exact_head_review_id") or 0)
+    review_result = verifier.verify_pull_request_review(
+        review_id=review_id,
+        pr_number=source_pr,
+        allowed_authors=FALSE_NONE_ALLOWED_OWNERS,
+        expected_commit_sha=second_parent,
+    )
+    checks.append(
+        _check(
+            "false_none_owner_review_binding",
+            bool(review_result.get("verified")),
+            str(review_result.get("reason") or "verified"),
+        )
+    )
+    review = review_result.get("review") if isinstance(review_result.get("review"), Mapping) else {}
+    checks.append(
+        _check(
+            "false_none_owner_review_author",
+            str((review.get("user") or {}).get("login") or "")
+            in FALSE_NONE_ALLOWED_OWNERS,
+            f"author={review.get('user')}",
+        )
+    )
+    checks.append(
+        _check(
+            "false_none_owner_review_commit",
+            review.get("commit_id") == second_parent,
+            f"observed={review.get('commit_id')} expected={second_parent}",
+        )
+    )
+    submitted_at = str(review.get("submitted_at") or "")
+    if submitted_at and merged_time is not None:
+        try:
+            submitted_time = _parse_time(submitted_at)
+            checks.append(
+                _check(
+                    "false_none_owner_review_before_merge",
+                    submitted_time < merged_time,
+                    f"submitted={submitted_time.isoformat()} merged_at={merged_time.isoformat()}",
+                )
+            )
+        except (TypeError, ValueError) as exc:
+            checks.append(
+                _check("false_none_owner_review_before_merge", False, f"invalid:{exc}")
+            )
+    else:
+        checks.append(
+            _check(
+                "false_none_owner_review_before_merge",
+                False,
+                "missing_submitted_at_or_merged_at",
+            )
+        )
+
+    # Ready-triggered State Gate run on the exact target head.
+    ready_run_id = int(att.get("ready_state_gate_run_id") or 0)
+    ready_result = verifier.verify_workflow_run(
+        run_id=ready_run_id,
+        expected_head_sha=second_parent,
+        expected_workflow_file=".github/workflows/state-gate.yml",
+        expected_event="pull_request",
+        expected_run_attempt=1,
+    )
+    checks.append(
+        _check(
+            "false_none_ready_state_gate_run",
+            bool(ready_result.get("verified")),
+            str(ready_result.get("reason") or "verified"),
+        )
+    )
+
+    # Required exact-head status contexts (never the draft-inert name).
+    declared_contexts = att.get("required_status_contexts")
+    declared_contexts = declared_contexts if isinstance(declared_contexts, list) else []
+    expected_contexts = list(FALSE_NONE_REQUIRED_CONTEXTS)
+    checks.append(
+        _check(
+            "false_none_required_contexts_declared",
+            declared_contexts == expected_contexts,
+            f"observed={declared_contexts}",
+        )
+    )
+    check_runs_payload: Any = None
+    if declared_contexts == expected_contexts:
+        context_result = verifier.verify_check_run_contexts(
+            head_sha=second_parent, required_contexts=tuple(expected_contexts)
+        )
+        checks.append(
+            _check(
+                "false_none_required_contexts_executed",
+                bool(context_result.get("verified")),
+                str(context_result.get("reason") or "verified"),
+            )
+        )
+        check_runs_payload = context_result
+    else:
+        checks.append(
+            _check("false_none_required_contexts_executed", False, "contexts_not_declared")
+        )
+    runs_payload = check_runs_payload.get("check_runs") if isinstance(check_runs_payload, Mapping) else None
+    if isinstance(runs_payload, list):
+        names_seen = {
+            str(run.get("name") or "") for run in runs_payload if isinstance(run, Mapping)
+        }
+        checks.append(
+            _check(
+                "false_none_landing_context_is_formal",
+                "landing-state-gate" in names_seen,
+                f"check_names={sorted(names_seen)}",
+            )
+        )
+    else:
+        checks.append(
+            _check("false_none_landing_context_is_formal", False, "check_runs_unavailable")
+        )
+
+    # Live repository Ruleset agreement.
+    ruleset_id = int(att.get("ruleset_id") or 0)
+    ruleset_result = verifier.verify_repository_ruleset(
+        ruleset_id=ruleset_id,
+        required_status_contexts=tuple(expected_contexts),
+        allowed_merge_methods=("merge",),
+    )
+    checks.append(
+        _check(
+            "false_none_ruleset_verify",
+            bool(ruleset_result.get("verified")),
+            str(ruleset_result.get("reason") or "verified"),
+        )
+    )
+    return checks
+
+
+def _validate_false_none_landing(
+    *,
+    repo_root: Path,
+    verifier: Any,
+    merge_commit_sha: str,
+    first_parent: str,
+    second_parent: str,
+    contract: Mapping[str, Any],
+    now: datetime,
+) -> tuple[list[dict[str, str]], dict[str, Any]]:
+    """Run the false/none post-merge validation on the actual merged target."""
+
+    checks: list[dict[str, str]] = []
+    checks.append(
+        _check(
+            "merge_tree_policy",
+            _tree(repo_root, merge_commit_sha) == _tree(repo_root, second_parent),
+            f"merge={_tree(repo_root, merge_commit_sha)} accepted={_tree(repo_root, second_parent)}",
+        )
+    )
+
+    # Resolve the true merged PR from the exact merge topology.  Ambiguity and
+    # repository mismatch fail closed; the historical active.json is never used
+    # as the landing identity on this path.
+    try:
+        resolved_pr = verifier.resolve_merged_pull_request(merge_commit_sha=merge_commit_sha)
+        resolved_pr = resolved_pr if isinstance(resolved_pr, Mapping) else {}
+        source_pr = int(resolved_pr.get("number") or 0)
+        remote_merged_at = str(resolved_pr.get("merged_at") or "")
+        if not source_pr or not remote_merged_at:
+            raise GitHubEvidenceError("resolved_pr_missing_number_or_merged_at")
+        checks.append(_check("false_none_target_pr_resolution", True, f"pr={source_pr}"))
+    except GitHubEvidenceError as exc:
+        checks.append(_check("false_none_target_pr_resolution", False, str(exc)))
+        source_pr = 0
+        remote_merged_at = ""
+        resolved_pr = {}
+
+    # Remote PR binding: exact repo, PR, head, base, merge commit, merged state.
+    merged_time: datetime | None = None
+    if source_pr:
+        pr_result = verifier.verify_pr(
+            pr_number=source_pr,
+            expected_head_sha=second_parent,
+            expected_base_sha=first_parent,
+            expected_merge_commit_sha=merge_commit_sha,
+            require_merged=True,
+        )
+        checks.append(
+            _check(
+                "false_none_remote_pr_binding",
+                bool(pr_result.get("verified")),
+                str(pr_result.get("reason") or "verified"),
+            )
+        )
+        if remote_merged_at:
+            try:
+                merged_time = _parse_time(remote_merged_at)
+                if merged_time.tzinfo is None:
+                    raise ValueError("timezone_required")
+                checks.append(
+                    _check("false_none_remote_pr_merged_at", True, remote_merged_at)
+                )
+            except (TypeError, ValueError) as exc:
+                checks.append(
+                    _check("false_none_remote_pr_merged_at", False, f"invalid:{exc}")
+                )
+                merged_time = None
+        else:
+            checks.append(_check("false_none_remote_pr_merged_at", False, "missing"))
+    else:
+        checks.append(_check("false_none_remote_pr_binding", False, "no_resolved_pr"))
+        checks.append(_check("false_none_remote_pr_merged_at", False, "no_resolved_pr"))
+
+    # Second-parent committed Decision identity + digest + false/none policy.
+    decision_digest = (
+        _sha256_blob(repo_root, second_parent, "project_state/decision_packet.md") or ""
+    )
+    try:
+        decision_meta = _decision_meta_blob(repo_root, second_parent)
+        target_decision_id = str(decision_meta.get("decision_id") or "")
+        checks.append(_check("false_none_target_decision_read", True, target_decision_id))
+    except ValueError as exc:
+        target_decision_id = ""
+        checks.append(_check("false_none_target_decision_read", False, str(exc)))
+    checks.append(
+        _check(
+            "false_none_target_decision_policy",
+            contract.get("mainline_merge_intent_required") is False
+            and contract.get("active_pr_binding_mode") == CUTOVER_NONE_BINDING_MODE,
+            f"mainline_merge_intent_required={contract.get('mainline_merge_intent_required')} active_pr_binding_mode={contract.get('active_pr_binding_mode')}",
+        )
+    )
+
+    # Exactly one active OWNER_LANDING_MERGE_ATTESTATION on the resolved PR.
+    if source_pr:
+        try:
+            attestations = verifier.load_owner_landing_merge_attestations(
+                pr_number=source_pr
+            )
+            checks.append(_check("false_none_attestation_load", True, f"comments={len(attestations)}"))
+        except GitHubEvidenceError as exc:
+            checks.append(_check("false_none_attestation_load", False, str(exc)))
+            attestations = []
+    else:
+        attestations = []
+    candidates = [
+        att
+        for att in attestations
+        if isinstance(att, Mapping)
+        and att.get("source_pr") == source_pr
+        and att.get("accepted_exact_head_sha") == second_parent
+        and att.get("authorization_status") == "active"
+    ]
+    checks.append(
+        _check(
+            "false_none_attestation_unique",
+            len(candidates) == 1,
+            f"observed={len(candidates)}",
+        )
+    )
+    if len(candidates) == 1:
+        checks.extend(
+            _validate_false_none_attestation(
+                candidates[0],
+                verifier=verifier,
+                repo_root=repo_root,
+                source_pr=source_pr,
+                first_parent=first_parent,
+                second_parent=second_parent,
+                target_decision_id=target_decision_id,
+                target_decision_digest=decision_digest,
+                merged_time=merged_time,
+                now=now,
+            )
+        )
+    extra: dict[str, Any] = {
+        "target_pr": source_pr,
+        "attestation_id": str(
+            candidates[0].get("attestation_id") if len(candidates) == 1 else ""
+        ),
+        "authority_pr": int(
+            candidates[0].get("authority_pr") if len(candidates) == 1 else 0
+        ),
+        "landing_policy": "false_none_owner_landing_authority",
+    }
+    return checks, extra
+
+
 def validate_future_merge(
     *,
     repo_root: Path,
@@ -800,6 +1576,49 @@ def validate_future_merge(
         if len(parents) != 2:
             return _result("mainline-merge-validation", checks, extra={"merge_commit_sha": merge})
         first_parent, second_parent = parents
+
+        # Issue #156 post-merge cutover: route by the committed second-parent
+        # Decision policy contract. The legacy path is byte-for-byte the prior
+        # validator; only a committed false/none Decision chooses the new
+        # independent Owner-landing-authority path, and contradictory policy
+        # combinations always block.
+        policy_mode, contract = _post_merge_landing_policy(repo_root, second_parent)
+        if policy_mode == "incoherent":
+            checks.append(
+                _check(
+                    "landing_policy_mode",
+                    False,
+                    f"mainline_merge_intent_required={contract.get('mainline_merge_intent_required', 'missing')} active_pr_binding_mode={contract.get('active_pr_binding_mode', 'missing')}",
+                )
+            )
+            return _result(
+                "mainline-merge-validation",
+                checks,
+                extra={
+                    "merge_commit_sha": merge,
+                    "first_parent_sha": first_parent,
+                    "second_parent_sha": second_parent,
+                    "landing_policy": "incoherent",
+                },
+            )
+        checks.append(_check("landing_policy_mode", True, policy_mode))
+        if policy_mode == "cutover":
+            found_checks, extra = _validate_false_none_landing(
+                repo_root=repo_root,
+                verifier=verifier,
+                merge_commit_sha=merge,
+                first_parent=first_parent,
+                second_parent=second_parent,
+                contract=contract,
+                now=now,
+            )
+            checks.extend(found_checks)
+            extra["merge_commit_sha"] = merge
+            extra["first_parent_sha"] = first_parent
+            extra["second_parent_sha"] = second_parent
+            return _result("mainline-merge-validation", checks, extra=extra)
+
+        # Legacy mainline-merge-intent path (unchanged fail-closed behavior).
         locked_base = str(attestation.get("locked_base_sha") or "")
         accepted_head = str(attestation.get("accepted_exact_head_sha") or "")
         checks.extend(
@@ -1003,6 +1822,9 @@ def emit_mainline_integration_receipt(
         "second_parent_sha": str(validation.get("second_parent_sha") or ""),
         "intent_id": str(validation.get("intent_id") or ""),
         "attestation_id": str(validation.get("attestation_id") or ""),
+        "target_pr": str(validation.get("target_pr") or ""),
+        "authority_pr": str(validation.get("authority_pr") or ""),
+        "landing_policy": str(validation.get("landing_policy") or "legacy_intent"),
         "blocking_reasons": list(validation.get("blocking_reasons") or []),
         "emitted_at": now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
