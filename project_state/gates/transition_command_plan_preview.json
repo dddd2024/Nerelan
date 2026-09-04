@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260903_issue156_control_plane_correction_r2_v6",
-  "round_id": "round_20260903_issue156_control_plane_correction_r2_v6",
+  "decision_id": "decision_20260904_issue530_brand2b_nerelan_r3_v33",
+  "round_id": "round_20260904_issue530_brand2b_nerelan_r3_v33",
   "commands": [
     {
-      "command_id": "issue156_correction_r2v6.bootstrap_and_preflight",
-      "command": "verify exact fresh locked main cf8822d25dbe56dd79b496268360d46a7cb1246f and fresh branch merge-base; commit this immutable R2 Decision first; run startup snapshot command-plan compiler transition lint and transition preflight pre; require PRE_EXECUTION_AUTHORIZED before any semantic mutation",
+      "command_id": "issue530_brand2b_v33.bootstrap_and_preflight",
+      "command": "verify exact fresh main cfe5fd3819009fdcb6a4d8402aa6b818947f9d0c and fresh branch merge-base; commit this immutable R3 Decision first; generate the command plan and startup artifacts; run transition lint and transition preflight pre; require PRE_EXECUTION_AUTHORIZED before semantic mutation",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -34,8 +34,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue156_correction_r2v6.rematerialize_semantics_close_p1",
-      "command": "after PRE_EXECUTION_AUTHORIZED re-materialize the accepted PR #614 semantic head 1dfa2dc5dbfbe5cd986521d63c4e425a114362db control-plane and project-gate semantics at file level (models legacy_adapter command_authority evidence_recorder transition project_gate plus exact-head workflow checkout fix in decision-preflight.yml and ci.yml plus the matching deterministic tests); reuse the validated local Ready false/none repair commit 15baa104a780011d6865602c7fcd04fff25d52ed semantics without any old Decision/governance identity; then close all four real P1 review findings 3921389187 3921389194 3921389199 3921697391 with deterministic negative regressions; preserve legacy mainline_merge_intent_required=true post_draft_pr_exact_remote_number behavior and the no-legacy-intent READ_ONLY_LANDING_CANDIDATE_VALIDATION mode; do not weaken Decision immutability, expected-head protection, required checks, or target/base drift detection",
+      "command_id": "issue530_brand2b_v33.implement",
+      "command": "after PRE_EXECUTION_AUTHORIZED reconcile the reviewed BRAND-2B v32 semantic delta onto current main at file level; change only current/default repository identity to dddd2024/Nerelan; add current schema-v4 intent and attestation support while preserving historical v1 v2 v3 evidence byte-for-byte; preserve reverse_agent imports REVERSE_AGENT environment variables compatibility keys runtime markers and all newer main semantics",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -59,8 +59,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue156_correction_r2v6.validate",
-      "command": "run focused tests/test_project_gate.py plus the governance regression files actually containing the four P1 closures plus control-plane transition execution-evidence trusted-command-runner decision-preflight authority-closure ci-responsibility and exact-head workflow regressions; require git diff --check clean; do not mechanically re-run the full 700+ extended local baseline when the focused and governance regressions are green",
+      "command_id": "issue530_brand2b_v33.validate",
+      "command": "run focused BRAND-2B backend frontend schema and governance tests plus the CI-equivalent baseline required by the repository; run frontend test typecheck and build; require git diff --check and allowlist compliance; do not update visual snapshots and do not rerun unchanged failures",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -82,8 +82,32 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue156_correction_r2v6.validate_and_publish",
-      "command": "run the CI-equivalent blocking deterministic suites and git diff --check; after all blocking validation passes push the exact branch owner/issue156-control-plane-correction-r2-v6 to locked main cf8822d25dbe56dd79b496268360d46a7cb1246f and create exactly one Draft PR",
+      "command_id": "issue530_brand2b_v33.edge_acceptance",
+      "command": "start the provider-free trusted host locally and use installed Microsoft Edge only to complete and screenshot the current user flow: Home goal creation default repository Nerelan; task and run projections; settings and repository identity surfaces; inspect every accepted screenshot; no credentials model provider calls external navigation or snapshot mutation",
+      "phase": "acceptance",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "known_browser_execution",
+        "read_only_audit",
+        "local_static_check"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue530_brand2b_v33.publish_and_bind",
+      "command": "after all local validation and Edge acceptance pass push only the exact branch owner/issue530-brand2b-nerelan-r3-v33 and create exactly one Draft PR against locked main; bind the actual GitHub-assigned PR number in one schema-v4 active intent commit using the immutable Decision digest and exact committed command-plan digest; archive the inherited PR537 active intent byte-for-byte",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -92,8 +116,6 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "unit_test",
-        "local_static_check",
         "commit",
         "push",
         "draft_pr",
@@ -109,9 +131,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue156_correction_r2v6.exact_head_acceptance",
-      "command": "require natural exact-head CI Decision Preflight and State Gate observations on the Draft PR and independently audit that no unauthorized paths changed; keep the PR Draft and do NOT Ready or merge under this Decision; never rerun or dispatch workflows to manufacture green",
-      "phase": "final_evidence",
+      "command_id": "issue530_brand2b_v33.exact_head_audit_and_land",
+      "command": "require natural exact-head CI Decision Preflight Frontend Playwright Model Access and State Gate success without rerun; perform a separate clean exact-head audit proving allowlist compliance historical evidence preservation package and compatibility namespace preservation and Edge evidence; publish exact-head audit and schema-v4 approval attestation; immediately re-observe base head checks mergeability review threads and concurrency; mark Ready once and merge once with merge method and expected-head protection",
+      "phase": "landing",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
@@ -120,11 +142,16 @@
       "execution_surface": "remote_observation",
       "operations": [
         "code_read",
-        "read_only_audit"
+        "read_only_audit",
+        "pull_request_comment",
+        "mark_ready",
+        "workflow_observation",
+        "merge",
+        "network_access"
       ],
-      "network_access": false,
+      "network_access": true,
       "diagnostic_only": false,
-      "allowed_only_after_validation": false,
+      "allowed_only_after_validation": true,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
@@ -132,8 +159,34 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.afbb1400eb472ceedd43f11f9d14823773304aa0a9415c67be09c48c4b5d86be",
-      "command": "verify exact fresh main cf8822d25dbe56dd79b496268360d46a7cb1246f and fresh branch merge-base",
+      "command_id": "issue530_brand2b_v33.closeout",
+      "command": "verify the expected merge commit and post-merge main checks; confirm canonical GitHub repository identity and current/default product identity; close Issue 530 as completed; comment parent 262; close superseded PR581 without merging; record exact evidence",
+      "phase": "closeout",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "remote_observation",
+      "operations": [
+        "workflow_observation",
+        "issue_comment",
+        "issue_close",
+        "pull_request_update",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.f6d5c93369442589414f6489cdf7b80e2167608b438889de9d89182ea15f62c7",
+      "command": "verify exact fresh main cfe5fd3819009fdcb6a4d8402aa6b818947f9d0c and fresh branch merge-base",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -152,8 +205,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.234f8ef150ef2c4adfece3cb131177275c83ffd977f9e1a451805af4525ea5d0",
-      "command": "commit this immutable R2 Decision as the unique first commit",
+      "command_id": "bootstrap.f7de96f0ecd62e5c5e93dbf9fb14e886efd716e0a3e5080bc6b044dfe85f545c",
+      "command": "commit this immutable R3 Decision as the unique first commit",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
