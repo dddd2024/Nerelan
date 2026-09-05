@@ -93,7 +93,7 @@ def _structured_command(
     command: str = "git status --short",
     *,
     phase: str = "status",
-    surface: str = "local",
+    surface: str = "trusted_worker",
     operations: tuple[str, ...] = ("repository_observation",),
     network_access: bool = False,
     command_id: str = "",
@@ -219,7 +219,7 @@ def test_reconcile_executions_classifies_bootstrap_exceptions() -> None:
     envelopes = (
         ExecutionEnvelope(
             command="git status --short",
-            execution_surface="local",
+            execution_surface="trusted_worker",
             operations=("repository_observation",),
             exit_code=0,
         ),

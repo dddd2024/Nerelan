@@ -33,6 +33,101 @@ SUBPROCESS_EXECUTABLE_SURFACES = frozenset({
 # Explicit machine-specific capability declaration required for user_local.
 MACHINE_SPECIFIC_EXECUTION_OPERATION = "machine_specific_execution"
 
+# ---------------------------------------------------------------------------
+# Canonical operation -> admissible execution-surface compatibility.
+#
+# #636 proved that a surface token being enum-valid is not enough: a fresh
+# Decision can pair ``execution_surface`` with operations that surface cannot
+# actually perform. This single canonical table is consumed by BOTH structured
+# plan compilation and pre-execution plan validation so State Gate and
+# Decision Preflight share identical semantics. ``local`` intentionally has
+# no admissible operations here: it is a legacy compatibility token that is
+# only readable through ``load_legacy_command_plan``.
+# ---------------------------------------------------------------------------
+
+_SUBPROCESS_MUTATION_SURFACES = frozenset({"trusted_worker", "user_local"})
+_SUBPROCESS_VALIDATION_SURFACES = frozenset({"trusted_worker", "user_local", "ci_only"})
+_READ_OBSERVATION_SURFACES = frozenset({"trusted_worker", "user_local", "ci_only", "remote_observation"})
+_GITHUB_NATIVE_SURFACES = frozenset({"github_control_plane"})
+_NETWORK_SURFACES = frozenset({"trusted_worker", "user_local", "ci_only", "github_control_plane"})
+
+# Checkout/source-edits and checkout-local mutations require executor
+# provenance (trusted_worker / explicit machine-specific user_local). They
+# are NEVER satisfiable by the GitHub control plane, repository CI, or
+# read-only observation even though those surface tokens are valid.
+OPERATION_SURFACE_ADMISSIBILITY: dict[str, frozenset[str]] = {
+    "source_edit": _SUBPROCESS_MUTATION_SURFACES,
+    "commit": _SUBPROCESS_MUTATION_SURFACES,
+    "build": _SUBPROCESS_MUTATION_SURFACES,
+    "command_plan_generation": _SUBPROCESS_MUTATION_SURFACES,
+    # Repository-owned validation executes in a checkout or in CI workflows.
+    "unit_test": _SUBPROCESS_VALIDATION_SURFACES,
+    "local_static_check": _SUBPROCESS_VALIDATION_SURFACES,
+    "diff_validation": _SUBPROCESS_VALIDATION_SURFACES,
+    "integration_test": _SUBPROCESS_VALIDATION_SURFACES,
+    # Read-only observation.
+    "repository_observation": _READ_OBSERVATION_SURFACES,
+    "code_read": _READ_OBSERVATION_SURFACES,
+    "read_only_audit": frozenset({"trusted_worker", "user_local", "remote_observation"}),
+    "remote_observation": frozenset({"trusted_worker", "user_local", "ci_only", "remote_observation"}),
+    # GitHub-native control-plane mutations/publication.
+    "push": _GITHUB_NATIVE_SURFACES,
+    "draft_pr": _GITHUB_NATIVE_SURFACES,
+    "pr_create": _GITHUB_NATIVE_SURFACES,
+    "pull_request_comment": _GITHUB_NATIVE_SURFACES,
+    "issue_comment": _GITHUB_NATIVE_SURFACES,
+    "mark_ready": _GITHUB_NATIVE_SURFACES,
+    "merge": _GITHUB_NATIVE_SURFACES,
+    "ready": _GITHUB_NATIVE_SURFACES,
+    # Network/install modifiers.
+    "network_access": _NETWORK_SURFACES,
+    "network": _NETWORK_SURFACES,
+    "package_install": _SUBPROCESS_VALIDATION_SURFACES,
+    "dependency_install": _SUBPROCESS_VALIDATION_SURFACES,
+    # Machine-specific declaration is user_local-only.
+    "machine_specific_execution": frozenset({"user_local"}),
+}
+
+# Surfaces that current/new structured authoring may select. The legacy
+# ``local`` token is deliberately excluded.
+CURRENT_AUTHORING_SURFACES = frozenset({
+    "github_control_plane",
+    "trusted_worker",
+    "ci_only",
+    "remote_observation",
+    "user_local",
+})
+
+
+def _admissible_surfaces(operation: str) -> frozenset[str] | None:
+    return OPERATION_SURFACE_ADMISSIBILITY.get(operation)
+
+
+def operation_surface_errors(
+    operations: tuple[str, ...],
+    surface: str,
+    *,
+    command_identity: str = "",
+) -> tuple[str, ...]:
+    """Return canonical operation↔surface incompatibility errors.
+
+    Unknown operations fail closed: a current typed Decision must only declare
+    operations whose admissible-surface class is known and whose surface is in
+    that class. ``local`` carries no admissible operations for current New
+    authoring; this function never authorizes it.
+    """
+
+    errors: list[str] = []
+    for operation in operations:
+        admissible = _admissible_surfaces(operation)
+        if admissible is None:
+            errors.append(f"unknown_operation:{operation}:{surface}:{command_identity}")
+        elif surface not in admissible:
+            errors.append(
+                f"operation_surface_incompatible:{operation}:{surface}:{command_identity}"
+            )
+    return tuple(errors)
+
 
 def validate_command_plan(plan: TransitionCommandPlan) -> tuple[str, ...]:
     errors: list[str] = []
@@ -67,6 +162,22 @@ def validate_command_plan(plan: TransitionCommandPlan) -> tuple[str, ...]:
         if identity in seen_commands:
             errors.append(f"duplicate_command:{identity[1]}:{identity[0]}")
         seen_commands.add(identity)
+        # G2-compatibility / #636: current/new structured authoring must not
+        # select the legacy ``local`` surface. Bootstrap-exception commands
+        # are the narrow historical/migration seam and keep their exemption.
+        if entry.execution_surface == LEGACY_LOCAL_SURFACE and not entry.bootstrap_exception:
+            errors.append(
+                f"legacy_local_surface_forbidden_in_current_authoring:{identity[0]}"
+            )
+        # Canonical operation↔surface admissibility. Historical tracked
+        # artifacts stay readable through load_legacy_command_plan; this
+        # validation is for current/new typed plans.
+        compatibility = operation_surface_errors(
+            entry.operations,
+            entry.execution_surface,
+            command_identity=identity[0],
+        )
+        errors.extend(compatibility)
     return tuple(errors)
 
 
