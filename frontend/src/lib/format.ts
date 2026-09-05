@@ -125,6 +125,12 @@ export function riskTierStyle(tier: RiskTier): StateStyle {
         badge: "bg-rose-50 text-rose-700 border-rose-200",
         dot: "bg-rose-400",
       };
+    case "UNKNOWN":
+      return {
+        label: "风险未提供",
+        badge: "bg-slate-50 text-slate-600 border-slate-200",
+        dot: "bg-slate-400",
+      };
   }
 }
 

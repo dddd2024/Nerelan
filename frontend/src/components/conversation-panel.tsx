@@ -12,7 +12,7 @@ interface ConversationPanelProps {
 }
 
 function searchableTaskText(task: Task) {
-  return [task.title, task.issueNumber > 0 ? `#${task.issueNumber}` : "", task.repository ?? "", task.branch]
+  return [task.title, task.issueNumber ? `#${task.issueNumber}` : "", task.repository ?? "", task.branch]
     .join(" ")
     .toLocaleLowerCase();
 }
@@ -138,7 +138,7 @@ export function ConversationPanel({ open, onClose }: ConversationPanelProps) {
                         <span className="min-w-0 flex-1 truncate text-[13px] font-medium leading-5">
                           {task.title}
                         </span>
-                        {task.issueNumber > 0 ? (
+                        {task.issueNumber ? (
                           <span className="shrink-0 text-[10px] tabular-nums text-ra-text-tertiary">
                             #{task.issueNumber}
                           </span>

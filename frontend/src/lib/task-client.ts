@@ -52,6 +52,22 @@ const _VALID_TEST_STATUSES = new Set([
   "RUNNING",
   "PENDING",
 ] as const);
+const _VALID_RISK_TIERS = new Set(["R0", "R1", "R2", "R3"] as const);
+const _VALID_AUTHORITY_STATUSES = new Set([
+  "APPROVED",
+  "CANDIDATE",
+  "EXPIRED",
+  "MISSING",
+  "REVOKED",
+] as const);
+const _VALID_WORKFLOW_STATUSES = new Set([
+  "SUCCESS",
+  "FAILURE",
+  "PENDING",
+  "RUNNING",
+  "NEUTRALIZED",
+  "UNKNOWN",
+] as const);
 
 function _deriveTestStatus(raw: Record<string, unknown>): string {
   const validationExitCode = (raw as { validation_exit_code?: unknown }).validation_exit_code;
@@ -98,6 +114,60 @@ function _statusOf(event: Record<string, unknown> | undefined) {
   return String((event as { type?: string }).type ?? "");
 }
 
+function _hasOwn(source: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(source, key);
+}
+
+function _governanceValue(
+  source: Record<string, unknown>,
+  raw: Record<string, unknown>,
+  camelKey: string,
+  snakeKey: string,
+): unknown {
+  if (_hasOwn(source, camelKey)) return source[camelKey];
+  if (_hasOwn(source, snakeKey)) return source[snakeKey];
+  if (source !== raw) {
+    if (_hasOwn(raw, camelKey)) return raw[camelKey];
+    if (_hasOwn(raw, snakeKey)) return raw[snakeKey];
+  }
+  return undefined;
+}
+
+function _issueNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value > 0
+    ? value
+    : null;
+}
+
+function _riskTier(value: unknown): "R0" | "R1" | "R2" | "R3" | "UNKNOWN" {
+  return typeof value === "string" &&
+    _VALID_RISK_TIERS.has(value as "R0" | "R1" | "R2" | "R3")
+    ? (value as "R0" | "R1" | "R2" | "R3")
+    : "UNKNOWN";
+}
+
+function _authorityStatus(
+  value: unknown,
+): "APPROVED" | "CANDIDATE" | "EXPIRED" | "MISSING" | "REVOKED" {
+  return typeof value === "string" &&
+    _VALID_AUTHORITY_STATUSES.has(
+      value as "APPROVED" | "CANDIDATE" | "EXPIRED" | "MISSING" | "REVOKED",
+    )
+    ? (value as "APPROVED" | "CANDIDATE" | "EXPIRED" | "MISSING" | "REVOKED")
+    : "MISSING";
+}
+
+function _workflowStatus(
+  value: unknown,
+): "SUCCESS" | "FAILURE" | "PENDING" | "RUNNING" | "NEUTRALIZED" | "UNKNOWN" {
+  return typeof value === "string" &&
+    _VALID_WORKFLOW_STATUSES.has(
+      value as "SUCCESS" | "FAILURE" | "PENDING" | "RUNNING" | "NEUTRALIZED" | "UNKNOWN",
+    )
+    ? (value as "SUCCESS" | "FAILURE" | "PENDING" | "RUNNING" | "NEUTRALIZED" | "UNKNOWN")
+    : "UNKNOWN";
+}
+
 function _normalizeTask(raw: Record<string, unknown>) {
   const ft = raw.frontend_task as Record<string, unknown> | undefined;
   const source = ft ?? raw;
@@ -125,9 +195,13 @@ function _normalizeTask(raw: Record<string, unknown>) {
   return {
     id,
     title,
-    issueNumber: Number(source.issueNumber ?? 0),
+    issueNumber: _issueNumber(
+      _governanceValue(source, raw, "issueNumber", "issue_number"),
+    ),
     state,
-    riskTier: (source.riskTier as string) ?? "R1",
+    riskTier: _riskTier(
+      _governanceValue(source, raw, "riskTier", "risk_tier"),
+    ),
     updatedAt: String(source.updatedAt ?? raw.updated_at ?? ""),
     blocker: (source.blocker as string | undefined) ?? "",
     nextAction: (source.nextAction as string | undefined) ?? "",
@@ -170,9 +244,13 @@ function _normalizeTask(raw: Record<string, unknown>) {
       detail: String(ev.detail ?? ""),
       rawJson: String((ev as { raw_json_digest?: string }).raw_json_digest ?? ""),
     })),
-    authorityStatus: (source.authorityStatus as string) ?? "APPROVED",
+    authorityStatus: _authorityStatus(
+      _governanceValue(source, raw, "authorityStatus", "authority_status"),
+    ),
     testStatus: _deriveTestStatus(raw),
-    workflowStatus: (source.workflowStatus as string) ?? "PENDING",
+    workflowStatus: _workflowStatus(
+      _governanceValue(source, raw, "workflowStatus", "workflow_status"),
+    ),
     executor:
       (source.executor as string | undefined) ??
       (raw.executor_kind as string | undefined) ??
@@ -180,7 +258,6 @@ function _normalizeTask(raw: Record<string, unknown>) {
     repository: String(raw.repository ?? ""),
     executionId: String(source.execution_id ?? raw.execution_id ?? ""),
     failureClassification:
-      (raw as { failure_classification?: string }).failure_classification ??
       (raw as { failure_classification?: string }).failure_classification ??
       "",
     validationCommandId:
@@ -194,7 +271,9 @@ function _normalizeTask(raw: Record<string, unknown>) {
 export async function fetchTasks(): Promise<Record<string, unknown>[]> {
   if (_isMock()) {
     const { FIXTURE_TASKS } = await import("@/fixtures/tasks");
-    return (FIXTURE_TASKS as unknown as Array<Record<string, unknown>>) ?? [];
+    return ((FIXTURE_TASKS as unknown as Array<Record<string, unknown>>) ?? []).map(
+      _normalizeTask,
+    );
   }
   const response = await fetch(`${API_BASE}/api/tasks`, {
     headers: { Accept: "application/json" },
@@ -215,7 +294,7 @@ export async function fetchTask(taskId: string) {
     const { findFixtureTask } = await import("@/fixtures/tasks");
     const found = findFixtureTask(taskId);
     if (!found) throw new Error(`Task not found: ${taskId}`);
-    return found as unknown as Record<string, unknown>;
+    return _normalizeTask(found as unknown as Record<string, unknown>);
   }
   const response = await fetch(`${API_BASE}/api/tasks/${taskId}`, {
     method: "GET",
@@ -258,9 +337,9 @@ export async function executeTask(taskId: string): Promise<Record<string, unknow
     return {
       id: taskId,
       title: "mock task",
-      issueNumber: 0,
+      issueNumber: null,
       state: "READY_FOR_HUMAN",
-      riskTier: "R1",
+      riskTier: "UNKNOWN",
       updatedAt: new Date().toISOString(),
       nextAction: "mock fixture execution",
       permissionProfile: "ASK_FOR_APPROVAL",
@@ -278,9 +357,9 @@ export async function executeTask(taskId: string): Promise<Record<string, unknow
         { id: "ev-1", category: "Validation", label: "git_diff_check", value: "0", status: "pass", detail: "", rawJson: "" },
         { id: "ev-2", category: "Executor", label: "executor_kind", value: "deterministic_fixture", status: "pass", detail: "", rawJson: "" },
       ],
-      authorityStatus: "APPROVED",
+      authorityStatus: "MISSING",
       testStatus: "PASS",
-      workflowStatus: "PENDING",
+      workflowStatus: "UNKNOWN",
       executor: "fixture/provider-free",
     };
   }
@@ -317,9 +396,9 @@ export async function createTask(
     return {
       id: `mock-${timestamp}`,
       title,
-      issueNumber: 0,
+      issueNumber: null,
       state: "WAITING_FOR_OWNER",
-      riskTier: "R1",
+      riskTier: "UNKNOWN",
       updatedAt: new Date().toISOString(),
       nextAction: "mock backend task plane",
       permissionProfile: "ASK_FOR_APPROVAL",
@@ -327,9 +406,9 @@ export async function createTask(
       activity: [],
       changes: [],
       evidence: [],
-      authorityStatus: "APPROVED",
+      authorityStatus: "MISSING",
       testStatus: "PENDING",
-      workflowStatus: "PENDING",
+      workflowStatus: "UNKNOWN",
       executor: "fixture/provider-free",
     };
   }
