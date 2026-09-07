@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260905_issue156_execution_surface_compat_r2_v2",
-  "round_id": "round_20260905_issue156_execution_surface_compat_r2_v2",
+  "decision_id": "decision_20260907_issue503_visual_golden_r3_v3",
+  "round_id": "round_20260907_issue503_visual_golden_r3_v3",
   "commands": [
     {
-      "command_id": "execution_surface_compat_r2_v2.bootstrap_and_preflight",
-      "command": "verify exact fresh locked main 97a9c18a8751e0f7ffd496b71883f51c009835ef and fresh branch merge-base; commit this immutable R2 Decision first; run startup snapshot command-plan compiler transition lint and transition preflight pre; require PRE_EXECUTION_AUTHORIZED before any semantic mutation",
+      "command_id": "issue503_r3v3.bootstrap_and_preflight",
+      "command": "verify exact fresh locked main 63801368f4eb207cf7961e9be4e8be5da58e9046 and fresh branch merge-base; commit this immutable R3 Decision as the unique first commit; run startup snapshot transition command plan transition lint transition preflight pre and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before any PNG mutation",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -34,8 +34,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "execution_surface_compat_r2_v2.implement",
-      "command": "after PRE_EXECUTION_AUTHORIZED carry forward byte-for-byte the v1 operation-surface compatibility validator in reverse_agent/control_plane/command_authority.py and its regressions, then implement the v2 closure: define ONE canonical capability-flag-to-operation vocabulary (CAPABILITY_OPERATION_MAPPING) in command_authority.py shared by capability-policy enforcement (_capability_forbidden_operations in transition.py) and the operation-surface compatibility registry; add an explicit admissible-surface entry for every capability-controlled operation that can become allowed (runner_dispatch model_api_invocation external_reverse_tool_invocation unknown_binary_execution destructive bmad_installation direct_push_main force_push rebase tag_or_release; merge already covered) grounded in the #156 surface model (GitHub-native ref/workflow/tag publication to github_control_plane; checked-out-repo history/destructive/subprocess-tool/binary execution to trusted_worker(+user_local); networked external API calls and installs to network-capable subprocess/CI surfaces); keep truly unsupported operations fail-closed as unknown_operation; add a machine-checked completeness invariant (every capability-controlled operation that can become allowed must be present in OPERATION_SURFACE_ADMISSIBILITY) plus positive capability-enabled operation/surface cases, negative cross-surface cases, and the capability-policy-and-compatibility-both-required proof; preserve the #636 github_control_plane + source_edit/commit rejection and the legacy local loader seam",
+      "command_id": "issue503_r3v3.materialize_frozen_pngs",
+      "command": "download GitHub Actions artifact 9960604836 for run 33937230275 and verify its ZIP SHA256 7345a815bdb1dec95571a128797f61582b420588dca485e8253e84e7719a74c4; extract exactly the eight accepted *-actual.png blobs and write each to its frontend/e2e/snapshots/desktop-chromium or mobile-chromium target; verify each written file SHA256 exactly equals the frozen manifest; perform no browser execution no snapshot update and no threshold change",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -45,22 +45,30 @@
       "execution_surface": "trusted_worker",
       "operations": [
         "source_edit",
-        "unit_test",
         "local_static_check",
         "commit"
       ],
-      "network_access": false,
+      "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
+      "allowed_mutated_paths": [
+        "frontend/e2e/snapshots/desktop-chromium/home-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
+        "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
+        "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/settings-dark.png"
+      ]
     },
     {
-      "command_id": "execution_surface_compat_r2_v2.validate",
-      "command": "run python -m pytest tests/test_execution_evidence.py tests/test_control_plane_transition.py tests/test_authority_closure.py tests/test_command_mutation_grants.py tests/test_provenance_integration.py tests/test_trusted_command_runner.py tests/test_trust_authorization_adapter.py -q plus the State Gate focused suite tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py; require git diff --check clean and transition-lint/transition-command-plan/transition-preflight revalidation and worktree-publication-readiness PUBLICATION_READY",
+      "command_id": "issue503_r3v3.validate",
+      "command": "run git status --short and git diff --check; re-run transition lint transition command plan transition preflight pre and worktree publication readiness; run all applicable non-browser deterministic governance tests; require PUBLICATION_READY and zero diff check violations",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -82,8 +90,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "execution_surface_compat_r2_v2.publish",
-      "command": "after all blocking validation passes, push the exact branch owner/issue156-execution-surface-compat-r2-v2 to locked main 97a9c18a8751e0f7ffd496b71883f51c009835ef and create exactly one Draft PR with body recording the immutable R2 authority snapshot; never mark Ready or merge under this Decision; never rerun or dispatch workflows",
+      "command_id": "issue503_r3v3.publish",
+      "command": "after all blocking validation passes push the exact branch owner/issue503-visual-golden-r3-v3 to locked main 63801368f4eb207cf7961e9be4e8be5da58e9046 and create exactly one Draft PR with body recording the immutable R3 authority snapshot; never mark Ready and never merge under this Decision",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -106,8 +114,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "execution_surface_compat_r2_v2.exact_head_acceptance",
-      "command": "require natural exact-head CI, Decision Preflight and State Gate observations on the Draft PR and independently audit that no unauthorized paths changed, that the operation-surface compatibility regressions, the capability completeness invariant and legacy compatibility tests are green, and that no capability-controlled operation can be both capability-allowed and registry-missing; keep the PR Draft and do NOT Ready or merge under this Decision",
+      "command_id": "issue503_r3v3.exact_head_acceptance",
+      "command": "require natural exact-head CI Decision Preflight State Gate and Frontend Playwright on the Draft PR; Frontend Playwright must report 26 total 24 passed 2 skipped 0 failed on locked Ubuntu 24.04 Node 22.23.1 Playwright 1.62.1 Chromium 151.0.7922.34 revision 1234; keep the PR Draft and do NOT Ready or merge under this Decision",
       "phase": "final_evidence",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
