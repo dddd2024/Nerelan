@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260905_issue156_execution_surface_compat_r2_v2",
-  "round_id": "round_20260905_issue156_execution_surface_compat_r2_v2",
+  "decision_id": "decision_20260907_issue503_pr640_owner_landing_r3_v1",
+  "round_id": "round_20260907_issue503_pr640_owner_landing_r3_v1",
   "commands": [
     {
-      "command_id": "execution_surface_compat_r2_v2.bootstrap_and_preflight",
-      "command": "verify exact fresh locked main 97a9c18a8751e0f7ffd496b71883f51c009835ef and fresh branch merge-base; commit this immutable R2 Decision first; run startup snapshot command-plan compiler transition lint and transition preflight pre; require PRE_EXECUTION_AUTHORIZED before any semantic mutation",
+      "command_id": "pr640_owner_landing_r3_v1.bootstrap_and_preflight",
+      "command": "verify exact fresh locked main 63801368f4eb207cf7961e9be4e8be5da58e9046 and fresh branch merge-base; commit this immutable R3 Owner landing authority Decision first; run startup snapshot command-plan compiler transition lint and transition preflight pre; require PRE_EXECUTION_AUTHORIZED before any semantic mutation",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -25,8 +25,6 @@
       "bootstrap_exception": false,
       "produced_artifacts": [
         "project_state/gates/command_plan.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/bootstrap_state.json",
         "project_state/gates/transition_command_plan_preview.json",
         "project_state/gates/transition_preflight_result.json"
       ],
@@ -34,33 +32,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "execution_surface_compat_r2_v2.implement",
-      "command": "after PRE_EXECUTION_AUTHORIZED carry forward byte-for-byte the v1 operation-surface compatibility validator in reverse_agent/control_plane/command_authority.py and its regressions, then implement the v2 closure: define ONE canonical capability-flag-to-operation vocabulary (CAPABILITY_OPERATION_MAPPING) in command_authority.py shared by capability-policy enforcement (_capability_forbidden_operations in transition.py) and the operation-surface compatibility registry; add an explicit admissible-surface entry for every capability-controlled operation that can become allowed (runner_dispatch model_api_invocation external_reverse_tool_invocation unknown_binary_execution destructive bmad_installation direct_push_main force_push rebase tag_or_release; merge already covered) grounded in the #156 surface model (GitHub-native ref/workflow/tag publication to github_control_plane; checked-out-repo history/destructive/subprocess-tool/binary execution to trusted_worker(+user_local); networked external API calls and installs to network-capable subprocess/CI surfaces); keep truly unsupported operations fail-closed as unknown_operation; add a machine-checked completeness invariant (every capability-controlled operation that can become allowed must be present in OPERATION_SURFACE_ADMISSIBILITY) plus positive capability-enabled operation/surface cases, negative cross-surface cases, and the capability-policy-and-compatibility-both-required proof; preserve the #636 github_control_plane + source_edit/commit rejection and the legacy local loader seam",
-      "phase": "implementation",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "trusted_worker",
-      "operations": [
-        "source_edit",
-        "unit_test",
-        "local_static_check",
-        "commit"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "execution_surface_compat_r2_v2.validate",
-      "command": "run python -m pytest tests/test_execution_evidence.py tests/test_control_plane_transition.py tests/test_authority_closure.py tests/test_command_mutation_grants.py tests/test_provenance_integration.py tests/test_trusted_command_runner.py tests/test_trust_authorization_adapter.py -q plus the State Gate focused suite tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py; require git diff --check clean and transition-lint/transition-command-plan/transition-preflight revalidation and worktree-publication-readiness PUBLICATION_READY",
+      "command_id": "pr640_owner_landing_r3_v1.validate",
+      "command": "run focused deterministic tests tests/test_mainline_landing.py tests/test_github_remote_verifier.py tests/test_control_plane_transition.py tests/test_project_gate.py tests/test_decision_preflight.py tests/test_planning_and_github_adapters.py -q; require git diff --check clean and transition-lint/transition-command-plan/transition-preflight revalidation and worktree-publication-readiness PUBLICATION_READY",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -82,8 +55,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "execution_surface_compat_r2_v2.publish",
-      "command": "after all blocking validation passes, push the exact branch owner/issue156-execution-surface-compat-r2-v2 to locked main 97a9c18a8751e0f7ffd496b71883f51c009835ef and create exactly one Draft PR with body recording the immutable R2 authority snapshot; never mark Ready or merge under this Decision; never rerun or dispatch workflows",
+      "command_id": "pr640_owner_landing_r3_v1.publish_authority",
+      "command": "after all blocking validation passes, push the exact authority branch owner/issue503-pr640-owner-landing-r3-v1 to locked main 63801368f4eb207cf7961e9be4e8be5da58e9046 and create exactly one Draft authority sidecar PR recording the immutable authority snapshot; keep the sidecar Draft forever and never mark Ready or merge the sidecar; never rerun or dispatch workflows",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -106,8 +79,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "execution_surface_compat_r2_v2.exact_head_acceptance",
-      "command": "require natural exact-head CI, Decision Preflight and State Gate observations on the Draft PR and independently audit that no unauthorized paths changed, that the operation-surface compatibility regressions, the capability completeness invariant and legacy compatibility tests are green, and that no capability-controlled operation can be both capability-allowed and registry-missing; keep the PR Draft and do NOT Ready or merge under this Decision",
+      "command_id": "pr640_owner_landing_r3_v1.natural_authority_validation",
+      "command": "require natural exact-head CI, Decision Preflight and State Gate observations on the authority Draft PR and confirm no main or target head drift and no concurrent landing authority; keep the authority PR Draft and do NOT mark Ready or merge; the authority grants the Owner exactly-once Mark Ready and expected-head merge of target PR 640 only after natural authority workflows, a formal Ready-triggered landing-state-gate, and required exact-head contexts baseline state-gate landing-state-gate",
       "phase": "final_evidence",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
