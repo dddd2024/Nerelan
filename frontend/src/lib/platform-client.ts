@@ -733,6 +733,115 @@ export function __setMockRuns(runs: PlatformAgentRun[]) {
   mockRuns.splice(0, mockRuns.length, ...runs);
 }
 
+function emptyMockUsage(): PlatformUsageSummary {
+  return {
+    status: "OBSERVED",
+    input_units: 0,
+    output_units: 0,
+    reasoning_units: 0,
+    cache_read_units: 0,
+    cache_write_units: 0,
+    cost_micro_units: 0,
+    total_token_units: 0,
+    observation_count: 0,
+    unknown_observation_count: 0,
+    provenance_ids: [],
+    per_role: [],
+  };
+}
+
+function materializeMockGoalRuns(goal: PlatformGoal) {
+  const primaryTemplate = mockRuns.find((run) => run.task_id === "task-demo-1") ?? mockRuns[0];
+  if (!primaryTemplate) return;
+  const queuedTemplate = mockRuns.find((run) => run.task_id === "task-demo-queued") ?? primaryTemplate;
+
+  const generated = (goal.task_links ?? []).map((link) => {
+    const queued = link.status === "QUEUED";
+    const template = queued ? queuedTemplate : primaryTemplate;
+    const events = queued
+      ? []
+      : (template.events ?? template.activity ?? []).map((event, index) => ({
+          ...event,
+          id: `${link.task_id}-activity-${index + 1}`,
+          task_id: link.task_id,
+        }));
+
+    return {
+      ...template,
+      task_id: link.task_id,
+      title: `[${goal.title}] ${link.plan_task_id} ${link.title}`,
+      repository: goal.repository,
+      status: link.status,
+      state: queued ? "QUEUED" : template.state,
+      executor_kind: goal.executor_kind,
+      orchestration_mode: goal.orchestration_mode,
+      created_at: goal.created_at,
+      updated_at: goal.updated_at,
+      failure_classification: "",
+      goal_id: goal.id,
+      goal_title: goal.title,
+      window_id: goal.window_id || mockWindow.id,
+      stage: queued ? "PLAN" : template.stage,
+      liveness: queued ? "WAITING" : template.liveness,
+      last_activity_at: queued ? undefined : goal.updated_at,
+      liveness_detail: queued
+        ? undefined
+        : template.liveness_detail
+          ? { ...template.liveness_detail, last_activity_at: goal.updated_at }
+          : undefined,
+      current_activity: queued
+        ? null
+        : template.current_activity
+          ? { ...template.current_activity, timestamp: goal.updated_at }
+          : null,
+      current_agent: queued
+        ? null
+        : template.current_agent
+          ? { ...template.current_agent }
+          : null,
+      agents: queued ? [] : (template.agents ?? []).map((agent) => ({ ...agent })),
+      change_summary: queued
+        ? null
+        : template.change_summary
+          ? { ...template.change_summary }
+          : null,
+      validation: queued
+        ? null
+        : template.validation
+          ? { ...template.validation }
+          : null,
+      events,
+      activity: events.map((event) => ({ ...event })),
+      activity_total: events.length,
+      event_count: events.length,
+      events_truncated: false,
+      changed_files: queued
+        ? []
+        : (template.changed_files ?? []).map((file) => ({ ...file })),
+      usage: emptyMockUsage(),
+      budget: null,
+      publication: null,
+      controls: {
+        cancel: queued
+          ? {
+              action: "CANCEL",
+              scope: "QUEUE_ONLY",
+              availability: "AVAILABLE",
+              reason_code: "QUEUED_UNCLAIMED",
+            }
+          : {
+              action: "CANCEL",
+              scope: "QUEUE_ONLY",
+              availability: "UNAVAILABLE",
+              reason_code: "STATUS_NOT_CANCELLABLE",
+            },
+      },
+    } satisfies PlatformAgentRun;
+  });
+
+  mockRuns.unshift(...generated);
+}
+
 export class PlatformClientError extends Error {
   readonly status: number;
   readonly code: string;
@@ -799,10 +908,11 @@ export async function startGoal(input: StartGoalInput): Promise<PlatformGoal> {
       task_links: mockGoal.task_links?.map((item, index) => ({
         ...item,
         task_id: `mock-task-${Date.now()}-${index}`,
-        status: index === 0 ? "RUNNING" : "QUEUED",
+        status: index === 0 ? "READY_FOR_REVIEW" : "QUEUED",
       })),
     };
     mockGoals = [goal, ...mockGoals];
+    materializeMockGoalRuns(goal);
     return goal;
   }
 
