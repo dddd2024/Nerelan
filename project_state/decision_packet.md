@@ -3,38 +3,36 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260908_issue423_windows_platform_ci_r2_v3",
-  "round_id": "round_20260908_issue423_windows_platform_ci_r2_v3",
+  "decision_id": "decision_20260908_issue585_desktop0_tauri_r2_v7",
+  "round_id": "round_20260908_issue585_desktop0_tauri_r2_v7",
   "status": "APPROVED",
   "mainline": "engineering_branch",
-  "skill_profiles": [
-    "reverse-agent-iteration@v2"
-  ]
+  "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "FRESH_MAIN_WINDOWS_HOSTED_LAUNCHER_LIFECYCLE_CI_LANE_R2_V3_POST640_SURFACE",
+  "decision_scope": "FRESH_MAIN_DESKTOP0_TAURI_NATIVE_STARTUP_BRIDGE_R2_V7",
   "not_product_redesign": true,
-  "follows_last_decision_id": "decision_20260908_issue423_windows_platform_ci_r2_v2",
-  "follows_last_round_id": "round_20260908_issue423_windows_platform_ci_r2_v2",
-  "previous_audit_outcome": "R2_V1_ACTIVATION_BRANCH_A3FF0A6F_STALE_TERMINAL_NEGATIVE_AUTHORITY_ONLY;R2_V2_BASE_EB1CBFA5_STALE_TERMINAL_NEGATIVE_AUTHORITY_ONLY;PR424_WRONG_RISK_R1_FOR_WORKFLOW_PATH_CLOSED_UNMERGED_TERMINAL_NEGATIVE_AUTHORITY_ONLY;FRESH_CURRENT_MAIN_7452A592_LOCKED_FOR_V3_RE_ANCHOR",
-  "workstream_id": "issue423-windows-platform-ci-r2-v3",
-  "source_issue": 423,
-  "parent_issue": 363,
+  "follows_last_decision_id": "decision_20260908_issue585_desktop0_tauri_r2_v6",
+  "follows_last_round_id": "round_20260908_issue585_desktop0_tauri_r2_v6",
+  "previous_audit_outcome": "R2_V6_FAILED_CLOSED_BEFORE_PRODUCT_MUTATION_BECAUSE_FORBIDDEN_FRONTEND_GLOB_OVERLAPPED_AUTHORIZED_FRONTEND_PRODUCT_PATHS",
+  "workstream_id": "issue585-desktop0-tauri-native-startup-bridge-r2-v7",
+  "source_issue": 585,
+  "parent_issue": 357,
   "integration_base_ref": "main",
-  "base_sha": "7452a592edfce2a243c4524b1cb78c8172e748a9",
-  "activation_base_sha": "7452a592edfce2a243c4524b1cb78c8172e748a9",
-  "starting_head": "7452a592edfce2a243c4524b1cb78c8172e748a9",
-  "required_branch": "owner/issue423-windows-platform-ci-r2-v3",
+  "base_sha": "5df08a23dbaa0e816f081b460ee6e2642004a2b1",
+  "activation_base_sha": "5df08a23dbaa0e816f081b460ee6e2642004a2b1",
+  "starting_head": "5df08a23dbaa0e816f081b460ee6e2642004a2b1",
+  "required_branch": "owner/desktop0-tauri-r2-v7",
   "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "authorized_risk_tier": "R2",
-  "workflow_profile": "windows_ci_r2",
+  "workflow_profile": "baseline",
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
@@ -46,7 +44,6 @@
   "post_publication_binding_commit_limit": 0,
   "normal_push_attempt_limit": 2,
   "draft_pr_creation_limit": 1,
-  "dependency_install_limit": 0,
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
   "live_model_call_limit": 0,
@@ -65,56 +62,95 @@
   "auto_merge_allowed": false,
   "force_push_allowed": false,
   "rebase_during_execution_allowed": false,
-  "dependency_install_allowed": false,
+  "dependency_install_allowed": true,
+  "known_browser_execution_allowed": false,
   "live_provider_access_allowed": false,
   "credential_access_allowed": false,
   "allowed_merge_method": "merge",
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
-  "no_legacy_intent_mode": "READ_ONLY_LANDING_CANDIDATE_VALIDATION",
-  "landing_authority_scope_note": "Only the exact new specialized Windows Hosted proof workflow .github/workflows/windows-platform-v1.yml is authorized. No launcher, test, existing workflow, dependency, product, or frontend mutation is authorized. No merge, Ready, auto-merge, direct main push, rebase, squash, amend, force push, workflow rerun, workflow dispatch, release, deploy or tag is authorized here. Final Ready/Merge requires a separate independent Owner landing authority.",
-  "issue_number_must_not_substitute_for_pr_number": true,
   "test_semantics_changes_allowed": false,
   "source_test_mutation_authorized": false,
-  "workflow_mutation_scope": "ADD_NEW_WINDOWS_HOSTED_LANES_ONLY_NO_EXISTING_WORKFLOW_EDIT",
+  "dependency_target_versions": {
+    "@tauri-apps/cli": "2.11.4",
+    "@tauri-apps/api": "2.11.1",
+    "tauri": "2.11.5",
+    "tauri-build": "2.6.3"
+  },
+  "cargo_repository_field": "https://github.com/dddd2024/Nerelan",
+  "canonical_repository": "dddd2024/Nerelan",
   "historical_negative_authority": {
-    "pr424": "5758061b4fb4f2c85a25eca057084a3aa9167359",
-    "pr424_disposition": "CLOSED_UNMERGED_TERMINAL_WRONG_RISK_NEGATIVE_AUTHORITY_ONLY",
-    "issue423_r2_v1_branch": "owner/issue423-windows-platform-ci-r2-v1",
-    "issue423_r2_v1_branch_sha": "a3ff0a6fbf84e216e0765581a408fdd2ee0c5592",
-    "issue423_r2_v1_disposition": "STALE_ACTIVATION_BRANCH_TERMINAL_STALE_NEGATIVE_AUTHORITY_ONLY",
-    "issue423_r2_v2_base": "eb1cbfa520582988e90e83d798d53379ba537fa8",
-    "issue423_r2_v2_disposition": "STALE_V2_BASE_TERMINAL_STALE_NEGATIVE_AUTHORITY_ONLY",
-    "no_reuse_no_rebase_no_force_update": true
+    "pr609_head": "fb4d54d7a146997dfd5decf224dab56dcb111781",
+    "pr609_decision_commit": "dd4a72b695a3c23911b3184989bbc14adf4a35fb",
+    "r2_v2_branch": "owner/desktop0-tauri-r2-v2",
+    "r2_v3_issue": 600,
+    "r2_v3_pr": 609,
+    "r2_v4_branch": "owner/desktop0-tauri-r2-v4",
+    "r2_v4_decision_commit": "e11735f3",
+    "r2_v4_disposition": "TERMINAL_LOCAL_NEGATIVE_AUTHORITY_EVIDENCE_ONLY",
+    "r2_v5_branch": "owner/desktop0-tauri-r2-v5",
+    "r2_v5_decision_commit": "aec0d197",
+    "r2_v5_disposition": "FAILED_TERMINAL_LOCAL_AUTHORITY_EVIDENCE_ONLY",
+    "r2_v5_blocker": "active_pr_binding_mode = draft_pr_body_only is not a supported current literal",
+    "r2_v6_branch": "owner/desktop0-tauri-r2-v6",
+    "r2_v6_decision_commit": "7f532f28",
+    "r2_v6_disposition": "FAILED_TERMINAL_LOCAL_AUTHORITY_EVIDENCE_ONLY",
+    "r2_v6_blocker": "forbidden_mutated_paths contained frontend/** which glob-covered authorized frontend product paths",
+    "no_cherry_pick_no_rebase_no_merge_no_force_update_no_history_reuse": true
+  },
+  "v6_terminal_evidence": {
+    "decision_commit": "7f532f280200cf0b64999ed5701b3f2cca0f6e76",
+    "result": "FAILED_TERMINAL_LOCAL_AUTHORITY_EVIDENCE_ONLY",
+    "blocker": "forbidden_mutated_paths frontend/** glob-overlapped authorized frontend product paths",
+    "root_cause": "forbidden_mutated_paths contained frontend/** which glob-covered authorized frontend paths"
   },
   "fresh_worktree_contract": {
     "creation_required": true,
-    "source_commit": "7452a592edfce2a243c4524b1cb78c8172e748a9",
+    "source_commit": "5df08a23dbaa0e816f081b460ee6e2642004a2b1",
     "source_ref": "origin/main",
-    "target_branch": "owner/issue423-windows-platform-ci-r2-v3",
+    "target_branch": "owner/desktop0-tauri-r2-v7",
     "no_switch_no_reset_no_stash_no_clean_other_worktree": true,
     "clean_status_required_at_activation": true
   },
   "semantic_implementation_contract": {
-    "workflow_path": ".github/workflows/windows-platform-v1.yml",
-    "runner": "windows-latest",
-    "test_command": "python -m pytest tests/platform_v1/test_dev_up_contract.py -q",
-    "install_command": "python -m pip install -e \".[test]\"",
-    "checkout_ref": "github.event.pull_request.head.sha || github.sha",
-    "continue_on_error_forbidden": true,
-    "blanket_skip_or_xfail_forbidden": true,
-    "deselection_forbidden": true,
-    "false_green_wrapper_forbidden": true,
-    "provider_or_model_calls_forbidden": true,
-    "credential_access_forbidden": true,
-    "no_ubuntu_baseline_duplication": true,
-    "trigger_surfaces": [
-      "launch_reverse_agent.bat",
-      "dev-up.ps1",
-      "dev-down.ps1",
-      "tests/platform_v1/test_dev_up_contract.py",
-      ".github/workflows/windows-platform-v1.yml"
-    ]
+    "allowed_only_after_authorized": true,
+    "webview_ipc_surface": "runtime_status | start_runtime | stop_runtime",
+    "generic_shell_bridge_forbidden": true,
+    "arbitrary_process_spawn_forbidden": true,
+    "arbitrary_filesystem_bridge_forbidden": true,
+    "powershell_execution_discrete_arg_required": true,
+    "dev_up_ps1_unchanged": true,
+    "dev_down_ps1_unchanged": true,
+    "frontend_src_unchanged": true,
+    "frontend_e2e_unchanged": true,
+    "frontend_tests_unchanged": true,
+    "frontend_vite_config_unchanged": true,
+    "no_cherry_pick_pr609": true,
+    "tauri_ipc_handlers": [
+      "runtime_status",
+      "start_runtime",
+      "stop_runtime"
+    ],
+    "no_arbitrary_shell_bridge": true,
+    "no_arbitrary_filesystem_bridge": true,
+    "no_arbitrary_process_bridge": true,
+    "dependency_versions": {
+      "@tauri-apps/cli": "2.11.4",
+      "@tauri-apps/api": "2.11.1",
+      "tauri": "2.11.5",
+      "tauri-build": "2.6.3"
+    },
+    "cargo_repository": "https://github.com/dddd2024/Nerelan",
+    "powershell_discrete_arg_required": true,
+    "dev_up_ps1_delta_none": true,
+    "dev_down_ps1_delta_none": true,
+    "frontend_src_delta_none": true,
+    "frontend_e2e_delta_none": true,
+    "frontend_tests_delta_none": true,
+    "frontend_playwright_config_delta_none": true,
+    "frontend_vite_config_delta_none": true,
+    "github_workflows_delta_none": true,
+    "pre_trust_workspace_execution_none": true
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
@@ -127,8 +163,8 @@
   "bootstrap_exception_commands": [],
   "allowed_commands": [
     {
-      "command_id": "issue423_r2v3.bootstrap_and_preflight",
-      "command": "verify exact fresh locked main 7452a592edfce2a243c4524b1cb78c8172e748a9 and fresh isolated worktree branch merge-base; commit this immutable R2 Decision as the unique first commit; run startup snapshot transition command plan transition lint transition preflight pre and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before any workflow mutation",
+      "command_id": "issue585_desktop0_v7.bootstrap_and_preflight",
+      "command": "verify exact fresh locked main 5df08a23dbaa0e816f081b460ee6e2642004a2b1 and fresh isolated worktree branch merge-base; commit this immutable R2 Decision as the unique first commit; run startup snapshot transition command plan transition lint transition preflight pre and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before any product mutation",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [0],
@@ -145,33 +181,62 @@
       ]
     },
     {
-      "command_id": "issue423_r2v3.materialize_windows_workflow",
-      "command": "add exactly one new specialized Windows Hosted proof workflow .github/workflows/windows-platform-v1.yml that runs on windows-latest, checks out the exact tested head, installs the repository existing test extras, and executes python -m pytest tests/platform_v1/test_dev_up_contract.py -q; no continue-on-error, no blanket skip or xfail, no deselection, no false-green wrapper, no provider or model call, no credential access, no Ubuntu baseline duplication",
+      "command_id": "issue585_desktop0_v7.update_package_json",
+      "command": "after PRE_EXECUTION_AUTHORIZED add @tauri-apps/cli 2.11.4 and @tauri-apps/api 2.11.1 to frontend/package.json devDependencies and dependencies respectively, update package-lock.json, and do not modify any other frontend file",
+      "phase": "implementation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "trusted_worker",
+      "operations": ["source_edit", "local_static_check", "commit", "package_install"],
+      "network_access": true,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": [
+        "frontend/package.json",
+        "frontend/package-lock.json"
+      ],
+      "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue585_desktop0_v7.materialize_tauri_shell",
+      "command": "after PRE_EXECUTION_AUTHORIZED create frontend/src-tauri on fresh main with Cargo.toml declaring tauri 2.11.5 tauri-build 2.6.3 and repository https://github.com/dddd2024/Nerelan plus build.rs src/main.rs src/lib.rs registering only runtime_status start_runtime stop_runtime through invoke_handler with no generic shell exec run_command API, tauri.conf.json, capabilities/default.json, generated bundle icons and .gitignore; do not modify frontend/src frontend/e2e frontend/tests dev-up.ps1 dev-down.ps1 frontend/vite.config.ts or any workflow",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "trusted_worker",
       "operations": ["source_edit", "local_static_check", "commit"],
       "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
+      "required_evidence_source": "local_command_evidence",
       "allowed_mutated_paths": [
-        ".github/workflows/windows-platform-v1.yml"
-      ]
+        "frontend/src-tauri/**"
+      ],
+      "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue423_r2v3.validate",
-      "command": "run git status --short and git diff --check; re-run transition lint transition command plan transition preflight pre and worktree publication readiness; run the applicable non-Windows deterministic governance tests; require PUBLICATION_READY and zero diff check violations",
+      "command_id": "issue585_desktop0_v7.rust_toolchain_if_missing",
+      "command": "if rustc or cargo are absent after PRE_EXECUTION_AUTHORIZED provision only a current stable official Rust toolchain needed for cargo check using bounded official Rust distribution access in a user-scoped or temporary location outside repository state; do not install unrelated system packages do not read credentials and do not mutate repository files as part of toolchain provisioning",
+      "phase": "implementation",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "trusted_worker",
+      "operations": ["dependency_install", "local_static_check"],
+      "network_access": true,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue585_desktop0_v7.validate",
+      "command": "run npm --prefix frontend run typecheck, npm --prefix frontend test, npm --prefix frontend run build, npm --prefix frontend run tauri -- info, cargo check --manifest-path frontend/src-tauri/Cargo.toml, git diff --check plus targeted static audit proving invoke_handler registers only runtime_status start_runtime stop_runtime with no generic shell bridge and no pre-trust workspace execution; rerun transition-lint transition-command-plan transition-preflight --mode pre and worktree-publication-readiness on the exact implementation head; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "trusted_worker",
-      "operations": ["unit_test", "local_static_check"],
+      "operations": ["unit_test", "local_static_check", "diff_validation", "code_read"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue423_r2v3.publish",
-      "command": "after all blocking validation passes push the exact branch owner/issue423-windows-platform-ci-r2-v3 to locked main 7452a592edfce2a243c4524b1cb78c8172e748a9 and create exactly one Draft PR with body recording the immutable R2 authority snapshot; never mark Ready and never merge under this Decision",
+      "command_id": "issue585_desktop0_v7.publish",
+      "command": "after all blocking validation passes push the exact branch owner/desktop0-tauri-r2-v7 to locked main 5df08a23dbaa0e816f081b460ee6e2642004a2b1 and create exactly one Draft PR with body recording the immutable R2 authority snapshot; never mark Ready and never merge under this Decision",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -182,8 +247,8 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue423_r2v3.exact_head_acceptance",
-      "command": "require natural exact-head CI Decision Preflight State Gate and Windows Hosted proof lane on the Draft PR; Windows Hosted proof lane must execute python -m pytest tests/platform_v1/test_dev_up_contract.py -q on windows-latest and report terminal SUCCESS; keep the PR Draft and do NOT Ready or merge under this Decision",
+      "command_id": "issue585_desktop0_v7.exact_head_acceptance",
+      "command": "require natural exact-head CI Decision Preflight State Gate and Tauri build lane on the Draft PR; keep the PR Draft and do NOT Ready or merge under this Decision",
       "phase": "final_evidence",
       "required": true,
       "expected_exit_codes": [0],
@@ -200,41 +265,29 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    ".github/workflows/windows-platform-v1.yml"
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/src-tauri/**"
   ],
   "reference_paths": [
     "AGENTS.md",
-    "launch_reverse_agent.bat",
     "dev-up.ps1",
     "dev-down.ps1",
-    "tests/platform_v1/test_dev_up_contract.py",
-    ".github/workflows/ci.yml",
-    ".github/workflows/decision-preflight.yml",
-    ".github/workflows/freshness.yml",
-    ".github/workflows/frontend-playwright.yml",
-    ".github/workflows/model-access.yml",
-    ".github/workflows/state-gate.yml",
-    "pyproject.toml",
-    "frontend/**",
-    "reverse_agent/**",
-    "tests/**"
+    "frontend/vite.config.ts",
+    "frontend/e2e/critical-user-journey.spec.ts",
+    "docs/roadmap/REPOSITORY_MODERNIZATION_V2_PLAN.md",
+    "reverse_agent/control_plane/command_authority.py",
+    "reverse_agent/control_plane/transition.py"
   ],
   "reference_only_paths": [
     "AGENTS.md",
-    "launch_reverse_agent.bat",
     "dev-up.ps1",
     "dev-down.ps1",
-    "tests/platform_v1/test_dev_up_contract.py",
-    ".github/workflows/ci.yml",
-    ".github/workflows/decision-preflight.yml",
-    ".github/workflows/freshness.yml",
-    ".github/workflows/frontend-playwright.yml",
-    ".github/workflows/model-access.yml",
-    ".github/workflows/state-gate.yml",
-    "pyproject.toml",
-    "frontend/**",
-    "reverse_agent/**",
-    "tests/**"
+    "frontend/vite.config.ts",
+    "frontend/e2e/critical-user-journey.spec.ts",
+    "docs/roadmap/REPOSITORY_MODERNIZATION_V2_PLAN.md",
+    "reverse_agent/control_plane/command_authority.py",
+    "reverse_agent/control_plane/transition.py"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -244,33 +297,115 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "forbidden_mutated_paths": [
-    "AGENTS.md", "README.md", "README.txt", "docs/**", ".codex-skills/**",
-    "launch_reverse_agent.bat", "launch_nerelan.bat", "dev-up.ps1", "dev-down.ps1",
-    "tests/platform_v1/test_dev_up_contract.py", "tests/**",
-    ".github/workflows/ci.yml", ".github/workflows/decision-preflight.yml",
-    ".github/workflows/freshness.yml", ".github/workflows/frontend-playwright.yml",
-    ".github/workflows/model-access.yml", ".github/workflows/state-gate.yml",
-    "frontend/**", "reverse_agent/**", "scripts/**", "provider/**", "model/**", "credential/**",
-    "requirements*.txt", "pyproject.toml", "project_state/mainline_merge_intents/**", "project_state/schemas/**",
-    "project_state/current_state.json", "project_state/state_manifest.json", "project_state/artifact_index.json",
-    "project_state/integration_baselines/**", "project_state/mainline_recoveries/**",
-    "**/STOP", "**/owner_handoffs/**"
+    "AGENTS.md",
+    "README.md",
+    "README.txt",
+    "docs/**",
+    ".github/**",
+    ".codex-skills/**",
+    "reverse_agent/**",
+    "tests/**",
+    "dev-up.ps1",
+    "dev-down.ps1",
+    "launch_nerelan.bat",
+    "launch_reverse_agent.bat",
+    "frontend/src/**",
+    "frontend/e2e/**",
+    "frontend/tests/**",
+    "frontend/playwright.config.ts",
+    "frontend/vite.config.ts",
+    "requirements*.txt",
+    "pyproject.toml",
+    "project_state/current_state.json",
+    "project_state/state_manifest.json",
+    "project_state/artifact_index.json",
+    "project_state/rounds/**",
+    "project_state/schemas/**",
+    "project_state/integration_baselines/**",
+    "project_state/mainline_recoveries/**",
+    "project_state/mainline_merge_intents/**"
   ],
   "forbidden_operations": [
-    "direct_push_main", "auto_merge", "merge", "mark_ready", "force_push", "rebase", "squash", "reset", "clean",
-    "stash", "restore", "amend", "history_rewrite", "unknown_binary_execution", "secrets", "destructive_delete",
-    "privileged_remote_execution", "model_api_invocation", "provider_network_call", "credential_access", "auth_store_read",
-    "runner_dispatch", "workflow_rerun", "tag_or_release", "deployment", "dependency_install",
-    "second_decision_commit", "second_command_runner", "active_json_rewrite", "product_replay",
-    "ruleset_weakening", "required_check_weakening", "test_semantics_change",
-    "existing_workflow_mutation", "launcher_mutation", "test_file_mutation", "dependency_mutation",
-    "reuse_v1_decision", "reuse_v2_decision", "rebase_v1", "rebase_v2", "continue_push_v1", "continue_push_v2",
-    "force_update_v1", "force_update_v2", "reopen_v1", "reopen_v2",
-    "local_authoring", "implicit_user_local_fallback",
-    "continue_on_error_on_windows_proof", "blanket_skip_or_xfail", "deselection_on_windows_proof",
-    "false_green_wrapper", "runner_dispatch_as_substitute", "manual_dispatch_as_substitute",
-    "manual_runner_dispatch_as_substitute_for_pr_triggered_proof",
-    "ubuntu_baseline_duplication"
+    "direct_push_main",
+    "auto_merge",
+    "merge",
+    "mark_ready",
+    "force_push",
+    "rebase",
+    "squash",
+    "reset",
+    "clean",
+    "stash",
+    "restore",
+    "amend",
+    "history_rewrite",
+    "unknown_binary_execution",
+    "secrets",
+    "destructive_delete",
+    "privileged_remote_execution",
+    "model_api_invocation",
+    "provider_network_call",
+    "credential_access",
+    "auth_store_read",
+    "runner_dispatch",
+    "workflow_rerun",
+    "tag_or_release",
+    "deployment",
+    "second_decision_commit",
+    "second_command_runner",
+    "active_json_rewrite",
+    "product_replay",
+    "ruleset_weakening",
+    "required_check_weakening",
+    "test_semantics_change",
+    "reuse_v1_decision",
+    "reuse_v2_decision",
+    "reuse_v3_decision",
+    "reuse_v4_decision",
+    "reuse_v5_decision",
+    "reuse_v6_decision",
+    "rebase_v1",
+    "rebase_v2",
+    "rebase_v3",
+    "rebase_v4",
+    "rebase_v5",
+    "rebase_v6",
+    "continue_push_v1",
+    "continue_push_v2",
+    "continue_push_v3",
+    "continue_push_v4",
+    "continue_push_v5",
+    "continue_push_v6",
+    "force_update_v1",
+    "force_update_v2",
+    "force_update_v3",
+    "force_update_v4",
+    "force_update_v5",
+    "force_update_v6",
+    "reopen_v1",
+    "reopen_v2",
+    "reopen_v3",
+    "reopen_v4",
+    "reopen_v5",
+    "reopen_v6",
+    "local_authoring",
+    "implicit_user_local_fallback",
+    "cherry_pick_pr609",
+    "generic_shell_bridge",
+    "arbitrary_process_spawn",
+    "arbitrary_filesystem_bridge",
+    "arbitrary_environment_dump",
+    "credential_access_via_webview",
+    "pre_trust_workspace_execution",
+    "frontend_src_mutation",
+    "frontend_e2e_mutation",
+    "frontend_tests_mutation",
+    "dev_up_ps1_mutation",
+    "dev_down_ps1_mutation",
+    "github_workflows_mutation",
+    "launcher_mutation",
+    "test_file_mutation",
+    "dependency_mutation_outside_allowlist"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -287,15 +422,20 @@
     "tag_or_release_allowed": false,
     "local_network_exceptions": [],
     "ci_network_exceptions": [],
-    "trusted_worker_network_exceptions": [],
+    "trusted_worker_network_exceptions": [
+      "after PRE_EXECUTION_AUTHORIZED add @tauri-apps/cli 2.11.4 and @tauri-apps/api 2.11.1 to frontend/package.json devDependencies and dependencies respectively, update package-lock.json, and do not modify any other frontend file",
+      "if rustc or cargo are absent after PRE_EXECUTION_AUTHORIZED provision only a current stable official Rust toolchain needed for cargo check using bounded official Rust distribution access in a user-scoped or temporary location outside repository state; do not install unrelated system packages do not read credentials and do not mutate repository files as part of toolchain provisioning"
+    ],
     "github_control_plane_network_exceptions": [
-      "after all blocking validation passes push the exact branch owner/issue423-windows-platform-ci-r2-v3 to locked main 7452a592edfce2a243c4524b1cb78c8172e748a9 and create exactly one Draft PR with body recording the immutable R2 authority snapshot; never mark Ready and never merge under this Decision"
+      "after all blocking validation passes push the exact branch owner/desktop0-tauri-r2-v7 to locked main 5df08a23dbaa0e816f081b460ee6e2642004a2b1 and create exactly one Draft PR with body recording the immutable R2 authority snapshot; never mark Ready and never merge under this Decision"
     ],
     "user_local_network_exceptions": [],
     "remote_observation_read_only_allowed": true
   },
   "path_risk_floor": [
-    {"pattern": ".github/workflows/windows-platform-v1.yml", "minimum_risk": "R2"}
+    {"pattern": "frontend/package.json", "minimum_risk": "R2"},
+    {"pattern": "frontend/package-lock.json", "minimum_risk": "R2"},
+    {"pattern": "frontend/src-tauri/**", "minimum_risk": "R2"}
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
@@ -304,14 +444,36 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    ".github/workflows/windows-platform-v1.yml"
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/src-tauri/**"
   ],
   "run_environment_binding": {
     "run_strategy": "trusted_worker",
     "canonical_repository": "dddd2024/Nerelan",
-    "target_owner_branch": "owner/issue423-windows-platform-ci-r2-v3",
+    "target_owner_branch": "owner/desktop0-tauri-r2-v7",
     "authority_path": "Path B R2 transition",
     "local_agent_ready_or_merge_authority": false
   }
 }
 ```
+
+## Goal
+
+Create a native Tauri desktop startup bridge for the Nerelan frontend, adding Tauri CLI and API dependencies to the frontend package, creating the `frontend/src-tauri/` directory with a Cargo project that registers only `runtime_status`, `start_runtime`, and `stop_runtime` IPC handlers, and publishing as a Draft PR against `main`.
+
+## Remaining limitation
+
+This Decision does not authorize any product redesign, workflow mutation, launcher modification, test file mutation, or any operation outside the `frontend/package.json`, `frontend/package-lock.json`, and `frontend/src-tauri/**` scope. The PR remains Draft until independent exact-head acceptance. No Ready, merge, tag, release, or deployment is authorized under this Decision.
+
+## Execution policy
+
+- This Decision is byte-immutable after its activation commit; any later edit to `project_state/decision_packet.md` fails closed and requires a new issue/round/branch/Decision rather than an in-place amendment.
+- The v6 Decision commit `7f532f280200cf0b64999ed5701b3f2cca0f6e76` is terminal local negative evidence only. Do not amend, push, cherry-pick, rebase, or reuse it.
+- PR609 head `fb4d54d7a146997dfd5decf224dab56dcb111781` is historical semantic evidence only. Do not cherry-pick it.
+- Do not create a second governance gate; strengthen the existing transition, preflight, authority-collection, and publication-readiness surfaces.
+- Do not execute the v2 through v6 worktrees; this round uses a fresh isolated worktree.
+- Fail closed on any main drift, Decision mutation, scope contradiction, or unexplained test failure; stop and request a revised Work Item rather than widening this Decision.
+- The `forbidden_mutated_paths` list does NOT contain `frontend/**` or `frontend/*`; forbidden paths are specific and non-overlapping with the allowed product paths. The `allowed_mutated_paths` list is the mutation boundary; any path outside the allowlist is caught by the `allowed_path_scope` check.
+- All `execution_surface` values are from `CURRENT_AUTHORING_SURFACES` (`trusted_worker`, `github_control_plane`, `remote_observation`); the legacy `local` surface is never used.
+- `active_pr_binding_mode` is `"none"`, which is the only supported cutover literal.
