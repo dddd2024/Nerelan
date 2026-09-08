@@ -43,7 +43,6 @@ export interface ActivityEvent {
   timestamp: string;
   title: string;
   description: string;
-  rawLog?: string;
   expanded: boolean;
 }
 

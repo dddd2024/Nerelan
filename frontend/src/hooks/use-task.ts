@@ -149,11 +149,6 @@ function _toTask(raw: Record<string, unknown> | undefined): Task {
         timestamp: String((e as { timestamp?: string }).timestamp ?? ""),
         title: String((e as { title?: string }).title ?? ""),
         description: String((e as { description?: string }).description ?? ""),
-        rawLog: String(
-          (e as { rawLog?: string; raw_log?: string }).rawLog ??
-            (e as { rawLog?: string; raw_log?: string }).raw_log ??
-            "",
-        ),
         expanded: false,
       };
     }),

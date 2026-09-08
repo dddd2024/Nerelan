@@ -1,9 +1,7 @@
-import { useState } from "react";
 import type { ActivityEvent, ActivityEventType } from "@/types";
 import { formatRelativeTime } from "@/lib/format";
 import { Timeline } from "@/components/timeline";
 import { CollapsibleSection } from "@/components/collapsible-section";
-import { cn } from "@/lib/cn";
 import {
   Search,
   CheckCircle2,
@@ -48,23 +46,19 @@ const ICONS: Record<ActivityEventType, { icon: React.ComponentType<React.SVGProp
  *   - collapsible sections with chevron
  *
  * Structurally ported: events render as collapsible timeline items with
- * icon, title, meta, and expandable raw log. Border-l accent and dark
+ * icon, title, meta, and semantic description. Border-l accent and dark
  * panel styling from OpenHands conversation theme.
  *
  * Modifications: reverse-agent ActivityEvent types replace V1 observations;
- * raw log rendering instead of markdown body.
+ * semantic event fields only, no raw executor log rendering.
  * License: MIT (inherited from OpenHands)
  */
 export function ActivityStream({ events }: ActivityStreamProps) {
-  const [expandedRaw, setExpandedRaw] = useState<Record<string, boolean>>({});
-
   return (
     <div data-testid="activity-stream" className="space-y-3">
       <Timeline
         items={events.map((e) => {
           const { icon: Icon, color } = ICONS[e.type];
-          const hasRaw = Boolean(e.rawLog);
-          const isOpen = expandedRaw[e.id] ?? false;
           return {
             id: e.id,
             icon: <Icon aria-hidden="true" className="h-3.5 w-3.5" />,
@@ -74,35 +68,6 @@ export function ActivityStream({ events }: ActivityStreamProps) {
             body: (
               <div className="space-y-1">
                 <p className="text-ra-text-secondary">{e.description}</p>
-                {hasRaw ? (
-                  <button
-                    type="button"
-                    aria-expanded={isOpen}
-                    aria-controls={`raw-${e.id}`}
-                    onClick={() =>
-                      setExpandedRaw((prev) => ({ ...prev, [e.id]: !prev[e.id] }))
-                    }
-                    className={cn(
-                      "text-xs font-medium text-ra-text-tertiary underline-offset-2 hover:underline",
-                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-                    )}
-                    data-testid={`raw-toggle-${e.id}`}
-                  >
-                    {isOpen ? "隐藏原始日志" : "显示原始日志"}
-                  </button>
-                ) : null}
-                {hasRaw && isOpen ? (
-                  <pre
-                    id={`raw-${e.id}`}
-                    data-testid={`raw-log-${e.id}`}
-                    className={cn(
-                      "mt-2 overflow-x-auto rounded-md border border-ra-border",
-                      "bg-ra-input p-2 font-mono text-xs text-ra-text-secondary",
-                    )}
-                  >
-                    {e.rawLog}
-                  </pre>
-                ) : null}
               </div>
             ),
           };
