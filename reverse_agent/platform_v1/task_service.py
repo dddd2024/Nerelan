@@ -21,7 +21,7 @@ from ipaddress import ip_address
 import json
 import os
 from threading import Thread
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 from urllib.parse import unquote, urlsplit
 import tempfile
 
@@ -43,7 +43,10 @@ from .publication_controller import PublicationController
 from .roadmap_service import RoadmapService
 from .run_read_model import (
     BACKEND_STATUS_TO_FRONTEND_STATE,
+    MAX_ACTIVITY,
+    MAX_DETAIL_EVENTS,
     RunReadModel,
+    _event_projection,
     backend_status_to_frontend_state,
 )
 
@@ -78,32 +81,22 @@ _WORKFLOW_STATUSES = frozenset(
 _GOVERNANCE_MISSING = object()
 
 
-class _EventView:
-    """Attribute-access wrapper around an event dict for uniform response formatting."""
-
-    def __init__(self, **kwargs: Any) -> None:
-        self.__dict__.update(kwargs)
-
-
-def _attr(obj: Any, name: str, default: Any = None) -> Any:
-    if isinstance(obj, Mapping):
-        return obj.get(name, default)
-    return getattr(obj, name, default)
-
-
-def _mapping(obj: Any, name: str) -> Mapping[str, Any]:
-    value = _attr(obj, name, {})
-    if isinstance(value, str):
-        return {"raw": value}
-    if isinstance(value, dict):
-        return value
-    if isinstance(value, Mapping):
-        return dict(value)
-    return {}
-
-
 def _map_task_status_to_frontend_state(status: str) -> str:
     return backend_status_to_frontend_state(status)
+
+
+def _project_task_events(task: Any) -> dict[str, Any]:
+    events = list(task.events)
+    bounded_events = events[:MAX_DETAIL_EVENTS]
+    projected = [_event_projection(event, task=task) for event in bounded_events]
+    event_count = max(int(getattr(task, "event_count", 0) or 0), len(events))
+    return {
+        "events": projected,
+        "event_count": event_count,
+        "events_truncated": event_count > len(projected),
+        "activity": projected[-MAX_ACTIVITY:],
+        "activity_total": event_count,
+    }
 
 
 def _governance_value(task: Mapping[str, Any], snake_key: str, camel_key: str) -> Any:
@@ -133,7 +126,11 @@ def _governance_enum(
     return fallback
 
 
-def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
+def _map_task_to_frontend(
+    task: Mapping[str, Any],
+    *,
+    activity: list[Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
     state = _map_task_status_to_frontend_state(str(_map_task_field(task, "status", "")))
     failure_class = str(_map_task_field(task, "failure_classification", "") or "")
     validation_exit_code = _map_task_field(task, "validation_exit_code", None)
@@ -163,7 +160,7 @@ def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
         "permissionProfile": _map_task_field(task, "permission_profile", "ASK_FOR_APPROVAL") or "ASK_FOR_APPROVAL",
         "modelProfileId": _map_task_field(task, "model_profile_ref", ""),
         "branch": _map_task_field(task, "branch", "") or _map_task_field(task, "id", ""),
-        "activity": _map_frontend_events(_map_task_seq(task, "events")),
+        "activity": activity if activity is not None else [],
         "changes": _map_frontend_changed_files(_map_task_seq(task, "changed_files")),
         "evidence": _map_frontend_evidence(
             _map_task_seq(task, "evidence_refs") or _map_task_seq(task, "evidence")
@@ -215,21 +212,6 @@ def _map_task_field(task: Mapping[str, Any], key: str, default: Any) -> Any:
 def _map_task_seq(task: Mapping[str, Any], key: str) -> list[Mapping[str, Any]]:
     value = _map_task_field(task, key, [])
     return list(value) if value is not None else []
-
-
-def _map_frontend_events(events: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    return [
-        {
-            "id": e.get("id", ""),
-            "type": e.get("type", "EXECUTOR_FINISHED"),
-            "timestamp": e.get("timestamp", ""),
-            "title": e.get("title", ""),
-            "description": e.get("description", ""),
-            "rawLog": e.get("raw_log", ""),
-            "expanded": False,
-        }
-        for e in events
-    ]
 
 
 def _map_frontend_changed_files(files: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
@@ -383,41 +365,9 @@ class _TaskHandler(BaseHTTPRequestHandler):
             if len(segments) == 2 and segments == ["api", "tasks"]:
                 self._send_json(HTTPStatus.OK, self._list_tasks_response())
                 return
-            if (
-                len(segments) == 4
-                and segments[:2] == ["api", "tasks"]
-                and segments[3] == "events"
-            ):
-                try:
-                    task = self.store.get_task(segments[2])
-                except TaskStoreError:
-                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
-                    return
-                events_out = []
-                for e in task.events:
-                    meta = _attr(e, "metadata", "")
-                    if isinstance(meta, str):
-                        meta = {"raw": meta}
-                    elif isinstance(meta, Mapping) and not isinstance(meta, dict):
-                        meta = dict(meta)
-                    events_out.append({
-                        "id": _attr(e, "id", ""),
-                        "task_id": _attr(e, "task_id", ""),
-                        "type": _attr(e, "type", "EXECUTOR_FINISHED"),
-                        "timestamp": _attr(e, "timestamp", ""),
-                        "title": _attr(e, "title", ""),
-                        "description": _attr(e, "description", ""),
-                        "raw_log": _attr(e, "raw_log", ""),
-                        "metadata": meta,
-                    })
-                self._send_json(
-                    HTTPStatus.OK,
-                    {"task_id": task.id, "events": events_out},
-                )
-                return
             if len(segments) == 3 and segments[:2] == ["api", "tasks"]:
                 try:
-                    task = self.store.get_task(segments[2])
+                    task = self.store.get_task(segments[2], event_limit=MAX_DETAIL_EVENTS)
                 except TaskStoreError:
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
                     return
@@ -652,7 +602,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
                         )
                     os.makedirs(workspace_root, exist_ok=True)
                 try:
-                    task = self.store.get_task(segments[2])
+                    task = self.store.get_task(segments[2], event_limit=MAX_DETAIL_EVENTS)
                 except TaskStoreError:
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
                     return
@@ -684,7 +634,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     except ExecutorRuntimeError as exc:
                         self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
                         return
-                    task = self.store.get_task(segments[2])
+                    task = self.store.get_task(segments[2], event_limit=MAX_DETAIL_EVENTS)
                     self._send_json(HTTPStatus.OK, self._task_response(task))
                     return
                 elif task.orchestration_mode == "single":
@@ -715,7 +665,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     except ExecutorRuntimeError as exc:
                         self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
                         return
-                    task = self.store.get_task(segments[2])
+                    task = self.store.get_task(segments[2], event_limit=MAX_DETAIL_EVENTS)
                     self._send_json(HTTPStatus.OK, self._task_response(task))
                     return
                 else:
@@ -740,7 +690,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     except ExecutorRuntimeError as exc:
                         self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
                         return
-                    task = self.store.get_task(segments[2])
+                    task = self.store.get_task(segments[2], event_limit=MAX_DETAIL_EVENTS)
                     self._send_json(HTTPStatus.OK, self._task_response(task))
                     return
             if (
@@ -749,7 +699,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 and segments[3] == "resume"
             ):
                 try:
-                    task = self.store.get_task(segments[2])
+                    task = self.store.get_task(segments[2], event_limit=MAX_DETAIL_EVENTS)
                 except TaskStoreError:
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
                     return
@@ -793,7 +743,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 except TaskExecutionError as exc:
                     self._send_json(HTTPStatus.CONFLICT, {"error": str(exc)})
                     return
-                task = self.store.get_task(segments[2])
+                task = self.store.get_task(segments[2], event_limit=MAX_DETAIL_EVENTS)
                 self._send_json(HTTPStatus.OK, self._task_response(task))
                 return
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "route not found"})
@@ -845,7 +795,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
         return revision
 
     def _list_tasks_response(self) -> dict[str, Any]:
-        tasks = self.store.list_tasks(limit=_TASKS_LIMIT)
+        tasks = self.store.list_tasks(limit=_TASKS_LIMIT, event_limit=MAX_DETAIL_EVENTS)
         return {
             "tasks": [self._task_response(t) for t in tasks],
             "total": self.store.count_tasks(),
@@ -869,11 +819,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
         }
 
     def _task_response(self, task: Any) -> dict[str, Any]:
-        events = task.events
-        if events and isinstance(events[0], Mapping):
-            events = [
-                _EventView(**e) for e in events
-            ]
+        projection = _project_task_events(task)
         changed = task.changed_files
         if changed and isinstance(changed[0], Mapping):
             changed = [dict(f) for f in changed]
@@ -906,24 +852,13 @@ class _TaskHandler(BaseHTTPRequestHandler):
             "usage": self.store.usage_summary(task.id),
             "changed_files": list(changed),
             "evidence": list(evidence),
-            "events": self._events_response(events),
-            "frontend_task": _map_task_to_frontend(task),
+            "events": projection["events"],
+            "event_count": projection["event_count"],
+            "events_truncated": projection["events_truncated"],
+            "frontend_task": _map_task_to_frontend(
+                task, activity=projection["activity"]
+            ),
         }
-
-    def _events_response(self, events: Sequence[Any]) -> list[dict[str, Any]]:
-        return [
-            {
-                "id": _attr(e, "id", ""),
-                "task_id": _attr(e, "task_id", ""),
-                "type": _attr(e, "type", "EXECUTOR_FINISHED"),
-                "timestamp": _attr(e, "timestamp", ""),
-                "title": _attr(e, "title", ""),
-                "description": _attr(e, "description", ""),
-                "raw_log": _attr(e, "raw_log", ""),
-                "metadata": _mapping(e, "metadata"),
-            }
-            for e in events
-        ]
 
     def _segments(self) -> list[str]:
         path = urlsplit(self.path).path

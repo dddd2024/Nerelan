@@ -12,8 +12,7 @@ POST /api/tasks
   -> disposable workspace mutation
   -> validation
   -> persisted backend truth
-  -> GET /api/tasks/{id} readback
-  -> GET /api/tasks/{id}/events
+  -> GET /api/tasks/{id} readback (bounded safe event projection)
 
 Plus restart/readback persistence proof and injected-router regression proof.
 
@@ -180,12 +179,12 @@ def _run(
     }
     results["chain"].append("http_get_task_readback")
 
-    # Step 4: GET /api/tasks/{id}/events
+    # Step 4: events readback from the safe Task detail projection
     status_code, events_payload = _http(
-        "GET", f"/api/tasks/{http_task_id}/events", None, port
+        "GET", f"/api/tasks/{http_task_id}", None, port
     )
     assert status_code == 200
-    assert events_payload["task_id"] == http_task_id
+    assert events_payload["id"] == http_task_id
     event_types = [e["type"] for e in events_payload["events"]]
     assert "DISCOVERED" in event_types, f"DISCOVERED event missing: {event_types}"
     assert "EXECUTOR_RUNNING" in event_types, f"EXECUTOR_RUNNING missing: {event_types}"

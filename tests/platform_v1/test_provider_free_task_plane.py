@@ -132,9 +132,12 @@ def _full_chain(tmp_path) -> dict:
     assert created["frontend_task"]["executor"] == "fixture/provider-free"
     http_tid = created["id"]
 
-    s, events = do_request("GET", f"/api/tasks/{http_tid}/events")
+    s, detail = do_request("GET", f"/api/tasks/{http_tid}")
     assert s == 200
-    assert events["events"][0]["type"] == "DISCOVERED"
+    assert detail["events"][0]["type"] == "DISCOVERED"
+    serialized = json.dumps(detail)
+    assert "raw_log" not in serialized
+    assert "rawLog" not in serialized
 
     server.shutdown()
     server.server_close()

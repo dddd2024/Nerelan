@@ -288,10 +288,157 @@ def test_list_tasks_and_events(task_server) -> None:
     assert status == 200
     assert any(t["id"] == tid for t in listed["tasks"])
 
-    status, events = _req(base, "GET", f"/api/tasks/{tid}/events")
+    status, _ = _req(base, "GET", f"/api/tasks/{tid}/events")
+    assert status == 404
+
+    status, detail = _req(base, "GET", f"/api/tasks/{tid}")
     assert status == 200
-    assert events["task_id"] == tid
-    assert events["events"][0]["type"] == "DISCOVERED"
+    assert detail["id"] == tid
+    assert detail["events"][0]["type"] == "DISCOVERED"
+    assert detail["events_truncated"] is False
+    serialized = json.dumps(detail)
+    assert "raw_log" not in serialized
+    assert "rawLog" not in serialized
+    assert "metadata" not in serialized
+
+
+def test_task_responses_confine_raw_log_and_unrestricted_metadata(task_server) -> None:
+    base, server = task_server
+    _, created = _req(base, "POST", "/api/tasks", {
+        "title": "event confinement", "executor_kind": "deterministic_fixture",
+    })
+    task_id = created["id"]
+    store = server.RequestHandlerClass.store
+    store.add_event(
+        task_id,
+        event_type="EXECUTOR_FINISHED",
+        title="executor finished",
+        description="fixture completed",
+        raw_log="Authorization: Bearer sk-secret-token-1234567890 environment=PROD_SECRET=xyz",
+        metadata={
+            "activity_kind": "EDIT",
+            "role": "coder",
+            "status": "COMPLETED",
+            "api_key": "sk-akia1234567890token",
+            "environment": "PROD_SECRET=xyz",
+            "prompt": "hidden prompt response tool_payload",
+            "authorization": "Bearer sk-secret-token-1234567890",
+        },
+    )
+    planted = (
+        "sk-secret-token-1234567890",
+        "PROD_SECRET",
+        "sk-akia1234567890token",
+    )
+
+    def _assert_confined(payload: dict) -> None:
+        serialized = json.dumps(payload, default=str)
+        for token in planted:
+            assert token not in serialized, f"secret leaked: {token}"
+        for field in ("raw_log", "rawLog", "metadata"):
+            assert field not in serialized, f"field leaked: {field}"
+        for event in payload.get("events", []):
+            assert "raw_log" not in event
+            assert "metadata" not in event
+        activity = payload.get("frontend_task", {}).get("activity", [])
+        for event in activity:
+            assert "rawLog" not in event
+            assert "raw_log" not in event
+
+    status, detail = _req(base, "GET", f"/api/tasks/{task_id}")
+    assert status == 200
+    _assert_confined(detail)
+    finished = next(e for e in detail["events"] if e["type"] == "EXECUTOR_FINISHED")
+    assert finished["category"] == "EDIT"
+    assert finished["role"] == "coder"
+    assert finished["status"] == "COMPLETED"
+
+    status, listed = _req(base, "GET", "/api/tasks")
+    assert status == 200
+    _assert_confined(next(t for t in listed["tasks"] if t["id"] == task_id))
+
+    _, exec_created = _req(base, "POST", "/api/tasks", {
+        "title": "exec confinement", "executor_kind": "deterministic_fixture",
+    })
+    status, executed = _req(base, "POST", f"/api/tasks/{exec_created['id']}/execute")
+    assert status == 200
+    _assert_confined(executed)
+
+    status, missing = _req(base, "GET", "/api/tasks/task-missing-000")
+    assert status == 404
+    assert missing == {"error": "task not found"}
+
+
+def test_task_event_projection_never_lets_malformed_metadata_through() -> None:
+    from reverse_agent.platform_v1.task_service import _project_task_events
+
+    class _MalformedTask:
+        id = "task-malformed"
+        execution_id = "exec-malformed"
+        event_count = 2
+        events = [
+            {
+                "id": "e-list",
+                "task_id": "task-malformed",
+                "type": "EXECUTOR_FINISHED",
+                "timestamp": "2026-09-07T00:00:00Z",
+                "title": "step",
+                "description": "step",
+                "raw_log": "Authorization: Bearer sk-leak-token-1234567890",
+                "metadata": ["sk-leak-token-1234567890", "PROD_SECRET=xyz"],
+            },
+            {
+                "id": "e-number",
+                "task_id": "task-malformed",
+                "type": "EXECUTOR_FINISHED",
+                "timestamp": "2026-09-07T00:00:01Z",
+                "title": "step",
+                "description": "step",
+                "raw_log": "",
+                "metadata": 12345,
+            },
+        ]
+
+    projection = _project_task_events(_MalformedTask())
+    serialized = json.dumps(projection, default=str)
+    assert "sk-leak-token-1234567890" not in serialized
+    assert "PROD_SECRET" not in serialized
+    for field in ("raw_log", "rawLog", "metadata"):
+        assert field not in serialized
+    assert projection["event_count"] == 2
+    assert projection["events_truncated"] is False
+    assert len(projection["events"]) == 2
+    assert len(projection["activity"]) == 2
+
+
+def test_task_detail_bounds_large_event_history_server_side(task_server) -> None:
+    from reverse_agent.platform_v1.run_read_model import MAX_DETAIL_EVENTS, MAX_ACTIVITY
+
+    base, server = task_server
+    _, created = _req(base, "POST", "/api/tasks", {
+        "title": "bounded history", "executor_kind": "deterministic_fixture",
+    })
+    task_id = created["id"]
+    store = server.RequestHandlerClass.store
+    for _ in range(MAX_DETAIL_EVENTS + 10):
+        store.add_event(
+            task_id,
+            event_type="EXECUTOR_FINISHED",
+            title="step",
+            description="",
+            raw_log="Authorization: Bearer sk-leak-token-1234567890",
+            metadata={"activity_kind": "COMMAND", "role": "executor"},
+        )
+    status, detail = _req(base, "GET", f"/api/tasks/{task_id}")
+    assert status == 200
+    assert detail["event_count"] > MAX_DETAIL_EVENTS
+    assert len(detail["events"]) == MAX_DETAIL_EVENTS
+    assert detail["events_truncated"] is True
+    assert len(detail["frontend_task"]["activity"]) <= MAX_ACTIVITY
+    serialized = json.dumps(detail)
+    assert "sk-leak-token-1234567890" not in serialized
+    assert "raw_log" not in serialized
+    assert "rawLog" not in serialized
 
 
 def test_queue_cancel_http_applies_once_and_exposes_run_activity(task_server) -> None:

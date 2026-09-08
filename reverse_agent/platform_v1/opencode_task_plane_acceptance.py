@@ -3,8 +3,7 @@
 Exercises the full HTTP chain:
   POST /api/tasks (executor_kind=opencode)
   -> POST /api/tasks/{id}/execute
-  -> GET /api/tasks/{id}
-  -> GET /api/tasks/{id}/events
+  -> GET /api/tasks/{id} (bounded safe event projection)
 
 Proves:
 - OpenCode CLI child process started with non-OpenAI model
@@ -275,12 +274,12 @@ def _run(
     results["event_types"] = event_types
     results["phase"].append("http_events_verified")
 
-    # ---- Step 4: GET /api/tasks/{id}/events ----
+    # ---- Step 4: events readback from the safe Task detail projection ----
     status_code, events_payload = _http(
-        "GET", "/api/tasks/%s/events" % http_task_id
+        "GET", "/api/tasks/%s" % http_task_id
     )
     assert status_code == 200
-    assert events_payload["task_id"] == http_task_id
+    assert events_payload["id"] == http_task_id
     results["http_events_readback"] = {
         "status": status_code,
         "event_count": len(events_payload.get("events", [])),
