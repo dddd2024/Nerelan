@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260907_issue503_visual_golden_r3_v3",
-  "round_id": "round_20260907_issue503_visual_golden_r3_v3",
+  "decision_id": "decision_20260907_issue375_task_event_confinement_r1_v2",
+  "round_id": "round_20260907_issue375_task_event_confinement_r1_v2",
   "commands": [
     {
-      "command_id": "issue503_r3v3.bootstrap_and_preflight",
-      "command": "verify exact fresh locked main 63801368f4eb207cf7961e9be4e8be5da58e9046 and fresh branch merge-base; commit this immutable R3 Decision as the unique first commit; run startup snapshot transition command plan transition lint transition preflight pre and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before any PNG mutation",
+      "command_id": "issue375_r1_v2.bootstrap_and_preflight",
+      "command": "re-verify exact fresh locked main 7452a592edfce2a243c4524b1cb78c8172e748a9 fresh branch merge-base Issue 375 body and labels remote branch absence and open-PR absence; commit this immutable R1 successor-v2 Decision as the unique first commit; run startup-snapshot transition-command-plan transition-lint transition-preflight pre; require PRE_EXECUTION_AUTHORIZED before any product mutation",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -16,7 +16,8 @@
       "operations": [
         "code_read",
         "local_static_check",
-        "command_plan_generation"
+        "command_plan_generation",
+        "commit"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -34,8 +35,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue503_r3v3.materialize_frozen_pngs",
-      "command": "download GitHub Actions artifact 9960604836 for run 33937230275 and verify its ZIP SHA256 7345a815bdb1dec95571a128797f61582b420588dca485e8253e84e7719a74c4; extract exactly the eight accepted *-actual.png blobs and write each to its frontend/e2e/snapshots/desktop-chromium or mobile-chromium target; verify each written file SHA256 exactly equals the frozen manifest; perform no browser execution no snapshot update and no threshold change",
+      "command_id": "issue375_r1_v2.implement",
+      "command": "implement Issue 375 successor-v2 browser-event confinement: retire GET /api/tasks/{id}/events; bind every browser-facing Task response path (detail list create execute resume) to the existing RunReadModel bounded sanitized event projection so raw_log and unrestricted metadata never reach the browser; enforce server-side bounded event retrieval with event_limit=MAX_DETAIL_EVENTS on the Task HTTP read paths; remove frontend fetchTaskEvents useTaskEvents rawLog acceptance and raw executor log rendering; migrate provider-free and OpenCode acceptance harnesses to supported safe Task/Run reads; add negative raw-log metadata and server-side bounded-history regressions; strictly inside the allowed_mutated_paths allowlist only",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -45,30 +46,22 @@
       "execution_surface": "trusted_worker",
       "operations": [
         "source_edit",
+        "unit_test",
         "local_static_check",
         "commit"
       ],
-      "network_access": true,
+      "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "frontend/e2e/snapshots/desktop-chromium/home-light.png",
-        "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
-        "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
-        "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
-        "frontend/e2e/snapshots/mobile-chromium/home-light.png",
-        "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
-        "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
-        "frontend/e2e/snapshots/mobile-chromium/settings-dark.png"
-      ]
+      "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue503_r3v3.validate",
-      "command": "run git status --short and git diff --check; re-run transition lint transition command plan transition preflight pre and worktree publication readiness; run all applicable non-browser deterministic governance tests; require PUBLICATION_READY and zero diff check violations",
+      "command_id": "issue375_r1_v2.validate_backend",
+      "command": "run python -m pytest tests/platform_v1/test_task_service.py tests/platform_v1/test_run_read_model.py tests/platform_v1/test_provider_free_task_plane.py -q and python -m reverse_agent.platform_v1.provider_free_task_plane_acceptance; report PASS or a pre-existing base failure proven identical at base 7452a592; no provider model or credential access",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -90,8 +83,56 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue503_r3v3.publish",
-      "command": "after all blocking validation passes push the exact branch owner/issue503-visual-golden-r3-v3 to locked main 63801368f4eb207cf7961e9be4e8be5da58e9046 and create exactly one Draft PR with body recording the immutable R3 authority snapshot; never mark Ready and never merge under this Decision",
+      "command_id": "issue375_r1_v2.validate_frontend",
+      "command": "run the repository-current frontend deterministic validation scripts covering frontend/tests/activity.test.tsx and frontend/tests/provider-free-task-plane.test.tsx plus unit typecheck lint and build; require PASS; never update Playwright goldens",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "trusted_worker",
+      "operations": [
+        "unit_test",
+        "local_static_check",
+        "build"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue375_r1_v2.validate_governance",
+      "command": "re-run startup-snapshot transition-command-plan transition-lint transition-preflight pre and worktree-publication-readiness after implementation; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY; require git diff --check clean; never rerun or dispatch workflows",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "trusted_worker",
+      "operations": [
+        "local_static_check",
+        "command_plan_generation",
+        "diff_validation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue375_r1_v2.publish",
+      "command": "after all blocking validation passes push the exact branch owner/issue375-task-event-confinement-r1-v2 to locked main 7452a592edfce2a243c4524b1cb78c8172e748a9 and create exactly one Draft PR with body recording the immutable R1 successor-v2 authority snapshot; never mark Ready and never merge under this Decision",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -114,8 +155,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue503_r3v3.exact_head_acceptance",
-      "command": "require natural exact-head CI Decision Preflight State Gate and Frontend Playwright on the Draft PR; Frontend Playwright must report 26 total 24 passed 2 skipped 0 failed on locked Ubuntu 24.04 Node 22.23.1 Playwright 1.62.1 Chromium 151.0.7922.34 revision 1234; keep the PR Draft and do NOT Ready or merge under this Decision",
+      "command_id": "issue375_r1_v2.exact_head_acceptance",
+      "command": "require natural exact-head CI State Gate and Frontend checks on the Draft PR exact head only; record workflow name run id event run_attempt head_sha status and conclusion; never rerun or dispatch; keep the PR Draft",
       "phase": "final_evidence",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -125,7 +166,8 @@
       "execution_surface": "remote_observation",
       "operations": [
         "code_read",
-        "read_only_audit"
+        "read_only_audit",
+        "remote_observation"
       ],
       "network_access": false,
       "diagnostic_only": false,
