@@ -592,33 +592,28 @@ class PlatformControlStore:
 
     def runnable_tasks(self, window_id: str, *, limit: int = 100) -> tuple[str, ...]:
         with self._lock:
+            # Limit ready tasks, not queue positions: waiting dependencies must
+            # not hide runnable work later in this or another Goal.
             rows = self._conn.execute(
-                "SELECT l.goal_id, l.goal_revision, l.plan_task_id, l.task_id, l.dependencies_json, l.seq "
+                "SELECT l.task_id "
                 "FROM platform_goal_task_links l "
                 "JOIN platform_goals g ON g.id = l.goal_id AND g.revision = l.goal_revision "
                 "JOIN tasks t ON t.id = l.task_id "
                 "WHERE g.window_id = ? AND g.status = 'RUNNING' AND t.status IN ('QUEUED', 'INTERRUPTED') "
+                "AND NOT EXISTS ("
+                "SELECT 1 FROM json_each(l.dependencies_json) dependency "
+                "WHERE NOT EXISTS ("
+                "SELECT 1 FROM platform_goal_task_links predecessor "
+                "JOIN tasks predecessor_task ON predecessor_task.id = predecessor.task_id "
+                "WHERE predecessor.goal_id = l.goal_id "
+                "AND predecessor.goal_revision = l.goal_revision "
+                "AND predecessor.plan_task_id = dependency.value "
+                "AND predecessor_task.status IN ('READY_FOR_REVIEW', 'READY_FOR_REVIEW_FIXTURE')"
+                ")) "
                 "ORDER BY g.created_at ASC, l.seq ASC LIMIT ?",
                 (window_id, max(1, min(limit, 500))),
             ).fetchall()
-            runnable: list[str] = []
-            for row in rows:
-                deps = tuple(json.loads(row["dependencies_json"] or "[]"))
-                blocked = False
-                for dep in deps:
-                    dep_row = self._conn.execute(
-                        "SELECT t.status FROM platform_goal_task_links l JOIN tasks t ON t.id = l.task_id "
-                        "WHERE l.goal_id = ? AND l.goal_revision = ? AND l.plan_task_id = ?",
-                        (row["goal_id"], row["goal_revision"], dep),
-                    ).fetchone()
-                    if dep_row is None or dep_row["status"] not in {
-                        "READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"
-                    }:
-                        blocked = True
-                        break
-                if not blocked:
-                    runnable.append(row["task_id"])
-            return tuple(runnable)
+            return tuple(row["task_id"] for row in rows)
 
     def refresh_goal_status(self, goal_id: str) -> GoalRecord:
         links = self.list_goal_tasks(goal_id)
