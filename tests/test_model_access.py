@@ -8,7 +8,7 @@ from typing import Any, Callable
 
 import pytest
 
-from reverse_agent.model_access.contracts import ModelProfile, ProbeResult
+from reverse_agent.model_access.contracts import Connection, ModelProfile, ProbeResult
 from reverse_agent.model_access.store import ModelProfileStore
 from reverse_agent.model_access.service import (
     _handler_factory,
@@ -296,8 +296,6 @@ class TestOriginGateHttpBoundary:
         )
         assert status == 403
 
-        # Post-state verification: use no-Origin GET (trusted CLI) to query the store.
-        # The injected profile must not exist, and the original profile must be intact.
         verify_status, verify_data, verify_headers = _get_response(
             model_service_port,
             method="GET",
@@ -330,7 +328,6 @@ class TestOriginGateHttpBoundary:
     def test_foreign_origin_error_body_no_secret(
         self, model_service_port: int, model_service_server: None  # noqa: ANN401
     ) -> None:
-        """403 response must not echo back any submitted secret or request body."""
         test_secret = "REVERSE-AGENT-TEST-KEY-12345"
         payload = json.dumps(
             profile_payload(
@@ -386,7 +383,6 @@ class TestConnectionSecretRotationInvariant:
         store = ModelProfileStore()
         store.upsert_connection(_connection_payload(api_key="old-master-key"))
 
-        # Changing provider without replacement secret must fail closed
         with pytest.raises(ValueError, match="replacement api_key"):
             store.upsert_connection(
                 _connection_payload(
@@ -525,8 +521,6 @@ from reverse_agent.model_access.service import probe_saved_connection
 
 
 class TestConnectionProbeService:
-    """Saved-Connection probe: server-side secret, no body echo, fail-closed."""
-
     def test_stored_secret_used_and_never_serialized(self) -> None:
         store = ModelProfileStore()
         store.upsert_connection(_connection_payload(api_key="connection-master-key"))
@@ -614,7 +608,7 @@ class TestConnectionProbeService:
 
     def test_missing_api_key_secret_no_transport(self) -> None:
         store = ModelProfileStore()
-        store.upsert_connection(_connection_payload())  # no secret
+        store.upsert_connection(_connection_payload())
 
         calls: list[tuple[str, dict[str, str], float]] = []
 
@@ -1343,12 +1337,11 @@ def test_native_vault_read_copies_and_decodes_only_bounded_blob() -> None:
     ) == "bounded-secret"
     assert ctypes_api.calls == [(pointer, len(b"bounded-secret"))]
 
+
 _VAULT_SECRET = "vault-backed-master-key-sentinel"
 
 
 class TestVaultReferenceBinding:
-    """The vault item reference is bound to the Connection authority."""
-
     def test_reference_is_deterministic_and_namespaced(self) -> None:
         ref = connection_vault_ref(
             "sense-api", "openai-compatible", "https://models.example.test/v1", "api_key"
@@ -1388,8 +1381,6 @@ class TestVaultReferenceBinding:
 
 
 class TestVaultBackedSaveAndRestart:
-    """Save through the vault, then restart over the same sanitized state."""
-
     def _vault_store(self, tmp_path, vault):
         return ModelProfileStore(
             state_path=str(tmp_path / "model_setup_state.json"), vault=vault
@@ -1464,8 +1455,6 @@ class TestVaultBackedSaveAndRestart:
 
 
 class TestVaultFailClosedStates:
-    """Locked or missing vault items produce explicit typed states."""
-
     def _prepared(self, tmp_path):
         vault = FakeVault()
         store = ModelProfileStore(
@@ -1485,7 +1474,7 @@ class TestVaultFailClosedStates:
     def test_externally_missing_item_maps_to_replacement_required(self, tmp_path) -> None:
         vault, store = self._prepared(tmp_path)
         ref = vault.item_refs()[0]
-        vault._items.pop(ref)  # simulate external removal from the OS store
+        vault._items.pop(ref)
 
         listed = store.list_connections_public()
         assert listed[0]["credential_configured"] is True
@@ -1531,8 +1520,6 @@ class TestVaultFailClosedStates:
 
 
 class TestVaultSaveAtomicityAndAuthority:
-    """Failed saves preserve prior state; authority changes never reuse items."""
-
     def _store(self, tmp_path, vault):
         return ModelProfileStore(
             state_path=str(tmp_path / "model_setup_state.json"), vault=vault
@@ -1709,8 +1696,6 @@ class TestVaultSaveAtomicityAndAuthority:
 
 
 class TestVaultRemovalAndIndependentPaths:
-    """Explicit removal removes only the owning item; other paths unchanged."""
-
     def _store(self, tmp_path, vault):
         return ModelProfileStore(
             state_path=str(tmp_path / "model_setup_state.json"), vault=vault
@@ -1777,7 +1762,7 @@ class TestVaultRemovalAndIndependentPaths:
 
         assert vault.item_refs() == ()
         listed = store.list_connections_public()
-        assert listed[0]["secret_status"] == "missing"  # env var not set
+        assert listed[0]["secret_status"] == "missing"
 
     def test_without_vault_process_local_behavior_is_unchanged(self, tmp_path) -> None:
         store = self._store(tmp_path, None)
@@ -1833,3 +1818,40 @@ class TestVaultRemovalAndIndependentPaths:
         )
         assert switched["secret_status"] == "not_applicable"
         assert vault.item_refs() == ()
+
+
+# ---------------------------------------------------------------------------
+# ISSUE705 R1 - Direct Connection constructor conformance
+# ---------------------------------------------------------------------------
+
+
+def test_direct_connection_partial_explicit_identity_requires_executor_provider_id() -> None:
+    with pytest.raises(ValueError, match="executor_provider_id is required"):
+        Connection(
+            connection_id="direct-partial",
+            name="Direct partial identity",
+            provider="openai-compatible",
+            base_url="https://models.example.test/v1",
+            auth_method="none",
+            upstream_provider_id="sensetime",
+            protocol_family="openai",
+            executor_provider_id=None,
+        )
+
+
+def test_direct_connection_preserves_three_explicit_identity_axes() -> None:
+    connection = Connection(
+        connection_id="direct-three-axis",
+        name="Direct three-axis identity",
+        provider="openai-compatible",
+        base_url="https://models.example.test/v1",
+        auth_method="none",
+        upstream_provider_id="sensetime",
+        protocol_family="openai",
+        executor_provider_id="openai-compatible",
+    )
+
+    assert connection.provider == "openai-compatible"
+    assert connection.upstream_provider_id == "sensetime"
+    assert connection.protocol_family == "openai"
+    assert connection.executor_provider_id == "openai-compatible"
