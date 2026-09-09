@@ -25,6 +25,10 @@ from .opencode_executor import (
     _validate_review_handoff,
     handoff_dir,
 )
+from .repository_workspace import (
+    RepositoryWorkspaceError,
+    resolve_repository_workspace,
+)
 from .run_store import (
     InvalidTransitionError,
     TaskStore,
@@ -136,6 +140,27 @@ class TaskExecutionService:
         )
 
         before_evidence = tuple(ev.get("id", "") for ev in task.evidence_refs)
+
+        if executor_kind == "opencode":
+            try:
+                resolve_repository_workspace(task.repository)
+            except RepositoryWorkspaceError as exc:
+                self.store.classify_failure(
+                    task_id,
+                    classification="blocked",
+                    detail=str(exc),
+                )
+                final = self.store.get_task(task_id)
+                return TaskExecutionOutcome(
+                    task_id=task_id,
+                    execution_id=final.execution_id,
+                    success=False,
+                    validation_command_id=validation_command_id,
+                    validation_exit_code=-1,
+                    evidence_ids=(),
+                    failure_classification=final.failure_classification,
+                    failure_detail=final.failure_detail,
+                )
 
         try:
             executor_kwargs = _build_executor_kwargs(
@@ -294,6 +319,26 @@ class TaskExecutionService:
         if executor_kind != "opencode":
             raise TaskExecutionError(
                 f"task_not_opencode:{task_id}:{executor_kind}"
+            )
+
+        try:
+            resolve_repository_workspace(task.repository)
+        except RepositoryWorkspaceError as exc:
+            self.store.classify_failure(
+                task_id,
+                classification="blocked",
+                detail=str(exc),
+            )
+            final = self.store.get_task(task_id)
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=final.execution_id,
+                success=False,
+                validation_command_id="",
+                validation_exit_code=-1,
+                evidence_ids=(),
+                failure_classification=final.failure_classification,
+                failure_detail=final.failure_detail,
             )
 
         before_evidence = tuple(ev.get("id", "") for ev in task.evidence_refs)

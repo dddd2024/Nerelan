@@ -425,6 +425,32 @@ class TestTaskApiApiKeyWiring:
     do NOT fail with lease_provider_required.
     """
 
+    @pytest.fixture(autouse=True)
+    def _matching_source_dir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> Path:
+        """Provision the explicit trusted-host SourceDir these provider-free
+        lease-wiring tests validate beneath.  The configured origin identity
+        exactly equals the default Task repository used here, so the production
+        SourceDir guard runs unchanged instead of being mocked or bypassed."""
+        repo = tmp_path / "source-repo"
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True, capture_output=True)
+        subprocess.run(
+            [
+                "git",
+                "remote",
+                "add",
+                "origin",
+                "https://github.com/dddd2024/reverse-agent.git",
+            ],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(repo))
+        return repo
+
     def test_combined_trusted_host_task_api_injects_lease_provider(self, tmp_path) -> None:
         port = _free_port()
         fake_url = f"http://127.0.0.1:{port}"
@@ -679,7 +705,7 @@ class TestTaskApiApiKeyWiring:
                     "title": "http-created",
                     "executor_kind": "opencode",
                     "binding_ref": "http-binding",
-                    "repository": "https://github.com/dddd2024/reverse-agent",
+                    "repository": "dddd2024/reverse-agent",
                 }).encode("utf-8")
                 conn = HTTPConnection("127.0.0.1", http_port, timeout=5)
                 conn.request(

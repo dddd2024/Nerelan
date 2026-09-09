@@ -63,6 +63,33 @@ def _make_store(tmp_path: Path) -> TaskStore:
     return TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
 
 
+@pytest.fixture(autouse=True)
+def _matching_source_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    """Provision the explicit trusted-host SourceDir the provider-free OpenCode
+    tests in this module validate beneath.  The configured origin identity
+    exactly equals the default Task repository used here, so the production
+    SourceDir guard runs unchanged instead of being mocked or bypassed."""
+    repo = tmp_path / "source-repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(
+        [
+            "git",
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/dddd2024/reverse-agent.git",
+        ],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(repo))
+    return repo
+
+
 def _model_control_request(
     base_url: str,
     method: str,

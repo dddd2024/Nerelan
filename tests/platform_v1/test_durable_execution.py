@@ -58,6 +58,39 @@ from reverse_agent.platform_v1.task_runtime import ExecutorRouter
 # Test infrastructure: FakeExecutor
 # ---------------------------------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def _setup_repo_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Automatically set up REVERSE_AGENT_REPO_DIR for tests that need it."""
+    repo = tmp_path / "default_repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "init"],
+        cwd=repo, capture_output=True, text=True, check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=repo, capture_output=True, text=True, check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=repo, capture_output=True, text=True, check=True,
+    )
+    (repo / "marker.txt").write_text("init", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "."],
+        cwd=repo, capture_output=True, text=True, check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "init"],
+        cwd=repo, capture_output=True, text=True, check=True,
+    )
+    subprocess.run(
+        ["git", "remote", "add", "origin", "https://github.com/dddd2024/reverse-agent.git"],
+        cwd=repo, capture_output=True, text=True, check=True,
+    )
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(repo))
+
+
 class _FakePreparedCtx:
     """Fake return value from prepare_worktree_once()."""
     def __init__(self, worktree: Path, execution_id: str = "") -> None:

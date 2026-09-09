@@ -51,6 +51,30 @@ from reverse_agent.platform_v1.opencode_executor import (
 )
 
 
+_OPENCODE_SOURCE_ORIGIN = "https://github.com/dddd2024/reverse-agent.git"
+
+
+@pytest.fixture(autouse=True)
+def _matching_source_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    """Provision the explicit trusted-host SourceDir these provider-free durable
+    tests validate beneath.  The configured origin identity exactly equals the
+    default Task repository used here, so the production SourceDir guard runs
+    unchanged instead of being mocked, bypassed, or weakened."""
+    repo = tmp_path / "source-repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", _OPENCODE_SOURCE_ORIGIN],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(repo))
+    return repo
+
+
 # ---------------------------------------------------------------------------
 # Fake executor for single-mode
 # ---------------------------------------------------------------------------
