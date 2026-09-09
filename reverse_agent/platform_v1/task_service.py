@@ -297,7 +297,6 @@ class _TaskHandler(BaseHTTPRequestHandler):
     coordinator: Any | None = None
 
     server_version = "reverse-agent-task-service/1"
-
     def log_message(self, format: str, *args: object) -> None:
         return
 
@@ -317,6 +316,15 @@ class _TaskHandler(BaseHTTPRequestHandler):
             segments = self._segments()
             if segments == ["api", "platform", "status"]:
                 self._send_json(HTTPStatus.OK, self._platform_status_response())
+                return
+            if segments == ["api", "platform", "doctor"]:
+                from .system_doctor import SystemDoctor
+
+                report = SystemDoctor(
+                    store=self.store,
+                    runtime_status_provider=self._platform_status_response,
+                ).run()
+                self._send_json(HTTPStatus.OK, report)
                 return
             if segments == ["api", "capabilities"]:
                 self._send_json(HTTPStatus.OK, self.capability_registry.response())
