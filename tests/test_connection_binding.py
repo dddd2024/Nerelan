@@ -1305,3 +1305,22 @@ def test_schema_v2_rejects_legacy_provider_authority_field(tmp_path) -> None:
     with pytest.raises(_StoreError, match="unknown field"):
         ModelProfileStore(state_path=str(sp))
     assert sp.read_bytes() == raw
+
+
+@pytest.mark.parametrize("schema_version", [True, False, 1.0, 2.0])
+def test_persisted_schema_version_requires_exact_integer(
+    tmp_path,
+    schema_version: object,
+) -> None:
+    sp = _Path(_state_path(tmp_path))
+    invalid = {
+        "schema_version": schema_version,
+        "connections": [],
+        "bindings": [],
+    }
+    raw = _json_mod.dumps(invalid).encode("utf-8")
+    sp.write_bytes(raw)
+
+    with pytest.raises(_StoreError, match="unsupported schema_version"):
+        ModelProfileStore(state_path=str(sp))
+    assert sp.read_bytes() == raw
