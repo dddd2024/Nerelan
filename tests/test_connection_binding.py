@@ -1044,3 +1044,264 @@ def test_refresh_external_session_status_does_not_mutate_api_key_status(tmp_path
 
     raw_bytes = _Path(sp).read_bytes()
     assert b"external_session_status" not in raw_bytes
+
+
+# ===================================================================
+# ISSUE684 R1 — Three-axis Connection identity + sanitized state v2
+# ===================================================================
+
+@pytest.mark.parametrize(
+    ("provider", "upstream", "protocol"),
+    [
+        ("sensetime", "sensetime", "openai"),
+        ("deepseek", "deepseek", "openai"),
+        ("openrouter", "openrouter", "openai"),
+        ("openai-compatible", None, "openai"),
+        ("custom-provider", None, None),
+    ],
+)
+def test_connection_legacy_provider_normalizes_three_axes(
+    provider: str,
+    upstream: str | None,
+    protocol: str | None,
+) -> None:
+    connection = Connection.from_mapping(connection_payload(provider=provider))
+
+    assert connection.provider == provider
+    assert connection.executor_provider_id == provider
+    assert connection.upstream_provider_id == upstream
+    assert connection.protocol_family == protocol
+
+
+def test_connection_explicit_identity_is_independent_and_conflict_fails_closed() -> None:
+    connection = Connection.from_mapping(
+        connection_payload(
+            provider="openai-compatible",
+            upstream_provider_id="sensetime",
+            protocol_family="openai",
+            executor_provider_id="openai-compatible",
+        )
+    )
+    assert connection.provider == "openai-compatible"
+    assert connection.upstream_provider_id == "sensetime"
+    assert connection.protocol_family == "openai"
+    assert connection.executor_provider_id == "openai-compatible"
+
+    with pytest.raises(ValueError, match="must match executor_provider_id"):
+        Connection.from_mapping(
+            connection_payload(
+                provider="sensetime",
+                upstream_provider_id="sensetime",
+                protocol_family="openai",
+                executor_provider_id="openai-compatible",
+            )
+        )
+
+    with pytest.raises(ValueError, match="executor_provider_id is required"):
+        Connection.from_mapping(
+            connection_payload(
+                upstream_provider_id="sensetime",
+                protocol_family="openai",
+            )
+        )
+
+
+def test_connection_public_shape_exposes_axes_without_secret_material() -> None:
+    store = ModelProfileStore()
+    public = store.upsert_connection(
+        connection_payload(
+            provider="openai-compatible",
+            upstream_provider_id="sensetime",
+            protocol_family="openai",
+            executor_provider_id="openai-compatible",
+            api_key="issue684-secret-sentinel",
+        )
+    )
+
+    assert public["provider"] == "openai-compatible"
+    assert public["upstream_provider_id"] == "sensetime"
+    assert public["protocol_family"] == "openai"
+    assert public["executor_provider_id"] == "openai-compatible"
+    serialized = json.dumps(public)
+    assert "issue684-secret-sentinel" not in serialized
+    assert "credential_ref" not in serialized
+
+
+def test_schema_v1_load_is_read_only_then_next_persistence_writes_v2(tmp_path) -> None:
+    sp = _Path(_state_path(tmp_path))
+    v1 = {
+        "schema_version": 1,
+        "connections": [
+            {
+                "connection_id": "sense-api",
+                "name": "SenseNova API",
+                "provider": "sensetime",
+                "base_url": "https://models.example.test/v1",
+                "auth_method": "none",
+                "enabled": True,
+            }
+        ],
+        "bindings": [],
+    }
+    original = _json_mod.dumps(v1, sort_keys=True).encode("utf-8")
+    sp.write_bytes(original)
+
+    store = ModelProfileStore(state_path=str(sp))
+    assert sp.read_bytes() == original
+    public = store.get_connection_public("sense-api")
+    assert public["upstream_provider_id"] == "sensetime"
+    assert public["protocol_family"] == "openai"
+    assert public["executor_provider_id"] == "sensetime"
+
+    store.upsert_connection(
+        {
+            "connection_id": "sense-api",
+            "name": "SenseNova API renamed",
+            "provider": "sensetime",
+            "base_url": "https://models.example.test/v1",
+            "auth_method": "none",
+            "enabled": True,
+        }
+    )
+    v2 = _json_mod.loads(sp.read_text(encoding="utf-8"))
+    assert v2["schema_version"] == 2
+    record = v2["connections"][0]
+    assert "provider" not in record
+    assert record["upstream_provider_id"] == "sensetime"
+    assert record["protocol_family"] == "openai"
+    assert record["executor_provider_id"] == "sensetime"
+
+    reloaded = ModelProfileStore(state_path=str(sp))
+    assert reloaded.list_connections_public() == store.list_connections_public()
+    before = sp.read_bytes()
+    ModelProfileStore(state_path=str(sp))
+    assert sp.read_bytes() == before
+
+
+def test_v1_credential_ref_is_preserved_byte_for_byte_during_v2_persistence(tmp_path) -> None:
+    sp = _Path(_state_path(tmp_path))
+    credential_ref = "nerelan:conn:v1:sense-api:0123456789abcdef"
+    v1 = {
+        "schema_version": 1,
+        "connections": [
+            {
+                "connection_id": "sense-api",
+                "name": "SenseNova API",
+                "provider": "sensetime",
+                "base_url": "https://models.example.test/v1",
+                "auth_method": "api_key",
+                "enabled": True,
+                "credential_ref": credential_ref,
+            }
+        ],
+        "bindings": [],
+    }
+    sp.write_text(_json_mod.dumps(v1), encoding="utf-8")
+
+    store = ModelProfileStore(state_path=str(sp))
+    assert store.get_connection_public("sense-api")["secret_status"] == "store_locked"
+    store.upsert_connection(
+        {
+            "connection_id": "sense-api",
+            "name": "SenseNova API renamed",
+            "provider": "sensetime",
+            "base_url": "https://models.example.test/v1",
+            "auth_method": "api_key",
+            "enabled": True,
+        }
+    )
+
+    persisted = _json_mod.loads(sp.read_text(encoding="utf-8"))
+    assert persisted["schema_version"] == 2
+    assert persisted["connections"][0]["credential_ref"] == credential_ref
+
+
+def test_identity_axis_change_cannot_silently_reuse_configured_credential() -> None:
+    store = ModelProfileStore()
+    store.upsert_connection(
+        connection_payload(
+            provider="openai-compatible",
+            upstream_provider_id=None,
+            protocol_family="openai",
+            executor_provider_id="openai-compatible",
+            api_key="old-secret",
+        )
+    )
+
+    with pytest.raises(ValueError, match="authority-bearing"):
+        store.upsert_connection(
+            connection_payload(
+                provider="openai-compatible",
+                upstream_provider_id="openai",
+                protocol_family="openai",
+                executor_provider_id="openai-compatible",
+            )
+        )
+    assert store.resolve_connection_secret("sense-api") == "old-secret"
+
+
+def test_external_session_matching_uses_executor_provider_id_not_upstream() -> None:
+    store = ModelProfileStore()
+    store.upsert_connection(
+        connection_payload(
+            connection_id="three-axis-external",
+            provider="openai-compatible",
+            upstream_provider_id="sensetime",
+            protocol_family="openai",
+            executor_provider_id="openai-compatible",
+            auth_method="external_cli_session",
+        )
+    )
+
+    store.refresh_external_session_status({"sensetime": "api"})
+    assert store.get_connection_public("three-axis-external")["external_session_status"] == "missing"
+    store.refresh_external_session_status({"openai-compatible": "api"})
+    assert store.get_connection_public("three-axis-external")["external_session_status"] == "available"
+
+
+def test_execution_snapshot_carries_three_identity_axes() -> None:
+    store = ModelProfileStore()
+    store.upsert_connection(
+        connection_payload(
+            provider="openai-compatible",
+            upstream_provider_id="sensetime",
+            protocol_family="openai",
+            executor_provider_id="openai-compatible",
+            api_key="snapshot-secret",
+        )
+    )
+    store.upsert_binding(binding_payload())
+
+    snapshot = store.resolve_execution_snapshot("coding-fast")
+    assert snapshot.provider == "openai-compatible"
+    assert snapshot.upstream_provider_id == "sensetime"
+    assert snapshot.protocol_family == "openai"
+    assert snapshot.executor_provider_id == "openai-compatible"
+    assert snapshot.resolved_api_key == "snapshot-secret"
+
+
+def test_schema_v2_rejects_legacy_provider_authority_field(tmp_path) -> None:
+    sp = _Path(_state_path(tmp_path))
+    invalid = {
+        "schema_version": 2,
+        "connections": [
+            {
+                "connection_id": "sense-api",
+                "name": "SenseNova API",
+                "provider": "sensetime",
+                "upstream_provider_id": "sensetime",
+                "protocol_family": "openai",
+                "executor_provider_id": "sensetime",
+                "base_url": "https://models.example.test/v1",
+                "auth_method": "none",
+                "enabled": True,
+            }
+        ],
+        "bindings": [],
+    }
+    raw = _json_mod.dumps(invalid).encode("utf-8")
+    sp.write_bytes(raw)
+
+    with pytest.raises(_StoreError, match="unknown field"):
+        ModelProfileStore(state_path=str(sp))
+    assert sp.read_bytes() == raw
