@@ -8,7 +8,7 @@ from typing import Any, Callable
 
 import pytest
 
-from reverse_agent.model_access.contracts import ModelProfile, ProbeResult
+from reverse_agent.model_access.contracts import Connection, ModelProfile, ProbeResult
 from reverse_agent.model_access.store import ModelProfileStore
 from reverse_agent.model_access.service import (
     _handler_factory,
@@ -1833,3 +1833,40 @@ class TestVaultRemovalAndIndependentPaths:
         )
         assert switched["secret_status"] == "not_applicable"
         assert vault.item_refs() == ()
+
+
+# ---------------------------------------------------------------------------
+# ISSUE705 R1 - Direct Connection constructor conformance
+# ---------------------------------------------------------------------------
+
+
+def test_direct_connection_partial_explicit_identity_requires_executor_provider_id() -> None:
+    with pytest.raises(ValueError, match="executor_provider_id is required"):
+        Connection(
+            connection_id="direct-partial",
+            name="Direct partial identity",
+            provider="openai-compatible",
+            base_url="https://models.example.test/v1",
+            auth_method="none",
+            upstream_provider_id="sensetime",
+            protocol_family="openai",
+            executor_provider_id=None,
+        )
+
+
+def test_direct_connection_preserves_three_explicit_identity_axes() -> None:
+    connection = Connection(
+        connection_id="direct-three-axis",
+        name="Direct three-axis identity",
+        provider="openai-compatible",
+        base_url="https://models.example.test/v1",
+        auth_method="none",
+        upstream_provider_id="sensetime",
+        protocol_family="openai",
+        executor_provider_id="openai-compatible",
+    )
+
+    assert connection.provider == "openai-compatible"
+    assert connection.upstream_provider_id == "sensetime"
+    assert connection.protocol_family == "openai"
+    assert connection.executor_provider_id == "openai-compatible"

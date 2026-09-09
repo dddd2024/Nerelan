@@ -7,6 +7,8 @@ import re
 from typing import Any, Mapping
 from urllib.parse import urlsplit
 
+from .provider_identity import ProviderIdentity
+
 _PROFILE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,79}$")
 _PROVIDER_VALUES = frozenset({"openai-compatible", "litellm-proxy"})
 _EXECUTOR_VALUES = frozenset({"openhands", "codex-acp"})
@@ -75,9 +77,20 @@ def _base_url(value: Any) -> str:
     return normalized
 
 
+def _provider_alias(value: Any) -> str:
+    """Normalize the temporary legacy provider alias as an executor namespace."""
+
+    return ProviderIdentity.from_legacy_provider(value).executor_provider_id
+
+
 @dataclass(frozen=True, slots=True)
 class Connection:
     """Sanitized provider/service access metadata.
+
+    ``provider`` is retained only as a compatibility alias for
+    ``executor_provider_id``. Provider/account semantics belong exclusively to
+    ``upstream_provider_id`` and wire compatibility belongs to
+    ``protocol_family``.
 
     Raw API keys and environment references belong to the trusted process-local
     store and are deliberately absent from this contract.
@@ -89,6 +102,44 @@ class Connection:
     base_url: str
     auth_method: str
     enabled: bool = True
+    upstream_provider_id: str | None = None
+    protocol_family: str | None = None
+    executor_provider_id: str | None = None
+
+    def __post_init__(self) -> None:
+        provider_alias = _provider_alias(self.provider)
+        partial_explicit_identity = (
+            self.upstream_provider_id is not None
+            or self.protocol_family is not None
+        )
+        if self.executor_provider_id is None:
+            if partial_explicit_identity:
+                raise ValueError(
+                    "executor_provider_id is required when explicit provider identity is supplied"
+                )
+            identity = ProviderIdentity.from_legacy_provider(provider_alias)
+        else:
+            identity = ProviderIdentity(
+                upstream_provider_id=self.upstream_provider_id,
+                protocol_family=self.protocol_family,
+                executor_provider_id=self.executor_provider_id,
+            )
+            if provider_alias != identity.executor_provider_id:
+                raise ValueError(
+                    "provider must match executor_provider_id when both are supplied"
+                )
+        object.__setattr__(self, "provider", identity.executor_provider_id)
+        object.__setattr__(self, "upstream_provider_id", identity.upstream_provider_id)
+        object.__setattr__(self, "protocol_family", identity.protocol_family)
+        object.__setattr__(self, "executor_provider_id", identity.executor_provider_id)
+
+    @property
+    def provider_identity(self) -> ProviderIdentity:
+        return ProviderIdentity(
+            upstream_provider_id=self.upstream_provider_id,
+            protocol_family=self.protocol_family,
+            executor_provider_id=self.provider,
+        )
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "Connection":
@@ -99,7 +150,47 @@ class Connection:
         )
         if auth_method not in _AUTH_METHOD_VALUES:
             raise ValueError(f"unsupported auth_method: {auth_method}")
-        provider = _identifier(_read(value, "provider"), "provider")
+
+        explicit_identity_keys = {
+            "upstream_provider_id",
+            "upstreamProviderId",
+            "protocol_family",
+            "protocolFamily",
+            "executor_provider_id",
+            "executorProviderId",
+        }
+        has_explicit_identity = bool(explicit_identity_keys.intersection(value))
+        provider_raw = _read(value, "provider")
+
+        if has_explicit_identity:
+            executor_raw = _read(
+                value, "executor_provider_id", "executorProviderId"
+            )
+            if executor_raw is None:
+                raise ValueError(
+                    "executor_provider_id is required when explicit provider identity is supplied"
+                )
+            identity = ProviderIdentity(
+                upstream_provider_id=_read(
+                    value, "upstream_provider_id", "upstreamProviderId"
+                ),
+                protocol_family=_read(value, "protocol_family", "protocolFamily"),
+                executor_provider_id=executor_raw,
+            )
+            if provider_raw is None:
+                provider = identity.executor_provider_id
+            else:
+                provider = _provider_alias(provider_raw)
+                if provider != identity.executor_provider_id:
+                    raise ValueError(
+                        "provider must match executor_provider_id when both are supplied"
+                    )
+        else:
+            if provider_raw is None:
+                raise ValueError("provider is required")
+            identity = ProviderIdentity.from_legacy_provider(provider_raw)
+            provider = identity.executor_provider_id
+
         return cls(
             connection_id=_identifier(
                 _read(value, "connection_id", "connectionId"),
@@ -110,6 +201,9 @@ class Connection:
             base_url=_base_url(_read(value, "base_url", "baseUrl")),
             auth_method=auth_method,
             enabled=_boolean(_read(value, "enabled"), "enabled", True),
+            upstream_provider_id=identity.upstream_provider_id,
+            protocol_family=identity.protocol_family,
+            executor_provider_id=identity.executor_provider_id,
         )
 
     def to_public_dict(
@@ -131,6 +225,9 @@ class Connection:
             "connection_id": self.connection_id,
             "name": self.name,
             "provider": self.provider,
+            "upstream_provider_id": self.upstream_provider_id,
+            "protocol_family": self.protocol_family,
+            "executor_provider_id": self.executor_provider_id,
             "base_url": self.base_url,
             "auth_method": self.auth_method,
             "enabled": self.enabled,
@@ -323,6 +420,9 @@ class ExecutionSnapshot:
     auth_method: str
     resolved_api_key: str | None
     external_session_status: str
+    upstream_provider_id: str | None = None
+    protocol_family: str | None = None
+    executor_provider_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
