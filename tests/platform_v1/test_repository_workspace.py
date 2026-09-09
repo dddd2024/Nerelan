@@ -3,9 +3,11 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import subprocess
+from typing import Any
 
 import pytest
 
+from reverse_agent.platform_v1.opencode_executor import handoff_dir as _handoff_dir
 from reverse_agent.platform_v1.repository_workspace import (
     RepositoryWorkspaceError,
     normalize_github_origin,
@@ -370,6 +372,57 @@ def test_execution_mismatch_zero_executor_calls(
     assert call_count == 0
 
 
+def test_sequential_team_execute_mismatch_zero_executor_calls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ordinary sequential-team OpenCode execution validates the SourceDir before
+    executor construction or worktree preparation and records the existing
+    blocked outcome with the exact stable code."""
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import (
+        TaskExecutionOutcome,
+        TaskExecutionService,
+    )
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+
+    repo_a = _git_init_repo(
+        tmp_path / "repo_a", "https://github.com/owner/repoA.git"
+    )
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(repo_a))
+
+    store = TaskStore(db_path=str(tmp_path / "seq-exec.sqlite3"))
+    task = store.create_task(
+        title="seq-execute-test",
+        repository="owner/repoB",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+
+    create_calls = 0
+
+    class _Router(ExecutorRouter):
+        def create_executor(self, **kwargs: Any) -> Any:
+            nonlocal create_calls
+            create_calls += 1
+            return _SequentialFakeExecutor()
+
+        def dispatch_execute(self, *args: Any, **kwargs: Any) -> None:
+            raise NotImplementedError()
+
+    service = TaskExecutionService(store=store, router=_Router())
+
+    outcome = service.execute_sequential_team(
+        task.id, workspace_root=str(tmp_path / "ws")
+    )
+
+    assert isinstance(outcome, TaskExecutionOutcome)
+    assert outcome.success is False
+    assert outcome.failure_detail == "repository_workspace_mismatch"
+    assert create_calls == 0
+    assert store.get_task(task.id).status == "BLOCKED"
+    assert not (tmp_path / "ws").exists()
+
+
 def test_durable_first_run_mismatch_zero_calls(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -412,6 +465,10 @@ def test_durable_first_run_mismatch_zero_calls(
         )
 
     assert str(caught.value) == "repository_workspace_mismatch"
+    assert store._conn.execute(
+        "SELECT COUNT(*) FROM durable_runs WHERE task_id = ?", (task.id,)
+    ).fetchone()[0] == 0
+    assert not (tmp_path / "ws").exists()
 
 
 def test_resume_after_source_change_blocked(
@@ -586,3 +643,208 @@ def test_durable_resume_unconfigured_exact_code(
         )
 
     assert str(caught.value) == "repository_workspace_unconfigured"
+
+
+class _SequentialFakeExecutor:
+    """Provider-free stand-in for the existing OpenCode worktree and role
+    machinery that runs beneath the SourceDir guard."""
+
+    def __init__(self) -> None:
+        self.executor_calls = 0
+
+    def prepare_worktree_once(
+        self, task_id: str, workspace_root: Path, callback: Any = None
+    ) -> Any:
+        worktree = Path(workspace_root) / f"wt-{task_id[-8:]}"
+        worktree.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            ["git", "init", "-q"], cwd=worktree, check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@test.com"],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+        )
+        (worktree / "README.md").write_text("hello\n", encoding="utf-8")
+        (worktree / "product.py").write_text("# product\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "add", "."], cwd=worktree, check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "init"],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+        )
+
+        class _Prepared:
+            pass
+
+        prepared = _Prepared()
+        prepared.worktree = worktree
+        prepared.execution_id = f"exec-{task_id}"
+        return prepared
+
+    def execute_role_prepared(
+        self,
+        prepared: Any,
+        store: Any,
+        *,
+        role_context: Any = None,
+        event_callback: Any = None,
+    ) -> Any:
+        self.executor_calls += 1
+        worktree = Path(prepared.worktree)
+        handoff = _handoff_dir(worktree)
+        role = getattr(role_context, "role", "planner")
+        handoff.mkdir(parents=True, exist_ok=True)
+        if role == "planner":
+            (handoff / "plan.md").write_text("# Plan\n", encoding="utf-8")
+        elif role == "coder":
+            (worktree / "product.py").write_text("def hello(): pass\n", encoding="utf-8")
+        elif role == "reviewer":
+            (handoff / "review.md").write_text("# Review\n", encoding="utf-8")
+
+        class _Result:
+            success = True
+            validation_exit_code = 0
+            failure_classification = ""
+            error = ""
+
+        _Result.execution_id = f"exec-{role}"
+        return _Result()
+
+
+def _sequential_router(fake: _SequentialFakeExecutor) -> Any:
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+
+    class _Router(ExecutorRouter):
+        def create_executor(
+            self, *, executor_kind: str = "opencode", **kwargs: Any
+        ) -> _SequentialFakeExecutor:
+            return fake
+
+        def dispatch_execute(self, *args: Any, **kwargs: Any) -> None:
+            raise NotImplementedError()
+
+    return _Router()
+
+
+def test_durable_sequential_first_run_mismatch_blocks_before_side_effects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Durable sequential-team first execution fails closed with the exact stable
+    code before lease acquisition, durable run creation, or executor dispatch."""
+    from reverse_agent.platform_v1.durable_execution import DurableExecutionService
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionError
+
+    repo_a = _git_init_repo(
+        tmp_path / "repo_a", "https://github.com/owner/repoA.git"
+    )
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(repo_a))
+
+    store = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
+    task = store.create_task(
+        title="durable-sequential-mismatch",
+        repository="owner/repoB",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+
+    fake = _SequentialFakeExecutor()
+    service = DurableExecutionService(
+        store=store,
+        router=_sequential_router(fake),
+        execution_authority_sha="auth-sha-1",
+        planning_sha="plan-sha-1",
+    )
+
+    with pytest.raises(TaskExecutionError) as caught:
+        service.execute_durable_sequential_team(
+            task.id,
+            workspace_root=str(tmp_path / "ws"),
+        )
+
+    assert str(caught.value) == "repository_workspace_mismatch"
+    assert store._conn.execute(
+        "SELECT COUNT(*) FROM durable_runs WHERE task_id = ?", (task.id,)
+    ).fetchone()[0] == 0
+    assert fake.executor_calls == 0
+    assert not (tmp_path / "ws").exists()
+
+
+def test_durable_sequential_resume_after_source_change_blocked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Durable sequential-team resume/recovery revalidates the current trusted-host
+    SourceDir before executor reconstruction or continuation; a SourceDir that
+    moved from repository A to repository B cannot resume the old run."""
+    from reverse_agent.platform_v1.durable_execution import (
+        DurableExecutionService,
+        DurableResumeError,
+        _CrashSimulated,
+        reset_crash_seam,
+        set_crash_after_checkpoint,
+    )
+    from reverse_agent.platform_v1.run_store import TaskStore
+
+    repo_a = _git_init_repo(
+        tmp_path / "repo_a", "https://github.com/owner/repoA.git"
+    )
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(repo_a))
+
+    store = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
+    task = store.create_task(
+        title="sequential-resume-test",
+        repository="owner/repoA",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+
+    fake = _SequentialFakeExecutor()
+    service = DurableExecutionService(
+        store=store,
+        router=_sequential_router(fake),
+        execution_authority_sha="auth-sha-1",
+        planning_sha="plan-sha-1",
+    )
+
+    set_crash_after_checkpoint("POST_PLANNER")
+    try:
+        with pytest.raises(_CrashSimulated):
+            service.execute_durable_sequential_team(
+                task.id,
+                workspace_root=str(tmp_path / "ws"),
+            )
+    finally:
+        reset_crash_seam()
+
+    assert (
+        store._conn.execute(
+            "SELECT COUNT(*) FROM durable_runs WHERE task_id = ?", (task.id,)
+        ).fetchone()[0]
+        == 1
+    )
+
+    repo_b = _git_init_repo(
+        tmp_path / "repo_b", "https://github.com/owner/repoB.git"
+    )
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(repo_b))
+
+    with pytest.raises(DurableResumeError) as caught:
+        service.resume_sequential_team(
+            task.id,
+            workspace_root=str(tmp_path / "ws"),
+            execution_authority_sha="auth-sha-1",
+            planning_sha="plan-sha-1",
+        )
+
+    assert str(caught.value) == "repository_workspace_mismatch"
