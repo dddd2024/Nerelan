@@ -93,6 +93,104 @@ def _parallel_goal(goals, window_id, *, key, count=2):
     return goal
 
 
+@pytest.mark.parametrize("wip", [1, 2])
+def test_coordinator_executes_reversed_dependency_chain_and_restart_once(tmp_path, wip):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "reversed-dag", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": wip, "max_tasks": 10, "max_retries": 1,
+        "confirmation": "ACTIVATE",
+    })
+    goal = goals.create({
+        "objective": "Execute a reversed dependency chain", "idempotency_key": "reversed-dag",
+        "executor_kind": "deterministic_fixture", "orchestration_mode": "single",
+    })
+    goals.plan(goal.id, expected_revision=1, tasks=[
+        {"id": "C", "title": "third", "instruction": "third", "dependencies": ["B"]},
+        {"id": "B", "title": "second", "instruction": "second", "dependencies": ["A"]},
+        {"id": "A", "title": "first", "instruction": "first"},
+    ])
+    goals.approve(goal.id, expected_revision=1)
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    tasks = {link["plan_task_id"]: link["task_id"] for link in control.list_goal_tasks(goal.id)}
+    calls = []
+
+    def execute(task_id):
+        calls.append(task_id)
+        return _ready_fixture(store, task_id)
+
+    def coordinator():
+        return UnattendedCoordinator(
+            store=store, control_store=control, autonomy=autonomy, router=ExecutorRouter(),
+            workspace_root=tmp_path, task_executor=execute,
+        )
+
+    assert coordinator().tick() == 1
+    restarted = coordinator()
+    assert restarted.tick() == 1
+    assert restarted.tick() == 1
+    assert restarted.tick() == 0
+    assert calls == [tasks["A"], tasks["B"], tasks["C"]]
+    assert control.get_goal(goal.id).status == "COMPLETED"
+    budget = control.get_window(window.id)
+    assert (budget.tasks_started, budget.tasks_completed) == (3, 3)
+
+
+def test_runnable_limit_does_not_hide_later_goal_behind_waiting_rows(tmp_path):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "later-goal", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 2, "max_tasks": 10, "max_retries": 1,
+        "confirmation": "ACTIVATE",
+    })
+    older = goals.create({
+        "objective": "Older blocked goal", "idempotency_key": "older-blocked",
+        "executor_kind": "deterministic_fixture", "orchestration_mode": "single",
+    })
+    goals.plan(older.id, expected_revision=1, tasks=[
+        {"id": "A", "title": "first", "instruction": "first"},
+        *[{"id": f"B{i}", "title": "waiting", "instruction": "wait", "dependencies": ["A"]}
+          for i in range(5)],
+    ])
+    goals.approve(older.id, expected_revision=1)
+    goals.launch(older.id, expected_revision=1, window_id=window.id)
+    store.set_state(control.list_goal_tasks(older.id)[0]["task_id"], "RUNNING")
+    later = _parallel_goal(goals, window.id, key="later-ready", count=3)
+    control._conn.execute(
+        "UPDATE platform_goals SET created_at = ? WHERE id = ?", ("2000-01-01T00:00:00Z", older.id)
+    )
+    later_tasks = [link["task_id"] for link in control.list_goal_tasks(later.id)]
+    assert control.runnable_tasks(window.id, limit=2) == tuple(later_tasks[:2])
+    calls = []
+
+    def execute(task_id):
+        calls.append(task_id)
+        return _ready_fixture(store, task_id)
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy, router=ExecutorRouter(),
+        workspace_root=tmp_path, task_executor=execute,
+    )
+    assert coordinator.tick() == 2
+    assert set(calls) == set(later_tasks[:2])
+    assert coordinator.tick() == 1
+    assert set(calls) == set(later_tasks)
+
+
 def test_coordinator_uses_langgraph_send_for_real_parallel_batch(tmp_path):
     store = TaskStore(":memory:")
     control = PlatformControlStore(store)
