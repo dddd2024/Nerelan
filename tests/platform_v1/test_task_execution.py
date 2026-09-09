@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -18,6 +20,37 @@ from reverse_agent.platform_v1.task_execution import (
     TaskExecutionService,
 )
 from reverse_agent.platform_v1.task_runtime import ExecutorResult, ExecutorRouter
+
+
+def _git_init_repo(path: Path, origin_url: str = "") -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "init"],
+        cwd=path, capture_output=True, text=True, check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=path, capture_output=True, text=True, check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=path, capture_output=True, text=True, check=True,
+    )
+    (path / "marker.txt").write_text("test", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "."],
+        cwd=path, capture_output=True, text=True, check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "init"],
+        cwd=path, capture_output=True, text=True, check=True,
+    )
+    if origin_url:
+        subprocess.run(
+            ["git", "remote", "add", "origin", origin_url],
+            cwd=path, capture_output=True, text=True, check=True,
+        )
+    return path
 
 
 def test_task_service_has_no_duplicate_execution_helpers() -> None:
@@ -157,7 +190,9 @@ def _resolved_binding() -> OpenCodeBindingResolution:
     )
 
 
-def test_binding_is_resolved_before_state_or_workspace_side_effects(tmp_path) -> None:
+def test_binding_is_resolved_before_state_or_workspace_side_effects(tmp_path, monkeypatch) -> None:
+    repo = _git_init_repo(tmp_path / "repo", "https://github.com/dddd2024/reverse-agent.git")
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(repo))
     store = TaskStore(db_path=str(tmp_path / "bound.sqlite3"))
     workspace_root = tmp_path / "bound-workspace"
     task = store.create_task(
@@ -198,7 +233,9 @@ def test_binding_is_resolved_before_state_or_workspace_side_effects(tmp_path) ->
     assert "model_id" not in captured[0]
 
 
-def test_binding_resolution_failure_blocks_before_executor_or_workspace(tmp_path) -> None:
+def test_binding_resolution_failure_blocks_before_executor_or_workspace(tmp_path, monkeypatch) -> None:
+    repo = _git_init_repo(tmp_path / "repo", "https://github.com/dddd2024/reverse-agent.git")
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(repo))
     store = TaskStore(db_path=str(tmp_path / "blocked.sqlite3"))
     workspace_root = tmp_path / "blocked-workspace"
     task = store.create_task(
@@ -228,7 +265,9 @@ def test_binding_resolution_failure_blocks_before_executor_or_workspace(tmp_path
     assert not workspace_root.exists()
 
 
-def test_legacy_opencode_task_still_passes_model_profile_to_executor(tmp_path) -> None:
+def test_legacy_opencode_task_still_passes_model_profile_to_executor(tmp_path, monkeypatch) -> None:
+    repo = _git_init_repo(tmp_path / "repo", "https://github.com/dddd2024/reverse-agent.git")
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(repo))
     store = TaskStore(db_path=str(tmp_path / "legacy-open.sqlite3"))
     task = store.create_task(
         title="legacy execution",
@@ -260,6 +299,8 @@ def test_legacy_opencode_task_still_passes_model_profile_to_executor(tmp_path) -
 def test_legacy_opencode_task_keeps_environment_model_fallback(
     tmp_path, monkeypatch
 ) -> None:
+    repo = _git_init_repo(tmp_path / "repo", "https://github.com/dddd2024/reverse-agent.git")
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(repo))
     monkeypatch.setenv("REVERSE_AGENT_OPENCODE_MODEL", "legacy-env/model")
     store = TaskStore(db_path=str(tmp_path / "legacy-env.sqlite3"))
     task = store.create_task(
@@ -291,6 +332,8 @@ def test_legacy_opencode_task_keeps_environment_model_fallback(
 def test_server_transport_selection_comes_from_trusted_process_env(
     tmp_path, monkeypatch
 ) -> None:
+    repo = _git_init_repo(tmp_path / "repo", "https://github.com/dddd2024/reverse-agent.git")
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(repo))
     monkeypatch.setenv("REVERSE_AGENT_OPENCODE_TRANSPORT", "server")
     store = TaskStore(db_path=str(tmp_path / "server-mode.sqlite3"))
     task = store.create_task(
