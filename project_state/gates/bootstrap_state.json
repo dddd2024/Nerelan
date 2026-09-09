@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260908_issue423_windows_platform_ci_r2_v3",
-  "round_id": "round_20260908_issue423_windows_platform_ci_r2_v3",
-  "expired_at": "2026-09-08T05:21:12+00:00"
+  "decision_id": "decision_20260908_issue585_desktop0_tauri_r2_v9",
+  "round_id": "round_20260908_issue585_desktop0_tauri_r2_v9",
+  "expired_at": "2026-09-09T02:11:43+00:00"
 }
