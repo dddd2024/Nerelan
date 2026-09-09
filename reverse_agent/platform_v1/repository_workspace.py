@@ -1,134 +1,192 @@
-"""Repository workspace identity validation for trusted-host single-source mode.
+"""Fail-closed binding between one trusted SourceDir and Task/Goal repository identity.
 
-Resolves REVERSE_AGENT_REPO_DIR as a local Git repository, derives its
-configured origin identity via bounded local Git commands, normalizes
-ordinary GitHub HTTPS/SSH transport syntax to ``owner/repo``, and compares
-that identity with the Goal/Task ``repository`` field.
-
-Fail-closed: missing source, invalid Git repository, missing/unsupported
-origin, or identity mismatch produces stable sanitized failures.
+The current Platform V1 product mode has exactly one configured source workspace,
+provided by ``REVERSE_AGENT_REPO_DIR``.  This module deliberately does not search
+for repositories, clone/fetch/pull, rewrite remotes, or create worktrees.  It only
+proves that the configured local Git repository's ``origin`` identifies the same
+``owner/repo`` requested by a Goal/Task before the existing executor/worktree stack
+is allowed to continue.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import os
+from pathlib import Path
 import re
 import subprocess
-
-_GITHUB_ORIGIN_RE = re.compile(
-    r"(?:https://|ssh://git@|git@)github\.com[/:]"
-    r"([^/:]+)/([^/\s]+?)(?:\.git)?$"
-)
+from typing import Mapping, Sequence
+from urllib.parse import urlsplit
 
 
-class RepositoryWorkspaceError(Exception):
-    """Base for repository workspace identity failures."""
-
-    code = "error"
-
-
-class RepositoryWorkspaceUnconfigured(RepositoryWorkspaceError):
-    """REVERSE_AGENT_REPO_DIR is missing or empty."""
-
-    code = "unconfigured"
+_REPOSITORY_TOKEN = re.compile(r"^[A-Za-z0-9_.-]+$")
+_GIT_OUTPUT_LIMIT = 4096
+_GIT_TIMEOUT_SECONDS = 5.0
 
 
-class RepositoryWorkspaceInvalid(RepositoryWorkspaceError):
-    """The source path does not exist or is not a Git repository."""
+class RepositoryWorkspaceError(RuntimeError):
+    """Stable sanitized fail-closed repository/workspace classification."""
 
-    code = "invalid"
-
-
-class RepositoryWorkspaceIdentityUnavailable(RepositoryWorkspaceError):
-    """Cannot determine the origin identity of the Git repository."""
-
-    code = "identity_unavailable"
+    def __init__(self, code: str) -> None:
+        self.code = code
+        super().__init__(code)
 
 
-class RepositoryWorkspaceMismatch(RepositoryWorkspaceError):
-    """Origin identity does not match the expected repository."""
+@dataclass(frozen=True, slots=True)
+class RepositoryWorkspaceBinding:
+    """One proven local workspace bound to one Task/Goal repository identity."""
 
-    code = "mismatch"
+    repository: str
+    repo_dir: Path
 
 
-def normalize_github_origin(url: str) -> str:
-    """Normalize a GitHub origin URL to ``owner/repo`` form.
+def _repository_identity(owner: str, repo: str) -> str:
+    if not owner or not repo:
+        raise ValueError("repository identity is incomplete")
+    if not _REPOSITORY_TOKEN.fullmatch(owner) or not _REPOSITORY_TOKEN.fullmatch(repo):
+        raise ValueError("repository identity contains unsupported characters")
+    return f"{owner}/{repo}"
 
-    Handles:
-        https://github.com/owner/repo.git
-        https://github.com/owner/repo
-        ssh://git@github.com/owner/repo.git
-        ssh://git@github.com/owner/repo
-        git@github.com:owner/repo.git
-        git@github.com:owner/repo
 
-    Returns ``""`` if the URL does not match ordinary GitHub syntax.
+def normalize_repository_identity(value: str) -> str:
+    """Validate an already-normalized Task/Goal ``owner/repo`` identity."""
+
+    if not isinstance(value, str):
+        raise ValueError("repository identity must be a string")
+    normalized = value.strip()
+    parts = normalized.split("/")
+    if len(parts) != 2:
+        raise ValueError("repository identity must use owner/repo form")
+    return _repository_identity(parts[0], parts[1])
+
+
+def normalize_github_origin(origin: str) -> str:
+    """Normalize supported GitHub transport syntax to ``owner/repo``.
+
+    This is syntax normalization only.  It performs no network lookup, redirect
+    resolution, fuzzy matching, or historical repository-alias rewriting.
     """
-    m = _GITHUB_ORIGIN_RE.fullmatch(url.strip())
-    if not m:
-        return ""
-    return f"{m.group(1)}/{m.group(2)}"
+
+    if not isinstance(origin, str):
+        raise ValueError("origin must be a string")
+    value = origin.strip()
+    if not value or len(value) > _GIT_OUTPUT_LIMIT:
+        raise ValueError("origin is missing or oversized")
+    if any(char in value for char in ("\r", "\n", "\x00")):
+        raise ValueError("origin contains unsupported control characters")
+
+    path: str
+    if value.startswith("git@github.com:"):
+        path = value[len("git@github.com:") :]
+        if not path:
+            raise ValueError("origin path is missing")
+    else:
+        parsed = urlsplit(value)
+        if parsed.scheme not in {"https", "ssh"}:
+            raise ValueError("unsupported origin scheme")
+        if (parsed.hostname or "").lower() != "github.com":
+            raise ValueError("unsupported origin host")
+        if parsed.query or parsed.fragment:
+            raise ValueError("origin query/fragment is not supported")
+        if parsed.scheme == "https" and (parsed.username or parsed.password):
+            raise ValueError("credential-bearing origin is not supported")
+        if parsed.scheme == "ssh" and parsed.username not in {None, "git"}:
+            raise ValueError("unsupported SSH origin user")
+        path = parsed.path.lstrip("/")
+
+    if path.endswith(".git"):
+        path = path[:-4]
+    parts = path.split("/")
+    if len(parts) != 2:
+        raise ValueError("origin must identify exactly one owner/repo")
+    return _repository_identity(parts[0], parts[1])
 
 
-def _git_repo_root(source_dir: str) -> str:
+def _run_git(repo_dir: Path, args: Sequence[str]) -> str:
+    """Run one bounded read-only Git command and return bounded stdout."""
+
     try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            cwd=source_dir,
-            capture_output=True,
+        completed = subprocess.run(
+            ["git", "-C", str(repo_dir), *args],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            check=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_GIT_TIMEOUT_SECONDS,
+            check=False,
         )
-        return result.stdout.strip()
-    except Exception:
-        return ""
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise RepositoryWorkspaceError("repository_workspace_invalid") from exc
+    if completed.returncode != 0:
+        raise RepositoryWorkspaceError("repository_workspace_invalid")
+    stdout = completed.stdout.strip()
+    if not stdout or len(stdout) > _GIT_OUTPUT_LIMIT:
+        raise RepositoryWorkspaceError("repository_workspace_identity_unavailable")
+    return stdout
 
 
-def _git_origin_url(repo_root: str) -> str:
+def resolve_repository_workspace(
+    expected_repository: str,
+    *,
+    source_dir: str | Path | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> RepositoryWorkspaceBinding:
+    """Prove the configured SourceDir is the requested repository or fail closed.
+
+    ``source_dir`` exists for deterministic trusted-host callers/tests.  When it
+    is absent, the only accepted source is ``REVERSE_AGENT_REPO_DIR``.  Caller
+    CWD is never used as a fallback.
+    """
+
+    if source_dir is None:
+        environment = os.environ if environ is None else environ
+        configured = str(environment.get("REVERSE_AGENT_REPO_DIR", "")).strip()
+        if not configured:
+            raise RepositoryWorkspaceError("repository_workspace_unconfigured")
+        source_dir = configured
+
+    raw_path = str(source_dir).strip()
+    if not raw_path:
+        raise RepositoryWorkspaceError("repository_workspace_unconfigured")
     try:
-        result = subprocess.run(
-            ["git", "remote", "get-url", "origin"],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout.strip()
-    except Exception:
-        return ""
+        candidate = Path(raw_path).expanduser().resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise RepositoryWorkspaceError("repository_workspace_invalid") from exc
+    if not candidate.is_dir():
+        raise RepositoryWorkspaceError("repository_workspace_invalid")
 
+    try:
+        expected = normalize_repository_identity(expected_repository)
+    except ValueError as exc:
+        raise RepositoryWorkspaceError("repository_workspace_mismatch") from exc
 
-def resolve_repository_identity(source_dir: str) -> str:
-    """Resolve the normalized ``owner/repo`` identity of a Git repository.
+    try:
+        top_level = _run_git(candidate, ("rev-parse", "--show-toplevel"))
+        root = Path(top_level).resolve(strict=True)
+    except RepositoryWorkspaceError:
+        raise
+    except (OSError, RuntimeError) as exc:
+        raise RepositoryWorkspaceError("repository_workspace_invalid") from exc
+    if not root.is_dir():
+        raise RepositoryWorkspaceError("repository_workspace_invalid")
 
-    Raises :class:`RepositoryWorkspaceInvalid` if the source is not a Git
-    repository and :class:`RepositoryWorkspaceIdentityUnavailable` if the
-    origin cannot be determined or is not in supported GitHub syntax.
-    """
-    repo_root = _git_repo_root(source_dir)
-    if not repo_root:
-        raise RepositoryWorkspaceInvalid()
-    origin_url = _git_origin_url(repo_root)
-    if not origin_url:
-        raise RepositoryWorkspaceIdentityUnavailable()
-    identity = normalize_github_origin(origin_url)
-    if not identity:
-        raise RepositoryWorkspaceIdentityUnavailable()
-    return identity
+    try:
+        origin = _run_git(root, ("config", "--get", "remote.origin.url"))
+        discovered = normalize_github_origin(origin)
+    except RepositoryWorkspaceError as exc:
+        if exc.code == "repository_workspace_invalid":
+            raise RepositoryWorkspaceError(
+                "repository_workspace_identity_unavailable"
+            ) from exc
+        raise
+    except ValueError as exc:
+        raise RepositoryWorkspaceError(
+            "repository_workspace_identity_unavailable"
+        ) from exc
 
+    if discovered != expected:
+        raise RepositoryWorkspaceError("repository_workspace_mismatch")
 
-def validate_repository_workspace(repository: str) -> None:
-    """Validate that ``REVERSE_AGENT_REPO_DIR`` origin matches *repository*.
-
-    This is the primary entry point called by goal_service, task_execution,
-    and durable_execution before any executor creation or worktree
-    preparation.
-    """
-    source_dir = os.environ.get("REVERSE_AGENT_REPO_DIR", "").strip()
-    if not source_dir:
-        raise RepositoryWorkspaceUnconfigured()
-    if not os.path.isdir(source_dir):
-        raise RepositoryWorkspaceInvalid()
-    actual = resolve_repository_identity(source_dir)
-    if actual != repository:
-        raise RepositoryWorkspaceMismatch()
+    return RepositoryWorkspaceBinding(repository=discovered, repo_dir=root)

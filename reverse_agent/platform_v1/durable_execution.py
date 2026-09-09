@@ -36,7 +36,7 @@ from .run_store import (
 )
 from .repository_workspace import (
     RepositoryWorkspaceError,
-    validate_repository_workspace,
+    resolve_repository_workspace,
 )
 from .task_execution import TaskExecutionError, TaskExecutionService
 from .task_runtime import ExecutorRuntimeError, ExecutorRouter
@@ -652,7 +652,7 @@ class DurableExecutionService:
         task = self.store.get_task(task_id)
         if task.executor_kind == "opencode":
             try:
-                validate_repository_workspace(task.repository)
+                resolve_repository_workspace(task.repository)
             except RepositoryWorkspaceError as exc:
                 raise TaskExecutionError(
                     f"repository_workspace_{exc.code}"
@@ -710,7 +710,7 @@ class DurableExecutionService:
             )
         if task.executor_kind == "opencode":
             try:
-                validate_repository_workspace(task.repository)
+                resolve_repository_workspace(task.repository)
             except RepositoryWorkspaceError as exc:
                 raise TaskExecutionError(
                     f"repository_workspace_{exc.code}"
@@ -2319,7 +2319,7 @@ class DurableExecutionService:
 
         if stored_task.executor_kind == "opencode":
             try:
-                validate_repository_workspace(stored_task.repository)
+                resolve_repository_workspace(stored_task.repository)
             except RepositoryWorkspaceError as exc:
                 raise DurableResumeError(
                     f"repository_workspace_{exc.code}"
@@ -2531,7 +2531,7 @@ class DurableExecutionService:
 
         if stored_task.executor_kind == "opencode":
             try:
-                validate_repository_workspace(stored_task.repository)
+                resolve_repository_workspace(stored_task.repository)
             except RepositoryWorkspaceError as exc:
                 raise DurableResumeError(
                     f"repository_workspace_{exc.code}"

@@ -15,7 +15,7 @@ from typing import Any, Mapping, Sequence
 from .control_store import GoalRecord, PlatformControlStore, reject_sensitive_keys
 from .repository_workspace import (
     RepositoryWorkspaceError,
-    validate_repository_workspace,
+    resolve_repository_workspace,
 )
 from .run_store import TaskStore, TaskStoreError
 
@@ -129,10 +129,10 @@ class GoalService:
             raise TaskStoreError("goal_window_missing_execute_task_capability")
         if goal.executor_kind == "opencode":
             try:
-                validate_repository_workspace(goal.repository)
+                resolve_repository_workspace(goal.repository)
             except RepositoryWorkspaceError as exc:
                 raise TaskStoreError(
-                    f"goal_repository_workspace_{exc.code}"
+                    f"goal_{exc.code}"
                 )
 
         for seq, raw in enumerate(goal.tasks):

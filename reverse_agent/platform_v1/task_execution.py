@@ -27,7 +27,7 @@ from .opencode_executor import (
 )
 from .repository_workspace import (
     RepositoryWorkspaceError,
-    validate_repository_workspace,
+    resolve_repository_workspace,
 )
 from .run_store import (
     InvalidTransitionError,
@@ -143,7 +143,7 @@ class TaskExecutionService:
 
         if executor_kind == "opencode":
             try:
-                validate_repository_workspace(task.repository)
+                resolve_repository_workspace(task.repository)
             except RepositoryWorkspaceError as exc:
                 self.store.classify_failure(
                     task_id,
@@ -322,7 +322,7 @@ class TaskExecutionService:
             )
 
         try:
-            validate_repository_workspace(task.repository)
+            resolve_repository_workspace(task.repository)
         except RepositoryWorkspaceError as exc:
             self.store.classify_failure(
                 task_id,
