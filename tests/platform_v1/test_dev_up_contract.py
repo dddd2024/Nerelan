@@ -741,7 +741,7 @@ def _run_launcher(repo: Path, env: dict, ports: dict, timeout: int = 180) -> sub
             "-ModelControlPort", str(ports["model"]),
             "-NoBrowser",
         ],
-        capture_output=True, text=True, encoding="utf-8",
+        capture_output=True, text=True, encoding="oem",
         timeout=timeout, env=env, cwd=str(repo),
     )
 
