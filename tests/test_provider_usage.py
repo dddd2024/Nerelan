@@ -82,7 +82,6 @@ def test_unknown_is_distinct_from_zero_and_mixed_provenance_survives():
                 Provenance.LOCAL_METERING,
                 used=Decimal("5"),
                 fetched_at=NOW,
-                confidence="observed",
             ),
         ),
     )
@@ -93,6 +92,60 @@ def test_unknown_is_distinct_from_zero_and_mixed_provenance_survives():
         Provenance.RATE_LIMIT_HEADER,
         Provenance.LOCAL_METERING,
     }
+
+
+def test_confidence_is_derived_from_and_consistent_with_provenance():
+    official = MetricObservation(
+        "official.tokens",
+        "usage",
+        "tokens",
+        Provenance.OFFICIAL_USAGE,
+        used=Decimal("1"),
+        fetched_at=NOW,
+    )
+    local = MetricObservation(
+        "local.tokens",
+        "usage",
+        "tokens",
+        Provenance.LOCAL_METERING,
+        used=Decimal("1"),
+        fetched_at=NOW,
+    )
+    estimated = MetricObservation(
+        "estimated.tokens",
+        "usage",
+        "tokens",
+        Provenance.ESTIMATED,
+        used=Decimal("1"),
+        fetched_at=NOW,
+    )
+    assert official.confidence == "authoritative"
+    assert local.confidence == "observed"
+    assert estimated.confidence == "estimated"
+
+    with pytest.raises(ValueError, match="contradicts provenance"):
+        MetricObservation(
+            "bad-estimate.tokens",
+            "usage",
+            "tokens",
+            Provenance.ESTIMATED,
+            used=Decimal("1"),
+            fetched_at=NOW,
+            confidence="authoritative",
+        )
+
+
+def test_observations_and_snapshots_require_freshness_metadata():
+    with pytest.raises(ValueError, match="fetched_at"):
+        MetricObservation(
+            "usage.tokens",
+            "usage",
+            "tokens",
+            Provenance.OFFICIAL_USAGE,
+            used=Decimal("1"),
+        )
+    with pytest.raises(ValueError, match="fetched_at"):
+        ProviderUsageSnapshot(provider_id="openai", fetched_at="")
 
 
 def test_deepseek_balance_is_official_and_preserves_currency():
@@ -116,6 +169,7 @@ def test_deepseek_balance_is_official_and_preserves_currency():
     assert total.value == Decimal("12.50")
     assert total.unit == "CNY"
     assert total.provenance is Provenance.OFFICIAL_BALANCE
+    assert total.confidence == "authoritative"
 
 
 def test_deepseek_provider_unavailable_is_not_zero_balance():
@@ -206,7 +260,9 @@ def test_openai_organization_usage_is_official_usage():
                         },
                     ],
                 }
-            ]
+            ],
+            "has_more": False,
+            "next_page": None,
         },
         fetched_at=NOW,
     )
@@ -217,6 +273,24 @@ def test_openai_organization_usage_is_official_usage():
     assert all(
         item.provenance is Provenance.OFFICIAL_USAGE for item in snapshot.observations
     )
+
+
+def test_openai_organization_usage_rejects_incomplete_pagination():
+    with pytest.raises(ValueError, match="incomplete"):
+        parse_openai_organization_usage(
+            {
+                "data": [
+                    {
+                        "start_time": "100",
+                        "end_time": "200",
+                        "results": [{"input_tokens": 10}],
+                    }
+                ],
+                "has_more": True,
+                "next_page": "page-2",
+            },
+            fetched_at=NOW,
+        )
 
 
 def test_sensenova_non_stream_usage_components_are_local_metering():
@@ -239,6 +313,7 @@ def test_sensenova_non_stream_usage_components_are_local_metering():
         item.provenance is Provenance.LOCAL_METERING
         for item in snapshot.observations
     )
+    assert all(item.confidence == "observed" for item in snapshot.observations)
 
 
 def test_sensenova_cumulative_stream_uses_final_not_sum():
