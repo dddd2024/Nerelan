@@ -108,7 +108,15 @@ class Connection:
 
     def __post_init__(self) -> None:
         provider_alias = _provider_alias(self.provider)
+        partial_explicit_identity = (
+            self.upstream_provider_id is not None
+            or self.protocol_family is not None
+        )
         if self.executor_provider_id is None:
+            if partial_explicit_identity:
+                raise ValueError(
+                    "executor_provider_id is required when explicit provider identity is supplied"
+                )
             identity = ProviderIdentity.from_legacy_provider(provider_alias)
         else:
             identity = ProviderIdentity(
@@ -178,6 +186,8 @@ class Connection:
                         "provider must match executor_provider_id when both are supplied"
                     )
         else:
+            if provider_raw is None:
+                raise ValueError("provider is required")
             identity = ProviderIdentity.from_legacy_provider(provider_raw)
             provider = identity.executor_provider_id
 
