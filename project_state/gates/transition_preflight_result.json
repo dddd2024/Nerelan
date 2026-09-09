@@ -109,11 +109,12 @@
         "applicable": true,
         "decision_content_immutable_after_activation": true,
         "starting_head": "1dd4204f6a5fb4248a3c82258c2ea788a85e3e09",
-        "head": "6c882f38e9c7eeb2d70938b1e3a62c474d1d9f98",
+        "head": "bb488564e037336dbcb31c5acbe2922ddc64c49d",
         "commits": [
           "42d59b74a9990578d2a7030436ac0def4ca3e07b",
           "f649db965afbaee452582825e92156700883d679",
-          "6c882f38e9c7eeb2d70938b1e3a62c474d1d9f98"
+          "6c882f38e9c7eeb2d70938b1e3a62c474d1d9f98",
+          "bb488564e037336dbcb31c5acbe2922ddc64c49d"
         ],
         "decision_commits": [
           "42d59b74a9990578d2a7030436ac0def4ca3e07b"
@@ -139,11 +140,12 @@
     "applicable": true,
     "decision_content_immutable_after_activation": true,
     "starting_head": "1dd4204f6a5fb4248a3c82258c2ea788a85e3e09",
-    "head": "6c882f38e9c7eeb2d70938b1e3a62c474d1d9f98",
+    "head": "bb488564e037336dbcb31c5acbe2922ddc64c49d",
     "commits": [
       "42d59b74a9990578d2a7030436ac0def4ca3e07b",
       "f649db965afbaee452582825e92156700883d679",
-      "6c882f38e9c7eeb2d70938b1e3a62c474d1d9f98"
+      "6c882f38e9c7eeb2d70938b1e3a62c474d1d9f98",
+      "bb488564e037336dbcb31c5acbe2922ddc64c49d"
     ],
     "decision_commits": [
       "42d59b74a9990578d2a7030436ac0def4ca3e07b"
