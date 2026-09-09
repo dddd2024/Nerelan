@@ -956,6 +956,8 @@ class ModelProfileStore:
         if not isinstance(data, dict):
             raise StoreError("state file root must be an object")
         schema_version = data.get("schema_version")
+        if type(schema_version) is not int:
+            raise StoreError(f"unsupported schema_version: {schema_version}")
         if schema_version not in {_LEGACY_STATE_SCHEMA_VERSION, _STATE_SCHEMA_VERSION}:
             raise StoreError(f"unsupported schema_version: {schema_version}")
         connections = data.get("connections", [])
