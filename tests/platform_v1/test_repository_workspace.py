@@ -265,8 +265,10 @@ def test_goal_launch_mismatch_no_task_materialization(
     )
     monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(repo_b))
 
-    with pytest.raises(TaskStoreError, match="goal_repository_workspace_mismatch"):
+    with pytest.raises(TaskStoreError) as caught:
         goals.launch(goal.id, expected_revision=1, window_id=window.id)
+
+    assert str(caught.value) == "repository_workspace_mismatch"
 
     assert store.count_tasks() == 0
     updated_goal = control.get_goal(goal.id)
@@ -364,9 +366,7 @@ def test_execution_mismatch_zero_executor_calls(
 
     outcome = service.execute(task.id, workspace_root=str(tmp_path / "ws"))
     assert outcome.success is False
-    assert "repository_workspace_mismatch" in (
-        outcome.failure_detail or ""
-    )
+    assert outcome.failure_detail == "repository_workspace_mismatch"
     assert call_count == 0
 
 
@@ -405,11 +405,13 @@ def test_durable_first_run_mismatch_zero_calls(
         planning_sha="plan-sha-1",
     )
 
-    with pytest.raises(TaskExecutionError, match="repository_workspace_mismatch"):
+    with pytest.raises(TaskExecutionError) as caught:
         service.execute_durable_single(
             task.id,
             workspace_root=str(tmp_path / "ws"),
         )
+
+    assert str(caught.value) == "repository_workspace_mismatch"
 
 
 def test_resume_after_source_change_blocked(
@@ -473,10 +475,114 @@ def test_resume_after_source_change_blocked(
     )
     monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(repo_b))
 
-    with pytest.raises(DurableResumeError, match="repository_workspace_mismatch"):
+    with pytest.raises(DurableResumeError) as caught:
         service.resume_single(
             task.id,
             workspace_root=str(tmp_path / "ws"),
             execution_authority_sha="auth-sha-1",
             planning_sha="plan-sha-1",
         )
+
+    assert str(caught.value) == "repository_workspace_mismatch"
+
+
+def test_execution_unconfigured_exact_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ordinary Task execution with missing REVERSE_AGENT_REPO_DIR fails with
+    the exact stable code repository_workspace_unconfigured."""
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import (
+        TaskExecutionOutcome,
+        TaskExecutionService,
+    )
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+
+    monkeypatch.delenv("REVERSE_AGENT_REPO_DIR", raising=False)
+
+    store = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
+    task = store.create_task(
+        title="exec-unconfigured",
+        repository="owner/repoA",
+        executor_kind="opencode",
+        orchestration_mode="single",
+    )
+
+    call_count = 0
+
+    class FakeExecutor:
+        def __init__(self, **kwargs: Any) -> None:
+            nonlocal call_count
+            call_count += 1
+
+    router = ExecutorRouter()
+    router._executors = {"opencode": FakeExecutor}
+    service = TaskExecutionService(store=store, router=router)
+
+    outcome = service.execute(task.id, workspace_root=str(tmp_path / "ws"))
+    assert outcome.success is False
+    assert outcome.failure_detail == "repository_workspace_unconfigured"
+    assert call_count == 0
+
+
+def test_durable_resume_unconfigured_exact_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Durable resume with missing REVERSE_AGENT_REPO_DIR fails with the exact
+    stable code repository_workspace_unconfigured."""
+    from reverse_agent.platform_v1.durable_execution import (
+        DurableExecutionService,
+        DurableResumeError,
+    )
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+
+    repo = _git_init_repo(
+        tmp_path / "repo_a", "https://github.com/owner/repoA.git"
+    )
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(repo))
+
+    store = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
+    task = store.create_task(
+        title="resume-unconfigured",
+        repository="owner/repoA",
+        executor_kind="opencode",
+        orchestration_mode="single",
+    )
+
+    router = ExecutorRouter()
+    service = DurableExecutionService(
+        store=store,
+        router=router,
+        execution_authority_sha="auth-sha-1",
+        planning_sha="plan-sha-1",
+    )
+
+    try:
+        service.execute_durable_single(
+            task.id,
+            workspace_root=str(tmp_path / "ws"),
+        )
+    except Exception:
+        pass
+
+    row = store._conn.execute(
+        "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+        (task.id,),
+    ).fetchone()
+    assert row is not None
+    run_id = row["run_id"]
+    store.set_state(task.id, "INTERRUPTED")
+    store._set_recovery_classification(run_id, "interrupted", "task-api", 1)
+
+    monkeypatch.delenv("REVERSE_AGENT_REPO_DIR", raising=False)
+
+    with pytest.raises(DurableResumeError) as caught:
+        service.resume_single(
+            task.id,
+            workspace_root=str(tmp_path / "ws"),
+            execution_authority_sha="auth-sha-1",
+            planning_sha="plan-sha-1",
+        )
+
+    assert str(caught.value) == "repository_workspace_unconfigured"

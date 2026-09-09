@@ -655,7 +655,7 @@ class DurableExecutionService:
                 resolve_repository_workspace(task.repository)
             except RepositoryWorkspaceError as exc:
                 raise TaskExecutionError(
-                    f"repository_workspace_{exc.code}"
+                    str(exc)
                 )
         lease = self._acquire_or_find_lease(
             task_id, lease_owner, "", workspace_root
@@ -713,7 +713,7 @@ class DurableExecutionService:
                 resolve_repository_workspace(task.repository)
             except RepositoryWorkspaceError as exc:
                 raise TaskExecutionError(
-                    f"repository_workspace_{exc.code}"
+                    str(exc)
                 )
         lease = self._acquire_or_find_lease(
             task_id, lease_owner, "", workspace_root
@@ -2322,7 +2322,7 @@ class DurableExecutionService:
                 resolve_repository_workspace(stored_task.repository)
             except RepositoryWorkspaceError as exc:
                 raise DurableResumeError(
-                    f"repository_workspace_{exc.code}"
+                    str(exc)
                 )
 
         now_ms = _utc_now_ms()
@@ -2534,7 +2534,7 @@ class DurableExecutionService:
                 resolve_repository_workspace(stored_task.repository)
             except RepositoryWorkspaceError as exc:
                 raise DurableResumeError(
-                    f"repository_workspace_{exc.code}"
+                    str(exc)
                 )
 
         if auth_sha and run_obj.execution_authority_sha != auth_sha:

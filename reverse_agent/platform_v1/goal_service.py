@@ -132,7 +132,7 @@ class GoalService:
                 resolve_repository_workspace(goal.repository)
             except RepositoryWorkspaceError as exc:
                 raise TaskStoreError(
-                    f"goal_{exc.code}"
+                    str(exc)
                 )
 
         for seq, raw in enumerate(goal.tasks):

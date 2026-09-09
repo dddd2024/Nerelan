@@ -148,7 +148,7 @@ class TaskExecutionService:
                 self.store.classify_failure(
                     task_id,
                     classification="blocked",
-                    detail=f"repository_workspace_{exc.code}",
+                    detail=str(exc),
                 )
                 final = self.store.get_task(task_id)
                 return TaskExecutionOutcome(
@@ -327,7 +327,7 @@ class TaskExecutionService:
             self.store.classify_failure(
                 task_id,
                 classification="blocked",
-                detail=f"repository_workspace_{exc.code}",
+                detail=str(exc),
             )
             final = self.store.get_task(task_id)
             return TaskExecutionOutcome(
