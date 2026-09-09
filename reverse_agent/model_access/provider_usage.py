@@ -50,6 +50,16 @@ def _public_scalar(value: Scalar | None) -> str | bool | None:
     return format(value, "f") if isinstance(value, Decimal) else value
 
 
+_CONFIDENCE_BY_PROVENANCE = {
+    Provenance.OFFICIAL_BALANCE: "authoritative",
+    Provenance.OFFICIAL_USAGE: "authoritative",
+    Provenance.RATE_LIMIT_HEADER: "authoritative",
+    Provenance.LOCAL_METERING: "observed",
+    Provenance.ESTIMATED: "estimated",
+    Provenance.UNAVAILABLE: "unavailable",
+}
+
+
 @dataclass(frozen=True, slots=True)
 class MetricObservation:
     metric_id: str
@@ -67,11 +77,21 @@ class MetricObservation:
     reset_after: str | None = None
     scope: str | None = None
     fetched_at: str | None = None
-    confidence: str = "authoritative"
+    confidence: str | None = None
 
     def __post_init__(self) -> None:
         if not self.metric_id.strip() or not self.kind.strip() or not self.unit.strip():
             raise ValueError("metric_id, kind and unit are required")
+        if not isinstance(self.fetched_at, str) or not self.fetched_at.strip():
+            raise ValueError("fetched_at is required")
+        expected_confidence = _CONFIDENCE_BY_PROVENANCE[self.provenance]
+        if self.confidence is None:
+            object.__setattr__(self, "confidence", expected_confidence)
+        elif self.confidence != expected_confidence:
+            raise ValueError(
+                f"confidence {self.confidence!r} contradicts provenance "
+                f"{self.provenance.value}"
+            )
         numeric_values = (self.used, self.limit, self.remaining)
         if any(
             value is not None and (not value.is_finite() or value < 0)
@@ -117,6 +137,8 @@ class ProviderUsageSnapshot:
     def __post_init__(self) -> None:
         if not self.provider_id.strip():
             raise ValueError("provider_id is required")
+        if not isinstance(self.fetched_at, str) or not self.fetched_at.strip():
+            raise ValueError("fetched_at is required")
         if self.state is ObservationState.UNAVAILABLE and self.unavailable_reason is None:
             raise ValueError("unavailable snapshots require an unavailable_reason")
 
@@ -360,7 +382,18 @@ _OPENAI_USAGE_FIELDS = {
 def parse_openai_organization_usage(
     payload: Mapping[str, Any], *, fetched_at: str
 ) -> ProviderUsageSnapshot:
-    buckets = _sequence(_mapping(payload, "payload").get("data"), "data")
+    data = _mapping(payload, "payload")
+    has_more = data.get("has_more")
+    if has_more is not None and not isinstance(has_more, bool):
+        raise ValueError("has_more must be a boolean when present")
+    next_page = data.get("next_page")
+    if has_more is True or next_page not in (None, ""):
+        raise ValueError(
+            "OpenAI organization usage payload is incomplete; "
+            "aggregate all pages before parsing"
+        )
+
+    buckets = _sequence(data.get("data"), "data")
     totals = {field: Decimal(0) for field in _OPENAI_USAGE_FIELDS}
     seen: set[str] = set()
     period_start: str | None = None
@@ -421,7 +454,6 @@ def _sensenova_observations(
             Provenance.LOCAL_METERING,
             used=_decimal(usage[field], field),
             fetched_at=fetched_at,
-            confidence="observed",
         )
         for field, metric_id in _SENSENOVA_FIELDS.items()
         if field in usage and usage[field] is not None
