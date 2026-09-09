@@ -34,6 +34,10 @@ from .run_store import (
     TaskStoreError,
     _row_to_durable_run,
 )
+from .repository_workspace import (
+    RepositoryWorkspaceError,
+    validate_repository_workspace,
+)
 from .task_execution import TaskExecutionError, TaskExecutionService
 from .task_runtime import ExecutorRuntimeError, ExecutorRouter
 
@@ -645,6 +649,14 @@ class DurableExecutionService:
         BEFORE durable run creation.
         """
         self._assert_trusted_identity_for_execute()
+        task = self.store.get_task(task_id)
+        if task.executor_kind == "opencode":
+            try:
+                validate_repository_workspace(task.repository)
+            except RepositoryWorkspaceError as exc:
+                raise TaskExecutionError(
+                    f"repository_workspace_{exc.code}"
+                )
         lease = self._acquire_or_find_lease(
             task_id, lease_owner, "", workspace_root
         )
@@ -696,6 +708,13 @@ class DurableExecutionService:
             raise TaskExecutionError(
                 f"durable_single_wrong_mode:{task_id}:actual={task.orchestration_mode}"
             )
+        if task.executor_kind == "opencode":
+            try:
+                validate_repository_workspace(task.repository)
+            except RepositoryWorkspaceError as exc:
+                raise TaskExecutionError(
+                    f"repository_workspace_{exc.code}"
+                )
         lease = self._acquire_or_find_lease(
             task_id, lease_owner, "", workspace_root
         )
@@ -2298,6 +2317,14 @@ class DurableExecutionService:
 
         stored_task = self.store.get_task(task_id)
 
+        if stored_task.executor_kind == "opencode":
+            try:
+                validate_repository_workspace(stored_task.repository)
+            except RepositoryWorkspaceError as exc:
+                raise DurableResumeError(
+                    f"repository_workspace_{exc.code}"
+                )
+
         now_ms = _utc_now_ms()
         lease_expiry_ms = int(getattr(run_obj, "lease_expiry_ms", 0) or 0)
         existing_owner = getattr(run_obj, "lease_owner", "") or ""
@@ -2501,6 +2528,14 @@ class DurableExecutionService:
             raise DurableResumeError(
                 f"invalid_orchestration_mode:{stored_task.orchestration_mode}"
             )
+
+        if stored_task.executor_kind == "opencode":
+            try:
+                validate_repository_workspace(stored_task.repository)
+            except RepositoryWorkspaceError as exc:
+                raise DurableResumeError(
+                    f"repository_workspace_{exc.code}"
+                )
 
         if auth_sha and run_obj.execution_authority_sha != auth_sha:
             raise DurableResumeError(
