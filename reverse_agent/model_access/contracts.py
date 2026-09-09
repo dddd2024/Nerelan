@@ -138,7 +138,7 @@ class Connection:
         return ProviderIdentity(
             upstream_provider_id=self.upstream_provider_id,
             protocol_family=self.protocol_family,
-            executor_provider_id=self.executor_provider_id,
+            executor_provider_id=self.provider,
         )
 
     @classmethod
@@ -224,7 +224,7 @@ class Connection:
         return {
             "connection_id": self.connection_id,
             "name": self.name,
-            "provider": self.executor_provider_id,
+            "provider": self.provider,
             "upstream_provider_id": self.upstream_provider_id,
             "protocol_family": self.protocol_family,
             "executor_provider_id": self.executor_provider_id,
