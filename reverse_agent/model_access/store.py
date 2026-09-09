@@ -16,10 +16,12 @@ from .os_vault import (
     VaultItemMissingError,
     connection_vault_ref,
 )
+from .provider_identity import identity_authority_changed
 
 
 # Schema version for persisted sanitized product setup state.
-_STATE_SCHEMA_VERSION = 1
+_STATE_SCHEMA_VERSION = 2
+_LEGACY_STATE_SCHEMA_VERSION = 1
 
 # Field names that are strictly forbidden in persisted state files.
 _FORBIDDEN_PERSISTED_FIELDS = frozenset({
@@ -49,11 +51,25 @@ _FORBIDDEN_PERSISTED_FIELDS = frozenset({
 
 # Sanitized connection fields that are safe to persist. ``credential_ref`` is
 # a non-secret vault item reference; the referenced secret stays in the OS
-# credential store and never enters persisted state.
-_CONNECTION_SAFE_FIELDS = frozenset({
+# credential store and never enters persisted state. Schema v1 stored the
+# overloaded ``provider`` token; schema v2 stores the three explicit identity
+# axes and never treats ``provider`` as a second source of authority.
+_CONNECTION_SAFE_FIELDS_V1 = frozenset({
     "connection_id",
     "name",
     "provider",
+    "base_url",
+    "auth_method",
+    "enabled",
+    "api_key_env",
+    "credential_ref",
+})
+_CONNECTION_SAFE_FIELDS_V2 = frozenset({
+    "connection_id",
+    "name",
+    "upstream_provider_id",
+    "protocol_family",
+    "executor_provider_id",
     "base_url",
     "auth_method",
     "enabled",
@@ -211,7 +227,9 @@ class _StoredConnection:
         entry: dict[str, Any] = {
             "connection_id": self.connection.connection_id,
             "name": self.connection.name,
-            "provider": self.connection.provider,
+            "upstream_provider_id": self.connection.upstream_provider_id,
+            "protocol_family": self.connection.protocol_family,
+            "executor_provider_id": self.connection.executor_provider_id,
             "base_url": self.connection.base_url,
             "auth_method": self.connection.auth_method,
             "enabled": self.connection.enabled,
@@ -223,10 +241,21 @@ class _StoredConnection:
         return entry
 
     @classmethod
-    def from_sanitized_dict(cls, data: Mapping[str, Any]) -> "_StoredConnection":
+    def from_sanitized_dict(
+        cls,
+        data: Mapping[str, Any],
+        *,
+        schema_version: int,
+    ) -> "_StoredConnection":
         if not isinstance(data, dict):
             raise ValueError("invalid connection record: not an object")
-        extra = set(data.keys()) - _CONNECTION_SAFE_FIELDS
+        if schema_version == _LEGACY_STATE_SCHEMA_VERSION:
+            safe_fields = _CONNECTION_SAFE_FIELDS_V1
+        elif schema_version == _STATE_SCHEMA_VERSION:
+            safe_fields = _CONNECTION_SAFE_FIELDS_V2
+        else:
+            raise ValueError(f"unsupported schema_version: {schema_version}")
+        extra = set(data.keys()) - safe_fields
         if extra:
             raise ValueError(
                 f"forbidden field(s) in persisted connection: {sorted(extra)}"
@@ -256,6 +285,12 @@ class ModelProfileStore:
     provided the store persists a schema-versioned JSON document containing
     only sanitized Connection/Binding metadata.  Raw secrets, credentials,
     and session tokens are never written.
+
+    Schema-v1 sanitized state remains readable. Loading v1 is read-only; the
+    next ordinary product-state persistence writes deterministic schema v2 with
+    the explicit provider identity axes. Existing non-secret ``credential_ref``
+    metadata is carried forward byte-for-byte and no vault item is touched just
+    to migrate sanitized metadata.
 
     When ``vault`` is provided, API keys entered through the trusted setup
     boundary are durably stored in the OS-backed credential vault and the
@@ -317,7 +352,12 @@ class ModelProfileStore:
         return "missing"
 
     def _vault_ref_for(self, connection: Connection) -> str:
-        """Return the authority-bound vault item reference for a Connection."""
+        """Return the existing v1 vault-reference relation for a Connection.
+
+        ``provider`` is the compatibility alias for ``executor_provider_id``.
+        This slice intentionally does not introduce a new vault-reference
+        format or move secret material during sanitized metadata migration.
+        """
 
         return connection_vault_ref(
             connection.connection_id,
@@ -425,14 +465,14 @@ class ModelProfileStore:
     ) -> int:
         """Refresh in-memory external-session status from sanitized auth probe.
 
-        ``authenticated_provider_ids`` is a provider-id -> auth-type mapping
-        derived from a fresh, sanitized OpenCode ``auth list`` probe.
+        ``authenticated_provider_ids`` is an executor-provider-id -> auth-type
+        mapping derived from a fresh, sanitized OpenCode ``auth list`` probe.
         External-session status is intentionally NOT persisted; each fresh
         process must reprove availability from a live probe.
 
-        Only exact provider-ID matches are accepted (no fuzzy matching, no
-        display-label guessing).  ``api_key`` and ``none`` Connections
-        always remain ``not_applicable``.
+        Only exact executor-provider-ID matches are accepted (no fuzzy matching,
+        no display-label guessing). ``api_key`` and ``none`` Connections always
+        remain ``not_applicable``.
         """
         provider_set = set(authenticated_provider_ids.keys())
         refreshed = 0
@@ -440,7 +480,7 @@ class ModelProfileStore:
             for stored in self._connections.values():
                 auth_method = stored.connection.auth_method
                 if auth_method in {"account_login", "external_cli_session"}:
-                    provider = stored.connection.provider
+                    provider = stored.connection.executor_provider_id
                     if not provider:
                         status = "missing"
                     elif provider in provider_set:
@@ -700,6 +740,9 @@ class ModelProfileStore:
                 auth_method=conn.auth_method,
                 resolved_api_key=resolved_key,
                 external_session_status=stored_conn.external_session_status,
+                upstream_provider_id=conn.upstream_provider_id,
+                protocol_family=conn.protocol_family,
+                executor_provider_id=conn.executor_provider_id,
             )
 
     def list_executors_public(self) -> list[dict[str, Any]]:
@@ -851,17 +894,25 @@ class ModelProfileStore:
             raise StoreError(f"cannot read state file: {exc}") from exc
 
         data = self._parse_state_doc(raw)
+        schema_version = int(data["schema_version"])
 
+        # Parse into temporary maps first. A malformed v1/v2 document therefore
+        # never leaves a partially replaced in-memory relation behind.
         conn_by_id: dict[str, _StoredConnection] = {}
         for entry in data["connections"]:
-            stored = _StoredConnection.from_sanitized_dict(entry)
+            try:
+                stored = _StoredConnection.from_sanitized_dict(
+                    entry,
+                    schema_version=schema_version,
+                )
+            except ValueError as exc:
+                raise StoreError(f"invalid persisted connection: {exc}") from exc
             cid = stored.connection.connection_id
             if cid in conn_by_id:
                 raise StoreError(f"duplicate connection_id in state: {cid}")
             conn_by_id[cid] = stored
-            self._connections[cid] = stored
 
-        seen_bindings: set[str] = set()
+        binding_by_id: dict[str, Binding] = {}
         for entry in data["bindings"]:
             if not isinstance(entry, dict):
                 raise StoreError("invalid binding record: not an object")
@@ -877,11 +928,10 @@ class ModelProfileStore:
                     f"unknown field(s) in persisted binding: {sorted(extra)}"
                 )
             binding = Binding.from_mapping(dict(entry))
-            if binding.binding_id in seen_bindings:
+            if binding.binding_id in binding_by_id:
                 raise StoreError(
                     f"duplicate binding_id in state: {binding.binding_id}"
                 )
-            seen_bindings.add(binding.binding_id)
             if binding.connection_id not in conn_by_id:
                 raise StoreError(
                     f"dangling binding references unknown connection: "
@@ -891,7 +941,12 @@ class ModelProfileStore:
                 raise StoreError(
                     f"binding references unknown executor: {binding.executor_id}"
                 )
-            self._bindings[binding.binding_id] = binding
+            binding_by_id[binding.binding_id] = binding
+
+        self._connections.clear()
+        self._connections.update(conn_by_id)
+        self._bindings.clear()
+        self._bindings.update(binding_by_id)
 
     def _parse_state_doc(self, raw: bytes) -> dict[str, Any]:
         try:
@@ -900,20 +955,43 @@ class ModelProfileStore:
             raise StoreError(f"invalid JSON in state file: {exc}") from exc
         if not isinstance(data, dict):
             raise StoreError("state file root must be an object")
-        if data.get("schema_version") != _STATE_SCHEMA_VERSION:
-            raise StoreError(
-                f"unsupported schema_version: {data.get('schema_version')}"
-            )
+        schema_version = data.get("schema_version")
+        if type(schema_version) is not int:
+            raise StoreError(f"unsupported schema_version: {schema_version}")
+        if schema_version not in {_LEGACY_STATE_SCHEMA_VERSION, _STATE_SCHEMA_VERSION}:
+            raise StoreError(f"unsupported schema_version: {schema_version}")
         connections = data.get("connections", [])
         bindings = data.get("bindings", [])
         if not isinstance(connections, list):
             raise StoreError("connections must be an array")
         if not isinstance(bindings, list):
             raise StoreError("bindings must be an array")
+
+        if schema_version == _LEGACY_STATE_SCHEMA_VERSION:
+            safe_connection_fields = _CONNECTION_SAFE_FIELDS_V1
+            required_connection_fields = (
+                "connection_id",
+                "name",
+                "provider",
+                "base_url",
+                "auth_method",
+            )
+        else:
+            safe_connection_fields = _CONNECTION_SAFE_FIELDS_V2
+            required_connection_fields = (
+                "connection_id",
+                "name",
+                "upstream_provider_id",
+                "protocol_family",
+                "executor_provider_id",
+                "base_url",
+                "auth_method",
+            )
+
         for item in connections:
             if not isinstance(item, dict):
                 raise StoreError("each connection entry must be an object")
-            extra = set(item.keys()) - _CONNECTION_SAFE_FIELDS
+            extra = set(item.keys()) - safe_connection_fields
             forbidden_hits = extra & _FORBIDDEN_PERSISTED_FIELDS
             if forbidden_hits:
                 raise StoreError(
@@ -925,8 +1003,7 @@ class ModelProfileStore:
                     f"unknown field(s) in persisted connection: "
                     f"{sorted(extra - forbidden_hits)}"
                 )
-            for fld in ("connection_id", "name", "provider",
-                        "base_url", "auth_method"):
+            for fld in required_connection_fields:
                 if fld not in item:
                     raise StoreError(f"missing required connection field: {fld}")
             enabled = item.get("enabled", True)
@@ -1076,7 +1153,10 @@ def _authority_fields_changed(
         return False
     old = existing.connection
     return (
-        old.provider != new_connection.provider
+        identity_authority_changed(
+            old.provider_identity,
+            new_connection.provider_identity,
+        )
         or old.base_url != new_connection.base_url
         or old.auth_method != new_connection.auth_method
     )
