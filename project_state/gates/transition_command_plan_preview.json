@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260908_issue423_windows_platform_ci_r2_v3",
-  "round_id": "round_20260908_issue423_windows_platform_ci_r2_v3",
+  "decision_id": "decision_20260909_issue664_tauri_ci_r2_v2",
+  "round_id": "round_20260909_issue664_tauri_ci_r2_v2",
   "commands": [
     {
-      "command_id": "issue423_r2v3.bootstrap_and_preflight",
-      "command": "verify exact fresh locked main 7452a592edfce2a243c4524b1cb78c8172e748a9 and fresh isolated worktree branch merge-base; commit this immutable R2 Decision as the unique first commit; run startup snapshot transition command plan transition lint transition preflight pre and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before any workflow mutation",
+      "command_id": "issue664_r2v2.bootstrap_and_preflight",
+      "command": "verify exact fresh locked main 1dd4204f6a5fb4248a3c82258c2ea788a85e3e09 and fresh isolated worktree branch merge-base; commit this immutable R2 Decision as the unique first commit; run startup-snapshot transition-command-plan transition-lint transition-preflight --mode pre and worktree-publication-readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before any workflow mutation",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -16,7 +16,39 @@
       "operations": [
         "code_read",
         "local_static_check",
-        "command_plan_generation"
+        "command_plan_generation",
+        "commit"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/gates/bootstrap_state.json",
+        "project_state/gates/transition_command_plan_preview.json",
+        "project_state/gates/transition_preflight_result.json"
+      ],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/decision_packet.md"
+      ]
+    },
+    {
+      "command_id": "issue664_r2v2.materialize_governance",
+      "command": "after PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY commit exactly the designated generated project_state/gates governance artifacts in a single governance commit with no workflow file change",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "trusted_worker",
+      "operations": [
+        "commit",
+        "local_static_check"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -34,8 +66,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue423_r2v3.materialize_windows_workflow",
-      "command": "add exactly one new specialized Windows Hosted proof workflow .github/workflows/windows-platform-v1.yml that runs on windows-latest, checks out the exact tested head, installs the repository existing test extras, and executes python -m pytest tests/platform_v1/test_dev_up_contract.py -q; no continue-on-error, no blanket skip or xfail, no deselection, no false-green wrapper, no provider or model call, no credential access, no Ubuntu baseline duplication",
+      "command_id": "issue664_r2v2.materialize_tauri_workflow",
+      "command": "add exactly one new natural product-path-triggered Windows Hosted Tauri exact-head compile/check workflow .github/workflows/tauri-desktop-check.yml named Tauri Desktop Check that checks out the exact PR head, pins Node 22.23.1, runs npm ci, pins Rust 1.98.0 via rustup, runs npm --prefix frontend run tauri -- info and cargo check --locked --manifest-path frontend/src-tauri/Cargo.toml on windows-latest; the workflow YAML path is NOT included in any trigger path filter so the CI-only PR cannot self-trigger a Tauri compile against an absent product tree; no workflow_dispatch, no schedule, no continue-on-error, no false-green wrapper, no provider or model call, no credential access, no browser or Playwright, no Tauri GUI launch, no bundle upload, signing, release or deployment",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -56,12 +88,12 @@
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
-        ".github/workflows/windows-platform-v1.yml"
+        ".github/workflows/tauri-desktop-check.yml"
       ]
     },
     {
-      "command_id": "issue423_r2v3.validate",
-      "command": "run git status --short and git diff --check; re-run transition lint transition command plan transition preflight pre and worktree publication readiness; run the applicable non-Windows deterministic governance tests; require PUBLICATION_READY and zero diff check violations",
+      "command_id": "issue664_r2v2.validate",
+      "command": "validate workflow YAML syntax with trusted local tooling; prove workflow trigger checkout node rust npm tauri info cargo locked and no-false-green semantics; run git diff --check; re-run transition-lint transition-command-plan transition-preflight --mode pre and worktree-publication-readiness; run the applicable deterministic repository governance and workflow responsibility tests; require PRE_EXECUTION_AUTHORIZED PUBLICATION_READY and zero diff check violations",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -71,7 +103,8 @@
       "execution_surface": "trusted_worker",
       "operations": [
         "unit_test",
-        "local_static_check"
+        "local_static_check",
+        "diff_validation"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -83,8 +116,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue423_r2v3.publish",
-      "command": "after all blocking validation passes push the exact branch owner/issue423-windows-platform-ci-r2-v3 to locked main 7452a592edfce2a243c4524b1cb78c8172e748a9 and create exactly one Draft PR with body recording the immutable R2 authority snapshot; never mark Ready and never merge under this Decision",
+      "command_id": "issue664_r2v2.publish",
+      "command": "after all blocking validation passes push the exact branch owner/issue664-tauri-ci-r2-v2 to locked main 1dd4204f6a5fb4248a3c82258c2ea788a85e3e09 and create exactly one Draft PR with body recording the immutable R2 authority snapshot; never mark Ready and never merge under this Decision",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -107,8 +140,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue423_r2v3.exact_head_acceptance",
-      "command": "require natural exact-head CI Decision Preflight State Gate and Windows Hosted proof lane on the Draft PR; Windows Hosted proof lane must execute python -m pytest tests/platform_v1/test_dev_up_contract.py -q on windows-latest and report terminal SUCCESS; keep the PR Draft and do NOT Ready or merge under this Decision",
+      "command_id": "issue664_r2v2.exact_head_acceptance",
+      "command": "require natural exact-head GitHub audit of the Draft PR head; record that Tauri Desktop Check is NOT expected to run on this CI-only PR because frontend/src-tauri/Cargo.toml is absent from main and from the issue664 CI branch; keep the PR Draft and do NOT Ready or merge under this Decision",
       "phase": "final_evidence",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
