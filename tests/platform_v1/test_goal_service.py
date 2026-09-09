@@ -125,3 +125,87 @@ def test_goal_response_status_uses_the_returned_link_snapshot(
 
     assert response["status"] == "COMPLETED"
     assert response["task_links"][0]["status"] == "READY_FOR_REVIEW"
+
+
+def _launched_dependency_pair():
+    store, control, autonomy, goals = _services()
+    goal = goals.create({
+        "objective": "Execute dependencies regardless of plan input order",
+        "idempotency_key": "dependency-pair",
+        "executor_kind": "deterministic_fixture",
+        "orchestration_mode": "single",
+    })
+    goals.plan(goal.id, expected_revision=1, tasks=[
+        {"id": "B", "title": "second", "instruction": "second", "dependencies": ["A"]},
+        {"id": "A", "title": "first", "instruction": "first"},
+    ])
+    goals.approve(goal.id, expected_revision=1)
+    window = autonomy.activate(_window_payload())
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    tasks = {link["plan_task_id"]: link["task_id"] for link in control.list_goal_tasks(goal.id)}
+    return store, control, goals, goal, window, tasks
+
+
+@pytest.mark.parametrize("status", [
+    "QUEUED", "RUNNING", "VALIDATING", "INTERRUPTED", "FAILED", "BLOCKED", "CANCELLED",
+    "READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE",
+])
+def test_runnable_dependencies_require_successful_predecessor(status):
+    store, control, _, _, window, tasks = _launched_dependency_pair()
+    store.set_state(tasks["A"], status)
+    runnable = control.runnable_tasks(window.id, limit=1)
+    if status in {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"}:
+        assert runnable == (tasks["B"],)
+    elif status in {"QUEUED", "INTERRUPTED"}:
+        assert runnable == (tasks["A"],)
+    else:
+        assert runnable == ()
+
+
+@pytest.mark.parametrize("boundary", ["missing", "other_revision", "other_goal"])
+def test_runnable_dependency_cannot_resolve_outside_its_goal_revision(boundary):
+    store, control, goals, goal, window, tasks = _launched_dependency_pair()
+    store.set_state(tasks["A"], "READY_FOR_REVIEW")
+    # Model unavailable or historical links without deleting accepted task data.
+    if boundary == "missing":
+        control._conn.execute(
+            "UPDATE platform_goal_task_links SET dependencies_json = ? WHERE task_id = ?",
+            ('["missing"]', tasks["B"]),
+        )
+    elif boundary == "other_revision":
+        control._conn.execute("UPDATE platform_goals SET revision = 2 WHERE id = ?", (goal.id,))
+        control._conn.execute(
+            "UPDATE platform_goal_task_links SET goal_revision = 2 WHERE task_id = ?",
+            (tasks["B"],),
+        )
+    else:
+        other = goals.create({
+            "objective": "Different goal", "idempotency_key": "different-goal",
+            "executor_kind": "deterministic_fixture", "orchestration_mode": "single",
+        })
+        control._conn.execute(
+            "UPDATE platform_goal_task_links SET goal_id = ? WHERE task_id = ?",
+            (other.id, tasks["A"]),
+        )
+    assert control.runnable_tasks(window.id, limit=1) == ()
+
+
+@pytest.mark.parametrize("status", ["QUEUED", "INTERRUPTED"])
+def test_runnable_limit_applies_after_waiting_tasks_within_one_goal(status):
+    store, control, _, _, window, tasks = _launched_dependency_pair()
+    store.set_state(tasks["A"], status)
+    assert control.runnable_tasks(window.id, limit=1) == (tasks["A"],)
+    assert control.runnable_tasks("another-window", limit=1) == ()
+
+
+def test_dependency_selection_does_not_accept_cyclic_plans():
+    _, _, _, goals = _services()
+    goal = goals.create({
+        "objective": "Reject cyclic plan", "idempotency_key": "cyclic-plan",
+        "executor_kind": "deterministic_fixture", "orchestration_mode": "single",
+    })
+    with pytest.raises(TaskStoreError, match="cyclic_plan_task_dependencies"):
+        goals.plan(goal.id, expected_revision=1, tasks=[
+            {"id": "B", "title": "second", "instruction": "second", "dependencies": ["A"]},
+            {"id": "A", "title": "first", "instruction": "first", "dependencies": ["B"]},
+        ])
