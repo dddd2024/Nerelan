@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import {
   BarChart2,
+  ExternalLink,
   FileText,
   GitBranch,
+  GitPullRequest,
   ShieldCheck,
 } from "lucide-react";
 import { ActivityStream } from "@/components/activity-stream";
@@ -15,6 +17,8 @@ import { EvidencePanel } from "@/components/evidence-panel";
 import { LoadingState } from "@/components/loading-state";
 import { PermissionsPanel } from "@/components/permissions-panel";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
+import { usePlatformStatus } from "@/hooks/use-platform";
+import { usePublishTask } from "@/hooks/use-task";
 import { cn } from "@/lib/cn";
 import {
   permissionModeLabel,
@@ -144,6 +148,8 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
   const breakpoint = useBreakpoint();
   const isDesktop = breakpoint === "desktop";
   const splitContainerRef = useRef<HTMLDivElement>(null);
+  const platformStatus = usePlatformStatus();
+  const publication = usePublishTask(task?.id ?? "");
 
   useEffect(() => {
     if (!isDragging) return;
@@ -215,6 +221,26 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
   const state = runStateStyle(displayTask.state);
   const risk = riskTierStyle(displayTask.riskTier);
   const policy = profileToPolicy(displayTask.permissionProfile);
+  const activeWindow = platformStatus.data?.autonomy?.active_window ?? null;
+  const changedPaths = Array.from(
+    new Set(displayTask.changes.map((change) => change.path).filter(Boolean)),
+  );
+  const taskRepository = displayTask.repository ?? "";
+  const publicationUsesHttp =
+    import.meta.env.MODE !== "mock" &&
+    !(import.meta.env.MODE === "test" && !import.meta.env.VITE_TASK_CLIENT_USE_HTTP);
+  const windowCanPublish = Boolean(
+    activeWindow &&
+      activeWindow.status === "ACTIVE" &&
+      activeWindow.capabilities.includes("open_draft_pr") &&
+      activeWindow.repositories.includes(taskRepository),
+  );
+  const canPublish =
+    publicationUsesHttp &&
+    displayTask.state === "READY_FOR_HUMAN" &&
+    changedPaths.length > 0 &&
+    !displayTask.draftPr &&
+    windowCanPublish;
 
   const stateDotColor =
     {
@@ -338,6 +364,61 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
         <Meta label="Authority" value={displayTask.authorityStatus} />
         <Meta label="测试" value={displayTask.testStatus} />
       </dl>
+
+      {displayTask.draftPr ? (
+        <div
+          data-testid="task-draft-pr"
+          className="flex items-center gap-2 rounded-lg border border-ra-border bg-ra-tertiary/30 px-3 py-2 text-sm"
+        >
+          <GitPullRequest className="h-4 w-4 text-ra-text-tertiary" aria-hidden="true" />
+          <a
+            href={displayTask.draftPr.url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-ra-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+          >
+            Draft PR #{displayTask.draftPr.number}
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+          </a>
+          {displayTask.draftPr.headSha ? (
+            <span className="font-mono text-xs text-ra-text-tertiary">
+              {displayTask.draftPr.headSha.slice(0, 8)}
+            </span>
+          ) : null}
+        </div>
+      ) : canPublish ? (
+        <div className="flex items-center gap-2" data-testid="task-publication-action">
+          <button
+            type="button"
+            aria-label="Publish Draft PR"
+            disabled={publication.isPending}
+            onClick={() => {
+              if (!activeWindow) return;
+              publication.mutate({
+                windowId: activeWindow.id,
+                title: displayTask.title,
+                allowedPaths: changedPaths,
+              });
+            }}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-md border border-ra-border px-3 py-1.5 text-sm font-medium text-ra-text",
+              "hover:bg-ra-tertiary disabled:cursor-not-allowed disabled:opacity-50",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+            )}
+          >
+            <GitPullRequest className="h-4 w-4" aria-hidden="true" />
+            {publication.isPending ? "Publishing Draft PR…" : "Publish Draft PR"}
+          </button>
+        </div>
+      ) : null}
+
+      {publication.isError ? (
+        <p role="alert" className="text-sm text-ra-status-error">
+          {publication.error instanceof Error
+            ? publication.error.message
+            : "Draft PR publication failed"}
+        </p>
+      ) : null}
 
       {isDesktop ? (
         <AgentCanvasWorkbenchFrame
