@@ -29,6 +29,7 @@ export interface BackendTaskCreateResponse extends Record<string, unknown> {
   evidence?: Array<Record<string, unknown>>;
   events?: Array<Record<string, unknown>>;
   frontend_task?: Record<string, unknown>;
+  publication?: Record<string, unknown> | null;
 }
 
 export interface BackendTaskListResponse extends Record<string, unknown> {
@@ -41,6 +42,23 @@ export type BackendTaskDetailResponse = BackendTaskCreateResponse;
 export interface BackendTaskEventsResponse extends Record<string, unknown> {
   task_id: string;
   events: Array<Record<string, unknown>>;
+}
+
+export interface PublishTaskInput {
+  windowId: string;
+  title: string;
+  allowedPaths: string[];
+}
+
+export interface BackendPublicationResponse extends Record<string, unknown> {
+  task_id: string;
+  status: string;
+  branch: string;
+  commit_sha: string;
+  pr_number: number;
+  pr_url: string;
+  base_branch: string;
+  failure_classification: string;
 }
 
 const API_BASE =
@@ -265,6 +283,7 @@ function _normalizeTask(raw: Record<string, unknown>) {
       "",
     validationExitCode: (raw as { validation_exit_code?: number })
       .validation_exit_code,
+    publication: raw.publication ?? null,
   } as Record<string, unknown>;
 }
 
@@ -387,6 +406,7 @@ export async function executeTask(taskId: string): Promise<Record<string, unknow
   >;
   return _normalizeTask(payload);
 }
+
 export async function createTask(
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
@@ -462,4 +482,50 @@ export async function createTask(
     unknown
   >;
   return _normalizeTask(payload);
+}
+
+export async function publishTask(
+  taskId: string,
+  input: PublishTaskInput,
+): Promise<BackendPublicationResponse> {
+  if (!taskId) throw new Error("taskId is required");
+  if (!input.windowId) throw new Error("windowId is required");
+  const allowedPaths = input.allowedPaths.filter((path) => path.trim().length > 0);
+  if (allowedPaths.length === 0) throw new Error("allowedPaths is required");
+
+  if (_isMock()) {
+    return {
+      task_id: taskId,
+      status: "COMPLETE",
+      branch: `agent/task-${taskId}`,
+      commit_sha: "mock-publication-head",
+      pr_number: 1,
+      pr_url: "https://github.com/dddd2024/Nerelan/pull/1",
+      base_branch: "main",
+      failure_classification: "",
+    };
+  }
+
+  const response = await fetch(`${API_BASE}/api/tasks/${taskId}/publish`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      window_id: input.windowId,
+      base_branch: "main",
+      allowed_paths: allowedPaths,
+      title: input.title,
+      body: "",
+    }),
+  });
+  if (!response.ok) {
+    const payload = await _json<Record<string, unknown>>(response).catch(
+      () => ({}),
+    );
+    const code = String((payload as { error?: string }).error ?? "publish_failed");
+    throw new Error(`publish task failed: ${response.status} ${code}`);
+  }
+  return _json<BackendPublicationResponse>(response);
 }

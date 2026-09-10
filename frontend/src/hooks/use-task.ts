@@ -1,5 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
-import { fetchTask } from "@/lib/task-client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  fetchTask,
+  publishTask,
+  type PublishTaskInput,
+} from "@/lib/task-client";
 import type { ActivityEventType, ChangedFile, EvidenceItem, Task } from "@/types";
 
 const EMPTY_TASK: Task = {
@@ -107,6 +111,46 @@ function _workflowStatus(v: unknown): Task["workflowStatus"] {
   return "UNKNOWN";
 }
 
+function _publicationRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function _draftPr(value: unknown, title: string): Task["draftPr"] {
+  const publication = _publicationRecord(value);
+  if (!publication || publication.status !== "COMPLETE") return undefined;
+  const number = publication.pr_number;
+  const url = publication.pr_url;
+  if (
+    typeof number !== "number" ||
+    !Number.isInteger(number) ||
+    number <= 0 ||
+    typeof url !== "string" ||
+    url.length === 0
+  ) {
+    return undefined;
+  }
+  return {
+    number,
+    title,
+    url,
+    headSha: String(publication.commit_sha ?? ""),
+    baseSha: "",
+    draft: true,
+    state: "open",
+  };
+}
+
+function _publicationFailure(value: unknown): string {
+  const publication = _publicationRecord(value);
+  if (!publication || publication.status !== "FAILED") return "";
+  const classification = String(
+    publication.failure_classification ?? "publication_failed",
+  );
+  return `Draft PR publication failed: ${classification}`;
+}
+
 function _toTask(raw: Record<string, unknown> | undefined): Task {
   if (!raw) return EMPTY_TASK;
   const source =
@@ -116,15 +160,18 @@ function _toTask(raw: Record<string, unknown> | undefined): Task {
     raw.changed_files ??
     []) as UnknownArray) ?? [];
   const evidence = ((source.evidence ?? []) as UnknownArray) ?? [];
+  const publication = source.publication ?? raw.publication;
+  const title = String(source.title ?? raw.title ?? "");
+  const executionBlocker = String(source.blocker ?? raw.failure_detail ?? "");
+  const publicationBlocker = _publicationFailure(publication);
   return {
     id: String(source.id ?? raw.id ?? ""),
-    title: String(source.title ?? raw.title ?? ""),
+    title,
     issueNumber: _issueNumber(source.issueNumber ?? source.issue_number ?? raw.issue_number),
     state: _state(source.state ?? raw.status, "WAITING_FOR_OWNER"),
     riskTier: _riskTier(source.riskTier ?? source.risk_tier ?? raw.risk_tier),
     updatedAt: String(source.updatedAt ?? raw.updated_at ?? ""),
-    blocker: (String(source.blocker ?? raw.failure_detail ?? "") ||
-      undefined) as Task["blocker"],
+    blocker: (executionBlocker || publicationBlocker || undefined) as Task["blocker"],
     nextAction: (String(source.nextAction ?? "") || undefined) as Task["nextAction"],
     permissionProfile: _permission(
       source.permissionProfile ?? raw.permission_profile ?? "ASK_FOR_APPROVAL",
@@ -132,6 +179,7 @@ function _toTask(raw: Record<string, unknown> | undefined): Task {
     modelProfileId:
       (String(source.modelProfileId ?? raw.model_profile_ref ?? "") ||
         undefined) as Task["modelProfileId"],
+    draftPr: _draftPr(publication, title),
     branch: String(source.branch ?? raw.branch ?? (source.id ?? raw.id ?? "")),
     activity: activity.map((e) => {
       if (!e)
@@ -235,5 +283,21 @@ export function useTask(taskId: string | undefined) {
     enabled: Boolean(taskId),
     staleTime: 1000,
     retry: 1,
+  });
+}
+
+export function usePublishTask(taskId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: PublishTaskInput) => {
+      if (!taskId) throw new Error("taskId is required");
+      return publishTask(taskId, input);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["tasks", taskId] }),
+        queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+      ]);
+    },
   });
 }
