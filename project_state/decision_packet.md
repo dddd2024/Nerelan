@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260908_issue423_windows_platform_ci_r2_v3",
-  "round_id": "round_20260908_issue423_windows_platform_ci_r2_v3",
+  "decision_id": "decision_20260910_issue721_safe_base_refresh_r2_v3",
+  "round_id": "round_20260910_issue721_safe_base_refresh_r2_v3",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,25 +16,24 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "FRESH_MAIN_WINDOWS_HOSTED_LAUNCHER_LIFECYCLE_CI_LANE_R2_V3_POST640_SURFACE",
-  "not_product_redesign": true,
-  "follows_last_decision_id": "decision_20260908_issue423_windows_platform_ci_r2_v2",
-  "follows_last_round_id": "round_20260908_issue423_windows_platform_ci_r2_v2",
-  "previous_audit_outcome": "R2_V1_ACTIVATION_BRANCH_A3FF0A6F_STALE_TERMINAL_NEGATIVE_AUTHORITY_ONLY;R2_V2_BASE_EB1CBFA5_STALE_TERMINAL_NEGATIVE_AUTHORITY_ONLY;PR424_WRONG_RISK_R1_FOR_WORKFLOW_PATH_CLOSED_UNMERGED_TERMINAL_NEGATIVE_AUTHORITY_ONLY;FRESH_CURRENT_MAIN_7452A592_LOCKED_FOR_V3_RE_ANCHOR",
-  "workstream_id": "issue423-windows-platform-ci-r2-v3",
-  "source_issue": 423,
-  "parent_issue": 363,
+  "decision_scope": "SAFE_BASE_REFRESH_OWNER_LANDING_VALIDATION_R2_V3",
+  "follows_last_decision_id": "decision_20260909_issue721_safe_base_refresh_r2_v2",
+  "follows_last_round_id": "round_20260909_issue721_safe_base_refresh_r2_v2",
+  "previous_audit_outcome": "R2_V2_PR726_INDEPENDENTLY_REJECTED_TERMINAL_NEGATIVE_AUTHORITY_ONLY;MISSING_SKILL_PROFILES;INCOMPLETE_DEPENDENCY_MANIFEST_LOCKFILE_POLICY;INCOMPLETE_REFRESH_NEGATIVE_MATRIX;GOVERNANCE_EVIDENCE_PROVENANCE_MISMATCH",
+  "workstream_id": "issue721-safe-base-refresh-r2-v3",
+  "source_issue": 721,
+  "parent_issue": 664,
   "integration_base_ref": "main",
-  "base_sha": "7452a592edfce2a243c4524b1cb78c8172e748a9",
-  "activation_base_sha": "7452a592edfce2a243c4524b1cb78c8172e748a9",
-  "starting_head": "7452a592edfce2a243c4524b1cb78c8172e748a9",
-  "required_branch": "owner/issue423-windows-platform-ci-r2-v3",
+  "base_sha": "fb34873b48d3f8aa9387598f05cc7453e32f7707",
+  "activation_base_sha": "fb34873b48d3f8aa9387598f05cc7453e32f7707",
+  "starting_head": "fb34873b48d3f8aa9387598f05cc7453e32f7707",
+  "required_branch": "owner/issue721-safe-base-refresh-r2-v3",
   "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "authorized_risk_tier": "R2",
-  "workflow_profile": "windows_ci_r2",
+  "workflow_profile": "baseline",
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
@@ -72,49 +71,122 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "no_legacy_intent_mode": "READ_ONLY_LANDING_CANDIDATE_VALIDATION",
-  "landing_authority_scope_note": "Only the exact new specialized Windows Hosted proof workflow .github/workflows/windows-platform-v1.yml is authorized. No launcher, test, existing workflow, dependency, product, or frontend mutation is authorized. No merge, Ready, auto-merge, direct main push, rebase, squash, amend, force push, workflow rerun, workflow dispatch, release, deploy or tag is authorized here. Final Ready/Merge requires a separate independent Owner landing authority.",
+  "landing_authority_scope_note": "Only the exact mainline_landing.py base refresh validation and its test suite are authorized. No new dependency, framework, workflow, or database change is authorized. No merge, Ready, auto-merge, direct main push, rebase, squash, amend, force push, workflow rerun, workflow dispatch, release, deploy or tag is authorized here. Final Ready/Merge requires a separate independent Owner landing authority.",
   "issue_number_must_not_substitute_for_pr_number": true,
-  "test_semantics_changes_allowed": false,
-  "source_test_mutation_authorized": false,
-  "workflow_mutation_scope": "ADD_NEW_WINDOWS_HOSTED_LANES_ONLY_NO_EXISTING_WORKFLOW_EDIT",
+  "test_semantics_changes_allowed": true,
+  "source_test_mutation_authorized": true,
+  "source_test_mutation_scope": "BASE_REFRESH_VALIDATION_IN_MAINLINE_LANDING_AND_RETIRED_V2_FIXTURES",
+  "migration_fixture_664_required": true,
+  "migration_fixture_664_target_head": "f72c5f1c5307cf8655715269687541ead8ead180",
+  "migration_fixture_664_workflow_blob": "0360c23a3821c38b18f6e0d6abf85ac0531ff08c",
+  "migration_fixture_664_workflow_path": ".github/workflows/tauri-desktop-check.yml",
   "historical_negative_authority": {
-    "pr424": "5758061b4fb4f2c85a25eca057084a3aa9167359",
-    "pr424_disposition": "CLOSED_UNMERGED_TERMINAL_WRONG_RISK_NEGATIVE_AUTHORITY_ONLY",
-    "issue423_r2_v1_branch": "owner/issue423-windows-platform-ci-r2-v1",
-    "issue423_r2_v1_branch_sha": "a3ff0a6fbf84e216e0765581a408fdd2ee0c5592",
-    "issue423_r2_v1_disposition": "STALE_ACTIVATION_BRANCH_TERMINAL_STALE_NEGATIVE_AUTHORITY_ONLY",
-    "issue423_r2_v2_base": "eb1cbfa520582988e90e83d798d53379ba537fa8",
-    "issue423_r2_v2_disposition": "STALE_V2_BASE_TERMINAL_STALE_NEGATIVE_AUTHORITY_ONLY",
-    "no_reuse_no_rebase_no_force_update": true
+    "pr726": "160a0e49069e77ae09b97403db8f94fadc9cb54d",
+    "pr726_disposition": "CLOSED_UNMERGED_R2_V2_NEGATIVE_IMPLEMENTATION_EVIDENCE",
+    "issue721_r2_v1_branch": "owner/issue721-safe-base-refresh-r2-v1",
+    "issue721_r2_v1_disposition": "CLOSED_UNMERGED_TERMINAL_NEGATIVE_AUTHORITY_ONLY",
+    "issue721_r2_v2_branch": "owner/issue721-safe-base-refresh-r2-v2",
+    "issue721_r2_v2_branch_sha": "160a0e49069e77ae09b97403db8f94fadc9cb54d",
+    "issue721_r2_v2_disposition": "CLOSED_UNMERGED_R2_V2_NEGATIVE_IMPLEMENTATION_EVIDENCE",
+    "pr726_rejection_reasons": [
+      "MISSING_SKILL_PROFILES",
+      "INCOMPLETE_DEPENDENCY_MANIFEST_LOCKFILE_POLICY",
+      "INCOMPLETE_REFRESH_NEGATIVE_MATRIX",
+      "GOVERNANCE_EVIDENCE_PROVENANCE_MISMATCH"
+    ],
+    "no_reuse_no_rebase_no_force_update": true,
+    "no_cherry_pick_no_amend_no_squash": true
+  },
+  "dependency_manifest_policy": {
+    "principle": "dependency_resolution_drift_during_base_refresh_fails_closed",
+    "blocked_manifest_patterns": [
+      "pyproject.toml",
+      "requirements.txt",
+      "requirements-*.txt",
+      "requirements*.txt",
+      "uv.lock",
+      "poetry.lock",
+      "Pipfile",
+      "Pipfile.lock",
+      "package.json",
+      "package-lock.json",
+      "pnpm-lock.yaml",
+      "yarn.lock",
+      "Cargo.toml",
+      "Cargo.lock"
+    ],
+    "nested_copies_included": true,
+    "workflow_yaml_parsing_forbidden": true
+  },
+  "git_object_validation": {
+    "principle": "explicit_cat_file_before_ancestry_diff_merge_tree",
+    "required_objects": [
+      "original_locked_base",
+      "refreshed_base",
+      "accepted_exact_target_head"
+    ],
+    "abbreviated_ambiguous_shas_forbidden": true,
+    "sha1_40_hex_required": true
+  },
+  "refresh_negative_matrix": {
+    "N1_target_overlap": "intervening_main_touches_target_semantic_path_must_block",
+    "N2_authority_sensitive_drift": "github_project_state_landing_dependency_must_block",
+    "N3_target_head_drift": "accepted_target_head_must_not_drift",
+    "N4_decision_drift": "target_decision_bytes_or_digest_must_not_drift",
+    "N5_ancestry_failure": "original_locked_base_must_be_ancestor_of_refreshed_base",
+    "N6_main_redrift": "refresh_authority_base_must_match_final_landing_base",
+    "N7_merge_conflict": "real_git_merge_conflict_must_block",
+    "N8_merge_tree_mismatch": "clean_merge_but_different_expected_tree_must_block",
+    "N9_missing_object": "missing_or_invalid_git_object_must_block",
+    "N10_history_rewrite": "rebase_amend_squash_cherry_pick_must_not_be_authorizable"
   },
   "fresh_worktree_contract": {
     "creation_required": true,
-    "source_commit": "7452a592edfce2a243c4524b1cb78c8172e748a9",
+    "source_commit": "fb34873b48d3f8aa9387598f05cc7453e32f7707",
     "source_ref": "origin/main",
-    "target_branch": "owner/issue423-windows-platform-ci-r2-v3",
+    "target_branch": "owner/issue721-safe-base-refresh-r2-v3",
     "no_switch_no_reset_no_stash_no_clean_other_worktree": true,
     "clean_status_required_at_activation": true
   },
   "semantic_implementation_contract": {
-    "workflow_path": ".github/workflows/windows-platform-v1.yml",
-    "runner": "windows-latest",
-    "test_command": "python -m pytest tests/platform_v1/test_dev_up_contract.py -q",
-    "install_command": "python -m pip install -e \".[test]\"",
-    "checkout_ref": "github.event.pull_request.head.sha || github.sha",
-    "continue_on_error_forbidden": true,
-    "blanket_skip_or_xfail_forbidden": true,
-    "deselection_forbidden": true,
-    "false_green_wrapper_forbidden": true,
-    "provider_or_model_calls_forbidden": true,
-    "credential_access_forbidden": true,
-    "no_ubuntu_baseline_duplication": true,
-    "trigger_surfaces": [
-      "launch_reverse_agent.bat",
-      "dev-up.ps1",
-      "dev-down.ps1",
-      "tests/platform_v1/test_dev_up_contract.py",
-      ".github/workflows/windows-platform-v1.yml"
-    ]
+    "source_path": "reverse_agent/mainline_landing.py",
+    "test_path": "tests/test_mainline_landing.py",
+    "test_command": "python -m pytest tests/test_mainline_landing.py -q",
+    "governance_test_command": "python -m pytest tests/test_control_plane_transition.py tests/test_project_gate.py tests/test_decision_preflight.py -q",
+    "merge_intent_test_command": "python -m pytest tests/platform_v1/test_merge_intent.py -q",
+    "git_diff_check_command": "git diff --check",
+    "reuse": [
+      "reverse_agent/mainline_landing.py",
+      "existing GitHubRemoteAcceptanceVerifier",
+      "system Git",
+      "git merge-tree --write-tree"
+    ],
+    "do_not_introduce": [
+      "GitPython",
+      "pygit2",
+      "new GitHub client",
+      "new landing scheduler",
+      "GitHub Merge Queue integration",
+      "new workflow",
+      "new dependency",
+      "database/schema changes"
+    ],
+    "refresh_semantics": [
+      "machine_computed_original_target_changed_paths",
+      "machine_computed_original_refreshed_main_changed_paths",
+      "git_merge_base_is_ancestor",
+      "git_merge_tree_write_tree",
+      "exact_accepted_target_head_binding",
+      "exact_target_decision_digest",
+      "owner_exact_head_review_binding",
+      "fresh_sidecar_authority_binding",
+      "ordinary_merge_only",
+      "expected_head_protection",
+      "legacy_strict_locked_base_default"
+    ],
+    "git_object_validation_required": true,
+    "dependency_manifest_policy_required": true,
+    "abbreviated_sha_authority_forbidden": true
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
@@ -127,8 +199,8 @@
   "bootstrap_exception_commands": [],
   "allowed_commands": [
     {
-      "command_id": "issue423_r2v3.bootstrap_and_preflight",
-      "command": "verify exact fresh locked main 7452a592edfce2a243c4524b1cb78c8172e748a9 and fresh isolated worktree branch merge-base; commit this immutable R2 Decision as the unique first commit; run startup snapshot transition command plan transition lint transition preflight pre and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before any workflow mutation",
+      "command_id": "issue721_r2v3.bootstrap_and_preflight",
+      "command": "verify exact fresh locked main fb34873b48d3f8aa9387598f05cc7453e32f7707 and fresh isolated worktree branch merge-base; commit this immutable R2 Decision as the unique first commit; run startup snapshot transition command plan transition lint transition preflight pre and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before any source or test mutation",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [0],
@@ -145,8 +217,8 @@
       ]
     },
     {
-      "command_id": "issue423_r2v3.materialize_windows_workflow",
-      "command": "add exactly one new specialized Windows Hosted proof workflow .github/workflows/windows-platform-v1.yml that runs on windows-latest, checks out the exact tested head, installs the repository existing test extras, and executes python -m pytest tests/platform_v1/test_dev_up_contract.py -q; no continue-on-error, no blanket skip or xfail, no deselection, no false-green wrapper, no provider or model call, no credential access, no Ubuntu baseline duplication",
+      "command_id": "issue721_r2v3.implement_base_refresh",
+      "command": "add safe non-overlap Owner landing base refresh validation to reverse_agent/mainline_landing.py with dependency manifest/lockfile blocking, explicit git object validation, and complete N1-N10 regression support; add corresponding tests to tests/test_mainline_landing.py including #664 migration fixture with historical evidence binding",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
@@ -155,12 +227,13 @@
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        ".github/workflows/windows-platform-v1.yml"
+        "reverse_agent/mainline_landing.py",
+        "tests/test_mainline_landing.py"
       ]
     },
     {
-      "command_id": "issue423_r2v3.validate",
-      "command": "run git status --short and git diff --check; re-run transition lint transition command plan transition preflight pre and worktree publication readiness; run the applicable non-Windows deterministic governance tests; require PUBLICATION_READY and zero diff check violations",
+      "command_id": "issue721_r2v3.validate",
+      "command": "run git status --short and git diff --check; re-run transition lint transition command plan transition preflight pre and worktree publication readiness; run the applicable deterministic tests; require PUBLICATION_READY and zero diff check violations",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
@@ -170,8 +243,8 @@
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue423_r2v3.publish",
-      "command": "after all blocking validation passes push the exact branch owner/issue423-windows-platform-ci-r2-v3 to locked main 7452a592edfce2a243c4524b1cb78c8172e748a9 and create exactly one Draft PR with body recording the immutable R2 authority snapshot; never mark Ready and never merge under this Decision",
+      "command_id": "issue721_r2v3.publish",
+      "command": "after all blocking validation passes push the exact branch owner/issue721-safe-base-refresh-r2-v3 to locked main fb34873b48d3f8aa9387598f05cc7453e32f7707 and create exactly one Draft PR with body recording the immutable R2 authority snapshot; never mark Ready and never merge under this Decision",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -182,8 +255,8 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue423_r2v3.exact_head_acceptance",
-      "command": "require natural exact-head CI Decision Preflight State Gate and Windows Hosted proof lane on the Draft PR; Windows Hosted proof lane must execute python -m pytest tests/platform_v1/test_dev_up_contract.py -q on windows-latest and report terminal SUCCESS; keep the PR Draft and do NOT Ready or merge under this Decision",
+      "command_id": "issue721_r2v3.exact_head_acceptance",
+      "command": "require natural exact-head CI Decision Preflight and State Gate on the Draft PR; keep the PR Draft and do NOT Ready or merge under this Decision",
       "phase": "final_evidence",
       "required": true,
       "expected_exit_codes": [0],
@@ -200,41 +273,50 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    ".github/workflows/windows-platform-v1.yml"
+    "reverse_agent/mainline_landing.py",
+    "tests/test_mainline_landing.py"
   ],
   "reference_paths": [
     "AGENTS.md",
-    "launch_reverse_agent.bat",
-    "dev-up.ps1",
-    "dev-down.ps1",
-    "tests/platform_v1/test_dev_up_contract.py",
-    ".github/workflows/ci.yml",
-    ".github/workflows/decision-preflight.yml",
-    ".github/workflows/freshness.yml",
-    ".github/workflows/frontend-playwright.yml",
-    ".github/workflows/model-access.yml",
-    ".github/workflows/state-gate.yml",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/project_state.py",
+    "reverse_agent/decision_preflight.py",
+    "reverse_agent/control_plane/",
+    "tests/platform_v1/test_merge_intent.py",
+    "tests/test_control_plane_transition.py",
+    "tests/test_project_gate.py",
+    "tests/test_decision_preflight.py",
+    "tests/platform_v1/",
+    "project_state/mainline_merge_intents/",
+    "project_state/mainline_recoveries/",
+    "project_state/integration_baselines/",
+    ".codex-skills/",
+    ".github/workflows/",
     "pyproject.toml",
     "frontend/**",
-    "reverse_agent/**",
-    "tests/**"
+    "scripts/**"
   ],
   "reference_only_paths": [
     "AGENTS.md",
-    "launch_reverse_agent.bat",
-    "dev-up.ps1",
-    "dev-down.ps1",
-    "tests/platform_v1/test_dev_up_contract.py",
-    ".github/workflows/ci.yml",
-    ".github/workflows/decision-preflight.yml",
-    ".github/workflows/freshness.yml",
-    ".github/workflows/frontend-playwright.yml",
-    ".github/workflows/model-access.yml",
-    ".github/workflows/state-gate.yml",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/project_state.py",
+    "reverse_agent/decision_preflight.py",
+    "reverse_agent/control_plane/",
+    "tests/platform_v1/test_merge_intent.py",
+    "tests/test_control_plane_transition.py",
+    "tests/test_project_gate.py",
+    "tests/test_decision_preflight.py",
+    "tests/platform_v1/",
+    "project_state/mainline_merge_intents/",
+    "project_state/mainline_recoveries/",
+    "project_state/integration_baselines/",
+    ".codex-skills/",
+    ".github/workflows/",
     "pyproject.toml",
     "frontend/**",
-    "reverse_agent/**",
-    "tests/**"
+    "scripts/**"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -245,14 +327,20 @@
   ],
   "forbidden_mutated_paths": [
     "AGENTS.md", "README.md", "README.txt", "docs/**", ".codex-skills/**",
-    "launch_reverse_agent.bat", "launch_nerelan.bat", "dev-up.ps1", "dev-down.ps1",
-    "tests/platform_v1/test_dev_up_contract.py", "tests/**",
     ".github/workflows/ci.yml", ".github/workflows/decision-preflight.yml",
     ".github/workflows/freshness.yml", ".github/workflows/frontend-playwright.yml",
     ".github/workflows/model-access.yml", ".github/workflows/state-gate.yml",
-    "frontend/**", "reverse_agent/**", "scripts/**", "provider/**", "model/**", "credential/**",
-    "requirements*.txt", "pyproject.toml", "project_state/mainline_merge_intents/**", "project_state/schemas/**",
-    "project_state/current_state.json", "project_state/state_manifest.json", "project_state/artifact_index.json",
+    "reverse_agent/github_remote_verifier.py", "reverse_agent/project_gate.py",
+    "reverse_agent/project_state.py", "reverse_agent/decision_preflight.py",
+    "reverse_agent/control_plane/**",
+    "tests/platform_v1/**", "tests/test_control_plane_transition.py",
+    "tests/test_project_gate.py", "tests/test_decision_preflight.py",
+    "tests/test_planning_and_github_adapters.py", "tests/test_risk_classifier.py",
+    "tests/test_architecture_contracts.py", "tests/test_minimal_integration_baseline_docs.py",
+    "frontend/**", "scripts/**", "provider/**", "model/**", "credential/**",
+    "requirements*.txt", "pyproject.toml", "project_state/mainline_merge_intents/**",
+    "project_state/schemas/**", "project_state/current_state.json",
+    "project_state/state_manifest.json", "project_state/artifact_index.json",
     "project_state/integration_baselines/**", "project_state/mainline_recoveries/**",
     "**/STOP", "**/owner_handoffs/**"
   ],
@@ -262,15 +350,14 @@
     "privileged_remote_execution", "model_api_invocation", "provider_network_call", "credential_access", "auth_store_read",
     "runner_dispatch", "workflow_rerun", "tag_or_release", "deployment", "dependency_install",
     "second_decision_commit", "second_command_runner", "active_json_rewrite", "product_replay",
-    "ruleset_weakening", "required_check_weakening", "test_semantics_change",
-    "existing_workflow_mutation", "launcher_mutation", "test_file_mutation", "dependency_mutation",
+    "ruleset_weakening", "required_check_weakening",
     "reuse_v1_decision", "reuse_v2_decision", "rebase_v1", "rebase_v2", "continue_push_v1", "continue_push_v2",
     "force_update_v1", "force_update_v2", "reopen_v1", "reopen_v2",
+    "cherry_pick", "commit_transplant", "patch_series_history_reuse", "amend_after_validation", "squash_after_validation",
     "local_authoring", "implicit_user_local_fallback",
-    "continue_on_error_on_windows_proof", "blanket_skip_or_xfail", "deselection_on_windows_proof",
-    "false_green_wrapper", "runner_dispatch_as_substitute", "manual_dispatch_as_substitute",
-    "manual_runner_dispatch_as_substitute_for_pr_triggered_proof",
-    "ubuntu_baseline_duplication"
+    "new_dependency", "new_framework", "new_workflow", "database_schema_change",
+    "gitpython", "pygit2", "new_github_client", "new_landing_scheduler", "merge_queue_integration",
+    "workflow_yaml_parsing_for_dependency_inference"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -289,13 +376,14 @@
     "ci_network_exceptions": [],
     "trusted_worker_network_exceptions": [],
     "github_control_plane_network_exceptions": [
-      "after all blocking validation passes push the exact branch owner/issue423-windows-platform-ci-r2-v3 to locked main 7452a592edfce2a243c4524b1cb78c8172e748a9 and create exactly one Draft PR with body recording the immutable R2 authority snapshot; never mark Ready and never merge under this Decision"
+      "after all blocking validation passes push the exact branch owner/issue721-safe-base-refresh-r2-v3 to locked main fb34873b48d3f8aa9387598f05cc7453e32f7707 and create exactly one Draft PR with body recording the immutable R2 authority snapshot; never mark Ready and never merge under this Decision"
     ],
     "user_local_network_exceptions": [],
     "remote_observation_read_only_allowed": true
   },
   "path_risk_floor": [
-    {"pattern": ".github/workflows/windows-platform-v1.yml", "minimum_risk": "R2"}
+    {"pattern": "reverse_agent/mainline_landing.py", "minimum_risk": "R2"},
+    {"pattern": "tests/test_mainline_landing.py", "minimum_risk": "R2"}
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
@@ -304,12 +392,13 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    ".github/workflows/windows-platform-v1.yml"
+    "reverse_agent/mainline_landing.py",
+    "tests/test_mainline_landing.py"
   ],
   "run_environment_binding": {
     "run_strategy": "trusted_worker",
     "canonical_repository": "dddd2024/Nerelan",
-    "target_owner_branch": "owner/issue423-windows-platform-ci-r2-v3",
+    "target_owner_branch": "owner/issue721-safe-base-refresh-r2-v3",
     "authority_path": "Path B R2 transition",
     "local_agent_ready_or_merge_authority": false
   }
