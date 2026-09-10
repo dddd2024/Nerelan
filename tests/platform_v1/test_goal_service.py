@@ -253,8 +253,7 @@ def test_dependency_selection_does_not_accept_cyclic_plans():
     _, _, _, goals = _services()
     goal = goals.create({
         "objective": "Reject cyclic plan", "idempotency_key": "cyclic-plan",
-        "executor_kind": "deterministic_fixture",
-        "orchestration_mode": "single",
+        "executor_kind": "deterministic_fixture", "orchestration_mode": "single",
     })
     with pytest.raises(TaskStoreError, match="cyclic_plan_task_dependencies"):
         goals.plan(goal.id, expected_revision=1, tasks=[
