@@ -89,8 +89,12 @@ const _VALID_WORKFLOW_STATUSES = new Set([
 
 function _deriveTestStatus(raw: Record<string, unknown>): string {
   const validationExitCode = (raw as { validation_exit_code?: unknown }).validation_exit_code;
-  if (typeof validationExitCode === "number" && !Number.isNaN(validationExitCode)) {
-    return validationExitCode === 0 ? "PASS" : "FAIL";
+  if (
+    typeof validationExitCode === "number" &&
+    !Number.isNaN(validationExitCode) &&
+    validationExitCode !== 0
+  ) {
+    return "FAIL";
   }
   const status = String((raw as { status?: string }).status ?? "");
   if (status === "VALIDATING") {

@@ -32,7 +32,12 @@ from .run_store import (
     TaskStoreError,
 )
 from .task_execution import TaskExecutionError, TaskExecutionService
-from .task_runtime import ExecutorRuntimeError, ExecutorRouter
+from .task_runtime import (
+    ExecutorRuntimeError,
+    ExecutorRouter,
+    VALIDATION_SURFACE_FUNCTIONAL,
+    validation_command_surface,
+)
 from .durable_execution import DurableExecutionService, DurableResumeError
 from .autonomy import AutonomyService, window_to_dict
 from .capability_registry import CapabilityRegistry
@@ -137,11 +142,26 @@ def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
     state = _map_task_status_to_frontend_state(str(_map_task_field(task, "status", "")))
     failure_class = str(_map_task_field(task, "failure_classification", "") or "")
     validation_exit_code = _map_task_field(task, "validation_exit_code", None)
+    validation_command_id = str(
+        _map_task_field(task, "validation_command_id", "") or ""
+    )
+    validation_surface = validation_command_surface(validation_command_id)
     blocker = ""
     next_action = ""
-    test_status = _derive_test_status(validation_exit_code, _map_task_field(task, "status", ""), failure_class)
+    test_status = _derive_test_status(
+        validation_exit_code,
+        _map_task_field(task, "status", ""),
+        failure_class,
+        validation_command_id,
+    )
     if state == "READY_FOR_HUMAN":
-        next_action = "Owner review of validated result"
+        if (
+            test_status == "PASS"
+            and validation_surface == VALIDATION_SURFACE_FUNCTIONAL
+        ):
+            next_action = "Owner review of functionally validated result"
+        else:
+            next_action = "Owner review; functional acceptance evidence still required"
     elif failure_class:
         blocker = _map_task_field(task, "failure_detail", failure_class) or failure_class
         next_action = "Investigate failure classification"
@@ -193,16 +213,27 @@ def _derive_test_status(
     validation_exit_code: Any,
     status: str,
     failure_class: str,
+    validation_command_id: str = "",
 ) -> str:
+    parsed_exit_code: int | None = None
     if validation_exit_code is not None:
         try:
-            return "PASS" if int(validation_exit_code) == 0 else "FAIL"
+            parsed_exit_code = int(validation_exit_code)
         except (ValueError, TypeError):
             pass
+        else:
+            if parsed_exit_code != 0:
+                return "FAIL"
     if status == "VALIDATING":
         return "RUNNING"
     if failure_class:
         return FAILURE_CLASSIFICATION_TO_TEST_STATUS.get(failure_class, "PENDING")
+    if (
+        parsed_exit_code == 0
+        and validation_command_surface(validation_command_id)
+        == VALIDATION_SURFACE_FUNCTIONAL
+    ):
+        return "PASS"
     return "PENDING"
 
 
