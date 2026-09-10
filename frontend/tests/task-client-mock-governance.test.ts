@@ -110,7 +110,7 @@ describe("Task governance truth", () => {
     expect(result.riskTier).toBe("R2");
     expect(result.authorityStatus).toBe("APPROVED");
     expect(result.workflowStatus).toBe("SUCCESS");
-    expect(result.testStatus).toBe("PASS");
+    expect(result.testStatus).toBe("PENDING");
   });
 
   it("preserves explicit valid backend snake_case governance", async () => {
