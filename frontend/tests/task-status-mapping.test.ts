@@ -50,7 +50,7 @@ describe("_normalizeTask testStatus derivation", () => {
     vi.unstubAllEnvs();
   });
 
-  it("OpenCode real-task-shaped success: validation_exit_code=0 yields PASS", async () => {
+  it("raw validation_exit_code=0 without server functional PASS stays PENDING", async () => {
     mockFetch({
       ok: true,
       status: 200,
@@ -72,12 +72,12 @@ describe("_normalizeTask testStatus derivation", () => {
     });
 
     const result = await fetchTask("t-001");
-    expect(result.testStatus).toBe("PASS");
+    expect(result.testStatus).toBe("PENDING");
     expect(result.executor).toBe("opencode");
     expect(result.validationExitCode).toBe(0);
   });
 
-  it("authoritative override: raw validation_exit_code=0 overrides stale PENDING metadata", async () => {
+  it("raw validation_exit_code=0 cannot override server-projected PENDING", async () => {
     mockFetch({
       ok: true,
       status: 200,
@@ -100,7 +100,59 @@ describe("_normalizeTask testStatus derivation", () => {
     });
 
     const result = await fetchTask("t-001");
+    expect(result.testStatus).toBe("PENDING");
+  });
+
+  it("preserves explicit server-projected PASS for a future functional surface", async () => {
+    mockFetch({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify(
+          payload({
+            status: "READY_FOR_REVIEW",
+            executor_kind: "opencode",
+            validation_exit_code: 0,
+            frontend_task: {
+              id: "t-001",
+              title: "opencode task",
+              state: "READY_FOR_HUMAN",
+              executor: "opencode",
+              testStatus: "PASS",
+              updatedAt: "2026-08-01T00:00:01Z",
+            },
+          }),
+        ),
+    });
+
+    const result = await fetchTask("t-001");
     expect(result.testStatus).toBe("PASS");
+  });
+
+  it("raw validation_exit_code=0 with malformed projected status fails closed to PENDING", async () => {
+    mockFetch({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify(
+          payload({
+            status: "READY_FOR_REVIEW",
+            executor_kind: "opencode",
+            validation_exit_code: 0,
+            frontend_task: {
+              id: "t-001",
+              title: "opencode task",
+              state: "READY_FOR_HUMAN",
+              executor: "opencode",
+              testStatus: "GREEN",
+              updatedAt: "2026-08-01T00:00:01Z",
+            },
+          }),
+        ),
+    });
+
+    const result = await fetchTask("t-001");
+    expect(result.testStatus).toBe("PENDING");
   });
 
   it("nonzero validation_exit_code yields FAIL", async () => {
@@ -118,7 +170,7 @@ describe("_normalizeTask testStatus derivation", () => {
               title: "opencode task",
               state: "FAILED_TERMINAL",
               executor: "opencode",
-              testStatus: "PENDING",
+              testStatus: "PASS",
               updatedAt: "2026-08-01T00:00:01Z",
             },
           }),
@@ -129,7 +181,7 @@ describe("_normalizeTask testStatus derivation", () => {
     expect(result.testStatus).toBe("FAIL");
   });
 
-  it("VALIDATING status with no validation_exit_code yields RUNNING", async () => {
+  it("VALIDATING status is RUNNING when no nonzero failure exists", async () => {
     mockFetch({
       ok: true,
       status: 200,
@@ -138,11 +190,13 @@ describe("_normalizeTask testStatus derivation", () => {
           payload({
             status: "VALIDATING",
             executor_kind: "opencode",
+            validation_exit_code: 0,
             frontend_task: {
               id: "t-001",
               title: "opencode task",
               state: "RUNNING",
               executor: "opencode",
+              testStatus: "PASS",
               updatedAt: "2026-08-01T00:00:01Z",
             },
           }),

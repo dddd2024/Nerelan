@@ -74,6 +74,15 @@ _APPROVED_VALIDATION_COMMANDS: dict[str, list[str]] = {
     "git_status_porcelain": ["git", "status", "--porcelain=v1"],
 }
 
+VALIDATION_SURFACE_PATCH_HYGIENE = "PATCH_HYGIENE"
+VALIDATION_SURFACE_FUNCTIONAL = "FUNCTIONAL"
+VALIDATION_SURFACE_UNKNOWN = "UNKNOWN"
+
+_VALIDATION_COMMAND_SURFACES: dict[str, str] = {
+    "git_diff_check": VALIDATION_SURFACE_PATCH_HYGIENE,
+    "git_status_porcelain": VALIDATION_SURFACE_PATCH_HYGIENE,
+}
+
 _APPROVED_MUTATION_COMMANDS: dict[str, list[str]] = {
     "append_to_file": ["_mutate_append_to_file"],
     "write_file": ["_mutate_write_file"],
@@ -86,6 +95,20 @@ class ExecutorRuntimeError(Exception):
 
 class ValidationCommandError(ExecutorRuntimeError):
     """Raised when a validation command fails its expected contract."""
+
+
+def validation_command_surface(command_id: str) -> str:
+    """Return what an exact approved validation command is allowed to prove.
+
+    Unknown/unregistered identities fail closed to ``UNKNOWN``.  A zero exit
+    code is not enough to promote patch-hygiene evidence to functional proof.
+    """
+    if not isinstance(command_id, str):
+        return VALIDATION_SURFACE_UNKNOWN
+    return _VALIDATION_COMMAND_SURFACES.get(
+        command_id,
+        VALIDATION_SURFACE_UNKNOWN,
+    )
 
 
 def _approved_argv(command_id: str, registry: dict[str, list[str]]) -> list[str]:
