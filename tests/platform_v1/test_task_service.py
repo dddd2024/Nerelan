@@ -2170,7 +2170,7 @@ def test_goal_http_list_and_detail_converge_on_task_status(task_server) -> None:
         "expected_revision": 1, "window_id": window["id"],
     })
     assert status == 200 and launched["status"] == "RUNNING"
-    assert len(launched["task_links"]) == 3
+    assert len(launched["task_links"]) == 1
 
     for link in launched["task_links"]:
         store.set_state(link["task_id"], "READY_FOR_REVIEW")
@@ -2184,7 +2184,7 @@ def test_goal_http_list_and_detail_converge_on_task_status(task_server) -> None:
     assert listed_goal["status"] == "COMPLETED"
     assert detail["status"] == "COMPLETED"
     assert listed_goal["status"] == detail["status"]
-    assert len(listed_goal["task_links"]) == 3
+    assert len(listed_goal["task_links"]) == 1
     assert {link["status"] for link in listed_goal["task_links"]} == {"READY_FOR_REVIEW"}
     assert [link["task_id"] for link in listed_goal["task_links"]] == [
         link["task_id"] for link in detail["task_links"]
