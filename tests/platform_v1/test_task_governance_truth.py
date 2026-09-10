@@ -82,7 +82,7 @@ def test_invalid_governance_enums_fail_closed() -> None:
 
 
 def test_test_status_remains_evidence_derived() -> None:
-    passed = _map_task_to_frontend(
+    missing_identity = _map_task_to_frontend(
         _task(status="READY_FOR_REVIEW", validation_exit_code=0)
     )
     failed = _map_task_to_frontend(
@@ -93,7 +93,7 @@ def test_test_status_remains_evidence_derived() -> None:
     )
     pending = _map_task_to_frontend(_task(status="QUEUED"))
 
-    assert passed["testStatus"] == "PASS"
+    assert missing_identity["testStatus"] == "PENDING"
     assert failed["testStatus"] == "FAIL"
     assert running["testStatus"] == "RUNNING"
     assert pending["testStatus"] == "PENDING"

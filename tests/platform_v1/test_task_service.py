@@ -1196,22 +1196,61 @@ def test_task_service_validator_runs_after_executor(tmp_path) -> None:
         server.server_close()
 
 
-def test_frontend_task_test_status_uses_validation_exit_code() -> None:
+def test_frontend_task_test_status_requires_functional_validation_surface(monkeypatch) -> None:
+    import reverse_agent.platform_v1.task_runtime as task_runtime_module
     from reverse_agent.platform_v1.task_service import _map_task_to_frontend
 
-    ok = _map_task_to_frontend({
+    hygiene = _map_task_to_frontend({
+        "id": "t", "title": "t", "status": "READY_FOR_REVIEW",
+        "executor_kind": "opencode", "validation_exit_code": 0,
+        "validation_command_id": "git_diff_check",
+        "failure_classification": "",
+    })
+    assert hygiene["testStatus"] == "PENDING"
+
+    unknown = _map_task_to_frontend({
+        "id": "t", "title": "t", "status": "READY_FOR_REVIEW",
+        "executor_kind": "opencode", "validation_exit_code": 0,
+        "validation_command_id": "not_approved",
+        "failure_classification": "",
+    })
+    assert unknown["testStatus"] == "PENDING"
+
+    missing = _map_task_to_frontend({
         "id": "t", "title": "t", "status": "READY_FOR_REVIEW",
         "executor_kind": "opencode", "validation_exit_code": 0,
         "failure_classification": "",
     })
-    assert ok["testStatus"] == "PASS"
+    assert missing["testStatus"] == "PENDING"
 
     fail = _map_task_to_frontend({
         "id": "t", "title": "t", "status": "FAILED",
         "executor_kind": "opencode", "validation_exit_code": 1,
+        "validation_command_id": "git_diff_check",
         "failure_classification": "",
     })
     assert fail["testStatus"] == "FAIL"
+
+    stale_success = _map_task_to_frontend({
+        "id": "t", "title": "t", "status": "READY_FOR_REVIEW",
+        "executor_kind": "opencode", "validation_exit_code": 0,
+        "validation_command_id": "git_diff_check",
+        "failure_classification": "execution_failed",
+    })
+    assert stale_success["testStatus"] == "FAIL"
+
+    monkeypatch.setitem(
+        task_runtime_module._VALIDATION_COMMAND_SURFACES,
+        "functional-fixture",
+        task_runtime_module.VALIDATION_SURFACE_FUNCTIONAL,
+    )
+    functional = _map_task_to_frontend({
+        "id": "t", "title": "t", "status": "READY_FOR_REVIEW",
+        "executor_kind": "opencode", "validation_exit_code": 0,
+        "validation_command_id": "functional-fixture",
+        "failure_classification": "",
+    })
+    assert functional["testStatus"] == "PASS"
 
 
 def test_frontend_task_test_status_is_running_while_validating() -> None:
@@ -1236,10 +1275,12 @@ def test_ready_for_human_next_action_is_executor_neutral() -> None:
     ok = _map_task_to_frontend({
         "id": "t", "title": "t", "status": "READY_FOR_REVIEW",
         "executor_kind": "opencode", "validation_exit_code": 0,
+        "validation_command_id": "git_diff_check",
         "failure_classification": "",
     })
     assert ok["state"] == "READY_FOR_HUMAN"
-    assert ok["testStatus"] == "PASS"
+    assert ok["testStatus"] == "PENDING"
+    assert "functional acceptance evidence" in ok["nextAction"].lower()
     assert "fixture" not in ok["nextAction"].lower()
 
 

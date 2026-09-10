@@ -8,10 +8,14 @@ import pytest
 
 from reverse_agent.platform_v1.run_store import TaskStore
 from reverse_agent.platform_v1.task_runtime import (
+    _APPROVED_VALIDATION_COMMANDS,
     DeterministicFixtureExecutor,
     ExecutorRuntimeError,
     ExecutorRouter,
     LocalValidationRunner,
+    VALIDATION_SURFACE_PATCH_HYGIENE,
+    VALIDATION_SURFACE_UNKNOWN,
+    validation_command_surface,
 )
 
 
@@ -123,6 +127,19 @@ def test_validation_runner_runs_git_diff_check() -> None:
         assert exit_code == 0
         assert digest
         assert len(digest) == 64
+
+
+def test_validation_command_surfaces_are_hygiene_only_and_fail_closed() -> None:
+    assert set(_APPROVED_VALIDATION_COMMANDS) == {
+        "git_diff_check",
+        "git_status_porcelain",
+    }
+    for command_id in _APPROVED_VALIDATION_COMMANDS:
+        assert validation_command_surface(command_id) == VALIDATION_SURFACE_PATCH_HYGIENE
+
+    assert validation_command_surface("not_approved") == VALIDATION_SURFACE_UNKNOWN
+    assert validation_command_surface(" git_diff_check ") == VALIDATION_SURFACE_UNKNOWN
+    assert validation_command_surface(None) == VALIDATION_SURFACE_UNKNOWN
 
 
 def test_registration_allows_new_executor_kind() -> None:
