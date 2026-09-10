@@ -18,6 +18,14 @@ from reverse_agent.github_remote_verifier import (
     GitHubRemoteAcceptanceVerifier,
 )
 from reverse_agent.mainline_landing import (
+    BASE_REFRESH_ADMISSIBLE,
+    BASE_REFRESH_BLOCKED_AUTHORITY_SENSITIVE_CHANGE,
+    BASE_REFRESH_BLOCKED_ANCESTRY,
+    BASE_REFRESH_BLOCKED_MAIN_DRIFT,
+    BASE_REFRESH_BLOCKED_MERGE_CONFLICT,
+    BASE_REFRESH_BLOCKED_MERGE_TREE_MISMATCH,
+    BASE_REFRESH_BLOCKED_OVERLAP,
+    BASE_REFRESH_BLOCKED_TARGET_DRIFT,
     CANONICAL_WORKFLOW_POLICY,
     CURRENT_PREMERGE_WORKFLOW_POLICY,
     TRUSTED_PREMERGE_WORKFLOW_PROFILES,
@@ -2358,6 +2366,9 @@ def _false_none_attestation(bundle: dict[str, Any], verifier: FalseNoneVerifier)
         "required_status_contexts": list(FALSE_NONE_REQUIRED_CONTEXTS),
         "mainline_merge_intent_required": False,
         "active_pr_binding_mode": "none",
+        "refresh_authority_original_locked_base_sha": None,
+        "refresh_authority_refreshed_base_sha": None,
+        "refresh_authority_expected_merge_tree_sha": None,
         "authorization_status": "active",
         "superseded_by": None,
         "_remote_comment_id": 71000,
@@ -2935,3 +2946,267 @@ def test_false_none_missing_binding_mode_final_gate_blocks(tmp_path: Path) -> No
     assert result["gate_status"] == "BLOCKED", result
     assert any("false_none_target_decision_policy" in item for item in result["blocking_reasons"])
     assert any("active_pr_binding_mode=None" in item for item in result["blocking_reasons"])
+
+
+# ---------------------------------------------------------------------------
+# Issue #721: safe non-overlap base refresh for false/none Owner landing
+# ---------------------------------------------------------------------------
+
+
+def _base_refresh_repo(
+    tmp_path: Path,
+    *,
+    main_paths: list[str] | None = None,
+    target_paths: list[str] | None = None,
+    main_content: dict[str, str] | None = None,
+    target_content: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    repo = tmp_path / "refreshrepo"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test")
+    (repo / "base.txt").write_text("base\n", encoding="utf-8")
+    _git(repo, "add", "base.txt")
+    _git(repo, "commit", "-m", "base A")
+    original_base = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-b", "feature")
+    decision_path = repo / "project_state" / "decision_packet.md"
+    decision_path.parent.mkdir(parents=True, exist_ok=True)
+    decision_id = "decision_20260910_issue721_base_refresh_target"
+    decision_text = (
+        "# Decision Packet\n\n"
+        "```json decision_meta\n"
+        + json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": decision_id,
+                "round_id": "round_20260910_issue721_base_refresh_target",
+                "status": "APPROVED",
+                "mainline": "engineering_branch",
+            },
+            separators=(",", ":"),
+        )
+        + "\n```\n\n"
+        "```json decision_contract\n"
+        + json.dumps(
+            {
+                "mainline_merge_intent_required": False,
+                "active_pr_binding_mode": "none",
+            },
+            separators=(",", ":"),
+        )
+        + "\n```\n"
+    )
+    decision_path.write_text(decision_text, encoding="utf-8")
+    target_changes = target_paths or [".github/workflows/tauri-desktop-check.yml"]
+    target_contents = target_content or {
+        ".github/workflows/tauri-desktop-check.yml": "name: Tauri Check\n",
+    }
+    for tpath in target_changes:
+        full = repo / tpath
+        full.parent.mkdir(parents=True, exist_ok=True)
+        full.write_text(target_contents.get(tpath, "target content\n"), encoding="utf-8")
+    _git(repo, "add", "project_state/decision_packet.md", *target_changes)
+    _git(repo, "commit", "-m", "target T")
+    head = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "main")
+    main_changes = main_paths or [
+        "reverse_agent/platform_v1/control_store.py",
+        "tests/platform_v1/test_goal_service.py",
+        "tests/platform_v1/test_unattended_coordinator.py",
+    ]
+    main_contents = main_content or {}
+    for mpath in main_changes:
+        full = repo / mpath
+        full.parent.mkdir(parents=True, exist_ok=True)
+        full.write_text(main_contents.get(mpath, "main content\n"), encoding="utf-8")
+    _git(repo, "add", *main_changes)
+    _git(repo, "commit", "-m", "main B")
+    refreshed_base = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "main")
+    # Use commit-tree for deterministic merge topology (handles conflicts).
+    _mt = subprocess.run(
+        ["git", "merge-tree", "--write-tree", refreshed_base, head],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    merge_tree_out = _mt.stdout.strip()
+    expected_merge_tree = merge_tree_out.splitlines()[0] if merge_tree_out else head
+    merge = _git(
+        repo,
+        "commit-tree",
+        expected_merge_tree,
+        "-p",
+        refreshed_base,
+        "-p",
+        head,
+        "-m",
+        "merge refresh",
+    )
+    decision_digest = hashlib.sha256(
+        subprocess.check_output(
+            ["git", "show", f"{head}:project_state/decision_packet.md"], cwd=repo
+        )
+    ).hexdigest()
+    return {
+        "repo": repo,
+        "state_dir": repo / "project_state",
+        "base": refreshed_base,
+        "original_base": original_base,
+        "head": head,
+        "merge": merge,
+        "decision_id": decision_id,
+        "decision_digest": decision_digest,
+        "expected_merge_tree": expected_merge_tree,
+        "refreshed_base": refreshed_base,
+    }
+
+
+def _base_refresh_pair(
+    bundle: dict[str, Any],
+    *,
+    att_overrides: dict[str, Any] | None = None,
+    **verifier_kwargs: Any,
+) -> tuple[FalseNoneVerifier, dict[str, Any]]:
+    verifier = FalseNoneVerifier(bundle, **verifier_kwargs)
+    att: dict[str, Any] = {
+        "schema_version": 1,
+        "attestation_id": f"owner_landing_{verifier.source_pr}_refresh_v1",
+        "repository": "dddd2024/Nerelan",
+        "source_pr": verifier.source_pr,
+        "locked_base_sha": bundle["original_base"],
+        "accepted_exact_head_sha": bundle["head"],
+        "target_decision_id": bundle["decision_id"],
+        "target_decision_content_sha256": bundle["decision_digest"],
+        "allowed_merge_method": "merge",
+        "authority_pr": verifier.authority_pr,
+        "authority_head_sha": verifier.authority_head,
+        "authority_base_sha": verifier.authority_base,
+        "authority_decision_id": verifier.authority_decision_id,
+        "authority_decision_content_sha256": verifier.authority_decision_sha,
+        "authority_natural_runs": [
+            {
+                "name": name,
+                "run_id": run_id,
+                "workflow_file": workflow_file,
+                "event": "pull_request",
+                "run_attempt": 1,
+                "head_sha": verifier.authority_head,
+                "conclusion": "success",
+            }
+            for name, run_id, workflow_file in _FALSE_NONE_AUTHORITY_RUN_SPEC
+        ],
+        "owner_exact_head_review_id": verifier.review_id,
+        "ready_state_gate_run_id": verifier.ready_run_id,
+        "ruleset_id": 21023698,
+        "required_status_contexts": list(FALSE_NONE_REQUIRED_CONTEXTS),
+        "mainline_merge_intent_required": False,
+        "active_pr_binding_mode": "none",
+        "refresh_authority_original_locked_base_sha": bundle["original_base"],
+        "refresh_authority_refreshed_base_sha": bundle["refreshed_base"],
+        "refresh_authority_expected_merge_tree_sha": bundle["expected_merge_tree"],
+        "authorization_status": "active",
+        "superseded_by": None,
+        "_remote_comment_id": 72000,
+        "_remote_author": verifier.review_author,
+        "_remote_comment_created_at": "2026-09-03T10:00:00Z",
+        "_remote_comment_updated_at": "2026-09-03T10:01:00Z",
+        "_remote_comment_body": "OWNER_LANDING_MERGE_ATTESTATION\n```json owner_landing_merge_attestation\n{}\n```",
+    }
+    att["content_digest"] = owner_landing_content_digest(att)
+    if att_overrides:
+        att.update(att_overrides)
+        att["content_digest"] = owner_landing_content_digest(att)
+    verifier.attestations = [att]
+    return verifier, att
+
+
+def test_base_refresh_admissible_passes(tmp_path: Path) -> None:
+    bundle = _base_refresh_repo(tmp_path)
+    verifier, _ = _base_refresh_pair(bundle)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "PASSED", result
+    by_name = {c["name"]: c["status"] for c in result["checks"]}
+    assert by_name["base_refresh_authority"] == "PASS"
+    assert by_name["merge_tree_policy"] == "PASS"
+
+
+def test_base_refresh_overlap_blocks(tmp_path: Path) -> None:
+    bundle = _base_refresh_repo(
+        tmp_path,
+        main_paths=[".github/workflows/tauri-desktop-check.yml"],
+    )
+    verifier, _ = _base_refresh_pair(bundle)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED"
+    assert any(
+        BASE_REFRESH_BLOCKED_OVERLAP in item for item in result["blocking_reasons"]
+    )
+
+
+def test_base_refresh_authority_sensitive_github_blocks(tmp_path: Path) -> None:
+    bundle = _base_refresh_repo(
+        tmp_path,
+        main_paths=[".github/workflows/ci.yml"],
+    )
+    verifier, _ = _base_refresh_pair(bundle)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED"
+    assert any(
+        BASE_REFRESH_BLOCKED_AUTHORITY_SENSITIVE_CHANGE in item
+        for item in result["blocking_reasons"]
+    )
+
+
+def test_base_refresh_authority_sensitive_project_state_blocks(tmp_path: Path) -> None:
+    bundle = _base_refresh_repo(
+        tmp_path,
+        main_paths=["project_state/gates/command_plan.json"],
+    )
+    verifier, _ = _base_refresh_pair(bundle)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED"
+    assert any(
+        BASE_REFRESH_BLOCKED_AUTHORITY_SENSITIVE_CHANGE in item
+        for item in result["blocking_reasons"]
+    )
+
+
+def test_base_refresh_authority_sensitive_landing_blocks(tmp_path: Path) -> None:
+    bundle = _base_refresh_repo(
+        tmp_path,
+        main_paths=["reverse_agent/mainline_landing.py"],
+    )
+    verifier, _ = _base_refresh_pair(bundle)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED"
+    assert any(
+        BASE_REFRESH_BLOCKED_AUTHORITY_SENSITIVE_CHANGE in item
+        for item in result["blocking_reasons"]
+    )
+
+
+def test_base_refresh_main_redrift_blocks(tmp_path: Path) -> None:
+    bundle = _base_refresh_repo(tmp_path)
+    verifier, att = _base_refresh_pair(bundle)
+    att["refresh_authority_refreshed_base_sha"] = "0" * 40
+    att["content_digest"] = owner_landing_content_digest(att)
+    verifier.attestations = [att]
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED"
+    assert any(
+        "false_none_attestation_locked_base" in item for item in result["blocking_reasons"]
+    )
+
+
+def test_base_refresh_absent_strict_locked_base_unchanged(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "PASSED", result
+    by_name = {c["name"]: c["status"] for c in result["checks"]}
+    assert by_name["merge_tree_policy"] == "PASS"
+    assert "base_refresh_authority" not in by_name
