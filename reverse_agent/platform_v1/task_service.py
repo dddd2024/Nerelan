@@ -888,6 +888,18 @@ class _TaskHandler(BaseHTTPRequestHandler):
         evidence = task.evidence_refs
         if evidence and isinstance(evidence[0], Mapping):
             evidence = [dict(e) for e in evidence]
+        publication = self.control_store.get_publication(task.id)
+        publication_view = None
+        if publication is not None:
+            publication_view = {
+                "status": publication.status,
+                "branch": publication.branch,
+                "commit_sha": publication.commit_sha,
+                "pr_number": publication.pr_number,
+                "pr_url": publication.pr_url,
+                "base_branch": publication.base_branch,
+                "failure_classification": publication.failure_classification,
+            }
         return {
             "id": task.id,
             "title": task.title,
@@ -915,6 +927,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
             "changed_files": list(changed),
             "evidence": list(evidence),
             "events": self._events_response(events),
+            "publication": publication_view,
             "frontend_task": _map_task_to_frontend(task),
         }
 
