@@ -84,7 +84,7 @@ def test_default_opencode_goal_launch_materializes_one_sequential_team_task(monk
     )
     goal = goals.create({
         "objective": "Implement and verify one bounded product change",
-        "repository": "dddd2024/reverse-agent",
+        "repository": "dddd2024/Nerelan",
         "idempotency_key": "goal-opencode-single-team-v1",
         "executor_kind": "opencode",
         "orchestration_mode": "sequential_team",
