@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  GoalStartOperationError,
   startGoal,
   type StartGoalInput,
 } from "@/lib/goal-start-operation";
@@ -45,7 +44,13 @@ function windowFor(repository = input.repository): PlatformWindow {
     status: "ACTIVE",
     expires_at: "2026-09-10T12:00:00Z",
     repositories: [repository],
-    capabilities: ["execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr"],
+    capabilities: [
+      "execute_task",
+      "resume_task",
+      "reconcile_task",
+      "validate_task",
+      "open_draft_pr",
+    ],
     max_tasks: 20,
     tasks_started: 0,
     tasks_completed: 0,
@@ -94,38 +99,44 @@ describe("resumable Goal start operation", () => {
     let createAttempts = 0;
     let statusReads = 0;
     const idempotencyKeys: string[] = [];
-    const fetchMock = vi.fn(async (requestInput: RequestInfo | URL, init?: RequestInit) => {
-      const path = pathOf(requestInput);
-      if (path === "/api/platform/status") {
-        statusReads += 1;
-        return json({
-          autonomy: {
-            active_window: statusReads >= 3 ? windowFor() : null,
-          },
-        });
-      }
-      if (path === "/api/goals" && init?.method === "POST") {
-        createAttempts += 1;
-        const body = JSON.parse(String(init.body)) as { idempotency_key: string };
-        idempotencyKeys.push(body.idempotency_key);
-        if (createAttempts === 1) throw new TypeError("lost_create_response");
-        return json(serverGoal);
-      }
-      if (path === `/api/goals/${serverGoal.id}` && !init?.method) return json(serverGoal);
-      if (path.endsWith("/plan")) {
-        serverGoal = goal("PLANNED");
-        return json(serverGoal);
-      }
-      if (path.endsWith("/approve")) {
-        serverGoal = goal("APPROVED");
-        return json(serverGoal);
-      }
-      if (path.endsWith("/launch")) {
-        serverGoal = goal("RUNNING");
-        return json(serverGoal);
-      }
-      throw new Error(`unexpected request ${init?.method ?? "GET"} ${path}`);
-    });
+    const fetchMock = vi.fn(
+      async (requestInput: RequestInfo | URL, init?: RequestInit) => {
+        const path = pathOf(requestInput);
+        if (path === "/api/platform/status") {
+          statusReads += 1;
+          return json({
+            autonomy: {
+              active_window: statusReads >= 3 ? windowFor() : null,
+            },
+          });
+        }
+        if (path === "/api/goals" && init?.method === "POST") {
+          createAttempts += 1;
+          const body = JSON.parse(String(init.body)) as {
+            idempotency_key: string;
+          };
+          idempotencyKeys.push(body.idempotency_key);
+          if (createAttempts === 1) throw new TypeError("lost_create_response");
+          return json(serverGoal);
+        }
+        if (path === `/api/goals/${serverGoal.id}` && !init?.method) {
+          return json(serverGoal);
+        }
+        if (path.endsWith("/plan")) {
+          serverGoal = goal("PLANNED");
+          return json(serverGoal);
+        }
+        if (path.endsWith("/approve")) {
+          serverGoal = goal("APPROVED");
+          return json(serverGoal);
+        }
+        if (path.endsWith("/launch")) {
+          serverGoal = goal("RUNNING");
+          return json(serverGoal);
+        }
+        throw new Error(`unexpected request ${init?.method ?? "GET"} ${path}`);
+      },
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const first = startGoal(input);
@@ -134,7 +145,9 @@ describe("resumable Goal start operation", () => {
     await expect(first).rejects.toThrow("lost_create_response");
     expect(createAttempts).toBe(1);
 
-    const stored = JSON.parse(window.localStorage.getItem(operationStorageKey()) ?? "{}") as Record<string, unknown>;
+    const stored = JSON.parse(
+      window.localStorage.getItem(operationStorageKey()) ?? "{}",
+    ) as Record<string, unknown>;
     expect(Object.keys(stored).sort()).toEqual([
       "goal_id",
       "idempotency_key",
@@ -150,8 +163,15 @@ describe("resumable Goal start operation", () => {
     const result = await startGoal(input);
     expect(result.status).toBe("RUNNING");
     expect(createAttempts).toBe(2);
-    expect(new Set(idempotencyKeys)).toEqual(new Set([`ui-goal-${input.operationId}`]));
-    expect(fetchMock.mock.calls.some(([url, init]) => pathOf(url) === "/api/windows/activate" && init?.method === "POST")).toBe(false);
+    expect(new Set(idempotencyKeys)).toEqual(
+      new Set([`ui-goal-${input.operationId}`]),
+    );
+    expect(
+      fetchMock.mock.calls.some(
+        ([url, init]) =>
+          pathOf(url) === "/api/windows/activate" && init?.method === "POST",
+      ),
+    ).toBe(false);
     expect(window.localStorage.getItem(operationStorageKey())).toBeNull();
   });
 
@@ -162,41 +182,47 @@ describe("resumable Goal start operation", () => {
     let approveCalls = 0;
     let losePlanResponse = true;
     const paths: string[] = [];
-    const fetchMock = vi.fn(async (requestInput: RequestInfo | URL, init?: RequestInit) => {
-      const path = pathOf(requestInput);
-      paths.push(`${init?.method ?? "GET"} ${path}`);
-      if (path === "/api/platform/status") {
-        return json({ autonomy: { active_window: windowFor() } });
-      }
-      if (path === "/api/goals" && init?.method === "POST") {
-        createCalls += 1;
-        return json(serverGoal);
-      }
-      if (path === `/api/goals/${serverGoal.id}` && !init?.method) return json(serverGoal);
-      if (path.endsWith("/plan")) {
-        planCalls += 1;
-        serverGoal = goal("PLANNED");
-        if (losePlanResponse) {
-          losePlanResponse = false;
-          throw new TypeError("lost_plan_response");
+    const fetchMock = vi.fn(
+      async (requestInput: RequestInfo | URL, init?: RequestInit) => {
+        const path = pathOf(requestInput);
+        paths.push(`${init?.method ?? "GET"} ${path}`);
+        if (path === "/api/platform/status") {
+          return json({ autonomy: { active_window: windowFor() } });
         }
-        return json(serverGoal);
-      }
-      if (path.endsWith("/approve")) {
-        approveCalls += 1;
-        serverGoal = goal("APPROVED");
-        return json(serverGoal);
-      }
-      if (path.endsWith("/launch")) {
-        serverGoal = goal("RUNNING");
-        return json(serverGoal);
-      }
-      throw new Error(`unexpected request ${init?.method ?? "GET"} ${path}`);
-    });
+        if (path === "/api/goals" && init?.method === "POST") {
+          createCalls += 1;
+          return json(serverGoal);
+        }
+        if (path === `/api/goals/${serverGoal.id}` && !init?.method) {
+          return json(serverGoal);
+        }
+        if (path.endsWith("/plan")) {
+          planCalls += 1;
+          serverGoal = goal("PLANNED");
+          if (losePlanResponse) {
+            losePlanResponse = false;
+            throw new TypeError("lost_plan_response");
+          }
+          return json(serverGoal);
+        }
+        if (path.endsWith("/approve")) {
+          approveCalls += 1;
+          serverGoal = goal("APPROVED");
+          return json(serverGoal);
+        }
+        if (path.endsWith("/launch")) {
+          serverGoal = goal("RUNNING");
+          return json(serverGoal);
+        }
+        throw new Error(`unexpected request ${init?.method ?? "GET"} ${path}`);
+      },
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(startGoal(input)).rejects.toThrow("lost_plan_response");
-    const journalAfterFailure = JSON.parse(window.localStorage.getItem(operationStorageKey()) ?? "{}") as { goal_id?: string };
+    const journalAfterFailure = JSON.parse(
+      window.localStorage.getItem(operationStorageKey()) ?? "{}",
+    ) as { goal_id?: string };
     expect(journalAfterFailure.goal_id).toBe(serverGoal.id);
 
     paths.length = 0;
@@ -212,7 +238,9 @@ describe("resumable Goal start operation", () => {
     const fetchMock = vi.fn(async (requestInput: RequestInfo | URL) => {
       const path = pathOf(requestInput);
       if (path === "/api/platform/status") {
-        return json({ autonomy: { active_window: windowFor("dddd2024/OtherRepo") } });
+        return json({
+          autonomy: { active_window: windowFor("dddd2024/OtherRepo") },
+        });
       }
       throw new Error(`unexpected request ${path}`);
     });
@@ -222,8 +250,14 @@ describe("resumable Goal start operation", () => {
       code: "active_window_repository_conflict",
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls.some(([url]) => pathOf(url) === "/api/goals")).toBe(false);
-    expect(fetchMock.mock.calls.some(([url]) => pathOf(url) === "/api/windows/activate")).toBe(false);
+    expect(
+      fetchMock.mock.calls.some(([url]) => pathOf(url) === "/api/goals"),
+    ).toBe(false);
+    expect(
+      fetchMock.mock.calls.some(
+        ([url]) => pathOf(url) === "/api/windows/activate",
+      ),
+    ).toBe(false);
   });
 
   it("rejects malformed recovery metadata without making a network request or trusting invented Goal identity", async () => {

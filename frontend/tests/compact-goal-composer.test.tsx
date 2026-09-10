@@ -73,7 +73,9 @@ describe("GoalComposer compact progressive disclosure", () => {
 
     await user.type(objective, " 新草稿");
     submission.resolve();
-    await waitFor(() => expect(objective).toHaveValue("完成 provider-free 多 Agent 验证 新草稿"));
+    await waitFor(() =>
+      expect(objective).toHaveValue("完成 provider-free 多 Agent 验证 新草稿"),
+    );
 
     const second = deferred();
     onSubmit.mockImplementationOnce((_input: StartGoalInput) => second.promise);
@@ -86,25 +88,41 @@ describe("GoalComposer compact progressive disclosure", () => {
   });
 
   it("retains failed draft and operation identity across remount, then rotates identity after editing", async () => {
-    const onSubmit = vi.fn((_input: StartGoalInput) => Promise.reject(new Error("connection_lost")));
+    const onSubmit = vi.fn((_input: StartGoalInput) =>
+      Promise.reject(new Error("connection_lost")),
+    );
     const user = userEvent.setup();
     const view = render(<GoalComposer busy={false} onSubmit={onSubmit} />);
 
-    await user.type(screen.getByLabelText("描述最终目标"), "恢复同一个 Goal 启动操作");
-    await user.selectOptions(screen.getByLabelText("执行模式"), "deterministic_fixture");
+    await user.type(
+      screen.getByLabelText("描述最终目标"),
+      "恢复同一个 Goal 启动操作",
+    );
+    await user.selectOptions(
+      screen.getByLabelText("执行模式"),
+      "deterministic_fixture",
+    );
     await user.click(screen.getByText("启用 2 小时自治窗口"));
     await user.click(screen.getByLabelText("规划并运行"));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     const firstOperation = onSubmit.mock.calls[0][0].operationId;
-    expect(screen.getByLabelText("描述最终目标")).toHaveValue("恢复同一个 Goal 启动操作");
+    expect(screen.getByLabelText("描述最终目标")).toHaveValue(
+      "恢复同一个 Goal 启动操作",
+    );
 
     view.unmount();
-    const retrySubmit = vi.fn((_input: StartGoalInput) => Promise.reject(new Error("still_offline")));
+    const retrySubmit = vi.fn((_input: StartGoalInput) =>
+      Promise.reject(new Error("still_offline")),
+    );
     render(<GoalComposer busy={false} onSubmit={retrySubmit} />);
 
-    expect(screen.getByLabelText("描述最终目标")).toHaveValue("恢复同一个 Goal 启动操作");
-    expect(screen.getByLabelText("执行模式")).toHaveValue("deterministic_fixture");
-    expect(screen.getByText("启用 2 小时自治窗口").previousElementSibling).toBeChecked();
+    expect(screen.getByLabelText("描述最终目标")).toHaveValue(
+      "恢复同一个 Goal 启动操作",
+    );
+    expect(screen.getByLabelText("执行模式")).toHaveValue(
+      "deterministic_fixture",
+    );
+    expect(screen.getByRole("checkbox")).toBeChecked();
 
     await user.click(screen.getByLabelText("规划并运行"));
     await waitFor(() => expect(retrySubmit).toHaveBeenCalledTimes(1));
