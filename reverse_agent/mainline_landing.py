@@ -124,6 +124,46 @@ OWNER_LANDING_RUNTIME_FIELDS: tuple[str, ...] = (
 SIGNED_BRANCH_BINDING_MODE = "post_draft_pr_exact_remote_number"
 CUTOVER_NONE_BINDING_MODE = "none"
 
+BASE_REFRESH_ADMISSIBLE = "BASE_REFRESH_ADMISSIBLE"
+BASE_REFRESH_BLOCKED_OVERLAP = "BASE_REFRESH_BLOCKED_OVERLAP"
+BASE_REFRESH_BLOCKED_AUTHORITY_SENSITIVE_CHANGE = (
+    "BASE_REFRESH_BLOCKED_AUTHORITY_SENSITIVE_CHANGE"
+)
+BASE_REFRESH_BLOCKED_ANCESTRY = "BASE_REFRESH_BLOCKED_ANCESTRY"
+BASE_REFRESH_BLOCKED_TARGET_DRIFT = "BASE_REFRESH_BLOCKED_TARGET_DRIFT"
+BASE_REFRESH_BLOCKED_MAIN_DRIFT = "BASE_REFRESH_BLOCKED_MAIN_DRIFT"
+BASE_REFRESH_BLOCKED_MERGE_CONFLICT = "BASE_REFRESH_BLOCKED_MERGE_CONFLICT"
+BASE_REFRESH_BLOCKED_MERGE_TREE_MISMATCH = "BASE_REFRESH_BLOCKED_MERGE_TREE_MISMATCH"
+BASE_REFRESH_BLOCKED_DECISION_DRIFT = "BASE_REFRESH_BLOCKED_DECISION_DRIFT"
+BASE_REFRESH_BLOCKED_OBJECT_MISSING = "BASE_REFRESH_BLOCKED_OBJECT_MISSING"
+
+AUTHORITY_SENSITIVE_PATH_PATTERNS: tuple[str, ...] = (
+    ".github/",
+    "project_state/",
+    "AGENTS.md",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/control_plane/",
+)
+
+DEPENDENCY_MANIFEST_PATTERNS: tuple[str, ...] = (
+    "pyproject.toml",
+    "requirements.txt",
+    "requirements-",
+    "requirements",
+    "uv.lock",
+    "poetry.lock",
+    "Pipfile",
+    "Pipfile.lock",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "Cargo.toml",
+    "Cargo.lock",
+)
+
 
 def resolve_premerge_workflow_profile(profile_name: Any) -> dict[str, tuple[str, str]]:
     """Resolve a bounded trusted pre-merge workflow profile by exact name."""
@@ -169,6 +209,185 @@ def _result(
     if extra:
         result.update(extra)
     return result
+
+
+def _normalize_path(path: str) -> str:
+    path = path.strip()
+    if path.startswith("./"):
+        path = path[2:]
+    if path.startswith("/"):
+        path = path[1:]
+    return path.rstrip("/")
+
+
+def _changed_paths(repo_root: Path, base: str, head: str) -> set[str] | None:
+    completed = subprocess.run(
+        ["git", "diff", "--name-only", base, head],
+        cwd=repo_root,
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return None
+    paths: set[str] = set()
+    for line in completed.stdout.decode("utf-8", errors="strict").splitlines():
+        path = line.strip()
+        if path:
+            paths.add(_normalize_path(path))
+    return paths
+
+
+def _is_ancestor(repo_root: Path, ancestor: str, descendant: str) -> bool:
+    completed = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+        cwd=repo_root,
+        capture_output=True,
+        check=False,
+    )
+    return completed.returncode == 0
+
+
+def _merge_tree_identity(repo_root: Path, base: str, head: str) -> str | None:
+    completed = subprocess.run(
+        ["git", "merge-tree", "--write-tree", base, head],
+        cwd=repo_root,
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return None
+    output = completed.stdout.decode("utf-8", errors="strict").strip()
+    first_line = output.splitlines()[0] if output else ""
+    return first_line if re.fullmatch(r"[0-9a-f]{40}", first_line) else None
+
+
+def _validate_git_object(repo_root: Path, sha: str) -> bool:
+    if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}", sha):
+        return False
+    completed = subprocess.run(
+        ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
+        cwd=repo_root,
+        capture_output=True,
+        check=False,
+    )
+    return completed.returncode == 0
+
+
+def _is_authority_sensitive_path(path: str) -> bool:
+    for pattern in AUTHORITY_SENSITIVE_PATH_PATTERNS:
+        if pattern.endswith("/"):
+            if path.startswith(pattern):
+                return True
+        elif path == pattern:
+            return True
+    return False
+
+
+def _is_dependency_manifest_path(path: str) -> bool:
+    lower = path.lower()
+    for pattern in DEPENDENCY_MANIFEST_PATTERNS:
+        p_lower = pattern.lower()
+        if p_lower.endswith("/"):
+            if lower.startswith(p_lower):
+                return True
+        elif lower.endswith(p_lower):
+            return True
+    return False
+
+
+def _locked_base_valid(
+    att: Mapping[str, Any],
+    *,
+    first_parent: str,
+) -> bool:
+    refresh_original = str(
+        att.get("refresh_authority_original_locked_base_sha") or ""
+    )
+    refresh_base = str(
+        att.get("refresh_authority_refreshed_base_sha") or ""
+    )
+    if refresh_original and refresh_base:
+        return (
+            att.get("locked_base_sha") == refresh_original
+            and first_parent == refresh_base
+        )
+    return att.get("locked_base_sha") == first_parent
+
+
+def _validate_base_refresh_authority(
+    *,
+    repo_root: Path,
+    att: Mapping[str, Any],
+    first_parent: str,
+    second_parent: str,
+) -> tuple[bool, str]:
+    original = str(
+        att.get("refresh_authority_original_locked_base_sha") or ""
+    )
+    refreshed = str(
+        att.get("refresh_authority_refreshed_base_sha") or ""
+    )
+    expected_tree = str(
+        att.get("refresh_authority_expected_merge_tree_sha") or ""
+    )
+    if not original or not refreshed or not expected_tree:
+        return True, "NO_REFRESH"
+
+    # Fix 2: explicit git object validation before ancestry/diff/merge-tree.
+    for label, sha in (
+        ("original_locked_base", original),
+        ("refreshed_base", refreshed),
+        ("accepted_exact_target_head", second_parent),
+    ):
+        if not _validate_git_object(repo_root, sha):
+            return False, f"{BASE_REFRESH_BLOCKED_OBJECT_MISSING}:{label}"
+
+    if not _is_ancestor(repo_root, original, refreshed):
+        return False, BASE_REFRESH_BLOCKED_ANCESTRY
+
+    target_paths = _changed_paths(repo_root, original, second_parent)
+    if target_paths is None:
+        return False, BASE_REFRESH_BLOCKED_TARGET_DRIFT
+    intervening_paths = _changed_paths(repo_root, original, refreshed)
+    if intervening_paths is None:
+        return False, BASE_REFRESH_BLOCKED_MAIN_DRIFT
+
+    # N6: refresh authority must bind the same refreshed base as the landing base.
+    if first_parent != refreshed:
+        return False, BASE_REFRESH_BLOCKED_MAIN_DRIFT
+
+    # N1: target overlap.
+    if not target_paths.isdisjoint(intervening_paths):
+        return False, BASE_REFRESH_BLOCKED_OVERLAP
+
+    # N2: authority-sensitive drift.
+    for path in sorted(intervening_paths):
+        if _is_authority_sensitive_path(path):
+            return False, BASE_REFRESH_BLOCKED_AUTHORITY_SENSITIVE_CHANGE
+        if _is_dependency_manifest_path(path):
+            return False, BASE_REFRESH_BLOCKED_AUTHORITY_SENSITIVE_CHANGE
+
+    # N4: target decision drift.
+    att_decision_digest = str(
+        att.get("refresh_authority_decision_content_sha256") or ""
+    )
+    if att_decision_digest:
+        if not _sha256(att_decision_digest):
+            return False, BASE_REFRESH_BLOCKED_DECISION_DRIFT
+        actual_digest = _sha256_blob(
+            repo_root, second_parent, "project_state/decision_packet.md"
+        )
+        if actual_digest is None or att_decision_digest != actual_digest:
+            return False, BASE_REFRESH_BLOCKED_DECISION_DRIFT
+
+    # N7/N8: merge tree identity.
+    computed_tree = _merge_tree_identity(repo_root, refreshed, second_parent)
+    if computed_tree is None:
+        return False, BASE_REFRESH_BLOCKED_MERGE_CONFLICT
+    if computed_tree != expected_tree:
+        return False, BASE_REFRESH_BLOCKED_MERGE_TREE_MISMATCH
+
+    return True, BASE_REFRESH_ADMISSIBLE
 
 
 def _git(repo_root: Path, *args: str, check: bool = True) -> str:
@@ -1010,7 +1229,18 @@ def _validate_false_none_attestation(
 
     checks: list[dict[str, str]] = []
 
-    fields_valid = set(att) == _OWNER_LANDING_ATTESTATION_FIELDS
+    _REFRESH_REQUIRED = {
+        "refresh_authority_original_locked_base_sha",
+        "refresh_authority_refreshed_base_sha",
+        "refresh_authority_expected_merge_tree_sha",
+    }
+    _REFRESH_OPTIONAL = {"refresh_authority_decision_content_sha256"}
+    refresh_present = bool(set(att) & _REFRESH_REQUIRED)
+    if refresh_present:
+        allowed = _OWNER_LANDING_ATTESTATION_FIELDS | _REFRESH_REQUIRED | _REFRESH_OPTIONAL
+        fields_valid = set(att) == allowed
+    else:
+        fields_valid = set(att) == _OWNER_LANDING_ATTESTATION_FIELDS
     schema_ok = att.get("schema_version") == 1
     author_ok = att.get("_remote_author") in FALSE_NONE_ALLOWED_OWNERS
     repo_ok = att.get("repository") == "dddd2024/Nerelan"
@@ -1038,7 +1268,10 @@ def _validate_false_none_attestation(
             ),
             _check(
                 "false_none_attestation_locked_base",
-                att.get("locked_base_sha") == first_parent,
+                _locked_base_valid(
+                    att,
+                    first_parent=first_parent,
+                ),
                 f"observed={att.get('locked_base_sha')} expected={first_parent}",
             ),
             _check(
@@ -1421,13 +1654,6 @@ def _validate_false_none_landing(
     """Run the false/none post-merge validation on the actual merged target."""
 
     checks: list[dict[str, str]] = []
-    checks.append(
-        _check(
-            "merge_tree_policy",
-            _tree(repo_root, merge_commit_sha) == _tree(repo_root, second_parent),
-            f"merge={_tree(repo_root, merge_commit_sha)} accepted={_tree(repo_root, second_parent)}",
-        )
-    )
 
     # Resolve the true merged PR from the exact merge topology.  Ambiguity and
     # repository mismatch fail closed; the historical active.json is never used
@@ -1544,6 +1770,61 @@ def _validate_false_none_landing(
                 now=now,
             )
         )
+
+    # Base refresh authority and merge-tree policy (Issue #721).
+    if len(candidates) == 1:
+        att = candidates[0]
+        refresh_original = str(
+            att.get("refresh_authority_original_locked_base_sha") or ""
+        )
+        refresh_base = str(
+            att.get("refresh_authority_refreshed_base_sha") or ""
+        )
+        refresh_expected_tree = str(
+            att.get("refresh_authority_expected_merge_tree_sha") or ""
+        )
+        refresh_active = bool(
+            refresh_original and refresh_base and refresh_expected_tree
+        )
+        if refresh_active:
+            admissible, result_token = _validate_base_refresh_authority(
+                repo_root=repo_root,
+                att=att,
+                first_parent=first_parent,
+                second_parent=second_parent,
+            )
+            checks.append(
+                _check("base_refresh_authority", admissible, result_token)
+            )
+            actual_tree = _tree(repo_root, merge_commit_sha)
+            checks.append(
+                _check(
+                    "merge_tree_policy",
+                    actual_tree == refresh_expected_tree,
+                    f"merge={actual_tree} expected={refresh_expected_tree}",
+                )
+            )
+        else:
+            actual_tree = _tree(repo_root, merge_commit_sha)
+            accepted_tree = _tree(repo_root, second_parent)
+            checks.append(
+                _check(
+                    "merge_tree_policy",
+                    actual_tree == accepted_tree,
+                    f"merge={actual_tree} accepted={accepted_tree}",
+                )
+            )
+    else:
+        actual_tree = _tree(repo_root, merge_commit_sha)
+        accepted_tree = _tree(repo_root, second_parent)
+        checks.append(
+            _check(
+                "merge_tree_policy",
+                actual_tree == accepted_tree,
+                f"merge={actual_tree} accepted={accepted_tree}",
+            )
+        )
+
     extra: dict[str, Any] = {
         "target_pr": source_pr,
         "attestation_id": str(
