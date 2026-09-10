@@ -3,9 +3,11 @@ import {
   fetchGoal,
   fetchGoals,
   fetchPlatformStatus,
+} from "@/lib/platform-client";
+import {
   startGoal,
   type StartGoalInput,
-} from "@/lib/platform-client";
+} from "@/lib/goal-start-operation";
 
 export function usePlatformStatus() {
   return useQuery({

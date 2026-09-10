@@ -6,15 +6,102 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useRef, useState } from "react";
-import type { StartGoalInput } from "@/lib/platform-client";
+import type { StartGoalInput } from "@/lib/goal-start-operation";
 import { cn } from "@/lib/cn";
 
 interface GoalComposerProps {
   busy: boolean;
-  onSubmit: (input: StartGoalInput) => void;
+  onSubmit: (input: StartGoalInput) => Promise<void>;
+}
+
+interface GoalComposerDraft extends StartGoalInput {
+  confirmed: boolean;
 }
 
 const MAX_TEXTAREA_HEIGHT = 144;
+const DRAFT_STORAGE_KEY = "nerelan.goal-composer.draft.v1";
+const OPERATION_ID_PATTERN = /^[A-Za-z0-9._:-]{8,160}$/;
+
+function createOperationId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `goal-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function freshDraft(): GoalComposerDraft {
+  return {
+    objective: "",
+    repository: "dddd2024/reverse-agent",
+    executorKind: "opencode",
+    bindingRef: "coding-default",
+    autonomyHours: 2,
+    operationId: createOperationId(),
+    confirmed: false,
+  };
+}
+
+function readDraft(): GoalComposerDraft {
+  const fallback = freshDraft();
+  if (typeof window === "undefined") return fallback;
+  let raw: string | null;
+  try {
+    raw = window.sessionStorage.getItem(DRAFT_STORAGE_KEY);
+  } catch {
+    return fallback;
+  }
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<GoalComposerDraft>;
+    if (
+      typeof parsed.objective !== "string" ||
+      typeof parsed.repository !== "string" ||
+      !["opencode", "deterministic_fixture"].includes(parsed.executorKind ?? "") ||
+      typeof parsed.bindingRef !== "string" ||
+      parsed.autonomyHours !== 2 ||
+      typeof parsed.operationId !== "string" ||
+      !OPERATION_ID_PATTERN.test(parsed.operationId) ||
+      typeof parsed.confirmed !== "boolean"
+    ) {
+      throw new Error("invalid_goal_composer_draft");
+    }
+    return {
+      objective: parsed.objective.slice(0, 20_000),
+      repository: parsed.repository.slice(0, 500),
+      executorKind: parsed.executorKind as StartGoalInput["executorKind"],
+      bindingRef: parsed.bindingRef.slice(0, 500),
+      autonomyHours: 2,
+      operationId: parsed.operationId,
+      confirmed: parsed.confirmed,
+    };
+  } catch {
+    try {
+      window.sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+    } catch {
+      // Session persistence is best-effort; the in-memory draft remains safe.
+    }
+    return fallback;
+  }
+}
+
+function persistDraft(draft: GoalComposerDraft) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+  } catch {
+    // Draft persistence must never block the user's in-memory editing.
+  }
+}
+
+function clearPersistedDraft() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch {
+    // A stale UI draft cannot mutate server Goal identity.
+  }
+}
 
 function resizeObjectiveTextarea(element: HTMLTextAreaElement) {
   element.style.height = "auto";
@@ -24,36 +111,59 @@ function resizeObjectiveTextarea(element: HTMLTextAreaElement) {
 }
 
 export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
-  const [objective, setObjective] = useState("");
-  const [repository, setRepository] = useState("dddd2024/reverse-agent");
-  const [executorKind, setExecutorKind] =
-    useState<StartGoalInput["executorKind"]>("opencode");
-  const [bindingRef, setBindingRef] = useState("coding-default");
-  const [confirmed, setConfirmed] = useState(false);
-  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [draft, setDraft] = useState<GoalComposerDraft>(readDraft);
+  const [optionsOpen, setOptionsOpen] = useState(
+    () => draft.objective.trim().length > 0,
+  );
+  const draftRef = useRef(draft);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const showOptions = optionsOpen || objective.trim().length > 0;
+  function replaceDraft(next: GoalComposerDraft, persist = true) {
+    draftRef.current = next;
+    setDraft(next);
+    if (persist) persistDraft(next);
+  }
+
+  function editDraft(patch: Partial<GoalComposerDraft>) {
+    replaceDraft({
+      ...draftRef.current,
+      ...patch,
+      operationId: createOperationId(),
+    });
+  }
+
+  const showOptions = optionsOpen || draft.objective.trim().length > 0;
   const ready =
-    objective.trim().length >= 8 &&
-    repository.includes("/") &&
-    confirmed &&
+    draft.objective.trim().length >= 8 &&
+    draft.repository.includes("/") &&
+    draft.confirmed &&
     !busy;
 
   return (
     <form
       className="rounded-xl border border-ra-border/70 bg-ra-workspace transition-colors focus-within:border-ra-border-strong"
-      onSubmit={(event) => {
+      onSubmit={async (event) => {
         event.preventDefault();
         if (!ready) return;
-        onSubmit({
-          objective: objective.trim(),
-          repository: repository.trim(),
-          executorKind,
-          bindingRef,
+        const submitted: StartGoalInput = {
+          objective: draftRef.current.objective.trim(),
+          repository: draftRef.current.repository.trim(),
+          executorKind: draftRef.current.executorKind,
+          bindingRef: draftRef.current.bindingRef,
           autonomyHours: 2,
-        });
-        setObjective("");
+          operationId: draftRef.current.operationId,
+        };
+
+        try {
+          await onSubmit(submitted);
+        } catch {
+          return;
+        }
+
+        if (draftRef.current.operationId !== submitted.operationId) return;
+        const next = freshDraft();
+        clearPersistedDraft();
+        replaceDraft(next, false);
         setOptionsOpen(false);
         if (textareaRef.current) textareaRef.current.style.height = "auto";
       }}
@@ -75,9 +185,9 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
         <textarea
           ref={textareaRef}
           id="goal-objective"
-          value={objective}
+          value={draft.objective}
           onChange={(event) => {
-            setObjective(event.target.value);
+            editDraft({ objective: event.target.value });
             resizeObjectiveTextarea(event.target);
           }}
           placeholder="Ask Nerelan to work on something…"
@@ -111,8 +221,8 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
                 <GitBranch className="h-3.5 w-3.5" aria-hidden="true" />
                 <input
                   aria-label="仓库"
-                  value={repository}
-                  onChange={(event) => setRepository(event.target.value)}
+                  value={draft.repository}
+                  onChange={(event) => editDraft({ repository: event.target.value })}
                   className="w-44 bg-transparent text-ra-text focus:outline-none"
                 />
               </label>
@@ -120,11 +230,11 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
                 <Bot className="h-3.5 w-3.5" aria-hidden="true" />
                 <select
                   aria-label="执行模式"
-                  value={executorKind}
+                  value={draft.executorKind}
                   onChange={(event) =>
-                    setExecutorKind(
-                      event.target.value as StartGoalInput["executorKind"],
-                    )
+                    editDraft({
+                      executorKind: event.target.value as StartGoalInput["executorKind"],
+                    })
                   }
                   className="bg-transparent text-ra-text focus:outline-none"
                 >
@@ -132,11 +242,11 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
                   <option value="deterministic_fixture">无模型验证</option>
                 </select>
               </label>
-              {executorKind === "opencode" && (
+              {draft.executorKind === "opencode" && (
                 <input
                   aria-label="模型绑定"
-                  value={bindingRef}
-                  onChange={(event) => setBindingRef(event.target.value)}
+                  value={draft.bindingRef}
+                  onChange={(event) => editDraft({ bindingRef: event.target.value })}
                   placeholder="模型绑定"
                   className="w-36 rounded-lg border border-ra-border/70 bg-ra-base/30 px-2.5 py-1.5 text-xs text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
                 />
@@ -146,8 +256,8 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
             <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-ra-text-secondary">
               <input
                 type="checkbox"
-                checked={confirmed}
-                onChange={(event) => setConfirmed(event.target.checked)}
+                checked={draft.confirmed}
+                onChange={(event) => editDraft({ confirmed: event.target.checked })}
                 className="h-4 w-4 accent-blue-400"
               />
               <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />

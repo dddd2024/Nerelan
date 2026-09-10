@@ -161,7 +161,10 @@ export function HomePage() {
         <section data-testid="goal-composer-section" className="mb-7">
           <GoalComposer
             busy={startGoal.isPending}
-            onSubmit={(input) => startGoal.mutate(input, { onSuccess: handleStarted })}
+            onSubmit={async (input) => {
+              const goal = await startGoal.mutateAsync(input);
+              handleStarted(goal);
+            }}
           />
           {startGoal.isError && (
             <p role="alert" className="mt-3 text-sm text-ra-status-error">
