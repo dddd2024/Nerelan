@@ -210,33 +210,20 @@ class GoalService:
         )
 
     def _derive_tasks(self, goal: GoalRecord, criteria: Sequence[str]) -> tuple[PlannedTask, ...]:
+        acceptance = "; ".join(criteria)
         return (
             PlannedTask(
                 id="T001",
-                title="Analyze the goal and repository",
+                title="Analyze, implement, and verify the goal",
                 instruction=(
-                    f"Inspect {goal.repository} and turn this objective into a bounded implementation approach: "
-                    f"{goal.objective}. Preserve existing architecture and record assumptions."
+                    f"Inspect {goal.repository} and analyze this objective before editing: {goal.objective}. "
+                    "Implement the smallest complete approved outcome by reusing mature repository capabilities "
+                    "and preserving the existing architecture. Keep analysis, implementation, and verification "
+                    "inside this same runtime Task and prepared worktree. Verify the exact implementation artifact "
+                    "and diff produced by the coder; do not reconstruct or validate an independent repository "
+                    "baseline. Run the relevant deterministic checks and produce reviewable evidence against these "
+                    f"acceptance criteria: {acceptance}"
                 ),
-            ),
-            PlannedTask(
-                id="T002",
-                title="Implement the approved outcome",
-                instruction=(
-                    f"Implement the smallest complete change for: {goal.objective}. "
-                    "Reuse mature repository capabilities and keep changes reviewable."
-                ),
-                dependencies=("T001",),
-            ),
-            PlannedTask(
-                id="T003",
-                title="Verify and prepare evidence",
-                instruction=(
-                    "Run the relevant deterministic checks, review the exact diff, and produce evidence for: "
-                    + "; ".join(criteria)
-                ),
-                dependencies=("T002",),
-                capability="validate_task",
             ),
         )
 
