@@ -5,6 +5,7 @@ import pytest
 from reverse_agent.platform_v1.autonomy import AutonomyService
 from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
 from reverse_agent.platform_v1.control_store import PlatformControlStore
+import reverse_agent.platform_v1.goal_service as goal_service_module
 from reverse_agent.platform_v1.goal_service import GoalService
 from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
 
@@ -45,16 +46,66 @@ def test_goal_plan_approval_and_launch_are_persistent_and_idempotent():
     planned = goals.plan(goal.id, expected_revision=1)
     assert planned.goal.status == "PLANNED"
     assert planned.goal.spec_markdown.startswith("# Specification")
-    assert [task["id"] for task in planned.goal.tasks] == ["T001", "T002", "T003"]
+    assert [task["id"] for task in planned.goal.tasks] == ["T001"]
+    default_task = planned.goal.tasks[0]
+    assert default_task["dependencies"] == []
+    assert default_task["capability"] == "execute_task"
+    instruction = default_task["instruction"]
+    lowered = instruction.lower()
+    assert "analyze" in lowered
+    assert "implement" in lowered
+    assert "verify" in lowered
+    assert "same runtime task" in lowered
+    assert "prepared worktree" in lowered
+    assert "independent repository baseline" in lowered
+    for criterion in planned.goal.acceptance_criteria:
+        assert criterion in instruction
+
     approved = goals.approve(goal.id, expected_revision=1, policy_ref="owner-window-1")
     assert approved.status == "APPROVED"
     window = autonomy.activate(_window_payload())
     running = goals.launch(goal.id, expected_revision=1, window_id=window.id)
     assert running.status == "RUNNING"
     links = control.list_goal_tasks(goal.id)
-    assert len(links) == 3
-    assert links[1]["dependencies"] == ("T001",)
-    assert store.count_tasks() == 3
+    assert len(links) == 1
+    assert links[0]["plan_task_id"] == "T001"
+    assert links[0]["dependencies"] == ()
+    assert store.count_tasks() == 1
+    runtime_task = store.get_task(links[0]["task_id"])
+    assert runtime_task.orchestration_mode == "single"
+
+
+def test_default_opencode_goal_launch_materializes_one_sequential_team_task(monkeypatch):
+    store, control, autonomy, goals = _services()
+    monkeypatch.setattr(
+        goal_service_module,
+        "resolve_repository_workspace",
+        lambda repository: object(),
+    )
+    goal = goals.create({
+        "objective": "Implement and verify one bounded product change",
+        "repository": "dddd2024/Nerelan",
+        "idempotency_key": "goal-opencode-single-team-v1",
+        "executor_kind": "opencode",
+        "orchestration_mode": "sequential_team",
+        "binding_ref": "coding-default",
+    })
+
+    planned = goals.plan(goal.id, expected_revision=1)
+    assert [task["id"] for task in planned.goal.tasks] == ["T001"]
+    goals.approve(goal.id, expected_revision=1, policy_ref="owner-window-1")
+    window_payload = _window_payload()
+    window_payload["repositories"] = ["dddd2024/Nerelan"]
+    window = autonomy.activate(window_payload)
+    running = goals.launch(goal.id, expected_revision=1, window_id=window.id)
+
+    assert running.status == "RUNNING"
+    links = control.list_goal_tasks(goal.id)
+    assert len(links) == 1
+    runtime_task = store.get_task(links[0]["task_id"])
+    assert runtime_task.executor_kind == "opencode"
+    assert runtime_task.orchestration_mode == "sequential_team"
+    assert runtime_task.binding_ref == "coding-default"
 
 
 def test_goal_amendment_invalidates_old_plan_and_requires_replanning():

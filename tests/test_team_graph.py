@@ -885,6 +885,8 @@ def test_sequential_team_integration_single_task_three_roles(tmp_path) -> None:
 
     calls: list[dict] = []
     ws_dir = tmp_path / "shared-ws"
+    coder_marker = "NERELAN_F02A_CODER_ARTIFACT_v1\n"
+    reviewer_observed_marker: list[str] = []
 
     class _SequentialRouter(ExecutorRouter):
         def dispatch_execute(self, **kwargs):
@@ -945,8 +947,11 @@ def test_sequential_team_integration_single_task_three_roles(tmp_path) -> None:
             if role == "planner":
                 (prepared.worktree / ".reverse-agent-handoff" / "plan.md").write_text("plan content\n", encoding="utf-8")
             elif role == "coder":
-                (prepared.worktree / "product.py").write_text("print(1)\n", encoding="utf-8")
+                (prepared.worktree / "product.py").write_text(coder_marker, encoding="utf-8")
             elif role == "reviewer":
+                observed = (prepared.worktree / "product.py").read_text(encoding="utf-8")
+                assert observed == coder_marker
+                reviewer_observed_marker.append(observed)
                 (prepared.worktree / ".reverse-agent-handoff" / "review.md").write_text("looks good\n", encoding="utf-8")
             return ExecutorResult(
                 success=True,
@@ -977,6 +982,7 @@ def test_sequential_team_integration_single_task_three_roles(tmp_path) -> None:
     assert final.status == "READY_FOR_REVIEW"
     assert final.changed_files
     assert final.executor_kind == "opencode"
+    assert reviewer_observed_marker == [coder_marker]
 
     role_calls = [c for c in calls if "role" in c]
     assert [c["role"] for c in role_calls] == ["planner", "coder", "reviewer"]
