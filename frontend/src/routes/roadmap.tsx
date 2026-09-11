@@ -2,6 +2,8 @@ import { Flag, Map } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchRoadmap, type PlatformRoadmapPhase } from "@/lib/platform-client";
 import { cn } from "@/lib/cn";
+import { ErrorState } from "@/components/error-state";
+import { LoadingState } from "@/components/loading-state";
 
 const PHASE_STATUS_LABELS: Record<PlatformRoadmapPhase["derived_status"], string> = {
   PLANNED: "规划中",
@@ -39,7 +41,15 @@ export function RoadmapPage() {
           </p>
         </header>
 
-        <ol className="space-y-4" data-testid="roadmap-phase-list">
+        {roadmapQuery.isPending && <LoadingState label="正在加载路线图…" />}
+        {roadmapQuery.isError && (
+          <ErrorState
+            title={roadmapQuery.data === undefined ? "路线图加载失败" : "路线图更新失败，显示上次内容"}
+            error={roadmapQuery.error}
+            onRetry={() => void roadmapQuery.refetch()}
+          />
+        )}
+        {roadmapQuery.data !== undefined && <ol className="space-y-4" data-testid="roadmap-phase-list">
           {phases.map((phase) => (
             <li
               key={phase.id}
@@ -91,7 +101,7 @@ export function RoadmapPage() {
               还没有路线图阶段。
             </li>
           )}
-        </ol>
+        </ol>}
       </div>
     </main>
   );

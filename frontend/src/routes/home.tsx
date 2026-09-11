@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { GoalComposer } from "@/components/goal-composer";
 import { GoalCurrentActivity } from "@/components/goal-current-activity";
 import { GoalProgress } from "@/components/goal-progress";
+import { ErrorState } from "@/components/error-state";
+import { LoadingState } from "@/components/loading-state";
 import { useGoal, useGoals, usePlatformStatus, useStartGoal } from "@/hooks/use-platform";
 import { useRuns } from "@/hooks/use-runs";
 import type { PlatformGoal } from "@/lib/platform-client";
@@ -31,6 +33,19 @@ function goalStatusLabel(status: PlatformGoal["status"]) {
   if (status === "APPROVED" || status === "PLANNED") return "等待启动";
   if (status === "DRAFT") return "草稿";
   return status;
+}
+
+function ReadFeedback({ query, label }: {
+  query: { data: unknown; isPending: boolean; isError: boolean; error: unknown; refetch: () => unknown };
+  label: string;
+}) {
+  if (query.isPending) return <LoadingState label={`正在加载${label}…`} />;
+  if (!query.isError) return null;
+  return <ErrorState
+    title={query.data === undefined ? `${label}加载失败` : `${label}更新失败，显示上次内容`}
+    error={query.error}
+    onRetry={() => void query.refetch()}
+  />;
 }
 
 export function HomePage() {
@@ -109,12 +124,12 @@ export function HomePage() {
                 <span
                   data-testid="coordinator-status"
                   className={cn(
-                    platform.coordinator.enabled
+                    platform.coordinator.enabled && !statusQuery.isError
                       ? "sr-only"
                       : "inline-flex items-center gap-1.5 text-ra-status-error",
                   )}
                 >
-                  {platform.coordinator.enabled ? "协调器在线" : "手动模式"}
+                  {statusQuery.isError ? "平台状态待刷新" : platform.coordinator.enabled ? "协调器在线" : "手动模式"}
                 </span>
               ) : null}
             </div>
@@ -134,16 +149,18 @@ export function HomePage() {
               <span
                 data-testid="coordinator-status"
                 className={cn(
-                  platform.coordinator.enabled
+                  platform.coordinator.enabled && !statusQuery.isError
                     ? "sr-only"
                     : "mt-3 inline-flex items-center gap-1.5 text-xs text-ra-status-error",
                 )}
               >
-                {platform.coordinator.enabled ? "协调器在线" : "手动模式"}
+                {statusQuery.isError ? "平台状态待刷新" : platform.coordinator.enabled ? "协调器在线" : "手动模式"}
               </span>
             ) : null}
           </header>
         )}
+
+        <ReadFeedback query={statusQuery} label="平台状态" />
 
         {coordinatorError && (
           <div
@@ -186,7 +203,7 @@ export function HomePage() {
             >
               正在加载所选目标的执行进度…
             </div>
-          ) : selectedId && detailQuery.isError ? (
+          ) : selectedId && detailQuery.isError && !detailGoal ? (
             <div className="border-t border-ra-border/60 py-10 text-center">
               <p role="alert" className="text-sm text-ra-status-error">
                 当前所选目标的执行进度暂时无法加载，请重试。
@@ -202,14 +219,16 @@ export function HomePage() {
             </div>
           ) : detailGoal ? (
             <div data-testid="active-goal-stream" className="border-t border-ra-border/60">
+              <ReadFeedback query={detailQuery} label="目标详情" />
               <GoalProgress goal={detailGoal} />
-              <GoalCurrentActivity goal={detailGoal} runs={runs} />
+              <ReadFeedback query={runsQuery} label="运行活动" />
+              {runsQuery.data !== undefined && <GoalCurrentActivity goal={detailGoal} runs={runs} />}
             </div>
-          ) : !selectedId ? (
+          ) : !selectedId && goalsQuery.isSuccess ? (
             <div className="border-t border-ra-border/60 py-12 text-center text-sm text-ra-text-tertiary">
               第一个目标会在这里显示 Agent 的执行进度。
             </div>
-          ) : (
+          ) : selectedId ? (
             <div
               role="status"
               aria-live="polite"
@@ -217,7 +236,7 @@ export function HomePage() {
             >
               正在加载所选目标的执行进度…
             </div>
-          )}
+          ) : null}
         </section>
 
         <section
@@ -228,10 +247,12 @@ export function HomePage() {
           <div className="mb-1 flex items-center justify-between">
             <h2 className="text-xs font-medium text-ra-text-secondary">最近目标</h2>
             <span className="text-[11px] tabular-nums text-ra-text-tertiary">
-              {Math.min(goals.length, 3)} / {goals.length}
+              {goalsQuery.data === undefined ? "—" : `${Math.min(goals.length, 3)} / ${goals.length}`}
             </span>
           </div>
 
+          <ReadFeedback query={goalsQuery} label="目标列表" />
+          {goalsQuery.isSuccess && recent.length === 0 && <p className="py-4 text-sm text-ra-text-tertiary">还没有目标。</p>}
           <div className="divide-y divide-ra-border/50">
             {recent.map((goal) => (
               <button

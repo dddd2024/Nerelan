@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
+import { ErrorState } from "@/components/error-state";
+import { LoadingState } from "@/components/loading-state";
 import {
   Activity,
   ChevronDown,
@@ -123,6 +126,12 @@ type PlatformAgentRunDetailWithResume = Omit<PlatformAgentRunDetail, "controls">
     resume?: PlatformRunResumeControl;
   };
 };
+
+async function fetchExactRun(taskId: string) {
+  const run = await fetchRun(taskId);
+  if (run.task_id !== taskId) throw new Error("未找到请求的运行。");
+  return run;
+}
 
 const RESUME_REASON_LABELS: Record<string, string> = {
   INTERRUPTED_DURABLE_READY: "可从持久化恢复记录继续；提交时服务端会重新校验恢复条件。",
@@ -439,7 +448,7 @@ function RunDetail({ run, open }: { run: PlatformAgentRun; open: boolean }) {
   );
   const detailQuery = useQuery<PlatformAgentRunDetailWithResume>({
     queryKey: ["run", run.task_id],
-    queryFn: () => fetchRun(run.task_id),
+    queryFn: () => fetchExactRun(run.task_id),
     enabled: open,
     staleTime: 2_000,
     refetchInterval: open ? 4_000 : false,
@@ -607,8 +616,8 @@ function RunDetailContent({ run }: { run: PlatformAgentRunDetail }) {
   );
 }
 
-function RunCard({ run }: { run: PlatformAgentRun }) {
-  const [open, setOpen] = useState(false);
+function RunCard({ run, defaultOpen = false }: { run: PlatformAgentRun; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   const currentAgent = run.current_agent ?? eventAgent(run.current_activity);
   const currentActivity = run.current_activity;
   const changeSummary = run.change_summary;
@@ -633,14 +642,43 @@ function RunCard({ run }: { run: PlatformAgentRun }) {
 }
 
 export function RunsPage() {
+  const [searchParams] = useSearchParams();
+  const requestedTaskId = searchParams.get("task") ?? "";
   const runsQuery = useQuery({ queryKey: ["runs"], queryFn: fetchRuns, staleTime: 2_000, refetchInterval: 4_000 });
   const runs = runsQuery.data ?? [];
+  const selectedQuery = useQuery({
+    queryKey: ["run", requestedTaskId],
+    queryFn: () => fetchExactRun(requestedTaskId),
+    enabled: Boolean(requestedTaskId),
+    staleTime: 2_000,
+    refetchInterval: requestedTaskId ? 4_000 : false,
+  });
+  const selectedRun = selectedQuery.data?.task_id === requestedTaskId ? selectedQuery.data : undefined;
 
   return (
     <main data-testid="runs-page" className="min-h-full bg-[var(--oh-surface)] px-4 py-7 sm:px-8 lg:px-12 lg:py-10">
       <div className="mx-auto w-full max-w-[1000px]">
         <header className="mb-8"><p className="text-xs font-medium uppercase tracking-[0.18em] text-ra-text-tertiary">Agent runs</p><h1 className="mt-2 flex items-center gap-2 text-3xl font-medium tracking-[-0.025em] text-ra-text sm:text-4xl"><PlayCircle className="h-7 w-7" aria-hidden="true" />Agent 运行</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-ra-text-secondary">由任务库、目标链接与发布记录派生的只读时间线；任务状态变化会直接反映在这里。</p></header>
-        {runsQuery.isError ? <div role="alert" className="rounded-xl border border-dashed border-ra-border py-10 text-center"><p className="text-sm text-ra-text-secondary">暂时无法加载 Agent 运行。</p><button type="button" onClick={() => void runsQuery.refetch()} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-ra-border px-3 py-1.5 text-xs text-ra-text-secondary hover:bg-ra-light focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />重试</button></div> : runsQuery.isLoading ? <div role="status" aria-live="polite" data-testid="runs-loading" className="rounded-xl border border-dashed border-ra-border py-12 text-center text-sm text-ra-text-tertiary">正在加载 Agent 运行…</div> : <ul className="space-y-2" data-testid="runs-list">{runs.map((run) => <RunCard key={run.task_id} run={run} />)}{runs.length === 0 ? <li className="rounded-2xl border border-dashed border-ra-border py-12 text-center text-sm text-ra-text-tertiary">还没有 Agent 运行记录。</li> : null}</ul>}
+        {requestedTaskId && (
+          <section aria-label="选中运行" className="mb-6">
+            {selectedQuery.isPending && <LoadingState label="正在加载选中运行…" />}
+            {selectedQuery.isError && <ErrorState
+              title={selectedRun ? "运行更新失败，显示上次内容" : "选中运行加载失败"}
+              error={selectedQuery.error}
+              onRetry={() => void selectedQuery.refetch()}
+            />}
+            {selectedRun && <ul><RunCard key={selectedRun.task_id} run={selectedRun} defaultOpen /></ul>}
+          </section>
+        )}
+        {runsQuery.isError && <ErrorState
+          title={runsQuery.data === undefined ? "暂时无法加载 Agent 运行。" : "运行列表更新失败，显示上次内容"}
+          onRetry={() => void runsQuery.refetch()}
+        />}
+        {runsQuery.isPending && <div data-testid="runs-loading"><LoadingState label="正在加载 Agent 运行…" /></div>}
+        {runsQuery.data !== undefined && <ul className="space-y-2" data-testid="runs-list">
+          {runs.filter((run) => run.task_id !== requestedTaskId).map((run) => <RunCard key={run.task_id} run={run} />)}
+          {runs.length === 0 && !requestedTaskId ? <li className="rounded-2xl border border-dashed border-ra-border py-12 text-center text-sm text-ra-text-tertiary">还没有 Agent 运行记录。</li> : null}
+        </ul>}
       </div>
     </main>
   );

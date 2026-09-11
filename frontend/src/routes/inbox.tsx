@@ -10,6 +10,8 @@ import {
   type PlatformInboxItem,
 } from "@/lib/platform-client";
 import { cn } from "@/lib/cn";
+import { ErrorState } from "@/components/error-state";
+import { LoadingState } from "@/components/loading-state";
 
 const STATUS_LABELS: Record<PlatformInboxItem["status"], string> = {
   CAPTURED: "已捕获",
@@ -129,6 +131,16 @@ export function InboxPage() {
           </p>
         )}
 
+        {inboxQuery.isPending && <LoadingState label="正在加载想法…" />}
+        {inboxQuery.isError && (
+          <ErrorState
+            title={inboxQuery.data === undefined ? "想法加载失败" : "想法更新失败，显示上次内容"}
+            error={inboxQuery.error}
+            onRetry={() => void inboxQuery.refetch()}
+          />
+        )}
+
+        {inboxQuery.data !== undefined && <>
         <section aria-label="待处理想法" className="mt-10">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-medium text-ra-text">待处理</h2>
@@ -225,6 +237,7 @@ export function InboxPage() {
             )}
           </ul>
         </section>
+        </>}
       </div>
     </main>
   );
