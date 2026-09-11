@@ -3,7 +3,6 @@ import {
   Bot,
   GitBranch,
   Settings2,
-  ShieldCheck,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import type { StartGoalInput } from "@/lib/goal-start-operation";
@@ -136,7 +135,6 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
   const ready =
     draft.objective.trim().length >= 8 &&
     draft.repository.includes("/") &&
-    draft.confirmed &&
     !busy;
 
   return (
@@ -198,7 +196,7 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
         <button
           type="submit"
           disabled={!ready}
-          aria-label="规划并运行"
+          aria-label="创建并审阅目标"
           className={cn(
             "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition",
             ready
@@ -253,16 +251,7 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
               )}
             </div>
 
-            <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-ra-text-secondary">
-              <input
-                type="checkbox"
-                checked={draft.confirmed}
-                onChange={(event) => editDraft({ confirmed: event.target.checked })}
-                className="h-4 w-4 accent-blue-400"
-              />
-              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-              启用 2 小时自治窗口
-            </label>
+            <p className="text-xs text-ra-text-secondary">先保存草稿，审阅并批准后再启动。</p>
           </div>
         </div>
       )}

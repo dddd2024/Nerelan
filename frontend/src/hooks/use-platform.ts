@@ -6,6 +6,7 @@ import {
 } from "@/lib/platform-client";
 import {
   startGoal,
+  createGoalDraft,
   type StartGoalInput,
 } from "@/lib/goal-start-operation";
 
@@ -51,9 +52,17 @@ export function useGoal(goalId: string | undefined) {
 }
 
 export function useStartGoal() {
+  return useGoalSubmission(startGoal);
+}
+
+export function useCreateGoalDraft() {
+  return useGoalSubmission(createGoalDraft);
+}
+
+function useGoalSubmission(submit: typeof startGoal) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: StartGoalInput) => startGoal(input),
+    mutationFn: (input: StartGoalInput) => submit(input),
     onSuccess: (goal) => {
       queryClient.setQueryData(["goals", goal.id], goal);
       void queryClient.setQueryData(["goals"], (previous: unknown) => {

@@ -1,12 +1,12 @@
 import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { GoalComposer } from "@/components/goal-composer";
 import { GoalCurrentActivity } from "@/components/goal-current-activity";
 import { GoalProgress } from "@/components/goal-progress";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
-import { useGoal, useGoals, usePlatformStatus, useStartGoal } from "@/hooks/use-platform";
+import { useGoal, useGoals, usePlatformStatus, useCreateGoalDraft } from "@/hooks/use-platform";
 import { useRuns } from "@/hooks/use-runs";
 import type { PlatformGoal } from "@/lib/platform-client";
 import { cn } from "@/lib/cn";
@@ -53,7 +53,8 @@ export function HomePage() {
   const statusQuery = usePlatformStatus();
   const goalsQuery = useGoals();
   const runsQuery = useRuns();
-  const startGoal = useStartGoal();
+  const startGoal = useCreateGoalDraft();
+  const navigate = useNavigate();
   const goals = useMemo(() => goalsQuery.data ?? [], [goalsQuery.data]);
   const runs = useMemo(() => runsQuery.data ?? [], [runsQuery.data]);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -189,6 +190,7 @@ export function HomePage() {
             onSubmit={async (input) => {
               const goal = await startGoal.mutateAsync(input);
               handleStarted(goal);
+              navigate(`/approvals?goal=${encodeURIComponent(goal.id)}`);
             }}
           />
           {startGoal.isError && (

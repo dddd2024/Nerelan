@@ -1,11 +1,25 @@
 import {
   PlatformClientError,
   __setMockGoalStatus,
+  __launchMockGoal,
   fetchGoal,
   fetchPlatformStatus,
   type PlatformGoal,
   type PlatformWindow,
 } from "@/lib/platform-client";
+
+export interface GoalConfigurationInput {
+  objective: string;
+  repository: string;
+  executor_kind: PlatformGoal["executor_kind"];
+  orchestration_mode: PlatformGoal["orchestration_mode"];
+  binding_ref: string;
+}
+
+export interface GoalPlanInput {
+  tasks: PlatformGoal["tasks"];
+  acceptance_criteria: string[];
+}
 
 const API_BASE = import.meta.env.VITE_TASK_API_BASE ?? "http://127.0.0.1:8766";
 
@@ -160,21 +174,65 @@ async function ensureWindow(
 }
 
 export async function planExistingGoal(goal: PlatformGoal): Promise<PlatformGoal> {
-  if (isMock()) {
-    __setMockGoalStatus(goal.id, {
-      status: "PLANNED",
-      plan_markdown:
-        goal.plan_markdown || "# Plan\n\nReview the generated plan before approval.",
+  return saveGoalPlan(goal, { tasks: goal.tasks, acceptance_criteria: goal.acceptance_criteria });
+}
+
+async function saveRevision(goal: PlatformGoal, action: "amend" | "plan", input: object) {
+  try {
+    const saved = await request<PlatformGoal>(`/api/goals/${encodeURIComponent(goal.id)}/${action}`, {
+      method: "POST", body: JSON.stringify({ ...input, expected_revision: goal.revision }),
     });
-    return fetchGoal(goal.id);
+    if (saved.id !== goal.id) throw new GoalContinuationError("goal_continuation_failed", goal.id);
+    return saved;
+  } catch (error) { mapStageError(error, goal.id); }
+}
+
+async function mockCurrent(goal: PlatformGoal, statuses: PlatformGoal["status"][]) {
+  const current = await fetchGoal(goal.id);
+  if (current.id !== goal.id || current.revision !== goal.revision || !statuses.includes(current.status)) {
+    throw new GoalContinuationError("goal_revision_conflict", goal.id);
   }
-  return mutateStage(goal, "plan");
+  return current;
+}
+
+export async function saveGoalConfiguration(goal: PlatformGoal, input: GoalConfigurationInput): Promise<PlatformGoal> {
+  if (!isMock()) return saveRevision(goal, "amend", input);
+  const current = await mockCurrent(goal, ["DRAFT", "PLANNED", "APPROVED"]);
+  if (current.task_links?.length) throw new GoalContinuationError("goal_revision_conflict", goal.id);
+  const unchanged = Object.entries(input).every(([key, value]) => current[key as keyof PlatformGoal] === value);
+  if (!unchanged) __setMockGoalStatus(goal.id, {
+    ...input, status: "DRAFT", revision: current.revision + 1, spec_markdown: "", plan_markdown: "",
+    tasks: [], acceptance_criteria: [], artifact_digest: "", window_id: "", updated_at: new Date().toISOString(),
+  });
+  return { ...await fetchGoal(goal.id) };
+}
+
+export async function saveGoalPlan(goal: PlatformGoal, input: GoalPlanInput): Promise<PlatformGoal> {
+  if (!isMock()) return saveRevision(goal, "plan", input);
+  const current = await mockCurrent(goal, ["DRAFT", "PLANNED"]);
+  const tasks = input.tasks.length ? input.tasks : [{
+    id: "T001", title: "实现并验证目标", instruction: current.objective,
+    dependencies: [], capability: "execute_task",
+  }];
+  const criteria = input.acceptance_criteria.length ? input.acceptance_criteria : [`完成目标：${current.objective}`];
+  const unchanged = JSON.stringify(current.tasks) === JSON.stringify(tasks)
+    && JSON.stringify(current.acceptance_criteria) === JSON.stringify(criteria);
+  if (current.status === "PLANNED" && unchanged) return { ...current };
+  const revision = current.revision + (current.status === "PLANNED" ? 1 : 0);
+  __setMockGoalStatus(goal.id, {
+    status: "PLANNED", revision, tasks, acceptance_criteria: criteria,
+    spec_markdown: current.objective,
+    plan_markdown: tasks.map((task) => `${task.id}: ${task.title}\n${task.instruction ?? task.title}`).join("\n\n"),
+    artifact_digest: `mock-plan:${current.id}:${revision}`, updated_at: new Date().toISOString(),
+  });
+  return { ...await fetchGoal(goal.id) };
 }
 
 export async function approveExistingGoal(
   goal: PlatformGoal,
 ): Promise<PlatformGoal> {
   if (isMock()) {
+    await mockCurrent(goal, ["PLANNED"]);
     __setMockGoalStatus(goal.id, { status: "APPROVED" });
     return fetchGoal(goal.id);
   }
@@ -186,10 +244,8 @@ export async function launchExistingGoal(
   autonomyHours: number,
 ): Promise<PlatformGoal> {
   if (isMock()) {
-    __setMockGoalStatus(goal.id, {
-      status: "RUNNING",
-      window_id: "window-demo",
-    });
+    await mockCurrent(goal, ["APPROVED"]);
+    __launchMockGoal(goal.id);
     return fetchGoal(goal.id);
   }
 

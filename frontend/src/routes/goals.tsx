@@ -28,6 +28,10 @@ export function GoalsPage() {
               <p className="mt-2 text-xs text-ra-text-secondary">{goal.objective}</p>
               <p className="mt-2 text-xs text-ra-text-tertiary">{goal.repository}</p>
             </Link>
+            {["DRAFT", "PLANNED", "APPROVED"].includes(goal.status) && <Link
+              to={`/approvals?goal=${encodeURIComponent(goal.id)}`}
+              className="mx-4 mb-3 inline-block text-sm text-ra-accent underline"
+            >审阅并继续此目标</Link>}
           </li>)}
           {query.data.items.length === 0 && <li className="p-8 text-center text-sm text-ra-text-tertiary">这一页没有目标。</li>}
         </ul>}

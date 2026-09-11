@@ -107,12 +107,31 @@ class GoalService:
             goal_id, expected_revision=expected_revision, policy_ref=policy_ref
         )
 
-    def amend(self, goal_id: str, *, expected_revision: int, objective: str) -> GoalRecord:
+    def amend(
+        self, goal_id: str, *, expected_revision: int, objective: str,
+        repository: str | None = None, executor_kind: str | None = None,
+        orchestration_mode: str | None = None, binding_ref: str | None = None,
+    ) -> GoalRecord:
         return self.control_store.amend_goal(
-            goal_id, expected_revision=expected_revision, objective=objective
+            goal_id, expected_revision=expected_revision, objective=objective,
+            repository=repository, executor_kind=executor_kind,
+            orchestration_mode=orchestration_mode, binding_ref=binding_ref,
         )
 
     def launch(self, goal_id: str, *, expected_revision: int, window_id: str) -> GoalRecord:
+        # Serialize the approved snapshot with all materialization writes, including
+        # against configuration updates made through another SQLite connection.
+        with self.store._lock:
+            self.store._conn.execute("BEGIN IMMEDIATE")
+            try:
+                goal = self._launch(goal_id, expected_revision=expected_revision, window_id=window_id)
+                self.store._conn.execute("COMMIT")
+                return goal
+            except BaseException:
+                self.store._conn.execute("ROLLBACK")
+                raise
+
+    def _launch(self, goal_id: str, *, expected_revision: int, window_id: str) -> GoalRecord:
         goal = self.control_store.get_goal(goal_id)
         if goal.revision != expected_revision:
             raise TaskStoreError("goal_not_launchable")

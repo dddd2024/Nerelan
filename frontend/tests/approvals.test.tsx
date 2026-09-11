@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router";
+import * as platformClient from "@/lib/platform-client";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "./test-utils";
 import {
@@ -47,8 +50,11 @@ describe("Approvals continuation page", () => {
       revision: 2,
       plan_markdown: "",
       acceptance_criteria: ["任务可恢复", "结果可审查"],
-      executor_kind: "opencode",
-      binding_ref: "coding-default",
+      executor_kind: "deterministic_fixture",
+      orchestration_mode: "single",
+      binding_ref: "",
+      tasks: [],
+      task_links: [],
       window_id: "",
     });
   });
@@ -77,7 +83,7 @@ describe("Approvals continuation page", () => {
       expect(screen.getByTestId("approval-approve-button")).toBeInTheDocument(),
     );
     expect(screen.getByTestId("approval-plan")).toHaveTextContent(
-      "Review the generated plan before approval.",
+      "实现并验证目标",
     );
 
     await user.click(screen.getByTestId("approval-approve-button"));
@@ -86,6 +92,8 @@ describe("Approvals continuation page", () => {
     );
 
     await user.selectOptions(screen.getByLabelText("自治窗口时长"), "4");
+    expect(screen.getByTestId("approval-launch-button")).toBeDisabled();
+    await user.click(screen.getByLabelText("确认启动当前计划"));
     await user.click(screen.getByTestId("approval-launch-button"));
     await waitFor(() => expect(screen.getByText("运行中")).toBeInTheDocument());
 
@@ -132,6 +140,27 @@ describe("Approvals continuation page", () => {
     expect(screen.queryByTestId("approval-plan-button")).not.toBeInTheDocument();
     expect(screen.queryByTestId("approval-approve-button")).not.toBeInTheDocument();
     expect(screen.queryByTestId("approval-launch-button")).not.toBeInTheDocument();
+  });
+
+  it("preserves unsaved configuration when the background Goal list refresh fails", async () => {
+    const fetchGoals = platformClient.fetchGoals;
+    let failRefresh = false;
+    vi.spyOn(platformClient, "fetchGoals").mockImplementation(() => failRefresh
+      ? Promise.reject(new Error("Goal list temporarily unavailable")) : fetchGoals());
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    render(<QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[`/approvals?goal=${DEMO_GOAL_ID}`]}><ApprovalsPage /></MemoryRouter>
+    </QueryClientProvider>);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "编辑目标配置" }));
+    await user.clear(screen.getByLabelText("目标规格"));
+    await user.type(screen.getByLabelText("目标规格"), "My unsaved specification");
+    failRefresh = true;
+    await act(async () => { await client.invalidateQueries({ queryKey: ["goals"], exact: true }); });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Goal list temporarily unavailable");
+    expect(screen.getByLabelText("目标规格")).toHaveValue("My unsaved specification");
+    expect(screen.getByTestId("approval-plan-button")).toBeDisabled();
+    expect((await platformClient.fetchGoal(DEMO_GOAL_ID)).objective).not.toBe("My unsaved specification");
   });
 
   it("maps a revision conflict to a visible fail-closed continuation error", async () => {
