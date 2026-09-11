@@ -29,6 +29,7 @@ const GOAL_REVISION_OR_STATE_CONFLICT_CODES = new Set([
   "goal_revision_or_state_mismatch",
   "goal_not_approvable",
   "goal_not_launchable",
+  "goal_configuration_not_editable",
 ]);
 
 export type GoalContinuationErrorCode =

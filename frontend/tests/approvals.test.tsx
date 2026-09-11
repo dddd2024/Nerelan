@@ -8,6 +8,7 @@ import { renderWithProviders } from "./test-utils";
 import {
   launchExistingGoal,
   planExistingGoal,
+  saveGoalConfiguration,
 } from "@/lib/goal-continuation-operation";
 import {
   __setMockGoalStatus,
@@ -180,6 +181,24 @@ describe("Approvals continuation page", () => {
       code: "goal_revision_conflict",
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps an explicit Goal configuration state conflict to the fail-closed continuation error", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({ error: "goal_configuration_not_editable" }, 409),
+    );
+    const goal = goalFixture("APPROVED");
+
+    await expect(saveGoalConfiguration(goal, {
+      objective: goal.objective,
+      repository: goal.repository,
+      executor_kind: goal.executor_kind,
+      orchestration_mode: goal.orchestration_mode,
+      binding_ref: goal.binding_ref,
+    })).rejects.toMatchObject({
+      code: "goal_revision_conflict",
+    });
   });
 
   it("preserves an actionable operational 409 instead of fabricating a revision conflict", async () => {
