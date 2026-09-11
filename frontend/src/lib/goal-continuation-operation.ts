@@ -23,6 +23,15 @@ export interface GoalPlanInput {
 
 const API_BASE = import.meta.env.VITE_TASK_API_BASE ?? "http://127.0.0.1:8766";
 
+const GOAL_REVISION_OR_STATE_CONFLICT_CODES = new Set([
+  "goal_revision_conflict",
+  "goal_revision_mismatch",
+  "goal_revision_or_state_mismatch",
+  "goal_not_approvable",
+  "goal_not_launchable",
+  "goal_configuration_not_editable",
+]);
+
 export type GoalContinuationErrorCode =
   | "goal_revision_conflict"
   | "active_window_repository_conflict"
@@ -78,9 +87,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 function mapStageError(error: unknown, goalId: string): never {
   if (
     error instanceof PlatformClientError &&
-    (error.status === 409 ||
-      error.code.includes("revision") ||
-      error.code.includes("stale"))
+    GOAL_REVISION_OR_STATE_CONFLICT_CODES.has(error.code)
   ) {
     throw new GoalContinuationError("goal_revision_conflict", goalId);
   }
@@ -124,15 +131,16 @@ async function ensureWindow(
     return active;
   }
 
-  const starts = new Date();
+  const startMs = Date.now();
+  const starts = new Date(startMs);
   const expires = new Date(
-    starts.getTime() + autonomyHours * 60 * 60 * 1000,
+    startMs + autonomyHours * 60 * 60 * 1000,
   );
   try {
     return await request<PlatformWindow>("/api/windows/activate", {
       method: "POST",
       body: JSON.stringify({
-        policy_id: `owner-approval-${goal.id}-${goal.revision}`,
+        policy_id: `owner-approval-${goal.id}-${goal.revision}-${startMs}-${expires.getTime()}`,
         policy_revision: 1,
         owner_identity: "local-owner",
         starts_at: starts.toISOString(),

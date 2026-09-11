@@ -8,6 +8,7 @@ import { renderWithProviders } from "./test-utils";
 import {
   launchExistingGoal,
   planExistingGoal,
+  saveGoalConfiguration,
 } from "@/lib/goal-continuation-operation";
 import {
   __setMockGoalStatus,
@@ -39,6 +40,13 @@ function goalFixture(status: PlatformGoal["status"] = "DRAFT"): PlatformGoal {
     created_at: "2026-09-11T00:00:00Z",
     updated_at: "2026-09-11T00:00:00Z",
   };
+}
+
+function jsonResponse(payload: unknown, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 describe("Approvals continuation page", () => {
@@ -163,13 +171,10 @@ describe("Approvals continuation page", () => {
     expect((await platformClient.fetchGoal(DEMO_GOAL_ID)).objective).not.toBe("My unsaved specification");
   });
 
-  it("maps a revision conflict to a visible fail-closed continuation error", async () => {
+  it("maps an explicit Goal revision/state mismatch to the fail-closed continuation error", async () => {
     vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ error: "goal_revision_conflict" }), {
-        status: 409,
-        headers: { "Content-Type": "application/json" },
-      }),
+      jsonResponse({ error: "goal_revision_or_state_mismatch" }, 409),
     );
 
     await expect(planExistingGoal(goalFixture())).rejects.toMatchObject({
@@ -178,23 +183,146 @@ describe("Approvals continuation page", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("maps an explicit Goal configuration state conflict to the fail-closed continuation error", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({ error: "goal_configuration_not_editable" }, 409),
+    );
+    const goal = goalFixture("APPROVED");
+
+    await expect(saveGoalConfiguration(goal, {
+      objective: goal.objective,
+      repository: goal.repository,
+      executor_kind: goal.executor_kind,
+      orchestration_mode: goal.orchestration_mode,
+      binding_ref: goal.binding_ref,
+    })).rejects.toMatchObject({
+      code: "goal_revision_conflict",
+    });
+  });
+
+  it("preserves an actionable operational 409 instead of fabricating a revision conflict", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({ error: "repository_workspace_unconfigured" }, 409),
+    );
+
+    let observed: unknown;
+    try {
+      await planExistingGoal(goalFixture());
+    } catch (error) {
+      observed = error;
+    }
+
+    expect(observed).toBeInstanceOf(platformClient.PlatformClientError);
+    expect(observed).toMatchObject({
+      status: 409,
+      code: "repository_workspace_unconfigured",
+    });
+  });
+
+  it("reuses an active window for the same repository without activating another one", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
+    const goal = goalFixture("APPROVED");
+    const running = { ...goal, status: "RUNNING" as const, window_id: "window-same" };
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({
+        autonomy: {
+          active_window: {
+            id: "window-same",
+            repositories: [goal.repository],
+          },
+        },
+      }))
+      .mockResolvedValueOnce(jsonResponse(running))
+      .mockResolvedValueOnce(jsonResponse(running));
+
+    const result = await launchExistingGoal(goal, 2);
+
+    expect(result).toMatchObject({ id: goal.id, revision: goal.revision, window_id: "window-same" });
+    expect(
+      fetchMock.mock.calls.some(([input]) => String(input).endsWith("/api/windows/activate")),
+    ).toBe(false);
+    const launchCall = fetchMock.mock.calls.find(([input]) =>
+      String(input).endsWith(`/api/goals/${goal.id}/launch`),
+    );
+    expect(JSON.parse(String(launchCall?.[1]?.body))).toEqual({
+      expected_revision: goal.revision,
+      window_id: "window-same",
+    });
+  });
+
+  it("uses fresh time-bound policy identities when the same approved Goal activates again", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
+    const goal = goalFixture("APPROVED");
+    const firstStart = Date.parse("2026-09-11T12:00:00.000Z");
+    const secondStart = Date.parse("2026-09-11T12:00:01.000Z");
+    vi.spyOn(Date, "now")
+      .mockReturnValueOnce(firstStart)
+      .mockReturnValueOnce(secondStart);
+
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ autonomy: { active_window: null } }))
+      .mockResolvedValueOnce(jsonResponse({ id: "window-first", repositories: [goal.repository] }, 201))
+      .mockResolvedValueOnce(jsonResponse({ error: "repository_workspace_unconfigured" }, 409))
+      .mockResolvedValueOnce(jsonResponse({ autonomy: { active_window: null } }))
+      .mockResolvedValueOnce(jsonResponse({ id: "window-second", repositories: [goal.repository] }, 201))
+      .mockResolvedValueOnce(jsonResponse({ error: "repository_workspace_unconfigured" }, 409));
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      let observed: unknown;
+      try {
+        await launchExistingGoal(goal, 2);
+      } catch (error) {
+        observed = error;
+      }
+      expect(observed).toBeInstanceOf(platformClient.PlatformClientError);
+      expect(observed).toMatchObject({
+        status: 409,
+        code: "repository_workspace_unconfigured",
+      });
+    }
+
+    const activationCalls = fetchMock.mock.calls.filter(([input]) =>
+      String(input).endsWith("/api/windows/activate"),
+    );
+    expect(activationCalls).toHaveLength(2);
+    const firstPolicy = JSON.parse(String(activationCalls[0][1]?.body));
+    const secondPolicy = JSON.parse(String(activationCalls[1][1]?.body));
+
+    expect(firstPolicy.policy_id).not.toBe(secondPolicy.policy_id);
+    expect(firstPolicy.policy_id).toContain(String(firstStart));
+    expect(secondPolicy.policy_id).toContain(String(secondStart));
+    expect(firstPolicy.starts_at).toBe(new Date(firstStart).toISOString());
+    expect(secondPolicy.starts_at).toBe(new Date(secondStart).toISOString());
+    expect(firstPolicy.expires_at).toBe(new Date(firstStart + 2 * 60 * 60 * 1000).toISOString());
+    expect(secondPolicy.expires_at).toBe(new Date(secondStart + 2 * 60 * 60 * 1000).toISOString());
+
+    const launchCalls = fetchMock.mock.calls.filter(([input]) =>
+      String(input).endsWith(`/api/goals/${goal.id}/launch`),
+    );
+    expect(launchCalls).toHaveLength(2);
+    expect(JSON.parse(String(launchCalls[0][1]?.body))).toEqual({
+      expected_revision: goal.revision,
+      window_id: "window-first",
+    });
+    expect(JSON.parse(String(launchCalls[1][1]?.body))).toEqual({
+      expected_revision: goal.revision,
+      window_id: "window-second",
+    });
+  });
+
   it("refuses to replace an active window owned by another repository", async () => {
     vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          autonomy: {
-            active_window: {
-              id: "window-other",
-              repositories: ["other/repository"],
-            },
+      jsonResponse({
+        autonomy: {
+          active_window: {
+            id: "window-other",
+            repositories: ["other/repository"],
           },
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
         },
-      ),
+      }),
     );
 
     await expect(
