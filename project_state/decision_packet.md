@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260911_issue778_functional_ui_r2_v2",
-  "round_id": "round_20260911_issue778_functional_ui_r2_v2",
+  "decision_id": "decision_20260911_issue815_pr810_owner_landing_r2_v1",
+  "round_id": "round_20260911_issue815_pr810_owner_landing_r2_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,23 +16,38 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "F03_UI_APPROVED_CHECK_SELECTION_AND_BOUND_PROOF",
-  "source_issue": 778,
-  "parent_issue": 653,
-  "repository": "dddd2024/Nerelan",
-  "source_issue_body_sha256": "fad4365f7caa6be72040884cafe5f175cddaf77f8f0c17077185d0b3ad7c5879",
-  "approved_by": "dddd2024 via explicitly delegated Codex owner action",
-  "approval_basis": "User expressly authorized project completion, all tools, owner privileges, self-audit and merge in this task. Agent approval is disclosed and is not independent human review.",
-  "risk_tier": "R2",
-  "authorized_risk_tier": "R2",
-  "governance_artifact_risk_tier": "R2",
+  "decision_scope": "OWNER_LANDING_AUTHORITY_SIDECAR_FALSE_NONE",
+  "sidecar_authority": true,
+  "sidecar_rooted_at_locked_main": true,
+  "sidecar_does_not_enter_target_history": true,
+  "target_pr": 810,
+  "source_pr": 810,
+  "target_branch": "codex/f02-accepted-artifact-handoff-r2-v5",
+  "accepted_exact_head_sha": "028a5962b1319c6b66160665d79ebb4fd214f416",
+  "base_sha": "2a1239b1230461f3f43fd86bb8edd0915552e1a2",
+  "activation_base_sha": "2a1239b1230461f3f43fd86bb8edd0915552e1a2",
+  "starting_head": "2a1239b1230461f3f43fd86bb8edd0915552e1a2",
+  "fresh_base": "2a1239b1230461f3f43fd86bb8edd0915552e1a2",
+  "current_main_expected": "2a1239b1230461f3f43fd86bb8edd0915552e1a2",
   "integration_base_ref": "main",
-  "base_sha": "139baff28ef86ccbe1c5da008bd4dff7f954f68b",
-  "activation_base_sha": "139baff28ef86ccbe1c5da008bd4dff7f954f68b",
-  "starting_head": "139baff28ef86ccbe1c5da008bd4dff7f954f68b",
-  "required_branch": "codex/f03-functional-ui-lint-safe-r2-v2",
+  "required_branch": "codex/pr810-owner-landing-r2-v1",
+  "source_issue": 815,
+  "parent_issue": 799,
+  "trigger_issue": 799,
+  "trigger_pr": 810,
+  "owner_exact_head_review_id": 5180621815,
+  "owner_exact_head_review_commit": "028a5962b1319c6b66160665d79ebb4fd214f416",
+  "target_decision_content_sha256": "64bd7ce4c39d1d840b5fa660de89da113d9515b481a7d54dc18ae6e28e61ec71",
+  "follows_last_decision_id": "decision_20260911_issue799_artifact_handoff_r2_v5",
+  "follows_last_round_id": "round_20260911_issue799_artifact_handoff_r2_v5",
+  "previous_audit_outcome": "PR810_EXACT_HEAD_028a5962b1319c6b66160665d79ebb4fd214f416_DISCLOSED_CODEX_SELF_AUDIT_ACCEPTED_OWNER_REVIEW_5180621815",
+  "workstream_id": "issue815-pr810-owner-landing-r2-v1",
   "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
+  "risk_tier": "R2",
+  "governance_artifact_risk_tier": "R2",
+  "authorized_risk_tier": "R2",
+  "workflow_profile": "baseline",
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
@@ -43,180 +58,123 @@
     "worktree_publication_readiness"
   ],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 8,
-  "generated_governance_commit_limit": 4,
-  "normal_push_attempt_limit": 12,
-  "draft_pr_creation_limit": 1,
-  "mark_ready_attempt_limit": 1,
-  "merge_attempt_limit": 1,
-  "dependency_install_limit": 0,
+  "product_change_commit_limit": 0,
+  "generated_governance_commit_limit": 1,
+  "post_publication_binding_commit_limit": 0,
+  "expected_total_new_commits_from_locked_main": 2,
+  "normal_push_attempt_limit": 3,
+  "draft_pr_creation_limit": 2,
+  "successful_branch_publication_limit": 1,
+  "successful_draft_pr_creation_limit": 1,
+  "transport_retry_allowed": true,
+  "transport_retry_requires_confirmed_no_remote_mutation": true,
+  "transport_retryable_failure_classes": [
+    "TLS_FAILURE",
+    "EOF",
+    "CONNECTION_RESET",
+    "TIMEOUT"
+  ],
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
+  "workflow_dispatch_limit": 0,
   "live_model_call_limit": 0,
   "provider_network_call_limit": 0,
   "credential_access_limit": 0,
+  "mark_ready_attempt_limit": 1,
+  "merge_attempt_limit": 1,
   "pr_creation_allowed": true,
   "issue_comment_allowed": true,
   "pull_request_comment_allowed": true,
-  "merge_allowed": true,
   "mark_ready_allowed": true,
-  "allowed_merge_method": "merge",
+  "merge_allowed": true,
+  "expected_head_protection_required": true,
   "workflow_rerun_allowed": false,
+  "workflow_dispatch_allowed": false,
   "runner_dispatch_allowed": false,
   "direct_push_to_main_allowed": false,
   "auto_merge_allowed": false,
   "force_push_allowed": false,
   "rebase_during_execution_allowed": false,
   "dependency_install_allowed": false,
+  "known_browser_execution_allowed": false,
   "live_provider_access_allowed": false,
   "credential_access_allowed": false,
+  "destructive_operations_allowed": false,
+  "unknown_binary_execution_allowed": false,
+  "model_api_invocation_allowed": false,
+  "external_reverse_tool_invocation_allowed": false,
+  "allowed_merge_method": "merge",
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
-  "no_legacy_intent_mode": "READ_ONLY_LANDING_CANDIDATE_VALIDATION",
-  "landing_authority_scope_note": "Read-only landing candidate mode is not itself mutation authority. The separately explicit bounded landing command in this Decision grants only the exact branch PR Ready/merge after the required exact-head evidence and live reobservation, under the user delegation.",
-  "semantic_implementation_contract": {
-    "issue_body_sha256": "fad4365f7caa6be72040884cafe5f175cddaf77f8f0c17077185d0b3ad7c5879",
-    "specification": "Fresh R2 successor for stopped Issue #776 / Draft PR #777. The immutable candidate head e5b6bba98df186c0b895227672cd0e55c9cf8570 passed local400 frontend/65 backend tests, real loopback acceptance and natural Playwright28 passed2 skipped, but natural Model Access34589443503 failed ESLint no-control-regex at frontend/src/lib/functional-validation.ts:11:63. This failure is blocking and not baseline debt. Preserve that branch/Decision/Draft; no acceptance, Ready or merge occurred there. No workflow rerun or in-place Decision edit.\n\nAfter a fresh Decision-only activation from the same currently observed main139baff28ef86ccbe1c5da008bd4dff7f954f68b and PRE_EXECUTION_AUTHORIZED, materialize only the eighteen explicitly listed product paths from exact Git blobs at e5b6bba98df186c0b895227672cd0e55c9cf8570 as a read-only implementation candidate. This copies file contents, not old commits or old Decision/gate artifacts; no cherry-pick, rebase or history reuse. Preserve the same UI scope below and make the bounded lint repair: replace the control-character regex with ordinary character-code checks while keeping rejection of NUL/control characters, backslashes, colons, traversal and invalid directories. Add regression cases for control characters. Do not disable/change ESLint rules, assertions or workflows. Update the product documentation for this successor's actual behavior and validation as necessary.\n\nRun local npm run lint, npm test and npm run build before publication, alongside all inherited backend and actual changed-TS loopback acceptance. Require natural exact-head Model Access, Frontend Playwright, Decision/State and CI; compare diagnostic nodes. Repeat separate disclosed self-audit on the successor's exact head. Use the existing false/none landing authority/attestation protocol only after all required checks. This candidate Issue does not itself authorize execution; use the user's existing explicit owner delegation to approve and activate a fresh immutable R2 Decision.\n\nInherited complete implementation contract (18 paths, unchanged product scope):\n\nF03 user-facing continuation after accepted backend Issue #771 / merged PR #772; parent functional audit #653 and overall acceptance #659 remain open.\n\nThis Issue is a candidate and grants no execution authority. The user explicitly delegated Owner actions, self-audit and merge in the active project goal. Activate a fresh bounded APPROVED R2 Decision before implementation and disclose all approval/audit/publication actions as Codex activity, not independent human review.\n\nLocked integration base: main@139baff28ef86ccbe1c5da008bd4dff7f954f68b. Fresh target branch: codex/f03-functional-ui-lint-safe-r2-v2. Backend accepted head4780723f4ac124276765cd8c680c36aefe598341; mainline State Gate34586282449 has verified the actual merge and emitted the bound integration receipt. Re-observe current main before activation; any base movement requires fresh authority, not rebase/history rewrite.\n\nProblem and intended behavior:\n\n- The host now freezes approved validation_checks and executes fixed installed pytest/npm profiles against exact Git artifacts. The existing Goal review editor offers no way to select them, and PlatformGoal.tasks has no typed field. Add a closed profile selector and repository-relative working directory for each planned Task, with add/remove controls up to the host's eight distinct pairs. No free-form command, environment or timeout authority in the browser.\n- Reuse the existing same-Goal plan revision API, explicit review/approval/launch controls and server-rendered plan. Preserve check selections through unrelated edits, reload and retry; adding/removing/changing checks revises the planned Goal and invalidates stale approval attempts. Approved/launched plans retain the existing immutability policy. No auto-approval or auto-launch during editing. The mock plan renderer must represent selected checks while remaining an explicit mock.\n- Task API supplies safe functionalValidation evidence, but task-client/use-task/use-tasks discard it. The client also emits camelCase validation/execution identities while the hooks inspect only snake_case aliases. Carry the relevant identities and safe proof through the complete existing adapter->hook->TaskDetail path.\n- Reuse one small typed proof adapter/view for Task and Run details. Show host-reported verification state, selected profile/directory, exit code and actual passed/failed/skipped counts, plus inspectable exact base/head/tree and evidence digest. Missing/stale/fixture/failed proof must not display functional success merely because exit code is zero. Keep patch hygiene, functional verification, review readiness, Draft publication and delivery visibly distinct. Never create trusted receipts or an authority store in the browser; do not expose raw test output, argv environment or credentials.\n- Keep existing layout/accessibility patterns; controls must work with keyboard and narrow layouts. Prefer conditional evidence detail to unbounded logs. No unrelated visual redesign or snapshot replacement.\n\nExact allowed product paths:\n\n```text\nfrontend/src/types/index.ts\nfrontend/src/lib/platform-client.ts\nfrontend/src/lib/goal-continuation-operation.ts\nfrontend/src/lib/task-client.ts\nfrontend/src/lib/functional-validation.ts\nfrontend/src/hooks/use-task.ts\nfrontend/src/hooks/use-tasks.ts\nfrontend/src/components/goal-review-editor.tsx\nfrontend/src/components/functional-validation.tsx\nfrontend/src/components/task-detail.tsx\nfrontend/src/routes/runs.tsx\nfrontend/tests/goal-review-editor.test.tsx\nfrontend/tests/goal-configuration-client.test.ts\nfrontend/tests/task-status-mapping.test.ts\nfrontend/tests/runs.test.tsx\nfrontend/tests/functional-validation.test.tsx\nfrontend/e2e/functional-validation.spec.ts\ndocs/functional-validation.md\n```\n\nAuthority paths are limited to the immutable Decision and the existing generated gate files explicitly enumerated in the fresh Decision. No backend execution/store/control-plane/gate-validator/workflow/dependency/lockfile/credential/provider change; no database migration, second store or new receipt/gate/schema. Reuse already installed frontend/Python tooling without dependency installation or package changes. Keep unrelated worktrees and generated local observations intact.\n\nRequired validation:\n\n1. All frontend unit/component tests, production frontend build and the existing npm run lint; meaningful new tests cover selection persistence, add/remove/duplicates/invalid directories, stale editing, explicit approval boundaries, adapter/hook identity retention, missing/stale/fixture/failed/verified evidence, and Task/Run rendering. Do not weaken old assertions or suppress failures.\n2. Existing backend regression files tests/platform_v1/test_goal_functional_checks.py, tests/platform_v1/test_functional_execution.py, tests/platform_v1/test_goal_configuration.py and tests/platform_v1/test_goal_plan_revision.py; git diff --check.\n3. Actual changed TypeScript client modules -> isolated loopback Task API -> disk SQLite plan/review/approve/launch and evidence readback, using a real local Git test repository and installed pytest for actual functional outcomes. Only model execution/binding metadata may be explicit local fakes; never describe them as real provider acceptance. Reopen SQLite and verify same Goal/Task/contract/artifact identities. Cover successful and failed checks, missing/fixture proof and selection removal/stale revision handling. Reuse existing service/test seams, not a parallel application API. Retain sanitized probe evidence outside the repository.\n4. Natural exact-head CI, Decision Preflight, State Gate, Model Access and Frontend Playwright when triggered by their existing path filters. The added Playwright flow covers visible plan editing/review with explicit mock limitations; it cannot alone close F03. No workflow rerun/dispatch, assertion weakening, local browser execution or snapshot update under this R2 round. Compare actual full-suite diagnostic failures against the locked base, separately from workflow conclusion.\n5. Separate disclosed exact-head self-audit and a reviewable Draft. Agent Ready/merge requires the bounded Path-B landing sequence and existing false/none authority/attestation protocol; no human-independent review claim. Fresh no-drift, required formal landing context and expected-head ordinary merge protection remain mandatory.\n\nLocal loopback integration is limited to ephemeral test servers and temporary test SQLite/Git workspaces, zero model/provider calls and no credential access. Live provider, actual desktop/Sidecar and Edge/visual product acceptance remain separately bounded final-project work. Parent #653 must remain open until the full user-visible real-flow requirements are proved. No main push, force push, rebase/squash/amend, auto-merge, tag/release/deploy, arbitrary network or destructive cleanup.\n"
+  "no_legacy_intent_mode": "OWNER_LANDING_AUTHORITY_SIDECAR",
+  "landing_authority_scope_note": "Validation-only / landing-authority-only sidecar v1 for PR #810. This immutable R2 Decision binds target_pr=810, source_pr=810, target_branch=codex/f02-accepted-artifact-handoff-r2-v5, accepted_exact_head_sha=028a5962b1319c6b66160665d79ebb4fd214f416, base_sha=2a1239b1230461f3f43fd86bb8edd0915552e1a2, integration_base_ref=main. It grants the Owner exactly-once Mark Ready and exactly-one expected-head protected regular merge of PR #810 using merge method merge, only after the natural target Ready-triggered landing-state-gate reports terminal SUCCESS on the unchanged exact target head 028a5962b1319c6b66160665d79ebb4fd214f416 with contexts baseline=success, state-gate=success, landing-state-gate=success. The sidecar authority PR itself must remain Draft forever and must never be marked Ready or merged. mainline_merge_intent_required=false + active_pr_binding_mode=none is the false/none cutover contract; project_state/mainline_merge_intents/active.json is never read or rewritten and active_json_rewrite is forbidden. No target-branch push, no target semantic mutation, no workflow rerun or dispatch, no runner dispatch, no direct main push, no auto-merge, no force push and no rebase. Publication retry accounting: maximum 3 total push invocations and 2 total PR-create invocations; transport failures consume an attempt; retry only if read-only remote observation proves no remote mutation occurred. Owner actions in this round are explicitly delegated to Codex by the user and must be disclosed as agent actions. No independent human review is claimed.",
+  "false_none_invariants_preserved": {
+    "mainline_merge_intent_required": false,
+    "active_pr_binding_mode": "none",
+    "active_json_rewrite_forbidden": true,
+    "mainline_merge_intents_mutation_forbidden": true
   },
-  "bootstrap_exception_files": [
-    "project_state/decision_packet.md"
+  "owner_landing_bounds": {
+    "ready_attempts": 1,
+    "merge_attempts": 1,
+    "mark_ready_attempt_limit": 1,
+    "merge_attempt_limit": 1,
+    "allowed_merge_method": "merge",
+    "expected_head_protection_required": true,
+    "expected_head": "028a5962b1319c6b66160665d79ebb4fd214f416"
+  },
+  "required_landing_sequence": [
+    "sidecar requires only natural CI, Decision Preflight and State Gate on the exact sidecar head",
+    "re-check main == 2a1239b1230461f3f43fd86bb8edd0915552e1a2, target PR #810 head == 028a5962b1319c6b66160665d79ebb4fd214f416, target PR #810 still OPEN, DRAFT and unmerged",
+    "mark target PR #810 Ready exactly once",
+    "observe a NEW natural target State Gate triggered by Ready",
+    "require unchanged exact target head 028a5962b1319c6b66160665d79ebb4fd214f416 and contexts baseline=success, state-gate=success, landing-state-gate=success",
+    "explicitly reject landing-state-gate-draft-inert as formal landing evidence",
+    "publish exactly one pre-merge structured comment OWNER_LANDING_MERGE_ATTESTATION with JSON block owner_landing_merge_attestation on target PR #810",
+    "fresh no-drift check",
+    "merge target PR #810 exactly once with method=merge and expected head 028a5962b1319c6b66160665d79ebb4fd214f416"
   ],
-  "bootstrap_exception_commands": [],
-  "allowed_mutated_paths": [
+  "landing_revalidation_required_for_actions": [
+    "ready_for_review",
+    "owner_landing_merge_attestation",
+    "merge"
+  ],
+  "formal_landing_context_must_be_success_before_attestation": true,
+  "formal_landing_context_must_be_success_before_merge": true,
+  "formal_landing_context_must_not_be_draft_inert": true,
+  "premerge_owner_landing_attestation_required": true,
+  "owner_landing_attestation_marker": "OWNER_LANDING_MERGE_ATTESTATION",
+  "owner_landing_attestation_json_block": "owner_landing_merge_attestation",
+  "owner_landing_attestation_comment_limit": 1,
+  "sidecar_ready_and_merge_forbidden": true,
+  "bootstrap_compatibility_notes": [
+    "POST_CUTOVER_EXECUTION_SURFACE_COMPATIBILITY",
+    "NO_LEGACY_LOCAL_AUTHORING",
+    "NO_STARTUP_SNAPSHOT_REQUIRED"
+  ],
+  "bootstrap_compatibility_detail": "This fresh authority Decision v1 is created from the currently locked main schema at 2a1239b1230461f3f43fd86bb8edd0915552e1a2. All Decision authoring, command-plan/gate generation, focused deterministic tests and local validation are declared on trusted_worker; GitHub-native sidecar push and Draft PR creation on github_control_plane; natural workflow observation and no-drift audits on remote_observation. No allowed_command selects the legacy local surface and no bootstrap_exception_command is used. user_local is not declared because no machine-specific capability is required for this round. The startup-snapshot gate is NOT required for this sidecar round; project_state/gates/startup_snapshot.json and project_state/gates/bootstrap_state.json are NOT part of the accepted 4-file sidecar committed shape and MUST NOT be committed, staged, amended, restored into another commit or used as target evidence. In this machine scope, bootstrap_state.json is explicitly allowed at R2 for generator updates only, while remaining outside the exact four-file committed shape and forbidden to stage/commit/amend.",
+  "bootstrap_state_side_effect_rule": {
+    "allowed_incidental_local_effect": "project_state/gates/bootstrap_state.json",
+    "classification_when_regenerated": "AUTHORIZED_GENERATED_LOCAL_OBSERVATION_ONLY",
+    "must_not_be_staged_or_committed": true,
+    "must_not_be_target_evidence": true,
+    "fail_closed_if_gate_treats_side_effect_as_blocker": true,
+    "explicit_path_and_risk_grant": true
+  },
+  "issue_number_must_not_substitute_for_pr_number": true,
+  "test_semantics_changes_allowed": false,
+  "source_test_mutation_authorized": false,
+  "bootstrap_exception_files": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "frontend/src/types/index.ts",
-    "frontend/src/lib/platform-client.ts",
-    "frontend/src/lib/goal-continuation-operation.ts",
-    "frontend/src/lib/task-client.ts",
-    "frontend/src/lib/functional-validation.ts",
-    "frontend/src/hooks/use-task.ts",
-    "frontend/src/hooks/use-tasks.ts",
-    "frontend/src/components/goal-review-editor.tsx",
-    "frontend/src/components/functional-validation.tsx",
-    "frontend/src/components/task-detail.tsx",
-    "frontend/src/routes/runs.tsx",
-    "frontend/tests/goal-review-editor.test.tsx",
-    "frontend/tests/goal-configuration-client.test.ts",
-    "frontend/tests/task-status-mapping.test.ts",
-    "frontend/tests/runs.test.tsx",
-    "frontend/tests/functional-validation.test.tsx",
-    "frontend/e2e/functional-validation.spec.ts",
-    "docs/functional-validation.md"
-  ],
-  "generated_artifact_paths": [
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json"
   ],
-  "authorized_risk_paths": [
-    "project_state/decision_packet.md",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "frontend/src/types/index.ts",
-    "frontend/src/lib/platform-client.ts",
-    "frontend/src/lib/goal-continuation-operation.ts",
-    "frontend/src/lib/task-client.ts",
-    "frontend/src/lib/functional-validation.ts",
-    "frontend/src/hooks/use-task.ts",
-    "frontend/src/hooks/use-tasks.ts",
-    "frontend/src/components/goal-review-editor.tsx",
-    "frontend/src/components/functional-validation.tsx",
-    "frontend/src/components/task-detail.tsx",
-    "frontend/src/routes/runs.tsx",
-    "frontend/tests/goal-review-editor.test.tsx",
-    "frontend/tests/goal-configuration-client.test.ts",
-    "frontend/tests/task-status-mapping.test.ts",
-    "frontend/tests/runs.test.tsx",
-    "frontend/tests/functional-validation.test.tsx",
-    "frontend/e2e/functional-validation.spec.ts",
-    "docs/functional-validation.md"
-  ],
-  "reference_paths": [
-    "reverse_agent/platform_v1/functional_validation.py",
-    "reverse_agent/platform_v1/goal_service.py",
-    "reverse_agent/platform_v1/task_service.py",
-    "reverse_agent/platform_v1/run_read_model.py"
-  ],
-  "forbidden_mutated_paths": [
-    "AGENTS.md",
-    ".github/**",
-    ".codex-skills/**",
-    "reverse_agent/**",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "frontend/e2e/snapshots/**",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/decision_preflight.py",
-    "reverse_agent/mainline_landing.py",
-    "pyproject.toml",
-    "requirements*.txt",
-    "**/secrets/**",
-    "**/.env",
-    "project_state/mainline_merge_intents/**"
-  ],
-  "forbidden_operations": [
-    "direct_push_main",
-    "force_push",
-    "rebase",
-    "tag_or_release",
-    "runner_dispatch",
-    "model_api_invocation",
-    "external_reverse_tool_invocation",
-    "unknown_binary_execution",
-    "destructive",
-    "browser_execution",
-    "snapshot_update",
-    "dependency_install",
-    "workflow_dispatch",
-    "active_json_rewrite"
-  ],
-  "capability_policy": {
-    "runner_dispatch_allowed": false,
-    "model_api_invocation_allowed": false,
-    "external_reverse_tool_invocation_allowed": false,
-    "unknown_binary_execution_allowed": false,
-    "destructive_operations_allowed": false,
-    "bmad_installation_allowed": false,
-    "network_access_default_allowed": false,
-    "direct_push_to_main_allowed": false,
-    "force_push_allowed": false,
-    "rebase_during_execution_allowed": false,
-    "tag_or_release_allowed": false,
-    "merge_allowed": true,
-    "remote_observation_read_only_allowed": true,
-    "local_network_exceptions": [
-      "Run the existing npm run lint and all frontend unit/component tests with the existing npm test script and the existing npm run build production build, without installing dependencies. Run python -B -m pytest tests/platform_v1/test_goal_functional_checks.py tests/platform_v1/test_functional_execution.py tests/platform_v1/test_goal_configuration.py tests/platform_v1/test_goal_plan_revision.py -q -p no:cacheprovider, and git diff --check. Perform the Issue 778 actual changed-TypeScript client to isolated loopback Task API to disk SQLite/Git/installed-pytest integration, with only model execution and binding metadata as explicit local fakes; verify successful/failed/missing/fixture proof and selection/stale-revision handling with reopened SQLite. Reuse installed tooling and existing test/service seams, retain sanitized evidence outside the repository, and close owned test servers after use. No external network, providers, credentials, local browsers or snapshot updates. Run transition lint, preflight and publication readiness; require passing checks before publication."
-    ],
-    "ci_network_exceptions": [],
-    "trusted_worker_network_exceptions": [
-      "Run the existing npm run lint and all frontend unit/component tests with the existing npm test script and the existing npm run build production build, without installing dependencies. Run python -B -m pytest tests/platform_v1/test_goal_functional_checks.py tests/platform_v1/test_functional_execution.py tests/platform_v1/test_goal_configuration.py tests/platform_v1/test_goal_plan_revision.py -q -p no:cacheprovider, and git diff --check. Perform the Issue 778 actual changed-TypeScript client to isolated loopback Task API to disk SQLite/Git/installed-pytest integration, with only model execution and binding metadata as explicit local fakes; verify successful/failed/missing/fixture proof and selection/stale-revision handling with reopened SQLite. Reuse installed tooling and existing test/service seams, retain sanitized evidence outside the repository, and close owned test servers after use. No external network, providers, credentials, local browsers or snapshot updates. Run transition lint, preflight and publication readiness; require passing checks before publication."
-    ],
-    "github_control_plane_network_exceptions": [
-      "After blocking checks pass, push only codex/f03-functional-ui-lint-safe-r2-v2 and create/update one Draft PR in dddd2024/Nerelan against main at 139baff28ef86ccbe1c5da008bd4dff7f954f68b; publish disclosed audit/evidence and Issue 778/653/659 progress comments; no other branch or repository publication.",
-      "Only after disclosed exact-head self-audit, required natural checks, unchanged approved Decision and immediate remote main 139baff28ef86ccbe1c5da008bd4dff7f954f68b, exact reviewed head and CLEAN/MERGEABLE observation, mark the bound PR ready; require natural final State/Landing checks, reobserve immediately and perform one ordinary merge with expected-head protection. Verify merged commit and main and exact parents. This action is explicitly delegated by the user; never claim independent human review."
-    ],
-    "user_local_network_exceptions": []
-  },
-  "path_risk_floor": [
-    {
-      "pattern": "project_state/**",
-      "minimum_risk": "R2"
-    }
-  ],
+  "bootstrap_exception_commands": [],
   "allowed_commands": [
     {
-      "command_id": "issue778.bootstrap",
-      "command": "Verify the locked base and fresh branch; commit only this immutable Decision as the first activation commit; run startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before product edits.",
+      "command_id": "pr810_owner_landing_r2_v1.bootstrap_and_preflight",
+      "command": "verify exact fresh locked main 2a1239b1230461f3f43fd86bb8edd0915552e1a2, exact target head 028a5962b1319c6b66160665d79ebb4fd214f416 and fresh sidecar branch merge-base; commit this immutable R2 Owner landing authority Decision first as the unique first commit touching project_state/decision_packet.md; run transition command plan transition lint transition preflight pre and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before any generated artifact mutation; do NOT run startup-snapshot The existing gate generator may update project_state/gates/bootstrap_state.json as an explicitly allowed local observation only; never stage or commit it. Re-observe preflight on the final committed head with this permitted local delta present.",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [
@@ -230,18 +188,33 @@
       ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
       "produced_artifacts": [
         "project_state/gates/command_plan.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/bootstrap_state.json",
         "project_state/gates/transition_command_plan_preview.json",
-        "project_state/gates/transition_preflight_result.json"
+        "project_state/gates/transition_preflight_result.json",
+        "project_state/gates/bootstrap_state.json"
       ]
     },
     {
-      "command_id": "issue778.implement",
-      "command": "After activation and preflight, copy only the eighteen exact candidate product blobs from e5b6bba98df186c0b895227672cd0e55c9cf8570, not its Decision/gates/commits; replace the control-character regex with equivalent character-code checks and add regression cases. Preserve stopped PR777 and its immutable authority; no history reuse or workflow rerun. Implement only the eighteen frontend/test/documentation paths and complete user-facing contract in Issue 778: closed check selection, same-Goal review and safe Task/Run evidence presentation; reuse existing host APIs and installed dependencies. No backend/store/control-plane, workflow, dependency, provider, credential, local browser or reverse-tool change.",
+      "command_id": "pr810_owner_landing_r2_v1.validate",
+      "command": "run focused deterministic tests tests/test_mainline_landing.py tests/test_control_plane_transition.py tests/test_project_gate.py tests/test_decision_preflight.py tests/test_planning_and_github_adapters.py tests/test_ci_responsibility.py tests/platform_v1/test_merge_intent.py -q; require git diff --check clean and transition-lint/transition-command-plan/transition-preflight revalidation and worktree-publication-readiness PUBLICATION_READY; make zero provider model browser or credential calls; do NOT require tests/test_github_remote_verifier.py",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "trusted_worker",
+      "operations": [
+        "unit_test",
+        "local_static_check",
+        "diff_validation"
+      ],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation"
+    },
+    {
+      "command_id": "pr810_owner_landing_r2_v1.materialize_generated_authority",
+      "command": "commit exactly one generated governance commit chore: materialize PR810 landing authority R2 v1 containing only project_state/gates/command_plan.json project_state/gates/transition_command_plan_preview.json and project_state/gates/transition_preflight_result.json; no product semantic commit exists in this sidecar and project_state/gates/bootstrap_state.json is never committed; if another tracked commit is necessary FAIL CLOSED",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -256,57 +229,14 @@
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "frontend/src/types/index.ts",
-        "frontend/src/lib/platform-client.ts",
-        "frontend/src/lib/goal-continuation-operation.ts",
-        "frontend/src/lib/task-client.ts",
-        "frontend/src/lib/functional-validation.ts",
-        "frontend/src/hooks/use-task.ts",
-        "frontend/src/hooks/use-tasks.ts",
-        "frontend/src/components/goal-review-editor.tsx",
-        "frontend/src/components/functional-validation.tsx",
-        "frontend/src/components/task-detail.tsx",
-        "frontend/src/routes/runs.tsx",
-        "frontend/tests/goal-review-editor.test.tsx",
-        "frontend/tests/goal-configuration-client.test.ts",
-        "frontend/tests/task-status-mapping.test.ts",
-        "frontend/tests/runs.test.tsx",
-        "frontend/tests/functional-validation.test.tsx",
-        "frontend/e2e/functional-validation.spec.ts",
-        "docs/functional-validation.md"
-      ],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue778.validate",
-      "command": "Run the existing npm run lint and all frontend unit/component tests with the existing npm test script and the existing npm run build production build, without installing dependencies. Run python -B -m pytest tests/platform_v1/test_goal_functional_checks.py tests/platform_v1/test_functional_execution.py tests/platform_v1/test_goal_configuration.py tests/platform_v1/test_goal_plan_revision.py -q -p no:cacheprovider, and git diff --check. Perform the Issue 778 actual changed-TypeScript client to isolated loopback Task API to disk SQLite/Git/installed-pytest integration, with only model execution and binding metadata as explicit local fakes; verify successful/failed/missing/fixture proof and selection/stale-revision handling with reopened SQLite. Reuse installed tooling and existing test/service seams, retain sanitized evidence outside the repository, and close owned test servers after use. No external network, providers, credentials, local browsers or snapshot updates. Run transition lint, preflight and publication readiness; require passing checks before publication.",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "trusted_worker",
-      "operations": [
-        "unit_test",
-        "integration_test",
-        "build",
-        "diff_validation",
-        "local_static_check"
-      ],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": [
         "project_state/gates/command_plan.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/bootstrap_state.json",
         "project_state/gates/transition_command_plan_preview.json",
         "project_state/gates/transition_preflight_result.json"
       ]
     },
     {
-      "command_id": "issue778.publish",
-      "command": "After blocking checks pass, push only codex/f03-functional-ui-lint-safe-r2-v2 and create/update one Draft PR in dddd2024/Nerelan against main at 139baff28ef86ccbe1c5da008bd4dff7f954f68b; publish disclosed audit/evidence and Issue 778/653/659 progress comments; no other branch or repository publication.",
+      "command_id": "pr810_owner_landing_r2_v1.publish_authority",
+      "command": "after all blocking validation passes, push only the exact authority branch codex/pr810-owner-landing-r2-v1 to locked main 2a1239b1230461f3f43fd86bb8edd0915552e1a2 and create exactly one Draft authority sidecar PR recording the immutable authority snapshot; keep the sidecar Draft forever and never mark Ready or merge the sidecar; never push the target branch codex/f02-accepted-artifact-handoff-r2-v5 and never push main; never rerun or dispatch workflows; publication retry accounting: maximum 3 total push invocations with transport retries only when read-only remote observation confirms no remote mutation; maximum 2 total PR-create invocations with retry only when read-only GitHub search confirms no existing PR for this exact head/base and successful_draft_pr_creation_count==0; after first successful remote push NO further push invocation; after first successfully created Draft PR NO second creation call",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -316,18 +246,15 @@
       "operations": [
         "push",
         "draft_pr",
-        "pull_request_comment",
-        "issue_comment",
         "network_access"
       ],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
+      "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue778.audit",
-      "command": "Observe natural exact-head CI, Decision Preflight, State Gate, Model Access and Frontend Playwright as naturally triggered by existing filters; compare actual diagnostic failed node IDs with the locked base and perform a separate disclosed self-audit. No rerun or dispatch.",
+      "command_id": "pr810_owner_landing_r2_v1.natural_authority_validation",
+      "command": "require natural exact-head CI, Decision Preflight and State Gate observations on the authority Draft PR head and confirm no main drift from 2a1239b1230461f3f43fd86bb8edd0915552e1a2 and no target head drift from 028a5962b1319c6b66160665d79ebb4fd214f416 and no concurrent landing authority; keep the authority PR Draft and do NOT mark Ready or merge; the authority grants the Owner exactly-once Mark Ready and exactly-one expected-head protected merge of target PR 810 only after a formal Ready-triggered landing-state-gate success and required exact-head contexts baseline state-gate landing-state-gate",
       "phase": "final_evidence",
       "required": true,
       "expected_exit_codes": [
@@ -335,33 +262,294 @@
       ],
       "execution_surface": "remote_observation",
       "operations": [
+        "code_read",
         "read_only_audit",
-        "code_read"
+        "repository_observation"
       ],
       "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
+      "required_evidence_source": "repository_state_attestation"
+    }
+  ],
+  "allowed_mutated_paths": [
+    "project_state/decision_packet.md",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/gates/bootstrap_state.json"
+  ],
+  "reference_paths": [
+    "AGENTS.md",
+    ".github/workflows/state-gate.yml",
+    ".github/workflows/ci.yml",
+    ".github/workflows/decision-preflight.yml",
+    ".github/workflows/freshness.yml",
+    ".github/workflows/tauri-desktop-check.yml",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/control_plane/command_authority.py",
+    "reverse_agent/control_plane/transition.py",
+    "project_state/mainline_merge_intents/active.json"
+  ],
+  "reference_only_paths": [
+    "AGENTS.md",
+    ".github/workflows/state-gate.yml",
+    ".github/workflows/ci.yml",
+    ".github/workflows/decision-preflight.yml",
+    ".github/workflows/freshness.yml",
+    ".github/workflows/tauri-desktop-check.yml",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/control_plane/command_authority.py",
+    "reverse_agent/control_plane/transition.py",
+    "project_state/mainline_merge_intents/active.json"
+  ],
+  "generated_artifact_paths": [
+    "project_state/gates/command_plan.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/gates/bootstrap_state.json"
+  ],
+  "runner_managed_artifact_paths": [],
+  "forbidden_mutated_paths": [
+    "AGENTS.md",
+    ".github/**",
+    ".github/workflows/state-gate.yml",
+    ".github/workflows/ci.yml",
+    ".github/workflows/decision-preflight.yml",
+    ".github/workflows/freshness.yml",
+    ".github/workflows/tauri-desktop-check.yml",
+    ".codex-skills/**",
+    "docs/**",
+    "requirements*.txt",
+    "pyproject.toml",
+    "reverse_agent/**",
+    "frontend/**",
+    "src-tauri/**",
+    "desktop/**",
+    "provider/**",
+    "model/**",
+    "credential/**",
+    "tests/**",
+    "project_state/mainline_merge_intents/**",
+    "project_state/schemas/**",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/current_state.json",
+    "project_state/state_manifest.json",
+    "project_state/artifact_index.json",
+    "project_state/integration_baselines/**",
+    "project_state/mainline_recoveries/**",
+    "README.md",
+    "README.txt",
+    "**/STOP",
+    "**/owner_handoffs/**"
+  ],
+  "forbidden_operations": [
+    "local_authoring",
+    "implicit_user_local_fallback",
+    "direct_push_main",
+    "auto_merge",
+    "force_push",
+    "rebase",
+    "squash",
+    "reset",
+    "clean",
+    "stash",
+    "restore",
+    "amend",
+    "history_rewrite",
+    "unknown_binary_execution",
+    "secrets",
+    "destructive_delete",
+    "privileged_remote_execution",
+    "model_api_invocation",
+    "provider_network_call",
+    "credential_access",
+    "auth_store_read",
+    "runner_dispatch",
+    "workflow_rerun",
+    "workflow_dispatch",
+    "tag_or_release",
+    "deployment",
+    "dependency_install",
+    "browser_execution",
+    "snapshot_update",
+    "arbitrary_remote_browsing",
+    "external_url_navigation",
+    "second_decision_commit",
+    "second_command_runner",
+    "active_json_rewrite",
+    "product_replay",
+    "ruleset_weakening",
+    "required_check_weakening",
+    "target_semantic_mutation",
+    "target_branch_push",
+    "head_substitution",
+    "base_substitution",
+    "reopen_target_pr",
+    "amend_target_pr",
+    "rebase_target_pr",
+    "continue_push_target_pr",
+    "mark_target_ready_twice",
+    "merge_target_twice",
+    "weaken_decision_immutability",
+    "weaken_expected_head_protection",
+    "weaken_required_checks",
+    "ignore_operation_surface_admissibility",
+    "retroactive_false_none_attestation",
+    "landing_state_gate_draft_inert_accepted",
+    "sidecar_pr_ready_or_merge",
+    "sidecar_pr_merge",
+    "sidecar_pr_mark_ready",
+    "sidecar_pr_workflow_rerun",
+    "sidecar_pr_workflow_dispatch",
+    "startup_snapshot_required",
+    "startup_snapshot_write",
+    "bootstrap_state_stage",
+    "bootstrap_state_commit",
+    "bootstrap_state_amend",
+    "duplicate_remote_mutation",
+    "pr_body_update_after_creation"
+  ],
+  "capability_policy": {
+    "runner_dispatch_allowed": false,
+    "model_api_invocation_allowed": false,
+    "external_reverse_tool_invocation_allowed": false,
+    "unknown_binary_execution_allowed": false,
+    "destructive_operations_allowed": false,
+    "bmad_installation_allowed": false,
+    "network_access_default_allowed": false,
+    "direct_push_to_main_allowed": false,
+    "merge_allowed": true,
+    "force_push_allowed": false,
+    "rebase_during_execution_allowed": false,
+    "tag_or_release_allowed": false,
+    "remote_observation_read_only_allowed": true,
+    "local_network_exceptions": [],
+    "ci_network_exceptions": [],
+    "trusted_worker_network_exceptions": [],
+    "github_control_plane_network_exceptions": [
+      "after all blocking validation passes, push only the exact authority branch codex/pr810-owner-landing-r2-v1 to locked main 2a1239b1230461f3f43fd86bb8edd0915552e1a2 and create exactly one Draft authority sidecar PR recording the immutable authority snapshot; keep the sidecar Draft forever and never mark Ready or merge the sidecar; never rerun or dispatch workflows; publication retry accounting: maximum 3 total push invocations and 2 total PR-create invocations with transport-retry rules as defined"
+    ],
+    "user_local_network_exceptions": []
+  },
+  "path_risk_floor": [
+    {
+      "pattern": "project_state/**",
+      "minimum_risk": "R2"
     },
     {
-      "command_id": "issue778.landing",
-      "command": "Only after disclosed exact-head self-audit, required natural checks, unchanged approved Decision and immediate remote main 139baff28ef86ccbe1c5da008bd4dff7f954f68b, exact reviewed head and CLEAN/MERGEABLE observation, mark the bound PR ready; require natural final State/Landing checks, reobserve immediately and perform one ordinary merge with expected-head protection. Verify merged commit and main and exact parents. This action is explicitly delegated by the user; never claim independent human review.",
-      "phase": "final_acceptance",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "github_control_plane",
-      "operations": [
-        "mark_ready",
-        "merge",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
+      "pattern": ".github/workflows/**",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "**/secrets/**",
+      "minimum_risk": "R3"
     }
-  ]
+  ],
+  "authorized_risk_paths": [
+    "project_state/decision_packet.md",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/gates/bootstrap_state.json"
+  ],
+  "ruleset_id": 21023698,
+  "required_status_contexts": [
+    "baseline",
+    "state-gate",
+    "landing-state-gate"
+  ],
+  "required_status_contexts_all_success": true,
+  "forbidden_status_contexts": [
+    "landing-state-gate-draft-inert"
+  ],
+  "target_decision_contract": {
+    "decision_id": "decision_20260911_issue799_artifact_handoff_r2_v5",
+    "round_id": "round_20260911_issue799_artifact_handoff_r2_v5",
+    "content_sha256": "64bd7ce4c39d1d840b5fa660de89da113d9515b481a7d54dc18ae6e28e61ec71",
+    "mainline_merge_intent_required": false,
+    "active_pr_binding_mode": "none",
+    "target_decision_mark_ready_allowed": true,
+    "target_decision_merge_allowed": true,
+    "target_workflow_profile": "baseline"
+  },
+  "target_acceptance_evidence": {
+    "owner_exact_head_review_id": 5180621815,
+    "owner_exact_head_review_commit": "028a5962b1319c6b66160665d79ebb4fd214f416",
+    "owner_exact_head_review_state": "COMMENTED",
+    "review_kind": "DISCLOSED_CODEX_SELF_AUDIT",
+    "target_pr_state": "OPEN",
+    "target_pr_is_draft": true,
+    "target_pr_merged": false,
+    "natural_runs": [
+      {
+        "name": "baseline",
+        "workflow": "CI",
+        "run_id": 34616330347,
+        "run_number": 1201,
+        "conclusion": "success",
+        "head_sha": "028a5962b1319c6b66160665d79ebb4fd214f416"
+      },
+      {
+        "name": "decision-preflight",
+        "workflow": "Decision Preflight",
+        "run_id": 34616330428,
+        "run_number": 509,
+        "conclusion": "success",
+        "head_sha": "028a5962b1319c6b66160665d79ebb4fd214f416"
+      },
+      {
+        "name": "state-gate",
+        "workflow": "State Gate",
+        "run_id": 34616330526,
+        "run_number": 2871,
+        "conclusion": "success",
+        "head_sha": "028a5962b1319c6b66160665d79ebb4fd214f416"
+      },
+      {
+        "name": "verify",
+        "workflow": "Model Access",
+        "run_id": 34616330435,
+        "run_number": 256,
+        "conclusion": "success",
+        "head_sha": "028a5962b1319c6b66160665d79ebb4fd214f416"
+      },
+      {
+        "name": "e2e",
+        "workflow": "Frontend Playwright",
+        "run_id": 34616330317,
+        "run_number": 148,
+        "conclusion": "success",
+        "head_sha": "028a5962b1319c6b66160665d79ebb4fd214f416"
+      }
+    ],
+    "diagnostic_result": "UNCHANGED_BASELINE_FAILURE_SET",
+    "model_access_expected": "ACTUAL_SUCCESS_RUN_34616330435_92_PYTHON_410_FRONTEND_AND_LINT",
+    "playwright_expected": "ACTUAL_SUCCESS_RUN_34616330317_30_PASSED_2_SKIPPED",
+    "local_required_tests": "358 backend tests and410 frontend tests passed; lint/build/diff hygiene and real TS HTTP Git SQLite single/team reopen passed; one existing crash-thread warning retained",
+    "diagnostic_summary": "22 failed, 6299 passed, 23 skipped, 1 warning in 492.52s (0:08:12)"
+  },
+  "run_environment_binding": {
+    "run_strategy": "trusted_worker",
+    "canonical_repository": "dddd2024/Nerelan",
+    "target_owner_branch": "codex/pr810-owner-landing-r2-v1",
+    "target_product_branch": "codex/f02-accepted-artifact-handoff-r2-v5",
+    "authority_path": "Path B R2 transition",
+    "execution_surfaces": [
+      "trusted_worker",
+      "github_control_plane",
+      "remote_observation"
+    ],
+    "legacy_local_surface_forbidden": true,
+    "local_agent_ready_or_merge_authority": true,
+    "authority_actor_note": "Only the exact target under explicit session owner delegation and this bounded R2 Decision."
+  },
+  "repository": "dddd2024/Nerelan",
+  "source_issue_body_sha256": "8a493d5857f0f0bedb8b44845f99f17cd8289aae237519870d8cd4baa3f9f654",
+  "approved_by": "dddd2024 via explicitly delegated Codex owner action",
+  "approval_basis": "The user explicitly delegated owner authority, self-audit and merge. This is disclosed agent activity, not independent human review.",
+  "landing_actor": "Codex under explicit session owner delegation"
 }
 ```
