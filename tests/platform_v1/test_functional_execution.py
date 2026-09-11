@@ -252,3 +252,34 @@ def test_completed_validation_does_not_override_terminal_task_failure(goal_check
     result = service._functional_checkpoint_outcome(task_id, store._get_durable_run(run_id))
     assert result.success is False and result.failure_detail == "functional_terminal_task_requires_new_execution"
     assert store.get_task(task_id).status == "FAILED"
+
+
+def test_legacy_team_context_without_functional_base_retains_hygiene(goal_checks, tmp_path, monkeypatch):
+    root, base, store, *_ = goal_checks
+    task = store.create_task(title="Legacy team", repository="owner/functional", executor_kind="opencode",
+                             binding_ref="local-test-binding", orchestration_mode="sequential_team")
+    executor = LocalImplementation(root, base, "value = 2\n")
+    original = executor.prepare_worktree_once
+    def legacy_prepare(*args, **kwargs):
+        prepared = original(*args, **kwargs)
+        del prepared.base_sha
+        return prepared
+    monkeypatch.setattr(executor, "prepare_worktree_once", legacy_prepare)
+    router = ExecutorRouter()
+    router.replace("opencode", lambda **kwargs: executor)
+    result = ordinary(store, router).execute_sequential_team(task.id, workspace_root=str(tmp_path / "worktrees"))
+    assert result.success and result.validation_command_id == "git_diff_check"
+    assert functional_evidence(store.get_task(task.id))["verified"] is False
+    assert _map_task_to_frontend(store.get_task(task.id))["testStatus"] == "PENDING"
+
+
+def test_durable_fixture_missing_prepared_base_reports_functional_failure(goal_checks, tmp_path):
+    _, _, store, *_ = goal_checks
+    task_id, executor, _ = setup_execution(goal_checks, "single", "value = 2\n")
+    store._conn.execute("UPDATE tasks SET executor_kind = 'deterministic_fixture', binding_ref = '' WHERE id = ?", (task_id,))
+    router = ExecutorRouter()
+    router.replace("deterministic_fixture", lambda **kwargs: executor)
+    result = durable(store, router).execute_durable_single(task_id, workspace_root=str(tmp_path / "worktrees"))
+    assert result.success is False and result.validation_command_id == FUNCTIONAL_COMMAND_ID
+    assert result.failure_detail == "functional_base_mismatch"
+    assert functional_evidence(store.get_task(task_id))["verified"] is False

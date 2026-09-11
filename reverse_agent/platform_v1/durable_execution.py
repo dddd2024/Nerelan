@@ -1458,7 +1458,7 @@ class DurableExecutionService:
                 label=val_command_id,
                 value=str(val_exit),
                 status="pass" if val_exit == 0 else "fail",
-                detail=f"git_diff_check exit={val_exit}",
+                detail=val_output or f"{val_command_id} exit={val_exit}",
                 raw_json_digest=val_digest,
                 owner=lease.owner, epoch=lease.epoch,
             )
@@ -1521,7 +1521,7 @@ class DurableExecutionService:
             validation_exit_code=val_exit,
             validation_output_digest=val_digest,
             failure_classification="deterministic_validation_failure",
-            failure_detail=f"git_diff_check exit={val_exit}",
+            failure_detail=val_output or f"{val_command_id} exit={val_exit}",
             owner=lease.owner, epoch=lease.epoch,
         )
         return TaskExecutionOutcome(
@@ -1531,7 +1531,7 @@ class DurableExecutionService:
             validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             failure_classification="deterministic_validation_failure",
-            failure_detail=f"git_diff_check exit={val_exit}",
+            failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
 
     def _acquire_or_find_lease(

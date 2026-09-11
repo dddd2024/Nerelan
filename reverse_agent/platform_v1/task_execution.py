@@ -752,7 +752,7 @@ class TaskExecutionService:
         try:
             val_command_id, val_exit, val_output, val_digest = run_task_validation(
                 self.store, task_id, worktree=prepared.worktree,
-                base_commit=prepared.base_sha, execution_id=prepared.execution_id)
+                base_commit=getattr(prepared, "base_sha", ""), execution_id=prepared.execution_id)
         except ExecutorRuntimeError:
             val_exit, val_output, val_digest = -1, "", ""
 
