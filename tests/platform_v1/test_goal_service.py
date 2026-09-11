@@ -5,6 +5,7 @@ import pytest
 from reverse_agent.platform_v1.autonomy import AutonomyService
 from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
 from reverse_agent.platform_v1.control_store import PlatformControlStore
+import reverse_agent.platform_v1.control_store as control_store_module
 import reverse_agent.platform_v1.goal_service as goal_service_module
 from reverse_agent.platform_v1.goal_service import GoalService
 from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
@@ -71,7 +72,7 @@ def test_unchanged_goal_reads_preserve_timestamp_without_row_writes(
     try:
         for observed_at in ("2099-01-01T00:00:00Z", "2099-01-02T00:00:00Z"):
             monkeypatch.setattr(
-                "reverse_agent.platform_v1.control_store._utc_now", lambda: observed_at
+                control_store_module, "_utc_now", lambda: observed_at
             )
             response = goals.list()[0] if read_response == "list" else goals.detail(goal_id)
             assert response["id"] == goal_id
@@ -102,7 +103,7 @@ def test_goal_timestamp_advances_once_only_for_derived_status_change(
     changes = store._conn.total_changes
     try:
         monkeypatch.setattr(
-            "reverse_agent.platform_v1.control_store._utc_now", lambda: "2099-01-01T00:00:00Z"
+            control_store_module, "_utc_now", lambda: "2099-01-01T00:00:00Z"
         )
         first = goals.detail(goal_id)
         expected_time = "2099-01-01T00:00:00Z" if changed else before.updated_at
@@ -110,7 +111,7 @@ def test_goal_timestamp_advances_once_only_for_derived_status_change(
         assert first["updated_at"] == expected_time
         assert store._conn.total_changes == changes + int(changed)
         monkeypatch.setattr(
-            "reverse_agent.platform_v1.control_store._utc_now", lambda: "2099-01-02T00:00:00Z"
+            control_store_module, "_utc_now", lambda: "2099-01-02T00:00:00Z"
         )
         assert goals.list()[0]["updated_at"] == expected_time
         assert goals.detail(goal_id)["updated_at"] == expected_time
@@ -135,7 +136,7 @@ def test_unlaunched_goal_reads_preserve_status_and_timestamp(monkeypatch, stage)
     changes = store._conn.total_changes
     try:
         monkeypatch.setattr(
-            "reverse_agent.platform_v1.control_store._utc_now", lambda: "2099-01-01T00:00:00Z"
+            control_store_module, "_utc_now", lambda: "2099-01-01T00:00:00Z"
         )
         for response in (goals.list()[0], goals.detail(goal.id)):
             assert response["status"] == stage
