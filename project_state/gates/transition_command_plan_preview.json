@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260908_issue423_windows_platform_ci_r2_v3",
-  "round_id": "round_20260908_issue423_windows_platform_ci_r2_v3",
+  "decision_id": "decision_20260908_issue585_desktop0_tauri_r2_v9",
+  "round_id": "round_20260908_issue585_desktop0_tauri_r2_v9",
   "commands": [
     {
-      "command_id": "issue423_r2v3.bootstrap_and_preflight",
-      "command": "verify exact fresh locked main 7452a592edfce2a243c4524b1cb78c8172e748a9 and fresh isolated worktree branch merge-base; commit this immutable R2 Decision as the unique first commit; run startup snapshot transition command plan transition lint transition preflight pre and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before any workflow mutation",
+      "command_id": "issue585_desktop0_v9.bootstrap_and_preflight",
+      "command": "verify exact fresh locked v9 anchor 5df08a23dbaa0e816f081b460ee6e2642004a2b1 and fresh isolated worktree branch merge-base; commit this immutable R2 Decision as the unique first commit; run startup snapshot transition command plan transition lint transition preflight pre and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before any product mutation",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -34,11 +34,39 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue423_r2v3.materialize_windows_workflow",
-      "command": "add exactly one new specialized Windows Hosted proof workflow .github/workflows/windows-platform-v1.yml that runs on windows-latest, checks out the exact tested head, installs the repository existing test extras, and executes python -m pytest tests/platform_v1/test_dev_up_contract.py -q; no continue-on-error, no blanket skip or xfail, no deselection, no false-green wrapper, no provider or model call, no credential access, no Ubuntu baseline duplication",
+      "command_id": "issue585_desktop0_v9.update_package_json",
+      "command": "after PRE_EXECUTION_AUTHORIZED add @tauri-apps/cli 2.11.4 to frontend/package.json devDependencies and @tauri-apps/api 2.11.1 to dependencies, update package-lock.json, and do not modify any other frontend file",
       "phase": "implementation",
       "required": true,
-      "required_evidence_source": "repository_state_attestation",
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "trusted_worker",
+      "operations": [
+        "source_edit",
+        "local_static_check",
+        "commit",
+        "package_install"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "frontend/package.json",
+        "frontend/package-lock.json"
+      ]
+    },
+    {
+      "command_id": "issue585_desktop0_v9.materialize_tauri_runtime_bridge",
+      "command": "after PRE_EXECUTION_AUTHORIZED create frontend/src-tauri on fresh main with Cargo.toml declaring tauri 2.11.5 tauri-build 2.6.3 and repository https://github.com/dddd2024/Nerelan plus build.rs src/main.rs src/lib.rs registering only runtime_status start_runtime stop_runtime through invoke_handler with no generic shell exec run_command API, tauri.conf.json whose beforeDevCommand delegates to frontend/src-tauri/scripts/dev-up-bridge.ps1 instead of starting an independent Vite and whose beforeBuildCommand delegates to frontend/src-tauri/scripts/desktop-build.ps1, capabilities/default.json, generated bundle icons and .gitignore; lib.rs must wait for dev-up.ps1 and dev-down.ps1 exit status with bounded output capture before reporting start or stop success and must observe frontend 4173 task api 8766 and model control 8765 before reporting runtime ready; v9 additionally replaces the single shared run_lifecycle_script helper with explicit run_dev_up and run_dev_down command builders whose argument vectors are fixed per builder so that start_runtime passes -NoBrowser -RepoDir to dev-up.ps1 while stop_runtime passes only -RepoDir to dev-down.ps1 and never -NoBrowser, reusing only the bounded wait and output-drain helpers; do not modify frontend/src frontend/e2e frontend/tests dev-up.ps1 dev-down.ps1 frontend/vite.config.ts or any workflow",
+      "phase": "implementation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
         0
       ],
@@ -50,18 +78,41 @@
       ],
       "network_access": false,
       "diagnostic_only": false,
-      "allowed_only_after_validation": false,
+      "allowed_only_after_validation": true,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
-        ".github/workflows/windows-platform-v1.yml"
+        "frontend/src-tauri/**"
       ]
     },
     {
-      "command_id": "issue423_r2v3.validate",
-      "command": "run git status --short and git diff --check; re-run transition lint transition command plan transition preflight pre and worktree publication readiness; run the applicable non-Windows deterministic governance tests; require PUBLICATION_READY and zero diff check violations",
+      "command_id": "issue585_desktop0_v9.rust_toolchain_if_missing",
+      "command": "if rustc or cargo are absent after PRE_EXECUTION_AUTHORIZED provision only a current stable official Rust toolchain needed for cargo check using bounded official Rust distribution access in a user-scoped or temporary location outside repository state; do not install unrelated system packages do not read credentials and do not mutate repository files as part of toolchain provisioning",
+      "phase": "implementation",
+      "required": false,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "trusted_worker",
+      "operations": [
+        "dependency_install",
+        "local_static_check"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue585_desktop0_v9.validate",
+      "command": "run a read-only static parameter-contract check that dev-up.ps1 accepts -NoBrowser and -RepoDir while dev-down.ps1 accepts -RepoDir and not -NoBrowser; run npm --prefix frontend run typecheck, npm --prefix frontend test, npm --prefix frontend run build, npm --prefix frontend run tauri -- info, cargo check --locked --manifest-path frontend/src-tauri/Cargo.toml, git diff --check plus targeted static audit proving invoke_handler registers only runtime_status start_runtime stop_runtime with no generic shell bridge, no generic shell API and no webview supplied arguments, dev-up.ps1 remains the lifecycle owner, start and stop wait for script exit status, START_COMMAND contains -NoBrowser and -RepoDir, STOP_COMMAND contains -RepoDir and does not contain -NoBrowser, the desktop build binds VITE_TASK_API_BASE to http://127.0.0.1:8766 and VITE_MODEL_CONTROL_API_BASE to http://127.0.0.1:8765/api, and runtime ready requires frontend 4173 task api 8766 and model control 8765; do not execute the stop command in order to prove its argument contract; rerun transition-lint transition-command-plan transition-preflight --mode pre and worktree-publication-readiness on the exact implementation head; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -71,7 +122,10 @@
       "execution_surface": "trusted_worker",
       "operations": [
         "unit_test",
-        "local_static_check"
+        "build",
+        "local_static_check",
+        "diff_validation",
+        "code_read"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -83,8 +137,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue423_r2v3.publish",
-      "command": "after all blocking validation passes push the exact branch owner/issue423-windows-platform-ci-r2-v3 to locked main 7452a592edfce2a243c4524b1cb78c8172e748a9 and create exactly one Draft PR with body recording the immutable R2 authority snapshot; never mark Ready and never merge under this Decision",
+      "command_id": "issue585_desktop0_v9.publish",
+      "command": "after all blocking validation passes push the exact branch owner/desktop0-tauri-r2-v9 to locked main 5df08a23dbaa0e816f081b460ee6e2642004a2b1 and create exactly one Draft PR with body recording the immutable R2 authority snapshot plus PR #666 = CLOSED_UNMERGED_TERMINAL_NEGATIVE_PRODUCT_EVIDENCE with defect DEV_DOWN_RECEIVED_UNSUPPORTED_NO_BROWSER_PARAMETER, PR #663 = CLOSED_UNMERGED_TERMINAL_NEGATIVE_PRODUCT_EVIDENCE and Issue #664 = DOWNSTREAM_TAURI_EXACT_HEAD_CI_OWNER; do not write Closes #585; do not claim a v9 Tauri CI final-evidence lane; never mark Ready and never merge under this Decision",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -107,8 +161,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue423_r2v3.exact_head_acceptance",
-      "command": "require natural exact-head CI Decision Preflight State Gate and Windows Hosted proof lane on the Draft PR; Windows Hosted proof lane must execute python -m pytest tests/platform_v1/test_dev_up_contract.py -q on windows-latest and report terminal SUCCESS; keep the PR Draft and do NOT Ready or merge under this Decision",
+      "command_id": "issue585_desktop0_v9.exact_head_acceptance",
+      "command": "require a later read-only remote exact-head audit of the Draft PR head; Issue #664 owns the separate downstream Tauri exact-head CI lane and this Decision does not assert that a v9 Tauri CI lane already exists; keep the PR Draft and do NOT Ready or merge under this Decision",
       "phase": "final_evidence",
       "required": true,
       "required_evidence_source": "repository_state_attestation",

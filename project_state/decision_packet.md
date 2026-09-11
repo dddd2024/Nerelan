@@ -3,38 +3,36 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260908_issue423_windows_platform_ci_r2_v3",
-  "round_id": "round_20260908_issue423_windows_platform_ci_r2_v3",
+  "decision_id": "decision_20260908_issue585_desktop0_tauri_r2_v9",
+  "round_id": "round_20260908_issue585_desktop0_tauri_r2_v9",
   "status": "APPROVED",
   "mainline": "engineering_branch",
-  "skill_profiles": [
-    "reverse-agent-iteration@v2"
-  ]
+  "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "FRESH_MAIN_WINDOWS_HOSTED_LAUNCHER_LIFECYCLE_CI_LANE_R2_V3_POST640_SURFACE",
+  "decision_scope": "FRESH_MAIN_DESKTOP0_TAURI_LIFECYCLE_ARGUMENT_CONTRACT_REPAIR_R2_V9_POST666",
   "not_product_redesign": true,
-  "follows_last_decision_id": "decision_20260908_issue423_windows_platform_ci_r2_v2",
-  "follows_last_round_id": "round_20260908_issue423_windows_platform_ci_r2_v2",
-  "previous_audit_outcome": "R2_V1_ACTIVATION_BRANCH_A3FF0A6F_STALE_TERMINAL_NEGATIVE_AUTHORITY_ONLY;R2_V2_BASE_EB1CBFA5_STALE_TERMINAL_NEGATIVE_AUTHORITY_ONLY;PR424_WRONG_RISK_R1_FOR_WORKFLOW_PATH_CLOSED_UNMERGED_TERMINAL_NEGATIVE_AUTHORITY_ONLY;FRESH_CURRENT_MAIN_7452A592_LOCKED_FOR_V3_RE_ANCHOR",
-  "workstream_id": "issue423-windows-platform-ci-r2-v3",
-  "source_issue": 423,
-  "parent_issue": 363,
+  "follows_last_decision_id": "decision_20260908_issue585_desktop0_tauri_r2_v8",
+  "follows_last_round_id": "round_20260908_issue585_desktop0_tauri_r2_v8",
+  "previous_audit_outcome": "R2_V8_CLOSED_UNMERGED_AFTER_OWNER_EXACT_HEAD_AUDIT_FOUND_DEV_DOWN_RECEIVED_UNSUPPORTED_NO_BROWSER_PARAMETER",
+  "workstream_id": "issue585-desktop0-tauri-native-startup-bridge-r2-v9",
+  "source_issue": 585,
+  "parent_issue": 357,
   "integration_base_ref": "main",
-  "base_sha": "7452a592edfce2a243c4524b1cb78c8172e748a9",
-  "activation_base_sha": "7452a592edfce2a243c4524b1cb78c8172e748a9",
-  "starting_head": "7452a592edfce2a243c4524b1cb78c8172e748a9",
-  "required_branch": "owner/issue423-windows-platform-ci-r2-v3",
+  "base_sha": "5df08a23dbaa0e816f081b460ee6e2642004a2b1",
+  "activation_base_sha": "5df08a23dbaa0e816f081b460ee6e2642004a2b1",
+  "starting_head": "5df08a23dbaa0e816f081b460ee6e2642004a2b1",
+  "required_branch": "owner/desktop0-tauri-r2-v9",
   "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
   "risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "authorized_risk_tier": "R2",
-  "workflow_profile": "windows_ci_r2",
+  "workflow_profile": "baseline",
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
@@ -46,7 +44,6 @@
   "post_publication_binding_commit_limit": 0,
   "normal_push_attempt_limit": 2,
   "draft_pr_creation_limit": 1,
-  "dependency_install_limit": 0,
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
   "live_model_call_limit": 0,
@@ -65,56 +62,213 @@
   "auto_merge_allowed": false,
   "force_push_allowed": false,
   "rebase_during_execution_allowed": false,
-  "dependency_install_allowed": false,
+  "dependency_install_allowed": true,
+  "known_browser_execution_allowed": false,
   "live_provider_access_allowed": false,
   "credential_access_allowed": false,
   "allowed_merge_method": "merge",
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
-  "no_legacy_intent_mode": "READ_ONLY_LANDING_CANDIDATE_VALIDATION",
-  "landing_authority_scope_note": "Only the exact new specialized Windows Hosted proof workflow .github/workflows/windows-platform-v1.yml is authorized. No launcher, test, existing workflow, dependency, product, or frontend mutation is authorized. No merge, Ready, auto-merge, direct main push, rebase, squash, amend, force push, workflow rerun, workflow dispatch, release, deploy or tag is authorized here. Final Ready/Merge requires a separate independent Owner landing authority.",
-  "issue_number_must_not_substitute_for_pr_number": true,
   "test_semantics_changes_allowed": false,
   "source_test_mutation_authorized": false,
-  "workflow_mutation_scope": "ADD_NEW_WINDOWS_HOSTED_LANES_ONLY_NO_EXISTING_WORKFLOW_EDIT",
+  "v9_product_intent": "DEV_UP_AND_DEV_DOWN_HAVE_DISTINCT_FIXED_ARGUMENT_CONTRACTS",
+  "dependency_target_versions": {
+    "@tauri-apps/cli": "2.11.4",
+    "@tauri-apps/api": "2.11.1",
+    "tauri": "2.11.5",
+    "tauri-build": "2.6.3"
+  },
+  "cargo_repository_field": "https://github.com/dddd2024/Nerelan",
+  "canonical_repository": "dddd2024/Nerelan",
   "historical_negative_authority": {
-    "pr424": "5758061b4fb4f2c85a25eca057084a3aa9167359",
-    "pr424_disposition": "CLOSED_UNMERGED_TERMINAL_WRONG_RISK_NEGATIVE_AUTHORITY_ONLY",
-    "issue423_r2_v1_branch": "owner/issue423-windows-platform-ci-r2-v1",
-    "issue423_r2_v1_branch_sha": "a3ff0a6fbf84e216e0765581a408fdd2ee0c5592",
-    "issue423_r2_v1_disposition": "STALE_ACTIVATION_BRANCH_TERMINAL_STALE_NEGATIVE_AUTHORITY_ONLY",
-    "issue423_r2_v2_base": "eb1cbfa520582988e90e83d798d53379ba537fa8",
-    "issue423_r2_v2_disposition": "STALE_V2_BASE_TERMINAL_STALE_NEGATIVE_AUTHORITY_ONLY",
-    "no_reuse_no_rebase_no_force_update": true
+    "pr609_head": "fb4d54d7a146997dfd5decf224dab56dcb111781",
+    "pr609_decision_commit": "dd4a72b695a3c23911b3184989bbc14adf4a35fb",
+    "r2_v2_branch": "owner/desktop0-tauri-r2-v2",
+    "r2_v3_issue": 600,
+    "r2_v3_pr": 609,
+    "r2_v4_branch": "owner/desktop0-tauri-r2-v4",
+    "r2_v4_decision_commit": "e11735f3",
+    "r2_v4_disposition": "TERMINAL_LOCAL_NEGATIVE_AUTHORITY_EVIDENCE_ONLY",
+    "r2_v5_branch": "owner/desktop0-tauri-r2-v5",
+    "r2_v5_decision_commit": "aec0d197",
+    "r2_v5_disposition": "FAILED_TERMINAL_LOCAL_AUTHORITY_EVIDENCE_ONLY",
+    "r2_v5_blocker": "active_pr_binding_mode = draft_pr_body_only is not a supported current literal",
+    "r2_v6_branch": "owner/desktop0-tauri-r2-v6",
+    "r2_v6_decision_commit": "7f532f28",
+    "r2_v6_disposition": "FAILED_TERMINAL_LOCAL_AUTHORITY_EVIDENCE_ONLY",
+    "r2_v6_blocker": "forbidden_mutated_paths contained frontend/** which glob-covered authorized frontend product paths",
+    "r2_v7_branch": "owner/desktop0-tauri-r2-v7",
+    "r2_v7_decision_commit": "68ab8d4249eedb141fb6f4ba3f3a1c72ee4b3c56",
+    "r2_v7_semantic_head": "00462e1408858c205f2fb99a4f29b8adaaec8f1c",
+    "r2_v7_pr": 663,
+    "r2_v7_disposition": "CLOSED_UNMERGED_TERMINAL_NEGATIVE_PRODUCT_EVIDENCE",
+    "r2_v7_blocker": "owner exact-head audit found the Tauri devUrl started an independent Vite on 4173 which collided with the fail-closed dev-up.ps1 port ownership check, start_runtime and stop_runtime reported success from powershell.exe child creation instead of script exit status, and the desktop build route omitted VITE_TASK_API_BASE and VITE_MODEL_CONTROL_API_BASE so model-control-client fell back to the relative /api route with no Tauri native proxy",
+    "r2_v8_branch": "owner/desktop0-tauri-r2-v8",
+    "r2_v8_decision_commit": "ee240509cb3edbc1b1a022f69edee87b67cd4748",
+    "r2_v8_semantic_head": "c05067ceca120e25154bf2fb5737168f32d1dc88",
+    "r2_v8_pr": 666,
+    "r2_v8_disposition": "CLOSED_UNMERGED_TERMINAL_NEGATIVE_PRODUCT_EVIDENCE",
+    "r2_v8_blocker": "owner exact-head audit found that the single shared Rust helper run_lifecycle_script unconditionally appended -NoBrowser -RepoDir to every lifecycle script, but the canonical dev-down.ps1 parameter contract is param([string]$RepoDir = \"\") and does not accept -NoBrowser, so stop_runtime reached a PowerShell parameter binding failure and the dev-down shutdown logic never ran",
+    "no_cherry_pick_no_rebase_no_merge_no_force_update_no_history_reuse": true
+  },
+  "v8_terminal_evidence": {
+    "decision_commit": "ee240509cb3edbc1b1a022f69edee87b67cd4748",
+    "semantic_head": "c05067ceca120e25154bf2fb5737168f32d1dc88",
+    "pull_request": 666,
+    "result": "CLOSED_UNMERGED_TERMINAL_NEGATIVE_PRODUCT_EVIDENCE",
+    "blockers": [
+      "DEV_DOWN_RECEIVED_UNSUPPORTED_NO_BROWSER_PARAMETER"
+    ],
+    "root_cause": "run_lifecycle_script assumed every lifecycle script shared one argument vector and unconditionally passed -NoBrowser to dev-down.ps1, whose canonical parameter contract is param([string]$RepoDir = \"\") with no -NoBrowser parameter; the PowerShell parameter binding failure aborted the invocation before any dev-down shutdown logic could run"
+  },
+  "v9_required_repairs": {
+    "stop_runtime_result_semantics": "DEV_DOWN_EXIT_VERIFIED_WITH_VALID_ARGUMENT_CONTRACT",
+    "dev_down_no_browser_argument": "ABSENT",
+    "lifecycle_command_builders_explicit": "run_dev_up and run_dev_down fix their own argument vectors",
+    "shared_implicit_argument_helper_forbidden": true,
+    "v9_product_intent": "DEV_UP_AND_DEV_DOWN_HAVE_DISTINCT_FIXED_ARGUMENT_CONTRACTS",
+    "tauri_dev_port_ownership_conflict": "RESOLVED",
+    "start_runtime_result_semantics": "DEV_UP_EXIT_VERIFIED",
+    "desktop_task_api_base": "http://127.0.0.1:8766",
+    "desktop_model_control_api_base": "http://127.0.0.1:8765/api",
+    "runtime_status_core_aware": "YES"
   },
   "fresh_worktree_contract": {
     "creation_required": true,
-    "source_commit": "7452a592edfce2a243c4524b1cb78c8172e748a9",
-    "source_ref": "origin/main",
-    "target_branch": "owner/issue423-windows-platform-ci-r2-v3",
+    "source_commit": "5df08a23dbaa0e816f081b460ee6e2642004a2b1",
+    "source_ref": "origin/owner/desktop0-tauri-r2-v9",
+    "target_branch": "owner/desktop0-tauri-r2-v9",
     "no_switch_no_reset_no_stash_no_clean_other_worktree": true,
     "clean_status_required_at_activation": true
   },
   "semantic_implementation_contract": {
-    "workflow_path": ".github/workflows/windows-platform-v1.yml",
-    "runner": "windows-latest",
-    "test_command": "python -m pytest tests/platform_v1/test_dev_up_contract.py -q",
-    "install_command": "python -m pip install -e \".[test]\"",
-    "checkout_ref": "github.event.pull_request.head.sha || github.sha",
-    "continue_on_error_forbidden": true,
-    "blanket_skip_or_xfail_forbidden": true,
-    "deselection_forbidden": true,
-    "false_green_wrapper_forbidden": true,
-    "provider_or_model_calls_forbidden": true,
-    "credential_access_forbidden": true,
-    "no_ubuntu_baseline_duplication": true,
-    "trigger_surfaces": [
-      "launch_reverse_agent.bat",
-      "dev-up.ps1",
-      "dev-down.ps1",
-      "tests/platform_v1/test_dev_up_contract.py",
-      ".github/workflows/windows-platform-v1.yml"
-    ]
+    "allowed_only_after_authorized": true,
+    "webview_ipc_surface": "runtime_status | start_runtime | stop_runtime",
+    "tauri_ipc_handlers": [
+      "runtime_status",
+      "start_runtime",
+      "stop_runtime"
+    ],
+    "generic_shell_bridge_forbidden": true,
+    "generic_shell_bridge_audit": "NONE",
+    "arbitrary_process_spawn_forbidden": true,
+    "arbitrary_filesystem_bridge_forbidden": true,
+    "arbitrary_environment_dump_forbidden": true,
+    "powershell_execution_discrete_arg_required": true,
+    "powershell_discrete_arg_required": true,
+    "powershell_concatenated_command_string_forbidden": true,
+    "dev_up_invocation_shape": [
+      "powershell.exe",
+      "-NoProfile",
+      "-NonInteractive",
+      "-NoLogo",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      "<dev-up.ps1>",
+      "-NoBrowser",
+      "-RepoDir",
+      "<repo>"
+    ],
+    "dev_down_invocation_shape": [
+      "powershell.exe",
+      "-NoProfile",
+      "-NonInteractive",
+      "-NoLogo",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      "<dev-down.ps1>",
+      "-RepoDir",
+      "<repo>"
+    ],
+    "dev_down_no_browser_argument": "ABSENT",
+    "explicit_command_builder_required": true,
+    "explicit_command_builders": [
+      "run_dev_up",
+      "run_dev_down"
+    ],
+    "shared_implicit_argument_helper_forbidden": true,
+    "shared_implicit_argument_helper_audit": "NONE",
+    "webview_supplied_arguments_forbidden": true,
+    "generic_shell_api_forbidden": true,
+    "bounded_wait_output_drain_helper_reuse_allowed": true,
+    "dev_up_lifecycle_ownership": "dev-up.ps1 is the single authoritative local stack lifecycle owner; the Tauri shell must delegate to it and must never start an independent Vite instance before or beside it",
+    "dev_down_lifecycle_ownership": "dev-down.ps1 is the single authoritative local stack shutdown owner and accepts only -RepoDir; the Tauri shell must never pass -NoBrowser to it",
+    "tauri_before_dev_command_helper": "frontend/src-tauri/scripts/dev-up-bridge.ps1",
+    "tauri_before_dev_command_starts_independent_vite": false,
+    "tauri_before_dev_command_delegates_to_dev_up": true,
+    "tauri_dev_url_wait_target": "http://127.0.0.1:4173",
+    "start_runtime_waits_for_dev_up_exit": true,
+    "stop_runtime_waits_for_dev_down_exit": true,
+    "spawn_as_success_semantics_forbidden": true,
+    "bounded_script_output_waiting_required": true,
+    "sanitized_script_failure_detail_required": true,
+    "script_output_capture_is_bounded": true,
+    "tauri_before_build_command_helper": "frontend/src-tauri/scripts/desktop-build.ps1",
+    "desktop_build_sets_vite_task_api_base": true,
+    "desktop_build_sets_vite_model_control_api_base": true,
+    "desktop_task_api_base": "http://127.0.0.1:8766",
+    "desktop_model_control_api_base": "http://127.0.0.1:8765/api",
+    "runtime_status_core_aware_endpoints": [
+      {"name": "frontend", "host": "127.0.0.1", "port": 4173},
+      {"name": "task_api", "host": "127.0.0.1", "port": 8766},
+      {"name": "model_control", "host": "127.0.0.1", "port": 8765}
+    ],
+    "runtime_ready_requires_all_required_endpoints": true,
+    "tcp_reachability_alone_is_not_ready": true,
+    "runtime_status_terminates_unknown_processes": false,
+    "tauri_setup_autostart_forbidden": true,
+    "pre_trust_workspace_execution_none": true,
+    "no_arbitrary_shell_bridge": true,
+    "no_arbitrary_filesystem_bridge": true,
+    "no_arbitrary_process_bridge": true,
+    "dependency_versions": {
+      "@tauri-apps/cli": "2.11.4",
+      "@tauri-apps/api": "2.11.1",
+      "tauri": "2.11.5",
+      "tauri-build": "2.6.3"
+    },
+    "cargo_repository": "https://github.com/dddd2024/Nerelan",
+    "dev_up_ps1_unchanged": true,
+    "dev_down_ps1_unchanged": true,
+    "frontend_src_unchanged": true,
+    "frontend_e2e_unchanged": true,
+    "frontend_tests_unchanged": true,
+    "frontend_vite_config_unchanged": true,
+    "no_cherry_pick_pr609": true,
+    "no_cherry_pick_v7": true,
+    "no_cherry_pick_v8": true,
+    "no_amend_v7": true,
+    "no_amend_v8": true,
+    "no_rebase_v7": true,
+    "no_rebase_v8": true,
+    "no_reopen_pr663": true,
+    "no_reopen_pr666": true,
+    "dev_up_ps1_delta_none": true,
+    "dev_down_ps1_delta_none": true,
+    "frontend_src_delta_none": true,
+    "frontend_e2e_delta_none": true,
+    "frontend_tests_delta_none": true,
+    "frontend_playwright_config_delta_none": true,
+    "frontend_vite_config_delta_none": true,
+    "github_workflows_delta_none": true,
+    "no_browser_or_gui_execution": true,
+    "no_provider_or_model_calls": true,
+    "no_credential_access": true,
+    "tauri_ci_lane_not_claimed": true
+  },
+  "draft_pr_contract": {
+    "base": "main",
+    "head": "owner/desktop0-tauri-r2-v9",
+    "draft": true,
+    "title": "R2 v9: correct DESKTOP-0 lifecycle argument contract (#585)",
+    "body_mentions_pr666": "CLOSED_UNMERGED_TERMINAL_NEGATIVE_PRODUCT_EVIDENCE",
+    "body_mentions_pr663": "CLOSED_UNMERGED_TERMINAL_NEGATIVE_PRODUCT_EVIDENCE",
+    "body_mentions_v8_defect": "DEV_DOWN_RECEIVED_UNSUPPORTED_NO_BROWSER_PARAMETER",
+    "body_mentions_issue664": "DOWNSTREAM_TAURI_EXACT_HEAD_CI_OWNER",
+    "body_no_closes_issue_585": true,
+    "no_v9_final_evidence_requirement_for_tauri_ci_lane": true
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md",
@@ -127,8 +281,8 @@
   "bootstrap_exception_commands": [],
   "allowed_commands": [
     {
-      "command_id": "issue423_r2v3.bootstrap_and_preflight",
-      "command": "verify exact fresh locked main 7452a592edfce2a243c4524b1cb78c8172e748a9 and fresh isolated worktree branch merge-base; commit this immutable R2 Decision as the unique first commit; run startup snapshot transition command plan transition lint transition preflight pre and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before any workflow mutation",
+      "command_id": "issue585_desktop0_v9.bootstrap_and_preflight",
+      "command": "verify exact fresh locked v9 anchor 5df08a23dbaa0e816f081b460ee6e2642004a2b1 and fresh isolated worktree branch merge-base; commit this immutable R2 Decision as the unique first commit; run startup snapshot transition command plan transition lint transition preflight pre and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before any product mutation",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [0],
@@ -145,33 +299,62 @@
       ]
     },
     {
-      "command_id": "issue423_r2v3.materialize_windows_workflow",
-      "command": "add exactly one new specialized Windows Hosted proof workflow .github/workflows/windows-platform-v1.yml that runs on windows-latest, checks out the exact tested head, installs the repository existing test extras, and executes python -m pytest tests/platform_v1/test_dev_up_contract.py -q; no continue-on-error, no blanket skip or xfail, no deselection, no false-green wrapper, no provider or model call, no credential access, no Ubuntu baseline duplication",
+      "command_id": "issue585_desktop0_v9.update_package_json",
+      "command": "after PRE_EXECUTION_AUTHORIZED add @tauri-apps/cli 2.11.4 to frontend/package.json devDependencies and @tauri-apps/api 2.11.1 to dependencies, update package-lock.json, and do not modify any other frontend file",
+      "phase": "implementation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "trusted_worker",
+      "operations": ["source_edit", "local_static_check", "commit", "package_install"],
+      "network_access": true,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_mutated_paths": [
+        "frontend/package.json",
+        "frontend/package-lock.json"
+      ],
+      "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue585_desktop0_v9.materialize_tauri_runtime_bridge",
+      "command": "after PRE_EXECUTION_AUTHORIZED create frontend/src-tauri on fresh main with Cargo.toml declaring tauri 2.11.5 tauri-build 2.6.3 and repository https://github.com/dddd2024/Nerelan plus build.rs src/main.rs src/lib.rs registering only runtime_status start_runtime stop_runtime through invoke_handler with no generic shell exec run_command API, tauri.conf.json whose beforeDevCommand delegates to frontend/src-tauri/scripts/dev-up-bridge.ps1 instead of starting an independent Vite and whose beforeBuildCommand delegates to frontend/src-tauri/scripts/desktop-build.ps1, capabilities/default.json, generated bundle icons and .gitignore; lib.rs must wait for dev-up.ps1 and dev-down.ps1 exit status with bounded output capture before reporting start or stop success and must observe frontend 4173 task api 8766 and model control 8765 before reporting runtime ready; v9 additionally replaces the single shared run_lifecycle_script helper with explicit run_dev_up and run_dev_down command builders whose argument vectors are fixed per builder so that start_runtime passes -NoBrowser -RepoDir to dev-up.ps1 while stop_runtime passes only -RepoDir to dev-down.ps1 and never -NoBrowser, reusing only the bounded wait and output-drain helpers; do not modify frontend/src frontend/e2e frontend/tests dev-up.ps1 dev-down.ps1 frontend/vite.config.ts or any workflow",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "trusted_worker",
       "operations": ["source_edit", "local_static_check", "commit"],
       "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
+      "required_evidence_source": "local_command_evidence",
       "allowed_mutated_paths": [
-        ".github/workflows/windows-platform-v1.yml"
-      ]
+        "frontend/src-tauri/**"
+      ],
+      "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue423_r2v3.validate",
-      "command": "run git status --short and git diff --check; re-run transition lint transition command plan transition preflight pre and worktree publication readiness; run the applicable non-Windows deterministic governance tests; require PUBLICATION_READY and zero diff check violations",
+      "command_id": "issue585_desktop0_v9.rust_toolchain_if_missing",
+      "command": "if rustc or cargo are absent after PRE_EXECUTION_AUTHORIZED provision only a current stable official Rust toolchain needed for cargo check using bounded official Rust distribution access in a user-scoped or temporary location outside repository state; do not install unrelated system packages do not read credentials and do not mutate repository files as part of toolchain provisioning",
+      "phase": "implementation",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "trusted_worker",
+      "operations": ["dependency_install", "local_static_check"],
+      "network_access": true,
+      "required_evidence_source": "local_command_evidence",
+      "allowed_only_after_validation": true
+    },
+    {
+      "command_id": "issue585_desktop0_v9.validate",
+      "command": "run a read-only static parameter-contract check that dev-up.ps1 accepts -NoBrowser and -RepoDir while dev-down.ps1 accepts -RepoDir and not -NoBrowser; run npm --prefix frontend run typecheck, npm --prefix frontend test, npm --prefix frontend run build, npm --prefix frontend run tauri -- info, cargo check --locked --manifest-path frontend/src-tauri/Cargo.toml, git diff --check plus targeted static audit proving invoke_handler registers only runtime_status start_runtime stop_runtime with no generic shell bridge, no generic shell API and no webview supplied arguments, dev-up.ps1 remains the lifecycle owner, start and stop wait for script exit status, START_COMMAND contains -NoBrowser and -RepoDir, STOP_COMMAND contains -RepoDir and does not contain -NoBrowser, the desktop build binds VITE_TASK_API_BASE to http://127.0.0.1:8766 and VITE_MODEL_CONTROL_API_BASE to http://127.0.0.1:8765/api, and runtime ready requires frontend 4173 task api 8766 and model control 8765; do not execute the stop command in order to prove its argument contract; rerun transition-lint transition-command-plan transition-preflight --mode pre and worktree-publication-readiness on the exact implementation head; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [0],
       "execution_surface": "trusted_worker",
-      "operations": ["unit_test", "local_static_check"],
+      "operations": ["unit_test", "build", "local_static_check", "diff_validation", "code_read"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation"
     },
     {
-      "command_id": "issue423_r2v3.publish",
-      "command": "after all blocking validation passes push the exact branch owner/issue423-windows-platform-ci-r2-v3 to locked main 7452a592edfce2a243c4524b1cb78c8172e748a9 and create exactly one Draft PR with body recording the immutable R2 authority snapshot; never mark Ready and never merge under this Decision",
+      "command_id": "issue585_desktop0_v9.publish",
+      "command": "after all blocking validation passes push the exact branch owner/desktop0-tauri-r2-v9 to locked main 5df08a23dbaa0e816f081b460ee6e2642004a2b1 and create exactly one Draft PR with body recording the immutable R2 authority snapshot plus PR #666 = CLOSED_UNMERGED_TERMINAL_NEGATIVE_PRODUCT_EVIDENCE with defect DEV_DOWN_RECEIVED_UNSUPPORTED_NO_BROWSER_PARAMETER, PR #663 = CLOSED_UNMERGED_TERMINAL_NEGATIVE_PRODUCT_EVIDENCE and Issue #664 = DOWNSTREAM_TAURI_EXACT_HEAD_CI_OWNER; do not write Closes #585; do not claim a v9 Tauri CI final-evidence lane; never mark Ready and never merge under this Decision",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [0],
@@ -182,8 +365,8 @@
       "allowed_only_after_validation": true
     },
     {
-      "command_id": "issue423_r2v3.exact_head_acceptance",
-      "command": "require natural exact-head CI Decision Preflight State Gate and Windows Hosted proof lane on the Draft PR; Windows Hosted proof lane must execute python -m pytest tests/platform_v1/test_dev_up_contract.py -q on windows-latest and report terminal SUCCESS; keep the PR Draft and do NOT Ready or merge under this Decision",
+      "command_id": "issue585_desktop0_v9.exact_head_acceptance",
+      "command": "require a later read-only remote exact-head audit of the Draft PR head; Issue #664 owns the separate downstream Tauri exact-head CI lane and this Decision does not assert that a v9 Tauri CI lane already exists; keep the PR Draft and do NOT Ready or merge under this Decision",
       "phase": "final_evidence",
       "required": true,
       "expected_exit_codes": [0],
@@ -200,41 +383,29 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    ".github/workflows/windows-platform-v1.yml"
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/src-tauri/**"
   ],
   "reference_paths": [
     "AGENTS.md",
-    "launch_reverse_agent.bat",
     "dev-up.ps1",
     "dev-down.ps1",
-    "tests/platform_v1/test_dev_up_contract.py",
-    ".github/workflows/ci.yml",
-    ".github/workflows/decision-preflight.yml",
-    ".github/workflows/freshness.yml",
-    ".github/workflows/frontend-playwright.yml",
-    ".github/workflows/model-access.yml",
-    ".github/workflows/state-gate.yml",
-    "pyproject.toml",
-    "frontend/**",
-    "reverse_agent/**",
-    "tests/**"
+    "frontend/vite.config.ts",
+    "frontend/e2e/critical-user-journey.spec.ts",
+    "docs/roadmap/REPOSITORY_MODERNIZATION_V2_PLAN.md",
+    "reverse_agent/control_plane/command_authority.py",
+    "reverse_agent/control_plane/transition.py"
   ],
   "reference_only_paths": [
     "AGENTS.md",
-    "launch_reverse_agent.bat",
     "dev-up.ps1",
     "dev-down.ps1",
-    "tests/platform_v1/test_dev_up_contract.py",
-    ".github/workflows/ci.yml",
-    ".github/workflows/decision-preflight.yml",
-    ".github/workflows/freshness.yml",
-    ".github/workflows/frontend-playwright.yml",
-    ".github/workflows/model-access.yml",
-    ".github/workflows/state-gate.yml",
-    "pyproject.toml",
-    "frontend/**",
-    "reverse_agent/**",
-    "tests/**"
+    "frontend/vite.config.ts",
+    "frontend/e2e/critical-user-journey.spec.ts",
+    "docs/roadmap/REPOSITORY_MODERNIZATION_V2_PLAN.md",
+    "reverse_agent/control_plane/command_authority.py",
+    "reverse_agent/control_plane/transition.py"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -244,33 +415,151 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "forbidden_mutated_paths": [
-    "AGENTS.md", "README.md", "README.txt", "docs/**", ".codex-skills/**",
-    "launch_reverse_agent.bat", "launch_nerelan.bat", "dev-up.ps1", "dev-down.ps1",
-    "tests/platform_v1/test_dev_up_contract.py", "tests/**",
-    ".github/workflows/ci.yml", ".github/workflows/decision-preflight.yml",
-    ".github/workflows/freshness.yml", ".github/workflows/frontend-playwright.yml",
-    ".github/workflows/model-access.yml", ".github/workflows/state-gate.yml",
-    "frontend/**", "reverse_agent/**", "scripts/**", "provider/**", "model/**", "credential/**",
-    "requirements*.txt", "pyproject.toml", "project_state/mainline_merge_intents/**", "project_state/schemas/**",
-    "project_state/current_state.json", "project_state/state_manifest.json", "project_state/artifact_index.json",
-    "project_state/integration_baselines/**", "project_state/mainline_recoveries/**",
-    "**/STOP", "**/owner_handoffs/**"
+    "AGENTS.md",
+    "README.md",
+    "README.txt",
+    "docs/**",
+    ".github/**",
+    ".codex-skills/**",
+    "reverse_agent/**",
+    "tests/**",
+    "dev-up.ps1",
+    "dev-down.ps1",
+    "launch_nerelan.bat",
+    "launch_reverse_agent.bat",
+    "frontend/src/**",
+    "frontend/e2e/**",
+    "frontend/tests/**",
+    "frontend/playwright.config.ts",
+    "frontend/vite.config.ts",
+    "requirements*.txt",
+    "pyproject.toml",
+    "project_state/current_state.json",
+    "project_state/state_manifest.json",
+    "project_state/artifact_index.json",
+    "project_state/rounds/**",
+    "project_state/schemas/**",
+    "project_state/integration_baselines/**",
+    "project_state/mainline_recoveries/**",
+    "project_state/mainline_merge_intents/**"
   ],
   "forbidden_operations": [
-    "direct_push_main", "auto_merge", "merge", "mark_ready", "force_push", "rebase", "squash", "reset", "clean",
-    "stash", "restore", "amend", "history_rewrite", "unknown_binary_execution", "secrets", "destructive_delete",
-    "privileged_remote_execution", "model_api_invocation", "provider_network_call", "credential_access", "auth_store_read",
-    "runner_dispatch", "workflow_rerun", "tag_or_release", "deployment", "dependency_install",
-    "second_decision_commit", "second_command_runner", "active_json_rewrite", "product_replay",
-    "ruleset_weakening", "required_check_weakening", "test_semantics_change",
-    "existing_workflow_mutation", "launcher_mutation", "test_file_mutation", "dependency_mutation",
-    "reuse_v1_decision", "reuse_v2_decision", "rebase_v1", "rebase_v2", "continue_push_v1", "continue_push_v2",
-    "force_update_v1", "force_update_v2", "reopen_v1", "reopen_v2",
-    "local_authoring", "implicit_user_local_fallback",
-    "continue_on_error_on_windows_proof", "blanket_skip_or_xfail", "deselection_on_windows_proof",
-    "false_green_wrapper", "runner_dispatch_as_substitute", "manual_dispatch_as_substitute",
-    "manual_runner_dispatch_as_substitute_for_pr_triggered_proof",
-    "ubuntu_baseline_duplication"
+    "direct_push_main",
+    "auto_merge",
+    "merge",
+    "mark_ready",
+    "force_push",
+    "rebase",
+    "squash",
+    "reset",
+    "clean",
+    "stash",
+    "restore",
+    "amend",
+    "history_rewrite",
+    "unknown_binary_execution",
+    "secrets",
+    "destructive_delete",
+    "privileged_remote_execution",
+    "model_api_invocation",
+    "provider_network_call",
+    "credential_access",
+    "auth_store_read",
+    "runner_dispatch",
+    "workflow_rerun",
+    "tag_or_release",
+    "deployment",
+    "second_decision_commit",
+    "second_command_runner",
+    "active_json_rewrite",
+    "product_replay",
+    "ruleset_weakening",
+    "required_check_weakening",
+    "test_semantics_change",
+    "reuse_v1_decision",
+    "reuse_v2_decision",
+    "reuse_v3_decision",
+    "reuse_v4_decision",
+    "reuse_v5_decision",
+    "reuse_v6_decision",
+    "reuse_v7_decision",
+    "reuse_v8_decision",
+    "rebase_v1",
+    "rebase_v2",
+    "rebase_v3",
+    "rebase_v4",
+    "rebase_v5",
+    "rebase_v6",
+    "rebase_v7",
+    "rebase_v8",
+    "continue_push_v1",
+    "continue_push_v2",
+    "continue_push_v3",
+    "continue_push_v4",
+    "continue_push_v5",
+    "continue_push_v6",
+    "continue_push_v7",
+    "continue_push_v8",
+    "force_update_v1",
+    "force_update_v2",
+    "force_update_v3",
+    "force_update_v4",
+    "force_update_v5",
+    "force_update_v6",
+    "force_update_v7",
+    "force_update_v8",
+    "reopen_v1",
+    "reopen_v2",
+    "reopen_v3",
+    "reopen_v4",
+    "reopen_v5",
+    "reopen_v6",
+    "reopen_v7",
+    "reopen_v8",
+    "reopen_pr663",
+    "reopen_pr666",
+    "amend_v7",
+    "amend_v8",
+    "cherry_pick_v7",
+    "cherry_pick_v8",
+    "merge_v8",
+    "history_reuse_v8",
+    "local_authoring",
+    "implicit_user_local_fallback",
+    "cherry_pick_pr609",
+    "generic_shell_bridge",
+    "arbitrary_process_spawn",
+    "arbitrary_filesystem_bridge",
+    "arbitrary_environment_dump",
+    "credential_access_via_webview",
+    "pre_trust_workspace_execution",
+    "frontend_src_mutation",
+    "frontend_e2e_mutation",
+    "frontend_tests_mutation",
+    "dev_up_ps1_mutation",
+    "dev_down_ps1_mutation",
+    "github_workflows_mutation",
+    "launcher_mutation",
+    "test_file_mutation",
+    "dependency_mutation_outside_allowlist",
+    "independent_vite_before_dev_up",
+    "tauri_before_dev_command_owns_vite",
+    "spawn_as_success_semantics",
+    "false_start_stop_success",
+    "frontend_build_without_desktop_model_control_route",
+    "desktop_build_without_task_api_base",
+    "desktop_build_without_model_control_api_base",
+    "runtime_ready_from_tcp_probe_only",
+    "unknown_process_termination",
+    "tauri_setup_autostart",
+    "powershell_concatenated_command_string",
+    "shared_implicit_lifecycle_argument_helper",
+    "dev_down_no_browser_argument",
+    "webview_supplied_lifecycle_arguments",
+    "generic_shell_api",
+    "execute_stop_command_to_prove_argument_contract",
+    "claim_v9_tauri_ci_final_evidence_lane",
+    "write_closes_issue_585"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -287,15 +576,20 @@
     "tag_or_release_allowed": false,
     "local_network_exceptions": [],
     "ci_network_exceptions": [],
-    "trusted_worker_network_exceptions": [],
+    "trusted_worker_network_exceptions": [
+      "after PRE_EXECUTION_AUTHORIZED add @tauri-apps/cli 2.11.4 to frontend/package.json devDependencies and @tauri-apps/api 2.11.1 to dependencies, update package-lock.json, and do not modify any other frontend file",
+      "if rustc or cargo are absent after PRE_EXECUTION_AUTHORIZED provision only a current stable official Rust toolchain needed for cargo check using bounded official Rust distribution access in a user-scoped or temporary location outside repository state; do not install unrelated system packages do not read credentials and do not mutate repository files as part of toolchain provisioning"
+    ],
     "github_control_plane_network_exceptions": [
-      "after all blocking validation passes push the exact branch owner/issue423-windows-platform-ci-r2-v3 to locked main 7452a592edfce2a243c4524b1cb78c8172e748a9 and create exactly one Draft PR with body recording the immutable R2 authority snapshot; never mark Ready and never merge under this Decision"
+      "after all blocking validation passes push the exact branch owner/desktop0-tauri-r2-v9 to locked main 5df08a23dbaa0e816f081b460ee6e2642004a2b1 and create exactly one Draft PR with body recording the immutable R2 authority snapshot plus PR #666 = CLOSED_UNMERGED_TERMINAL_NEGATIVE_PRODUCT_EVIDENCE with defect DEV_DOWN_RECEIVED_UNSUPPORTED_NO_BROWSER_PARAMETER, PR #663 = CLOSED_UNMERGED_TERMINAL_NEGATIVE_PRODUCT_EVIDENCE and Issue #664 = DOWNSTREAM_TAURI_EXACT_HEAD_CI_OWNER; do not write Closes #585; do not claim a v9 Tauri CI final-evidence lane; never mark Ready and never merge under this Decision"
     ],
     "user_local_network_exceptions": [],
     "remote_observation_read_only_allowed": true
   },
   "path_risk_floor": [
-    {"pattern": ".github/workflows/windows-platform-v1.yml", "minimum_risk": "R2"}
+    {"pattern": "frontend/package.json", "minimum_risk": "R2"},
+    {"pattern": "frontend/package-lock.json", "minimum_risk": "R2"},
+    {"pattern": "frontend/src-tauri/**", "minimum_risk": "R2"}
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
@@ -304,14 +598,56 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    ".github/workflows/windows-platform-v1.yml"
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/src-tauri/**"
   ],
   "run_environment_binding": {
     "run_strategy": "trusted_worker",
     "canonical_repository": "dddd2024/Nerelan",
-    "target_owner_branch": "owner/issue423-windows-platform-ci-r2-v3",
+    "target_owner_branch": "owner/desktop0-tauri-r2-v9",
     "authority_path": "Path B R2 transition",
     "local_agent_ready_or_merge_authority": false
   }
 }
 ```
+
+## Goal
+
+Re-materialize the DESKTOP-0 Tauri runtime bridge on a fresh isolated worktree from `origin/owner/desktop0-tauri-r2-v9` at `5df08a23dbaa0e816f081b460ee6e2642004a2b1`, correct the single product defect the owner exact-head audit found in v8 PR #666, then publish exactly one Draft PR against `main`.
+
+Required repairs:
+
+1. **Lifecycle argument contract - DEV_DOWN_EXIT_VERIFIED_WITH_VALID_ARGUMENT_CONTRACT.** `dev-up.ps1` and `dev-down.ps1` have distinct fixed parameter contracts. The canonical `dev-up.ps1` accepts `-NoBrowser` and `-RepoDir`; the canonical `dev-down.ps1` contract is `param([string]$RepoDir = "")` and accepts `-RepoDir` only. v8 violated this by routing both scripts through one shared `run_lifecycle_script(script, repo_root, timeout)` helper that unconditionally appended `-NoBrowser -RepoDir <repo>`, so `stop_runtime` reached a PowerShell parameter binding failure and the `dev-down.ps1` shutdown logic never ran. v9 replaces the shared argument vector with explicit builders: `run_dev_up(...)` fixes `powershell.exe -NoProfile -NonInteractive -NoLogo -ExecutionPolicy Bypass -File <dev-up.ps1> -NoBrowser -RepoDir <repo>` and `run_dev_down(...)` fixes `powershell.exe -NoProfile -NonInteractive -NoLogo -ExecutionPolicy Bypass -File <dev-down.ps1> -RepoDir <repo>`. The builders may share only the bounded-wait and output-drain helpers; the argument vector is fixed by each builder and is never derived from a shared default. `-NoBrowser` is absent from the DEV-DOWN vector.
+2. **No generic shell surface.** Arguments are never received from the WebView and no generic shell API is added. The narrow three-command IPC surface remains `runtime_status`, `start_runtime`, `stop_runtime`.
+3. **Tauri dev port ownership conflict - RESOLVED.** `dev-up.ps1` remains the single authoritative local stack lifecycle owner. `tauri.conf.json.beforeDevCommand` must not start an independent Vite on `4173`; it must invoke a Tauri-only helper under `frontend/src-tauri/scripts/dev-up-bridge.ps1` that delegates to `dev-up.ps1 -NoBrowser -RepoDir <trusted repo root>` and then waits for `http://127.0.0.1:4173`. `dev-up.ps1` and `dev-down.ps1` are not modified.
+4. **Start result semantics - DEV_UP_EXIT_VERIFIED.** `start_runtime` reports success only after `dev-up.ps1` exits with success following its own readiness checks. Output waiting is bounded and non-zero exit codes return sanitized failure information.
+5. **Stop result semantics.** `stop_runtime` reports success only after `dev-down.ps1` exits with success under the valid `-RepoDir`-only argument contract.
+6. **Desktop model control routing.** `frontend/src-tauri/scripts/desktop-build.ps1` sets `VITE_TASK_API_BASE=http://127.0.0.1:8766` and `VITE_MODEL_CONTROL_API_BASE=http://127.0.0.1:8765/api` before invoking the existing frontend build; `tauri.conf.json.beforeBuildCommand` uses that helper. `frontend/src/**` is not modified.
+7. **Core-aware runtime status.** `runtime_status` observes the frontend (`127.0.0.1:4173`), the Task API (`127.0.0.1:8766`) and Model Control (`127.0.0.1:8765`) and exposes sanitized state; loopback `4173` reachability alone is never reported as runtime ready. No unknown process is terminated.
+
+## Static parameter-contract proof requirement
+
+Before the semantic commit, a safe read-only contract check must prove, without executing the stop command:
+
+- `DEV_UP_ACCEPTS_NO_BROWSER = YES`, `DEV_UP_ACCEPTS_REPO_DIR = YES`
+- `DEV_DOWN_ACCEPTS_REPO_DIR = YES`, `DEV_DOWN_ACCEPTS_NO_BROWSER = NO`
+- `START_COMMAND_CONTAINS_NO_BROWSER = YES`, `STOP_COMMAND_CONTAINS_NO_BROWSER = NO`
+- `START_COMMAND_CONTAINS_REPO_DIR = YES`, `STOP_COMMAND_CONTAINS_REPO_DIR = YES`
+
+## Remaining limitation
+
+This Decision does not authorize any product redesign, workflow mutation, launcher modification, test file mutation, `dev-up.ps1`/`dev-down.ps1` mutation, or any operation outside the `frontend/package.json`, `frontend/package-lock.json`, and `frontend/src-tauri/**` scope. The PR remains Draft until independent exact-head acceptance. No Ready, merge, tag, release, deployment, workflow rerun, or workflow dispatch is authorized under this Decision. Issue #664 separately owns the downstream Tauri exact-head CI lane; this Decision does not claim that a v9 Tauri CI lane already exists.
+
+## Execution policy
+
+- This Decision is byte-immutable after its activation commit; any later edit to `project_state/decision_packet.md` fails closed and requires a new issue/round/branch/Decision rather than an in-place amendment.
+- The v8 Decision commit `ee240509cb3edbc1b1a022f69edee87b67cd4748` and semantic head `c05067ceca120e25154bf2fb5737168f32d1dc88` (PR #666) are terminal negative product evidence only. Do not reopen, amend, fixup, cherry-pick, rebase, merge, force-update, or reuse them; read them only through `git show`, `git diff`, and `git cat-file`.
+- The v7 Decision commit `68ab8d4249eedb141fb6f4ba3f3a1c72ee4b3c56` and semantic head `00462e1408858c205f2fb99a4f29b8adaaec8f1c` (PR #663) are terminal negative product evidence only. Do not reopen, amend, push, cherry-pick, rebase, merge, force-update, or reuse them.
+- PR609 head `fb4d54d7a146997dfd5decf224dab56dcb111781` is historical semantic evidence only. Do not cherry-pick it.
+- Do not create a second governance gate; strengthen the existing transition, preflight, authority-collection, and publication-readiness surfaces.
+- Do not execute the v2 through v8 worktrees; this round uses a fresh isolated worktree.
+- Fail closed on any main drift, Decision mutation, scope contradiction, or unexplained test failure; stop and request a revised Work Item rather than widening this Decision.
+- The `forbidden_mutated_paths` list does NOT contain `frontend/**` or `frontend/*`; forbidden paths are specific and non-overlapping with the allowed product paths. The `allowed_mutated_paths` list is the mutation boundary; any path outside the allowlist is caught by the `allowed_path_scope` check.
+- All `execution_surface` values are from the current structured authoring set (`trusted_worker`, `github_control_plane`, `remote_observation`); the legacy `local` surface and `user_local` are never used.
+- `active_pr_binding_mode` is `"none"`, which is the only supported cutover literal.
