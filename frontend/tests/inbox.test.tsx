@@ -28,19 +28,30 @@ describe("Human Inbox page", () => {
     );
   });
 
-  it("promotes a captured item to a DRAFT goal once and keeps history", async () => {
+  it("promotes a captured item once and links to the same persisted Goal", async () => {
     const user = userEvent.setup();
     renderWithProviders(<InboxPage />);
     await user.type(screen.getByLabelText("描述想法"), "晋升这条想法");
     await user.click(screen.getByTestId("inbox-capture-button"));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /晋升 晋升这条想法/ })).toBeInTheDocument(),
+      expect(
+        screen.getByRole("button", { name: /晋升 晋升这条想法/ }),
+      ).toBeInTheDocument(),
     );
-    await user.click(screen.getByRole("button", { name: /晋升 晋升这条想法/ }));
+    await user.click(
+      screen.getByRole("button", { name: /晋升 晋升这条想法/ }),
+    );
     await waitFor(() =>
       expect(screen.getByText("已晋升为目标")).toBeInTheDocument(),
     );
-    expect(screen.queryByRole("button", { name: /晋升 晋升这条想法/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /晋升 晋升这条想法/ }),
+    ).not.toBeInTheDocument();
+
+    const continuation = screen.getByRole("link", { name: "继续目标" });
+    const href = continuation.getAttribute("href");
+    expect(href).toMatch(/^\/approvals\?goal=.+/);
+    expect(href).not.toBe("/approvals?goal=");
   });
 
   it("dismisses a captured item without deleting history", async () => {
@@ -49,10 +60,14 @@ describe("Human Inbox page", () => {
     await user.type(screen.getByLabelText("描述想法"), "忽略这条想法");
     await user.click(screen.getByTestId("inbox-capture-button"));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /忽略 忽略这条想法/ })).toBeInTheDocument(),
+      expect(
+        screen.getByRole("button", { name: /忽略 忽略这条想法/ }),
+      ).toBeInTheDocument(),
     );
     await user.click(screen.getByRole("button", { name: /忽略 忽略这条想法/ }));
-    await waitFor(() => expect(screen.getByText("已忽略")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("已忽略")).toBeInTheDocument(),
+    );
     expect(screen.getByText("忽略这条想法")).toBeInTheDocument();
   });
 });

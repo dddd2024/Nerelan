@@ -1,5 +1,6 @@
 import { Inbox as InboxIcon, Sparkles, X } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   captureInboxItem,
@@ -57,12 +58,18 @@ export function InboxPage() {
   const settled = items.filter((item) => item.status !== "CAPTURED");
 
   return (
-    <main data-testid="inbox-page" className="min-h-full bg-[var(--oh-surface)] px-4 py-7 sm:px-8 lg:px-12 lg:py-10">
+    <main
+      data-testid="inbox-page"
+      className="min-h-full bg-[var(--oh-surface)] px-4 py-7 sm:px-8 lg:px-12 lg:py-10"
+    >
       <div className="mx-auto w-full max-w-[900px]">
         <header className="mb-8">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-ra-text-tertiary">Human inbox</p>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-ra-text-tertiary">
+            Human inbox
+          </p>
           <h1 className="mt-2 flex items-center gap-2 text-3xl font-medium tracking-[-0.025em] text-ra-text sm:text-4xl">
-            <InboxIcon className="h-7 w-7" aria-hidden="true" />想法收件箱
+            <InboxIcon className="h-7 w-7" aria-hidden="true" />
+            想法收件箱
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-ra-text-secondary">
             先把想法记下来。捕获的内容只是展示状态，不具备执行权限；晋升会通过既有的目标审批链路创建普通 DRAFT 目标。
@@ -79,7 +86,10 @@ export function InboxPage() {
             captureMutation.mutate({ objective: trimmed });
           }}
         >
-          <label htmlFor="inbox-objective" className="block text-sm font-medium text-ra-text">
+          <label
+            htmlFor="inbox-objective"
+            className="block text-sm font-medium text-ra-text"
+          >
             记录一个想法
           </label>
           <textarea
@@ -93,7 +103,9 @@ export function InboxPage() {
             className="mt-2 w-full resize-none rounded-xl border border-ra-border bg-ra-base px-3 py-2 text-sm text-ra-text placeholder:text-ra-text-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
           />
           <div className="mt-3 flex items-center justify-between">
-            <p className="text-xs text-ra-text-tertiary">捕获仅保存展示状态，不会触发任何执行。</p>
+            <p className="text-xs text-ra-text-tertiary">
+              捕获仅保存展示状态，不会触发任何执行。
+            </p>
             <button
               type="submit"
               aria-label="捕获想法"
@@ -101,19 +113,28 @@ export function InboxPage() {
               disabled={captureMutation.isPending || !objective.trim()}
               className="inline-flex items-center gap-2 rounded-lg bg-ra-accent px-3 py-2 text-sm font-medium text-ra-base disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
-              <Sparkles className="h-4 w-4" aria-hidden="true" />捕获
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+              捕获
             </button>
           </div>
         </form>
 
         {error && (
-          <p role="alert" data-testid="inbox-error" className="mt-3 text-sm text-red-300">{error}</p>
+          <p
+            role="alert"
+            data-testid="inbox-error"
+            className="mt-3 text-sm text-red-300"
+          >
+            {error}
+          </p>
         )}
 
         <section aria-label="待处理想法" className="mt-10">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-medium text-ra-text">待处理</h2>
-            <span className="text-xs text-ra-text-tertiary">{captured.length} 条</span>
+            <span className="text-xs text-ra-text-tertiary">
+              {captured.length} 条
+            </span>
           </div>
           <ul className="space-y-2" data-testid="inbox-captured-list">
             {captured.map((item) => (
@@ -123,7 +144,9 @@ export function InboxPage() {
                 className="rounded-xl border border-ra-border bg-ra-base p-4"
               >
                 <p className="text-sm font-medium text-ra-text">{item.title}</p>
-                <p className="mt-1 text-sm leading-6 text-ra-text-secondary">{item.objective}</p>
+                <p className="mt-1 text-sm leading-6 text-ra-text-secondary">
+                  {item.objective}
+                </p>
                 <div className="mt-3 flex items-center gap-2">
                   <button
                     type="button"
@@ -143,7 +166,8 @@ export function InboxPage() {
                     onClick={() => dismissMutation.mutate(item.id)}
                     className="inline-flex items-center gap-1 rounded-lg border border-ra-border px-3 py-1.5 text-xs text-ra-text-secondary hover:text-ra-text disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
                   >
-                    <X className="h-3.5 w-3.5" aria-hidden="true" />忽略
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    忽略
                   </button>
                 </div>
               </li>
@@ -159,7 +183,9 @@ export function InboxPage() {
         <section aria-label="历史记录" className="mt-10">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-medium text-ra-text">历史</h2>
-            <span className="text-xs text-ra-text-tertiary">{settled.length} 条</span>
+            <span className="text-xs text-ra-text-tertiary">
+              {settled.length} 条
+            </span>
           </div>
           <ul className="space-y-1" data-testid="inbox-history-list">
             {settled.map((item) => (
@@ -169,20 +195,33 @@ export function InboxPage() {
                 className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm text-ra-text-secondary"
               >
                 <span className="min-w-0 truncate">{item.title}</span>
-                <span
-                  className={cn(
-                    "shrink-0 rounded-full px-2 py-0.5 text-[11px]",
-                    item.status === "PROMOTED"
-                      ? "bg-emerald-400/10 text-emerald-300"
-                      : "bg-ra-light text-ra-text-tertiary",
+                <div className="flex shrink-0 items-center gap-2">
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[11px]",
+                      item.status === "PROMOTED"
+                        ? "bg-emerald-400/10 text-emerald-300"
+                        : "bg-ra-light text-ra-text-tertiary",
+                    )}
+                  >
+                    {STATUS_LABELS[item.status]}
+                  </span>
+                  {item.status === "PROMOTED" && item.promoted_goal_id && (
+                    <Link
+                      to={`/approvals?goal=${encodeURIComponent(item.promoted_goal_id)}`}
+                      data-testid={`inbox-continue-${item.id}`}
+                      className="rounded-lg border border-ra-border px-2.5 py-1 text-xs text-ra-text hover:bg-ra-light focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+                    >
+                      继续目标
+                    </Link>
                   )}
-                >
-                  {STATUS_LABELS[item.status]}
-                </span>
+                </div>
               </li>
             ))}
             {settled.length === 0 && (
-              <li className="py-6 text-center text-xs text-ra-text-tertiary">暂无历史。</li>
+              <li className="py-6 text-center text-xs text-ra-text-tertiary">
+                暂无历史。
+              </li>
             )}
           </ul>
         </section>
