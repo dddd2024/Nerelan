@@ -35,6 +35,14 @@ export function normalizeFunctionalValidation(value: unknown, executor?: string)
   for (const key of ["base_commit", "head", "tree"] as const) if (hash(raw[key], 40)) proof[key] = raw[key];
   for (const key of ["reason", "run_id"] as const) if (typeof raw[key] === "string") proof[key] = raw[key].slice(0, 512);
   if (count(raw.lease_epoch)) proof.lease_epoch = raw.lease_epoch;
+  const input = record(raw.artifact_input);
+  const validInput = ["plan_task_id", "task_id", "execution_id"].every((key) =>
+    typeof input[key] === "string" && /^[A-Za-z0-9_-]{1,160}$/.test(input[key] as string))
+    && hash(input.commit, 40) && hash(input.tree, 40) && hash(input.result_digest, 64) && hash(input.binding_digest, 64);
+  if (validInput) proof.artifact_input = {
+    plan_task_id: input.plan_task_id as string, task_id: input.task_id as string, execution_id: input.execution_id as string,
+    commit: input.commit as string, tree: input.tree as string, result_digest: input.result_digest as string, binding_digest: input.binding_digest as string,
+  };
   const checks = Array.isArray(raw.checks) ? raw.checks.slice(0, 8) : [];
   proof.checks = checks.flatMap((value): FunctionalCheckResult[] => {
     const check = record(value);
@@ -60,6 +68,7 @@ export function normalizeFunctionalValidation(value: unknown, executor?: string)
   });
   if (raw.status === "FAILED" || raw.status === "FIXTURE_VERIFIED") proof.status = raw.status;
   const complete = proof.contract_digest && proof.result_digest && proof.base_commit && proof.head && proof.tree
+    && (raw.artifact_input === undefined || validInput)
     && Array.isArray(raw.checks) && raw.checks.length === proof.checks.length && proof.checks.length > 0
     && !functionalChecksError(proof.checks)
     && proof.checks.every((check) => check.exit_code === 0 && check.timed_out === false && check.test_report?.accepted);

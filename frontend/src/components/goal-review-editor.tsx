@@ -43,6 +43,9 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
       && repositories.some((repository) => repository.full_name === draft.repository)));
   const planValid = tasks.length > 0 && tasks.every((task) => task.title.trim() && task.instruction?.trim())
     && tasks.every((task) => !functionalChecksError(task.validation_checks))
+    && tasks.every((task) => !task.artifact_input || (task.dependencies.includes(task.artifact_input.plan_task_id)
+      && task.artifact_input.plan_task_id !== task.id && Boolean(task.validation_checks?.length)
+      && tasks.some((source) => source.id === task.artifact_input?.plan_task_id && source.validation_checks?.length)))
     && criteria.split("\n").some((line) => line.trim());
   const currentConfigurationReady = goal.executor_kind === "deterministic_fixture"
     || (!bindingsQuery.isError && !repositoriesQuery.isError
@@ -135,6 +138,17 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
             onChange={(event) => setTasks(tasks.map((entry, item) => item === index ? { ...entry, title: event.target.value } : entry))} /></label>
           <label className="block text-sm">任务说明<textarea aria-label={`任务 ${task.id} 说明`} className={fieldClass} value={task.instruction ?? ""} disabled={busy} rows={4}
             onChange={(event) => setTasks(tasks.map((entry, item) => item === index ? { ...entry, instruction: event.target.value } : entry))} /></label>
+          <label className="block text-sm">输入产物<select aria-label={`任务 ${task.id} 输入产物`} className={fieldClass}
+            value={task.artifact_input?.plan_task_id ?? ""} disabled={busy}
+            onChange={(event) => setTasks(tasks.map((entry, item) => item === index ? { ...entry,
+              artifact_input: event.target.value ? { plan_task_id: event.target.value } : null } : entry))}>
+            <option value="">不使用前置任务产物</option>
+            {tasks.filter((source) => source.id !== task.id && task.dependencies.includes(source.id)).map((source) =>
+              <option key={source.id} value={source.id} disabled={!source.validation_checks?.length}>{source.id} · {source.title}</option>)}
+          </select></label>
+          <p className="text-xs text-ra-text-secondary">选择后，本任务将使用该前置任务已通过检查的代码产物。双方都需要功能检查；仅验证任务不会修改输入。</p>
+          {task.artifact_input && (!task.validation_checks?.length || !tasks.some((source) => source.id === task.artifact_input?.plan_task_id && source.validation_checks?.length))
+            && <p role="alert" className="text-xs text-red-500">输入任务和当前任务都需要功能检查。</p>}
           <div className="space-y-2">
             <p className="text-sm font-medium">功能检查</p>
             <p className="text-xs text-ra-text-secondary">选择任务完成后必须通过的检查。目录相对于仓库根目录；保存后须重新审阅计划。</p>

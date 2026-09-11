@@ -1131,6 +1131,75 @@ class TaskStore:
             self._update_task_fields(task_id, {"updated_at": _utc_now()})
             return self.get_task(task_id)
 
+    def _bind_artifact_evidence(
+        self, task_id: str, *, category: str, label: str,
+        document: Mapping[str, Any], lease: Any = None,
+    ) -> Task:
+        """Bind one immutable artifact fact using the existing evidence table.
+
+        Lease validation and insert-or-identical comparison share the SQLite
+        transaction. Goal launch can include this write in its outer transaction.
+        """
+        import hashlib
+        import json
+
+        if category not in {"ArtifactContract", "AcceptedArtifact", "ArtifactInput"}:
+            raise TaskStoreError("artifact_evidence_category_invalid")
+        detail = json.dumps(document, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+        identity = hashlib.sha256(detail.encode("utf-8")).hexdigest()
+        status = "APPROVED" if category == "ArtifactContract" else "BOUND"
+        with self._lock:
+            owns_transaction = not self._conn.in_transaction
+            try:
+                if owns_transaction:
+                    self._conn.execute("BEGIN IMMEDIATE")
+                task = self.get_task(task_id)
+                if category != "ArtifactContract" and label != task.execution_id:
+                    raise TaskStoreError("artifact_execution_mismatch")
+                if lease is not None:
+                    cur = self._conn.cursor()
+                    self._fenced_validate_lease(cur, lease.run_id, lease.owner, lease.epoch)
+                    run = cur.execute("SELECT task_id, execution_id FROM durable_runs WHERE run_id = ?",
+                                      (lease.run_id,)).fetchone()
+                    if run["task_id"] != task_id or run["execution_id"] != task.execution_id:
+                        raise TaskStoreError("artifact_lease_task_mismatch")
+                if category == "ArtifactInput":
+                    producer = document["producer"]
+                    source = self.get_task(producer["task_id"])
+                    goal = self._conn.execute(
+                        "SELECT repository, revision, artifact_digest FROM platform_goals WHERE id = ?",
+                        (document["goal_id"],),
+                    ).fetchone()
+                    retained = self._conn.execute(
+                        "SELECT value FROM task_evidence WHERE task_id = ? AND category = 'AcceptedArtifact' AND label = ?",
+                        (source.id, producer["execution_id"]),
+                    ).fetchall()
+                    if (source.status != "READY_FOR_REVIEW" or source.execution_id != producer["execution_id"]
+                            or source.repository != task.repository or source.validation_exit_code != 0
+                            or source.validation_output_digest != producer["result_digest"]
+                            or goal is None or goal["repository"] != document["repository"]
+                            or goal["revision"] != document["goal_revision"]
+                            or goal["artifact_digest"] != document["goal_artifact_digest"]
+                            or len(retained) != 1 or retained[0]["value"] != document["producer_digest"]):
+                        raise TaskStoreError("artifact_producer_changed_before_bind")
+                rows = self._conn.execute(
+                    "SELECT value, status, detail, raw_json_digest FROM task_evidence "
+                    "WHERE task_id = ? AND category = ? AND label = ?", (task_id, category, label),
+                ).fetchall()
+                if rows:
+                    if len(rows) != 1 or tuple(rows[0]) != (identity, status, detail, identity):
+                        raise TaskStoreError("artifact_binding_conflict")
+                else:
+                    self.add_evidence(task_id, category=category, label=label, value=identity,
+                                      status=status, detail=detail, raw_json_digest=identity)
+                if owns_transaction:
+                    self._conn.execute("COMMIT")
+                return self.get_task(task_id)
+            except BaseException:
+                if owns_transaction and self._conn.in_transaction:
+                    self._conn.execute("ROLLBACK")
+                raise
+
     # ------------------------------------------------------------------
     # Sanitized model usage observations
     # ------------------------------------------------------------------

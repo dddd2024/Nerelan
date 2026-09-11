@@ -415,6 +415,10 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
             raise TaskStoreError("functional_base_ancestry_mismatch")
         _, before, changed, hygiene = _snapshot_workspace(root, base_commit)
         result["tree_before"] = before
+        from .artifact_handoff import check_input_snapshot, _digest as artifact_digest
+        consumed = check_input_snapshot(task, root, head=result["head_before"], tree=before)
+        if consumed is not None:
+            result["artifact_input_digest"] = artifact_digest(consumed)
         if contract["requires_implementation"] and not changed:
             raise TaskStoreError("functional_implementation_missing")
         if hygiene["exit_code"] != 0:
@@ -459,12 +463,32 @@ def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_
         return "git_diff_check", code, output, output_digest
     if lease is not None:
         store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
+    from .artifact_handoff import bind_consumer_input, recover_export_validation, retain_validated_artifact
+    try:
+        consumed = bind_consumer_input(store, task_id, lease=lease, allow_create=False)
+        if consumed is not None:
+            if base_commit not in {consumed["base_commit"], consumed["producer"]["commit"]}:
+                raise TaskStoreError("artifact_validation_base_mismatch")
+            base_commit = consumed["base_commit"]
+        recovered = recover_export_validation(store, task_id, worktree=worktree, lease=lease)
+        if recovered:
+            return FUNCTIONAL_COMMAND_ID, 0, "", recovered
+    except (TaskStoreError, OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+        reason = str(exc) if isinstance(exc, TaskStoreError) else "artifact_retention_observation_failed"
+        return FUNCTIONAL_COMMAND_ID, 1, reason, ""
     result = validate_functional(task, worktree=worktree,
                                  base_commit=base_commit,
                                  execution_id=execution_id or task.execution_id)
     assert result is not None
     result["run_id"] = lease.run_id if lease is not None else ""
     result["lease_epoch"] = lease.epoch if lease is not None else None
+    if result["passed"] and consumed is not None:
+        try:
+            if bind_consumer_input(store, task_id, lease=lease, allow_create=False) != consumed:
+                raise TaskStoreError("artifact_input_changed_during_validation")
+        except (TaskStoreError, OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+            result.update(passed=False, verified=False, status="FAILED", reason=(str(exc)
+                          if isinstance(exc, TaskStoreError) else "artifact_input_observation_failed"))
     identity = digest(result)
     fields = dict(category=RESULT_CATEGORY, label=FUNCTIONAL_COMMAND_ID, value=identity,
                   status=result["status"], detail=canonical(result), raw_json_digest=identity)
@@ -472,6 +496,12 @@ def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_
         store.add_evidence(task_id, **fields)
     else:
         store._fenced_add_evidence(lease.run_id, task_id, **fields, owner=lease.owner, epoch=lease.epoch)
+    if result["passed"] and result["verified"]:
+        try:
+            retain_validated_artifact(store, task_id, identity, worktree=worktree, lease=lease)
+        except (TaskStoreError, OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+            reason = str(exc) if isinstance(exc, TaskStoreError) else "artifact_retention_observation_failed"
+            return FUNCTIONAL_COMMAND_ID, 1, reason, identity
     return FUNCTIONAL_COMMAND_ID, 0 if result["passed"] else 1, result["reason"], identity
 
 
@@ -503,6 +533,9 @@ def functional_evidence(task: Any) -> dict[str, Any]:
                 or result["execution_id"] != task.execution_id or row["status"] != result["status"]):
             return fallback
         checks = result["checks"]
+        from .artifact_handoff import load_input_binding, _digest as artifact_digest
+        consumed = load_input_binding(task)
+        input_matches = consumed is None or result.get("artifact_input_digest") == artifact_digest(consumed)
         identities = [{key: item[key] for key in ("profile_id", "working_directory")} for item in checks]
         consistent = (identities == contract["checks"]
                       and all(type(item["exit_code"]) is int and item["exit_code"] == 0
@@ -512,7 +545,7 @@ def functional_evidence(task: Any) -> dict[str, Any]:
                       and _SHA40.fullmatch(result["tree_before"]) is not None
                       and result["head_before"] == result["head_after"]
                       and result["tree_before"] == result["tree_after"])
-        verified = (consistent and result["passed"] is True and result["verified"] is True
+        verified = (consistent and input_matches and result["passed"] is True and result["verified"] is True
                     and result["status"] == "VERIFIED" and task.executor_kind == "opencode"
                     and type(task.validation_exit_code) is int and task.validation_exit_code == 0)
         return {"status": "VERIFIED" if verified else ("FIXTURE_VERIFIED" if consistent
@@ -523,7 +556,12 @@ def functional_evidence(task: Any) -> dict[str, Any]:
                 "tree": result["tree_after"], "checks": [
                     {key: item[key] for key in ("profile_id", "working_directory", "exit_code", "timed_out",
                      "duration_ms", "output_digest", "output_bytes", "output_truncated", "test_report")}
-                    for item in checks], "reason": result["reason"]}
+                    for item in checks], "reason": result["reason"],
+                **({"artifact_input": {"plan_task_id": consumed["producer"]["plan_task_id"],
+                    "task_id": consumed["producer"]["task_id"], "execution_id": consumed["producer"]["execution_id"],
+                    "commit": consumed["producer"]["commit"], "tree": consumed["producer"]["tree"],
+                    "result_digest": consumed["producer"]["result_digest"], "binding_digest": artifact_digest(consumed)}}
+                   if consumed is not None else {})}
     except (TaskStoreError, ValueError, KeyError, TypeError, AttributeError):
         return fallback
 

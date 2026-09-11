@@ -13,6 +13,20 @@ const config = { objective: "Changed", repository: "owner/new", executor_kind: "
 beforeEach(() => vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1"));
 afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
+it("carries explicit input selection and removal without approving or launching", async () => {
+  const input = { tasks: [...goal.tasks, { id: "B", title: "Verify", instruction: "Test accepted input",
+    dependencies: ["A"], capability: "validate_task", artifact_input: { plan_task_id: "A" } }], acceptance_criteria: ["A"] };
+  const selected = { ...goal, ...input, revision: 4 };
+  const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify(selected)));
+  expect((await saveGoalPlan(goal, input)).tasks[1].artifact_input).toEqual({ plan_task_id: "A" });
+  expect(JSON.parse(String(fetch.mock.calls[0][1]?.body))).toEqual({ ...input, expected_revision: 3 });
+  const cleared = { ...input, tasks: input.tasks.map((task) => ({ ...task, artifact_input: null })) };
+  fetch.mockResolvedValueOnce(new Response(JSON.stringify({ ...selected, ...cleared, revision: 5 })));
+  expect((await saveGoalPlan(selected, cleared)).tasks[1].artifact_input).toBeNull();
+  expect(JSON.parse(String(fetch.mock.calls[1][1]?.body))).toEqual({ ...cleared, expected_revision: 4 });
+  expect(fetch).toHaveBeenCalledTimes(2);
+});
+
 it("saves explicit configuration on the same Goal/revision without planning or launching", async () => {
   const saved = { ...goal, ...config, status: "DRAFT", revision: 4, artifact_digest: "" };
   const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(saved)));

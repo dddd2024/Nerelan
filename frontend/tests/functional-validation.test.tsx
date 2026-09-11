@@ -19,6 +19,18 @@ const verified: FunctionalValidation = {
     test_report: { format: "junit", tests: 3, passed: 2, failed: 0, skipped: 1, accepted: true } }],
 };
 
+it("shows only complete consumed-input identity and rejects malformed positive claims", () => {
+  const input = { plan_task_id: "A", task_id: "task-source", execution_id: "exec-source",
+    commit: "1".repeat(40), tree: "2".repeat(40), result_digest: "3".repeat(64), binding_digest: "4".repeat(64) };
+  const evidence = { ...verified, artifact_input: { ...input, workspace: "PRIVATE PATH", env: "PRIVATE ENV" } };
+  expect(normalizeFunctionalValidation(evidence, "opencode").artifact_input).toEqual(input);
+  render(<FunctionalValidationView evidence={evidence} executor="opencode" />);
+  expect(screen.getByText(/输入产物来自任务 A/)).toBeInTheDocument();
+  expect(screen.getByText(input.commit)).toBeInTheDocument();
+  expect(screen.queryByText(/PRIVATE/)).not.toBeInTheDocument();
+  expect(normalizeFunctionalValidation({ ...evidence, artifact_input: { ...input, commit: "missing" } }, "opencode").verified).toBe(false);
+});
+
 it("shows the host-bound artifact, exact counts and digests without rendering unapproved output fields", () => {
   render(<FunctionalValidationView evidence={{ ...verified, stdout: "PRIVATE OUTPUT", argv: ["PRIVATE COMMAND"] }} executor="opencode" />);
   expect(screen.getByText("功能已验证")).toBeInTheDocument();
