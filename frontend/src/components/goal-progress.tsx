@@ -1,8 +1,10 @@
-import { Check, Circle, LoaderCircle, ShieldAlert } from "lucide-react";
+import { Check, Circle, LoaderCircle, PauseCircle, ShieldAlert } from "lucide-react";
+import { Link } from "react-router";
 import type { PlatformGoal } from "@/lib/platform-client";
 import { cn } from "@/lib/cn";
 
 function statusFor(raw: string) {
+  if (raw === "INTERRUPTED") return "interrupted";
   if (raw === "READY_FOR_REVIEW" || raw === "READY_FOR_REVIEW_FIXTURE") return "done";
   if (
     raw === "RUNNING" ||
@@ -24,6 +26,7 @@ function progressClassName(status: PlatformGoal["status"]) {
 }
 
 function taskStateClass(state: string) {
+  if (state === "interrupted") return "text-ra-status-error";
   if (state === "done") return "text-ra-status-running";
   if (state === "running") return "text-ra-accent";
   if (state === "blocked") return "text-ra-status-error";
@@ -31,6 +34,7 @@ function taskStateClass(state: string) {
 }
 
 function taskStateText(state: string) {
+  if (state === "interrupted") return "执行已中断";
   if (state === "done") return "结果已验证";
   if (state === "running") return "Agent 正在执行";
   if (state === "blocked") return "需要处理阻塞";
@@ -85,6 +89,8 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
               ? Check
               : state === "running"
                 ? LoaderCircle
+                : state === "interrupted"
+                  ? PauseCircle
                 : state === "blocked"
                   ? ShieldAlert
                   : Circle;
@@ -114,13 +120,22 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
               <span
                 className={cn(
                   "shrink-0 text-[11px]",
-                  state === "running" || state === "blocked"
+                  state === "running" || state === "blocked" || state === "interrupted"
                     ? taskStateClass(state)
                     : "sr-only",
                 )}
               >
                 {statusText}
               </span>
+              {state === "interrupted" && (
+                <Link
+                  to={`/runs?task=${encodeURIComponent(task.task_id)}`}
+                  aria-label={`查看 ${task.title} 的中断运行`}
+                  className="shrink-0 rounded px-1 text-xs text-ra-accent underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+                >
+                  查看运行
+                </Link>
+              )}
               <span className="shrink-0 font-mono text-[10px] text-ra-text-tertiary">
                 {task.plan_task_id || `T${index + 1}`}
               </span>
