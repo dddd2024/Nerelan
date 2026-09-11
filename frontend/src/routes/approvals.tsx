@@ -118,7 +118,7 @@ function GoalDetail({
         </div>
       )}
 
-      {error && (
+      {error !== null && (
         <p
           role="alert"
           data-testid="approval-error"
