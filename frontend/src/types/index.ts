@@ -134,6 +134,46 @@ export interface Task {
   failureClassification?: string;
   validationCommandId?: string;
   validationExitCode?: number;
+  functionalValidation?: FunctionalValidation;
+}
+
+export type FunctionalCheckProfile = "python_pytest" | "npm_test";
+
+export interface FunctionalCheckInput {
+  profile_id: FunctionalCheckProfile;
+  working_directory: string;
+}
+
+export interface FunctionalCheckResult extends FunctionalCheckInput {
+  exit_code?: number;
+  timed_out?: boolean;
+  duration_ms?: number;
+  output_digest?: string;
+  output_bytes?: number;
+  output_truncated?: boolean;
+  test_report?: {
+    format: "junit" | "tap";
+    tests: number;
+    passed: number;
+    failed: number;
+    skipped: number;
+    accepted: boolean;
+  };
+}
+
+/** Safe host projection; the browser never creates or verifies execution receipts. */
+export interface FunctionalValidation {
+  status: "VERIFIED" | "UNVERIFIED" | "FAILED" | "FIXTURE_VERIFIED";
+  verified: boolean;
+  contract_digest?: string;
+  result_digest?: string;
+  run_id?: string;
+  lease_epoch?: number;
+  base_commit?: string;
+  head?: string;
+  tree?: string;
+  reason?: string;
+  checks?: FunctionalCheckResult[];
 }
 
 // ---------------------------------------------------------------------------

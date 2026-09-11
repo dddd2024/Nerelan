@@ -3,6 +3,8 @@ import { useBindings } from "@/hooks/use-model-access";
 import { useRepositories } from "@/hooks/use-repositories";
 import type { GoalConfigurationInput, GoalPlanInput } from "@/lib/goal-continuation-operation";
 import type { PlatformGoal } from "@/lib/platform-client";
+import { FUNCTIONAL_PROFILES, functionalChecksError } from "@/lib/functional-validation";
+import type { FunctionalCheckInput } from "@/types";
 
 interface Props {
   goal: PlatformGoal;
@@ -40,6 +42,7 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
       && bindings.some((binding) => binding.bindingId === draft.binding_ref)
       && repositories.some((repository) => repository.full_name === draft.repository)));
   const planValid = tasks.length > 0 && tasks.every((task) => task.title.trim() && task.instruction?.trim())
+    && tasks.every((task) => !functionalChecksError(task.validation_checks))
     && criteria.split("\n").some((line) => line.trim());
   const currentConfigurationReady = goal.executor_kind === "deterministic_fixture"
     || (!bindingsQuery.isError && !repositoriesQuery.isError
@@ -73,6 +76,10 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "保存失败，本地修改已保留。");
     }
+  }
+
+  function updateChecks(index: number, checks: FunctionalCheckInput[]) {
+    setTasks(tasks.map((task, item) => item === index ? { ...task, validation_checks: checks } : task));
   }
 
   return <div className="mt-5" data-testid="goal-review-editor">
@@ -128,6 +135,23 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
             onChange={(event) => setTasks(tasks.map((entry, item) => item === index ? { ...entry, title: event.target.value } : entry))} /></label>
           <label className="block text-sm">任务说明<textarea aria-label={`任务 ${task.id} 说明`} className={fieldClass} value={task.instruction ?? ""} disabled={busy} rows={4}
             onChange={(event) => setTasks(tasks.map((entry, item) => item === index ? { ...entry, instruction: event.target.value } : entry))} /></label>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">功能检查</p>
+            <p className="text-xs text-ra-text-secondary">选择任务完成后必须通过的检查。目录相对于仓库根目录；保存后须重新审阅计划。</p>
+            {(task.validation_checks ?? []).map((check, checkIndex, checks) => <div key={checkIndex} className="flex flex-wrap items-end gap-2">
+              <label className="min-w-0 flex-1 text-xs">检查类型<select aria-label={`任务 ${task.id} 检查 ${checkIndex + 1} 类型`} className={fieldClass} value={check.profile_id} disabled={busy}
+                onChange={(event) => updateChecks(index, checks.map((entry, item) => item === checkIndex ? { ...entry, profile_id: event.target.value as FunctionalCheckInput["profile_id"] } : entry))}>
+                {Object.entries(FUNCTIONAL_PROFILES).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+              </select></label>
+              <label className="min-w-0 flex-1 text-xs">检查目录<input aria-label={`任务 ${task.id} 检查 ${checkIndex + 1} 目录`} className={fieldClass} value={check.working_directory} disabled={busy}
+                onChange={(event) => updateChecks(index, checks.map((entry, item) => item === checkIndex ? { ...entry, working_directory: event.target.value } : entry))} /></label>
+              <button type="button" className={buttonClass} aria-label={`移除任务 ${task.id} 检查 ${checkIndex + 1}`} disabled={busy}
+                onClick={() => updateChecks(index, checks.filter((_, item) => item !== checkIndex))}>移除</button>
+            </div>)}
+            {functionalChecksError(task.validation_checks) && <p role="alert" className="text-xs text-red-500">{functionalChecksError(task.validation_checks)}</p>}
+            <button type="button" className={buttonClass} aria-label={`添加任务 ${task.id} 功能检查`} disabled={busy || (task.validation_checks?.length ?? 0) >= 8}
+              onClick={() => updateChecks(index, [...(task.validation_checks ?? []), { profile_id: "python_pytest", working_directory: "." }])}>添加功能检查</button>
+          </div>
         </fieldset>)}
         <label className="block text-sm">验收标准（每行一项）<textarea aria-label="计划验收标准" className={fieldClass} value={criteria} disabled={busy} rows={4}
           onChange={(event) => setCriteria(event.target.value)} /></label>

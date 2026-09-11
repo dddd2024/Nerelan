@@ -73,6 +73,32 @@ code of zero by itself is insufficient. A deterministic fixture may have
 selected contract continue to expose hygiene results without functional proof.
 GitHub workflow-name `required_checks` remains a separate publication contract.
 
-This backend capability does not authorize publication or merge and does not
-complete F03's user-facing acceptance. Check selection, review and proof display
-still need full UI integration and product acceptance under parent issue #653.
+In the Goal review page, choose **编辑当前计划**, then **添加功能检查** for
+each planned Task. Select Python/pytest or JavaScript/npm test and its repository
+relative directory (`.` for the root). The editor rejects duplicate pairs,
+invalid directories and more than eight checks per Task. Saving preserves the
+Task identities and dependencies and requires another explicit review and
+approval; it does not launch execution. Removing the last check submits an empty
+selection. Existing selections survive instruction edits. If another update
+makes the editor stale, local input remains visible and saving is disabled until
+the user explicitly discards it and reloads. Approved/launched plans retain the
+existing immutability policy.
+
+Task and Run details share a bounded functional-evidence view. It shows the
+host-reported verification state, profile and directory, exit code, actual
+passed/failed/skipped counts, and expandable exact base/HEAD/tree and contract
+and result digests. Missing, stale, incomplete and fixture evidence cannot turn
+a zero exit code into functional success. This is a projection of host evidence,
+not browser-side artifact verification or a second authority store. Raw command
+output and environment fields are not displayed by this view. Patch hygiene,
+functional verification, review readiness and Draft publication remain distinct.
+
+Component tests cover selection/revision handling and the real adapter-to-hook
+path into Task details, plus Run evidence rendering. The Playwright selection
+scenario uses the explicitly mocked UI: it proves visible review controls,
+not actual provider execution. Separate local acceptance uses the changed
+TypeScript clients, real loopback Task API, disk SQLite, local Git and installed
+pytest; only model execution and binding metadata are test doubles. No local
+browser, provider call or snapshot update is part of this R2 slice. Full live
+user-flow, desktop/Edge and provider acceptance under parent issue #653 remains
+separate. Functional evidence grants no publication or merge authority.

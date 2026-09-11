@@ -385,3 +385,18 @@ describe("Agent Runs page", () => {
     expect(screen.queryByTestId("run-cancel-error-task-http-other")).not.toBeInTheDocument();
   });
 });
+
+it.each([
+  ["UNVERIFIED", false, "功能尚未验证"], ["FIXTURE_VERIFIED", false, "仅测试夹具通过"], ["FAILED", false, "功能检查未通过"],
+])("renders Run %s functional evidence without promoting legacy zero-exit SUCCESS", async (status, verified, label) => {
+  vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
+  const run = { ...httpRun("functional-run"), status: "READY_FOR_REVIEW", state: "READY_FOR_REVIEW", executor_kind: "opencode",
+    validation: { command_id: "approved_functional_checks", status: "SUCCESS", exit_code: 0,
+      functional: { status, verified, contract_digest: "a".repeat(64) } } };
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => jsonResponse(String(input).endsWith("/api/runs") ? { runs: [run] } : run)));
+  renderWithProviders(<RunsPage />);
+  await userEvent.setup().click(await screen.findByTestId("run-toggle-functional-run"));
+  expect(await screen.findByText(label)).toBeInTheDocument();
+  expect(screen.queryByText("功能已验证")).not.toBeInTheDocument();
+  expect(screen.queryByTestId("run-validation-functional-run")).not.toBeInTheDocument();
+});
