@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
+import { HistoryPagination, useHistoryCursor } from "@/components/history-pagination";
 import {
   Activity,
   ChevronDown,
@@ -17,7 +18,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   cancelRun,
   fetchRun,
-  fetchRuns,
+  fetchRunsPage,
   type PlatformAgentRun,
   type PlatformAgentRunDetail,
   type PlatformRunCancelControl,
@@ -644,8 +645,9 @@ function RunCard({ run, defaultOpen = false }: { run: PlatformAgentRun; defaultO
 export function RunsPage() {
   const [searchParams] = useSearchParams();
   const requestedTaskId = searchParams.get("task") ?? "";
-  const runsQuery = useQuery({ queryKey: ["runs"], queryFn: fetchRuns, staleTime: 2_000, refetchInterval: 4_000 });
-  const runs = runsQuery.data ?? [];
+  const navigation = useHistoryCursor();
+  const runsQuery = useQuery({ queryKey: ["runs", "history", navigation.cursor], queryFn: () => fetchRunsPage({ cursor: navigation.cursor }), staleTime: 2_000, refetchInterval: 4_000 });
+  const runs = runsQuery.data?.items ?? [];
   const selectedQuery = useQuery({
     queryKey: ["run", requestedTaskId],
     queryFn: () => fetchExactRun(requestedTaskId),
@@ -670,6 +672,7 @@ export function RunsPage() {
             {selectedRun && <ul><RunCard key={selectedRun.task_id} run={selectedRun} defaultOpen /></ul>}
           </section>
         )}
+        <HistoryPagination navigation={navigation} count={runsQuery.data?.items.length} total={runsQuery.data?.total} nextCursor={runsQuery.data?.next_cursor} loading={runsQuery.isFetching} />
         {runsQuery.isError && <ErrorState
           title={runsQuery.data === undefined ? "暂时无法加载 Agent 运行。" : "运行列表更新失败，显示上次内容"}
           onRetry={() => void runsQuery.refetch()}
@@ -677,7 +680,7 @@ export function RunsPage() {
         {runsQuery.isPending && <div data-testid="runs-loading"><LoadingState label="正在加载 Agent 运行…" /></div>}
         {runsQuery.data !== undefined && <ul className="space-y-2" data-testid="runs-list">
           {runs.filter((run) => run.task_id !== requestedTaskId).map((run) => <RunCard key={run.task_id} run={run} />)}
-          {runs.length === 0 && !requestedTaskId ? <li className="rounded-2xl border border-dashed border-ra-border py-12 text-center text-sm text-ra-text-tertiary">还没有 Agent 运行记录。</li> : null}
+          {runs.length === 0 && !requestedTaskId ? <li className="rounded-2xl border border-dashed border-ra-border py-12 text-center text-sm text-ra-text-tertiary">{runsQuery.data.total === 0 ? "还没有 Agent 运行记录。" : "这一页没有 Agent 运行记录。"}</li> : null}
         </ul>}
       </div>
     </main>

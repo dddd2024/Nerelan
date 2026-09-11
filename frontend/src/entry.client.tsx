@@ -12,6 +12,7 @@ import { SettingsPage } from "@/routes/settings";
 import { InboxPage } from "@/routes/inbox";
 import { RoadmapPage } from "@/routes/roadmap";
 import { RunsPage } from "@/routes/runs";
+import { GoalsPage } from "@/routes/goals";
 import { initializeAppearance } from "@/lib/theme";
 
 initializeAppearance();
@@ -45,6 +46,7 @@ createRoot(rootEl).render(
             <Route path="/inbox" element={<InboxPage />} />
             <Route path="/roadmap" element={<RoadmapPage />} />
             <Route path="/runs" element={<RunsPage />} />
+            <Route path="/goals" element={<GoalsPage />} />
             <Route path="*" element={<Navigate to="/tasks" replace />} />
           </Routes>
         </AppShell>
