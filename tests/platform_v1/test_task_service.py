@@ -1294,7 +1294,9 @@ def test_frontend_task_test_status_requires_functional_validation_surface(monkey
         "validation_command_id": "functional-fixture",
         "failure_classification": "",
     })
-    assert functional["testStatus"] == "PASS"
+    # A registered surface and exit zero still lack the frozen, tested artifact.
+    assert functional["testStatus"] == "PENDING"
+    assert functional["functionalValidation"]["verified"] is False
 
 
 def test_frontend_task_test_status_is_running_while_validating() -> None:

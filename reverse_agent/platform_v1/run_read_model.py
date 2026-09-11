@@ -68,6 +68,7 @@ _MAX_TEXT = 256
 _MAX_PATH = 512
 _MAX_METADATA_JSON = 4096
 _TRUSTED_COMMAND_IDS = frozenset({
+    "approved_functional_checks",
     "git_diff_check", "git_status_porcelain", "append_to_file", "write_file",
 })
 _METADATA_KEYS = frozenset({
@@ -733,6 +734,7 @@ class RunReadModel:
 
     @staticmethod
     def _validation(task: Any) -> dict[str, Any] | None:
+        from .functional_validation import FUNCTIONAL_COMMAND_ID, functional_evidence
         command_id = _safe_command_id(getattr(task, "validation_command_id", ""))
         exit_code = _safe_int(getattr(task, "validation_exit_code", None))
         if not command_id and exit_code is None:
@@ -741,4 +743,10 @@ class RunReadModel:
             status = "RUNNING" if getattr(task, "status", "") == "VALIDATING" else "PENDING"
         else:
             status = "SUCCESS" if exit_code == 0 else "FAILURE"
-        return {"command_id": command_id, "status": status, "exit_code": exit_code}
+        result = {"command_id": command_id, "status": status, "exit_code": exit_code}
+        if command_id == FUNCTIONAL_COMMAND_ID:
+            proof = functional_evidence(task)
+            result["functional"] = proof
+            if status == "SUCCESS" and not proof["verified"]:
+                result["status"] = "UNVERIFIED"
+        return result

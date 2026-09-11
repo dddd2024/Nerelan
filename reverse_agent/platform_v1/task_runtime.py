@@ -81,6 +81,7 @@ VALIDATION_SURFACE_UNKNOWN = "UNKNOWN"
 _VALIDATION_COMMAND_SURFACES: dict[str, str] = {
     "git_diff_check": VALIDATION_SURFACE_PATCH_HYGIENE,
     "git_status_porcelain": VALIDATION_SURFACE_PATCH_HYGIENE,
+    "approved_functional_checks": VALIDATION_SURFACE_FUNCTIONAL,
 }
 
 _APPROVED_MUTATION_COMMANDS: dict[str, list[str]] = {
