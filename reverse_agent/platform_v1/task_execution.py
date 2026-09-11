@@ -747,13 +747,12 @@ class TaskExecutionService:
         final_changed = _collect_final_product_files(prepared.worktree)
         self.store.set_changed_files(task_id, final_changed)
 
-        val_runner = LocalValidationRunner()
+        from .functional_validation import run_task_validation
+        val_command_id = "git_diff_check"
         try:
-            val_exit, val_output, val_digest = val_runner.run(
-                task_id=task_id,
-                command_id="git_diff_check",
-                cwd=str(prepared.worktree),
-            )
+            val_command_id, val_exit, val_output, val_digest = run_task_validation(
+                self.store, task_id, worktree=prepared.worktree,
+                base_commit=getattr(prepared, "base_sha", ""), execution_id=prepared.execution_id)
         except ExecutorRuntimeError:
             val_exit, val_output, val_digest = -1, "", ""
 
@@ -767,7 +766,7 @@ class TaskExecutionService:
                 description="planner->coder->reviewer all succeeded",
                 metadata={
                     "validation_exit_code": val_exit,
-                    "validation_command_id": "git_diff_check",
+                    "validation_command_id": val_command_id,
                     "plan_digest": plan_digest,
                     "review_digest": review_digest,
                     "roles_executed": roles_executed,
@@ -779,14 +778,14 @@ class TaskExecutionService:
         else:
             self.store.set_validation_result(
                 task_id,
-                command_id="git_diff_check",
+                command_id=val_command_id,
                 exit_code=val_exit,
                 output_digest=val_digest,
             )
             self.store.add_evidence(
                 task_id,
                 category="Validation",
-                label="git_diff_check",
+                label=val_command_id,
                 value=str(val_exit),
                 status="fail",
                 detail=val_output,
@@ -795,7 +794,7 @@ class TaskExecutionService:
             self.store.transition_to(task_id, "FAILED")
             success = False
             classification = "deterministic_validation_failure"
-            failure_detail = f"git_diff_check exit={val_exit}"
+            failure_detail = val_output or f"{val_command_id} exit={val_exit}"
             self.store.add_event(
                 task_id,
                 event_type="EXECUTOR_FINISHED",
@@ -817,13 +816,14 @@ class TaskExecutionService:
             baseline_product,
             classification,
             failure_detail,
+            val_command_id,
         )
 
         return self._build_sequential_team_outcome(
             task_id=task_id,
             success=success,
             validation_exit_code=val_exit,
-            validation_command_id="git_diff_check",
+            validation_command_id=val_command_id,
             changed_files=final_changed,
             roles_executed=roles_executed,
             role_results=worker_results_raw,
@@ -884,20 +884,21 @@ class TaskExecutionService:
         baseline_product: tuple[dict[str, Any], ...],
         classification: str,
         failure_detail: str,
+        val_command_id: str = "git_diff_check",
     ) -> None:
         self.store.set_validation_result(
             task_id,
-            command_id="git_diff_check",
+            command_id=val_command_id,
             exit_code=val_exit,
             output_digest=val_digest,
         )
         self.store.add_evidence(
             task_id,
             category="Validation",
-            label="git_diff_check",
+            label=val_command_id,
             value=str(val_exit),
             status="pass" if val_exit == 0 else "fail",
-            detail="git_diff_check after sequential team",
+            detail=f"{val_command_id} after sequential team",
             raw_json_digest=val_digest,
         )
         self.store.add_evidence(
@@ -969,6 +970,20 @@ class TaskExecutionService:
             event_callback=self._store_event_callback,
             **executor_kwargs,
         )
+        from .functional_validation import CONTRACT_CATEGORY, prepared_base, run_task_validation
+        if result.success and any(row.get("category") == CONTRACT_CATEGORY for row in task.evidence_refs):
+            command, code, output, identity = run_task_validation(
+                self.store, task.id, worktree=result.workspace,
+                base_commit=prepared_base(self.store.get_task(task.id), result.workspace),
+                execution_id=result.execution_id or task.execution_id)
+            result.validation_command_id = command
+            result.validation_exit_code = code
+            result.validation_output_digest = identity
+            result.validation_output_summary = output
+            result.success = code == 0
+            if code != 0:
+                result.error = output or "functional_check_failed"
+                result.failure_classification = "deterministic_validation_failure"
         self.store.set_changed_files(task.id, result.changed_files)
         self.store.set_validation_result(
             task.id,

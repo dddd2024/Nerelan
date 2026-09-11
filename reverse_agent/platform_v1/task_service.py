@@ -140,6 +140,8 @@ def _governance_enum(
 
 
 def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
+    from .functional_validation import functional_evidence
+    functional = functional_evidence(task)
     state = _map_task_status_to_frontend_state(str(_map_task_field(task, "status", "")))
     failure_class = str(_map_task_field(task, "failure_classification", "") or "")
     validation_exit_code = _map_task_field(task, "validation_exit_code", None)
@@ -154,6 +156,7 @@ def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
         _map_task_field(task, "status", ""),
         failure_class,
         validation_command_id,
+        functional_verified=functional["verified"],
     )
     if state == "READY_FOR_HUMAN":
         if (
@@ -197,6 +200,7 @@ def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
             "MISSING",
         ),
         "testStatus": test_status,
+        "functionalValidation": functional,
         "workflowStatus": _governance_enum(
             task,
             "workflow_status",
@@ -215,6 +219,7 @@ def _derive_test_status(
     status: str,
     failure_class: str,
     validation_command_id: str = "",
+    *, functional_verified: bool = False,
 ) -> str:
     parsed_exit_code: int | None = None
     if validation_exit_code is not None:
@@ -233,6 +238,7 @@ def _derive_test_status(
         parsed_exit_code == 0
         and validation_command_surface(validation_command_id)
         == VALIDATION_SURFACE_FUNCTIONAL
+        and functional_verified
     ):
         return "PASS"
     return "PENDING"

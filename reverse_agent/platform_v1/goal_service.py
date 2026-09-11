@@ -18,6 +18,7 @@ from .repository_workspace import (
     resolve_repository_workspace,
 )
 from .run_store import TaskStore, TaskStoreError
+from .functional_validation import freeze_contract, normalize_checks, repository_base
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,7 @@ class PlannedTask:
     instruction: str
     dependencies: tuple[str, ...] = ()
     capability: str = "execute_task"
+    validation_checks: tuple[dict[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -154,6 +156,9 @@ class GoalService:
                     str(exc)
                 )
 
+        functional_base = repository_base(goal.repository) if any(
+            raw.get("validation_checks") for raw in goal.tasks
+        ) else ""
         for seq, raw in enumerate(goal.tasks):
             plan_task = self._normalize_task(raw, seq=seq)
             task = self.store.create_task(
@@ -166,6 +171,7 @@ class GoalService:
                 idempotency_key=f"goal:{goal.id}:r{goal.revision}:{plan_task.id}",
                 orchestration_mode=goal.orchestration_mode,
             )
+            freeze_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=functional_base)
             try:
                 self.control_store.link_goal_task(
                     goal.id,
@@ -294,7 +300,8 @@ class GoalService:
             raise TaskStoreError("invalid_plan_task")
         if capability not in {"execute_task", "validate_task"}:
             raise TaskStoreError(f"unsupported_plan_task_capability:{capability}")
-        return PlannedTask(task_id, title, instruction, dependencies, capability)
+        checks = normalize_checks(raw.get("validation_checks", ()))
+        return PlannedTask(task_id, title, instruction, dependencies, capability, checks)
 
     @staticmethod
     def _execution_title(goal: GoalRecord, task: PlannedTask) -> str:
@@ -323,6 +330,9 @@ class GoalService:
                     "",
                     f"Dependencies: {deps}",
                     f"Capability: `{item.capability}`",
+                    "Functional checks: " + (", ".join(
+                        f"`{check['profile_id']}` in `{check['working_directory']}`" for check in item.validation_checks
+                    ) or "not selected (patch hygiene alone is not functional verification)"),
                     "",
                 ]
             )

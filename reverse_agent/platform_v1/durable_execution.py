@@ -40,6 +40,7 @@ from .repository_workspace import (
 )
 from .task_execution import TaskExecutionError, TaskExecutionService
 from .task_runtime import ExecutorRuntimeError, ExecutorRouter
+from .functional_validation import CONTRACT_CATEGORY, FUNCTIONAL_COMMAND_ID, accepted_checkpoint_proof, run_task_validation
 
 
 # ---------------------------------------------------------------------------
@@ -769,6 +770,8 @@ class DurableExecutionService:
         run = self.store._get_durable_run(lease.run_id)
 
         if run.accepted_checkpoint == "POST_VALIDATION":
+            if self._has_functional_contract(task_id):
+                return self._functional_checkpoint_outcome(task_id, run, lease)
             stored = self.store.get_task(task_id)
             review_status = (
                 "READY_FOR_REVIEW_FIXTURE"
@@ -1146,19 +1149,12 @@ class DurableExecutionService:
         _check_crash_seam("POST_REVIEWER")
 
         wt_path = str(prepared.worktree)
-        val_runner = LocalValidationRunner()
-        try:
-            val_exit, val_output, val_digest = val_runner.run(
-                task_id=task_id,
-                command_id="git_diff_check",
-                cwd=wt_path,
-            )
-        except Exception:
-            val_exit, val_output, val_digest = -1, "", ""
+        val_command_id, val_exit, val_output, val_digest = self._validate_prepared_artifact(
+            task_id, wt_path, run, lease)
 
         self.store._set_validation_result(
             lease.run_id,
-            command_id="git_diff_check",
+            command_id=val_command_id,
             exit_code=val_exit,
             output_digest=val_digest,
             owner=lease.owner, epoch=lease.epoch,
@@ -1171,7 +1167,7 @@ class DurableExecutionService:
 
         self.store._fenced_set_task_validation(
             lease.run_id, task_id,
-            command_id="git_diff_check",
+            command_id=val_command_id,
             exit_code=val_exit,
             output_digest=val_digest,
             owner=lease.owner, epoch=lease.epoch,
@@ -1200,7 +1196,7 @@ class DurableExecutionService:
                 description="opencode executor dispatch + validation completed",
                 metadata={
                     "validation_exit_code": val_exit,
-                    "validation_command_id": "git_diff_check",
+                    "validation_command_id": val_command_id,
                     "run_id": lease.run_id,
                     "executor_kind": "opencode",
                 },
@@ -1210,28 +1206,28 @@ class DurableExecutionService:
                 task_id=task_id,
                 execution_id=run.execution_id,
                 success=True,
-                validation_command_id="git_diff_check",
+                validation_command_id=val_command_id,
                 validation_exit_code=val_exit,
             )
 
         self.store._fenced_terminalize(
             lease.run_id, task_id,
             terminal_status="FAILED",
-            validation_command_id="git_diff_check",
+            validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             validation_output_digest=val_digest,
             failure_classification="deterministic_validation_failure",
-            failure_detail=f"git_diff_check exit={val_exit}",
+            failure_detail=val_output or f"{val_command_id} exit={val_exit}",
             owner=lease.owner, epoch=lease.epoch,
         )
         return TaskExecutionOutcome(
             task_id=task_id,
             execution_id=run.execution_id,
             success=False,
-            validation_command_id="git_diff_check",
+            validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             failure_classification="deterministic_validation_failure",
-            failure_detail=f"git_diff_check exit={val_exit}",
+            failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
 
     def _dispatch_fixture_durable_single(
@@ -1430,6 +1426,9 @@ class DurableExecutionService:
         val_exit = exec_result.get("validation_exit_code", 0)
         val_output = ""
         val_digest = exec_result.get("validation_output_digest", "")
+        if any(row.get("category") == CONTRACT_CATEGORY for row in task.evidence_refs):
+            val_command_id, val_exit, val_output, val_digest = self._validate_prepared_artifact(
+                task_id, exec_raw.workspace, run, lease)
 
         self.store._set_validation_result(
             lease.run_id,
@@ -1459,7 +1458,7 @@ class DurableExecutionService:
                 label=val_command_id,
                 value=str(val_exit),
                 status="pass" if val_exit == 0 else "fail",
-                detail=f"git_diff_check exit={val_exit}",
+                detail=val_output or f"{val_command_id} exit={val_exit}",
                 raw_json_digest=val_digest,
                 owner=lease.owner, epoch=lease.epoch,
             )
@@ -1522,7 +1521,7 @@ class DurableExecutionService:
             validation_exit_code=val_exit,
             validation_output_digest=val_digest,
             failure_classification="deterministic_validation_failure",
-            failure_detail=f"git_diff_check exit={val_exit}",
+            failure_detail=val_output or f"{val_command_id} exit={val_exit}",
             owner=lease.owner, epoch=lease.epoch,
         )
         return TaskExecutionOutcome(
@@ -1532,7 +1531,7 @@ class DurableExecutionService:
             validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             failure_classification="deterministic_validation_failure",
-            failure_detail=f"git_diff_check exit={val_exit}",
+            failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
 
     def _acquire_or_find_lease(
@@ -1594,6 +1593,8 @@ class DurableExecutionService:
         run = self.store._get_durable_run(lease.run_id)
 
         if run.accepted_checkpoint == "POST_VALIDATION":
+            if self._has_functional_contract(task_id):
+                return self._functional_checkpoint_outcome(task_id, run, lease)
             stored = self.store.get_task(task_id)
             if stored.status == "READY_FOR_REVIEW":
                 return TaskExecutionOutcome(
@@ -1875,19 +1876,13 @@ class DurableExecutionService:
             _check_crash_seam(checkpoint_name)
 
         # --- Validation ---
-        val_runner = LocalValidationRunner()
-        try:
-            val_exit, val_output, val_digest = val_runner.run(
-                task_id=task_id,
-                command_id="git_diff_check",
-                cwd=wt_path,
-            )
-        except Exception:
-            val_exit, val_output, val_digest = -1, "", ""
+        _remove_handoff(handoff)
+        val_command_id, val_exit, val_output, val_digest = self._validate_prepared_artifact(
+            task_id, wt_path, run, lease)
 
         self.store._set_validation_result(
             lease.run_id,
-            command_id="git_diff_check",
+            command_id=val_command_id,
             exit_code=val_exit,
             output_digest=val_digest,
             owner=lease.owner, epoch=lease.epoch,
@@ -1896,16 +1891,16 @@ class DurableExecutionService:
             lease.run_id, "POST_VALIDATION", "",
             run_role_attempt, lease.owner, lease.epoch,
         )
+        _check_crash_seam("POST_VALIDATION")
 
         self.store._fenced_set_task_validation(
             lease.run_id, task_id,
-            command_id="git_diff_check",
+            command_id=val_command_id,
             exit_code=val_exit,
             output_digest=val_digest,
             owner=lease.owner, epoch=lease.epoch,
         )
 
-        _remove_handoff(handoff)
         final_changed = _collect_final_product_files(prepared.worktree)
         self.store._fenced_set_changed_files(
             lease.run_id, task_id, final_changed,
@@ -1928,7 +1923,7 @@ class DurableExecutionService:
                 description="per-role checkpoint acceptance completed",
                 metadata={
                     "validation_exit_code": val_exit,
-                    "validation_command_id": "git_diff_check",
+                    "validation_command_id": val_command_id,
                     "plan_digest": plan_digest,
                     "review_digest": review_digest,
                     "run_id": lease.run_id,
@@ -1939,29 +1934,70 @@ class DurableExecutionService:
                 task_id=task_id,
                 execution_id=run.execution_id,
                 success=True,
-                validation_command_id="git_diff_check",
+                validation_command_id=val_command_id,
                 validation_exit_code=val_exit,
             )
 
         self.store._fenced_terminalize(
             lease.run_id, task_id,
             terminal_status="FAILED",
-            validation_command_id="git_diff_check",
+            validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             validation_output_digest=val_digest,
             failure_classification="deterministic_validation_failure",
-            failure_detail=f"git_diff_check exit={val_exit}",
+            failure_detail=val_output or f"{val_command_id} exit={val_exit}",
             owner=lease.owner, epoch=lease.epoch,
         )
         return TaskExecutionOutcome(
             task_id=task_id,
             execution_id=run.execution_id,
             success=False,
-            validation_command_id="git_diff_check",
+            validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             failure_classification="deterministic_validation_failure",
-            failure_detail=f"git_diff_check exit={val_exit}",
+            failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
+
+    def _validate_prepared_artifact(self, task_id: str, worktree: Any, run: Any,
+                                    lease: LeaseHandle) -> tuple[str, int, str, str]:
+        run = self.store._get_durable_run(lease.run_id)
+        try:
+            return run_task_validation(self.store, task_id, worktree=worktree,
+                                       base_commit=run.repository_base_sha,
+                                       execution_id=run.execution_id, lease=lease)
+        except ExecutorRuntimeError as exc:
+            return "git_diff_check", -1, str(exc), ""
+
+    def _has_functional_contract(self, task_id: str) -> bool:
+        return any(row.get("category") == CONTRACT_CATEGORY for row in self.store.get_task(task_id).evidence_refs)
+
+    def _functional_checkpoint_outcome(self, task_id: str, run: Any, lease: LeaseHandle | None = None) -> Any:
+        from .task_execution import TaskExecutionOutcome
+        task = self.store.get_task(task_id)
+        proof = accepted_checkpoint_proof(task, run)
+        if task.status in {"FAILED", "BLOCKED", "CANCELLED"} and proof["passed"]:
+            proof = {**proof, "passed": False, "reason": "functional_terminal_task_requires_new_execution"}
+        passed = proof["passed"]
+        code = 0 if passed else (run.validation_exit_code or 1)
+        reason = "" if passed else proof["reason"]
+        if lease is not None and task.status not in {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE", "FAILED", "BLOCKED", "CANCELLED"}:
+            self.store._fenced_set_task_validation(lease.run_id, task_id, command_id=FUNCTIONAL_COMMAND_ID,
+                exit_code=code, output_digest=run.validation_output_digest, owner=lease.owner, epoch=lease.epoch)
+            if passed:
+                if task.status == "INTERRUPTED":
+                    self.store._fenced_transition_to(lease.run_id, task_id, "RUNNING", lease.owner, lease.epoch)
+                self.store._fenced_transition_to(lease.run_id, task_id, "VALIDATING", lease.owner, lease.epoch)
+                review = "READY_FOR_REVIEW_FIXTURE" if task.executor_kind == "deterministic_fixture" else "READY_FOR_REVIEW"
+                self.store._fenced_transition_to(lease.run_id, task_id, review, lease.owner, lease.epoch)
+            else:
+                self.store._fenced_terminalize(lease.run_id, task_id, terminal_status="FAILED",
+                    validation_command_id=FUNCTIONAL_COMMAND_ID, validation_exit_code=code,
+                    validation_output_digest=run.validation_output_digest,
+                    failure_classification="deterministic_validation_failure", failure_detail=reason,
+                    owner=lease.owner, epoch=lease.epoch)
+        return TaskExecutionOutcome(task_id=task_id, execution_id=run.execution_id, success=passed,
+            validation_command_id=FUNCTIONAL_COMMAND_ID, validation_exit_code=code,
+            failure_classification="" if passed else "deterministic_validation_failure", failure_detail=reason)
 
     def _build_executor_kwargs(self, task: Any) -> dict[str, Any]:
         kwargs: dict[str, Any] = {}
@@ -2331,6 +2367,8 @@ class DurableExecutionService:
         existing_epoch = int(getattr(run_obj, "lease_epoch", 0) or 0)
 
         if stored_task.status in ("READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"):
+            if self._has_functional_contract(task_id):
+                return self._functional_checkpoint_outcome(task_id, run_obj)
             return TaskExecutionOutcome(
                 task_id=task_id,
                 execution_id=run_obj.execution_id,
@@ -2474,6 +2512,12 @@ class DurableExecutionService:
         )
 
         stored_task = self.store.get_task(task_id)
+        if (self._has_functional_contract(task_id)
+                and stored_task.status in ("READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE")):
+            row = self.store._conn.execute("SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1", (task_id,)).fetchone()
+            if row is None:
+                raise DurableResumeError(f"no_durable_run:{task_id}")
+            return self._functional_checkpoint_outcome(task_id, self.store._get_durable_run(row["run_id"]))
         if stored_task.status in ("READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"):
             run_raw = self.store._find_active_durable_run(task_id)
             if run_raw is None:
@@ -2598,7 +2642,7 @@ class DurableExecutionService:
                 )
 
         accepted_cp = getattr(run_obj, "accepted_checkpoint", "") or ""
-        if accepted_cp == "POST_VALIDATION":
+        if accepted_cp == "POST_VALIDATION" and not self._has_functional_contract(task_id):
             stored = self.store.get_task(task_id)
             return TaskExecutionOutcome(
                 task_id=task_id,
@@ -2688,6 +2732,8 @@ class DurableExecutionService:
         role_attempt = run.role_attempt
 
         if accepted == "POST_VALIDATION":
+            if self._has_functional_contract(task_id):
+                return self._functional_checkpoint_outcome(task_id, run, lease)
             stored = self.store.get_task(task_id)
             return TaskExecutionOutcome(
                 task_id=task_id,
@@ -3120,19 +3166,12 @@ class DurableExecutionService:
         from .task_runtime import LocalValidationRunner
         from .opencode_executor import _collect_final_product_files
 
-        val_runner = LocalValidationRunner()
-        try:
-            val_exit, val_output, val_digest = val_runner.run(
-                task_id=task_id,
-                command_id="git_diff_check",
-                cwd=str(prepared_path) if prepared_path.exists() else ".",
-            )
-        except Exception:
-            val_exit, val_output, val_digest = -1, "", ""
+        val_command_id, val_exit, val_output, val_digest = self._validate_prepared_artifact(
+            task_id, prepared_path, run, lease)
 
         self.store._set_validation_result(
             lease.run_id,
-            command_id="git_diff_check",
+            command_id=val_command_id,
             exit_code=val_exit,
             output_digest=val_digest,
             owner=lease.owner, epoch=lease.epoch,
@@ -3145,7 +3184,7 @@ class DurableExecutionService:
 
         self.store._fenced_set_task_validation(
             lease.run_id, task_id,
-            command_id="git_diff_check",
+            command_id=val_command_id,
             exit_code=val_exit,
             output_digest=val_digest,
             owner=lease.owner, epoch=lease.epoch,
@@ -3173,7 +3212,7 @@ class DurableExecutionService:
                 description="resume validation completed",
                 metadata={
                     "validation_exit_code": val_exit,
-                    "validation_command_id": "git_diff_check",
+                    "validation_command_id": val_command_id,
                     "run_id": lease.run_id,
                 },
                 owner=lease.owner, epoch=lease.epoch,
@@ -3182,28 +3221,28 @@ class DurableExecutionService:
                 task_id=task_id,
                 execution_id=run.execution_id,
                 success=True,
-                validation_command_id="git_diff_check",
+                validation_command_id=val_command_id,
                 validation_exit_code=val_exit,
             )
 
         self.store._fenced_terminalize(
             lease.run_id, task_id,
             terminal_status="FAILED",
-            validation_command_id="git_diff_check",
+            validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             validation_output_digest=val_digest,
             failure_classification="deterministic_validation_failure",
-            failure_detail=f"git_diff_check exit={val_exit}",
+            failure_detail=val_output or f"{val_command_id} exit={val_exit}",
             owner=lease.owner, epoch=lease.epoch,
         )
         return TaskExecutionOutcome(
             task_id=task_id,
             execution_id=run.execution_id,
             success=False,
-            validation_command_id="git_diff_check",
+            validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             failure_classification="deterministic_validation_failure",
-            failure_detail=f"git_diff_check exit={val_exit}",
+            failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
 
     def _resume_with_lease(
@@ -3219,6 +3258,8 @@ class DurableExecutionService:
         from .opencode_executor import _collect_product_diff
 
         if run.accepted_checkpoint == "POST_VALIDATION":
+            if self._has_functional_contract(task_id):
+                return self._functional_checkpoint_outcome(task_id, run, lease)
             stored = self.store.get_task(task_id)
             if stored.status == "READY_FOR_REVIEW":
                 return TaskExecutionOutcome(
@@ -3323,6 +3364,8 @@ class DurableExecutionService:
         if accepted == "POST_REVIEWER":
             return self._resume_from_post_reviewer(task_id, run, lease, role_attempt)
         if accepted == "POST_VALIDATION":
+            if self._has_functional_contract(task_id):
+                return self._functional_checkpoint_outcome(task_id, run, lease)
             stored = self.store.get_task(task_id)
             return TaskExecutionOutcome(
                 task_id=task_id,
@@ -3537,16 +3580,13 @@ class DurableExecutionService:
             )
             _check_crash_seam(cp_name)
 
-        val_runner = LocalValidationRunner()
-        try:
-            val_exit, val_output, val_digest = val_runner.run(
-                task_id=task_id, command_id="git_diff_check", cwd=wt_path,
-            )
-        except Exception:
-            val_exit, val_output, val_digest = -1, "", ""
+        if handoff:
+            _remove_handoff(handoff)
+        val_command_id, val_exit, val_output, val_digest = self._validate_prepared_artifact(
+            task_id, wt_path, run, lease)
 
         self.store._set_validation_result(
-            lease.run_id, command_id="git_diff_check",
+            lease.run_id, command_id=val_command_id,
             exit_code=val_exit, output_digest=val_digest,
             owner=lease.owner, epoch=lease.epoch,
         )
@@ -3557,14 +3597,12 @@ class DurableExecutionService:
 
         self.store._fenced_set_task_validation(
             lease.run_id, task_id,
-            command_id="git_diff_check",
+            command_id=val_command_id,
             exit_code=val_exit,
             output_digest=val_digest,
             owner=lease.owner, epoch=lease.epoch,
         )
 
-        if handoff:
-            _remove_handoff(handoff)
         final_changed = _collect_final_product_files(prepared_path)
         self.store._fenced_set_changed_files(
             lease.run_id, task_id, final_changed,
@@ -3587,7 +3625,7 @@ class DurableExecutionService:
                 description="resume per-role checkpoint acceptance completed",
                 metadata={
                     "validation_exit_code": val_exit,
-                    "validation_command_id": "git_diff_check",
+                    "validation_command_id": val_command_id,
                     "plan_digest": plan_digest,
                     "review_digest": review_digest,
                     "run_id": lease.run_id,
@@ -3598,28 +3636,28 @@ class DurableExecutionService:
                 task_id=task_id,
                 execution_id=run.execution_id,
                 success=True,
-                validation_command_id="git_diff_check",
+                validation_command_id=val_command_id,
                 validation_exit_code=val_exit,
             )
 
         self.store._fenced_terminalize(
             lease.run_id, task_id,
             terminal_status="FAILED",
-            validation_command_id="git_diff_check",
+            validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             validation_output_digest=val_digest,
             failure_classification="deterministic_validation_failure",
-            failure_detail=f"git_diff_check exit={val_exit}",
+            failure_detail=val_output or f"{val_command_id} exit={val_exit}",
             owner=lease.owner, epoch=lease.epoch,
         )
         return TaskExecutionOutcome(
             task_id=task_id,
             execution_id=run.execution_id,
             success=False,
-            validation_command_id="git_diff_check",
+            validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             failure_classification="deterministic_validation_failure",
-            failure_detail=f"git_diff_check exit={val_exit}",
+            failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
 
     def _resume_from_post_reviewer(
@@ -3638,15 +3676,10 @@ class DurableExecutionService:
             )
         workspace = run.worktree_path
         from .task_runtime import LocalValidationRunner
-        val_runner = LocalValidationRunner()
-        try:
-            val_exit, val_output, val_digest = val_runner.run(
-                task_id=task_id,
-                command_id="git_diff_check",
-                cwd=workspace,
-            )
-        except ExecutorRuntimeError:
-            val_exit, val_output, val_digest = -1, "", ""
+        from .opencode_executor import _remove_handoff, handoff_dir
+        _remove_handoff(handoff_dir(Path(workspace)))
+        val_command_id, val_exit, val_output, val_digest = self._validate_prepared_artifact(
+            task_id, workspace, run, lease)
 
         self.store._fenced_transition_to(
             lease.run_id, task_id, "VALIDATING",
@@ -3667,7 +3700,7 @@ class DurableExecutionService:
             )
             self.store._set_validation_result(
                 lease.run_id,
-                command_id="git_diff_check",
+                command_id=val_command_id,
                 exit_code=val_exit,
                 output_digest=val_digest,
                 owner=lease.owner, epoch=lease.epoch,
@@ -3678,7 +3711,7 @@ class DurableExecutionService:
             )
             self.store._fenced_set_task_validation(
                 lease.run_id, task_id,
-                command_id="git_diff_check",
+                command_id=val_command_id,
                 exit_code=val_exit,
                 output_digest=val_digest,
                 owner=lease.owner, epoch=lease.epoch,
@@ -3687,27 +3720,27 @@ class DurableExecutionService:
                 task_id=task_id,
                 execution_id=run.execution_id,
                 success=True,
-                validation_command_id="git_diff_check",
+                validation_command_id=val_command_id,
                 validation_exit_code=val_exit,
             )
         self.store._fenced_terminalize(
             lease.run_id, task_id,
             terminal_status="FAILED",
-            validation_command_id="git_diff_check",
+            validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             validation_output_digest=val_digest,
             failure_classification="deterministic_validation_failure",
-            failure_detail=f"git_diff_check exit={val_exit}",
+            failure_detail=val_output or f"{val_command_id} exit={val_exit}",
             owner=lease.owner, epoch=lease.epoch,
         )
         return TaskExecutionOutcome(
             task_id=task_id,
             execution_id=run.execution_id,
             success=False,
-            validation_command_id="git_diff_check",
+            validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             failure_classification="deterministic_validation_failure",
-            failure_detail=f"git_diff_check exit={val_exit}",
+            failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
 
     # ---------------------------------------------------------------

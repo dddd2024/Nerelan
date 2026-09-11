@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260908_issue423_windows_platform_ci_r2_v3",
-  "round_id": "round_20260908_issue423_windows_platform_ci_r2_v3",
-  "expired_at": "2026-09-08T05:21:12+00:00"
+  "decision_id": "decision_20260911_issue771_functional_validation_r2_v1",
+  "round_id": "round_20260911_issue771_functional_validation_r2_v1",
+  "expired_at": "2026-09-11T07:58:02+00:00"
 }
