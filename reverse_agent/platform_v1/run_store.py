@@ -26,6 +26,8 @@ from functools import wraps
 from threading import RLock
 from typing import Any, Mapping, Sequence
 
+from .history_pagination import decode_cursor, encode_cursor, page_limit
+
 
 TASK_STATUS_ORDER = (
     "QUEUED",
@@ -748,6 +750,29 @@ class TaskStore:
                 _row_to_task(self._conn, row, event_limit=event_limit)
                 for row in rows
             ]
+
+    def list_tasks_page(
+        self, *, limit: int = 100, cursor: str | None = None,
+        event_limit: int | None = None,
+    ) -> tuple[list[Task], int, str | None]:
+        bounded = page_limit(limit)
+        after = decode_cursor(cursor, "runs")
+        with self._lock:
+            where = " WHERE (created_at, id) < (?, ?)" if after else ""
+            params = (*after, bounded + 1) if after else (bounded + 1,)
+            rows = self._conn.execute(
+                "SELECT * FROM tasks" + where + " ORDER BY created_at DESC, id DESC LIMIT ?",
+                params,
+            ).fetchall()
+            visible = rows[:bounded]
+            next_cursor = (
+                encode_cursor("runs", visible[-1]["created_at"], visible[-1]["id"])
+                if len(rows) > bounded else None
+            )
+            return (
+                [_row_to_task(self._conn, row, event_limit=event_limit) for row in visible],
+                self.count_tasks(), next_cursor,
+            )
 
     def count_tasks(self) -> int:
         with self._lock:

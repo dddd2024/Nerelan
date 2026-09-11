@@ -1,5 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import { GoalComposer } from "@/components/goal-composer";
 import { GoalCurrentActivity } from "@/components/goal-current-activity";
 import { GoalProgress } from "@/components/goal-progress";
@@ -55,11 +56,18 @@ export function HomePage() {
   const startGoal = useStartGoal();
   const goals = useMemo(() => goalsQuery.data ?? [], [goalsQuery.data]);
   const runs = useMemo(() => runsQuery.data ?? [], [runsQuery.data]);
-  const [selectedId, setSelectedId] = useState<string | undefined>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [defaultId, setDefaultId] = useState<string | undefined>();
+  const selectedId = searchParams.get("goal") || defaultId;
+  const setSelectedId = (goalId: string) => setSearchParams((previous) => {
+    const next = new URLSearchParams(previous);
+    next.set("goal", goalId);
+    return next;
+  });
 
   useEffect(() => {
-    if (!selectedId && goals[0]) setSelectedId(goals[0].id);
-  }, [goals, selectedId]);
+    if (!defaultId && goals[0]) setDefaultId(goals[0].id);
+  }, [goals, defaultId]);
 
   const detailQuery = useGoal(selectedId);
   const detailGoal = detailQuery.data;
@@ -247,8 +255,9 @@ export function HomePage() {
           <div className="mb-1 flex items-center justify-between">
             <h2 className="text-xs font-medium text-ra-text-secondary">最近目标</h2>
             <span className="text-[11px] tabular-nums text-ra-text-tertiary">
-              {goalsQuery.data === undefined ? "—" : `${Math.min(goals.length, 3)} / ${goals.length}`}
+              {goalsQuery.data === undefined ? "—" : `最近 ${recent.length} 项`}
             </span>
+            <Link to="/goals" className="rounded px-1 text-xs text-ra-accent underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">所有目标</Link>
           </div>
 
           <ReadFeedback query={goalsQuery} label="目标列表" />

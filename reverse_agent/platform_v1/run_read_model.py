@@ -501,11 +501,13 @@ class RunReadModel:
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._stale_after_seconds = max(1, int(stale_after_seconds))
 
-    def list_runs(self, *, limit: int = MAX_RUNS) -> dict[str, Any]:
+    def list_runs(self, *, limit: int = MAX_RUNS, cursor: str | None = None) -> dict[str, Any]:
         bounded = max(1, min(limit, MAX_RUNS))
-        tasks = self.store.list_tasks(limit=bounded, event_limit=MAX_DETAIL_EVENTS)
+        tasks, total, next_cursor = self.store.list_tasks_page(
+            limit=bounded, cursor=cursor, event_limit=MAX_DETAIL_EVENTS,
+        )
         runs = [self._run_summary(task) for task in tasks]
-        return {"runs": runs, "total": self.store.count_tasks()}
+        return {"runs": runs, "total": total, "next_cursor": next_cursor}
 
     def run_detail(self, task_id: str) -> dict[str, Any]:
         task = self.store.get_task(task_id, event_limit=MAX_DETAIL_EVENTS)

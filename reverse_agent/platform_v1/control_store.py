@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 
 from .run_store import TaskStore, TaskStoreError
+from .history_pagination import decode_cursor, encode_cursor, page_limit
 
 
 GOAL_STATES = frozenset(
@@ -459,6 +460,26 @@ class PlatformControlStore:
                 "SELECT * FROM platform_goals ORDER BY created_at DESC LIMIT ?", (max(1, min(limit, 500)),)
             ).fetchall()
             return tuple(self._row_to_goal(row) for row in rows)
+
+    def list_goals_page(
+        self, *, limit: int = 100, cursor: str | None = None,
+    ) -> tuple[tuple[GoalRecord, ...], int, str | None]:
+        bounded = page_limit(limit)
+        after = decode_cursor(cursor, "goals")
+        with self._lock:
+            where = " WHERE (created_at, id) < (?, ?)" if after else ""
+            params = (*after, bounded + 1) if after else (bounded + 1,)
+            rows = self._conn.execute(
+                "SELECT * FROM platform_goals" + where + " ORDER BY created_at DESC, id DESC LIMIT ?",
+                params,
+            ).fetchall()
+            visible = rows[:bounded]
+            total = int(self._conn.execute("SELECT COUNT(*) FROM platform_goals").fetchone()[0])
+            next_cursor = (
+                encode_cursor("goals", visible[-1]["created_at"], visible[-1]["id"])
+                if len(rows) > bounded else None
+            )
+            return tuple(self._row_to_goal(row) for row in visible), total, next_cursor
 
     def list_window_goals(self, window_id: str) -> tuple[GoalRecord, ...]:
         with self._lock:

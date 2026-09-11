@@ -51,6 +51,7 @@ from .run_read_model import (
     RunReadModel,
     backend_status_to_frontend_state,
 )
+from .history_pagination import HistoryPaginationError, parse_history_query
 
 _MAX_BODY_BYTES = 256 * 1024
 _TASKS_LIMIT = 100
@@ -361,10 +362,10 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.OK, self.capability_registry.response())
                 return
             if segments == ["api", "goals"]:
-                goals = self.goal_service.list()
+                limit, cursor = parse_history_query(urlsplit(self.path).query)
                 self._send_json(
                     HTTPStatus.OK,
-                    {"goals": goals, "total": len(goals)},
+                    self.goal_service.list_page(limit=limit, cursor=cursor),
                 )
                 return
             if segments == ["api", "inbox"]:
@@ -382,7 +383,8 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.OK, {"phases": phases, "total": len(phases)})
                 return
             if segments == ["api", "runs"]:
-                self._send_json(HTTPStatus.OK, self.run_read_model.list_runs())
+                limit, cursor = parse_history_query(urlsplit(self.path).query)
+                self._send_json(HTTPStatus.OK, self.run_read_model.list_runs(limit=limit, cursor=cursor))
                 return
             if len(segments) == 3 and segments[:2] == ["api", "runs"]:
                 try:
@@ -493,6 +495,8 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.OK, {"repositories": repo_list, "total": len(repo_list)})
                 return
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "route not found"})
+        except HistoryPaginationError:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_history_pagination"})
         except Exception:
             self._send_json(
                 HTTPStatus.INTERNAL_SERVER_ERROR,

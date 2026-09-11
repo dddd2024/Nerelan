@@ -34,7 +34,11 @@ export function useGoals() {
 export function useGoal(goalId: string | undefined) {
   return useQuery({
     queryKey: ["goals", goalId],
-    queryFn: () => fetchGoal(goalId ?? ""),
+    queryFn: async () => {
+      const goal = await fetchGoal(goalId ?? "");
+      if (goal.id !== goalId) throw new Error("未找到请求的目标。");
+      return goal;
+    },
     enabled: Boolean(goalId),
     staleTime: 1_500,
     refetchInterval: (query) => {
