@@ -878,6 +878,53 @@ export async function fetchPlatformStatus(): Promise<PlatformStatus> {
   return request<PlatformStatus>("/api/platform/status");
 }
 
+export interface HistoryPageOptions { cursor?: string; limit?: number }
+export interface PlatformHistoryPage<T> {
+  items: T[];
+  total: number | null;
+  next_cursor: string | null;
+}
+
+function historyPath(path: string, options: HistoryPageOptions) {
+  const query = new URLSearchParams();
+  if (options.cursor !== undefined) query.set("cursor", options.cursor);
+  if (options.limit !== undefined) query.set("limit", String(options.limit));
+  return query.size ? `${path}?${query}` : path;
+}
+
+function historyPage<T>(items: T[], total?: number, nextCursor?: string | null): PlatformHistoryPage<T> {
+  return { items, total: typeof total === "number" && Number.isInteger(total) && total >= 0 ? total : null, next_cursor: nextCursor ?? null };
+}
+
+function mockHistoryPage<T extends { created_at: string }>(
+  kind: string, records: T[], id: (record: T) => string, options: HistoryPageOptions,
+): PlatformHistoryPage<T> {
+  const limit = options.limit ?? 100;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new PlatformClientError(400, "invalid_history_pagination");
+  let after: [string, string] | undefined;
+  if (options.cursor !== undefined) {
+    try {
+      const value: unknown = JSON.parse(decodeURIComponent(options.cursor));
+      if (!Array.isArray(value) || value.length !== 3 || value[0] !== kind || typeof value[1] !== "string" || typeof value[2] !== "string") throw new Error();
+      after = [value[1], value[2]];
+    } catch { throw new PlatformClientError(400, "invalid_history_pagination"); }
+  }
+  const ordered = [...records].sort((a, b) => {
+    if (a.created_at !== b.created_at) return a.created_at > b.created_at ? -1 : 1;
+    return id(a) === id(b) ? 0 : id(a) > id(b) ? -1 : 1;
+  }).filter((record) => !after || record.created_at < after[0] || (record.created_at === after[0] && id(record) < after[1]));
+  const items = ordered.slice(0, limit).map((record) => ({ ...record }));
+  const last = items.at(-1);
+  const next = ordered.length > limit && last ? encodeURIComponent(JSON.stringify([kind, last.created_at, id(last)])) : null;
+  return historyPage(items, records.length, next);
+}
+
+export async function fetchGoalsPage(options: HistoryPageOptions = {}): Promise<PlatformHistoryPage<PlatformGoal>> {
+  if (isMock()) return mockHistoryPage("goals", mockGoals, (goal) => goal.id, options);
+  const result = await request<{ goals: PlatformGoal[]; total?: number; next_cursor?: string | null }>(historyPath("/api/goals", options));
+  return historyPage(result.goals, result.total, result.next_cursor);
+}
+
 export async function fetchGoals(): Promise<PlatformGoal[]> {
   if (isMock()) return mockGoals;
   const result = await request<{ goals: PlatformGoal[] }>("/api/goals");
@@ -1043,6 +1090,12 @@ export async function fetchRoadmap(): Promise<PlatformRoadmapPhase[]> {
   if (isMock()) return mockRoadmapPhases;
   const result = await request<{ phases: PlatformRoadmapPhase[] }>("/api/roadmap");
   return result.phases;
+}
+
+export async function fetchRunsPage(options: HistoryPageOptions = {}): Promise<PlatformHistoryPage<PlatformAgentRun>> {
+  if (isMock()) return mockHistoryPage("runs", mockRuns, (run) => run.task_id, options);
+  const result = await request<{ runs: PlatformAgentRun[]; total?: number; next_cursor?: string | null }>(historyPath("/api/runs", options));
+  return historyPage(result.runs, result.total, result.next_cursor);
 }
 
 export async function fetchRuns(): Promise<PlatformAgentRun[]> {

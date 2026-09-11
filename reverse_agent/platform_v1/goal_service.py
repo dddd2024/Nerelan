@@ -173,6 +173,14 @@ class GoalService:
             payload.append(self._response_snapshot(goal.id))
         return payload
 
+    def list_page(self, *, limit: int = 100, cursor: str | None = None) -> dict[str, Any]:
+        goals, total, next_cursor = self.control_store.list_goals_page(limit=limit, cursor=cursor)
+        return {
+            "goals": [self._response_snapshot(goal.id) for goal in goals],
+            "total": total,
+            "next_cursor": next_cursor,
+        }
+
     def detail(self, goal_id: str) -> dict[str, Any]:
         return self._response_snapshot(goal_id)
 

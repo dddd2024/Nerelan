@@ -32,7 +32,7 @@ function mount() {
   return renderWithProviders(<RunsPage />, { initialEntries: [`/runs?task=${encodeURIComponent(taskId)}`] });
 }
 beforeEach(() => {
-  vi.spyOn(client, "fetchRuns").mockResolvedValue([]);
+  vi.spyOn(client, "fetchRunsPage").mockResolvedValue({ items: [], total: 0, next_cursor: null });
   vi.spyOn(client, "fetchRun").mockResolvedValue(run());
   vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Unexpected mutation")));
 });
@@ -51,7 +51,7 @@ describe("Runs task deep link", () => {
   });
 
   it("renders a selected list member only once", async () => {
-    vi.mocked(client.fetchRuns).mockResolvedValue([run(), run("other")]);
+    vi.mocked(client.fetchRunsPage).mockResolvedValue({ items: [run(), run("other")], total: 2, next_cursor: null });
     mount();
     await screen.findByTestId(`run-overview-${taskId}`);
     expect(screen.getAllByTestId(`run-${taskId}`)).toHaveLength(1);
@@ -67,7 +67,7 @@ describe("Runs task deep link", () => {
 
   it("retries an unavailable task without selecting an unrelated record", async () => {
     vi.mocked(client.fetchRun).mockRejectedValueOnce(new Error("Task unavailable")).mockResolvedValue(run());
-    vi.mocked(client.fetchRuns).mockResolvedValue([run("other")]);
+    vi.mocked(client.fetchRunsPage).mockResolvedValue({ items: [run("other")], total: 1, next_cursor: null });
     const user = userEvent.setup();
     mount();
     expect(await screen.findByText("选中运行加载失败")).toBeInTheDocument();

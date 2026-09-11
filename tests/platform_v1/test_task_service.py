@@ -56,6 +56,50 @@ def _req(base_url: str, method: str, path: str, body=None, origin=None):
     return resp.status, json.loads(data.decode()) if data else None
 
 
+@pytest.mark.parametrize("kind", ["goals", "runs"])
+def test_history_http_traverses_151_records_and_retains_exact_detail(task_server, kind):
+    from urllib.parse import urlencode
+
+    base, server = task_server
+    store = server.RequestHandlerClass.store
+    control = server.RequestHandlerClass.control_store
+    original = set()
+    for index in range(151):
+        record = (
+            control.create_goal(title=f"Goal {index}", objective="History", repository="owner/repo", idempotency_key=f"page-{index}")
+            if kind == "goals" else store.create_task(title=f"Run {index}")
+        )
+        original.add(record.id)
+    table = "platform_goals" if kind == "goals" else "tasks"
+    store._conn.execute(f"UPDATE {table} SET created_at = '2026-09-01T00:00:00Z'")
+    key = "id" if kind == "goals" else "task_id"
+    status, first = _req(base, "GET", f"/api/{kind}")
+    assert status == 200 and first["total"] == 151 and len(first[kind]) == 100
+    assert first["next_cursor"]
+    query = urlencode({"cursor": first["next_cursor"]})
+    status, second = _req(base, "GET", f"/api/{kind}?{query}")
+    assert status == 200 and second["total"] == 151 and len(second[kind]) == 51
+    assert second["next_cursor"] is None
+    ids = [row[key] for row in first[kind] + second[kind]]
+    assert len(ids) == len(set(ids)) == 151 and set(ids) == original
+    status, detail = _req(base, "GET", f"/api/{kind}/{ids[-1]}")
+    assert status == 200 and detail[key] == ids[-1]
+    other = "runs" if kind == "goals" else "goals"
+    status, error = _req(base, "GET", f"/api/{other}?{query}")
+    assert status == 400 and error == {"error": "invalid_history_pagination"}
+
+
+@pytest.mark.parametrize("kind", ["goals", "runs"])
+def test_history_http_rejects_invalid_and_ambiguous_pagination(task_server, kind):
+    base, _ = task_server
+    for query in (
+        "limit=0", "limit=101", "limit=-1", "limit=1.5", "limit=", "limit=abc",
+        "limit=1&limit=2", "cursor=", "cursor=bad!", "cursor=a&cursor=b",
+    ):
+        status, error = _req(base, "GET", f"/api/{kind}?{query}")
+        assert status == 400 and error == {"error": "invalid_history_pagination"}
+
+
 def _ordered_sqlite_race(first, second):
     """Run two operations on independent SQLite connections in a known order.
 
