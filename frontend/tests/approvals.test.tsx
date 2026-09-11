@@ -87,9 +87,7 @@ describe("Approvals continuation page", () => {
 
     await user.selectOptions(screen.getByLabelText("自治窗口时长"), "4");
     await user.click(screen.getByTestId("approval-launch-button"));
-    await waitFor(() =>
-      expect(screen.getAllByText("运行中").length).toBeGreaterThan(0),
-    );
+    await waitFor(() => expect(screen.getByText("运行中")).toBeInTheDocument());
 
     expect(screen.queryByTestId("approval-plan-button")).not.toBeInTheDocument();
     expect(screen.queryByTestId("approval-approve-button")).not.toBeInTheDocument();

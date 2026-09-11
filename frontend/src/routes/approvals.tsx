@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { useSearchParams } from "react-router";
 import {
@@ -199,9 +199,8 @@ export function ApprovalsPage() {
   const approveMutation = useApproveExistingGoal();
   const launchMutation = useLaunchExistingGoal();
 
-  const pendingGoals = useMemo(
-    () => (goalsQuery.data ?? []).filter((goal) => PENDING_STATUSES.has(goal.status)),
-    [goalsQuery.data],
+  const pendingGoals = (goalsQuery.data ?? []).filter((goal) =>
+    PENDING_STATUSES.has(goal.status),
   );
   const requestedGoalId = searchParams.get("goal") ?? "";
   const selectedGoalId = requestedGoalId || pendingGoals[0]?.id;
