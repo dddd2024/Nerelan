@@ -143,3 +143,64 @@ it("completes Inbox capture, configuration, edited-plan review and explicit laun
   expect(saved.task_links).toHaveLength(1);
   client.clear();
 });
+
+it("selects fixed checks, blocks duplicates and bad directories, and explicitly removes the last selection", async () => {
+  const current = props();
+  render(<GoalReviewEditor {...current} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "编辑当前计划" }));
+  await user.click(screen.getByRole("button", { name: "添加任务 A 功能检查" }));
+  await user.click(screen.getByRole("button", { name: "添加任务 A 功能检查" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("同一检查与目录不能重复");
+  expect(screen.getByRole("button", { name: "保存计划修改" })).toBeDisabled();
+  await user.selectOptions(screen.getByLabelText("任务 A 检查 2 类型"), "npm_test");
+  await user.clear(screen.getByLabelText("任务 A 检查 2 目录"));
+  await user.type(screen.getByLabelText("任务 A 检查 2 目录"), "../outside");
+  expect(screen.getByRole("button", { name: "保存计划修改" })).toBeDisabled();
+  await user.clear(screen.getByLabelText("任务 A 检查 2 目录"));
+  await user.type(screen.getByLabelText("任务 A 检查 2 目录"), "frontend");
+  await user.click(screen.getByRole("button", { name: "保存计划修改" }));
+  expect(current.onSavePlan.mock.calls[0][1].tasks[0].validation_checks).toEqual([
+    { profile_id: "python_pytest", working_directory: "." }, { profile_id: "npm_test", working_directory: "frontend" },
+  ]);
+  expect(current.onSavePlan.mock.calls[0][1].tasks[1]).not.toHaveProperty("validation_checks");
+});
+
+it("preserves saved checks during instruction edits and submits an explicit empty selection on removal", async () => {
+  const current = props({ ...fixture, tasks: [{ ...fixture.tasks[0], validation_checks: [{ profile_id: "python_pytest", working_directory: "backend" }] }] });
+  render(<GoalReviewEditor {...current} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "编辑当前计划" }));
+  await user.type(screen.getByLabelText("任务 A 说明"), " additional detail");
+  await user.click(screen.getByRole("button", { name: "保存计划修改" }));
+  expect(current.onSavePlan.mock.calls[0][1].tasks[0].validation_checks).toEqual(current.goal.tasks[0].validation_checks);
+  await user.click(screen.getByRole("button", { name: "编辑当前计划" }));
+  await user.click(screen.getByRole("button", { name: "移除任务 A 检查 1" }));
+  await user.click(screen.getByRole("button", { name: "保存计划修改" }));
+  expect(current.onSavePlan.mock.calls[1][1].tasks[0].validation_checks).toEqual([]);
+});
+
+it("retains local check selection across a stale plan and reloads only on explicit discard", async () => {
+  const current = props();
+  const view = render(<GoalReviewEditor {...current} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "编辑当前计划" }));
+  await user.click(screen.getByRole("button", { name: "添加任务 A 功能检查" }));
+  view.rerender(<GoalReviewEditor {...current} goal={{ ...current.goal, revision: 2 }} />);
+  expect(screen.getByLabelText("任务 A 检查 1 类型")).toHaveValue("python_pytest");
+  expect(screen.getByRole("button", { name: "保存计划修改" })).toBeDisabled();
+  expect(current.onSavePlan).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "放弃本地修改并重新载入" }));
+  expect(screen.queryByLabelText("任务 A 检查 1 类型")).not.toBeInTheDocument();
+});
+
+it("limits each task to eight check pairs and leaves approved plans immutable", async () => {
+  const current = props({ ...fixture, tasks: [{ ...fixture.tasks[0], validation_checks: Array.from({ length: 8 }, (_, i) => ({ profile_id: "python_pytest" as const, working_directory: `part${i}` })) }] });
+  const view = render(<GoalReviewEditor {...current} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "编辑当前计划" }));
+  expect(screen.getByRole("button", { name: "添加任务 A 功能检查" })).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "取消编辑" }));
+  view.rerender(<GoalReviewEditor {...current} goal={{ ...current.goal, status: "APPROVED" }} />);
+  expect(screen.queryByRole("button", { name: "编辑当前计划" })).not.toBeInTheDocument();
+});

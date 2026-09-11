@@ -1,3 +1,4 @@
+import { functionalTestStatus, normalizeFunctionalValidation } from "@/lib/functional-validation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createTask,
@@ -200,6 +201,11 @@ function _toTask(raw: Record<string, unknown> | undefined): Task {
   if (!raw) return EMPTY_TASK;
   const source =
     (raw as { frontend_task?: Record<string, unknown> }).frontend_task ?? raw;
+  const executor = String(source.executor ?? raw.executor_kind ?? "");
+  const validationCommandId = String(source.validationCommandId ?? source.validation_command_id ?? raw.validation_command_id ?? "");
+  const functionalRaw = source.functionalValidation ?? raw.functionalValidation;
+  const functionalValidation = functionalRaw !== undefined || validationCommandId === "approved_functional_checks"
+    ? normalizeFunctionalValidation(functionalRaw, executor) : undefined;
   const activity = ((source.activity ?? raw.events ?? []) as UnknownArray) ?? [];
   const changes = ((source.changes ??
     raw.changed_files ??
@@ -231,7 +237,7 @@ function _toTask(raw: Record<string, unknown> | undefined): Task {
     authorityStatus: _authority(
       source.authorityStatus ?? source.authority_status ?? raw.authority_status,
     ),
-    testStatus: _testStatus(source.testStatus ?? "PENDING"),
+    testStatus: functionalTestStatus(_testStatus(source.testStatus ?? "PENDING"), functionalValidation, validationCommandId),
     workflowStatus: _workflowStatus(
       source.workflowStatus ?? source.workflow_status ?? raw.workflow_status,
     ),
@@ -240,16 +246,14 @@ function _toTask(raw: Record<string, unknown> | undefined): Task {
         undefined) as Task["executor"],
     repository: String(raw.repository ?? ""),
     executionId:
-      (String(source.execution_id ?? raw.execution_id ?? "") ||
+      (String(source.executionId ?? source.execution_id ?? raw.execution_id ?? "") ||
         undefined) as Task["executionId"],
     failureClassification:
       (String((raw as { failure_classification?: string }).failure_classification ?? "") ||
         undefined) as Task["failureClassification"],
-    validationCommandId:
-      (String((raw as { validation_command_id?: string }).validation_command_id ?? "") ||
-        undefined) as Task["validationCommandId"],
-    validationExitCode: (raw as { validation_exit_code?: number })
-      .validation_exit_code,
+    validationCommandId,
+    validationExitCode: (source.validationExitCode ?? source.validation_exit_code ?? raw.validation_exit_code) as number | undefined,
+    functionalValidation,
   };
 }
 

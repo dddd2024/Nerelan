@@ -1,3 +1,5 @@
+import type { FunctionalCheckInput, FunctionalValidation } from "@/types";
+
 export type GoalStatus =
   | "DRAFT"
   | "PLANNED"
@@ -16,7 +18,7 @@ export interface PlatformGoal {
   revision: number;
   spec_markdown: string;
   plan_markdown: string;
-  tasks: Array<{ id: string; title: string; instruction?: string; capability?: string; dependencies: string[] }>;
+  tasks: Array<{ id: string; title: string; instruction?: string; capability?: string; dependencies: string[]; validation_checks?: FunctionalCheckInput[] }>;
   acceptance_criteria: string[];
   artifact_digest: string;
   executor_kind: "opencode" | "deterministic_fixture";
@@ -255,6 +257,7 @@ export interface PlatformRunValidation {
   status: string;
   exit_code?: number | null;
   summary?: string;
+  functional?: FunctionalValidation;
 }
 
 export interface PlatformAgentRun {

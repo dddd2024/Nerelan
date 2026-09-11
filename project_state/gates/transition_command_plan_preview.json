@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260911_issue771_functional_validation_r2_v1",
-  "round_id": "round_20260911_issue771_functional_validation_r2_v1",
+  "decision_id": "decision_20260911_issue778_functional_ui_r2_v2",
+  "round_id": "round_20260911_issue778_functional_ui_r2_v2",
   "commands": [
     {
-      "command_id": "issue771.bootstrap",
+      "command_id": "issue778.bootstrap",
       "command": "Verify the locked base and fresh branch; commit only this immutable Decision as the first activation commit; run startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before product edits.",
       "phase": "bootstrap",
       "required": true,
@@ -34,8 +34,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue771.implement",
-      "command": "Implement only the exact F03 functional validation contract and sixteen source/test/documentation paths bound to Issue 771; preserve TaskStore, Goal approval and lease ownership; no workflow, dependency, provider, credential, browser or reverse-tool operation.",
+      "command_id": "issue778.implement",
+      "command": "After activation and preflight, copy only the eighteen exact candidate product blobs from e5b6bba98df186c0b895227672cd0e55c9cf8570, not its Decision/gates/commits; replace the control-character regex with equivalent character-code checks and add regression cases. Preserve stopped PR777 and its immutable authority; no history reuse or workflow rerun. Implement only the eighteen frontend/test/documentation paths and complete user-facing contract in Issue 778: closed check selection, same-Goal review and safe Task/Run evidence presentation; reuse existing host APIs and installed dependencies. No backend/store/control-plane, workflow, dependency, provider, credential, local browser or reverse-tool change.",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -56,27 +56,29 @@
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/functional_validation.py",
-        "reverse_agent/platform_v1/goal_service.py",
-        "reverse_agent/platform_v1/run_store.py",
-        "reverse_agent/platform_v1/task_runtime.py",
-        "reverse_agent/platform_v1/task_execution.py",
-        "reverse_agent/platform_v1/durable_execution.py",
-        "reverse_agent/platform_v1/task_service.py",
-        "reverse_agent/platform_v1/run_read_model.py",
-        "tests/platform_v1/test_functional_validation.py",
-        "tests/platform_v1/test_goal_functional_checks.py",
-        "tests/platform_v1/test_functional_execution.py",
-        "tests/platform_v1/test_task_execution.py",
-        "tests/platform_v1/test_durable_execution.py",
-        "tests/platform_v1/test_run_read_model.py",
-        "tests/platform_v1/test_task_service.py",
+        "frontend/src/types/index.ts",
+        "frontend/src/lib/platform-client.ts",
+        "frontend/src/lib/goal-continuation-operation.ts",
+        "frontend/src/lib/task-client.ts",
+        "frontend/src/lib/functional-validation.ts",
+        "frontend/src/hooks/use-task.ts",
+        "frontend/src/hooks/use-tasks.ts",
+        "frontend/src/components/goal-review-editor.tsx",
+        "frontend/src/components/functional-validation.tsx",
+        "frontend/src/components/task-detail.tsx",
+        "frontend/src/routes/runs.tsx",
+        "frontend/tests/goal-review-editor.test.tsx",
+        "frontend/tests/goal-configuration-client.test.ts",
+        "frontend/tests/task-status-mapping.test.ts",
+        "frontend/tests/runs.test.tsx",
+        "frontend/tests/functional-validation.test.tsx",
+        "frontend/e2e/functional-validation.spec.ts",
         "docs/functional-validation.md"
       ]
     },
     {
-      "command_id": "issue771.validate",
-      "command": "python -B -m pytest tests/platform_v1/test_functional_validation.py tests/platform_v1/test_goal_functional_checks.py tests/platform_v1/test_functional_execution.py tests/platform_v1/test_goal_service.py tests/platform_v1/test_goal_configuration.py tests/platform_v1/test_goal_plan_revision.py tests/platform_v1/test_task_execution.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_durable_execution_v5.py tests/platform_v1/test_run_read_model.py tests/platform_v1/test_task_service.py -q -p no:cacheprovider\ngit diff --check\nRun transition lint, preflight and publication readiness; test only approved deterministic fixtures and local runtimes without model/provider/network access.",
+      "command_id": "issue778.validate",
+      "command": "Run the existing npm run lint and all frontend unit/component tests with the existing npm test script and the existing npm run build production build, without installing dependencies. Run python -B -m pytest tests/platform_v1/test_goal_functional_checks.py tests/platform_v1/test_functional_execution.py tests/platform_v1/test_goal_configuration.py tests/platform_v1/test_goal_plan_revision.py -q -p no:cacheprovider, and git diff --check. Perform the Issue 778 actual changed-TypeScript client to isolated loopback Task API to disk SQLite/Git/installed-pytest integration, with only model execution and binding metadata as explicit local fakes; verify successful/failed/missing/fixture proof and selection/stale-revision handling with reopened SQLite. Reuse installed tooling and existing test/service seams, retain sanitized evidence outside the repository, and close owned test servers after use. No external network, providers, credentials, local browsers or snapshot updates. Run transition lint, preflight and publication readiness; require passing checks before publication.",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -87,6 +89,7 @@
       "operations": [
         "unit_test",
         "integration_test",
+        "build",
         "diff_validation",
         "local_static_check"
       ],
@@ -106,8 +109,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue771.publish",
-      "command": "After blocking checks pass, push only codex/f03-functional-verification-r2 and create/update one Draft PR in dddd2024/Nerelan against main at 18a871839a1019251f9997ad0f5a74b8a4230787; publish disclosed audit/evidence and Issue 771/653/659 progress comments; no other branch or repository publication.",
+      "command_id": "issue778.publish",
+      "command": "After blocking checks pass, push only codex/f03-functional-ui-lint-safe-r2-v2 and create/update one Draft PR in dddd2024/Nerelan against main at 139baff28ef86ccbe1c5da008bd4dff7f954f68b; publish disclosed audit/evidence and Issue 778/653/659 progress comments; no other branch or repository publication.",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -132,8 +135,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue771.audit",
-      "command": "Observe natural exact-head CI, Decision Preflight, State Gate and Model Access; compare actual diagnostic failed node IDs with the locked base and perform a separate disclosed self-audit. No rerun or dispatch.",
+      "command_id": "issue778.audit",
+      "command": "Observe natural exact-head CI, Decision Preflight, State Gate, Model Access and Frontend Playwright as naturally triggered by existing filters; compare actual diagnostic failed node IDs with the locked base and perform a separate disclosed self-audit. No rerun or dispatch.",
       "phase": "final_evidence",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -155,8 +158,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue771.landing",
-      "command": "Only after disclosed exact-head self-audit, required natural checks, unchanged approved Decision and immediate remote main 18a871839a1019251f9997ad0f5a74b8a4230787, exact reviewed head and CLEAN/MERGEABLE observation, mark the bound PR ready; require natural final State/Landing checks, reobserve immediately and perform one ordinary merge with expected-head protection. Verify merged commit and main and exact parents. This action is explicitly delegated by the user; never claim independent human review.",
+      "command_id": "issue778.landing",
+      "command": "Only after disclosed exact-head self-audit, required natural checks, unchanged approved Decision and immediate remote main 139baff28ef86ccbe1c5da008bd4dff7f954f68b, exact reviewed head and CLEAN/MERGEABLE observation, mark the bound PR ready; require natural final State/Landing checks, reobserve immediately and perform one ordinary merge with expected-head protection. Verify merged commit and main and exact parents. This action is explicitly delegated by the user; never claim independent human review.",
       "phase": "final_acceptance",
       "required": true,
       "required_evidence_source": "repository_state_attestation",

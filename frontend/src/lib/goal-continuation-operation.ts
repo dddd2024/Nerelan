@@ -222,7 +222,7 @@ export async function saveGoalPlan(goal: PlatformGoal, input: GoalPlanInput): Pr
   __setMockGoalStatus(goal.id, {
     status: "PLANNED", revision, tasks, acceptance_criteria: criteria,
     spec_markdown: current.objective,
-    plan_markdown: tasks.map((task) => `${task.id}: ${task.title}\n${task.instruction ?? task.title}`).join("\n\n"),
+    plan_markdown: tasks.map((task) => `${task.id}: ${task.title}\n${task.instruction ?? task.title}${(task.validation_checks ?? []).map((check) => `\n功能检查：${check.profile_id} · ${check.working_directory}`).join("")}`).join("\n\n"),
     artifact_digest: `mock-plan:${current.id}:${revision}`, updated_at: new Date().toISOString(),
   });
   return { ...await fetchGoal(goal.id) };
