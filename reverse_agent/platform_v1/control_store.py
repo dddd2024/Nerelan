@@ -628,8 +628,9 @@ class PlatformControlStore:
             status = "RUNNING"
         with self._lock:
             self._conn.execute(
-                "UPDATE platform_goals SET status = ?, updated_at = ? WHERE id = ?",
-                (status, _utc_now(), goal_id),
+                "UPDATE platform_goals SET status = ?, updated_at = ? "
+                "WHERE id = ? AND status <> ?",
+                (status, _utc_now(), goal_id, status),
             )
         return self.get_goal(goal_id)
 
