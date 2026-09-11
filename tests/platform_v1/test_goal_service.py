@@ -34,6 +34,117 @@ def _window_payload():
     }
 
 
+def _running_timestamp_goal():
+    store, control, autonomy, goals = _services()
+    goal = goals.create({
+        "objective": "Preserve business timestamps on reads",
+        "idempotency_key": "timestamp-goal",
+        "executor_kind": "deterministic_fixture",
+        "orchestration_mode": "single",
+    })
+    goals.plan(goal.id, expected_revision=1)
+    goals.approve(goal.id, expected_revision=1, policy_ref="owner-window-1")
+    window = autonomy.activate(_window_payload())
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    return store, control, goals, goal.id, control.list_goal_tasks(goal.id)[0]["task_id"]
+
+
+@pytest.mark.parametrize("read_response", ["list", "detail"])
+@pytest.mark.parametrize("task_status,goal_status", [
+    ("QUEUED", "RUNNING"),
+    ("RUNNING", "RUNNING"),
+    ("INTERRUPTED", "RUNNING"),
+    ("BLOCKED", "BLOCKED"),
+    ("FAILED", "BLOCKED"),
+    ("CANCELLED", "BLOCKED"),
+    ("READY_FOR_REVIEW", "COMPLETED"),
+    ("READY_FOR_REVIEW_FIXTURE", "COMPLETED"),
+])
+def test_unchanged_goal_reads_preserve_timestamp_without_row_writes(
+    monkeypatch, read_response, task_status, goal_status
+):
+    store, control, goals, goal_id, task_id = _running_timestamp_goal()
+    store.set_state(task_id, task_status)
+    control.refresh_goal_status(goal_id)
+    before = control.get_goal(goal_id)
+    changes = store._conn.total_changes
+    try:
+        for observed_at in ("2099-01-01T00:00:00Z", "2099-01-02T00:00:00Z"):
+            monkeypatch.setattr(
+                "reverse_agent.platform_v1.control_store._utc_now", lambda: observed_at
+            )
+            response = goals.list()[0] if read_response == "list" else goals.detail(goal_id)
+            assert response["id"] == goal_id
+            assert response["status"] == goal_status
+            assert response["updated_at"] == before.updated_at
+        assert store._conn.total_changes == changes
+        assert control.get_goal(goal_id) == before
+    finally:
+        store._conn.close()
+
+
+@pytest.mark.parametrize("before_task,after_task,expected_status,changed", [
+    ("QUEUED", "READY_FOR_REVIEW", "COMPLETED", True),
+    ("READY_FOR_REVIEW", "FAILED", "BLOCKED", True),
+    ("FAILED", "QUEUED", "RUNNING", True),
+    ("QUEUED", "RUNNING", "RUNNING", False),
+    ("FAILED", "CANCELLED", "BLOCKED", False),
+    ("READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE", "COMPLETED", False),
+])
+def test_goal_timestamp_advances_once_only_for_derived_status_change(
+    monkeypatch, before_task, after_task, expected_status, changed
+):
+    store, control, goals, goal_id, task_id = _running_timestamp_goal()
+    store.set_state(task_id, before_task)
+    control.refresh_goal_status(goal_id)
+    before = control.get_goal(goal_id)
+    store.set_state(task_id, after_task)
+    changes = store._conn.total_changes
+    try:
+        monkeypatch.setattr(
+            "reverse_agent.platform_v1.control_store._utc_now", lambda: "2099-01-01T00:00:00Z"
+        )
+        first = goals.detail(goal_id)
+        expected_time = "2099-01-01T00:00:00Z" if changed else before.updated_at
+        assert first["status"] == expected_status
+        assert first["updated_at"] == expected_time
+        assert store._conn.total_changes == changes + int(changed)
+        monkeypatch.setattr(
+            "reverse_agent.platform_v1.control_store._utc_now", lambda: "2099-01-02T00:00:00Z"
+        )
+        assert goals.list()[0]["updated_at"] == expected_time
+        assert goals.detail(goal_id)["updated_at"] == expected_time
+        assert store._conn.total_changes == changes + int(changed)
+    finally:
+        store._conn.close()
+
+
+@pytest.mark.parametrize("stage", ["DRAFT", "PLANNED", "APPROVED"])
+def test_unlaunched_goal_reads_preserve_status_and_timestamp(monkeypatch, stage):
+    store, control, _, goals = _services()
+    goal = goals.create({
+        "objective": "No current execution links",
+        "idempotency_key": "unlaunched-timestamp-goal",
+        "executor_kind": "deterministic_fixture", "orchestration_mode": "single",
+    })
+    if stage in {"PLANNED", "APPROVED"}:
+        goals.plan(goal.id, expected_revision=1)
+    if stage == "APPROVED":
+        goals.approve(goal.id, expected_revision=1, policy_ref="owner-window-1")
+    before = control.get_goal(goal.id)
+    changes = store._conn.total_changes
+    try:
+        monkeypatch.setattr(
+            "reverse_agent.platform_v1.control_store._utc_now", lambda: "2099-01-01T00:00:00Z"
+        )
+        for response in (goals.list()[0], goals.detail(goal.id)):
+            assert response["status"] == stage
+            assert response["updated_at"] == before.updated_at
+        assert store._conn.total_changes == changes
+    finally:
+        store._conn.close()
+
+
 def test_goal_plan_approval_and_launch_are_persistent_and_idempotent():
     store, control, autonomy, goals = _services()
     goal = goals.create({
