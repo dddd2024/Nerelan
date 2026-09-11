@@ -102,3 +102,9 @@ pytest; only model execution and binding metadata are test doubles. No local
 browser, provider call or snapshot update is part of this R2 slice. Full live
 user-flow, desktop/Edge and provider acceptance under parent issue #653 remains
 separate. Functional evidence grants no publication or merge authority.
+# Explicit dependency inputs
+
+See [Accepted artifact inputs](artifact-handoff.md) for selecting one checked
+dependency as a task's exact code input. Validation-only consumers run host checks
+without model edits; functional evidence retains both the original approved base
+and the consumed producer commit/tree identity.

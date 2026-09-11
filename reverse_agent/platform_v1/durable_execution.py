@@ -41,6 +41,7 @@ from .repository_workspace import (
 from .task_execution import TaskExecutionError, TaskExecutionService
 from .task_runtime import ExecutorRuntimeError, ExecutorRouter
 from .functional_validation import CONTRACT_CATEGORY, FUNCTIONAL_COMMAND_ID, accepted_checkpoint_proof, run_task_validation
+from .artifact_handoff import bind_consumer_input, load_input_binding, prepared_original_base, validation_only_input
 
 
 # ---------------------------------------------------------------------------
@@ -767,6 +768,10 @@ class DurableExecutionService:
         )
 
         self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
+
+        artifact_failure = self._admit_artifact_input(task_id, lease, resume=False)
+        if artifact_failure is not None:
+            return artifact_failure
         run = self.store._get_durable_run(lease.run_id)
 
         if run.accepted_checkpoint == "POST_VALIDATION":
@@ -887,7 +892,10 @@ class DurableExecutionService:
                     failure_detail=final.failure_detail,
                 )
 
-            repo_base_sha = wt_head_sha
+            try:
+                repo_base_sha = prepared_original_base(self.store.get_task(task_id), wt_head_sha)
+            except TaskStoreError as exc:
+                return self._artifact_failure(task_id, lease, exc)
 
             self.store._set_worktree_identity(
                 lease.run_id, wt_path, wt_head_sha,
@@ -940,6 +948,9 @@ class DurableExecutionService:
         )
 
         # --- Dispatch executor ---
+        if validation_only_input(self.store.get_task(task_id)):
+            return self._validate_input_without_roles(task_id, lease)
+
         idempotency_key = f"single-exec-{task_id}-{run.execution_id}"
         request_digest = _digest(_json_payload({
             "task_id": task_id,
@@ -1589,7 +1600,14 @@ class DurableExecutionService:
         )
         from reverse_agent.workflows.team_graph import TeamGraphError
 
+        if validation_only_input(self.store.get_task(task_id)):
+            return self._execute_single_with_lease(task_id, workspace_root, lease)
+
         self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
+
+        artifact_failure = self._admit_artifact_input(task_id, lease, resume=False)
+        if artifact_failure is not None:
+            return artifact_failure
         run = self.store._get_durable_run(lease.run_id)
 
         if run.accepted_checkpoint == "POST_VALIDATION":
@@ -1695,7 +1713,10 @@ class DurableExecutionService:
                 failure_detail=final.failure_detail,
             )
 
-        repo_base_sha = wt_head_sha
+        try:
+            repo_base_sha = prepared_original_base(self.store.get_task(task_id), wt_head_sha)
+        except TaskStoreError as exc:
+            return self._artifact_failure(task_id, lease, exc)
 
         self.store._set_worktree_identity(
             lease.run_id, wt_path, wt_head_sha,
@@ -1841,7 +1862,7 @@ class DurableExecutionService:
                 )
 
             head_sha = self._git_rev_parse_head(wt_path)
-            repo_base = self.store._get_durable_run(lease.run_id).repository_base_sha
+            repo_base = self.store._get_durable_run(lease.run_id).worktree_head_sha
             if repo_base and head_sha != repo_base:
                 self._complete_durable_failure(
                     task_id, run, lease, baseline_product, plan_digest,
@@ -1958,6 +1979,38 @@ class DurableExecutionService:
             failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
 
+    def _validate_input_without_roles(self, task_id: str, lease: LeaseHandle) -> Any:
+        """Advance existing milestones as explicitly skipped roles, then use host validation.
+
+        Input consumers need neither planning nor edits. Checkpoints retain their
+        existing ordered storage contract; the bound input digest and an explicit
+        event distinguish skipped milestones from accepted model work. Restart
+        uses only the persisted worktree and never dispatches an executor.
+        """
+        run = self.store._get_durable_run(lease.run_id)
+        task = self.store.get_task(task_id)
+        binding = bind_consumer_input(self.store, task_id, lease=lease, allow_create=False)
+        if not validation_only_input(task) or binding is None:
+            raise TaskStoreError("artifact_validation_input_required")
+        if run.accepted_checkpoint == "POST_VALIDATION":
+            return self._functional_checkpoint_outcome(task_id, run, lease)
+        if task.status in {"INTERRUPTED", "PREPARING_WORKSPACE"}:
+            self.store._fenced_transition_to(lease.run_id, task_id, "RUNNING", lease.owner, lease.epoch)
+        milestones = ("PRE_PLANNER", "POST_PLANNER", "POST_CODER", "POST_REVIEWER")
+        if run.accepted_checkpoint not in milestones:
+            raise DurableResumeError("artifact_validation_checkpoint_missing")
+        self.store._fenced_add_event(lease.run_id, task_id, event_type="EXECUTOR_RUNNING",
+            title="Validating accepted input", description="Host validation; planner, coder and reviewer skipped",
+            metadata={"roles_executed": [], "model_execution_skipped": True,
+                      "artifact_input_digest": _digest(_json_payload(binding))},
+            owner=lease.owner, epoch=lease.epoch)
+        for checkpoint in milestones[milestones.index(run.accepted_checkpoint) + 1:]:
+            self.store._accept_checkpoint(lease.run_id, checkpoint, _digest(_json_payload(binding)),
+                                          run.role_attempt, lease.owner, lease.epoch)
+            _check_crash_seam(checkpoint)
+        return self._resume_single_validate_and_terminal(task_id, Path(run.worktree_path),
+            self.store._get_durable_run(lease.run_id), lease, run.role_attempt, "READY_FOR_REVIEW")
+
     def _validate_prepared_artifact(self, task_id: str, worktree: Any, run: Any,
                                     lease: LeaseHandle) -> tuple[str, int, str, str]:
         run = self.store._get_durable_run(lease.run_id)
@@ -1971,10 +2024,47 @@ class DurableExecutionService:
     def _has_functional_contract(self, task_id: str) -> bool:
         return any(row.get("category") == CONTRACT_CATEGORY for row in self.store.get_task(task_id).evidence_refs)
 
+    def _artifact_failure(self, task_id: str, lease: LeaseHandle, exc: Exception) -> Any:
+        from .task_execution import TaskExecutionOutcome
+        reason = str(exc) if isinstance(exc, TaskStoreError) else "artifact_input_observation_failed"
+        self.store._fenced_classify_failure(lease.run_id, task_id, classification="blocked", detail=reason,
+                                           owner=lease.owner, epoch=lease.epoch)
+        task = self.store.get_task(task_id)
+        return TaskExecutionOutcome(task_id=task_id, execution_id=task.execution_id, success=False,
+            validation_command_id=FUNCTIONAL_COMMAND_ID, validation_exit_code=-1,
+            failure_classification=task.failure_classification, failure_detail=task.failure_detail)
+
+    def _admit_artifact_input(self, task_id: str, lease: LeaseHandle, *, resume: bool = False) -> Any:
+        try:
+            if resume:
+                load_input_binding(self.store.get_task(task_id))
+            bind_consumer_input(self.store, task_id, lease=lease, allow_create=True)
+            return None
+        except (TaskStoreError, RepositoryWorkspaceError, OSError, ValueError, subprocess.SubprocessError) as exc:
+            return self._artifact_failure(task_id, lease, exc)
+
+    def _resume_base_head(self, task: Any, run: Any) -> str:
+        try:
+            binding = bind_consumer_input(self.store, task.id, allow_create=False)
+            if binding is None:
+                return run.repository_base_sha
+            if (run.repository_base_sha != binding["base_commit"]
+                    or run.worktree_head_sha != binding["producer"]["commit"]):
+                raise TaskStoreError("artifact_run_input_mismatch")
+            return binding["producer"]["commit"]
+        except (TaskStoreError, RepositoryWorkspaceError, OSError, ValueError, subprocess.SubprocessError) as exc:
+            reason = str(exc) if isinstance(exc, TaskStoreError) else "artifact_input_observation_failed"
+            raise DurableResumeError(reason) from exc
+
     def _functional_checkpoint_outcome(self, task_id: str, run: Any, lease: LeaseHandle | None = None) -> Any:
         from .task_execution import TaskExecutionOutcome
         task = self.store.get_task(task_id)
-        proof = accepted_checkpoint_proof(task, run)
+        try:
+            bind_consumer_input(self.store, task_id, lease=lease, allow_create=False)
+            proof = accepted_checkpoint_proof(task, run)
+        except (TaskStoreError, RepositoryWorkspaceError, OSError, ValueError, subprocess.SubprocessError) as exc:
+            proof = {"passed": False, "verified": False, "status": "UNVERIFIED", "reason":
+                     str(exc) if isinstance(exc, TaskStoreError) else "artifact_input_observation_failed"}
         if task.status in {"FAILED", "BLOCKED", "CANCELLED"} and proof["passed"]:
             proof = {**proof, "passed": False, "reason": "functional_terminal_task_requires_new_execution"}
         passed = proof["passed"]
@@ -2001,6 +2091,7 @@ class DurableExecutionService:
 
     def _build_executor_kwargs(self, task: Any) -> dict[str, Any]:
         kwargs: dict[str, Any] = {}
+        artifact_input = load_input_binding(self.store.get_task(task.id))
         if getattr(task, "executor_kind", "") == "opencode":
             binding_ref = getattr(task, "binding_ref", "") or ""
             if binding_ref and self.binding_resolver is not None:
@@ -2013,7 +2104,8 @@ class DurableExecutionService:
                 ) or os.environ.get("REVERSE_AGENT_OPENCODE_MODEL", "")
                 kwargs["model_id"] = model_id
             kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
-            kwargs["base_ref"] = getattr(task, "branch", "") or ""
+            kwargs["base_ref"] = (artifact_input["producer"]["commit"] if artifact_input is not None
+                                   else getattr(task, "branch", "") or "")
             kwargs["transport_kind"] = os.environ.get(
                 "REVERSE_AGENT_OPENCODE_TRANSPORT", "cli"
             ).strip() or "cli"
@@ -2439,7 +2531,7 @@ class DurableExecutionService:
             raise DurableResumeError(f"worktree_not_found:{wt_path}")
 
         actual_head = self._git_rev_parse_head(wt_path)
-        stored_base = getattr(run_obj, "repository_base_sha", "") or ""
+        stored_base = self._resume_base_head(stored_task, run_obj)
         if stored_base and actual_head != stored_base:
             raise DurableResumeError(
                 f"repository_base_head_mismatch:{stored_base}!={actual_head}"
@@ -2635,7 +2727,7 @@ class DurableExecutionService:
 
         if Path(wt_path).exists():
             actual_head = self._git_rev_parse_head(wt_path)
-            stored_base = getattr(run_obj, "repository_base_sha", "") or ""
+            stored_base = self._resume_base_head(stored_task, run_obj)
             if stored_base and actual_head != stored_base:
                 raise DurableResumeError(
                     f"repository_base_head_mismatch:{stored_base}!={actual_head}"
@@ -2714,7 +2806,13 @@ class DurableExecutionService:
 
         self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
 
+        artifact_failure = self._admit_artifact_input(task_id, lease, resume=True)
+        if artifact_failure is not None:
+            return artifact_failure
+
         stored = self.store.get_task(task_id)
+        if validation_only_input(stored):
+            return self._validate_input_without_roles(task_id, lease)
         if stored.status == "INTERRUPTED":
             self.store._fenced_transition_to(
                 lease.run_id, task_id, "RUNNING",
@@ -2890,7 +2988,7 @@ class DurableExecutionService:
                 from .opencode_executor import OpenCodeExecutor, RoleContext
                 prepared = OpenCodeExecutor.reconstruct_prepared_context(
                     worktree_path=str(run.worktree_path or prepared_path),
-                    base_sha=run.repository_base_sha,
+                    base_sha=run.worktree_head_sha or run.repository_base_sha,
                     execution_id=run.execution_id,
                 )
                 exec_role_ctx = RoleContext(
@@ -3257,6 +3355,13 @@ class DurableExecutionService:
         from .task_execution import TaskExecutionOutcome
         from .opencode_executor import _collect_product_diff
 
+        artifact_failure = self._admit_artifact_input(task_id, lease, resume=True)
+        if artifact_failure is not None:
+            return artifact_failure
+
+        if validation_only_input(self.store.get_task(task_id)):
+            return self._validate_input_without_roles(task_id, lease)
+
         if run.accepted_checkpoint == "POST_VALIDATION":
             if self._has_functional_contract(task_id):
                 return self._functional_checkpoint_outcome(task_id, run, lease)
@@ -3412,7 +3517,7 @@ class DurableExecutionService:
             try:
                 prepared_for_executor = reconstruct(
                     worktree_path=wt_path,
-                    base_sha=run.repository_base_sha,
+                    base_sha=run.worktree_head_sha or run.repository_base_sha,
                     execution_id=run.execution_id,
                     opencode_exe=getattr(executor, "_opencode_exe", None),
                 )

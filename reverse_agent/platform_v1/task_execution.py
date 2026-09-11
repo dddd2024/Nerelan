@@ -9,12 +9,14 @@ recording, and terminal status. It never synthesizes a new executor kind.
 from __future__ import annotations
 
 import os
+import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
 from .binding_resolver import BindingResolver
+from .artifact_handoff import validation_only_input
 from .opencode_executor import (
     RoleContext,
     _collect_product_diff,
@@ -60,8 +62,17 @@ def _build_executor_kwargs(
     *,
     binding_resolver: Any | None = None,
     lease_provider: Any | None = None,
+    store: Any | None = None,
 ) -> dict[str, Any]:
     kwargs: dict[str, Any] = {}
+    artifact_input = None
+    if store is not None:
+        from .artifact_handoff import bind_consumer_input
+        try:
+            artifact_input = bind_consumer_input(store, str(_map_task_field(task, "id", "")))
+        except (TaskStoreError, RepositoryWorkspaceError, OSError, ValueError, subprocess.SubprocessError) as exc:
+            reason = str(exc) if isinstance(exc, TaskStoreError) else "artifact_input_observation_failed"
+            raise ExecutorRuntimeError(reason) from exc
     executor_kind = str(_map_task_field(task, "executor_kind", ""))
     if executor_kind == "opencode":
         binding_ref = str(_map_task_field(task, "binding_ref", ""))
@@ -76,7 +87,8 @@ def _build_executor_kwargs(
             ) or os.environ.get("REVERSE_AGENT_OPENCODE_MODEL", "")
             kwargs["model_id"] = model_id
         kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
-        kwargs["base_ref"] = str(_map_task_field(task, "branch", ""))
+        kwargs["base_ref"] = (artifact_input["producer"]["commit"] if artifact_input is not None
+                              else str(_map_task_field(task, "branch", "")))
         kwargs["transport_kind"] = os.environ.get(
             "REVERSE_AGENT_OPENCODE_TRANSPORT", "cli"
         ).strip() or "cli"
@@ -165,6 +177,7 @@ class TaskExecutionService:
         try:
             executor_kwargs = _build_executor_kwargs(
                 task,
+                store=self.store,
                 binding_resolver=self.binding_resolver,
                 lease_provider=self.lease_provider,
             )
@@ -195,8 +208,10 @@ class TaskExecutionService:
             task_id,
             event_type="EXECUTOR_RUNNING",
             title="Executor running",
-            description=f"Executor {executor_kind} started",
-            metadata={"executor_kind": executor_kind},
+            description=("Host validation of accepted input; model execution skipped"
+                         if validation_only_input(task) else f"Executor {executor_kind} started"),
+            metadata={"executor_kind": executor_kind,
+                      "model_execution_skipped": validation_only_input(task)},
         )
 
         try:
@@ -321,6 +336,9 @@ class TaskExecutionService:
                 f"task_not_opencode:{task_id}:{executor_kind}"
             )
 
+        if validation_only_input(task):
+            return self.execute(task_id, workspace_root=workspace_root)
+
         try:
             resolve_repository_workspace(task.repository)
         except RepositoryWorkspaceError as exc:
@@ -346,6 +364,7 @@ class TaskExecutionService:
         try:
             executor_kwargs = _build_executor_kwargs(
                 task,
+                store=self.store,
                 binding_resolver=self.binding_resolver,
                 lease_provider=self.lease_provider,
             )
@@ -962,14 +981,25 @@ class TaskExecutionService:
         validation_command_id: str,
         executor_kwargs: dict[str, Any],
     ) -> dict[str, Any]:
-        result = self.router.dispatch_execute(
-            task_id=task.id,
-            store=self.store,
-            executor_kind=task.executor_kind,
-            workspace_root=workspace_root,
-            event_callback=self._store_event_callback,
-            **executor_kwargs,
-        )
+        if validation_only_input(task):
+            from .task_runtime import ExecutorResult
+            try:
+                executor = self.router.create_executor(executor_kind=task.executor_kind, **executor_kwargs)
+                prepared = executor.prepare_worktree_once(task.id, Path(workspace_root), self._store_event_callback)
+            except Exception as exc:
+                raise ExecutorRuntimeError("artifact_input_preparation_failed") from exc
+            result = ExecutorResult(success=True, validation_exit_code=-1, validation_command_id="",
+                validation_output_digest="", validation_output_summary="Host validation pending",
+                workspace=str(prepared.worktree), execution_id=prepared.execution_id)
+        else:
+            result = self.router.dispatch_execute(
+                task_id=task.id,
+                store=self.store,
+                executor_kind=task.executor_kind,
+                workspace_root=workspace_root,
+                event_callback=self._store_event_callback,
+                **executor_kwargs,
+            )
         from .functional_validation import CONTRACT_CATEGORY, prepared_base, run_task_validation
         if result.success and any(row.get("category") == CONTRACT_CATEGORY for row in task.evidence_refs):
             command, code, output, identity = run_task_validation(
@@ -1001,6 +1031,7 @@ class TaskExecutionService:
             raw_json_digest=result.validation_output_digest,
         )
         executor_detail = (
+            "Host validated accepted input; no model roles executed" if validation_only_input(task) else
             "fixture/provider-free executor"
             if task.executor_kind == "deterministic_fixture"
             else task.executor_kind

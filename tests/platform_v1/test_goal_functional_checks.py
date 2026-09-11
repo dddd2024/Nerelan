@@ -111,3 +111,56 @@ def test_contract_persistence_failure_rolls_back_entire_launch(goal_checks, monk
     monkeypatch.setattr(store, "add_evidence", original)
     service.launch(goal.id, expected_revision=1, window_id=window.id)
     assert store.count_tasks() == 2
+
+
+def test_artifact_contracts_freeze_original_base_and_survive_reopen(goal_checks):
+    from reverse_agent.platform_v1.artifact_handoff import load_handoff_contract
+    _, base, store, control, service, goal, window = goal_checks
+    producer = planned_check("A")
+    consumer = {**planned_check("B"), "dependencies": ["A"], "capability": "validate_task",
+                "artifact_input": {"plan_task_id": "A"}}
+    planned = service.plan(goal.id, expected_revision=goal.revision, tasks=[producer, consumer]).goal
+    service.approve(goal.id, expected_revision=planned.revision)
+    launched = service.launch(goal.id, expected_revision=planned.revision, window_id=window.id)
+    links = control.list_goal_tasks(goal.id)
+    contracts = [load_handoff_contract(store.get_task(link["task_id"])) for link in links]
+    assert contracts[0]["export_required"] is True and contracts[0]["artifact_input"] is None
+    assert contracts[1]["export_required"] is False
+    assert contracts[1]["artifact_input"] == {"plan_task_id": "A"}
+    assert contracts[1]["capability"] == "validate_task"
+    for contract in contracts:
+        assert contract["base_commit"] == base
+        assert contract["goal_artifact_digest"] == launched.artifact_digest
+        assert contract["goal_revision"] == launched.revision
+    service.launch(goal.id, expected_revision=planned.revision, window_id=window.id)
+    reopened = TaskStore(store.db_path)
+    try:
+        assert [load_handoff_contract(reopened.get_task(link["task_id"])) for link in links] == contracts
+        for link, contract in zip(links, contracts):
+            reopened._bind_artifact_evidence(link["task_id"], category="ArtifactContract",
+                label="approved_goal_artifact", document=contract)
+            with pytest.raises(TaskStoreError, match="artifact_binding_conflict"):
+                reopened._bind_artifact_evidence(link["task_id"], category="ArtifactContract",
+                    label="approved_goal_artifact", document={**contract, "base_commit": "0" * 40})
+            assert load_handoff_contract(reopened.get_task(link["task_id"])) == contract
+            assert len(reopened.get_task(link["task_id"]).evidence_refs) == 2
+    finally:
+        reopened._conn.close()
+
+
+def test_artifact_contract_failure_rolls_back_tasks_and_functional_proof(goal_checks, monkeypatch):
+    _, _, store, control, service, goal, window = goal_checks
+    service.plan(goal.id, expected_revision=goal.revision, tasks=[planned_check("A"),
+        {**planned_check("B"), "dependencies": ["A"], "artifact_input": {"plan_task_id": "A"}}])
+    service.approve(goal.id, expected_revision=goal.revision)
+    original = store.add_evidence
+    def fail_artifact(*args, **kwargs):
+        if kwargs.get("category") == "ArtifactContract":
+            raise TaskStoreError("test_artifact_write_failure")
+        return original(*args, **kwargs)
+    monkeypatch.setattr(store, "add_evidence", fail_artifact)
+    with pytest.raises(TaskStoreError, match="test_artifact_write_failure"):
+        service.launch(goal.id, expected_revision=goal.revision, window_id=window.id)
+    assert store.count_tasks() == 0 and control.list_goal_tasks(goal.id) == ()
+    assert control.get_goal(goal.id).status == "APPROVED"
+    assert store._conn.execute("SELECT count(*) FROM task_evidence").fetchone()[0] == 0

@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260911_issue778_functional_ui_r2_v2",
-  "round_id": "round_20260911_issue778_functional_ui_r2_v2",
+  "decision_id": "decision_20260911_issue788_artifact_handoff_r2_v4",
+  "round_id": "round_20260911_issue788_artifact_handoff_r2_v4",
   "commands": [
     {
-      "command_id": "issue778.bootstrap",
+      "command_id": "issue788.bootstrap",
       "command": "Verify the locked base and fresh branch; commit only this immutable Decision as the first activation commit; run startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before product edits.",
       "phase": "bootstrap",
       "required": true,
@@ -34,8 +34,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue778.implement",
-      "command": "After activation and preflight, copy only the eighteen exact candidate product blobs from e5b6bba98df186c0b895227672cd0e55c9cf8570, not its Decision/gates/commits; replace the control-character regex with equivalent character-code checks and add regression cases. Preserve stopped PR777 and its immutable authority; no history reuse or workflow rerun. Implement only the eighteen frontend/test/documentation paths and complete user-facing contract in Issue 778: closed check selection, same-Goal review and safe Task/Run evidence presentation; reuse existing host APIs and installed dependencies. No backend/store/control-plane, workflow, dependency, provider, credential, local browser or reverse-tool change.",
+      "command_id": "issue788.implement",
+      "command": "After fresh activation/preflight, copy only the twenty-one hash-bound product candidate files from preserved stopped Issue784 as specified in Issue788, never old Decision/gates/commits. Correct only the HTTP test response access to frontend_task.functionalValidation, retaining every functional assertion; finish the complete implementation and all acceptance checks. Preserve validation-only skipped roles, implementation diff requirements, original-base/input-head distinction and all negative/restart coverage. Implement the complete F02 explicit accepted-artifact input contract and exactly twenty-six source/frontend/test/documentation paths in Issue788. Reuse existing Git object/private-index/worktree preparation, TaskStore evidence/lease/checkpoints and all ordinary/durable single/team execution and recovery paths. Preserve frozen approved base separately from exact producer input commit/tree. Include validation-only immutability, UI selection/review and safe consumed-input evidence. Bounded local retention refs/nerelan/accepted-artifacts/<task-id>/<execution-id> use create-if-absent with identical-binding idempotence only, no remote publication or arbitrary ref mutation. No second database, runner, coordinator or Gate; no workflow/dependency/provider/credential/browser/reverse-tool change.",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -56,29 +56,37 @@
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
+        "reverse_agent/platform_v1/artifact_handoff.py",
+        "reverse_agent/platform_v1/goal_service.py",
+        "reverse_agent/platform_v1/run_store.py",
+        "reverse_agent/platform_v1/task_execution.py",
+        "reverse_agent/platform_v1/durable_execution.py",
+        "reverse_agent/platform_v1/functional_validation.py",
         "frontend/src/types/index.ts",
         "frontend/src/lib/platform-client.ts",
         "frontend/src/lib/goal-continuation-operation.ts",
-        "frontend/src/lib/task-client.ts",
         "frontend/src/lib/functional-validation.ts",
-        "frontend/src/hooks/use-task.ts",
-        "frontend/src/hooks/use-tasks.ts",
         "frontend/src/components/goal-review-editor.tsx",
         "frontend/src/components/functional-validation.tsx",
-        "frontend/src/components/task-detail.tsx",
-        "frontend/src/routes/runs.tsx",
+        "tests/platform_v1/test_artifact_handoff.py",
+        "tests/platform_v1/test_artifact_handoff_http.py",
+        "tests/platform_v1/test_goal_functional_checks.py",
+        "tests/platform_v1/test_goal_service.py",
+        "tests/platform_v1/test_functional_execution.py",
+        "tests/platform_v1/test_durable_execution.py",
+        "tests/platform_v1/test_durable_execution_v5.py",
+        "tests/platform_v1/test_task_execution.py",
         "frontend/tests/goal-review-editor.test.tsx",
         "frontend/tests/goal-configuration-client.test.ts",
-        "frontend/tests/task-status-mapping.test.ts",
-        "frontend/tests/runs.test.tsx",
         "frontend/tests/functional-validation.test.tsx",
-        "frontend/e2e/functional-validation.spec.ts",
+        "frontend/e2e/artifact-handoff.spec.ts",
+        "docs/artifact-handoff.md",
         "docs/functional-validation.md"
       ]
     },
     {
-      "command_id": "issue778.validate",
-      "command": "Run the existing npm run lint and all frontend unit/component tests with the existing npm test script and the existing npm run build production build, without installing dependencies. Run python -B -m pytest tests/platform_v1/test_goal_functional_checks.py tests/platform_v1/test_functional_execution.py tests/platform_v1/test_goal_configuration.py tests/platform_v1/test_goal_plan_revision.py -q -p no:cacheprovider, and git diff --check. Perform the Issue 778 actual changed-TypeScript client to isolated loopback Task API to disk SQLite/Git/installed-pytest integration, with only model execution and binding metadata as explicit local fakes; verify successful/failed/missing/fixture proof and selection/stale-revision handling with reopened SQLite. Reuse installed tooling and existing test/service seams, retain sanitized evidence outside the repository, and close owned test servers after use. No external network, providers, credentials, local browsers or snapshot updates. Run transition lint, preflight and publication readiness; require passing checks before publication.",
+      "command_id": "issue788.validate",
+      "command": "python -B -m pytest tests/platform_v1/test_artifact_handoff.py tests/platform_v1/test_artifact_handoff_http.py tests/platform_v1/test_goal_service.py tests/platform_v1/test_goal_functional_checks.py tests/platform_v1/test_goal_configuration.py tests/platform_v1/test_goal_plan_revision.py tests/platform_v1/test_functional_validation.py tests/platform_v1/test_functional_execution.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_durable_execution_v5.py tests/platform_v1/test_task_execution.py tests/platform_v1/test_repository_workspace.py -q -p no:cacheprovider\nnpm run lint\nnpm test\nnpm run build\ngit diff --check\nPerform real temporary Git producer-consumer and diskSQLite reopen/restart/race tests, plus actual changed-TypeScript client to isolated loopback TaskAPI to diskSQLite/Git/installed-pytest acceptance. Only model execution and binding metadata may be disclosed local doubles. Reuse installed tooling and existing test/service seams, retain sanitized evidence outside tracked repository paths and close owned servers. No external network, providers, credentials, local browser, installation or snapshot update. Run existing transition-lint/preflight and publication-readiness; require all complete checks on exact head before publication.",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -109,8 +117,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue778.publish",
-      "command": "After blocking checks pass, push only codex/f03-functional-ui-lint-safe-r2-v2 and create/update one Draft PR in dddd2024/Nerelan against main at 139baff28ef86ccbe1c5da008bd4dff7f954f68b; publish disclosed audit/evidence and Issue 778/653/659 progress comments; no other branch or repository publication.",
+      "command_id": "issue788.publish",
+      "command": "After blocking checks pass, push only codex/f02-accepted-artifact-handoff-r2-v4 and create/update one Draft PR in dddd2024/Nerelan against main at 6c41aae9b9e148c658d3f9dece9ba71338e82611; publish disclosed audit/evidence and Issue 788/652/659 progress comments; no other branch or repository publication.",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -135,7 +143,7 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue778.audit",
+      "command_id": "issue788.audit",
       "command": "Observe natural exact-head CI, Decision Preflight, State Gate, Model Access and Frontend Playwright as naturally triggered by existing filters; compare actual diagnostic failed node IDs with the locked base and perform a separate disclosed self-audit. No rerun or dispatch.",
       "phase": "final_evidence",
       "required": true,
@@ -158,8 +166,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue778.landing",
-      "command": "Only after disclosed exact-head self-audit, required natural checks, unchanged approved Decision and immediate remote main 139baff28ef86ccbe1c5da008bd4dff7f954f68b, exact reviewed head and CLEAN/MERGEABLE observation, mark the bound PR ready; require natural final State/Landing checks, reobserve immediately and perform one ordinary merge with expected-head protection. Verify merged commit and main and exact parents. This action is explicitly delegated by the user; never claim independent human review.",
+      "command_id": "issue788.landing",
+      "command": "Only after disclosed exact-head self-audit, required natural checks, unchanged approved Decision and immediate remote main 6c41aae9b9e148c658d3f9dece9ba71338e82611, exact reviewed head and CLEAN/MERGEABLE observation, mark the bound PR ready; require natural final State/Landing checks, reobserve immediately and perform one ordinary merge with expected-head protection. Verify merged commit and main and exact parents. This action is explicitly delegated by the user; never claim independent human review.",
       "phase": "final_acceptance",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
