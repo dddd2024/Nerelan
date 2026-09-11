@@ -1,3 +1,4 @@
+import { FunctionalValidationView } from "@/components/functional-validation";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import {
@@ -364,6 +365,8 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
         <Meta label="Authority" value={displayTask.authorityStatus} />
         <Meta label="测试" value={displayTask.testStatus} />
       </dl>
+
+      {displayTask.functionalValidation && <FunctionalValidationView evidence={displayTask.functionalValidation} executor={displayTask.executor} />}
 
       {displayTask.draftPr ? (
         <div

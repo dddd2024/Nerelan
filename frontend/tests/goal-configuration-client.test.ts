@@ -41,3 +41,17 @@ it("surfaces conflicts once and rejects a mismatched response identity", async (
   await expect(saveGoalPlan(goal, { tasks: goal.tasks, acceptance_criteria: goal.acceptance_criteria })).rejects.toMatchObject({ code: "goal_continuation_failed" });
   expect(fetch).toHaveBeenCalledTimes(2);
 });
+
+it("carries selected checks and explicit removal through the same Goal revision request", async () => {
+  const checks = [{ profile_id: "python_pytest" as const, working_directory: "." }];
+  const input = { tasks: [{ ...goal.tasks[0], validation_checks: checks }], acceptance_criteria: goal.acceptance_criteria };
+  const selected = { ...goal, ...input, revision: 4 };
+  const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify(selected)));
+  expect((await saveGoalPlan(goal, input)).tasks[0].validation_checks).toEqual(checks);
+  expect(JSON.parse(String(fetch.mock.calls[0][1]?.body))).toEqual({ ...input, expected_revision: 3 });
+  const removal = { ...input, tasks: [{ ...input.tasks[0], validation_checks: [] }] };
+  fetch.mockResolvedValueOnce(new Response(JSON.stringify({ ...selected, ...removal, revision: 5 })));
+  expect((await saveGoalPlan(selected, removal)).tasks[0].validation_checks).toEqual([]);
+  expect(JSON.parse(String(fetch.mock.calls[1][1]?.body))).toEqual({ ...removal, expected_revision: 4 });
+  expect(fetch).toHaveBeenCalledTimes(2);
+});

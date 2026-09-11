@@ -1,3 +1,5 @@
+import type { TestStatus } from "@/types";
+import { functionalTestStatus, normalizeFunctionalValidation } from "@/lib/functional-validation";
 export type ExecutorKind = "deterministic_fixture" | "opencode";
 
 export interface BackendTaskCreatePayload {
@@ -193,6 +195,11 @@ function _workflowStatus(
 function _normalizeTask(raw: Record<string, unknown>) {
   const ft = raw.frontend_task as Record<string, unknown> | undefined;
   const source = ft ?? raw;
+  const executor = String(source.executor ?? raw.executor_kind ?? "");
+  const validationCommandId = String(source.validationCommandId ?? source.validation_command_id ?? raw.validation_command_id ?? "");
+  const functionalRaw = source.functionalValidation ?? raw.functionalValidation;
+  const functionalValidation = functionalRaw !== undefined || validationCommandId === "approved_functional_checks"
+    ? normalizeFunctionalValidation(functionalRaw, executor) : undefined;
   const state =
     source.state ?? raw.status ?? "WAITING_FOR_OWNER";
   const title = String(source.title ?? raw.title ?? "");
@@ -269,7 +276,7 @@ function _normalizeTask(raw: Record<string, unknown>) {
     authorityStatus: _authorityStatus(
       _governanceValue(source, raw, "authorityStatus", "authority_status"),
     ),
-    testStatus: _deriveTestStatus(raw),
+    testStatus: functionalTestStatus(_deriveTestStatus(raw) as TestStatus, functionalValidation, validationCommandId),
     workflowStatus: _workflowStatus(
       _governanceValue(source, raw, "workflowStatus", "workflow_status"),
     ),
@@ -278,15 +285,13 @@ function _normalizeTask(raw: Record<string, unknown>) {
       (raw.executor_kind as string | undefined) ??
       "",
     repository: String(raw.repository ?? ""),
-    executionId: String(source.execution_id ?? raw.execution_id ?? ""),
+    executionId: String(source.executionId ?? source.execution_id ?? raw.execution_id ?? ""),
     failureClassification:
       (raw as { failure_classification?: string }).failure_classification ??
       "",
-    validationCommandId:
-      (raw as { validation_command_id?: string }).validation_command_id ??
-      "",
-    validationExitCode: (raw as { validation_exit_code?: number })
-      .validation_exit_code,
+    validationCommandId,
+    validationExitCode: (source.validationExitCode ?? source.validation_exit_code ?? raw.validation_exit_code) as number | undefined,
+    functionalValidation,
     publication: raw.publication ?? null,
   } as Record<string, unknown>;
 }

@@ -281,3 +281,16 @@ describe("_normalizeTask testStatus derivation", () => {
     expect(result.testStatus).toBe("PENDING");
   });
 });
+it.each([undefined, { status: "UNVERIFIED", verified: false }, { status: "FIXTURE_VERIFIED", verified: false }])("never reports functional PASS from zero exit with missing/stale/fixture proof %s", async (functionalValidation) => {
+  vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
+  try {
+    mockFetch({ ok: true, status: 200, text: async () => JSON.stringify(payload({
+      executor_kind: "opencode", validation_command_id: "approved_functional_checks", validation_exit_code: 0,
+      functionalValidation, frontend_task: { testStatus: "PASS", executor: "opencode" },
+    })) });
+    const task = await fetchTask("t-001");
+    expect(task.testStatus).toBe("PENDING");
+    expect(task.executionId).toBe("exec-001");
+    expect(task.validationCommandId).toBe("approved_functional_checks");
+  } finally { vi.unstubAllGlobals(); vi.unstubAllEnvs(); }
+});

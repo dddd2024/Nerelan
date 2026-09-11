@@ -1,3 +1,4 @@
+import { FunctionalValidationView } from "@/components/functional-validation";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { ErrorState } from "@/components/error-state";
@@ -600,7 +601,8 @@ function RunDetailContent({ run }: { run: PlatformAgentRunDetail }) {
           <div><dt className="text-ra-text-tertiary">最近活动</dt><dd className="mt-1 inline-flex items-center gap-1.5 text-ra-text-secondary"><Clock3 className="h-3.5 w-3.5" aria-hidden="true" />{lastActivityAt(run) ? relativeTime(lastActivityAt(run)) : "未知"}</dd></div>
         </dl>
         {agents.length > 0 ? <div className="mt-3 flex flex-wrap gap-2 text-xs text-ra-text-tertiary" data-testid={`run-agents-${run.task_id}`}>{agents.map((agent) => <span key={`${agent.agent_id}:${agent.role}`} className="rounded-full border border-ra-border px-2 py-1">{agentLabel(agent)} · {agent.role || "role unknown"}</span>)}</div> : null}
-        {run.validation ? <p className="mt-3 text-xs text-ra-text-secondary" data-testid={`run-validation-${run.task_id}`}>验证：<span className="font-mono">{run.validation.command_id}</span> · {run.validation.status}{run.validation.summary ? ` · ${run.validation.summary}` : ""}</p> : null}
+        {run.validation?.functional || run.validation?.command_id === "approved_functional_checks" ? <FunctionalValidationView evidence={run.validation.functional} executor={run.executor_kind} /> : null}
+        {run.validation && !run.validation.functional && run.validation.command_id !== "approved_functional_checks" ? <p className="mt-3 text-xs text-ra-text-secondary" data-testid={`run-validation-${run.task_id}`}>验证：<span className="font-mono">{run.validation.command_id}</span> · {run.validation.status}{run.validation.summary ? ` · ${run.validation.summary}` : ""}</p> : null}
       </section>
 
       <section aria-labelledby={`run-activity-heading-${run.task_id}`} data-testid={`run-activity-section-${run.task_id}`}>
