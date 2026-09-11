@@ -506,14 +506,32 @@ def test_connection_test_endpoint_unsupported_auth_no_probe(
 # ===================================================================
 
 import json as _json_mod
+import errno as _errno_mod
 import os as _os_mod
 from pathlib import Path as _Path
 
+import reverse_agent.model_access.store as _store_mod
 from reverse_agent.model_access.store import StoreError as _StoreError
 
 
 def _state_path(tmp_path: _Path, name: str = "state.json") -> str:
     return str(tmp_path / name)
+
+
+def _fail_second_fsync(
+    monkeypatch: pytest.MonkeyPatch,
+    exc: OSError,
+) -> None:
+    original_fsync = _os_mod.fsync
+    call_count = {"fsync": 0}
+
+    def _fsync_with_second_failure(fd):
+        call_count["fsync"] += 1
+        if call_count["fsync"] == 2:
+            raise exc
+        return original_fsync(fd)
+
+    monkeypatch.setattr(_os_mod, "fsync", _fsync_with_second_failure)
 
 
 def test_persistence_restores_connection_and_binding_metadata(tmp_path) -> None:
@@ -726,6 +744,10 @@ def test_atomic_write_interruption_preserves_last_valid_state(tmp_path, monkeypa
             connection_payload(connection_id="new-conn", name="New Conn")
         )
 
+    memory_after = store.list_connections_public()
+    assert len(memory_after) == 1
+    assert memory_after[0]["connection_id"] == "sense-api"
+
     restored = _Path(sp).read_bytes()
     assert restored == first_content
 
@@ -746,6 +768,7 @@ def test_persistence_failure_rolls_back_memory_mutation(tmp_path, monkeypatch) -
 
     before_connections = store.list_connections_public()
     before_bindings = store.list_bindings_public()
+    before_bytes = _Path(sp).read_bytes()
     assert len(before_connections) == 1
     assert len(before_bindings) == 1
 
@@ -771,8 +794,151 @@ def test_persistence_failure_rolls_back_memory_mutation(tmp_path, monkeypatch) -
     assert after_connections[0]["connection_id"] == "sense-api"
     assert len(after_bindings) == 1
     assert after_bindings[0]["binding_id"] == "coding-fast"
+    assert _Path(sp).read_bytes() == before_bytes
 
     monkeypatch.setattr(_os_mod, "replace", original_replace)
+
+
+def test_connection_post_replace_uncertainty_reconciles_to_installed_state(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(connection_payload())
+    store.upsert_binding(binding_payload())
+    new_secret = "NEW-SENTINEL-SECRET-DO-NOT-PERSIST"
+    _fail_second_fsync(
+        monkeypatch,
+        OSError(_errno_mod.EIO, "simulated parent directory durability failure"),
+    )
+
+    with pytest.raises(_StoreError, match="POST_REPLACE_DURABILITY_UNCERTAIN"):
+        store.upsert_connection(
+            connection_payload(
+                name="SenseNova API Updated",
+                api_key=new_secret,
+            )
+        )
+
+    current = store.get_connection_public("sense-api")
+    assert current["name"] == "SenseNova API Updated"
+    raw_bytes = _Path(sp).read_bytes()
+    assert new_secret.encode("utf-8") not in raw_bytes
+    assert b"SENTINEL-SECRET" not in raw_bytes
+
+    fresh = ModelProfileStore(state_path=sp)
+    assert fresh.get_connection_public("sense-api")["name"] == "SenseNova API Updated"
+
+
+def test_binding_post_replace_uncertainty_reconciles_to_installed_state(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(connection_payload())
+    store.upsert_binding(binding_payload())
+    _fail_second_fsync(
+        monkeypatch,
+        OSError(_errno_mod.EIO, "simulated parent directory durability failure"),
+    )
+
+    with pytest.raises(_StoreError, match="POST_REPLACE_DURABILITY_UNCERTAIN"):
+        store.upsert_binding(binding_payload(model_id="sense-coding-updated"))
+
+    assert store.get_binding_public("coding-fast")["model_id"] == "sense-coding-updated"
+    fresh = ModelProfileStore(state_path=sp)
+    assert fresh.get_binding_public("coding-fast")["model_id"] == "sense-coding-updated"
+
+
+def test_post_replace_reconciliation_failure_poison_fails_closed(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(connection_payload())
+    store.upsert_binding(binding_payload())
+
+    _fail_second_fsync(
+        monkeypatch,
+        OSError(_errno_mod.EIO, "simulated parent directory durability failure"),
+    )
+
+    def _reconcile_failure():
+        raise _StoreError("simulated load failure")
+
+    monkeypatch.setattr(store, "_load_from_disk", _reconcile_failure)
+    with pytest.raises(_StoreError, match="PERSISTENCE_RECONCILIATION_FAILED"):
+        store.upsert_connection(connection_payload(name="Poisoned update"))
+
+    with pytest.raises(_StoreError, match="PERSISTENCE_RECONCILIATION_FAILED"):
+        store.list_connections_public()
+    with pytest.raises(_StoreError, match="PERSISTENCE_RECONCILIATION_FAILED"):
+        store.list_bindings_public()
+    with pytest.raises(_StoreError, match="PERSISTENCE_RECONCILIATION_FAILED"):
+        store.upsert_binding(binding_payload(model_id="must-fail-closed"))
+
+
+def test_stale_atomic_temp_file_is_ignored_on_restart(tmp_path) -> None:
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(connection_payload())
+    store.upsert_binding(binding_payload())
+    stale_tmp = tmp_path / ".model_setup_stale.tmp"
+    stale_tmp.write_text(
+        _json_mod.dumps(
+            {
+                "schema_version": 2,
+                "connections": [
+                    connection_payload(connection_id="stale", name="stale")
+                ],
+                "bindings": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    fresh = ModelProfileStore(state_path=sp)
+    listed = fresh.list_connections_public()
+    assert len(listed) == 1
+    assert listed[0]["connection_id"] == "sense-api"
+
+
+def test_known_unsupported_directory_fsync_is_treated_as_supported_fallback(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(connection_payload())
+    _fail_second_fsync(
+        monkeypatch,
+        OSError(_errno_mod.EINVAL, "directory fsync unsupported"),
+    )
+
+    updated = store.upsert_connection(connection_payload(name="Known-unsupported-ok"))
+    assert updated["name"] == "Known-unsupported-ok"
+    assert ModelProfileStore(state_path=sp).get_connection_public("sense-api")["name"] == "Known-unsupported-ok"
+
+
+def test_windows_path_skips_posix_directory_open_and_fsync(tmp_path, monkeypatch) -> None:
+    sp = _state_path(tmp_path)
+    store = ModelProfileStore(state_path=sp)
+    store.upsert_connection(connection_payload())
+    monkeypatch.setattr(_store_mod, "_is_windows_platform", lambda: True)
+    fsync_calls: list[int] = []
+    original_fsync = _store_mod.os.fsync
+
+    def _record_fsync(fd):
+        fsync_calls.append(fd)
+        return original_fsync(fd)
+
+    monkeypatch.setattr(_store_mod.os, "fsync", _record_fsync)
+    updated = store.upsert_connection(connection_payload(name="Windows-path"))
+    assert updated["name"] == "Windows-path"
+    assert len(fsync_calls) == 1
 
 
 def test_process_local_store_still_works_without_state_path(tmp_path) -> None:

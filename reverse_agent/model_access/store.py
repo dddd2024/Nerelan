@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import errno
 import json
 import os
 from threading import RLock
@@ -92,6 +93,23 @@ class StoreError(RuntimeError):
     """Bounded error raised when persistence or load validation fails."""
 
 
+class _PostReplaceDurabilityUncertainError(StoreError):
+    """Raised when replace succeeded but directory durability is uncertain."""
+
+
+_KNOWN_UNSUPPORTED_DIR_FSYNC_ERRNOS = frozenset(
+    err
+    for err in (
+        getattr(errno, "EINVAL", None),
+        getattr(errno, "ENOTSUP", None),
+        getattr(errno, "EOPNOTSUPP", None),
+        getattr(errno, "ENOSYS", None),
+        getattr(errno, "EBADF", None),
+    )
+    if err is not None
+)
+
+
 def _sanitize_env_name(value: str | None) -> str | None:
     if value is None or value == "":
         return None
@@ -140,6 +158,7 @@ def _write_atomic(data: bytes, target: Path) -> None:
     os.makedirs(parent, exist_ok=True)
     fd = None
     tmp_path = None
+    replaced = False
     try:
         fd = tempfile.NamedTemporaryFile(
             mode="wb",
@@ -155,6 +174,14 @@ def _write_atomic(data: bytes, target: Path) -> None:
         fd.close()
         fd = None
         os.replace(str(tmp_path), str(target))
+        replaced = True
+        _fsync_parent_directory(target.parent)
+    except OSError as exc:
+        if replaced:
+            raise _PostReplaceDurabilityUncertainError(
+                f"POST_REPLACE_DURABILITY_UNCERTAIN: {exc}"
+            ) from exc
+        raise
     finally:
         if fd is not None:
             try:
@@ -166,6 +193,29 @@ def _write_atomic(data: bytes, target: Path) -> None:
                 os.unlink(str(tmp_path))
             except Exception:
                 pass
+
+
+def _fsync_parent_directory(parent: Path) -> None:
+    if _is_windows_platform():
+        return
+    flags = os.O_RDONLY
+    if hasattr(os, "O_DIRECTORY"):
+        flags |= os.O_DIRECTORY
+    dir_fd = None
+    try:
+        dir_fd = os.open(str(parent), flags)
+        os.fsync(dir_fd)
+    except OSError as exc:
+        if exc.errno in _KNOWN_UNSUPPORTED_DIR_FSYNC_ERRNOS:
+            return
+        raise
+    finally:
+        if dir_fd is not None:
+            os.close(dir_fd)
+
+
+def _is_windows_platform() -> bool:
+    return os.name == "nt"
 
 
 @dataclass(slots=True)
@@ -322,6 +372,7 @@ class ModelProfileStore:
         }
         self._bindings: dict[str, Binding] = {}
         self._lock = RLock()
+        self._connection_binding_poison: StoreError | None = None
 
         if self._state_path is not None:
             self._load_from_disk()
@@ -350,6 +401,25 @@ class ModelProfileStore:
         if stored.api_key_env and os.environ.get(stored.api_key_env) is not None:
             return "environment"
         return "missing"
+
+    def _ensure_connection_binding_ready(self) -> None:
+        if self._connection_binding_poison is not None:
+            raise StoreError(str(self._connection_binding_poison))
+
+    def _fail_closed_on_reconciliation_error(self, exc: Exception) -> None:
+        poisoned = StoreError(f"PERSISTENCE_RECONCILIATION_FAILED: {exc}")
+        self._connection_binding_poison = poisoned
+        raise poisoned from exc
+
+    def _handle_post_replace_uncertainty(
+        self,
+        exc: _PostReplaceDurabilityUncertainError,
+    ) -> None:
+        try:
+            self._load_from_disk()
+        except Exception as reconcile_exc:
+            self._fail_closed_on_reconciliation_error(reconcile_exc)
+        raise StoreError(str(exc)) from exc
 
     def _vault_ref_for(self, connection: Connection) -> str:
         """Return the existing v1 vault-reference relation for a Connection.
@@ -416,6 +486,8 @@ class ModelProfileStore:
             if self._vault is not None and delete_ref:
                 self._vault.delete(delete_ref)
         except Exception as exc:
+            if isinstance(exc, _PostReplaceDurabilityUncertainError):
+                self._handle_post_replace_uncertainty(exc)
             self._rollback_conn_binding(snap_conns, snap_bindings)
             rollback_errors: list[str] = []
 
@@ -454,6 +526,7 @@ class ModelProfileStore:
 
     def list_connections_public(self) -> list[dict[str, Any]]:
         with self._lock:
+            self._ensure_connection_binding_ready()
             return [
                 stored.public(self._connection_secret_status(stored))
                 for stored in self._connections.values()
@@ -477,6 +550,7 @@ class ModelProfileStore:
         provider_set = set(authenticated_provider_ids.keys())
         refreshed = 0
         with self._lock:
+            self._ensure_connection_binding_ready()
             for stored in self._connections.values():
                 auth_method = stored.connection.auth_method
                 if auth_method in {"account_login", "external_cli_session"}:
@@ -498,6 +572,7 @@ class ModelProfileStore:
 
     def has_external_session_connections(self) -> bool:
         """Return True if any Connection uses an external-session auth method."""
+        self._ensure_connection_binding_ready()
         for stored in self._connections.values():
             if stored.connection.auth_method in {
                 "account_login",
@@ -508,6 +583,7 @@ class ModelProfileStore:
 
     def get_connection_public(self, connection_id: str) -> dict[str, Any]:
         with self._lock:
+            self._ensure_connection_binding_ready()
             stored = self._connections.get(connection_id)
             if stored is None:
                 raise KeyError(f"connection not found: {connection_id}")
@@ -517,6 +593,7 @@ class ModelProfileStore:
         _reject_derived_external_status(payload)
         connection = Connection.from_mapping(payload)
         with self._lock:
+            self._ensure_connection_binding_ready()
             existing = self._connections.get(connection.connection_id)
 
             authority_changed = _authority_fields_changed(existing, connection)
@@ -651,6 +728,7 @@ class ModelProfileStore:
 
     def delete_connection(self, connection_id: str) -> None:
         with self._lock:
+            self._ensure_connection_binding_ready()
             stored = self._connections.get(connection_id)
             if stored is None:
                 raise KeyError(f"connection not found: {connection_id}")
@@ -679,6 +757,7 @@ class ModelProfileStore:
 
     def resolve_connection_secret(self, connection_id: str) -> str | None:
         with self._lock:
+            self._ensure_connection_binding_ready()
             stored = self._connections.get(connection_id)
             if stored is None:
                 raise KeyError(f"connection not found: {connection_id}")
@@ -715,6 +794,7 @@ class ModelProfileStore:
         public Model Control API.
         """
         with self._lock:
+            self._ensure_connection_binding_ready()
             binding = self._bindings.get(binding_id)
             if binding is None:
                 raise KeyError(f"binding not found: {binding_id}")
@@ -758,10 +838,12 @@ class ModelProfileStore:
 
     def list_bindings_public(self) -> list[dict[str, Any]]:
         with self._lock:
+            self._ensure_connection_binding_ready()
             return [binding.to_public_dict() for binding in self._bindings.values()]
 
     def get_binding_public(self, binding_id: str) -> dict[str, Any]:
         with self._lock:
+            self._ensure_connection_binding_ready()
             binding = self._bindings.get(binding_id)
             if binding is None:
                 raise KeyError(f"binding not found: {binding_id}")
@@ -770,6 +852,7 @@ class ModelProfileStore:
     def upsert_binding(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         binding = Binding.from_mapping(payload)
         with self._lock:
+            self._ensure_connection_binding_ready()
             if binding.connection_id not in self._connections:
                 raise ValueError(f"unknown connection_id: {binding.connection_id}")
             if binding.executor_id not in self._executors:
@@ -787,6 +870,7 @@ class ModelProfileStore:
 
     def delete_binding(self, binding_id: str) -> None:
         with self._lock:
+            self._ensure_connection_binding_ready()
             if binding_id not in self._bindings:
                 raise KeyError(f"binding not found: {binding_id}")
             snap_conns = dict(self._connections)
@@ -1057,6 +1141,8 @@ class ModelProfileStore:
             data = self._build_state_doc()
             _write_atomic(data, self._state_path)
         except Exception as exc:
+            if isinstance(exc, _PostReplaceDurabilityUncertainError):
+                self._handle_post_replace_uncertainty(exc)
             rollback_fn()
             if isinstance(exc, StoreError):
                 raise
