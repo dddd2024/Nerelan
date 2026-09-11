@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
 import uuid
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ from typing import Any, Mapping, Sequence
 
 from .run_store import TaskStore, TaskStoreError
 from .history_pagination import decode_cursor, encode_cursor, page_limit
+from .repository_workspace import normalize_github_origin, normalize_repository_identity
 
 
 GOAL_STATES = frozenset(
@@ -553,16 +555,72 @@ class PlatformControlStore:
                 raise TaskStoreError("goal_not_approvable")
             return self.get_goal(goal_id)
 
-    def amend_goal(self, goal_id: str, *, expected_revision: int, objective: str) -> GoalRecord:
+    def amend_goal(
+        self, goal_id: str, *, expected_revision: int, objective: str,
+        repository: str | None = None, executor_kind: str | None = None,
+        orchestration_mode: str | None = None, binding_ref: str | None = None,
+    ) -> GoalRecord:
         objective = objective.strip()
         if not objective:
             raise TaskStoreError("goal_objective_required")
+        if any(value is not None and not isinstance(value, str) for value in (
+            repository, executor_kind, orchestration_mode, binding_ref
+        )):
+            raise TaskStoreError("goal_configuration_invalid")
         with self._lock:
+            current = self.get_goal(goal_id)
+            configuring = any(value is not None for value in (repository, executor_kind, orchestration_mode, binding_ref))
+            if current.revision != expected_revision:
+                raise TaskStoreError("goal_revision_mismatch")
+            configuration = {
+                "repository": current.repository if repository is None else repository.strip(),
+                "executor_kind": current.executor_kind if executor_kind is None else executor_kind,
+                "orchestration_mode": current.orchestration_mode if orchestration_mode is None else orchestration_mode,
+                "binding_ref": current.binding_ref if binding_ref is None else binding_ref.strip(),
+            }
+            if configuring:
+                if current.status not in {"DRAFT", "PLANNED", "APPROVED"} or self._conn.execute(
+                    "SELECT 1 FROM platform_goal_task_links WHERE goal_id = ? LIMIT 1", (goal_id,)
+                ).fetchone():
+                    raise TaskStoreError("goal_configuration_not_editable")
+                try:
+                    raw_repository = configuration["repository"]
+                    if len(raw_repository) > 500:
+                        raise ValueError
+                    configuration["repository"] = (
+                        normalize_github_origin(raw_repository) if ":" in raw_repository
+                        else normalize_repository_identity(raw_repository)
+                    )
+                except ValueError as exc:
+                    raise TaskStoreError("invalid_goal_repository") from exc
+                if configuration["executor_kind"] not in {"opencode", "deterministic_fixture"}:
+                    raise TaskStoreError("unsupported_executor_kind")
+                if configuration["orchestration_mode"] not in {"single", "sequential_team"}:
+                    raise TaskStoreError("unsupported_orchestration_mode")
+                if configuration["executor_kind"] == "deterministic_fixture":
+                    if configuration["orchestration_mode"] != "single" or configuration["binding_ref"]:
+                        raise TaskStoreError("fixture_configuration_invalid")
+                elif not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,79}", configuration["binding_ref"]):
+                    raise TaskStoreError("goal_binding_required")
+                if objective == current.objective and all(
+                    value == getattr(current, key) for key, value in configuration.items()
+                ):
+                    return current
+            guard = (
+                " AND status IN ('DRAFT', 'PLANNED', 'APPROVED') AND NOT EXISTS "
+                "(SELECT 1 FROM platform_goal_task_links WHERE goal_id = platform_goals.id)"
+                if configuring else ""
+            )
             cur = self._conn.execute(
                 "UPDATE platform_goals SET objective = ?, status = 'DRAFT', revision = revision + 1, "
                 "spec_markdown = '', plan_markdown = '', tasks_json = '[]', acceptance_json = '[]', "
-                "artifact_digest = '', updated_at = ? WHERE id = ? AND revision = ? AND status <> 'RUNNING'",
-                (objective, _utc_now(), goal_id, expected_revision),
+                "artifact_digest = '', repository = ?, executor_kind = ?, orchestration_mode = ?, binding_ref = ?, "
+                "policy_ref = ?, window_id = ?, updated_at = ? "
+                "WHERE id = ? AND revision = ? AND status <> 'RUNNING'" + guard,
+                (objective, configuration["repository"], configuration["executor_kind"],
+                 configuration["orchestration_mode"], configuration["binding_ref"],
+                 "" if configuring else current.policy_ref, "" if configuring else current.window_id,
+                 _utc_now(), goal_id, expected_revision),
             )
             if cur.rowcount != 1:
                 raise TaskStoreError("goal_revision_mismatch")

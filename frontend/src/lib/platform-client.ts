@@ -16,7 +16,7 @@ export interface PlatformGoal {
   revision: number;
   spec_markdown: string;
   plan_markdown: string;
-  tasks: Array<{ id: string; title: string; dependencies: string[] }>;
+  tasks: Array<{ id: string; title: string; instruction?: string; capability?: string; dependencies: string[] }>;
   acceptance_criteria: string[];
   artifact_digest: string;
   executor_kind: "opencode" | "deterministic_fixture";
@@ -936,6 +936,46 @@ export async function fetchGoal(goalId: string): Promise<PlatformGoal> {
   return request<PlatformGoal>(`/api/goals/${encodeURIComponent(goalId)}`);
 }
 
+export async function createGoalDraftRecord(input: StartGoalInput, idempotencyKey: string): Promise<PlatformGoal> {
+  if (isMock()) {
+    const id = `goal-draft-${idempotencyKey}`;
+    const existing = mockGoals.find((goal) => goal.id === id);
+    if (existing) return existing;
+    const timestamp = new Date().toISOString();
+    const goal: PlatformGoal = {
+      ...mockGoal, id, title: input.objective.slice(0, 48), objective: input.objective,
+      repository: input.repository, status: "DRAFT", revision: 1,
+      executor_kind: input.executorKind,
+      orchestration_mode: input.executorKind === "opencode" ? "sequential_team" : "single",
+      binding_ref: input.executorKind === "opencode" ? input.bindingRef : "",
+      spec_markdown: "", plan_markdown: "", tasks: [], acceptance_criteria: [],
+      artifact_digest: "", task_links: [], window_id: "", created_at: timestamp, updated_at: timestamp,
+    };
+    mockGoals = [goal, ...mockGoals];
+    return goal;
+  }
+  return request<PlatformGoal>("/api/goals", { method: "POST", body: JSON.stringify({
+    objective: input.objective, repository: input.repository, idempotency_key: idempotencyKey,
+    executor_kind: input.executorKind,
+    orchestration_mode: input.executorKind === "opencode" ? "sequential_team" : "single",
+    binding_ref: input.executorKind === "opencode" ? input.bindingRef : "",
+  }) });
+}
+
+export function __launchMockGoal(goalId: string) {
+  const goal = mockGoals.find((entry) => entry.id === goalId);
+  if (!goal) throw new PlatformClientError(404, "goal_not_found");
+  if (!goal.task_links?.length) {
+    goal.task_links = goal.tasks.map((task, index) => ({
+      task_id: `${goal.id}-r${goal.revision}-${task.id}`, plan_task_id: task.id,
+      title: task.title, status: index === 0 ? "RUNNING" : "QUEUED",
+    }));
+  }
+  goal.status = "RUNNING";
+  goal.window_id = mockWindow.id;
+  materializeMockGoalRuns(goal);
+}
+
 export async function startGoal(input: StartGoalInput): Promise<PlatformGoal> {
   if (isMock()) {
     const timestamp = new Date().toISOString();
@@ -1019,7 +1059,7 @@ export async function captureInboxItem(input: { title?: string; objective: strin
   if (isMock()) {
     const timestamp = new Date().toISOString();
     const item: PlatformInboxItem = {
-      id: `inbox-${Date.now()}`,
+      id: `inbox-${crypto.randomUUID()}`,
       title: (input.title || input.objective).slice(0, 77),
       objective: input.objective,
       repository: input.repository || "dddd2024/reverse-agent",
@@ -1049,12 +1089,21 @@ export async function promoteInboxItem(itemId: string): Promise<{ item: Platform
     const timestamp = new Date().toISOString();
     const goal: PlatformGoal = {
       ...mockGoal,
-      id: `goal-inbox-${Date.now()}`,
+      id: `goal-inbox-${item.id}`,
       title: item.title,
       objective: item.objective,
       repository: item.repository,
       status: "DRAFT",
       revision: 1,
+      executor_kind: "deterministic_fixture",
+      orchestration_mode: "single",
+      binding_ref: "",
+      tasks: [],
+      acceptance_criteria: [],
+      spec_markdown: "",
+      plan_markdown: "",
+      artifact_digest: "",
+      window_id: "",
       task_links: [],
       created_at: timestamp,
       updated_at: timestamp,

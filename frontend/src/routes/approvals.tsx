@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ShieldCheck } from "lucide-react";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
+import { GoalReviewEditor } from "@/components/goal-review-editor";
+import type { GoalConfigurationInput, GoalPlanInput } from "@/lib/goal-continuation-operation";
 import {
   useApproveExistingGoal,
   useLaunchExistingGoal,
   usePlanExistingGoal,
+  useSaveGoalConfiguration,
+  useSaveGoalPlan,
 } from "@/hooks/use-goal-continuation";
 import { useGoal, useGoals } from "@/hooks/use-platform";
 import { cn } from "@/lib/cn";
@@ -34,6 +38,8 @@ function GoalDetail({
   onLaunch,
   pending,
   error,
+  onSaveConfiguration,
+  onSavePlan,
 }: {
   goal: PlatformGoal;
   onPlan: () => void;
@@ -41,8 +47,14 @@ function GoalDetail({
   onLaunch: (hours: number) => void;
   pending: boolean;
   error: unknown;
+  onSaveConfiguration: (goal: PlatformGoal, input: GoalConfigurationInput) => Promise<unknown>;
+  onSavePlan: (goal: PlatformGoal, input: GoalPlanInput) => Promise<unknown>;
 }) {
   const [autonomyHours, setAutonomyHours] = useState(2);
+  const [editing, setEditing] = useState(false);
+  const [configurationReady, setConfigurationReady] = useState(goal.executor_kind === "deterministic_fixture");
+  const [launchConfirmed, setLaunchConfirmed] = useState(false);
+  useEffect(() => { setLaunchConfirmed(false); }, [goal.revision, goal.artifact_digest, goal.status]);
   const canPlan = goal.status === "DRAFT";
   const canApprove = goal.status === "PLANNED";
   const canLaunch = goal.status === "APPROVED";
@@ -87,6 +99,12 @@ function GoalDetail({
           </dd>
         </div>
       </dl>
+
+      <GoalReviewEditor goal={goal} busy={pending} onEditingChange={setEditing}
+        onConfigurationReady={setConfigurationReady} onSaveConfiguration={onSaveConfiguration} onSavePlan={onSavePlan} />
+      {!configurationReady && (canPlan || canApprove || canLaunch) && <p className="mt-3 text-sm text-ra-text-secondary">
+        当前执行配置尚不可用，请编辑目标配置并核对仓库和模型绑定。
+      </p>}
 
       {goal.status !== "DRAFT" && (
         <div className="mt-6">
@@ -133,7 +151,7 @@ function GoalDetail({
           <button
             type="button"
             data-testid="approval-plan-button"
-            disabled={pending}
+            disabled={pending || editing || !configurationReady}
             onClick={onPlan}
             className="rounded-lg bg-ra-accent px-4 py-2 text-sm font-medium text-ra-base disabled:opacity-50"
           >
@@ -144,7 +162,7 @@ function GoalDetail({
           <button
             type="button"
             data-testid="approval-approve-button"
-            disabled={pending}
+            disabled={pending || editing || !configurationReady}
             onClick={onApprove}
             className="rounded-lg bg-ra-accent px-4 py-2 text-sm font-medium text-ra-base disabled:opacity-50"
           >
@@ -153,12 +171,17 @@ function GoalDetail({
         )}
         {canLaunch && (
           <>
+            <label className="text-sm text-ra-text-secondary">
+              <input type="checkbox" aria-label="确认启动当前计划" checked={launchConfirmed}
+                disabled={pending || editing} onChange={(event) => setLaunchConfirmed(event.target.checked)} />
+              确认启动当前计划并使用所选自治窗口
+            </label>
             <label className="text-xs text-ra-text-tertiary">
               自治窗口
               <select
                 aria-label="自治窗口时长"
                 value={autonomyHours}
-                onChange={(event) => setAutonomyHours(Number(event.target.value))}
+                onChange={(event) => { setAutonomyHours(Number(event.target.value)); setLaunchConfirmed(false); }}
                 disabled={pending}
                 className="ml-2 rounded-lg border border-ra-border bg-ra-base px-2 py-2 text-sm text-ra-text"
               >
@@ -170,7 +193,7 @@ function GoalDetail({
             <button
               type="button"
               data-testid="approval-launch-button"
-              disabled={pending}
+              disabled={pending || editing || !configurationReady || !launchConfirmed}
               onClick={() => onLaunch(autonomyHours)}
               className="rounded-lg bg-ra-accent px-4 py-2 text-sm font-medium text-ra-base disabled:opacity-50"
             >
@@ -194,27 +217,35 @@ function GoalDetail({
  */
 export function ApprovalsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const goalsQuery = useGoals();
   const planMutation = usePlanExistingGoal();
   const approveMutation = useApproveExistingGoal();
   const launchMutation = useLaunchExistingGoal();
+  const configurationMutation = useSaveGoalConfiguration();
+  const editPlanMutation = useSaveGoalPlan();
 
   const pendingGoals = (goalsQuery.data ?? []).filter((goal) =>
     PENDING_STATUSES.has(goal.status),
   );
   const requestedGoalId = searchParams.get("goal") ?? "";
   const selectedGoalId = requestedGoalId || pendingGoals[0]?.id;
+  const selectionRef = useRef(selectedGoalId);
+  selectionRef.current = selectedGoalId;
   const selectedGoalQuery = useGoal(selectedGoalId);
   const selectedGoal = selectedGoalQuery.data;
   const pending =
-    planMutation.isPending || approveMutation.isPending || launchMutation.isPending;
+    planMutation.isPending || approveMutation.isPending || launchMutation.isPending
+    || configurationMutation.isPending || editPlanMutation.isPending;
   const error =
-    planMutation.error ?? approveMutation.error ?? launchMutation.error ?? null;
+    planMutation.error ?? approveMutation.error ?? launchMutation.error ?? configurationMutation.error ?? editPlanMutation.error ?? null;
 
   const resetMutations = () => {
     planMutation.reset();
     approveMutation.reset();
     launchMutation.reset();
+    configurationMutation.reset();
+    editPlanMutation.reset();
   };
 
   const selectGoal = (goalId: string) => {
@@ -253,7 +284,7 @@ export function ApprovalsPage() {
           </p>
         )}
 
-        {!goalsQuery.isLoading && !goalsQuery.error && (
+        {!goalsQuery.isLoading && (goalsQuery.data !== undefined || !goalsQuery.error) && (
           <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
             <aside className="rounded-2xl border border-ra-border bg-ra-light/20 p-3">
               <div className="flex items-center justify-between px-2 py-1">
@@ -304,9 +335,18 @@ export function ApprovalsPage() {
               )}
               {selectedGoal && (
                 <GoalDetail
+                  key={selectedGoal.id}
                   goal={selectedGoal}
                   pending={pending}
                   error={error}
+                  onSaveConfiguration={(goal, input) => {
+                    resetMutations();
+                    return configurationMutation.mutateAsync({ goal, input });
+                  }}
+                  onSavePlan={(goal, input) => {
+                    resetMutations();
+                    return editPlanMutation.mutateAsync({ goal, input });
+                  }}
                   onPlan={() => {
                     resetMutations();
                     planMutation.mutate(selectedGoal);
@@ -320,6 +360,10 @@ export function ApprovalsPage() {
                     launchMutation.mutate({
                       goal: selectedGoal,
                       autonomyHours,
+                    }, {
+                      onSuccess: (goal) => {
+                        if (selectionRef.current === goal.id) navigate(`/?goal=${encodeURIComponent(goal.id)}`);
+                      },
                     });
                   }}
                 />

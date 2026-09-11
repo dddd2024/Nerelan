@@ -625,9 +625,17 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     self._send_json(HTTPStatus.OK, goal_to_dict(goal))
                     return
                 if action == "amend":
+                    configuration = {
+                        key: payload[key] for key in (
+                            "repository", "executor_kind", "orchestration_mode", "binding_ref"
+                        ) if key in payload
+                    }
+                    if any(not isinstance(value, str) for value in configuration.values()):
+                        raise TaskStoreError("goal_configuration_invalid")
                     goal = self.goal_service.amend(
                         segments[2], expected_revision=revision,
                         objective=str(payload.get("objective", "")),
+                        **configuration,
                     )
                     self._send_json(HTTPStatus.OK, goal_to_dict(goal))
                     return

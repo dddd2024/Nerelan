@@ -1,5 +1,6 @@
 import {
   PlatformClientError,
+  createGoalDraftRecord,
   fetchGoal,
   fetchPlatformStatus,
   startGoal as legacyStartGoal,
@@ -288,19 +289,21 @@ async function ensureWindow(input: StartGoalInput, goalId: string): Promise<Plat
 async function runGoalStart(
   input: StartGoalInput,
   fingerprint: string,
+  draftOnly = false,
 ): Promise<PlatformGoal> {
   let journal = ensureJournal(input, fingerprint);
   let goal: PlatformGoal;
 
   if (journal.goal_id) {
     goal = await fetchGoal(journal.goal_id);
+    if (goal.id !== journal.goal_id) throw new GoalStartOperationError("goal_start_unexpected_state", journal.goal_id);
   } else {
-    const platform = await fetchPlatformStatus();
-    const active = platform.autonomy.active_window;
-    if (active && !active.repositories.includes(input.repository)) {
-      throw new GoalStartOperationError(
-        "active_window_repository_conflict",
-      );
+    if (!draftOnly) {
+      const platform = await fetchPlatformStatus();
+      const active = platform.autonomy.active_window;
+      if (active && !active.repositories.includes(input.repository)) {
+        throw new GoalStartOperationError("active_window_repository_conflict");
+      }
     }
     goal = await request<PlatformGoal>("/api/goals", {
       method: "POST",
@@ -316,6 +319,8 @@ async function runGoalStart(
     });
     journal = updateJournalGoal(journal, goal);
   }
+
+  if (draftOnly) return goal;
 
   for (let step = 0; step < 8; step += 1) {
     if (goal.status === "RUNNING" || goal.status === "COMPLETED") {
@@ -371,12 +376,23 @@ async function runGoalStart(
 }
 
 export function startGoal(input: StartGoalInput): Promise<PlatformGoal> {
+  return startOperation(input, false);
+}
+
+export function createGoalDraft(input: StartGoalInput): Promise<PlatformGoal> {
+  return startOperation(input, true);
+}
+
+function startOperation(input: StartGoalInput, draftOnly: boolean): Promise<PlatformGoal> {
   if (isMock()) {
-    return legacyStartGoal(legacyInput(input));
+    return draftOnly
+      ? createGoalDraftRecord(legacyInput(input), input.operationId)
+      : legacyStartGoal(legacyInput(input));
   }
 
   const fingerprint = fingerprintInput(input);
-  const existing = inFlightGoalStarts.get(input.operationId);
+  const flightKey = draftOnly ? `draft:${input.operationId}` : input.operationId;
+  const existing = inFlightGoalStarts.get(flightKey);
   if (existing) {
     if (existing.fingerprint !== fingerprint) {
       return Promise.reject(
@@ -386,12 +402,12 @@ export function startGoal(input: StartGoalInput): Promise<PlatformGoal> {
     return existing.promise;
   }
 
-  const promise = runGoalStart(input, fingerprint);
-  inFlightGoalStarts.set(input.operationId, { fingerprint, promise });
+  const promise = runGoalStart(input, fingerprint, draftOnly);
+  inFlightGoalStarts.set(flightKey, { fingerprint, promise });
   const cleanup = () => {
-    const current = inFlightGoalStarts.get(input.operationId);
+    const current = inFlightGoalStarts.get(flightKey);
     if (current?.promise === promise) {
-      inFlightGoalStarts.delete(input.operationId);
+      inFlightGoalStarts.delete(flightKey);
     }
   };
   void promise.then(cleanup, cleanup);

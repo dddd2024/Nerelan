@@ -39,7 +39,7 @@ describe("GoalComposer compact progressive disclosure", () => {
     expect(screen.getByLabelText("仓库")).toBeInTheDocument();
     expect(screen.getByLabelText("执行模式")).toBeInTheDocument();
     expect(screen.getByLabelText("模型绑定")).toBeInTheDocument();
-    expect(screen.getByText("启用 2 小时自治窗口")).toBeInTheDocument();
+    expect(screen.getByText("先保存草稿，审阅并批准后再启动。")).toBeInTheDocument();
   });
 
   it("keeps the submitted draft visible until success, then clears only that operation", async () => {
@@ -49,14 +49,14 @@ describe("GoalComposer compact progressive disclosure", () => {
     render(<GoalComposer busy={false} onSubmit={onSubmit} />);
 
     const objective = screen.getByLabelText("描述最终目标");
-    const submit = screen.getByLabelText("规划并运行");
+    const submit = screen.getByLabelText("创建并审阅目标");
 
     await user.type(objective, "完成 provider-free 多 Agent 验证");
     await user.selectOptions(
       screen.getByLabelText("执行模式"),
       "deterministic_fixture",
     );
-    await user.click(screen.getByText("启用 2 小时自治窗口"));
+
     await user.click(submit);
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
@@ -102,8 +102,8 @@ describe("GoalComposer compact progressive disclosure", () => {
       screen.getByLabelText("执行模式"),
       "deterministic_fixture",
     );
-    await user.click(screen.getByText("启用 2 小时自治窗口"));
-    await user.click(screen.getByLabelText("规划并运行"));
+
+    await user.click(screen.getByLabelText("创建并审阅目标"));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     const firstOperation = onSubmit.mock.calls[0][0].operationId;
     expect(screen.getByLabelText("描述最终目标")).toHaveValue(
@@ -122,14 +122,14 @@ describe("GoalComposer compact progressive disclosure", () => {
     expect(screen.getByLabelText("执行模式")).toHaveValue(
       "deterministic_fixture",
     );
-    expect(screen.getByRole("checkbox")).toBeChecked();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 
-    await user.click(screen.getByLabelText("规划并运行"));
+    await user.click(screen.getByLabelText("创建并审阅目标"));
     await waitFor(() => expect(retrySubmit).toHaveBeenCalledTimes(1));
     expect(retrySubmit.mock.calls[0][0].operationId).toBe(firstOperation);
 
     await user.type(screen.getByLabelText("描述最终目标"), " 修改");
-    await user.click(screen.getByLabelText("规划并运行"));
+    await user.click(screen.getByLabelText("创建并审阅目标"));
     await waitFor(() => expect(retrySubmit).toHaveBeenCalledTimes(2));
     expect(retrySubmit.mock.calls[1][0].operationId).not.toBe(firstOperation);
   });

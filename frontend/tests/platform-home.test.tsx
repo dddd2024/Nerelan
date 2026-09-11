@@ -269,16 +269,23 @@ describe("Platform V2 Home Workspace V2", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("requires explicit autonomous-window confirmation before starting", async () => {
+  it("creates an inert Goal for review without activating a window", async () => {
     await homeReady();
+    const create = vi.spyOn(platformClient, "createGoalDraftRecord");
+    const automaticStart = vi.spyOn(platformClient, "startGoal");
     const user = userEvent.setup();
-    const submit = screen.getByLabelText("规划并运行");
-    await user.type(screen.getByLabelText("描述最终目标"), "完成一个可以恢复的多 Agent 任务");
+    const submit = screen.getByLabelText("创建并审阅目标");
     expect(submit).toBeDisabled();
-    await user.click(screen.getByText("启用 2 小时自治窗口"));
+    await user.type(screen.getByLabelText("描述最终目标"), "完成一个可以恢复的多 Agent 任务");
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(submit).toBeEnabled();
     await user.click(submit);
-    await waitFor(() => expect(screen.getAllByText("完成一个可以恢复的多 Agent 任务").length).toBeGreaterThan(0));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    const created = await create.mock.results[0].value;
+    expect(created.status).toBe("DRAFT");
+    expect(created.task_links).toEqual([]);
+    expect(created.window_id).toBe("");
+    expect(automaticStart).not.toHaveBeenCalled();
   });
 
   it("advances RUNNING to completed/review state via React Query polling without manual cache writes", async () => {

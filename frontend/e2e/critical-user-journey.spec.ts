@@ -2,9 +2,9 @@ import { type Page } from "@playwright/test";
 import { test, expect, open, settle } from "./fixtures";
 
 const GOAL_TITLE = "Playwright provider-free critical journey";
-const FIXED_TASK_EPOCH = Date.parse("2026-08-24T12:00:00.000Z");
-const PRIMARY_TASK_ID = `mock-task-${FIXED_TASK_EPOCH}-0`;
-const QUEUED_TASK_ID = `mock-task-${FIXED_TASK_EPOCH}-1`;
+// Cancellation uses the fixture's separate queued Run. The new default Goal
+// intentionally has one bounded Task, matching the actual Goal planner.
+const QUEUED_TASK_ID = "task-demo-queued";
 
 async function navigateFromShell(page: Page, destination: "首页" | "设置") {
   const mobile = await page.evaluate(() => window.innerWidth <= 500);
@@ -33,20 +33,34 @@ test("completes one provider-free critical user journey end to end", async ({ ap
 
   await appPage.getByLabel("描述最终目标").fill(GOAL_TITLE);
   await appPage.getByLabel("执行模式").selectOption("deterministic_fixture");
-  await appPage.getByLabel("启用 2 小时自治窗口").check();
-  await appPage.getByRole("button", { name: "规划并运行" }).click();
+  await appPage.getByRole("button", { name: "创建并审阅目标" }).click();
+  await expect(appPage.getByTestId("approval-goal-detail")).toBeVisible();
+  const goalId = new URL(appPage.url()).searchParams.get("goal");
+  await expect(appPage.getByTestId("approval-launch-button")).toHaveCount(0);
+  await appPage.getByTestId("approval-plan-button").click();
+  await expect(appPage.getByTestId("approval-plan")).toContainText(GOAL_TITLE);
+  await appPage.getByTestId("approval-approve-button").click();
+  await expect(appPage.getByTestId("approval-launch-button")).toBeDisabled();
+  await appPage.getByLabel("确认启动当前计划").check();
+  await appPage.getByTestId("approval-launch-button").click();
 
   await expect(appPage.getByTestId("goal-progress-bar")).toBeVisible();
   await expect(appPage.getByRole("heading", { name: GOAL_TITLE })).toBeVisible();
+  expect(new URL(appPage.url()).searchParams.get("goal")).toBe(goalId);
   const currentExecution = appPage.getByTestId("current-execution-section");
   await expect(currentExecution.getByTestId("goal-current-activity")).toBeVisible({ timeout: 12_000 });
 
   await currentExecution.getByTestId("goal-activity-full-run-link").click();
   await settle(appPage);
   await expect(appPage.getByTestId("runs-page")).toBeVisible();
-
-  const primary = appPage.getByTestId(`run-${PRIMARY_TASK_ID}`);
+  const primary = appPage.getByTestId("runs-list").locator(":scope > li").filter({
+    has: appPage.getByText(`目标：${GOAL_TITLE}`, { exact: true }),
+  });
+  await expect(primary).toHaveCount(1);
   await expect(primary).toBeVisible();
+  const runTestId = await primary.getAttribute("data-testid");
+  expect(runTestId).toMatch(/^run-.+/);
+  const PRIMARY_TASK_ID = runTestId!.slice("run-".length);
   await primary.getByTestId(`run-toggle-${PRIMARY_TASK_ID}`).click();
   await expect(primary.getByTestId(`run-agents-${PRIMARY_TASK_ID}`)).toBeVisible();
   await expect(primary.getByTestId(`run-activity-section-${PRIMARY_TASK_ID}`)).toBeVisible();
