@@ -129,7 +129,7 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
                   state === "running" ||
                     state === "blocked" ||
                     state === "interrupted" ||
-                    isReviewReady(state)
+                    state === "fixture-review-ready"
                     ? taskStateClass(state)
                     : "sr-only",
                 )}
