@@ -53,11 +53,14 @@ test("completes one provider-free critical user journey end to end", async ({ ap
   await currentExecution.getByTestId("goal-activity-full-run-link").click();
   await settle(appPage);
   await expect(appPage.getByTestId("runs-page")).toBeVisible();
-  const PRIMARY_TASK_ID = new URL(appPage.url()).searchParams.get("task");
-  expect(PRIMARY_TASK_ID).toBeTruthy();
-
-  const primary = appPage.getByTestId(`run-${PRIMARY_TASK_ID}`);
+  const primary = appPage.getByTestId("runs-list").locator(":scope > li").filter({
+    has: appPage.getByText(`目标：${GOAL_TITLE}`, { exact: true }),
+  });
+  await expect(primary).toHaveCount(1);
   await expect(primary).toBeVisible();
+  const runTestId = await primary.getAttribute("data-testid");
+  expect(runTestId).toMatch(/^run-.+/);
+  const PRIMARY_TASK_ID = runTestId!.slice("run-".length);
   await primary.getByTestId(`run-toggle-${PRIMARY_TASK_ID}`).click();
   await expect(primary.getByTestId(`run-agents-${PRIMARY_TASK_ID}`)).toBeVisible();
   await expect(primary.getByTestId(`run-activity-section-${PRIMARY_TASK_ID}`)).toBeVisible();
