@@ -510,11 +510,22 @@ class PlatformControlStore:
         reject_sensitive_keys(payload)
         digest = sha256_json(payload)
         with self._lock:
+            current = self.get_goal(goal_id)
+            if current.revision != expected_revision or current.status not in {"DRAFT", "PLANNED"}:
+                raise TaskStoreError("goal_revision_or_state_mismatch")
+            if current.status == "PLANNED" and current.artifact_digest == digest:
+                return current
+            revision = expected_revision + 1 if current.status == "PLANNED" else expected_revision
+            payload["revision"] = revision
+            digest = sha256_json(payload)
+            # Bind the write to the observed artifact even when initial planning
+            # preserves the revision and another connection is writing this Goal.
             cur = self._conn.execute(
-                "UPDATE platform_goals SET status = 'PLANNED', spec_markdown = ?, plan_markdown = ?, "
+                "UPDATE platform_goals SET status = 'PLANNED', revision = ?, spec_markdown = ?, plan_markdown = ?, "
                 "tasks_json = ?, acceptance_json = ?, artifact_digest = ?, updated_at = ? "
-                "WHERE id = ? AND revision = ? AND status IN ('DRAFT', 'PLANNED')",
+                "WHERE id = ? AND revision = ? AND status = ? AND artifact_digest = ?",
                 (
+                    revision,
                     spec_markdown,
                     plan_markdown,
                     canonical_json(list(tasks)),
@@ -523,6 +534,8 @@ class PlatformControlStore:
                     _utc_now(),
                     goal_id,
                     expected_revision,
+                    current.status,
+                    current.artifact_digest,
                 ),
             )
             if cur.rowcount != 1:
