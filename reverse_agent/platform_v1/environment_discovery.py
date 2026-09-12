@@ -391,7 +391,7 @@ def _decode(data: bytes, source: EnvironmentSource) -> str:
 def _parse_toml(data: bytes, source: EnvironmentSource) -> Mapping[str, Any]:
     try:
         payload = tomllib.loads(_decode(data, source))
-    except tomllib.TOMLDecodeError as exc:
+    except ValueError as exc:
         raise EnvironmentDiscoveryError(
             "ENV_DISCOVERY_SOURCE_INVALID", source.path
         ) from exc
@@ -402,10 +402,17 @@ def _parse_toml(data: bytes, source: EnvironmentSource) -> Mapping[str, Any]:
     return payload
 
 
+def _reject_json_constant(_: str) -> None:
+    raise ValueError("non_standard_json_constant")
+
+
 def _parse_json(data: bytes, source: EnvironmentSource) -> Mapping[str, Any]:
     try:
-        payload = json.loads(_decode(data, source))
-    except json.JSONDecodeError as exc:
+        payload = json.loads(
+            _decode(data, source),
+            parse_constant=_reject_json_constant,
+        )
+    except ValueError as exc:
         raise EnvironmentDiscoveryError(
             "ENV_DISCOVERY_SOURCE_INVALID", source.path
         ) from exc

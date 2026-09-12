@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 
 import pytest
 
@@ -174,6 +175,47 @@ def test_malformed_supported_manifests_fail_with_sanitized_code(
     assert caught.value.source == relative
     assert "broken" not in str(caught.value)
     assert "not-json" not in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    ("relative", "content"),
+    [
+        (
+            "pyproject.toml",
+            "[project]\nname = \"fixture\"\nprobe = " + ("9" * 1000) + "\n",
+        ),
+        ("package.json", '{"probe":' + ("9" * 1000) + "}"),
+    ],
+)
+def test_numeric_limit_parser_failures_are_sanitized(
+    tmp_path, relative: str, content: str
+) -> None:
+    previous = sys.get_int_max_str_digits()
+    try:
+        sys.set_int_max_str_digits(640)
+        _write(tmp_path, relative, content)
+        with pytest.raises(EnvironmentDiscoveryError) as caught:
+            discover_environment_requirements(tmp_path)
+    finally:
+        sys.set_int_max_str_digits(previous)
+
+    assert caught.value.code == "ENV_DISCOVERY_SOURCE_INVALID"
+    assert caught.value.source == relative
+    assert "9999999999" not in str(caught.value)
+
+
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_nonstandard_json_numeric_constants_fail_closed(
+    tmp_path, constant: str
+) -> None:
+    _write(tmp_path, "package.json", f'{{"probe":{constant}}}')
+
+    with pytest.raises(EnvironmentDiscoveryError) as caught:
+        discover_environment_requirements(tmp_path)
+
+    assert caught.value.code == "ENV_DISCOVERY_SOURCE_INVALID"
+    assert caught.value.source == "package.json"
+    assert constant not in str(caught.value)
 
 
 def test_oversized_parsed_source_fails_before_parser(tmp_path) -> None:
