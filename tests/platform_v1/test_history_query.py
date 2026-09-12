@@ -43,7 +43,10 @@ def set_task(store, ident, *, status=None, created=None, updated=None, repositor
 
 def test_basic_goal_and_run_query(hq):
     store, control, service = hq
-    g = control.create_goal(title="Alpha", objective="secret objective", repository="owner/repo", executor_kind="opencode")
+    g = control.create_goal(
+        title="Alpha", objective="secret objective", repository="owner/repo",
+        executor_kind="opencode", idempotency_key="history-query-basic",
+    )
     t = store.create_task(title="Run Alpha", repository="owner/repo", executor_kind="opencode")
     gp = service.query(GOAL)
     rp = service.query(RUN)
@@ -57,8 +60,14 @@ def test_basic_goal_and_run_query(hq):
 
 def test_literal_search_and_casefold(hq):
     store, control, service = hq
-    g1 = control.create_goal(title="Needle%_X", objective="HiddenNeedle", repository="Owner/Repo")
-    control.create_goal(title="NeedleABC", objective="x", repository="other/repo")
+    g1 = control.create_goal(
+        title="Needle%_X", objective="HiddenNeedle", repository="Owner/Repo",
+        idempotency_key="history-query-literal-special",
+    )
+    control.create_goal(
+        title="NeedleABC", objective="x", repository="other/repo",
+        idempotency_key="history-query-literal-other",
+    )
     assert [x.id for x in service.query(GOAL, text="needle%_").items] == [g1.id]
     assert [x.id for x in service.query(GOAL, text="OWNER/REPO").items] == [g1.id]
     assert service.query(GOAL, text="HiddenNeedle").items == ()
@@ -66,8 +75,14 @@ def test_literal_search_and_casefold(hq):
 
 def test_status_repository_executor_and_date_filters(hq):
     store, control, service = hq
-    g1 = control.create_goal(title="A", objective="x", repository="owner/a", executor_kind="opencode")
-    g2 = control.create_goal(title="B", objective="x", repository="owner/b", executor_kind="fixture")
+    g1 = control.create_goal(
+        title="A", objective="x", repository="owner/a", executor_kind="opencode",
+        idempotency_key="history-query-filter-a",
+    )
+    g2 = control.create_goal(
+        title="B", objective="x", repository="owner/b", executor_kind="fixture",
+        idempotency_key="history-query-filter-b",
+    )
     set_goal(store, g1.id, status="COMPLETED", created="2026-09-10T00:00:00Z")
     set_goal(store, g2.id, status="BLOCKED", created="2026-09-11T00:00:00Z")
     assert [x.id for x in service.query(GOAL, statuses=["COMPLETED"]).items] == [g1.id]
@@ -81,7 +96,10 @@ def test_sort_and_cursor_no_duplicates(hq):
     store, control, service = hq
     ids = []
     for i in range(6):
-        g = control.create_goal(title=f"G{i}", objective="x", repository="owner/repo")
+        g = control.create_goal(
+            title=f"G{i}", objective="x", repository="owner/repo",
+            idempotency_key=f"history-query-sort-{i}",
+        )
         ids.append(g.id)
         set_goal(store, g.id, created="2026-09-01T00:00:00Z", updated=f"2026-09-0{1+i}T00:00:00Z")
     expected = sorted(ids, reverse=True)
@@ -101,7 +119,10 @@ def test_sort_and_cursor_no_duplicates(hq):
 def test_cursor_binds_filters(hq):
     store, control, service = hq
     for i in range(3):
-        g = control.create_goal(title=f"G{i}", objective="x", repository="owner/repo")
+        g = control.create_goal(
+            title=f"G{i}", objective="x", repository="owner/repo",
+            idempotency_key=f"history-query-cursor-{i}",
+        )
         set_goal(store, g.id, status="COMPLETED", created="2026-09-01T00:00:00Z")
     page = service.query(GOAL, statuses=["COMPLETED"], limit=1)
     assert page.next_cursor
@@ -112,10 +133,16 @@ def test_cursor_binds_filters(hq):
 def test_newer_record_after_page_does_not_duplicate_seen(hq):
     store, control, service = hq
     for i in range(4):
-        g = control.create_goal(title=f"G{i}", objective="x", repository="owner/repo")
+        g = control.create_goal(
+            title=f"G{i}", objective="x", repository="owner/repo",
+            idempotency_key=f"history-query-newer-{i}",
+        )
         set_goal(store, g.id, created="2026-09-01T00:00:00Z")
     first = service.query(GOAL, limit=2)
-    new = control.create_goal(title="New", objective="x", repository="owner/repo")
+    new = control.create_goal(
+        title="New", objective="x", repository="owner/repo",
+        idempotency_key="history-query-newer-latest",
+    )
     set_goal(store, new.id, created="2026-09-12T00:00:00Z")
     second = service.query(GOAL, limit=2, cursor=first.next_cursor)
     assert not ({x.id for x in first.items} & {x.id for x in second.items})
@@ -124,7 +151,10 @@ def test_newer_record_after_page_does_not_duplicate_seen(hq):
 
 def test_archive_views_and_idempotency_preserve_truth(hq):
     store, control, service = hq
-    g = control.create_goal(title="Done", objective="x", repository="owner/repo")
+    g = control.create_goal(
+        title="Done", objective="x", repository="owner/repo",
+        idempotency_key="history-query-archive-goal",
+    )
     t = store.create_task(title="Failed", repository="owner/repo")
     set_goal(store, g.id, status="COMPLETED", updated="2026-09-10T00:00:00Z")
     set_task(store, t.id, status="FAILED", updated="2026-09-11T00:00:00Z")
@@ -151,7 +181,10 @@ def test_archive_views_and_idempotency_preserve_truth(hq):
 def test_nonterminal_archive_fails(hq, kind, status):
     store, control, service = hq
     if kind == GOAL:
-        record = control.create_goal(title="x", objective="x", repository="owner/repo")
+        record = control.create_goal(
+            title="x", objective="x", repository="owner/repo",
+            idempotency_key=f"history-query-nonterminal-{status.lower()}",
+        )
         set_goal(store, record.id, status=status)
     else:
         record = store.create_task(title="x")
@@ -167,7 +200,10 @@ def test_missing_archive_subject_fails(hq):
 
 def test_reads_zero_write(hq):
     store, control, service = hq
-    g = control.create_goal(title="Done", objective="x", repository="owner/repo")
+    g = control.create_goal(
+        title="Done", objective="x", repository="owner/repo",
+        idempotency_key="history-query-read-zero-write",
+    )
     set_goal(store, g.id, status="COMPLETED")
     service.archive(GOAL, g.id)
     writes = store._conn.total_changes
@@ -201,7 +237,10 @@ def test_invalid_cursor_fails(hq):
 
 def test_active_transaction_archive_fails_without_touching_caller_tx(hq):
     store, control, service = hq
-    g = control.create_goal(title="Done", objective="x", repository="owner/repo")
+    g = control.create_goal(
+        title="Done", objective="x", repository="owner/repo",
+        idempotency_key="history-query-active-transaction",
+    )
     set_goal(store, g.id, status="COMPLETED")
     store._conn.execute("BEGIN")
     store._conn.execute("UPDATE platform_goals SET title='caller edit' WHERE id=?", (g.id,))
@@ -217,7 +256,10 @@ def test_file_backed_two_connections_share_archive(tmp_path):
     s1 = TaskStore(path)
     c1 = PlatformControlStore(s1)
     q1 = HistoryQueryService(store=s1, control_store=c1)
-    g = c1.create_goal(title="Done", objective="x", repository="owner/repo")
+    g = c1.create_goal(
+        title="Done", objective="x", repository="owner/repo",
+        idempotency_key="history-query-file-backed",
+    )
     set_goal(s1, g.id, status="COMPLETED")
     s2 = TaskStore(path)
     c2 = PlatformControlStore(s2)
