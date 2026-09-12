@@ -139,7 +139,7 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
 
   return (
     <form
-      className="rounded-xl border border-ra-border/70 bg-ra-workspace transition-colors focus-within:border-ra-border-strong"
+      className="rounded-2xl border border-ra-border bg-ra-workspace shadow-[0_2px_8px_-4px_var(--ra-border-strong)] transition-[border-color,box-shadow] focus-within:border-ra-accent focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--ra-accent)_12%,transparent)]"
       onSubmit={async (event) => {
         event.preventDefault();
         if (!ready) return;
@@ -166,7 +166,7 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
         if (textareaRef.current) textareaRef.current.style.height = "auto";
       }}
     >
-      <div className="flex min-h-12 items-end gap-1.5 px-2 py-1.5">
+      <div className="flex min-h-14 items-end gap-1.5 px-2 py-2.5">
         <button
           type="button"
           aria-label="输入选项"
@@ -188,7 +188,7 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
             editDraft({ objective: event.target.value });
             resizeObjectiveTextarea(event.target);
           }}
-          placeholder="Ask Nerelan to work on something…"
+          placeholder="描述你想完成的目标…"
           rows={1}
           className="min-h-9 max-h-36 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-2 py-2 text-[15px] leading-5 text-ra-text placeholder:text-ra-text-tertiary focus:outline-none"
         />
@@ -200,8 +200,8 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
           className={cn(
             "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition",
             ready
-              ? "bg-ra-text text-ra-base hover:opacity-90"
-              : "bg-ra-light/70 text-ra-text-tertiary",
+              ? "bg-ra-accent text-ra-base hover:bg-ra-accent-hover"
+              : "bg-ra-tertiary/60 text-ra-text-tertiary",
           )}
         >
           <ArrowUp className="h-4 w-4" aria-hidden="true" />

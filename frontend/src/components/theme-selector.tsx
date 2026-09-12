@@ -36,7 +36,7 @@ export function ThemeSelector() {
     <section
       aria-labelledby="appearance-heading"
       data-testid="theme-selector"
-      className="border-t border-ra-border/60 py-4"
+      className="border-y border-ra-border/60 py-5"
     >
       <div>
         <h2 id="appearance-heading" className="text-sm font-semibold text-ra-text">
@@ -47,9 +47,9 @@ export function ThemeSelector() {
         </p>
       </div>
 
-      <fieldset className="mt-3">
+      <fieldset className="mt-4">
         <legend className="text-xs font-medium text-ra-text-secondary">主题模式</legend>
-        <div role="radiogroup" aria-label="主题模式" className="mt-1.5 grid gap-1 sm:grid-cols-3">
+        <div role="radiogroup" aria-label="主题模式" className="mt-2 grid gap-2 sm:grid-cols-3">
           {(["system", "light", "dark"] as ThemeMode[]).map((mode) => {
             const Icon = modeIcons[mode];
             const selected = appearance.mode === mode;
@@ -58,11 +58,11 @@ export function ThemeSelector() {
                 key={mode}
                 htmlFor={`theme-option-${mode}`}
                 className={cn(
-                  "flex min-h-11 items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors",
+                  "flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
                   "focus-within:ring-2 focus-within:ring-ra-accent focus-within:ring-offset-2 focus-within:ring-offset-ra-light",
                   selected
-                    ? "bg-ra-tertiary text-ra-text"
-                    : "text-ra-text-secondary hover:bg-ra-tertiary/70",
+                    ? "border-ra-accent/60 bg-ra-accent/5 text-ra-text"
+                    : "border-ra-border/60 text-ra-text-secondary hover:border-ra-border-strong hover:bg-ra-light/60",
                 )}
               >
                 <input
@@ -89,9 +89,9 @@ export function ThemeSelector() {
         </div>
       </fieldset>
 
-      <fieldset className="mt-3 border-t border-ra-border/50 pt-3">
+      <fieldset className="mt-5">
         <legend className="text-xs font-medium text-ra-text-secondary">强调色</legend>
-        <div role="radiogroup" aria-label="强调色" className="mt-1.5 flex flex-wrap gap-1">
+        <div role="radiogroup" aria-label="强调色" className="mt-2 flex flex-wrap gap-2">
           {ACCENTS.map((accent: Accent) => {
             const selected = appearance.accent === accent;
             return (
@@ -99,7 +99,7 @@ export function ThemeSelector() {
                 key={accent}
                 htmlFor={`accent-option-${accent}`}
                 className={cn(
-                  "group inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
+                  "group inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-xs transition-colors",
                   "focus-within:ring-2 focus-within:ring-ra-accent focus-within:ring-offset-2 focus-within:ring-offset-ra-light",
                   selected
                     ? "bg-ra-tertiary text-ra-text"
