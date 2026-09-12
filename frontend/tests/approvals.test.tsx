@@ -137,13 +137,14 @@ describe("Approvals continuation page", () => {
     ).toBeGreaterThanOrEqual(2);
   });
 
-  it("keeps terminal Goals read-only even when opened by deep link", async () => {
+  it("keeps terminal Goals read-only and labels completion as awaiting review", async () => {
     __setMockGoalStatus(DEMO_GOAL_ID, { status: "COMPLETED" });
     renderWithProviders(<ApprovalsPage />, {
       initialEntries: [`/approvals?goal=${DEMO_GOAL_ID}`],
     });
 
-    await waitFor(() => expect(screen.getByText("已完成")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("执行完成，待审查")).toBeInTheDocument());
+    expect(screen.queryByText("已完成")).not.toBeInTheDocument();
     expect(screen.getByText(/当前状态只读/)).toBeInTheDocument();
     expect(screen.queryByTestId("approval-plan-button")).not.toBeInTheDocument();
     expect(screen.queryByTestId("approval-approve-button")).not.toBeInTheDocument();

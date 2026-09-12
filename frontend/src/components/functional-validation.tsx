@@ -1,8 +1,8 @@
-import { FUNCTIONAL_PROFILES, normalizeFunctionalValidation } from "@/lib/functional-validation";
+import { FUNCTIONAL_PROFILES, FUNCTIONAL_STATUS_LABELS, normalizeFunctionalValidation } from "@/lib/functional-validation";
 
 export function FunctionalValidationView({ evidence, executor }: { evidence: unknown; executor?: string }) {
   const proof = normalizeFunctionalValidation(evidence, executor);
-  const label = { VERIFIED: "功能已验证", UNVERIFIED: "功能尚未验证", FAILED: "功能检查未通过", FIXTURE_VERIFIED: "仅测试夹具通过" }[proof.status];
+  const label = FUNCTIONAL_STATUS_LABELS[proof.status];
   return <section aria-label="功能验证" className="mt-3 space-y-2 rounded-xl border border-ra-border p-3 text-sm">
     <p className="font-medium">{label}</p>
     <p className="text-xs text-ra-text-secondary">{proof.status === "VERIFIED"

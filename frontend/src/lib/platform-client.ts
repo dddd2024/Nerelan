@@ -27,7 +27,19 @@ export interface PlatformGoal {
   window_id: string;
   created_at: string;
   updated_at: string;
-  task_links?: Array<{ task_id: string; plan_task_id: string; status: string; title: string }>;
+  completion_scope?: "EXECUTION_ONLY";
+  remote_acceptance?: "NOT_OBSERVED";
+  task_links?: PlatformGoalTaskLink[];
+}
+
+export interface PlatformGoalTaskLink {
+  task_id: string;
+  plan_task_id: string;
+  status: string;
+  title: string;
+  executor_kind?: PlatformGoal["executor_kind"];
+  functional_validation?: FunctionalValidation;
+  publication?: PlatformAgentRun["publication"];
 }
 
 export interface PlatformWindow {
