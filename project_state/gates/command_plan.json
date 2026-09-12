@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260912_issue826_goal_completion_evidence_r2_v2",
-  "round_id": "round_20260912_issue826_goal_completion_evidence_r2_v2",
+  "decision_id": "decision_20260912_issue839_visible_goal_evidence_r3_v6",
+  "round_id": "round_20260912_issue839_visible_goal_evidence_r3_v6",
   "commands": [
     {
-      "command_id": "issue826.bootstrap",
-      "command": "Verify fresh branch and locked main; commit only the immutable Decision as one activation commit; run startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness. Require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before product changes.",
+      "command_id": "issue839.bootstrap",
+      "command": "Observe main exactly1b87cb41606bfbda0b4b49dd18259550fbf5bb58, accepted PR827 native receipt/main CI and fresh clean branchcodex/f03-visible-goal-evidence-r3-v6; commit this immutable APPROVED R3 Decision alone as the first activation commit. Run existing startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness. Require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before product mutation or any browser/server launch. Do not copy prior Decision/gates/history.",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -34,8 +34,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue826.implement",
-      "command": "After fresh activation/preflight, verify and materialize only the four SHA256-bound candidate product files from stopped825 as specified in Issue826, with matching unchanged base blobs. Correct the no-implementation sequential-team test role expectation to planner,coder and explicitly assert no_coder_product_diff; preserve all negative proof assertions. No old Decision/gate/history copying and no production executor change. Implement the full Issue826 contract in the seven exact product paths: coherent Goal SQLite snapshot with proper transaction ownership and rollback, current Goal/revision/artifact/plan-task proof binding, safe functional evidence and shared existing Run publication projection, execution-only Goal semantics. Preserve existing lifecycle/timestamp behavior. No active PR819/824/801/672 paths or second store/Gate/runtime. No frontend change in this backend slice.",
+      "command_id": "issue839.implement",
+      "command": "Implement only the18 product paths in Issue839. After fresh Decision-only activation and passing existing gates, reuse only the17 frozen Issue838 uncommitted product files after exact SHA256 and unchanged base-blob checks. Preserve stopped833/834/835/837/838 and PR819. Retain all frozen Goal proof, exact Run links, truthful Goal/Recent goals/approval/Roadmap labels, publication distinctions, CSS reset/focus and readable Run styles. Correct only the new platform-home test notification timing: use bounded existing waitFor to await the exact updated fixture-row completion label before keeping all list-order, no-raw-COMPLETED/no-functional-success and actual missing-proof Goal selection assertions. No arbitrary sleep, weaker assertion, product scheduler or other runtime behavior change. Reuse the prepared never-executed838 real-browser harness with fresh round paths/identity and retained four-layout Recent goals assertions. No backend/workflow/dependency/schema/validator/snapshot or new component/store/verifier change. Verify installed ignored dependency junction compatibility. All checks must run anew; no previous Decision/gates/history or results confer acceptance.",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -56,18 +56,29 @@
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/goal_service.py",
-        "reverse_agent/platform_v1/run_read_model.py",
-        "tests/platform_v1/test_goal_completion_evidence.py",
-        "tests/platform_v1/test_goal_service.py",
-        "tests/platform_v1/test_run_read_model.py",
-        "tests/platform_v1/test_task_service.py",
+        "frontend/src/index.css",
+        "frontend/src/lib/platform-client.ts",
+        "frontend/src/lib/functional-validation.ts",
+        "frontend/src/components/functional-validation.tsx",
+        "frontend/src/components/goal-progress.tsx",
+        "frontend/src/routes/home.tsx",
+        "frontend/src/routes/approvals.tsx",
+        "frontend/src/routes/roadmap.tsx",
+        "frontend/src/routes/runs.tsx",
+        "frontend/tests/platform-home.test.tsx",
+        "frontend/tests/goal-progress.test.tsx",
+        "frontend/tests/task-first-lifecycle-states.test.tsx",
+        "frontend/tests/approvals.test.tsx",
+        "frontend/tests/roadmap.test.tsx",
+        "frontend/tests/functional-validation.test.tsx",
+        "frontend/tests/goal-completion-evidence.test.tsx",
+        "frontend/e2e/functional-validation.spec.ts",
         "docs/functional-validation.md"
       ]
     },
     {
-      "command_id": "issue826.validate",
-      "command": "python -B -m pytest tests/platform_v1/test_goal_completion_evidence.py tests/platform_v1/test_goal_service.py tests/platform_v1/test_goal_functional_checks.py tests/platform_v1/test_goal_configuration.py tests/platform_v1/test_goal_plan_revision.py tests/platform_v1/test_functional_validation.py tests/platform_v1/test_functional_execution.py tests/platform_v1/test_artifact_handoff.py tests/platform_v1/test_run_read_model.py tests/platform_v1/test_task_service.py tests/platform_v1/test_roadmap_service.py -q -p no:cacheprovider\ngit diff --check\nRun real installed-pytest/Git/diskSQLite and actual isolated loopback TaskAPI Goal list/detail/page acceptance, including reopen/concurrency/rollback. Only model execution and binding metadata may be disclosed test doubles. No external network/provider/credential/browser/installation/WSL/Docker/snapshot work; existing installed tooling and temporary paths only. Require complete exact-head evidence before publication.",
+      "command_id": "issue839.validate",
+      "command": "Run existing npm test, npm run lint and npm run build without dependency installation. Run python -B -m pytest tests/platform_v1/test_goal_completion_evidence.py tests/platform_v1/test_goal_service.py tests/platform_v1/test_run_read_model.py -q -p no:cacheprovider and git diff --check. Backend tests may use only their existing isolated loopback Git/SQLite/pytest seams and explicit local model/binding doubles, zero provider calls. Run existing immutable Decision gates and publication readiness on the exact committed implementation head. All blocking checks must pass before publication; preserve any failed round without fix-forward.",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -78,6 +89,7 @@
       "operations": [
         "unit_test",
         "integration_test",
+        "build",
         "diff_validation",
         "local_static_check"
       ],
@@ -97,8 +109,32 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue826.publish",
-      "command": "After local checks pass, push only codex/f03-goal-completion-evidence-r2-v2; create/update one Draft PR in dddd2024/Nerelan against main@00d203d954b29a26edfb0811f39a85590940c070; publish a disclosed exact-head self-review and progress comments only on Issue826/653/659.",
+      "command_id": "issue839.browser",
+      "command": "On user_local only, use machine-specific installed Edge153.0.4234.32 at C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe, SHA25681ee5ff42fcec883312170606b10ebbb2b01f5b4cddc2cf485290e40c15b027d, and installed Playwright1.62.1. Verify executable hash before launch. Run the actual changed Vite frontend only at http://127.0.0.1:5175 and an owned real Task API at one ephemeral127.0.0.1 port with that exact Origin; use existing VITE_TASK_API_BASE. All application requests must remain on those loopback endpoints. Use isolated browser profiles, headless by default, no personal profile and disable background networking where supported. At most4 Edge launches, each at most30minutes, and64 PNG screenshots. Actual Git/SQLite/installed-pytest fixtures must cover valid single/team, syntax error, failed assertion, no implementation, zero tests, missing/stale evidence and actual deterministic fixture. Only model execution and binding metadata are disclosed doubles. Verify browser-visible Goal proof and exact Run navigation against HTTP and reopened SQLite identities/digests. Keep recorded-Draft presentation fixtures separate from real remote publication; do not visit external PR links. Inspect desktop/mobile light/dark captures and keyboard interactions. Use exact host materialized Task titles in accessible-link expectations. Assert actual48pxdesktop/16pxmobile Home padding and12pxvertical task-row padding, visible focus outlines/rings through Tab/Enter, actual composited Run state/liveness text contrast at least4.5:1 in light/dark themes, and mobile lower evidence digest/run identity scrolled into viewport. Preserve all prior exact identity/proof/navigation and no-horizontal-overflow checks. Retain sanitized artifacts under F:/Nerelan-final-audit-evidence-20260911/issue839-browser, use temporary test Git/SQLite/worktrees there, track owned PIDs, and close only owned test browser/server processes gracefully. No broad termination/deletion, providers, credentials, external navigation, installs, WSL/container startup or snapshot update. Any blocking failure or executable/authority mismatch stops this round. Also inspect the actual Recent goals fixture/stale-proof rows in light/dark desktop/mobile: require execution-ended/pending-review wording, no raw COMPLETED or functional verified wording, unchanged lifecycle semantics and selection. Scroll recent rows into viewport and capture at most4 additional PNGs within the64 total limit; restore the selected Goal flow and retain all prior proof/navigation checks.",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "user_local",
+      "operations": [
+        "machine_specific_execution",
+        "integration_test",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue839.publish",
+      "command": "After all exact-head local and real browser checks pass, push onlycodex/f03-visible-goal-evidence-r3-v6 todddd2024/Nerelan and create exactly one Draft against main@1b87cb41606bfbda0b4b49dd18259550fbf5bb58. One successful push and one successful Draft only; at most3 transport attempts overall, only after readback confirms no mutation. After successful push no further push. Publish disclosed review/evidence and bounded progress comments only to Issue839, its exact Draft,653 and659. Do not mutate other branches/Issues/PRs or repeat completed826 closure.",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -123,8 +159,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue826.audit",
-      "command": "Observe natural exact-head workflows according to existing filters; inspect complete logs and compare actual diagnostic failure node IDs with main00d203 baseline. Perform a separate disclosed self-audit; no rerun/dispatch.",
+      "command_id": "issue839.audit",
+      "command": "Require all five natural browser_r3 exact-head workflows: CI, Decision Preflight, State Gate, Model Access and Frontend Playwright. Compare actual full diagnostic failed node IDs with accepted locked main; a green nonblocking wrapper is insufficient. Perform a separate disclosed self-audit. No rerun/dispatch or snapshot update. An actual golden failure stops this candidate; preserve exact head/run/actual/expected/diff artifacts for a separately approved successor, never blind refresh or Windows golden substitution.",
       "phase": "final_evidence",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -146,8 +182,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue826.landing",
-      "command": "After disclosed exact-head self-audit, natural required checks, unchanged immutable Decision, remote main@00d203d954b29a26edfb0811f39a85590940c070 and exact reviewed head CLEAN/MERGEABLE, use the existing separate bound landing authority/attestation protocol. Mark only the bound PR ready once; require natural formal State/Landing checks and immediate reobservation before one expected-head ordinary merge; verify exact parents/tree/main and native receipt. Never claim independent human review.",
+      "command_id": "issue839.landing",
+      "command": "Only after separate disclosed exact-head self-audit, all required natural checks, current unchanged approved Decision/base/head and separately bound immutable landing authority with its own checks, use the existing false/none Owner landing protocol for the exact Issue839 Draft. Require NEW Ready-triggered formal landing-state-gate, existing premerge attestation, live required contexts and immediate main==1b87cb41606bfbda0b4b49dd18259550fbf5bb58, CLEAN/MERGEABLE and no concurrent target mutation. At most one Ready and one ordinary method=merge with expected-head protection; verify actual parents/tree/main and native mainline receipt. No independent human review claim or direct main push.",
       "phase": "final_acceptance",
       "required": true,
       "required_evidence_source": "repository_state_attestation",

@@ -1,5 +1,20 @@
 import { test, expect, open, settle } from "./fixtures";
 
+test("keeps mock Goal completion unverified and opens its exact Run evidence", async ({ appPage }) => {
+  await open(appPage, "/");
+  await settle(appPage);
+  const task = appPage.getByTestId("goal-task-task-demo-1");
+  await expect(task.getByText("执行完成，待审查")).toBeVisible();
+  await expect(task.getByTestId("goal-functional-status-task-demo-1")).toHaveText("功能尚未验证");
+  await expect(task.getByTestId("goal-publication-task-demo-1")).toHaveText("尚无发布记录");
+  await task.getByRole("link", { name: "查看 分析目标与代码库 的运行" }).click();
+  await expect(appPage).toHaveURL(/\/runs\?task=task-demo-1$/);
+  const selected = appPage.getByRole("region", { name: "选中运行" });
+  await expect(selected.getByTestId("run-overview-task-demo-1")).toBeVisible();
+  await expect(selected.getByTestId("run-validation-task-demo-1")).toBeVisible();
+  await expect(selected.getByText("功能已验证")).toHaveCount(0);
+});
+
 // This exercises the visible mock review flow. Real test execution is covered
 // separately by the Task API / SQLite / Git acceptance probe, not this fixture.
 test("reviews selected functional checks before explicit approval in the mock UI", async ({ appPage }) => {
