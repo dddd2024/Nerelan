@@ -19,6 +19,7 @@ from .repository_workspace import (
 )
 from .run_store import TaskStore, TaskStoreError
 from .functional_validation import freeze_contract, normalize_checks, repository_base
+from .artifact_handoff import freeze_handoff_contract, normalize_input, validate_plan_inputs
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class PlannedTask:
     dependencies: tuple[str, ...] = ()
     capability: str = "execute_task"
     validation_checks: tuple[dict[str, str], ...] = ()
+    artifact_input: dict[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -172,6 +174,7 @@ class GoalService:
                 orchestration_mode=goal.orchestration_mode,
             )
             freeze_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=functional_base)
+            freeze_handoff_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=functional_base)
             try:
                 self.control_store.link_goal_task(
                     goal.id,
@@ -287,6 +290,7 @@ class GoalService:
 
         for task_id in graph:
             visit(task_id)
+        validate_plan_inputs(result)
         return result
 
     @staticmethod
@@ -301,7 +305,8 @@ class GoalService:
         if capability not in {"execute_task", "validate_task"}:
             raise TaskStoreError(f"unsupported_plan_task_capability:{capability}")
         checks = normalize_checks(raw.get("validation_checks", ()))
-        return PlannedTask(task_id, title, instruction, dependencies, capability, checks)
+        artifact_input = normalize_input(raw.get("artifact_input"))
+        return PlannedTask(task_id, title, instruction, dependencies, capability, checks, artifact_input)
 
     @staticmethod
     def _execution_title(goal: GoalRecord, task: PlannedTask) -> str:
@@ -333,6 +338,8 @@ class GoalService:
                     "Functional checks: " + (", ".join(
                         f"`{check['profile_id']}` in `{check['working_directory']}`" for check in item.validation_checks
                     ) or "not selected (patch hygiene alone is not functional verification)"),
+                    *([f"Accepted artifact input: `{item.artifact_input['plan_task_id']}`"]
+                      if item.artifact_input else []),
                     "",
                 ]
             )

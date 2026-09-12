@@ -174,6 +174,10 @@ export interface FunctionalValidation {
   tree?: string;
   reason?: string;
   checks?: FunctionalCheckResult[];
+  artifact_input?: {
+    plan_task_id: string; task_id: string; execution_id: string;
+    commit: string; tree: string; result_digest: string; binding_digest: string;
+  };
 }
 
 // ---------------------------------------------------------------------------

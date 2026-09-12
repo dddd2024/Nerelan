@@ -34,6 +34,25 @@ function props(goal = structuredClone(fixture)) {
     onSaveConfiguration: vi.fn().mockResolvedValue(undefined), onSavePlan: vi.fn().mockResolvedValue(undefined) };
 }
 
+it("selects only a checked dependency and preserves or explicitly clears its artifact", async () => {
+  const current = props();
+  current.goal.tasks.forEach((task) => { task.validation_checks = [{ profile_id: "python_pytest", working_directory: "." }]; });
+  render(<GoalReviewEditor {...current} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "编辑当前计划" }));
+  expect(screen.getByLabelText("任务 A 输入产物").querySelectorAll("option")).toHaveLength(1);
+  await user.selectOptions(screen.getByLabelText("任务 B 输入产物"), "A");
+  await user.type(screen.getByLabelText("任务 B 说明"), " with accepted input");
+  await user.click(screen.getByRole("button", { name: "保存计划修改" }));
+  expect(current.onSavePlan.mock.calls[0][1].tasks[1].artifact_input).toEqual({ plan_task_id: "A" });
+  current.goal.tasks[1].artifact_input = { plan_task_id: "A" };
+  await user.click(screen.getByRole("button", { name: "编辑当前计划" }));
+  expect(screen.getByLabelText("任务 B 输入产物")).toHaveValue("A");
+  await user.selectOptions(screen.getByLabelText("任务 B 输入产物"), "");
+  await user.click(screen.getByRole("button", { name: "保存计划修改" }));
+  expect(current.onSavePlan.mock.calls[1][1].tasks[1].artifact_input).toBeNull();
+});
+
 it("saves explicitly selected executor, repository and Binding on the observed Goal", async () => {
   const current = props();
   render(<GoalReviewEditor {...current} />);
