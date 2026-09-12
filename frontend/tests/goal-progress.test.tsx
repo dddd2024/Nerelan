@@ -24,10 +24,17 @@ describe("Goal progress status truth", () => {
     expect(screen.getByTestId("goal-progress-summary")).toHaveTextContent("0/1");
   });
 
-  it.each(["QUEUED", "RUNNING", "READY_FOR_REVIEW", "FAILED"])("keeps existing %s status semantics", (status) => {
+  it.each([
+    ["QUEUED", "等待依赖完成"],
+    ["RUNNING", "Agent 正在执行"],
+    ["READY_FOR_REVIEW", "执行完成，待审查"],
+    ["FAILED", "需要处理阻塞"],
+  ])("keeps %s status semantics and links the exact materialized task", (status, label) => {
     renderWithProviders(<GoalProgress goal={goalWithStatus(status)} />);
     expect(screen.queryByText("执行已中断")).not.toBeInTheDocument();
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.getByText(label)).toBeVisible();
+    expect(screen.getByRole("link", { name: "查看 Implement result 的运行" })).toHaveAttribute("href", "/runs?task=task%2Fa%20%3F%26");
+    expect(screen.queryByRole("button", { name: /恢复/ })).not.toBeInTheDocument();
     expect(screen.getByTestId("goal-progress-summary")).toHaveTextContent(status === "READY_FOR_REVIEW" ? "1/1" : "0/1");
   });
 });
