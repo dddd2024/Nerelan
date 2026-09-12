@@ -73,6 +73,25 @@ code of zero by itself is insufficient. A deterministic fixture may have
 selected contract continue to expose hygiene results without functional proof.
 GitHub workflow-name `required_checks` remains a separate publication contract.
 
+Goal list, detail and history-page responses include the same safe proof in each
+`task_links[].functional_validation`, alongside the Task's `executor_kind` and
+the existing `publication` projection. The host reads the current Goal revision,
+links, Task proof and publication records in one SQLite transaction. It also
+checks the functional contract's Goal, revision, plan-task and artifact digest
+against that response. Missing or mismatched evidence remains unverified, and
+unchanged reads preserve business timestamps. Event history is not loaded for
+this projection.
+
+Goal responses explicitly report `completion_scope: "EXECUTION_ONLY"` and
+`remote_acceptance: "NOT_OBSERVED"`. The existing `COMPLETED` lifecycle means all
+Tasks reached review-ready, including fixture Tasks. It does not establish
+functional verification, review acceptance, merge or delivery. Publication
+`COMPLETE` records that the controller created a Draft PR; the stored PR reference
+does not establish its current remote Draft/Ready, review or merge state. Goal
+GET requests make no GitHub or model calls. Consumers must display these stages
+separately and use the recorded PR link for remote review. The Goal interface
+integration remains a separate acceptance item under #653.
+
 In the Goal review page, choose **编辑当前计划**, then **添加功能检查** for
 each planned Task. Select Python/pytest or JavaScript/npm test and its repository
 relative directory (`.` for the root). The editor rejects duplicate pairs,

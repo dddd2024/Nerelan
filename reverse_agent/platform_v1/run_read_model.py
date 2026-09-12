@@ -129,6 +129,19 @@ def _safe_reference(value: Any) -> str:
     return reference
 
 
+def publication_projection(publication: Any | None) -> dict[str, Any] | None:
+    """Project the local publication record, not live GitHub review/merge state."""
+    if publication is None:
+        return None
+    return {
+        "status": _safe_text(publication.status, limit=32),
+        "branch": _safe_text(publication.branch, limit=256),
+        "pr_number": publication.pr_number,
+        "pr_url": _safe_text(publication.pr_url, limit=512),
+        "commit_sha": _safe_reference(publication.commit_sha),
+    }
+
+
 def _derived_agent_id(execution_id: str, role: str) -> str:
     if not execution_id:
         return ""
@@ -608,17 +621,7 @@ class RunReadModel:
             "window_id": window_id,
             "usage": self.store.usage_summary(task.id),
             "budget": budget,
-            "publication": (
-                {
-                    "status": _safe_text(publication.status, limit=32),
-                    "branch": _safe_text(publication.branch, limit=256),
-                    "pr_number": publication.pr_number,
-                    "pr_url": _safe_text(publication.pr_url, limit=512),
-                    "commit_sha": _safe_reference(publication.commit_sha),
-                }
-                if publication is not None
-                else None
-            ),
+            "publication": publication_projection(publication),
             "run_id": _safe_text(getattr(durable_run, "run_id", ""), limit=128),
             "stage": stage,
             "liveness": liveness["state"],

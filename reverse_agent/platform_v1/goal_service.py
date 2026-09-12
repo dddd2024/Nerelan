@@ -7,7 +7,7 @@ truth.  Planning is deterministic and editable; it makes no model call.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass
 import re
 import shutil
 from typing import Any, Mapping, Sequence
@@ -18,7 +18,10 @@ from .repository_workspace import (
     resolve_repository_workspace,
 )
 from .run_store import TaskStore, TaskStoreError
-from .functional_validation import freeze_contract, normalize_checks, repository_base
+from .functional_validation import (
+    freeze_contract, functional_evidence, load_contract, normalize_checks, repository_base,
+)
+from .run_read_model import publication_projection
 from .artifact_handoff import freeze_handoff_contract, normalize_input, validate_plan_inputs
 
 
@@ -45,6 +48,9 @@ def goal_to_dict(goal: GoalRecord, *, links: Sequence[Mapping[str, Any]] = ()) -
     payload["tasks"] = [dict(item) for item in goal.tasks]
     payload["acceptance_criteria"] = list(goal.acceptance_criteria)
     payload["task_links"] = [dict(item) for item in links]
+    # COMPLETED aggregates execution, not functional or remote acceptance.
+    payload["completion_scope"] = "EXECUTION_ONLY"
+    payload["remote_acceptance"] = "NOT_OBSERVED"
     return payload
 
 
@@ -215,18 +221,65 @@ class GoalService:
     def _response_snapshot(self, goal_id: str) -> dict[str, Any]:
         """Build one coherent goal response after durable status reconciliation."""
 
-        goal = self.control_store.refresh_goal_status(goal_id)
-        links = self.control_store.list_goal_tasks(goal_id)
-        if links:
-            statuses = {str(link["status"]) for link in links}
-            if statuses <= {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"}:
-                status = "COMPLETED"
-            elif statuses & {"FAILED", "BLOCKED", "CANCELLED"}:
-                status = "BLOCKED"
+        with self.store._lock:
+            conn = self.store._conn
+            owns_transaction = not conn.in_transaction
+            if owns_transaction:
+                # Reconciliation may update the Goal: obtain the write lock before
+                # reading, including against other TaskStore connections.
+                conn.execute("BEGIN IMMEDIATE")
             else:
-                status = "RUNNING"
-            goal = replace(goal, status=status)
-        return goal_to_dict(goal, links=links)
+                conn.execute("SAVEPOINT goal_response_snapshot")
+            try:
+                goal = self.control_store.refresh_goal_status(goal_id)
+                links = [
+                    self._task_link_evidence(goal, link)
+                    for link in self.control_store.list_goal_tasks(goal_id)
+                ]
+                if links:
+                    statuses = {str(link["status"]) for link in links}
+                    status = ("COMPLETED" if statuses <= {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"}
+                              else "BLOCKED" if statuses & {"FAILED", "BLOCKED", "CANCELLED"}
+                              else "RUNNING")
+                    if status != goal.status:
+                        # Preserve coherence if an enclosing in-process operation
+                        # changed a Task during reconciliation on this connection.
+                        goal = self.control_store.refresh_goal_status(goal_id)
+                response = goal_to_dict(goal, links=links)
+                conn.execute("COMMIT" if owns_transaction else "RELEASE goal_response_snapshot")
+                return response
+            except BaseException:
+                if owns_transaction:
+                    conn.execute("ROLLBACK")
+                else:
+                    conn.execute("ROLLBACK TO goal_response_snapshot")
+                    conn.execute("RELEASE goal_response_snapshot")
+                raise
+
+    def _task_link_evidence(self, goal: GoalRecord, link: Mapping[str, Any]) -> dict[str, Any]:
+        task = self.store.get_task(str(link["task_id"]), event_limit=0)
+        proof = functional_evidence(task)
+        try:
+            contract = load_contract(task)
+            matches = (task.repository == goal.repository and task.executor_kind == goal.executor_kind
+                       and (contract is None or (
+                           contract["goal_id"] == goal.id
+                           and contract["goal_revision"] == goal.revision == link["goal_revision"]
+                           and contract["goal_artifact_digest"] == goal.artifact_digest
+                           and contract["plan_task_id"] == link["plan_task_id"])))
+        except TaskStoreError:
+            matches = False
+        if not matches:
+            proof = {"status": "UNVERIFIED", "verified": False,
+                     "reason": "goal_functional_contract_mismatch"}
+        publication = self.control_store.get_publication(task.id)
+        if publication is not None and publication.repository != task.repository:
+            publication = None
+        return {
+            **link, "executor_kind": task.executor_kind,
+            "functional_validation": proof,
+            "publication": publication_projection(publication),
+        }
 
     @staticmethod
     def _title_from_objective(objective: str) -> str:
