@@ -80,7 +80,7 @@ def test_status_repository_executor_and_date_filters(hq):
         idempotency_key="history-query-filter-a",
     )
     g2 = control.create_goal(
-        title="B", objective="x", repository="owner/b", executor_kind="fixture",
+        title="B", objective="x", repository="owner/b", executor_kind="deterministic_fixture",
         idempotency_key="history-query-filter-b",
     )
     set_goal(store, g1.id, status="COMPLETED", created="2026-09-10T00:00:00Z")
