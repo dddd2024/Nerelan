@@ -176,7 +176,7 @@ describe("task-first lifecycle-state convergence before R3 visual acceptance", (
     expect(screen.getByTestId("goal-activity-event-blocked-event")).toHaveTextContent("阻塞");
   });
 
-  it("converges a completed Goal to one terminal success treatment", async () => {
+  it("converges a completed Goal to execution-complete review-pending treatment", async () => {
     __setMockGoalStatus(GOAL_ID, {
       status: "COMPLETED",
       task_links: ORIGINAL_LINKS.map((link) => ({ ...link, status: "READY_FOR_REVIEW" })),
@@ -185,7 +185,7 @@ describe("task-first lifecycle-state convergence before R3 visual acceptance", (
     renderWithProviders(<HomePage />);
 
     const state = await screen.findByTestId("goal-state-label");
-    expect(state).toHaveTextContent("已完成");
+    expect(state).toHaveTextContent("执行完成，待审查");
     expect(state).toHaveClass("text-ra-status-running");
     expect(state).not.toHaveTextContent("正在执行");
 
@@ -195,6 +195,7 @@ describe("task-first lifecycle-state convergence before R3 visual acceptance", (
     expect(screen.getByTestId("goal-progress-bar").firstElementChild).toHaveClass(
       "bg-ra-status-running",
     );
+    expect(screen.queryByText("结果已验证")).not.toBeInTheDocument();
   });
 
   it("converges a blocked Goal to one error treatment without a running status", async () => {
@@ -277,12 +278,12 @@ describe("task-first lifecycle-state convergence before R3 visual acceptance", (
     expect(screen.queryByText("语义事件 0")).not.toBeInTheDocument();
   });
 
-  it("keeps GoalProgress error/success color contracts tied to authoritative Goal status", () => {
+  it("keeps GoalProgress color contracts while distinguishing real and fixture review-ready states", () => {
     const completed: PlatformGoal = {
       ...BASE_GOAL,
       status: "COMPLETED",
       task_links: [
-        { task_id: "done", plan_task_id: "T001", status: "READY_FOR_REVIEW", title: "已验证" },
+        { task_id: "done", plan_task_id: "T001", status: "READY_FOR_REVIEW", title: "待审查结果" },
       ],
     };
     const { rerender } = renderWithProviders(<GoalProgress goal={completed} />);
@@ -290,6 +291,18 @@ describe("task-first lifecycle-state convergence before R3 visual acceptance", (
     expect(screen.getByTestId("goal-progress-bar").firstElementChild).toHaveClass(
       "bg-ra-status-running",
     );
+    expect(screen.getByText("执行完成，待审查")).toBeInTheDocument();
+    expect(screen.queryByText("结果已验证")).not.toBeInTheDocument();
+
+    const fixture: PlatformGoal = {
+      ...completed,
+      task_links: [
+        { task_id: "fixture", plan_task_id: "T001", status: "READY_FOR_REVIEW_FIXTURE", title: "Fixture 结果" },
+      ],
+    };
+    rerender(<GoalProgress goal={fixture} />);
+    expect(screen.getByText("Fixture 完成，待审查")).toBeInTheDocument();
+    expect(screen.queryByText("结果已验证")).not.toBeInTheDocument();
 
     const blocked: PlatformGoal = {
       ...completed,

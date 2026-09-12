@@ -28,7 +28,7 @@ function goalStatusTextClass(status: string) {
 
 function goalStatusLabel(status: PlatformGoal["status"]) {
   if (status === "RUNNING") return "正在执行";
-  if (status === "COMPLETED") return "已完成";
+  if (status === "COMPLETED") return "执行完成，待审查";
   if (status === "BLOCKED") return "需要处理阻塞";
   if (status === "INVALIDATED") return "已失效";
   if (status === "APPROVED" || status === "PLANNED") return "等待启动";
@@ -93,7 +93,7 @@ export function HomePage() {
             className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
           >
             <div className="min-w-0">
-              <p className="truncate text-xs text-ra-text-tertiary">
+              <p className="truncate text-xs font-medium tracking-wide text-ra-text-tertiary">
                 {detailGoal.repository || "Workspace"}
               </p>
               <h1 className="mt-1.5 text-[28px] font-medium tracking-[-0.03em] text-ra-text sm:text-[32px]">
@@ -110,14 +110,14 @@ export function HomePage() {
             <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 pt-1 text-xs">
               <span
                 data-testid="goal-state-label"
-                className={cn("font-medium", goalStatusTextClass(detailGoal.status))}
+                className={cn("rounded-full border border-ra-border/70 bg-ra-light/60 px-2.5 py-1 font-medium", goalStatusTextClass(detailGoal.status))}
               >
                 {goalStatusLabel(detailGoal.status)}
               </span>
               {activeWindow ? (
                 <span
                   data-testid="autonomy-status"
-                  className="inline-flex items-center gap-1.5 text-ra-text-tertiary"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-ra-tertiary/40 px-2.5 py-1 text-ra-text-secondary"
                 >
                   <Loader2
                     className={cn(
@@ -228,7 +228,7 @@ export function HomePage() {
               </button>
             </div>
           ) : detailGoal ? (
-            <div data-testid="active-goal-stream" className="border-t border-ra-border/60">
+            <div data-testid="active-goal-stream" className="space-y-5">
               <ReadFeedback query={detailQuery} label="目标详情" />
               <GoalProgress goal={detailGoal} />
               <ReadFeedback query={runsQuery} label="运行活动" />
@@ -254,39 +254,39 @@ export function HomePage() {
           aria-label="Recent goals"
           className="border-t border-ra-border/60 pt-6"
         >
-          <div className="mb-1 flex items-center justify-between">
-            <h2 className="text-xs font-medium text-ra-text-secondary">最近目标</h2>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-ra-text">最近目标</h2>
             <span className="text-[11px] tabular-nums text-ra-text-tertiary">
               {goalsQuery.data === undefined ? "—" : `最近 ${recent.length} 项`}
             </span>
-            <Link to="/goals" className="rounded px-1 text-xs text-ra-accent underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">所有目标</Link>
+            <Link to="/goals" className="rounded-lg px-2 py-1.5 text-xs font-medium text-ra-accent underline-offset-4 hover:bg-ra-light hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">所有目标</Link>
           </div>
 
           <ReadFeedback query={goalsQuery} label="目标列表" />
           {goalsQuery.isSuccess && recent.length === 0 && <p className="py-4 text-sm text-ra-text-tertiary">还没有目标。</p>}
-          <div className="divide-y divide-ra-border/50">
+          <div className="space-y-2">
             {recent.map((goal) => (
               <button
                 type="button"
                 key={goal.id}
                 onClick={() => setSelectedId(goal.id)}
                 className={cn(
-                  "group w-full px-1 py-2.5 text-left transition",
-                  "hover:bg-ra-light/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-                  detailGoal?.id === goal.id && "bg-ra-light/45",
+                  "group w-full rounded-xl border border-ra-border/60 px-3.5 py-3 text-left transition-colors",
+                  "hover:border-ra-border-strong hover:bg-ra-light/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+                  detailGoal?.id === goal.id && "bg-ra-light/60",
                 )}
               >
                 <div className="flex items-baseline gap-4">
-                  <p className="min-w-0 flex-1 text-sm leading-5 text-ra-text">
+                  <p className="min-w-0 flex-1 text-sm font-medium leading-5 text-ra-text">
                     <span className="line-clamp-1">{goal.title}</span>
                   </p>
                   <span
                     className={cn(
-                      "shrink-0 text-[10px] font-medium tracking-[0.04em]",
+                      "shrink-0 rounded-md bg-ra-tertiary/50 px-1.5 py-0.5 text-[10px] font-medium tracking-[0.04em]",
                       goalStatusTextClass(goal.status),
                     )}
                   >
-                    {goal.status}
+                    {goal.status === "COMPLETED" ? goalStatusLabel(goal.status) : goal.status}
                   </span>
                 </div>
                 <div className="mt-0.5 flex items-center gap-4 text-[11px] text-ra-text-tertiary">

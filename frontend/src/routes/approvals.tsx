@@ -21,7 +21,7 @@ const STATUS_LABELS: Record<GoalStatus, string> = {
   PLANNED: "待审批",
   APPROVED: "已批准，待启动",
   RUNNING: "运行中",
-  COMPLETED: "已完成",
+  COMPLETED: "执行完成，待审查",
   BLOCKED: "已阻塞",
   INVALIDATED: "已失效",
 };

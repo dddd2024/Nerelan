@@ -263,14 +263,15 @@ export function GoalCurrentActivity({
     <section
       data-testid="goal-current-activity"
       aria-label="当前执行活动"
-      className="pt-1"
+      className="rounded-2xl border border-ra-border/70 bg-ra-workspace p-4 sm:p-5"
     >
       <span className="sr-only">Agent 活动</span>
 
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <h2 className="mr-auto text-sm font-semibold text-ra-text">运行活动</h2>
         {view.agentNames.length > 0 ? (
           <p
-            className="text-[11px] text-ra-text-tertiary"
+            className="rounded-full bg-ra-tertiary/50 px-2.5 py-1 text-[11px] text-ra-text-secondary"
             data-testid="goal-activity-agents"
           >
             {view.agentNames.length > 1
@@ -301,11 +302,11 @@ export function GoalCurrentActivity({
 
       {view.currentActivity ? (
         <div
-          className="mt-2 border-t border-ra-border/45 px-1 py-2.5"
+          className="mb-3 rounded-xl border border-ra-accent/20 bg-ra-accent/5 px-3 py-3"
           data-testid="goal-current-activity-now"
         >
-          <div className="flex min-w-0 items-baseline justify-between gap-4">
-            <p className="min-w-0 flex-1 truncate text-sm font-medium text-ra-text">
+          <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <p className="min-w-0 flex-1 break-words text-sm font-medium text-ra-text">
               {view.currentActivity.title}
             </p>
             <span
@@ -328,7 +329,7 @@ export function GoalCurrentActivity({
 
       {view.events.length > 0 ? (
         <ul
-          className="divide-y divide-ra-border/45 border-t border-ra-border/45"
+          className="divide-y divide-ra-border/45"
           data-testid="goal-activity-events"
           aria-label="最近活动"
         >
@@ -350,7 +351,7 @@ export function GoalCurrentActivity({
             return (
               <li
                 key={key}
-                className="flex min-w-0 items-baseline gap-4 px-1 py-2.5"
+                className="flex min-w-0 items-baseline gap-4 px-1 py-3"
                 data-testid={`goal-activity-event-${event.id}`}
               >
                 <div className="min-w-0 flex-1">
@@ -393,7 +394,7 @@ export function GoalCurrentActivity({
         <Link
           to="/runs"
           data-testid="goal-activity-full-run-link"
-          className="inline-flex items-center gap-1 rounded-lg text-[11px] font-medium text-ra-text-secondary underline-offset-2 hover:text-ra-text hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-ra-accent underline-offset-4 hover:bg-ra-light hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
         >
           查看完整 Run
           <ChevronRight className="h-3 w-3" aria-hidden="true" />
