@@ -162,6 +162,29 @@ def test_required_external_clean_filter_is_never_executed(tmp_path) -> None:
     assert result.state == AGENT_EXPECTED_MUTATION
 
 
+@pytest.mark.skipif(os.name == "nt", reason="executable fsmonitor hook fixture is POSIX-only")
+def test_external_fsmonitor_hook_is_never_executed(tmp_path) -> None:
+    repo, base = _repo(tmp_path)
+    marker = tmp_path / "fsmonitor-hit"
+    hook = tmp_path / "fsmonitor-hook"
+    hook.write_text(
+        "#!/usr/bin/env python3\n"
+        "from pathlib import Path\n"
+        f"Path({str(marker)!r}).write_text('hit', encoding='utf-8')\n"
+        "raise SystemExit(1)\n",
+        encoding="utf-8",
+    )
+    hook.chmod(0o755)
+    _run(repo, "git", "config", "core.fsmonitor", str(hook))
+    (repo / "tracked.txt").write_text("dirty\n", encoding="utf-8")
+
+    generation = capture_workspace_generation(repo, base, "g7-fsmonitor")
+    result = classify_workspace_generation(generation, repo)
+
+    assert result.state == AGENT_EXPECTED_MUTATION
+    assert not marker.exists()
+
+
 def test_touched_clean_file_does_not_rewrite_real_index(tmp_path) -> None:
     repo, base = _repo(tmp_path)
     before = _index_bytes(repo)
@@ -273,6 +296,7 @@ def test_observation_uses_optional_lock_suppression_and_no_forbidden_git(tmp_pat
 
     assert calls
     assert all(optional_locks == "0" for _, optional_locks, _ in calls)
+    assert all(command[:3] == ("git", "-c", "core.fsmonitor=false") for command, _, _ in calls)
     forbidden = {"status", "add", "checkout", "reset", "clean", "restore", "commit", "merge", "rebase"}
     assert not any(any(arg in forbidden for arg in command[1:]) for command, _, _ in calls)
     write_like = {"hash-object", "update-index", "write-tree", "read-tree"}

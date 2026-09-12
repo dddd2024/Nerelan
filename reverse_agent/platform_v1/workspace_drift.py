@@ -646,7 +646,12 @@ def _git_bytes(
     if extra_env:
         env.update({str(key): str(value) for key, value in extra_env.items()})
     try:
-        result = _execute_git(("git", *args), cwd=repo, env=env, input_bytes=input_bytes)
+        result = _execute_git(
+            ("git", "-c", "core.fsmonitor=false", *args),
+            cwd=repo,
+            env=env,
+            input_bytes=input_bytes,
+        )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise WorkspaceObservationError(error_code) from exc
     if result.returncode != 0 or len(result.stdout) > _MAX_GIT_OUTPUT_BYTES:
