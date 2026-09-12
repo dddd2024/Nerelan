@@ -154,7 +154,7 @@ function getGoalDetailCacheData(client: QueryClient): PlatformGoal | undefined {
 
 function hasTextInCurrentSection(text: string) {
   const section = screen.getByTestId("current-execution-section");
-  const all = screen.getAllByText(text);
+  const all = screen.queryAllByText(text);
   return all.some((el) => section.contains(el));
 }
 
@@ -208,7 +208,7 @@ describe("Platform V2 Home Workspace V2", () => {
     expect(currentSection).toContainElement(screen.getByText("验证并准备证据"));
   });
 
-  it("labels a completed current goal with its semantic status", async () => {
+  it("labels a completed current goal as execution complete and awaiting review", async () => {
     const completed = makeGoal("COMPLETED", [...COMPLETED_LINKS]);
     const client = makeClient({ staleTime: 60_000 });
     client.setQueryData(["goals"], [completed]);
@@ -217,9 +217,10 @@ describe("Platform V2 Home Workspace V2", () => {
     render(<HomePage />, { factory: () => client });
 
     await waitFor(() => expect(screen.getByTestId("goal-state-label")).toBeInTheDocument());
-    expect(screen.getByTestId("goal-state-label")).toHaveTextContent("已完成");
+    expect(screen.getByTestId("goal-state-label")).toHaveTextContent("执行完成，待审查");
     expect(screen.getByTestId("goal-state-label")).toHaveClass("text-ra-status-running");
     expect(screen.getByTestId("goal-progress-bar").firstElementChild).toHaveClass("bg-ra-status-running");
+    expect(screen.queryByText("结果已验证")).not.toBeInTheDocument();
   });
 
   it("labels a blocked current goal with its semantic status", async () => {
@@ -304,7 +305,8 @@ describe("Platform V2 Home Workspace V2", () => {
     });
 
     expect(getGoalDetailCacheData(client)?.status).toBe("COMPLETED");
-    expect(hasTextInCurrentSection("结果已验证")).toBe(true);
+    expect(hasTextInCurrentSection("执行完成，待审查")).toBe(true);
+    expect(hasTextInCurrentSection("结果已验证")).toBe(false);
     expect(goalSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -351,7 +353,8 @@ describe("Platform V2 Home Workspace V2", () => {
     await waitFor(() => {
       const detailCache = getGoalDetailCacheData(client);
       expect(detailCache?.status).toBe("COMPLETED");
-      expect(hasTextInCurrentSection("结果已验证")).toBe(true);
+      expect(hasTextInCurrentSection("执行完成，待审查")).toBe(true);
+      expect(hasTextInCurrentSection("结果已验证")).toBe(false);
       expect(goalSpy).toHaveBeenCalledTimes(1);
     }, { timeout: 4000 });
   });
@@ -404,7 +407,8 @@ describe("Platform V2 Home Workspace V2", () => {
 
     expect(hasTextInCurrentSection("分析目标与代码库")).toBe(true);
     expect(hasTextInCurrentSection("验证并准备证据")).toBe(true);
-    expect(hasTextInCurrentSection("结果已验证")).toBe(true);
+    expect(hasTextInCurrentSection("执行完成，待审查")).toBe(true);
+    expect(hasTextInCurrentSection("结果已验证")).toBe(false);
     expect(goalSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -424,7 +428,8 @@ describe("Platform V2 Home Workspace V2", () => {
     });
 
     expect(getGoalDetailCacheData(client)?.status).toBe("COMPLETED");
-    expect(hasTextInCurrentSection("结果已验证")).toBe(true);
+    expect(hasTextInCurrentSection("执行完成，待审查")).toBe(true);
+    expect(hasTextInCurrentSection("结果已验证")).toBe(false);
 
     const fetchesDuringTerminal = goalSpy.mock.calls.length;
 
