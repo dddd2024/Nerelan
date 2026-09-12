@@ -5,7 +5,8 @@ import { cn } from "@/lib/cn";
 
 function statusFor(raw: string) {
   if (raw === "INTERRUPTED") return "interrupted";
-  if (raw === "READY_FOR_REVIEW" || raw === "READY_FOR_REVIEW_FIXTURE") return "done";
+  if (raw === "READY_FOR_REVIEW") return "review-ready";
+  if (raw === "READY_FOR_REVIEW_FIXTURE") return "fixture-review-ready";
   if (
     raw === "RUNNING" ||
     raw === "RUNNING_FIXTURE" ||
@@ -18,6 +19,10 @@ function statusFor(raw: string) {
   return "queued";
 }
 
+function isReviewReady(state: string) {
+  return state === "review-ready" || state === "fixture-review-ready";
+}
+
 function progressClassName(status: PlatformGoal["status"]) {
   if (status === "RUNNING") return "bg-ra-accent";
   if (status === "COMPLETED") return "bg-ra-status-running";
@@ -27,7 +32,7 @@ function progressClassName(status: PlatformGoal["status"]) {
 
 function taskStateClass(state: string) {
   if (state === "interrupted") return "text-ra-status-error";
-  if (state === "done") return "text-ra-status-running";
+  if (isReviewReady(state)) return "text-ra-status-running";
   if (state === "running") return "text-ra-accent";
   if (state === "blocked") return "text-ra-status-error";
   return "text-ra-text-tertiary";
@@ -35,7 +40,8 @@ function taskStateClass(state: string) {
 
 function taskStateText(state: string) {
   if (state === "interrupted") return "执行已中断";
-  if (state === "done") return "结果已验证";
+  if (state === "review-ready") return "执行完成，待审查";
+  if (state === "fixture-review-ready") return "Fixture 完成，待审查";
   if (state === "running") return "Agent 正在执行";
   if (state === "blocked") return "需要处理阻塞";
   return "等待依赖完成";
@@ -50,8 +56,8 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
       status: "QUEUED",
       title: task.title,
     }));
-  const completed = links.filter((task) => statusFor(task.status) === "done").length;
-  const progress = links.length ? Math.round((completed / links.length) * 100) : 0;
+  const reviewReady = links.filter((task) => isReviewReady(statusFor(task.status))).length;
+  const progress = links.length ? Math.round((reviewReady / links.length) * 100) : 0;
 
   return (
     <section aria-label="执行进度" className="pt-4">
@@ -59,7 +65,7 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
 
       <div
         className="mb-2.5 flex items-center gap-3"
-        aria-label={`执行进度 ${completed}/${links.length}`}
+        aria-label={`执行进度 ${reviewReady}/${links.length}`}
       >
         <div
           className="h-1 flex-1 overflow-hidden rounded-full bg-ra-tertiary"
@@ -77,7 +83,7 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
           data-testid="goal-progress-summary"
           className="shrink-0 font-mono text-[10px] tabular-nums text-ra-text-tertiary"
         >
-          {completed}/{links.length || 0}
+          {reviewReady}/{links.length || 0}
         </span>
       </div>
 
@@ -85,7 +91,7 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
         {links.map((task, index) => {
           const state = statusFor(task.status);
           const Icon =
-            state === "done"
+            isReviewReady(state)
               ? Check
               : state === "running"
                 ? LoaderCircle
@@ -120,7 +126,10 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
               <span
                 className={cn(
                   "shrink-0 text-[11px]",
-                  state === "running" || state === "blocked" || state === "interrupted"
+                  state === "running" ||
+                    state === "blocked" ||
+                    state === "interrupted" ||
+                    state === "fixture-review-ready"
                     ? taskStateClass(state)
                     : "sr-only",
                 )}
