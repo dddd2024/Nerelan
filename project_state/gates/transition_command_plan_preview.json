@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260911_issue799_artifact_handoff_r2_v5",
-  "round_id": "round_20260911_issue799_artifact_handoff_r2_v5",
+  "decision_id": "decision_20260912_issue828_pr827_owner_landing_r2_v1",
+  "round_id": "round_20260912_issue828_pr827_owner_landing_r2_v1",
   "commands": [
     {
-      "command_id": "issue799.bootstrap",
-      "command": "Verify the locked base and fresh branch; commit only this immutable Decision as the first activation commit; run startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before product edits.",
+      "command_id": "pr827_owner_landing_r2_v1.bootstrap_and_preflight",
+      "command": "verify exact fresh locked main 00d203d954b29a26edfb0811f39a85590940c070, exact target head fc788be9d98fbb733db454af14ec103cd7427554 and fresh sidecar branch merge-base; commit this immutable R2 Owner landing authority Decision first as the unique first commit touching project_state/decision_packet.md; run transition command plan transition lint transition preflight pre and worktree publication readiness; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before any generated artifact mutation; do NOT run startup-snapshot The existing gate generator may update project_state/gates/bootstrap_state.json as an explicitly allowed local observation only; never stage or commit it. Re-observe preflight on the final committed head with this permitted local delta present.",
       "phase": "bootstrap",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -25,17 +25,40 @@
       "bootstrap_exception": false,
       "produced_artifacts": [
         "project_state/gates/command_plan.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/bootstrap_state.json",
         "project_state/gates/transition_command_plan_preview.json",
-        "project_state/gates/transition_preflight_result.json"
+        "project_state/gates/transition_preflight_result.json",
+        "project_state/gates/bootstrap_state.json"
       ],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue799.implement",
-      "command": "After fresh Decision-only activation and PRE_EXECUTION_AUTHORIZED/PUBLICATION_READY, verify SHA256 c124518fa0142542dc17e09f2153130051742dc69328b371f7751da213d3b5bf for the Issue788 product-only patch specified in Issue799. Run git apply --check, then worktree-only application of its twenty-one product paths. Resolve only approved product hunks while preserving the new-base F05 conflict-code and unique time-bound approval-policy changes and unchanged approvals.test.tsx. Never copy old Decision/gates/commits or overwrite whole old files. Complete the full twenty-six-path Issue799 implementation contract and all assertions, including parallel binding and all ordinary/durable single/team restart paths. Preserve original approved base separately from exact producer input commit/tree, immutable validation-only input and safe UI proof. Reuse TaskStore evidence/lease/checkpoints, existing Git private-index/worktree primitives and create-only refs/nerelan/accepted-artifacts/<task-id>/<execution-id> with identical-binding idempotence. No second database, runner, coordinator or Gate; no workflow/dependency/provider/credential/browser/reverse-tool change.",
+      "command_id": "pr827_owner_landing_r2_v1.validate",
+      "command": "run focused deterministic tests tests/test_mainline_landing.py tests/test_control_plane_transition.py tests/test_project_gate.py tests/test_decision_preflight.py tests/test_planning_and_github_adapters.py tests/test_ci_responsibility.py tests/platform_v1/test_merge_intent.py -q; require git diff --check clean and transition-lint/transition-command-plan/transition-preflight revalidation and worktree-publication-readiness PUBLICATION_READY; make zero provider model browser or credential calls; do NOT require tests/test_github_remote_verifier.py",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "trusted_worker",
+      "operations": [
+        "unit_test",
+        "local_static_check",
+        "diff_validation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "pr827_owner_landing_r2_v1.materialize_generated_authority",
+      "command": "commit exactly one generated governance commit chore: materialize PR827 landing authority R2 v1 containing only project_state/gates/command_plan.json project_state/gates/transition_command_plan_preview.json and project_state/gates/transition_preflight_result.json; no product semantic commit exists in this sidecar and project_state/gates/bootstrap_state.json is never committed; if another tracked commit is necessary FAIL CLOSED",
       "phase": "implementation",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -56,69 +79,14 @@
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/artifact_handoff.py",
-        "reverse_agent/platform_v1/goal_service.py",
-        "reverse_agent/platform_v1/run_store.py",
-        "reverse_agent/platform_v1/task_execution.py",
-        "reverse_agent/platform_v1/durable_execution.py",
-        "reverse_agent/platform_v1/functional_validation.py",
-        "frontend/src/types/index.ts",
-        "frontend/src/lib/platform-client.ts",
-        "frontend/src/lib/goal-continuation-operation.ts",
-        "frontend/src/lib/functional-validation.ts",
-        "frontend/src/components/goal-review-editor.tsx",
-        "frontend/src/components/functional-validation.tsx",
-        "tests/platform_v1/test_artifact_handoff.py",
-        "tests/platform_v1/test_artifact_handoff_http.py",
-        "tests/platform_v1/test_goal_functional_checks.py",
-        "tests/platform_v1/test_goal_service.py",
-        "tests/platform_v1/test_functional_execution.py",
-        "tests/platform_v1/test_durable_execution.py",
-        "tests/platform_v1/test_durable_execution_v5.py",
-        "tests/platform_v1/test_task_execution.py",
-        "frontend/tests/goal-review-editor.test.tsx",
-        "frontend/tests/goal-configuration-client.test.ts",
-        "frontend/tests/functional-validation.test.tsx",
-        "frontend/e2e/artifact-handoff.spec.ts",
-        "docs/artifact-handoff.md",
-        "docs/functional-validation.md"
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json",
+        "project_state/gates/transition_preflight_result.json"
       ]
     },
     {
-      "command_id": "issue799.validate",
-      "command": "python -B -m pytest tests/platform_v1/test_artifact_handoff.py tests/platform_v1/test_artifact_handoff_http.py tests/platform_v1/test_goal_service.py tests/platform_v1/test_goal_functional_checks.py tests/platform_v1/test_goal_configuration.py tests/platform_v1/test_goal_plan_revision.py tests/platform_v1/test_functional_validation.py tests/platform_v1/test_functional_execution.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_durable_execution_v5.py tests/platform_v1/test_task_execution.py tests/platform_v1/test_repository_workspace.py -q -p no:cacheprovider\nnpm run lint\nnpm test\nnpm run build\ngit diff --check\nPerform real temporary Git producer-consumer and diskSQLite reopen/restart/race tests, plus actual changed-TypeScript client to isolated loopback TaskAPI to diskSQLite/Git/installed-pytest acceptance. Only model execution and binding metadata may be disclosed local doubles. Reuse installed tooling and existing test/service seams, retain sanitized evidence outside tracked repository paths and close owned servers. No external network, providers, credentials, local browser, installation or snapshot update. Run existing transition-lint/preflight and publication-readiness; require all complete checks on exact head before publication.",
-      "phase": "validation",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "trusted_worker",
-      "operations": [
-        "unit_test",
-        "integration_test",
-        "build",
-        "diff_validation",
-        "local_static_check"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/bootstrap_state.json",
-        "project_state/gates/transition_command_plan_preview.json",
-        "project_state/gates/transition_preflight_result.json"
-      ],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "issue799.publish",
-      "command": "After blocking checks pass, push only codex/f02-accepted-artifact-handoff-r2-v5 and create/update one Draft PR in dddd2024/Nerelan against main at 2a1239b1230461f3f43fd86bb8edd0915552e1a2; publish disclosed audit/evidence and Issue 799/652/659 progress comments; no other branch or repository publication.",
+      "command_id": "pr827_owner_landing_r2_v1.publish_authority",
+      "command": "after all blocking validation passes, push only the exact authority branch codex/pr827-owner-landing-r2-v1 to locked main 00d203d954b29a26edfb0811f39a85590940c070 and create exactly one Draft authority sidecar PR recording the immutable authority snapshot; keep the sidecar Draft forever and never mark Ready or merge the sidecar; never push the target branch codex/f03-goal-completion-evidence-r2-v2 and never push main; never rerun or dispatch workflows; publication retry accounting: maximum 3 total push invocations with transport retries only when read-only remote observation confirms no remote mutation; maximum 2 total PR-create invocations with retry only when read-only GitHub search confirms no existing PR for this exact head/base and successful_draft_pr_creation_count==0; after first successful remote push NO further push invocation; after first successfully created Draft PR NO second creation call",
       "phase": "publication",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -129,13 +97,11 @@
       "operations": [
         "push",
         "draft_pr",
-        "pull_request_comment",
-        "issue_comment",
         "network_access"
       ],
       "network_access": true,
       "diagnostic_only": false,
-      "allowed_only_after_validation": false,
+      "allowed_only_after_validation": true,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
@@ -143,8 +109,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue799.audit",
-      "command": "Observe natural exact-head CI, Decision Preflight, State Gate, Model Access and Frontend Playwright as naturally triggered by existing filters; compare actual diagnostic failed node IDs with the locked base and perform a separate disclosed self-audit. No rerun or dispatch.",
+      "command_id": "pr827_owner_landing_r2_v1.natural_authority_validation",
+      "command": "require natural exact-head CI, Decision Preflight and State Gate observations on the authority Draft PR head and confirm no main drift from 00d203d954b29a26edfb0811f39a85590940c070 and no target head drift from fc788be9d98fbb733db454af14ec103cd7427554 and no concurrent landing authority; keep the authority PR Draft and do NOT mark Ready or merge; the authority grants the Owner exactly-once Mark Ready and exactly-one expected-head protected merge of target PR 827 only after a formal Ready-triggered landing-state-gate success and required exact-head contexts baseline state-gate landing-state-gate",
       "phase": "final_evidence",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
@@ -153,8 +119,9 @@
       ],
       "execution_surface": "remote_observation",
       "operations": [
+        "code_read",
         "read_only_audit",
-        "code_read"
+        "repository_observation"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -166,9 +133,9 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "issue799.landing",
-      "command": "Only after disclosed exact-head self-audit, required natural checks, unchanged approved Decision and immediate remote main 2a1239b1230461f3f43fd86bb8edd0915552e1a2, exact reviewed head and CLEAN/MERGEABLE observation, mark the bound PR ready; require natural final State/Landing checks, reobserve immediately and perform one ordinary merge with expected-head protection. Verify merged commit and main and exact parents. This action is explicitly delegated by the user; never claim independent human review.",
-      "phase": "final_acceptance",
+      "command_id": "pr827_owner_landing_r2_v1.postmerge_bookkeeping",
+      "command": "Only after target PR827 ordinary merge and verified actual parents/tree/main, native mainline integration receipt and natural main CI/State SUCCESS with unchanged diagnostic failure nodes: post exactly one evidence-summary Issue comment to826 and close Issue826 completed; post at most one progress comment each to653 and659 and leave653 and659 OPEN. No Issue body edit, unrelated closure, authority Issue or Draft closure, or repeated mutation. Resolve ambiguous writes by readback before any retry.",
+      "phase": "final_evidence",
       "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
@@ -176,13 +143,11 @@
       ],
       "execution_surface": "github_control_plane",
       "operations": [
-        "mark_ready",
-        "merge",
         "network_access"
       ],
       "network_access": true,
       "diagnostic_only": false,
-      "allowed_only_after_validation": false,
+      "allowed_only_after_validation": true,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
