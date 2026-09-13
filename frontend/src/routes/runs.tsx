@@ -30,10 +30,10 @@ import {
 import { cn } from "@/lib/cn";
 
 const STATE_STYLES: Record<string, string> = {
-  READY_FOR_HUMAN: "bg-emerald-400/10 text-emerald-300",
-  RUNNING: "bg-sky-400/10 text-sky-300",
-  BLOCKED_EXTERNAL: "bg-amber-300/10 text-amber-200",
-  FAILED_TERMINAL: "bg-red-400/10 text-red-300",
+  READY_FOR_HUMAN: "bg-ra-status-running/10 text-ra-text",
+  RUNNING: "bg-ra-accent/10 text-ra-text",
+  BLOCKED_EXTERNAL: "bg-ra-status-starting/10 text-ra-text",
+  FAILED_TERMINAL: "bg-ra-status-error/10 text-ra-text",
   WAITING_FOR_OWNER: "bg-ra-light text-ra-text-secondary",
 };
 
@@ -70,12 +70,12 @@ const LIVENESS_LABELS: Record<string, string> = {
 };
 
 const LIVENESS_STYLES: Record<string, string> = {
-  ACTIVE: "bg-emerald-400/10 text-emerald-300",
-  WAITING: "bg-violet-400/10 text-violet-200",
-  VALIDATING: "bg-sky-400/10 text-sky-300",
-  BLOCKED: "bg-amber-300/10 text-amber-200",
-  OWNER_ACTION_REQUIRED: "bg-amber-300/10 text-amber-200",
-  STALE: "bg-red-400/10 text-red-300",
+  ACTIVE: "bg-ra-status-running/10 text-ra-text",
+  WAITING: "bg-ra-accent/10 text-ra-text",
+  VALIDATING: "bg-ra-accent/10 text-ra-text",
+  BLOCKED: "bg-ra-status-starting/10 text-ra-text",
+  OWNER_ACTION_REQUIRED: "bg-ra-status-starting/10 text-ra-text",
+  STALE: "bg-ra-status-error/10 text-ra-text",
   TERMINAL: "bg-ra-light text-ra-text-secondary",
   UNKNOWN: "bg-ra-light text-ra-text-tertiary",
 };

@@ -88,9 +88,22 @@ Tasks reached review-ready, including fixture Tasks. It does not establish
 functional verification, review acceptance, merge or delivery. Publication
 `COMPLETE` records that the controller created a Draft PR; the stored PR reference
 does not establish its current remote Draft/Ready, review or merge state. Goal
-GET requests make no GitHub or model calls. Consumers must display these stages
-separately and use the recorded PR link for remote review. The Goal interface
-integration remains a separate acceptance item under #653.
+GET requests make no GitHub or model calls. Consumers display these stages
+separately and use the recorded PR link for remote review.
+
+Goal progress displays execution/review state and a visible functional status for
+each materialized Task. **查看功能检查** opens the shared check report; its evidence
+disclosure contains the exact artifact identities. **查看运行** opens the existing
+Run route using the encoded runtime Task ID, including Tasks outside the current
+history page. Unlaunched plan rows have no synthetic Run link. Missing executor
+provenance cannot borrow the Goal's executor to produce a positive badge, and a
+fixture lifecycle cannot present real implementation acceptance.
+
+Home, review and Roadmap completion labels describe execution ended and pending
+review. Goal rows show recorded publication progress independently: a recorded
+Draft is not an observation of the PR's current remote state. Even a valid
+functional check and a Draft record leave remote review, merge and delivery
+unconfirmed. A newer unverified response replaces the earlier positive badge.
 
 In the Goal review page, choose **编辑当前计划**, then **添加功能检查** for
 each planned Task. Select Python/pytest or JavaScript/npm test and its repository
@@ -118,9 +131,14 @@ scenario uses the explicitly mocked UI: it proves visible review controls,
 not actual provider execution. Separate local acceptance uses the changed
 TypeScript clients, real loopback Task API, disk SQLite, local Git and installed
 pytest; only model execution and binding metadata are test doubles. No local
-browser, provider call or snapshot update is part of this R2 slice. Full live
-user-flow, desktop/Edge and provider acceptance under parent issue #653 remains
-separate. Functional evidence grants no publication or merge authority.
+browser, provider call or snapshot update was part of that earlier R2 slice.
+The visible Goal integration additionally requires isolated real Edge acceptance
+through the actual frontend and Task API, with disk SQLite/Git/pytest and
+disclosed execution/binding doubles. That acceptance is distinct from provider
+dogfood and actual desktop lifecycle acceptance. Windows Edge screenshots do
+not replace the natural Ubuntu Chromium golden checks. Functional evidence
+grants no publication or merge authority; full F03 acceptance remains tracked
+under #653.
 # Explicit dependency inputs
 
 See [Accepted artifact inputs](artifact-handoff.md) for selecting one checked

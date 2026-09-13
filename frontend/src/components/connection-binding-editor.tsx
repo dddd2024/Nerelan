@@ -262,7 +262,7 @@ export function ConnectionBindingEditor({
       {view === "connection" ? (
         <form
           onSubmit={handleConnectionSubmit}
-          className="flex flex-col gap-4 rounded-xl border border-ra-border bg-ra-secondary p-4"
+          className="flex min-w-0 flex-col gap-5 rounded-2xl border border-ra-border bg-ra-workspace p-4 sm:p-5"
           data-testid="connection-editor"
         >
           <div className="flex items-start justify-between gap-3">
@@ -276,7 +276,7 @@ export function ConnectionBindingEditor({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-x-4 gap-y-4 md:grid-cols-2">
             <Field label="连接 ID">
               <input
                 aria-label="连接 ID"
@@ -584,7 +584,7 @@ export function ConnectionBindingEditor({
           ) : null}
 
           {connError && (
-            <p role="alert" className="text-sm text-red-300">
+            <p role="alert" className="text-sm text-ra-status-error">
               {connError}
             </p>
           )}
@@ -606,7 +606,7 @@ export function ConnectionBindingEditor({
             <p
               role="status"
               data-testid="connection-probe-result"
-              className={`text-sm ${connectionProbeResult.ok ? "text-green-300" : "text-red-300"}`}
+              className={`text-sm ${connectionProbeResult.ok ? "text-ra-status-running" : "text-ra-status-error"}`}
             >
               {connectionProbeResult.ok ? "验证成功" : "验证失败"}：
               {localizedProbeMessage(connectionProbeResult)}
@@ -648,7 +648,7 @@ export function ConnectionBindingEditor({
               onClick={() =>
                 connSavedId ? onConnectionDelete(connSavedId) : undefined
               }
-              className={cn(secondaryButtonClass, "md:ml-auto text-red-300")}
+              className={cn(secondaryButtonClass, "md:ml-auto text-ra-status-error hover:text-ra-status-error")}
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               删除连接
@@ -658,7 +658,7 @@ export function ConnectionBindingEditor({
       ) : (
         <form
           onSubmit={handleBindingSubmit}
-          className="flex flex-col gap-4 rounded-xl border border-ra-border bg-ra-secondary p-4"
+          className="flex min-w-0 flex-col gap-5 rounded-2xl border border-ra-border bg-ra-workspace p-4 sm:p-5"
           data-testid="binding-editor"
         >
           <div className="flex items-start justify-between gap-3">
@@ -672,7 +672,7 @@ export function ConnectionBindingEditor({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-x-4 gap-y-4 md:grid-cols-2">
             <Field label="绑定 ID">
               <input
                 aria-label="绑定 ID"
@@ -761,7 +761,7 @@ export function ConnectionBindingEditor({
           </label>
 
           {bindError && (
-            <p role="alert" className="text-sm text-red-300">
+            <p role="alert" className="text-sm text-ra-status-error">
               {bindError}
             </p>
           )}
@@ -777,7 +777,7 @@ export function ConnectionBindingEditor({
               onClick={() =>
                 bindSavedId ? onBindingDelete(bindSavedId) : undefined
               }
-              className={cn(secondaryButtonClass, "md:ml-auto text-red-300")}
+              className={cn(secondaryButtonClass, "md:ml-auto text-ra-status-error hover:text-ra-status-error")}
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               删除绑定
@@ -930,28 +930,28 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className={cn("flex flex-col gap-1", className)}>
-      <span className="text-xs font-medium text-ra-text-tertiary">{label}</span>
+    <label className={cn("flex min-w-0 flex-col gap-1.5", className)}>
+      <span className="text-xs font-medium text-ra-text-secondary">{label}</span>
       {children}
     </label>
   );
 }
 
 const inputClass = cn(
-  "w-full rounded-md border border-ra-border bg-ra-input px-3 py-2",
+  "min-h-10 w-full min-w-0 rounded-lg border border-ra-border bg-ra-input px-3 py-2 transition-colors",
   "text-sm text-ra-text placeholder:text-ra-text-tertiary",
-  "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+  "focus:outline-none focus-visible:border-ra-accent focus-visible:ring-2 focus-visible:ring-ra-accent",
   "disabled:cursor-not-allowed disabled:opacity-60",
 );
 
 const primaryButtonClass = cn(
-  "inline-flex items-center gap-2 rounded-md bg-ra-accent px-3 py-2",
+  "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-ra-accent px-3.5 py-2 transition-colors hover:bg-ra-accent-hover",
   "text-sm font-medium text-ra-base disabled:cursor-not-allowed disabled:opacity-50",
-  "focus:outline-none focus-visible:ring-2 focus-visible:ring-white",
+  "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ra-workspace",
 );
 
 const secondaryButtonClass = cn(
-  "inline-flex items-center gap-2 rounded-md border border-ra-border px-3 py-2",
+  "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-ra-border px-3.5 py-2 transition-colors",
   "text-sm text-ra-text-secondary hover:bg-ra-tertiary hover:text-ra-text",
   "disabled:cursor-not-allowed disabled:opacity-50",
   "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",

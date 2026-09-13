@@ -9,7 +9,7 @@ const PHASE_STATUS_LABELS: Record<PlatformRoadmapPhase["derived_status"], string
   PLANNED: "规划中",
   RUNNING: "进行中",
   BLOCKED: "受阻",
-  COMPLETED: "已完成",
+  COMPLETED: "执行完成，待审查",
 };
 
 const PHASE_STATUS_STYLES: Record<PlatformRoadmapPhase["derived_status"], string> = {
@@ -37,7 +37,7 @@ export function RoadmapPage() {
             <Map className="h-7 w-7" aria-hidden="true" />路线图
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-ra-text-secondary">
-            阶段状态始终由成员目标的状态推导，不独立维护；目标完成或受阻时阶段状态会自动更新。
+            阶段状态始终由成员目标的状态推导，不独立维护；执行进度完成后，功能验证、审查与交付仍需分别确认。
           </p>
         </header>
 
@@ -85,7 +85,7 @@ export function RoadmapPage() {
                     className="flex items-center justify-between gap-3 rounded-lg bg-ra-light/40 px-3 py-2"
                   >
                     <span className="min-w-0 truncate text-sm text-ra-text">{goal.title}</span>
-                    <span className="shrink-0 text-[11px] text-ra-text-tertiary">{goal.status}</span>
+                    <span className="shrink-0 text-[11px] text-ra-text-tertiary">{goal.status === "COMPLETED" ? "执行完成，待审查" : goal.status}</span>
                   </li>
                 ))}
                 {phase.goals.length === 0 && (
