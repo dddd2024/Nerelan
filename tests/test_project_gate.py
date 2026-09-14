@@ -4,11 +4,13 @@ import os
 import shutil
 import subprocess
 from copy import deepcopy
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import pytest
 import reverse_agent.project_gate as project_gate_module
+from reverse_agent.mainline_landing import owner_landing_content_digest
 
 from reverse_agent.project_gate import (
     BUILD_OUTPUT_WHITELIST,
@@ -33282,31 +33284,81 @@ class _V3FakeRemoteVerifier:
         attestation: dict[str, Any] | None = None,
         live_draft: bool = False,
         load_error: str = "",
+        false_none_attestations: list[dict[str, Any]] | None = None,
+        authority_head_sha: str | None = None,
+        authority_pr: int = 0,
+        authority_base_sha: str | None = None,
+        authority_decision_id: str = "",
+        authority_decision_sha: str = "",
+        review_id: int = 0,
+        review_author: str = "dddd2024",
+        review_commit: str = "",
+        ready_run_id: int = 0,
+        check_names: set[str] | None = None,
+        ruleset_ok: bool = True,
+        workflow_run_ids: set[int] | None = None,
     ) -> None:
         self.fixture = fixture
         self.attestation = attestation or fixture.get("attestation")
         self.live_draft = live_draft
         self.load_error = load_error
         self.verify_pr_calls: list[dict[str, Any]] = []
+        self.false_none_attestations = false_none_attestations
+        self.authority_head_sha = authority_head_sha or "c" * 40
+        self.authority_pr = authority_pr or 1
+        self.authority_base_sha = authority_base_sha or "d" * 40
+        self.authority_decision_id = authority_decision_id or "authority_decision_test"
+        self.authority_decision_sha = authority_decision_sha or "e" * 64
+        self.review_id = review_id
+        self.review_author = review_author
+        self.review_commit = review_commit
+        self.ready_run_id = ready_run_id
+        self.check_names = check_names or set()
+        self.ruleset_ok = ruleset_ok
+        # When None, verify_workflow_run accepts all run_ids (legacy
+        # permissive mode for existing tests).  When a set is provided,
+        # only run_ids in that set are considered completed.
+        self.workflow_run_ids = workflow_run_ids
 
     def verify_pr(self, **kwargs: Any) -> dict[str, Any]:
         self.verify_pr_calls.append(kwargs)
-        ok = (
-            kwargs.get("pr_number") == self.fixture["source_pr"]
-            and kwargs.get("expected_head_sha") == self.fixture["head_sha"]
-            and kwargs.get("expected_base_sha") == self.fixture["base_sha"]
-            and not self.live_draft
-        )
+        pr_number = kwargs.get("pr_number")
+        if pr_number == self.fixture["source_pr"]:
+            ok = (
+                kwargs.get("expected_head_sha") == self.fixture["head_sha"]
+                and kwargs.get("expected_base_sha") == self.fixture["base_sha"]
+                and not self.live_draft
+            )
+            return {
+                "verified": ok,
+                "reason": "verified" if ok else "remote_pr_mismatch",
+                "pr": {
+                    "number": kwargs.get("pr_number"),
+                    "merged": False,
+                    "draft": self.live_draft,
+                    "head": {"sha": kwargs.get("expected_head_sha")},
+                    "base": {"sha": kwargs.get("expected_base_sha")},
+                },
+            }
+        if pr_number == self.authority_pr:
+            ok = (
+                kwargs.get("expected_head_sha") == self.authority_head_sha
+                and kwargs.get("expected_base_sha") == self.authority_base_sha
+            )
+            return {
+                "verified": ok,
+                "reason": "verified" if ok else "authority_pr_mismatch",
+                "pr": {
+                    "number": pr_number,
+                    "merged": False,
+                    "draft": False,
+                    "head": {"sha": self.authority_head_sha},
+                    "base": {"sha": self.authority_base_sha},
+                },
+            }
         return {
-            "verified": ok,
-            "reason": "verified" if ok else "remote_pr_mismatch",
-            "pr": {
-                "number": kwargs.get("pr_number"),
-                "merged": False,
-                "draft": self.live_draft,
-                "head": {"sha": kwargs.get("expected_head_sha")},
-                "base": {"sha": kwargs.get("expected_base_sha")},
-            },
+            "verified": False,
+            "reason": f"pr_mismatch:pr={pr_number}",
         }
 
     def load_merge_attestation(self, **_: Any) -> dict[str, Any]:
@@ -33315,8 +33367,217 @@ class _V3FakeRemoteVerifier:
             raise GitHubEvidenceError(self.load_error)
         return deepcopy(self.attestation)
 
-    def verify_workflow_run(self, **_: Any) -> dict[str, Any]:
+    def verify_workflow_run(self, **kwargs: Any) -> dict[str, Any]:
+        if self.workflow_run_ids is None:
+            return {"verified": True, "reason": "verified"}
+        run_id = int(kwargs.get("run_id") or 0)
+        if run_id not in self.workflow_run_ids:
+            return {"verified": False, "reason": "workflow_run_not_completed"}
         return {"verified": True, "reason": "verified"}
+
+    def load_owner_landing_merge_attestations(
+        self, *, pr_number: int
+    ) -> list[dict[str, Any]]:
+        if self.false_none_attestations is not None:
+            return [
+                deepcopy(att)
+                for att in self.false_none_attestations
+                if att.get("source_pr") == pr_number
+            ]
+        return []
+
+    def load_ref_file_bytes(
+        self, *, ref: str, path: str
+    ) -> dict[str, Any]:
+        if ref != self.authority_head_sha:
+            return {"verified": False, "reason": "ref_mismatch"}
+        text = _v3_authority_decision_text(
+            source_pr=self.fixture["source_pr"],
+            head_sha=self.fixture["head_sha"],
+            base_sha=self.fixture["base_sha"],
+            authority_decision_id=self.authority_decision_id,
+        )
+        return {"verified": True, "bytes": text.encode("utf-8")}
+
+    def verify_pull_request_review(
+        self,
+        *,
+        review_id: int,
+        pr_number: int,
+        allowed_authors: tuple[str, ...],
+        expected_commit_sha: str,
+    ) -> dict[str, Any]:
+        ok = (
+            pr_number == self.fixture["source_pr"]
+            and self.review_author in allowed_authors
+            and expected_commit_sha == self.review_commit
+        )
+        if not ok:
+            return {"verified": False, "reason": "review_mismatch"}
+        return {
+            "verified": True,
+            "review": {
+                "user": {"login": self.review_author},
+                "commit_id": self.review_commit,
+                "submitted_at": "2026-09-03T10:00:00Z",
+            },
+        }
+
+    def verify_check_run_contexts(
+        self, *, head_sha: str, required_contexts: Any
+    ) -> dict[str, Any]:
+        runs = [
+            {"name": name, "status": "completed", "conclusion": "success"}
+            for name in sorted(self.check_names)
+        ]
+        contexts = {
+            context: (context in self.check_names)
+            for context in required_contexts
+        }
+        ok = all(contexts.values())
+        reason = (
+            "" if ok else f"check_contexts_missing:{[c for c, v in contexts.items() if not v]}"
+        )
+        return {"verified": ok, "reason": reason, "contexts": contexts, "check_runs": runs}
+
+    def verify_repository_ruleset(
+        self,
+        *,
+        ruleset_id: int,
+        required_status_contexts: Any,
+        allowed_merge_methods: Any,
+    ) -> dict[str, Any]:
+        return {
+            "verified": self.ruleset_ok,
+            "reason": "" if self.ruleset_ok else "ruleset_mismatch",
+            "ruleset": {},
+        }
+
+
+def _v3_authority_decision_text(
+    *,
+    source_pr: int,
+    head_sha: str,
+    base_sha: str,
+    authority_decision_id: str = "authority_decision_test",
+) -> str:
+    """Build the authority Decision text used by both the fake verifier
+    and the attestation fixture so their SHA-256 digests always match."""
+
+    return (
+        "```json decision_meta\n"
+        + json.dumps({
+            "schema_version": 1,
+            "status": "APPROVED",
+            "mainline": "engineering_branch",
+            "decision_id": authority_decision_id,
+            "round_id": "authority_round_test",
+            "skill_profiles": ["test-skill"],
+        })
+        + "\n```\n```json decision_contract\n"
+        + json.dumps({
+            "mainline_merge_intent_required": False,
+            "active_pr_binding_mode": "none",
+            "mark_ready_allowed": True,
+            "merge_allowed": True,
+            "expected_head_protection_required": True,
+            "allowed_merge_method": "merge",
+            "workflow_rerun_allowed": False,
+            "auto_merge_allowed": False,
+            "direct_push_to_main_allowed": False,
+            "force_push_allowed": False,
+            "forbidden_operations": ["active_json_rewrite"],
+            "forbidden_mutated_paths": ["project_state/mainline_merge_intents/**"],
+            "target_pr": source_pr,
+            "accepted_exact_head_sha": head_sha,
+            "base_sha": base_sha,
+        })
+        + "\n```\n"
+    )
+
+
+def _v3_false_none_attestation(
+    fx: dict[str, Any],
+    *,
+    authority_pr: int = 1,
+    authority_head_sha: str = "c" * 40,
+    authority_base_sha: str = "d" * 40,
+    authority_decision_id: str = "authority_decision_test",
+    review_id: int = 50001,
+    review_author: str = "dddd2024",
+    ready_run_id: int = 30001,
+    attestation_id: str = "owner_landing_test_v1",
+) -> dict[str, Any]:
+    """Build a valid false/none Owner landing attestation for cutover tests."""
+
+    decision_bytes = (
+        fx["repo"] / "project_state" / "decision_packet.md"
+    ).read_bytes().replace(b"\r\n", b"\n")
+    decision_sha = hashlib.sha256(decision_bytes).hexdigest()
+    authority_decision_text = _v3_authority_decision_text(
+        source_pr=fx["source_pr"],
+        head_sha=fx["head_sha"],
+        base_sha=fx["base_sha"],
+        authority_decision_id=authority_decision_id,
+    )
+    authority_decision_sha = hashlib.sha256(
+        authority_decision_text.encode("utf-8")
+    ).hexdigest()
+    authority_runs = [
+        {
+            "name": name,
+            "run_id": 1000 + index,
+            "workflow_file": workflow_file,
+            "event": "pull_request",
+            "run_attempt": 1,
+            "head_sha": authority_head_sha,
+            "conclusion": "success",
+        }
+        for index, (name, workflow_file) in enumerate(
+            [
+                ("CI", ".github/workflows/ci.yml"),
+                ("Decision Preflight", ".github/workflows/decision-preflight.yml"),
+                ("State Gate (pull_request)", ".github/workflows/state-gate.yml"),
+            ],
+            1,
+        )
+    ]
+    att: dict[str, Any] = {
+        "schema_version": 1,
+        "attestation_id": attestation_id,
+        "repository": "dddd2024/Nerelan",
+        "source_pr": fx["source_pr"],
+        "locked_base_sha": fx["base_sha"],
+        "accepted_exact_head_sha": fx["head_sha"],
+        "target_decision_id": fx["decision_id"],
+        "target_decision_content_sha256": decision_sha,
+        "allowed_merge_method": "merge",
+        "authority_pr": authority_pr,
+        "authority_head_sha": authority_head_sha,
+        "authority_base_sha": authority_base_sha,
+        "authority_decision_id": authority_decision_id,
+        "authority_decision_content_sha256": authority_decision_sha,
+        "authority_natural_runs": authority_runs,
+        "owner_exact_head_review_id": review_id,
+        "ready_state_gate_run_id": ready_run_id,
+        "ruleset_id": 21023698,
+        "required_status_contexts": [
+            "baseline",
+            "state-gate",
+            "landing-state-gate",
+        ],
+        "mainline_merge_intent_required": False,
+        "active_pr_binding_mode": "none",
+        "authorization_status": "active",
+        "superseded_by": None,
+        "_remote_comment_id": 71000,
+        "_remote_author": review_author,
+        "_remote_comment_created_at": "2026-09-03T11:00:00Z",
+        "_remote_comment_updated_at": "2026-09-03T11:01:00Z",
+        "_remote_comment_body": "OWNER_LANDING_MERGE_ATTESTATION\n```json owner_landing_merge_attestation\n{}\n```",
+    }
+    att["content_digest"] = owner_landing_content_digest(att)
+    return att
 
 
 def _run_v3_landing_preflight(
@@ -33498,11 +33759,20 @@ def test_v3_cutover_false_none_ready_event_not_blocked_by_intent_required(
     ``landing_mainline_merge_intent_required observed=False`` and must keep
     validating the remaining landing invariants."""
     fx = _v3_cutover_fixture(tmp_path)
+    att = _v3_false_none_attestation(fx)
+    remote = _V3FakeRemoteVerifier(
+        fx, false_none_attestations=[att],
+        review_commit=fx["head_sha"],
+        check_names={"baseline", "state-gate", "landing-state-gate"},
+    )
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_JOB", "landing-state-gate")
+    monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
     result, remote = _run_v3_landing_preflight(
-        fx, tmp_path, monkeypatch, action="ready_for_review"
+        fx, tmp_path, monkeypatch, action="ready_for_review", verifier=remote
     )
     assert remote.verify_pr_calls, "cutover landing must still validate the live PR"
-    assert remote.verify_pr_calls[-1]["pr_number"] == fx["source_pr"]
+    assert remote.verify_pr_calls[0]["pr_number"] == fx["source_pr"]
     assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
     assert "engineering_pr_not_landing_authorized" not in result["blocking_reasons"]
     assert "landing_mainline_merge_intent_required" not in result["blocking_reasons"]
@@ -33515,12 +33785,20 @@ def test_v3_cutover_landing_check_list_is_read_only_candidate(
     validation: shared base/remote-PR invariants PASS, the legacy merge-intent
     gates are skipped, and no Ready/Merge authority is ever implied."""
     fx = _v3_cutover_fixture(tmp_path)
-    remote = _V3FakeRemoteVerifier(fx)
+    att = _v3_false_none_attestation(fx)
+    remote = _V3FakeRemoteVerifier(
+        fx, false_none_attestations=[att],
+        review_commit=fx["head_sha"],
+        check_names={"baseline", "state-gate", "landing-state-gate"},
+    )
     monkeypatch.setattr(
         project_gate_module.GitHubRemoteAcceptanceVerifier,
         "from_env",
         classmethod(lambda cls: remote),
     )
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_JOB", "landing-state-gate")
+    monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
     checks, reasons = project_gate_module._check_landing_authority(
         contract=fx["contract"],
         event_payload={
@@ -33549,6 +33827,7 @@ def test_v3_cutover_landing_check_list_is_read_only_candidate(
     )
     assert by_name["landing_event_base_locked"]["status"] == "PASS"
     assert by_name["landing_remote_pr_binding"]["status"] == "PASS"
+    assert by_name["false_none_attestation_unique"]["status"] == "PASS"
     assert "landing_active_intent_exists" not in by_name
     assert "landing_active_intent_readable" not in by_name
     assert "landing_attestation_load" not in by_name
@@ -33604,10 +33883,19 @@ def test_v3_cutover_active_json_independence(
     """false/none never requires, and never creates, the legacy active intent.
     The test stays green without rewriting active.json."""
     fx = _v3_cutover_fixture(tmp_path)
+    att = _v3_false_none_attestation(fx)
+    remote = _V3FakeRemoteVerifier(
+        fx, false_none_attestations=[att],
+        review_commit=fx["head_sha"],
+        check_names={"baseline", "state-gate", "landing-state-gate"},
+    )
     active = fx["repo"] / "project_state" / "mainline_merge_intents" / "active.json"
     assert not active.exists()
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_JOB", "landing-state-gate")
+    monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
     result, _ = _run_v3_landing_preflight(
-        fx, tmp_path, monkeypatch, action="ready_for_review"
+        fx, tmp_path, monkeypatch, action="ready_for_review", verifier=remote
     )
     assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
     assert not active.exists(), "cutover mode must never create active.json"
@@ -33643,3 +33931,375 @@ def test_v3_incoherent_landing_contract_fails_closed(
     assert "landing_intent_contract_incoherent" in result["blocking_reasons"]
     checks = {check["name"]: check for check in result["checks"]}
     assert checks["landing_intent_contract_coherent"]["status"] == "FAIL"
+
+
+# ---------------------------------------------------------------------------
+# Issue #891 v2: False/none pre-merge Owner attestation gate.
+#
+# These regressions exercise the real transition_preflight -> _check_landing_authority
+# production path for cutover (false/none) Ready/non-Draft events.
+# ---------------------------------------------------------------------------
+
+
+def _run_v3_cutover_preflight(
+    fx: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    attestation_count: int = 1,
+    attestation_overrides: dict[str, Any] | None = None,
+    draft: bool = False,
+    action: str = "ready_for_review",
+    pr_number: int | None = None,
+    head_sha: str | None = None,
+    base_sha: str | None = None,
+    review_commit: str | None = None,
+    check_names: set[str] | None = None,
+    ruleset_ok: bool = True,
+    workflow_run_ids: set[int] | None = None,
+) -> tuple[dict[str, Any], _V3FakeRemoteVerifier]:
+    """Run transition_preflight on a cutover fixture with configurable attestation."""
+
+    att = _v3_false_none_attestation(fx)
+    if attestation_overrides:
+        att.update(attestation_overrides)
+        att["content_digest"] = owner_landing_content_digest(att)
+    attestations = [att] * attestation_count if attestation_count > 0 else []
+    remote = _V3FakeRemoteVerifier(
+        fx,
+        false_none_attestations=attestations,
+        review_commit=review_commit or fx["head_sha"],
+        check_names=check_names or {"baseline", "state-gate", "landing-state-gate"},
+        ruleset_ok=ruleset_ok,
+        workflow_run_ids=workflow_run_ids,
+    )
+    # Set trusted landing execution context env vars for premerge validation.
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_JOB", "landing-state-gate")
+    monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
+    return _run_v3_landing_preflight(
+        fx, tmp_path, monkeypatch,
+        action=action,
+        pr_number=pr_number if pr_number is not None else fx["source_pr"],
+        head_sha=head_sha if head_sha is not None else fx["head_sha"],
+        base_sha=base_sha if base_sha is not None else fx["base_sha"],
+        draft=draft,
+        verifier=remote,
+    )
+
+
+def test_v3_false_none_zero_attestation_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A Ready false/none PR with zero Owner attestations must BLOCK."""
+
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_cutover_preflight(fx, tmp_path, monkeypatch, attestation_count=0)
+    assert result["gate_status"] == "BLOCKED", result
+    assert "landing_attestation_required" in result["blocking_reasons"]
+
+
+def test_v3_false_none_duplicate_attestation_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two or more matching attestations must BLOCK."""
+
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_cutover_preflight(fx, tmp_path, monkeypatch, attestation_count=2)
+    assert result["gate_status"] == "BLOCKED", result
+
+
+def test_v3_false_none_superseded_attestation_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A superseded attestation must BLOCK."""
+
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_cutover_preflight(
+        fx, tmp_path, monkeypatch,
+        attestation_overrides={"superseded_by": "newer_attestation"},
+    )
+    assert result["gate_status"] == "BLOCKED", result
+
+
+def test_v3_false_none_wrong_target_head_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An attestation bound to the wrong target head must BLOCK."""
+
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_cutover_preflight(
+        fx, tmp_path, monkeypatch,
+        attestation_overrides={"accepted_exact_head_sha": "f" * 40},
+    )
+    assert result["gate_status"] == "BLOCKED", result
+
+
+def test_v3_false_none_wrong_target_base_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An attestation bound to the wrong target base must BLOCK."""
+
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_cutover_preflight(
+        fx, tmp_path, monkeypatch,
+        attestation_overrides={"locked_base_sha": "e" * 40},
+    )
+    assert result["gate_status"] == "BLOCKED", result
+
+
+def test_v3_false_none_wrong_authority_head_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An attestation bound to the wrong authority head must BLOCK."""
+
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_cutover_preflight(
+        fx, tmp_path, monkeypatch,
+        attestation_overrides={"authority_head_sha": "0" * 40},
+    )
+    assert result["gate_status"] == "BLOCKED", result
+
+
+def test_v3_false_none_wrong_authority_decision_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An attestation with wrong authority Decision ID must BLOCK."""
+
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_cutover_preflight(
+        fx, tmp_path, monkeypatch,
+        attestation_overrides={"authority_decision_id": "wrong_decision"},
+    )
+    assert result["gate_status"] == "BLOCKED", result
+
+
+def test_v3_false_none_only_draft_inert_landing_context_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Premerge succeeds without completed landing-state-gate.
+
+    The acyclic model: the landing-state-gate is currently executing
+    while evaluating the attestation, so only baseline and state-gate
+    are required as previously completed.  The trusted current landing
+    execution context is verified via env vars.
+    """
+
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_cutover_preflight(
+        fx, tmp_path, monkeypatch,
+        check_names={"baseline", "state-gate"},
+    )
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
+
+
+def test_v3_false_none_valid_attestation_with_formal_landing_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One valid attestation with formal landing-state-gate must PASS."""
+
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_cutover_preflight(fx, tmp_path, monkeypatch)
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
+
+
+def test_v3_draft_event_does_not_demand_landing_attestation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A Draft PR event must NOT demand landing attestation."""
+
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_cutover_preflight(
+        fx, tmp_path, monkeypatch,
+        draft=True, action="synchronize", attestation_count=0,
+    )
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
+
+
+def test_v3_false_none_target_head_drift_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Event head drift must BLOCK."""
+
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_cutover_preflight(
+        fx, tmp_path, monkeypatch, head_sha="d" * 40,
+    )
+    assert result["gate_status"] == "BLOCKED", result
+
+
+def test_v3_false_none_target_base_drift_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Event base drift must BLOCK."""
+
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_cutover_preflight(
+        fx, tmp_path, monkeypatch, base_sha="e" * 40,
+    )
+    assert result["gate_status"] == "BLOCKED", result
+
+
+def test_v3_false_none_no_pr_number_specific_behavior(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The gate must not have PR-number-specific exceptions."""
+
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_cutover_preflight(fx, tmp_path, monkeypatch)
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
+    assert "landing_attestation_required" not in result["blocking_reasons"]
+
+
+# ---------------------------------------------------------------------------
+# Issue #891 v2 S2: Acyclic premerge landing lifecycle regressions.
+#
+# The premerge attestation validation runs inside the current
+# landing-state-gate job.  That job cannot already be completed while
+# it is evaluating the attestation, so the validator verifies the
+# current formal landing execution context via GitHub Actions env vars
+# and only requires previously completed contexts (baseline, state-gate).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("gh_actions", "gh_job", "gh_workflow"),
+    [
+        (None, "landing-state-gate", "State Gate"),  # GITHUB_ACTIONS missing
+        ("false", "landing-state-gate", "State Gate"),  # GITHUB_ACTIONS != true
+        ("true", None, "State Gate"),  # GITHUB_JOB missing
+        ("true", "state-gate", "State Gate"),  # GITHUB_JOB == state-gate
+        ("true", "landing-state-gate-draft-inert", "State Gate"),  # draft-inert
+        ("true", "landing-state-gate", "Wrong Workflow"),  # wrong GITHUB_WORKFLOW
+        ("true", "landing-state-gate", None),  # GITHUB_WORKFLOW missing
+    ],
+)
+def test_v3_false_none_trusted_landing_context_missing_blocks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    gh_actions: str | None,
+    gh_job: str | None,
+    gh_workflow: str | None,
+) -> None:
+    """Premerge landing must BLOCK when the trusted execution context is wrong.
+
+    The premerge attestation validation runs inside the formal
+    landing-state-gate job.  Without the correct GitHub Actions
+    environment variables the validator cannot prove it is running
+    inside that trusted job, so it must fail closed.
+    """
+
+    fx = _v3_cutover_fixture(tmp_path)
+    att = _v3_false_none_attestation(fx)
+    remote = _V3FakeRemoteVerifier(
+        fx, false_none_attestations=[att],
+        review_commit=fx["head_sha"],
+        check_names={"baseline", "state-gate"},
+    )
+    # Clear all env vars first, then set the specified ones.
+    for key in ("GITHUB_ACTIONS", "GITHUB_JOB", "GITHUB_WORKFLOW"):
+        monkeypatch.delenv(key, raising=False)
+    if gh_actions is not None:
+        monkeypatch.setenv("GITHUB_ACTIONS", gh_actions)
+    if gh_job is not None:
+        monkeypatch.setenv("GITHUB_JOB", gh_job)
+    if gh_workflow is not None:
+        monkeypatch.setenv("GITHUB_WORKFLOW", gh_workflow)
+    event = _v3_event(
+        tmp_path, action="ready_for_review",
+        pr_number=fx["source_pr"],
+        head_sha=fx["head_sha"],
+        base_sha=fx["base_sha"],
+        draft=False,
+    )
+    monkeypatch.setattr(
+        project_gate_module.GitHubRemoteAcceptanceVerifier,
+        "from_env",
+        classmethod(lambda cls: remote),
+    )
+    monkeypatch.setattr(
+        project_gate_module, "_active_transition_skills", lambda _: ("test-skill",)
+    )
+    result = project_gate_module.transition_preflight(
+        state_dir=fx["state"], repo_root=fx["repo"],
+        event_path=str(event), write_result=False,
+    )
+    assert result["gate_status"] == "BLOCKED", result
+    assert "landing_trusted_context_missing" in result["blocking_reasons"]
+    checks = {check["name"]: check for check in result["checks"]}
+    assert checks["false_none_trusted_landing_context"]["status"] == "FAIL"
+
+
+def test_v3_false_none_no_completed_baseline_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ready event with no completed baseline context must BLOCK."""
+
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_cutover_preflight(
+        fx, tmp_path, monkeypatch,
+        check_names={"state-gate"},
+    )
+    assert result["gate_status"] == "BLOCKED", result
+
+
+def test_v3_false_none_no_completed_state_gate_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ready event with no completed state-gate context must BLOCK."""
+
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_cutover_preflight(
+        fx, tmp_path, monkeypatch,
+        check_names={"baseline"},
+    )
+    assert result["gate_status"] == "BLOCKED", result
+
+
+def test_v3_false_none_acyclic_chronology_regression(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Premerge landing succeeds without completed landing-state-gate.
+
+    This regression models the REAL lifecycle ordering:
+    1. Exact head has completed successful: baseline, state-gate
+    2. Exact head does NOT yet have completed: landing-state-gate
+    3. One valid attestation declares canonical required contexts
+    4. transition_preflight with Ready/non-Draft event and trusted
+       landing execution env vars succeeds
+    5. The success did NOT depend on pretending landing-state-gate
+       was already completed
+    """
+
+    fx = _v3_cutover_fixture(tmp_path)
+    att = _v3_false_none_attestation(fx)
+    remote = _V3FakeRemoteVerifier(
+        fx, false_none_attestations=[att],
+        review_commit=fx["head_sha"],
+        check_names={"baseline", "state-gate"},  # No landing-state-gate!
+        ready_run_id=30001,
+    )
+    # Set trusted landing execution context.
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_JOB", "landing-state-gate")
+    monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
+    monkeypatch.setattr(
+        project_gate_module.GitHubRemoteAcceptanceVerifier,
+        "from_env",
+        classmethod(lambda cls: remote),
+    )
+    monkeypatch.setattr(
+        project_gate_module, "_active_transition_skills", lambda _: ("test-skill",)
+    )
+    event = _v3_event(
+        tmp_path, action="ready_for_review",
+        pr_number=fx["source_pr"],
+        head_sha=fx["head_sha"],
+        base_sha=fx["base_sha"],
+        draft=False,
+    )
+    result = project_gate_module.transition_preflight(
+        state_dir=fx["state"], repo_root=fx["repo"],
+        event_path=str(event), write_result=False,
+    )
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
