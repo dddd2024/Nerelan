@@ -556,37 +556,42 @@ class TestTaskApiApiKeyWiring:
         assert "lease_provider_required" in outcome.failure_detail
 
     def test_trusted_host_http_handler_receives_lease_provider(self, tmp_path) -> None:
-        port = _free_port()
-        fake_url = f"http://127.0.0.1:{port}"
+        fake_srv, received = _start_fake_provider(0)
+        fake_port = int(fake_srv.server_address[1])
+        assert fake_port > 0
+        fake_url = f"http://127.0.0.1:{fake_port}"
 
-        store = ModelProfileStore()
-        store.upsert_connection({
-            "connection_id": "http-conn",
-            "name": "H",
-            "provider": "openai-compatible",
-            "base_url": fake_url,
-            "auth_method": "api_key",
-            "api_key": "master-key-http",
-        })
-        store.upsert_binding({
-            "binding_id": "http-binding",
-            "name": "B",
-            "executor_id": "opencode",
-            "connection_id": "http-conn",
-            "model_id": "gpt-4o",
-        })
-
-        fake_srv, received = _start_fake_provider(port)
         try:
-            mc_port = _free_port()
-            task_port = _free_port()
+            store = ModelProfileStore()
+            store.upsert_connection({
+                "connection_id": "http-conn",
+                "name": "H",
+                "provider": "openai-compatible",
+                "base_url": fake_url,
+                "auth_method": "api_key",
+                "api_key": "master-key-http",
+            })
+            store.upsert_binding({
+                "binding_id": "http-binding",
+                "name": "B",
+                "executor_id": "opencode",
+                "connection_id": "http-conn",
+                "model_id": "gpt-4o",
+            })
+
             host = CombinedTrustedHost(
                 store=store,
                 execution_authority_sha=_TRUSTED_HOST_FAKE_EXEC_AUTH,
                 planning_sha=_TRUSTED_HOST_FAKE_PLANNING_SHA,
             )
-            host.start(model_control_port=mc_port, task_api_port=task_port)
-            assert host.model_control_url == f"http://127.0.0.1:{mc_port}"
+            host.start(model_control_port=0, task_api_port=0)
+            assert host.model_control_url.startswith("http://127.0.0.1:")
+            assert host.task_api_url.startswith("http://127.0.0.1:")
+            assert int(host.model_control_url.rsplit(":", 1)[1]) > 0
+            assert int(host.task_api_url.rsplit(":", 1)[1]) > 0
+
+            http_srv: ThreadingHTTPServer | None = None
+            ht: threading.Thread | None = None
             try:
                 task_store = TaskStore(db_path=str(tmp_path / "http-tasks.sqlite3"))
                 task = task_store.create_task(
@@ -694,12 +699,11 @@ class TestTaskApiApiKeyWiring:
                 )
                 assert handler_cls.lease_provider is not None
 
-                http_srv = ThreadingHTTPServer(
-                    ("127.0.0.1", _free_port()), handler_cls
-                )
+                http_srv = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
                 ht = threading.Thread(target=http_srv.serve_forever, daemon=True)
                 ht.start()
-                http_port = http_srv.server_address[1]
+                http_port = int(http_srv.server_address[1])
+                assert http_port > 0
 
                 body = json.dumps({
                     "title": "http-created",
@@ -736,10 +740,17 @@ class TestTaskApiApiKeyWiring:
                 assert final.status == "READY_FOR_REVIEW"
                 assert received == []
             finally:
-                http_srv.shutdown()
+                if http_srv is not None:
+                    if ht is not None and ht.is_alive():
+                        http_srv.shutdown()
+                    http_srv.server_close()
+                if ht is not None:
+                    ht.join(timeout=3.0)
+                    assert not ht.is_alive()
                 host.stop()
         finally:
             fake_srv.shutdown()
+            fake_srv.server_close()
 
 
 # ===========================================================================
