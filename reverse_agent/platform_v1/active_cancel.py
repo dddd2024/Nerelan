@@ -27,8 +27,6 @@ _HEX = frozenset("0123456789abcdef")
 class ActiveCancelState:
     request_id: str
     task_id: str
-    run_id: str
-    lease_epoch: int
     generation_digest: str
     phase: str
     requested_at: str
@@ -100,33 +98,35 @@ def _valid_sha(value: Any) -> bool:
     return isinstance(value, str) and len(value) == 64 and all(c in _HEX for c in value)
 
 
-def _validated_event_digest(event: Any, metadata: Mapping[str, Any], *, confirmation: bool) -> str:
-    keys = {"request_id", "run_id", "lease_epoch", "generation_digest", "phase"}
+def _validated_event_digest(
+    event: Any,
+    metadata: Mapping[str, Any],
+    *,
+    confirmation: bool,
+    expected_task_id: str,
+) -> str:
+    keys = {"request_id", "generation_digest", "phase"}
     if confirmation:
         keys.add("checkpoint")
     expected_phase = "CONFIRMED" if confirmation else "REQUESTED"
     if set(metadata) != keys or metadata.get("phase") != expected_phase:
         raise TaskStoreError("active_cancel_confirmation_metadata_invalid" if confirmation else "active_cancel_request_metadata_invalid")
-    run_id = metadata.get("run_id")
-    epoch = metadata.get("lease_epoch")
+    digest = metadata.get("generation_digest")
     if (
         not isinstance(metadata.get("request_id"), str)
-        or not isinstance(run_id, str)
-        or not run_id
-        or type(epoch) is not int
-        or epoch <= 0
-        or not _valid_sha(metadata.get("generation_digest"))
+        or not metadata.get("request_id")
+        or not _valid_sha(digest)
         or (confirmation and metadata.get("checkpoint") not in SAFE_CHECKPOINTS)
     ):
         raise TaskStoreError("active_cancel_confirmation_metadata_invalid" if confirmation else "active_cancel_request_metadata_invalid")
-    digest = generation_digest(task_id=str(event["task_id"]), run_id=run_id, lease_epoch=epoch)
+    identity_error = "active_cancel_confirmation_identity_mismatch" if confirmation else "active_cancel_request_identity_mismatch"
     event_id = _confirm_event_id(digest) if confirmation else _request_event_id(digest)
     if (
-        metadata["generation_digest"] != digest
+        str(event["task_id"]) != str(expected_task_id)
         or metadata["request_id"] != _request_id(digest)
         or str(event["id"]) != event_id
     ):
-        raise TaskStoreError("active_cancel_confirmation_identity_mismatch" if confirmation else "active_cancel_request_identity_mismatch")
+        raise TaskStoreError(identity_error)
     return digest
 
 
@@ -197,7 +197,7 @@ class ActiveCancelController:
                 digest = generation_digest(task_id=task_id, run_id=str(run["run_id"]), lease_epoch=int(run["lease_epoch"]))
                 existing = self._request(cur, digest)
                 if existing is not None:
-                    state = self._state(cur, existing, digest)
+                    state = self._state(cur, existing, digest, task_id)
                     cur.execute("ROLLBACK")
                     confirmed = state.phase == "CONFIRMED"
                     return ActiveCancelOutcome(
@@ -208,8 +208,6 @@ class ActiveCancelController:
                 now = _utc_now()
                 metadata = {
                     "request_id": _request_id(digest),
-                    "run_id": str(run["run_id"]),
-                    "lease_epoch": int(run["lease_epoch"]),
                     "generation_digest": digest,
                     "phase": "REQUESTED",
                 }
@@ -220,7 +218,7 @@ class ActiveCancelController:
                 cur.execute("UPDATE tasks SET updated_at=? WHERE id=?", (now, task_id))
                 cur.execute("COMMIT")
                 return ActiveCancelOutcome("REQUESTED", "ACTIVE_CANCEL_REQUESTED", ActiveCancelState(
-                    _request_id(digest), task_id, str(run["run_id"]), int(run["lease_epoch"]), digest, "REQUESTED", now, current=True
+                    _request_id(digest), task_id, digest, "REQUESTED", now, current=True
                 ))
             except TaskStoreError:
                 _rollback(cur)
@@ -239,29 +237,32 @@ class ActiveCancelController:
             if request is None:
                 return None
             metadata = _decode(request["metadata"])
-            digest = _validated_event_digest(request, metadata, confirmation=False)
+            digest = _validated_event_digest(request, metadata, confirmation=False, expected_task_id=task_id)
             # Detect duplicate deterministic request IDs as ambiguous persisted evidence.
             self._request(self.store._conn, digest)
             run = self._run(self.store._conn, task_id)
             current = "" if run is None else generation_digest(task_id=task_id, run_id=str(run["run_id"]), lease_epoch=int(run["lease_epoch"]))
-            return self._state(self.store._conn, request, current, metadata)
+            return self._state(self.store._conn, request, current, task_id, metadata)
 
     def auto_resume_allowed(self, task_id: str) -> bool:
         state = self.current_state(task_id)
         return state is None or not state.current
 
-    def _state(self, conn: Any, request: Any, current_digest: str, metadata: Mapping[str, Any] | None = None) -> ActiveCancelState:
+    def _state(self, conn: Any, request: Any, current_digest: str, expected_task_id: str, metadata: Mapping[str, Any] | None = None) -> ActiveCancelState:
         request_meta = dict(metadata) if metadata is not None else _decode(request["metadata"])
-        digest = _validated_event_digest(request, request_meta, confirmation=False)
+        digest = _validated_event_digest(request, request_meta, confirmation=False, expected_task_id=expected_task_id)
         current = bool(current_digest and digest == current_digest)
         confirm = self._confirmation(conn, digest)
         if confirm is None:
-            return ActiveCancelState(_request_id(digest), str(request["task_id"]), str(request_meta["run_id"]), int(request_meta["lease_epoch"]), digest, "REQUESTED" if current else "STALE", str(request["timestamp"]), current=current)
+            return ActiveCancelState(
+                _request_id(digest), str(request["task_id"]), digest,
+                "REQUESTED" if current else "STALE", str(request["timestamp"]), current=current
+            )
         confirm_meta = _decode(confirm["metadata"])
-        if _validated_event_digest(confirm, confirm_meta, confirmation=True) != digest:
+        if _validated_event_digest(confirm, confirm_meta, confirmation=True, expected_task_id=expected_task_id) != digest:
             raise TaskStoreError("active_cancel_confirmation_identity_mismatch")
         return ActiveCancelState(
-            _request_id(digest), str(request["task_id"]), str(request_meta["run_id"]), int(request_meta["lease_epoch"]), digest,
+            _request_id(digest), str(request["task_id"]), digest,
             "CONFIRMED" if current else "STALE", str(request["timestamp"]), str(confirm["timestamp"]), str(confirm_meta["checkpoint"]), current,
         )
 
@@ -299,18 +300,16 @@ class ActiveCancelController:
                     cur.execute("ROLLBACK")
                     return ActiveCancelOutcome("UNAVAILABLE", "NO_CANCEL_REQUEST")
                 request_meta = _decode(request["metadata"])
-                if _validated_event_digest(request, request_meta, confirmation=False) != digest:
+                if _validated_event_digest(request, request_meta, confirmation=False, expected_task_id=task_id) != digest:
                     raise TaskStoreError("active_cancel_request_identity_mismatch")
                 existing = self._confirmation(cur, digest)
                 if existing is not None:
-                    state = self._state(cur, request, digest, request_meta)
+                    state = self._state(cur, request, digest, task_id, request_meta)
                     cur.execute("ROLLBACK")
                     return ActiveCancelOutcome("ALREADY_CONFIRMED", "ACTIVE_CANCEL_ALREADY_CONFIRMED", state)
                 now = _utc_now()
                 metadata = {
                     "request_id": _request_id(digest),
-                    "run_id": run_id,
-                    "lease_epoch": lease_epoch,
                     "generation_digest": digest,
                     "phase": "CONFIRMED",
                     "checkpoint": checkpoint,
@@ -322,7 +321,7 @@ class ActiveCancelController:
                 cur.execute("UPDATE tasks SET updated_at=? WHERE id=?", (now, task_id))
                 cur.execute("COMMIT")
                 return ActiveCancelOutcome("CONFIRMED", "ACTIVE_CANCEL_SAFE_BOUNDARY_CONFIRMED", ActiveCancelState(
-                    _request_id(digest), task_id, run_id, lease_epoch, digest, "CONFIRMED", str(request["timestamp"]), now, checkpoint, True
+                    _request_id(digest), task_id, digest, "CONFIRMED", str(request["timestamp"]), now, checkpoint, True
                 ))
             except TaskStoreError:
                 _rollback(cur)
