@@ -36735,6 +36735,35 @@ def _check_landing_authority(
         # above (target base identity and exact remote PR/head/base binding)
         # and then requires a valid false/none Owner landing attestation
         # before the landing authority portion may continue.
+        #
+        # The premerge attestation validation runs inside the current
+        # landing-state-gate job.  That job cannot already be completed
+        # while it is evaluating the attestation, so the validator
+        # verifies the current formal landing execution context via
+        # GitHub Actions environment variables instead of requiring
+        # a completed landing-state-gate check-run.
+        _gh_actions = os.environ.get("GITHUB_ACTIONS")
+        _gh_job = os.environ.get("GITHUB_JOB")
+        _gh_workflow = os.environ.get("GITHUB_WORKFLOW")
+        _trusted_landing = (
+            _gh_actions == "true"
+            and _gh_job == "landing-state-gate"
+            and _gh_workflow == "State Gate"
+        )
+        checks.append(
+            {
+                "name": "false_none_trusted_landing_context",
+                "status": "PASS" if _trusted_landing else "FAIL",
+                "detail": (
+                    f"GITHUB_ACTIONS={_gh_actions!r} "
+                    f"GITHUB_JOB={_gh_job!r} "
+                    f"GITHUB_WORKFLOW={_gh_workflow!r}"
+                ),
+            }
+        )
+        if not _trusted_landing:
+            return checks, ("landing_trusted_context_missing",)
+
         now = datetime.now(timezone.utc)
         premerge_checks, _ = validate_false_none_premerge_landing(
             repo_root=repo_root,

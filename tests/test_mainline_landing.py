@@ -3059,3 +3059,65 @@ def test_false_none_premerge_skips_postmerge_time_checks(
         by_name["false_none_owner_review_before_merge"]["detail"]
         == "premerge_skip_merged_at"
     )
+
+
+def test_false_none_premerge_no_completed_landing_state_gate_required(
+    tmp_path: Path,
+) -> None:
+    """Premerge validation must NOT require a completed landing-state-gate.
+
+    The acyclic model: the landing-state-gate is currently executing while
+    evaluating the attestation, so only baseline and state-gate are verified
+    as previously completed.  The trusted current landing execution context
+    is verified separately in project_gate.py.
+    """
+
+    bundle = _false_none_repo(tmp_path)
+    # Only baseline and state-gate are completed; landing-state-gate is
+    # NOT yet completed (it is the currently executing job).
+    verifier, _ = _false_none_pair(
+        bundle,
+        check_names={"baseline", "state-gate"},
+    )
+    checks, _ = _false_none_premerge_validate(bundle, verifier)
+    by_name = {check["name"]: check for check in checks}
+    assert (
+        by_name["false_none_required_contexts_executed"]["status"] == "PASS"
+    ), by_name["false_none_required_contexts_executed"]
+    assert (
+        by_name["false_none_landing_context_is_formal"]["status"] == "PASS"
+    ), by_name["false_none_landing_context_is_formal"]
+    assert (
+        by_name["false_none_landing_context_is_formal"]["detail"]
+        == "premerge_trusted_execution_verified_in_project_gate"
+    )
+    assert all(c["status"] == "PASS" for c in checks), checks
+
+
+def test_false_none_postmerge_requires_completed_landing_state_gate(
+    tmp_path: Path,
+) -> None:
+    """Postmerge validation must require a completed landing-state-gate.
+
+    The same attestation that passes premerge (without completed
+    landing-state-gate) must BLOCK postmerge until the landing-state-gate
+    context is completed.
+    """
+
+    bundle = _false_none_repo(tmp_path)
+    # Only baseline and state-gate completed; landing-state-gate missing.
+    verifier, _ = _false_none_pair(
+        bundle,
+        check_names={"baseline", "state-gate"},
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    checks = {check["name"]: check for check in result["checks"]}
+    assert checks["false_none_landing_context_is_formal"]["status"] == "FAIL"
+
+    # Now add the completed landing-state-gate and postmerge should pass.
+    verifier.check_names = set(FALSE_NONE_REQUIRED_CONTEXTS)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "PASSED", result
+    checks = {check["name"]: check for check in result["checks"]}
+    assert checks["false_none_landing_context_is_formal"]["status"] == "PASS"

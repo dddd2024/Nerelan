@@ -1395,10 +1395,18 @@ def _validate_false_none_attestation(
             f"observed={declared_contexts}",
         )
     )
+    # For premerge validation the landing-state-gate is currently executing,
+    # so only previously completed contexts (baseline, state-gate) are
+    # verified here.  The current formal landing-state-gate execution is
+    # verified by the trusted execution context check in project_gate.py.
+    if premerge:
+        completed_contexts = ("baseline", "state-gate")
+    else:
+        completed_contexts = tuple(expected_contexts)
     check_runs_payload: Any = None
     if declared_contexts == expected_contexts:
         context_result = verifier.verify_check_run_contexts(
-            head_sha=second_parent, required_contexts=tuple(expected_contexts)
+            head_sha=second_parent, required_contexts=completed_contexts
         )
         checks.append(
             _check(
@@ -1412,22 +1420,44 @@ def _validate_false_none_attestation(
         checks.append(
             _check("false_none_required_contexts_executed", False, "contexts_not_declared")
         )
-    runs_payload = check_runs_payload.get("check_runs") if isinstance(check_runs_payload, Mapping) else None
-    if isinstance(runs_payload, list):
-        names_seen = {
-            str(run.get("name") or "") for run in runs_payload if isinstance(run, Mapping)
-        }
+    if premerge:
+        # The landing-state-gate formal execution is verified by the
+        # trusted execution context check in project_gate.py; the
+        # completed landing-state-gate context is not required here.
         checks.append(
             _check(
                 "false_none_landing_context_is_formal",
-                "landing-state-gate" in names_seen,
-                f"check_names={sorted(names_seen)}",
+                True,
+                "premerge_trusted_execution_verified_in_project_gate",
             )
         )
     else:
-        checks.append(
-            _check("false_none_landing_context_is_formal", False, "check_runs_unavailable")
+        runs_payload = (
+            check_runs_payload.get("check_runs")
+            if isinstance(check_runs_payload, Mapping)
+            else None
         )
+        if isinstance(runs_payload, list):
+            names_seen = {
+                str(run.get("name") or "")
+                for run in runs_payload
+                if isinstance(run, Mapping)
+            }
+            checks.append(
+                _check(
+                    "false_none_landing_context_is_formal",
+                    "landing-state-gate" in names_seen,
+                    f"check_names={sorted(names_seen)}",
+                )
+            )
+        else:
+            checks.append(
+                _check(
+                    "false_none_landing_context_is_formal",
+                    False,
+                    "check_runs_unavailable",
+                )
+            )
 
     # Live repository Ruleset agreement.
     ruleset_id = int(att.get("ruleset_id") or 0)

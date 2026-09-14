@@ -33296,6 +33296,7 @@ class _V3FakeRemoteVerifier:
         ready_run_id: int = 0,
         check_names: set[str] | None = None,
         ruleset_ok: bool = True,
+        workflow_run_ids: set[int] | None = None,
     ) -> None:
         self.fixture = fixture
         self.attestation = attestation or fixture.get("attestation")
@@ -33314,6 +33315,10 @@ class _V3FakeRemoteVerifier:
         self.ready_run_id = ready_run_id
         self.check_names = check_names or set()
         self.ruleset_ok = ruleset_ok
+        # When None, verify_workflow_run accepts all run_ids (legacy
+        # permissive mode for existing tests).  When a set is provided,
+        # only run_ids in that set are considered completed.
+        self.workflow_run_ids = workflow_run_ids
 
     def verify_pr(self, **kwargs: Any) -> dict[str, Any]:
         self.verify_pr_calls.append(kwargs)
@@ -33363,6 +33368,11 @@ class _V3FakeRemoteVerifier:
         return deepcopy(self.attestation)
 
     def verify_workflow_run(self, **kwargs: Any) -> dict[str, Any]:
+        if self.workflow_run_ids is None:
+            return {"verified": True, "reason": "verified"}
+        run_id = int(kwargs.get("run_id") or 0)
+        if run_id not in self.workflow_run_ids:
+            return {"verified": False, "reason": "workflow_run_not_completed"}
         return {"verified": True, "reason": "verified"}
 
     def load_owner_landing_merge_attestations(
@@ -33755,6 +33765,9 @@ def test_v3_cutover_false_none_ready_event_not_blocked_by_intent_required(
         review_commit=fx["head_sha"],
         check_names={"baseline", "state-gate", "landing-state-gate"},
     )
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_JOB", "landing-state-gate")
+    monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
     result, remote = _run_v3_landing_preflight(
         fx, tmp_path, monkeypatch, action="ready_for_review", verifier=remote
     )
@@ -33783,6 +33796,9 @@ def test_v3_cutover_landing_check_list_is_read_only_candidate(
         "from_env",
         classmethod(lambda cls: remote),
     )
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_JOB", "landing-state-gate")
+    monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
     checks, reasons = project_gate_module._check_landing_authority(
         contract=fx["contract"],
         event_payload={
@@ -33875,6 +33891,9 @@ def test_v3_cutover_active_json_independence(
     )
     active = fx["repo"] / "project_state" / "mainline_merge_intents" / "active.json"
     assert not active.exists()
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_JOB", "landing-state-gate")
+    monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
     result, _ = _run_v3_landing_preflight(
         fx, tmp_path, monkeypatch, action="ready_for_review", verifier=remote
     )
@@ -33937,6 +33956,7 @@ def _run_v3_cutover_preflight(
     review_commit: str | None = None,
     check_names: set[str] | None = None,
     ruleset_ok: bool = True,
+    workflow_run_ids: set[int] | None = None,
 ) -> tuple[dict[str, Any], _V3FakeRemoteVerifier]:
     """Run transition_preflight on a cutover fixture with configurable attestation."""
 
@@ -33951,7 +33971,12 @@ def _run_v3_cutover_preflight(
         review_commit=review_commit or fx["head_sha"],
         check_names=check_names or {"baseline", "state-gate", "landing-state-gate"},
         ruleset_ok=ruleset_ok,
+        workflow_run_ids=workflow_run_ids,
     )
+    # Set trusted landing execution context env vars for premerge validation.
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_JOB", "landing-state-gate")
+    monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
     return _run_v3_landing_preflight(
         fx, tmp_path, monkeypatch,
         action=action,
@@ -34052,14 +34077,20 @@ def test_v3_false_none_wrong_authority_decision_blocks(
 def test_v3_false_none_only_draft_inert_landing_context_blocks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Only draft-inert landing context must BLOCK for a Ready candidate."""
+    """Premerge succeeds without completed landing-state-gate.
+
+    The acyclic model: the landing-state-gate is currently executing
+    while evaluating the attestation, so only baseline and state-gate
+    are required as previously completed.  The trusted current landing
+    execution context is verified via env vars.
+    """
 
     fx = _v3_cutover_fixture(tmp_path)
     result, _ = _run_v3_cutover_preflight(
         fx, tmp_path, monkeypatch,
         check_names={"baseline", "state-gate"},
     )
-    assert result["gate_status"] == "BLOCKED", result
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
 
 
 def test_v3_false_none_valid_attestation_with_formal_landing_passes(
@@ -34118,3 +34149,157 @@ def test_v3_false_none_no_pr_number_specific_behavior(
     result, _ = _run_v3_cutover_preflight(fx, tmp_path, monkeypatch)
     assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
     assert "landing_attestation_required" not in result["blocking_reasons"]
+
+
+# ---------------------------------------------------------------------------
+# Issue #891 v2 S2: Acyclic premerge landing lifecycle regressions.
+#
+# The premerge attestation validation runs inside the current
+# landing-state-gate job.  That job cannot already be completed while
+# it is evaluating the attestation, so the validator verifies the
+# current formal landing execution context via GitHub Actions env vars
+# and only requires previously completed contexts (baseline, state-gate).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("gh_actions", "gh_job", "gh_workflow"),
+    [
+        (None, "landing-state-gate", "State Gate"),  # GITHUB_ACTIONS missing
+        ("false", "landing-state-gate", "State Gate"),  # GITHUB_ACTIONS != true
+        ("true", None, "State Gate"),  # GITHUB_JOB missing
+        ("true", "state-gate", "State Gate"),  # GITHUB_JOB == state-gate
+        ("true", "landing-state-gate-draft-inert", "State Gate"),  # draft-inert
+        ("true", "landing-state-gate", "Wrong Workflow"),  # wrong GITHUB_WORKFLOW
+        ("true", "landing-state-gate", None),  # GITHUB_WORKFLOW missing
+    ],
+)
+def test_v3_false_none_trusted_landing_context_missing_blocks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    gh_actions: str | None,
+    gh_job: str | None,
+    gh_workflow: str | None,
+) -> None:
+    """Premerge landing must BLOCK when the trusted execution context is wrong.
+
+    The premerge attestation validation runs inside the formal
+    landing-state-gate job.  Without the correct GitHub Actions
+    environment variables the validator cannot prove it is running
+    inside that trusted job, so it must fail closed.
+    """
+
+    fx = _v3_cutover_fixture(tmp_path)
+    att = _v3_false_none_attestation(fx)
+    remote = _V3FakeRemoteVerifier(
+        fx, false_none_attestations=[att],
+        review_commit=fx["head_sha"],
+        check_names={"baseline", "state-gate"},
+    )
+    # Clear all env vars first, then set the specified ones.
+    for key in ("GITHUB_ACTIONS", "GITHUB_JOB", "GITHUB_WORKFLOW"):
+        monkeypatch.delenv(key, raising=False)
+    if gh_actions is not None:
+        monkeypatch.setenv("GITHUB_ACTIONS", gh_actions)
+    if gh_job is not None:
+        monkeypatch.setenv("GITHUB_JOB", gh_job)
+    if gh_workflow is not None:
+        monkeypatch.setenv("GITHUB_WORKFLOW", gh_workflow)
+    event = _v3_event(
+        tmp_path, action="ready_for_review",
+        pr_number=fx["source_pr"],
+        head_sha=fx["head_sha"],
+        base_sha=fx["base_sha"],
+        draft=False,
+    )
+    monkeypatch.setattr(
+        project_gate_module.GitHubRemoteAcceptanceVerifier,
+        "from_env",
+        classmethod(lambda cls: remote),
+    )
+    monkeypatch.setattr(
+        project_gate_module, "_active_transition_skills", lambda _: ("test-skill",)
+    )
+    result = project_gate_module.transition_preflight(
+        state_dir=fx["state"], repo_root=fx["repo"],
+        event_path=str(event), write_result=False,
+    )
+    assert result["gate_status"] == "BLOCKED", result
+    assert "landing_trusted_context_missing" in result["blocking_reasons"]
+    checks = {check["name"]: check for check in result["checks"]}
+    assert checks["false_none_trusted_landing_context"]["status"] == "FAIL"
+
+
+def test_v3_false_none_no_completed_baseline_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ready event with no completed baseline context must BLOCK."""
+
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_cutover_preflight(
+        fx, tmp_path, monkeypatch,
+        check_names={"state-gate"},
+    )
+    assert result["gate_status"] == "BLOCKED", result
+
+
+def test_v3_false_none_no_completed_state_gate_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ready event with no completed state-gate context must BLOCK."""
+
+    fx = _v3_cutover_fixture(tmp_path)
+    result, _ = _run_v3_cutover_preflight(
+        fx, tmp_path, monkeypatch,
+        check_names={"baseline"},
+    )
+    assert result["gate_status"] == "BLOCKED", result
+
+
+def test_v3_false_none_acyclic_chronology_regression(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Premerge landing succeeds without completed landing-state-gate.
+
+    This regression models the REAL lifecycle ordering:
+    1. Exact head has completed successful: baseline, state-gate
+    2. Exact head does NOT yet have completed: landing-state-gate
+    3. One valid attestation declares canonical required contexts
+    4. transition_preflight with Ready/non-Draft event and trusted
+       landing execution env vars succeeds
+    5. The success did NOT depend on pretending landing-state-gate
+       was already completed
+    """
+
+    fx = _v3_cutover_fixture(tmp_path)
+    att = _v3_false_none_attestation(fx)
+    remote = _V3FakeRemoteVerifier(
+        fx, false_none_attestations=[att],
+        review_commit=fx["head_sha"],
+        check_names={"baseline", "state-gate"},  # No landing-state-gate!
+        ready_run_id=30001,
+    )
+    # Set trusted landing execution context.
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_JOB", "landing-state-gate")
+    monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
+    monkeypatch.setattr(
+        project_gate_module.GitHubRemoteAcceptanceVerifier,
+        "from_env",
+        classmethod(lambda cls: remote),
+    )
+    monkeypatch.setattr(
+        project_gate_module, "_active_transition_skills", lambda _: ("test-skill",)
+    )
+    event = _v3_event(
+        tmp_path, action="ready_for_review",
+        pr_number=fx["source_pr"],
+        head_sha=fx["head_sha"],
+        base_sha=fx["base_sha"],
+        draft=False,
+    )
+    result = project_gate_module.transition_preflight(
+        state_dir=fx["state"], repo_root=fx["repo"],
+        event_path=str(event), write_result=False,
+    )
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
