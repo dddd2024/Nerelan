@@ -1,16 +1,11 @@
-# Prompt Documents
+# Task prompt entry points
 
-This directory contains stable, version-controlled prompt templates for the reverse-agent project.
+These templates are short, non-authoritative locators for `dddd2024/Nerelan`, not duplicated Work Items, Decisions or execution transcripts.
 
-These files define long-lived workflow rules. They are not dynamic project state. Do not store candidates, run names, artifact paths, freshness, runtime metrics, or single-sample conclusions in these files.
+Use [the execution prompt](codex_execution_prompt.md) for implementing a named task and [the workspace prompt](project_workspace_prompt.md) for planning/auditing. Supply the work-item/PR locator, role, actual execution surface and requested outcome. Optional base/head hints detect staleness; they do not replace a fresh read. Do not paste the full Issue, Decision, repository map or historical state stack as the routine bootstrap.
 
-## Files
+Resolve current authority, then read only the relevant code and conditional instructions in `AGENTS.md`. Path A and Path B remain distinct. Read [legacy project-state details](legacy-project-state-reference.md) only if the active task selects that report/round contract; those rules are not the ordinary R1 default.
 
-- `project_workspace_prompt.md` — stable project-level rules for GPT acting as decision and audit planner.
-- `codex_execution_prompt.md` — stable local Codex execution rules.
+These documents remain subject to the existing `policy-lint`. Do not weaken lint or existing acceptance rules to shorten a prompt. Keep dynamic facts in current task/evidence stores and preserve historical evidence. Skill registry identifiers and installed skill versions remain compatible; this repair does not install or sync anything onto a user's machine.
 
-## Policy-Lint Integration
-
-These prompt documents are scanned by `policy-lint` by default. Drift in these files (obsolete profile names, authority violations, unsupported report statuses, dynamic facts) will be detected and reported.
-
-Do not weaken policy-lint to make prompt docs pass. If the prompt docs contain drift, fix the prompt wording rather than hiding findings.
+Design source: OpenAI Developers, [Rethinking skills and prompts for GPT-6 Astra](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra), 2026-09-11. Applied as precise routing and progressive disclosure, not model-specific permission expansion. Text bytes/lines are a footprint measurement, not a measured token, latency or model-quality result. Runtime context projection and cross-model evaluation remain separate work under the existing context-efficiency owners.
