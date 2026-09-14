@@ -1003,10 +1003,16 @@ def _validate_false_none_attestation(
     target_decision_digest: str,
     merged_time: datetime | None,
     now: datetime,
+    premerge: bool = False,
 ) -> list[dict[str, str]]:
     """Validate the single active Owner landing merge attestation and every
     remote truth it binds (authority PR/Decision/runs, Owner review, Ready
-    State Gate, required contexts, Ruleset)."""
+    State Gate, required contexts, Ruleset).
+
+    When ``premerge`` is true, post-merge-only time-ordering checks that
+    require ``merged_at`` are skipped so the validator can run on an
+    unmerged Ready PR; all other schema, digest, binding, workflow, review,
+    context and ruleset checks remain canonical."""
 
     checks: list[dict[str, str]] = []
 
@@ -1101,7 +1107,9 @@ def _validate_false_none_attestation(
             checks.append(_check(check_name, False, f"invalid:{exc}"))
             continue
         comment_times[field] = parsed
-        if merged_time is None:
+        if premerge:
+            checks.append(_check(check_name, True, "premerge_skip_merged_at"))
+        elif merged_time is None:
             checks.append(_check(check_name, False, "remote_pr_merged_at_unavailable"))
         else:
             checks.append(
@@ -1306,7 +1314,37 @@ def _validate_false_none_attestation(
         )
     )
     submitted_at = str(review.get("submitted_at") or "")
-    if submitted_at and merged_time is not None:
+    if submitted_at:
+        try:
+            submitted_time = _parse_time(submitted_at)
+            if submitted_time.tzinfo is None:
+                raise ValueError("timezone_required")
+        except (TypeError, ValueError) as exc:
+            checks.append(
+                _check("false_none_owner_review_before_merge", False, f"invalid:{exc}")
+            )
+            submitted_time = None
+        else:
+            submitted_time = submitted_time
+    else:
+        submitted_time = None
+        checks.append(
+            _check(
+                "false_none_owner_review_before_merge",
+                False,
+                "missing_submitted_at",
+            )
+        )
+    if premerge:
+        if submitted_time is not None:
+            checks.append(
+                _check(
+                    "false_none_owner_review_before_merge",
+                    True,
+                    "premerge_skip_merged_at",
+                )
+            )
+    elif submitted_at and merged_time is not None:
         try:
             submitted_time = _parse_time(submitted_at)
             checks.append(
@@ -1544,6 +1582,104 @@ def _validate_false_none_landing(
                 now=now,
             )
         )
+    extra: dict[str, Any] = {
+        "target_pr": source_pr,
+        "attestation_id": str(
+            candidates[0].get("attestation_id") if len(candidates) == 1 else ""
+        ),
+        "authority_pr": int(
+            candidates[0].get("authority_pr") if len(candidates) == 1 else 0
+        ),
+        "landing_policy": "false_none_owner_landing_authority",
+    }
+    return checks, extra
+
+
+def validate_false_none_premerge_landing(
+    *,
+    repo_root: Path,
+    verifier: Any,
+    source_pr: int,
+    accepted_head: str,
+    locked_base: str,
+    now: datetime,
+) -> tuple[list[dict[str, str]], dict[str, Any]]:
+    """Validate the false/none pre-merge Owner landing attestation.
+
+    Called from :func:`_check_landing_authority` in cutover mode after the
+    remote PR/head/base binding has already been verified.  Reuses the
+    existing :func:`_validate_false_none_attestation` with ``premerge=True``
+    so post-merge-only time-ordering checks are skipped while all schema,
+    digest, binding, workflow, review, context and ruleset checks remain
+    canonical.
+    """
+
+    checks: list[dict[str, str]] = []
+
+    # Target Decision identity from the committed second-parent tree.
+    decision_digest = (
+        _sha256_blob(repo_root, accepted_head, "project_state/decision_packet.md")
+        or ""
+    )
+    try:
+        decision_meta = _decision_meta_blob(repo_root, accepted_head)
+        target_decision_id = str(decision_meta.get("decision_id") or "")
+        checks.append(
+            _check("false_none_target_decision_read", True, target_decision_id)
+        )
+    except ValueError as exc:
+        target_decision_id = ""
+        checks.append(
+            _check("false_none_target_decision_read", False, str(exc))
+        )
+
+    # Exactly one active OWNER_LANDING_MERGE_ATTESTATION on the target PR.
+    try:
+        attestations = verifier.load_owner_landing_merge_attestations(
+            pr_number=source_pr
+        )
+        checks.append(
+            _check(
+                "false_none_attestation_load", True, f"comments={len(attestations)}"
+            )
+        )
+    except GitHubEvidenceError as exc:
+        checks.append(_check("false_none_attestation_load", False, str(exc)))
+        attestations = []
+
+    candidates = [
+        att
+        for att in attestations
+        if isinstance(att, Mapping)
+        and att.get("source_pr") == source_pr
+        and att.get("accepted_exact_head_sha") == accepted_head
+        and att.get("authorization_status") == "active"
+    ]
+    checks.append(
+        _check(
+            "false_none_attestation_unique",
+            len(candidates) == 1,
+            f"observed={len(candidates)}",
+        )
+    )
+
+    if len(candidates) == 1:
+        checks.extend(
+            _validate_false_none_attestation(
+                candidates[0],
+                verifier=verifier,
+                repo_root=repo_root,
+                source_pr=source_pr,
+                first_parent=locked_base,
+                second_parent=accepted_head,
+                target_decision_id=target_decision_id,
+                target_decision_digest=decision_digest,
+                merged_time=None,
+                now=now,
+                premerge=True,
+            )
+        )
+
     extra: dict[str, Any] = {
         "target_pr": source_pr,
         "attestation_id": str(

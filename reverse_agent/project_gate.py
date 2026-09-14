@@ -66,6 +66,7 @@ from .mainline_landing import (
     load_merge_intent,
     validate_active_merge_intent,
     validate_premerge_attestation,
+    validate_false_none_premerge_landing,
     validate_future_merge,
     validate_pr60_recovery,
     _post_merge_landing_policy,
@@ -36732,10 +36733,21 @@ def _check_landing_authority(
     if intent_mode == "cutover":
         # No-legacy-intent cutover mode shares every fail-closed invariant
         # above (target base identity and exact remote PR/head/base binding)
-        # and then stops: it never requires, reads, generates, or rewrites
-        # ``project_state/mainline_merge_intents/active.json`` and never
-        # demands a legacy premerge attestation. A green cutover result is
-        # candidate validation only; it grants no Ready/Merge authority.
+        # and then requires a valid false/none Owner landing attestation
+        # before the landing authority portion may continue.
+        now = datetime.now(timezone.utc)
+        premerge_checks, _ = validate_false_none_premerge_landing(
+            repo_root=repo_root,
+            verifier=verifier,
+            source_pr=int(pr_number),
+            accepted_head=str(event_head),
+            locked_base=str(locked_base_sha),
+            now=now,
+        )
+        checks.extend(premerge_checks)
+        if any(item.get("status") != "PASS" for item in premerge_checks):
+            reasons.append("landing_attestation_required")
+            return checks, tuple(dict.fromkeys(reasons))
         return checks, ()
 
     active_path = repo_root / "project_state" / "mainline_merge_intents" / "active.json"

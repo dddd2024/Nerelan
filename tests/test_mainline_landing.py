@@ -26,6 +26,7 @@ from reverse_agent.mainline_landing import (
     canonical_digest,
     emit_mainline_integration_receipt,
     resolve_premerge_workflow_profile,
+    validate_false_none_premerge_landing,
     validate_premerge_attestation,
     validate_future_merge,
     validate_pr60_recovery,
@@ -2935,3 +2936,126 @@ def test_false_none_missing_binding_mode_final_gate_blocks(tmp_path: Path) -> No
     assert result["gate_status"] == "BLOCKED", result
     assert any("false_none_target_decision_policy" in item for item in result["blocking_reasons"])
     assert any("active_pr_binding_mode=None" in item for item in result["blocking_reasons"])
+
+
+# ---------------------------------------------------------------------------
+# Pre-merge false/none Owner attestation validation (Issue #891 v2).
+# ---------------------------------------------------------------------------
+
+
+def _false_none_premerge_validate(
+    bundle: dict[str, Any], verifier: FalseNoneVerifier
+) -> tuple[list[dict[str, str]], dict[str, Any]]:
+    return validate_false_none_premerge_landing(
+        repo_root=bundle["repo"],
+        verifier=verifier,
+        source_pr=verifier.source_pr,
+        accepted_head=bundle["head"],
+        locked_base=bundle["base"],
+        now=NOW,
+    )
+
+
+def test_false_none_premerge_valid_attestation_passes(
+    tmp_path: Path,
+) -> None:
+    """A valid pre-merge attestation with formal landing context passes."""
+
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle)
+    checks, extra = _false_none_premerge_validate(bundle, verifier)
+    by_name = {check["name"]: check["status"] for check in checks}
+    assert by_name["false_none_attestation_unique"] == "PASS"
+    assert by_name["false_none_attestation_load"] == "PASS"
+    assert by_name["false_none_landing_context_is_formal"] == "PASS"
+    assert all(c["status"] == "PASS" for c in checks), checks
+    assert extra["landing_policy"] == "false_none_owner_landing_authority"
+
+
+def test_false_none_premerge_zero_attestation_blocks(
+    tmp_path: Path,
+) -> None:
+    """Zero attestations blocks pre-merge validation."""
+
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle)
+    verifier.attestations = []
+    checks, _ = _false_none_premerge_validate(bundle, verifier)
+    by_name = {check["name"]: check["status"] for check in checks}
+    assert by_name["false_none_attestation_unique"] == "FAIL"
+
+
+def test_false_none_premerge_duplicate_attestation_blocks(
+    tmp_path: Path,
+) -> None:
+    """Duplicate attestations block pre-merge validation."""
+
+    bundle = _false_none_repo(tmp_path)
+    verifier, att = _false_none_pair(bundle)
+    verifier.attestations = [att, att]
+    checks, _ = _false_none_premerge_validate(bundle, verifier)
+    by_name = {check["name"]: check["status"] for check in checks}
+    assert by_name["false_none_attestation_unique"] == "FAIL"
+
+
+def test_false_none_premerge_superseded_attestation_blocks(
+    tmp_path: Path,
+) -> None:
+    """A superseded attestation blocks pre-merge validation."""
+
+    bundle = _false_none_repo(tmp_path)
+    verifier, att = _false_none_pair(bundle)
+    att["superseded_by"] = "newer_attestation"
+    att["content_digest"] = owner_landing_content_digest(att)
+    verifier.attestations = [att]
+    checks, _ = _false_none_premerge_validate(bundle, verifier)
+    by_name = {check["name"]: check["status"] for check in checks}
+    assert by_name["false_none_attestation_status"] == "FAIL"
+
+
+def test_false_none_premerge_wrong_target_head_blocks(
+    tmp_path: Path,
+) -> None:
+    """An attestation with wrong target head blocks pre-merge validation."""
+
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle)
+    verifier.attestations[0]["accepted_exact_head_sha"] = "f" * 40
+    verifier.attestations[0]["content_digest"] = owner_landing_content_digest(
+        verifier.attestations[0]
+    )
+    checks, _ = _false_none_premerge_validate(bundle, verifier)
+    by_name = {check["name"]: check["status"] for check in checks}
+    assert by_name["false_none_attestation_unique"] == "FAIL"
+
+
+def test_false_none_premerge_skips_postmerge_time_checks(
+    tmp_path: Path,
+) -> None:
+    """Pre-merge validation skips merged_at time-ordering checks."""
+
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle)
+    checks, _ = _false_none_premerge_validate(bundle, verifier)
+    by_name = {check["name"]: check for check in checks}
+    assert (
+        by_name["false_none_attestation_created_before_merge"]["status"] == "PASS"
+    )
+    assert (
+        by_name["false_none_attestation_created_before_merge"]["detail"]
+        == "premerge_skip_merged_at"
+    )
+    assert (
+        by_name["false_none_attestation_updated_before_merge"]["status"] == "PASS"
+    )
+    assert (
+        by_name["false_none_attestation_updated_before_merge"]["detail"]
+        == "premerge_skip_merged_at"
+    )
+    assert (
+        by_name["false_none_owner_review_before_merge"]["status"] == "PASS"
+    )
+    assert (
+        by_name["false_none_owner_review_before_merge"]["detail"]
+        == "premerge_skip_merged_at"
+    )
