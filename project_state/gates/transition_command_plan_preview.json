@@ -1,1 +1,142 @@
-{"schema_version":1,"decision_id":"decision_20260914_issue884_compact_instructions_r2_v2","round_id":"round_20260914_issue884_compact_instructions_r2_v2","commands":[{"command_id":"issue884.bootstrap","command":"In a real trusted checkout observe the exact base, branch and immutable Decision-only activation; run existing startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness. Existing repository CI may independently produce preflight evidence on its actual full checkout. Never treat partial materialization as complete or fabricate gate outputs.","phase":"bootstrap","required":false,"required_evidence_source":"repository_state_attestation","expected_exit_codes":[0],"execution_surface":"trusted_worker","operations":["code_read","local_static_check","command_plan_generation"],"network_access":false,"diagnostic_only":false,"allowed_only_after_validation":false,"authority_origin":"normal_plan","bootstrap_exception":false,"produced_artifacts":["project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/bootstrap_state.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"],"subject_to_reconciliation":true,"allowed_mutated_paths":[]},{"command_id":"issue884.implement","command":"After actual pre-execution authorization author only the eleven semantic paths. Preserve every existing authority/acceptance predicate and complete the frozen instruction repair. Use installed provider-free tooling for bounded isolated development checks, accurately identifying partial-materialization limits. No existing test, registry, workflow, dependency, control-plane or other active-lane mutation.","phase":"implementation","required":true,"required_evidence_source":"repository_state_attestation","expected_exit_codes":[0],"execution_surface":"trusted_worker","operations":["source_edit","local_static_check","unit_test"],"network_access":false,"diagnostic_only":false,"allowed_only_after_validation":false,"authority_origin":"normal_plan","bootstrap_exception":false,"produced_artifacts":[],"subject_to_reconciliation":true,"allowed_mutated_paths":["AGENTS.md","docs/agents/governance-reference.md",".codex-skills/reverse-agent-iteration/SKILL.md",".codex-skills/reverse-agent-iteration/references/project-state-round.md",".codex-skills/samplereverse-frontier/SKILL.md",".codex-skills/samplereverse-frontier/references/sample-guardrails.md","docs/prompts/README.md","docs/prompts/codex_execution_prompt.md","docs/prompts/project_workspace_prompt.md","docs/prompts/legacy-project-state-reference.md","tests/test_agent_instruction_context.py"]},{"command_id":"issue884.validate","command":"On a full exact-head checkout run python -m pytest tests/test_agent_instruction_context.py tests/test_codex_skills.py tests/test_minimal_integration_baseline_docs.py -q; python tools/audit_codex_skills.py; python -m reverse_agent.project_gate policy-lint --state-dir project_state; git diff --check. Existing repository workflows retain unchanged setup/checks. Missing full-checkout or PowerShell sync evidence is not success. No skips, exclusions, dependency updates or weakened expectations to hide failures.","phase":"validation","required":true,"required_evidence_source":"repository_state_attestation","expected_exit_codes":[0],"execution_surface":"ci_only","operations":["unit_test","local_static_check","diff_validation"],"network_access":false,"diagnostic_only":false,"allowed_only_after_validation":false,"authority_origin":"normal_plan","bootstrap_exception":false,"produced_artifacts":[],"subject_to_reconciliation":true,"allowed_mutated_paths":[]},{"command_id":"issue884.publish","command":"Publish only owner/issue642-compact-instructions-r2-v2 in dddd2024/Nerelan and one Draft against main@a019b0f7ec3c807869eb076883be737c4dc3116d. Initial publication is Decision-only for natural preflight; semantic publication requires actual pre-execution authorization. Rebind the exact head in the Draft body. Record progress on this Draft and Issues884/642/296 and failed PR885. Never Ready or Merge.","phase":"publication","required":true,"required_evidence_source":"repository_state_attestation","expected_exit_codes":[0],"execution_surface":"github_control_plane","operations":["push","draft_pr","pull_request_comment","issue_comment","network_access"],"network_access":true,"diagnostic_only":false,"allowed_only_after_validation":false,"authority_origin":"normal_plan","bootstrap_exception":false,"produced_artifacts":[],"subject_to_reconciliation":true,"allowed_mutated_paths":[]},{"command_id":"issue884.observe","command":"Fresh-read remote base/head, natural State Gate/Decision Preflight/CI and evidence. Review the full scoped diff and retained authority predicates. Compare actual text bytes/lines only. Do not mislabel self-review as independent, substitute old proof, rerun workflows, or call a blocked Draft completed or merged.","phase":"final_evidence","required":true,"required_evidence_source":"repository_state_attestation","expected_exit_codes":[0],"execution_surface":"remote_observation","operations":["read_only_audit","code_read"],"network_access":false,"diagnostic_only":false,"allowed_only_after_validation":false,"authority_origin":"normal_plan","bootstrap_exception":false,"produced_artifacts":[],"subject_to_reconciliation":true,"allowed_mutated_paths":[]}],"plan_name":"transition-command-plan","plan_status":"PASSED","blocking_reasons":[]}
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260914_issue891_false_none_premerge_attestation_r2_v2",
+  "round_id": "round_20260914_issue891_false_none_premerge_attestation_r2_v2",
+  "commands": [
+    {
+      "command_id": "issue891v2.bootstrap",
+      "command": "On a fresh clean trusted checkout at exact main d3ffafc8924614f309a8f85b6224137f94b2d8c1 and branch owner/issue891-false-none-attestation-r2-v2, verify the immutable v2 Decision and no unrelated tracked mutation; run startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness. After PRE_EXECUTION_AUTHORIZED, commit exactly one generated-governance commit containing only current v2 generated artifacts required by the Decision. Do not copy stale startup evidence or reuse PR892 commits/history.",
+      "phase": "bootstrap",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "trusted_worker",
+      "operations": [
+        "code_read",
+        "local_static_check",
+        "command_plan_generation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/gates/bootstrap_state.json",
+        "project_state/gates/transition_command_plan_preview.json",
+        "project_state/gates/transition_preflight_result.json"
+      ],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue891v2.implement",
+      "command": "Only after v2 PRE_EXECUTION_AUTHORIZED and the current generated-governance commit, implement the correction in exactly reverse_agent/mainline_landing.py, reverse_agent/project_gate.py, tests/test_mainline_landing.py and tests/test_project_gate.py. Re-materialize logic from first principles/current main plus read-only PR892 evidence; do not cherry-pick or reuse v1 history. Wire the false/none cutover branch of project_gate._check_landing_authority into the existing Owner attestation validator so a real Ready/non-Draft transition-preflight blocks without valid evidence. Preserve exact remote target binding, Draft/non-landing behavior, legacy intent path and unchanged post-merge validation. Add real transition-preflight route regressions, not helper-only tests.",
+      "phase": "implementation",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "trusted_worker",
+      "operations": [
+        "source_edit",
+        "unit_test",
+        "local_static_check"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "reverse_agent/mainline_landing.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_mainline_landing.py",
+        "tests/test_project_gate.py"
+      ]
+    },
+    {
+      "command_id": "issue891v2.validate",
+      "command": "On the full exact implementation head run python -m pytest tests/test_mainline_landing.py tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_decision_preflight.py -q; git diff --check. Explicitly prove transition_preflight on a Ready/non-Draft false/none event blocks with no/duplicate/stale/wrong Owner attestation and proceeds only with one exact valid attestation; prove a Draft event does not demand landing evidence and legacy intent behavior is unchanged. Natural exact-head CI, Decision Preflight and State Gate must succeed. No rerun/dispatch, deselection or skip may hide a failure.",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "ci_only",
+      "operations": [
+        "unit_test",
+        "local_static_check",
+        "diff_validation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue891v2.publish",
+      "command": "Publish only owner/issue891-false-none-attestation-r2-v2 and one Draft against main@d3ffafc8924614f309a8f85b6224137f94b2d8c1. Decision-only Draft publication is allowed to obtain natural transition preflight. Subsequent pushes must preserve the v2 D->G->S chronology and exact scope. Rebind exact head in the Draft and record bounded evidence on PR/Issues891/156. Never mark Ready or Merge.",
+      "phase": "publication",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "push",
+        "draft_pr",
+        "pull_request_comment",
+        "issue_comment",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue891v2.observe",
+      "command": "Fresh-read exact base/head, full changed-path set, natural CI/Decision Preflight/State Gate and real production call chain. Confirm PR892 and run34820409545 remain unchanged negative evidence. Confirm project_gate._check_landing_authority no longer has a cutover early-success path that bypasses OWNER_LANDING_MERGE_ATTESTATION. Same-agent review is not independent acceptance. No Ready/Merge or governance-green main claim until separately authorized landing and a new natural main-push State Gate success.",
+      "phase": "final_evidence",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "remote_observation",
+      "operations": [
+        "read_only_audit",
+        "code_read"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    }
+  ],
+  "plan_name": "transition-command-plan",
+  "plan_status": "PASSED",
+  "blocking_reasons": []
+}
