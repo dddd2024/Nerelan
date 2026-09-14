@@ -874,7 +874,28 @@ def test_sequential_team_graph_empty_assignments_fails_closed(tmp_path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_sequential_team_integration_single_task_three_roles(tmp_path) -> None:
+@pytest.fixture
+def seq_repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
+    """Bind only requesting tests to their own real Git source repository."""
+    import subprocess
+    from reverse_agent.platform_v1.repository_workspace import resolve_repository_workspace
+
+    source = tmp_path / "source-repo"
+    _init_worktree(source)
+    repository = "dddd2024/Nerelan"
+    # Adding an origin is local metadata; this fixture never fetches or clones.
+    subprocess.run(
+        ["git", "remote", "add", "origin", f"https://github.com/{repository}.git"],
+        cwd=source, stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=10,
+    )
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(source))
+    binding = resolve_repository_workspace(repository)
+    assert binding.repository == repository
+    assert binding.repo_dir == source.resolve()
+    return repository
+
+
+def test_sequential_team_integration_single_task_three_roles(tmp_path, seq_repository) -> None:
     from reverse_agent.platform_v1.opencode_executor import (
         OpenCodeExecutor,
         RoleContext,
@@ -968,7 +989,8 @@ def test_sequential_team_integration_single_task_three_roles(tmp_path) -> None:
     router = _SequentialRouter()
     service = TaskExecutionService(store=store, router=router)
     task = store.create_task(
-        title="seq-team", executor_kind="opencode", idempotency_key="seq-team"
+        title="seq-team", executor_kind="opencode", idempotency_key="seq-team",
+        repository=seq_repository,
     )
 
     outcome = service.execute_sequential_team(
@@ -1003,7 +1025,7 @@ def test_sequential_team_integration_single_task_three_roles(tmp_path) -> None:
         assert False, "sequential_roles evidence missing"
 
 
-def test_sequential_team_integration_planner_failure_stops_team(tmp_path) -> None:
+def test_sequential_team_integration_planner_failure_stops_team(tmp_path, seq_repository) -> None:
     from reverse_agent.platform_v1.opencode_executor import (
         OpenCodeExecutor,
         RoleContext,
@@ -1075,7 +1097,8 @@ def test_sequential_team_integration_planner_failure_stops_team(tmp_path) -> Non
     store = TaskStore(db_path=str(tmp_path / "fail.sqlite3"))
     service = TaskExecutionService(store=store, router=_SequentialRouter())
     task = store.create_task(
-        title="seq-fail", executor_kind="opencode", idempotency_key="seq-fail"
+        title="seq-fail", executor_kind="opencode", idempotency_key="seq-fail",
+        repository=seq_repository,
     )
     outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
 
@@ -1192,7 +1215,7 @@ def _make_fake_seq_executor_factory(mutation_fn=None, raise_on_prepare=False):
     return fake_executor, _FakeRouter()
 
 
-def test_v2_reviewer_mutates_product_rejected(tmp_path) -> None:
+def test_v2_reviewer_mutates_product_rejected(tmp_path, seq_repository) -> None:
     from reverse_agent.platform_v1.opencode_executor import handoff_dir
     from reverse_agent.platform_v1.run_store import TaskStore
     from reverse_agent.platform_v1.task_execution import TaskExecutionService
@@ -1210,7 +1233,7 @@ def test_v2_reviewer_mutates_product_rejected(tmp_path) -> None:
     fake_exe, router = _make_fake_seq_executor_factory(_mutate)
     store = _make_seq_store(tmp_path)
     service = TaskExecutionService(store=store, router=router)
-    task = store.create_task(title="rev-mut", executor_kind="opencode", idempotency_key="rev-mut")
+    task = store.create_task(title="rev-mut", repository=seq_repository, executor_kind="opencode", idempotency_key="rev-mut")
     outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
     final = store.get_task(task.id)
 
@@ -1223,7 +1246,7 @@ def test_v2_reviewer_mutates_product_rejected(tmp_path) -> None:
     assert [c["role"] for c in role_calls] == ["planner", "coder", "reviewer"]
 
 
-def test_v2_reviewer_missing_review_handoff_rejected(tmp_path) -> None:
+def test_v2_reviewer_missing_review_handoff_rejected(tmp_path, seq_repository) -> None:
     from reverse_agent.platform_v1.opencode_executor import handoff_dir
     from reverse_agent.platform_v1.run_store import TaskStore
     from reverse_agent.platform_v1.task_execution import TaskExecutionService
@@ -1240,7 +1263,7 @@ def test_v2_reviewer_missing_review_handoff_rejected(tmp_path) -> None:
     _, router = _make_fake_seq_executor_factory(_mutate)
     store = _make_seq_store(tmp_path)
     service = TaskExecutionService(store=store, router=router)
-    task = store.create_task(title="no-review", executor_kind="opencode", idempotency_key="no-review")
+    task = store.create_task(title="no-review", repository=seq_repository, executor_kind="opencode", idempotency_key="no-review")
     outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
     final = store.get_task(task.id)
 
@@ -1250,7 +1273,7 @@ def test_v2_reviewer_missing_review_handoff_rejected(tmp_path) -> None:
     assert "review" in final.failure_detail or "review" in final.failure_classification
 
 
-def test_v2_reviewer_empty_review_handoff_rejected(tmp_path) -> None:
+def test_v2_reviewer_empty_review_handoff_rejected(tmp_path, seq_repository) -> None:
     from reverse_agent.platform_v1.opencode_executor import handoff_dir
     from reverse_agent.platform_v1.run_store import TaskStore
     from reverse_agent.platform_v1.task_execution import TaskExecutionService
@@ -1267,7 +1290,7 @@ def test_v2_reviewer_empty_review_handoff_rejected(tmp_path) -> None:
     _, router = _make_fake_seq_executor_factory(_mutate)
     store = _make_seq_store(tmp_path)
     service = TaskExecutionService(store=store, router=router)
-    task = store.create_task(title="empty-review", executor_kind="opencode", idempotency_key="empty-review")
+    task = store.create_task(title="empty-review", repository=seq_repository, executor_kind="opencode", idempotency_key="empty-review")
     outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
     final = store.get_task(task.id)
 
@@ -1276,7 +1299,7 @@ def test_v2_reviewer_empty_review_handoff_rejected(tmp_path) -> None:
     assert final.status != "READY_FOR_REVIEW"
 
 
-def test_v2_reviewer_oversized_review_handoff_rejected(tmp_path) -> None:
+def test_v2_reviewer_oversized_review_handoff_rejected(tmp_path, seq_repository) -> None:
     from reverse_agent.platform_v1.opencode_executor import handoff_dir
     from reverse_agent.platform_v1.run_store import TaskStore
     from reverse_agent.platform_v1.task_execution import TaskExecutionService
@@ -1292,7 +1315,7 @@ def test_v2_reviewer_oversized_review_handoff_rejected(tmp_path) -> None:
 
     store = _make_seq_store(tmp_path)
     service = TaskExecutionService(store=store, router=_make_fake_seq_executor_factory(_mutate)[1])
-    task = store.create_task(title="big-review", executor_kind="opencode", idempotency_key="big-review")
+    task = store.create_task(title="big-review", repository=seq_repository, executor_kind="opencode", idempotency_key="big-review")
     outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
     final = store.get_task(task.id)
 
@@ -1301,7 +1324,7 @@ def test_v2_reviewer_oversized_review_handoff_rejected(tmp_path) -> None:
     assert final.status != "READY_FOR_REVIEW"
 
 
-def test_v2_plan_symlink_handoff_rejected(tmp_path) -> None:
+def test_v2_plan_symlink_handoff_rejected(tmp_path, seq_repository) -> None:
     from reverse_agent.platform_v1.opencode_executor import handoff_dir
     from reverse_agent.platform_v1.run_store import TaskStore
     from reverse_agent.platform_v1.task_execution import TaskExecutionService
@@ -1328,7 +1351,7 @@ def test_v2_plan_symlink_handoff_rejected(tmp_path) -> None:
     fake_exe, router = _make_fake_seq_executor_factory(_mutate)
     store = _make_seq_store(tmp_path)
     service = TaskExecutionService(store=store, router=router)
-    task = store.create_task(title="plan-sym", executor_kind="opencode", idempotency_key="plan-sym")
+    task = store.create_task(title="plan-sym", repository=seq_repository, executor_kind="opencode", idempotency_key="plan-sym")
     outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
     final = store.get_task(task.id)
 
@@ -1339,7 +1362,7 @@ def test_v2_plan_symlink_handoff_rejected(tmp_path) -> None:
         assert "plan" in final.failure_detail.lower() or "plan" in final.failure_classification
 
 
-def test_v2_reviewer_symlink_handoff_rejected(tmp_path) -> None:
+def test_v2_reviewer_symlink_handoff_rejected(tmp_path, seq_repository) -> None:
     from reverse_agent.platform_v1.opencode_executor import handoff_dir
     from reverse_agent.platform_v1.run_store import TaskStore
     from reverse_agent.platform_v1.task_execution import TaskExecutionService
@@ -1363,7 +1386,7 @@ def test_v2_reviewer_symlink_handoff_rejected(tmp_path) -> None:
     fake_exe, router = _make_fake_seq_executor_factory(_mutate)
     store = _make_seq_store(tmp_path)
     service = TaskExecutionService(store=store, router=router)
-    task = store.create_task(title="review-sym", executor_kind="opencode", idempotency_key="review-sym")
+    task = store.create_task(title="review-sym", repository=seq_repository, executor_kind="opencode", idempotency_key="review-sym")
     outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
     final = store.get_task(task.id)
 
@@ -1374,7 +1397,7 @@ def test_v2_reviewer_symlink_handoff_rejected(tmp_path) -> None:
         assert "review" in final.failure_detail.lower() or "review" in final.failure_classification
 
 
-def test_v2_sequential_roles_are_explicit_and_shared_context(tmp_path) -> None:
+def test_v2_sequential_roles_are_explicit_and_shared_context(tmp_path, seq_repository) -> None:
     from reverse_agent.platform_v1.run_store import TaskStore
     from reverse_agent.platform_v1.task_execution import TaskExecutionService
 
@@ -1391,7 +1414,7 @@ def test_v2_sequential_roles_are_explicit_and_shared_context(tmp_path) -> None:
     fake_exe, router = _make_fake_seq_executor_factory(_mutate)
     store = _make_seq_store(tmp_path)
     service = TaskExecutionService(store=store, router=router)
-    task = store.create_task(title="roles", executor_kind="opencode", idempotency_key="roles")
+    task = store.create_task(title="roles", repository=seq_repository, executor_kind="opencode", idempotency_key="roles")
     outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
 
     assert outcome.success is True
@@ -1402,7 +1425,7 @@ def test_v2_sequential_roles_are_explicit_and_shared_context(tmp_path) -> None:
     assert len({c["workspace"] for c in role_calls}) == 1
 
 
-def test_v2_no_manual_role_loop_uses_langgraph(tmp_path) -> None:
+def test_v2_no_manual_role_loop_uses_langgraph(tmp_path, seq_repository) -> None:
     from reverse_agent.platform_v1.run_store import TaskStore
     from reverse_agent.platform_v1.task_execution import TaskExecutionService
     from reverse_agent.workflows.team_graph import build_sequential_team_graph
@@ -1420,7 +1443,7 @@ def test_v2_no_manual_role_loop_uses_langgraph(tmp_path) -> None:
     fake_exe, router = _make_fake_seq_executor_factory(_mutate)
     store = _make_seq_store(tmp_path)
     service = TaskExecutionService(store=store, router=router)
-    task = store.create_task(title="langgraph-path", executor_kind="opencode", idempotency_key="langgraph-path")
+    task = store.create_task(title="langgraph-path", repository=seq_repository, executor_kind="opencode", idempotency_key="langgraph-path")
 
     import inspect
     source = inspect.getsource(service.execute_sequential_team)
@@ -1465,7 +1488,7 @@ def test_v2_workspace_root_non_string_fails(tmp_path) -> None:
     assert final.status == "QUEUED"
 
 
-def test_v2_prepare_worktree_failure_durably_classified(tmp_path) -> None:
+def test_v2_prepare_worktree_failure_durably_classified(tmp_path, seq_repository) -> None:
     from reverse_agent.platform_v1.run_store import TaskStore
     from reverse_agent.platform_v1.task_execution import TaskExecutionService
 
@@ -1474,7 +1497,7 @@ def test_v2_prepare_worktree_failure_durably_classified(tmp_path) -> None:
         store=store,
         router=_make_fake_seq_executor_factory(raise_on_prepare=True)[1],
     )
-    task = store.create_task(title="prep-fail", executor_kind="opencode", idempotency_key="prep-fail")
+    task = store.create_task(title="prep-fail", repository=seq_repository, executor_kind="opencode", idempotency_key="prep-fail")
     outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
     final = store.get_task(task.id)
 
@@ -1486,7 +1509,7 @@ def test_v2_prepare_worktree_failure_durably_classified(tmp_path) -> None:
     assert "fake_prepare_worktree_failed" in final.failure_detail
 
 
-def test_v2_reviewer_observes_coder_diff(tmp_path) -> None:
+def test_v2_reviewer_observes_coder_diff(tmp_path, seq_repository) -> None:
     from reverse_agent.platform_v1.run_store import TaskStore
     from reverse_agent.platform_v1.task_execution import TaskExecutionService
     from reverse_agent.platform_v1.opencode_executor import handoff_dir, _collect_product_diff
@@ -1506,7 +1529,7 @@ def test_v2_reviewer_observes_coder_diff(tmp_path) -> None:
 
     store = _make_seq_store(tmp_path)
     service = TaskExecutionService(store=store, router=_make_fake_seq_executor_factory(_mutate)[1])
-    task = store.create_task(title="rev-obs", executor_kind="opencode", idempotency_key="rev-obs")
+    task = store.create_task(title="rev-obs", repository=seq_repository, executor_kind="opencode", idempotency_key="rev-obs")
     outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
 
     assert outcome.success is True
@@ -1517,7 +1540,7 @@ def test_v2_reviewer_observes_coder_diff(tmp_path) -> None:
     assert "product.py" in paths
 
 
-def test_v2_handoff_absent_from_final_changed_files(tmp_path) -> None:
+def test_v2_handoff_absent_from_final_changed_files(tmp_path, seq_repository) -> None:
     from reverse_agent.platform_v1.run_store import TaskStore
     from reverse_agent.platform_v1.task_execution import TaskExecutionService
 
@@ -1533,7 +1556,7 @@ def test_v2_handoff_absent_from_final_changed_files(tmp_path) -> None:
 
     store = _make_seq_store(tmp_path)
     service = TaskExecutionService(store=store, router=_make_fake_seq_executor_factory(_mutate)[1])
-    task = store.create_task(title="handoff-clean", executor_kind="opencode", idempotency_key="handoff-clean")
+    task = store.create_task(title="handoff-clean", repository=seq_repository, executor_kind="opencode", idempotency_key="handoff-clean")
     outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
     final = store.get_task(task.id)
 
@@ -1608,7 +1631,7 @@ def test_v2_no_multi_agent_executor_kind(tmp_path) -> None:
     assert "deterministic_fixture" in router._registry
 
 
-def test_v2_planner_failure_stops_coder_reviewer_durable(tmp_path) -> None:
+def test_v2_planner_failure_stops_coder_reviewer_durable(tmp_path, seq_repository) -> None:
     from reverse_agent.platform_v1.opencode_executor import (
         ExecutorResult,
         PreparedWorkspaceContext,
@@ -1672,7 +1695,7 @@ def test_v2_planner_failure_stops_coder_reviewer_durable(tmp_path) -> None:
 
     store = _make_seq_store(tmp_path)
     service = TaskExecutionService(store=store, router=_FailPlannerRouter())
-    task = store.create_task(title="plan-fail", executor_kind="opencode", idempotency_key="plan-fail")
+    task = store.create_task(title="plan-fail", repository=seq_repository, executor_kind="opencode", idempotency_key="plan-fail")
     outcome = service.execute_sequential_team(task.id, workspace_root=str(tmp_path / "root"))
     final = store.get_task(task.id)
 
@@ -1680,3 +1703,40 @@ def test_v2_planner_failure_stops_coder_reviewer_durable(tmp_path) -> None:
     assert outcome.success is False
     assert final.status == "FAILED"
     assert final.status not in ("PREPARING_WORKSPACE", "RUNNING", "VALIDATING", "READY_FOR_REVIEW")
+
+
+@pytest.mark.parametrize("source_case", ["unconfigured", "mismatch"])
+def test_sequential_team_source_binding_blocks_before_executor(
+    tmp_path, monkeypatch, seq_repository, source_case,
+) -> None:
+    calls: list[str] = []
+
+    class _NoExecutorRouter(ExecutorRouter):
+        def create_executor(self, **kwargs):
+            calls.append("create_executor")
+            raise AssertionError("repository binding must reject before executor creation")
+
+        def dispatch_execute(self, **kwargs):
+            calls.append("dispatch_execute")
+            raise AssertionError("repository binding must reject before dispatch")
+
+    if source_case == "unconfigured":
+        monkeypatch.delenv("REVERSE_AGENT_REPO_DIR")
+    repository = seq_repository if source_case == "unconfigured" else "fixture/other"
+    store = _make_seq_store(tmp_path)
+    service = TaskExecutionService(store=store, router=_NoExecutorRouter())
+    task = store.create_task(
+        title="source-guard", repository=repository, executor_kind="opencode",
+    )
+    root = tmp_path / "must-not-be-created"
+    outcome = service.execute_sequential_team(task.id, workspace_root=str(root))
+    final = store.get_task(task.id)
+
+    assert outcome.success is False
+    assert outcome.failure_classification == "blocked"
+    assert outcome.failure_detail == f"repository_workspace_{source_case}"
+    assert final.status == "BLOCKED"
+    assert final.failure_classification == outcome.failure_classification
+    assert final.failure_detail == outcome.failure_detail
+    assert calls == []
+    assert not root.exists()
