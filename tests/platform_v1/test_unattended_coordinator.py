@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from reverse_agent.platform_v1.active_cancel import ActiveCancelController, REQUEST_EVENT_TYPE
 from reverse_agent.platform_v1.autonomy import AutonomyService
 from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
 from reverse_agent.platform_v1.control_store import PlatformControlStore
@@ -704,3 +705,225 @@ def test_unknown_or_overrun_usage_blocks_future_dispatch(
         assert stopped.enforcement_class == "USAGE_UNKNOWN"
         assert stopped.unknown_observation_count == 1
     assert control.active_window() is None
+
+
+def _cancel_resume_window(service: AutonomyService, *, policy_id: str):
+    now = datetime.now(timezone.utc)
+    return service.activate({
+        "policy_id": policy_id,
+        "policy_revision": 1,
+        "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"],
+        "capabilities": ["execute_task", "resume_task"],
+        "max_concurrent_tasks": 2,
+        "max_tasks": 10,
+        "max_retries": 2,
+        "confirmation": "ACTIVATE",
+    })
+
+
+def _prepare_cancelled_interrupted_task(
+    store: TaskStore,
+    task_id: str,
+    *,
+    confirmed: bool = False,
+):
+    task = store.get_task(task_id)
+    lease = store._acquire_durable_lease(
+        task_id=task_id,
+        execution_id=task.execution_id,
+        lease_owner="active-worker",
+        expiry_ms=600_000,
+    )
+    store._accept_checkpoint(
+        lease.run_id,
+        "PRE_PLANNER",
+        "",
+        1,
+        lease.owner,
+        lease.epoch,
+    )
+    store.set_state(task_id, "RUNNING")
+    controller = ActiveCancelController(store)
+    requested = controller.request_active_cancel(task_id)
+    assert requested.status == "REQUESTED"
+    if confirmed:
+        confirmation = controller.confirm_safe_boundary(
+            task_id,
+            run_id=lease.run_id,
+            lease_owner=lease.owner,
+            lease_epoch=lease.epoch,
+            checkpoint="PRE_PLANNER",
+        )
+        assert confirmation.status == "CONFIRMED"
+    store.set_state(task_id, "INTERRUPTED")
+    return controller, lease
+
+
+@pytest.mark.parametrize("confirmed", [False, True])
+def test_current_active_cancel_hold_blocks_unattended_resume_before_authorize_and_claim(
+    tmp_path, monkeypatch, confirmed
+):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    window = _cancel_resume_window(
+        autonomy, policy_id=f"cancel-hold-{'confirmed' if confirmed else 'requested'}"
+    )
+    goals = GoalService(store=store, control_store=control)
+    goal = _parallel_goal(
+        goals,
+        window.id,
+        key=f"cancel-hold-goal-{'confirmed' if confirmed else 'requested'}",
+        count=1,
+    )
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    _prepare_cancelled_interrupted_task(store, task_id, confirmed=confirmed)
+    assert task_id in control.runnable_tasks(window.id, limit=2)
+
+    authorize_calls = []
+    original_authorize = autonomy.authorize
+
+    def tracked_authorize(**kwargs):
+        authorize_calls.append(dict(kwargs))
+        return original_authorize(**kwargs)
+
+    monkeypatch.setattr(autonomy, "authorize", tracked_authorize)
+    executor_calls = []
+    coordinator = UnattendedCoordinator(
+        store=store,
+        control_store=control,
+        autonomy=autonomy,
+        router=ExecutorRouter(),
+        workspace_root=tmp_path,
+        task_executor=lambda current: executor_calls.append(current),
+    )
+    before = store._conn.total_changes
+    assert coordinator.tick() == 0
+    assert store._conn.total_changes == before
+    assert authorize_calls == []
+    assert executor_calls == []
+    assert control._conn.execute(
+        "SELECT COUNT(*) AS c FROM platform_coordinator_claims WHERE task_id = ?",
+        (task_id,),
+    ).fetchone()["c"] == 0
+    current_window = control.get_window(window.id)
+    assert current_window.tasks_started == 0
+    assert current_window.retries_used == 0
+
+
+def test_malformed_active_cancel_evidence_fails_closed_before_resume_claim(tmp_path, monkeypatch):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    window = _cancel_resume_window(autonomy, policy_id="cancel-malformed")
+    goals = GoalService(store=store, control_store=control)
+    goal = _parallel_goal(goals, window.id, key="cancel-malformed-goal", count=1)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    _prepare_cancelled_interrupted_task(store, task_id)
+    store._conn.execute(
+        "UPDATE task_events SET metadata = ? WHERE task_id = ? AND type = ?",
+        ("{", task_id, REQUEST_EVENT_TYPE),
+    )
+
+    authorize_calls = []
+    original_authorize = autonomy.authorize
+
+    def tracked_authorize(**kwargs):
+        authorize_calls.append(dict(kwargs))
+        return original_authorize(**kwargs)
+
+    monkeypatch.setattr(autonomy, "authorize", tracked_authorize)
+    coordinator = UnattendedCoordinator(
+        store=store,
+        control_store=control,
+        autonomy=autonomy,
+        router=ExecutorRouter(),
+        workspace_root=tmp_path,
+        task_executor=lambda current: pytest.fail(f"unexpected resume:{current}"),
+    )
+    before = store._conn.total_changes
+    assert coordinator.tick() == 0
+    assert store._conn.total_changes == before
+    assert authorize_calls == []
+    assert control._conn.execute(
+        "SELECT COUNT(*) AS c FROM platform_coordinator_claims WHERE task_id = ?",
+        (task_id,),
+    ).fetchone()["c"] == 0
+
+
+def test_stale_generation_cancel_intent_preserves_existing_resume_path(tmp_path):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    window = _cancel_resume_window(autonomy, policy_id="cancel-stale-generation")
+    goals = GoalService(store=store, control_store=control)
+    goal = _parallel_goal(goals, window.id, key="cancel-stale-generation-goal", count=1)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    controller, lease = _prepare_cancelled_interrupted_task(store, task_id)
+    store._conn.execute(
+        "UPDATE durable_runs SET lease_owner = 'new-worker', lease_epoch = lease_epoch + 1, "
+        "lease_expiry_ms = lease_expiry_ms + 600000 WHERE run_id = ?",
+        (lease.run_id,),
+    )
+    assert controller.auto_resume_allowed(task_id) is True
+
+    calls = []
+
+    def resume(current):
+        calls.append(current)
+        store.transition_to(current, "RUNNING_FIXTURE")
+        store.transition_to(current, "VALIDATING")
+        store.transition_to(current, "READY_FOR_REVIEW_FIXTURE")
+        return SimpleNamespace(success=True)
+
+    coordinator = UnattendedCoordinator(
+        store=store,
+        control_store=control,
+        autonomy=autonomy,
+        router=ExecutorRouter(),
+        workspace_root=tmp_path,
+        task_executor=resume,
+    )
+    assert coordinator.tick() == 1
+    assert calls == [task_id]
+    assert store.get_task(task_id).status == "READY_FOR_REVIEW_FIXTURE"
+
+
+def test_mixed_batch_skips_cancel_held_task_and_runs_unrelated_work(tmp_path):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    window = _cancel_resume_window(autonomy, policy_id="cancel-mixed-batch")
+    goals = GoalService(store=store, control_store=control)
+    goal = _parallel_goal(goals, window.id, key="cancel-mixed-batch-goal", count=2)
+    held_id, runnable_id = [
+        link["task_id"] for link in control.list_goal_tasks(goal.id)
+    ]
+    _prepare_cancelled_interrupted_task(store, held_id)
+    runnable = control.runnable_tasks(window.id, limit=2)
+    assert held_id in runnable and runnable_id in runnable
+
+    calls = []
+
+    def execute(current):
+        calls.append(current)
+        return _ready_fixture(store, current)
+
+    coordinator = UnattendedCoordinator(
+        store=store,
+        control_store=control,
+        autonomy=autonomy,
+        router=ExecutorRouter(),
+        workspace_root=tmp_path,
+        task_executor=execute,
+    )
+    assert coordinator.tick() == 1
+    assert calls == [runnable_id]
+    assert store.get_task(held_id).status == "INTERRUPTED"
+    assert control._conn.execute(
+        "SELECT COUNT(*) AS c FROM platform_coordinator_claims WHERE task_id = ?",
+        (held_id,),
+    ).fetchone()["c"] == 0
