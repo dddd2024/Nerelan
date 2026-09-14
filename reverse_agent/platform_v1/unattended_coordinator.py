@@ -10,6 +10,7 @@ import time
 import uuid
 from typing import Any, Callable
 
+from .active_cancel import ActiveCancelController
 from .autonomy import AutonomyService
 from .control_store import PlatformControlStore
 from .durable_execution import DurableExecutionService
@@ -145,14 +146,20 @@ class UnattendedCoordinator:
         if window is None:
             return 0
         claimed: dict[str, int] = {}
-        for task_id in self.control_store.runnable_tasks(
-            window.id, limit=window.max_concurrent_tasks
-        ):
+        for task_id in self.control_store.runnable_tasks(window.id, limit=500):
+            if len(claimed) >= window.max_concurrent_tasks:
+                break
             if self._stop.is_set():
                 break
             task = self.store.get_task(task_id)
             if self._stop.is_set():
                 break
+            if task.status == "INTERRUPTED":
+                try:
+                    if not ActiveCancelController(self.store).auto_resume_allowed(task_id):
+                        continue
+                except TaskStoreError:
+                    continue
             operation = "resume_task" if task.status == "INTERRUPTED" else "execute_task"
             if not self.autonomy.authorize(
                 window_id=window.id,
