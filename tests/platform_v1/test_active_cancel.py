@@ -62,12 +62,12 @@ def confirm(controller, task_id, lease, **overrides):
     return controller.confirm_safe_boundary(task_id, **args)
 
 
-def test_request_binds_exact_live_generation():
+def test_request_binds_exact_live_generation_without_projecting_raw_values():
     store, task_id, lease = active_store()
     out = ActiveCancelController(store).request_active_cancel(task_id)
     assert out.status == "REQUESTED"
     assert out.state and out.state.current
-    assert out.state.run_id == lease.run_id and out.state.lease_epoch == lease.epoch
+    assert not hasattr(out.state, "run_id") and not hasattr(out.state, "lease_epoch")
     assert out.state.generation_digest == generation_digest(
         task_id=task_id, run_id=lease.run_id, lease_epoch=lease.epoch
     )
@@ -213,8 +213,6 @@ def test_duplicate_checkpoint_history_is_ambiguous():
 
 
 @pytest.mark.parametrize("field,value", [
-    ("run_id", "wrong-run"),
-    ("lease_epoch", 77),
     ("generation_digest", "0" * 64),
     ("request_id", "active-cancel-wrong"),
 ])
@@ -223,6 +221,15 @@ def test_corrupt_request_metadata_identity_fails_closed(field, value):
     event = request_event(store, task_id); meta = json.loads(event["metadata"]); meta[field] = value
     store._conn.execute("UPDATE task_events SET metadata=? WHERE seq=?", (json.dumps(meta, sort_keys=True, separators=(",", ":")), event["seq"]))
     with pytest.raises(TaskStoreError, match="active_cancel_request_identity_mismatch"):
+        ctl.current_state(task_id)
+
+
+@pytest.mark.parametrize("field,value", [("run_id", "raw-run"), ("lease_epoch", 7)])
+def test_raw_generation_fields_are_rejected_from_persisted_request_metadata(field, value):
+    store, task_id, _ = active_store(); ctl = ActiveCancelController(store); ctl.request_active_cancel(task_id)
+    event = request_event(store, task_id); meta = json.loads(event["metadata"]); meta[field] = value
+    store._conn.execute("UPDATE task_events SET metadata=? WHERE seq=?", (json.dumps(meta, sort_keys=True, separators=(",", ":")), event["seq"]))
+    with pytest.raises(TaskStoreError, match="active_cancel_request_metadata_invalid"):
         ctl.current_state(task_id)
 
 
@@ -251,8 +258,12 @@ def test_event_metadata_is_fixed_and_sanitized():
         "SELECT type,title,description,raw_log,metadata FROM task_events WHERE task_id=? AND type IN (?,?) ORDER BY seq",
         (task_id, REQUEST_EVENT_TYPE, CONFIRM_EVENT_TYPE),
     ).fetchall()
-    assert set(json.loads(rows[0]["metadata"])) == {"request_id", "run_id", "lease_epoch", "generation_digest", "phase"}
-    assert set(json.loads(rows[1]["metadata"])) == {"request_id", "run_id", "lease_epoch", "generation_digest", "phase", "checkpoint"}
+    request_meta = json.loads(rows[0]["metadata"])
+    confirm_meta = json.loads(rows[1]["metadata"])
+    assert set(request_meta) == {"request_id", "generation_digest", "phase"}
+    assert set(confirm_meta) == {"request_id", "generation_digest", "phase", "checkpoint"}
+    assert "run_id" not in request_meta and "lease_epoch" not in request_meta
+    assert "run_id" not in confirm_meta and "lease_epoch" not in confirm_meta
     rendered = "\n".join(str(x) for r in rows for x in r).lower()
     assert all(r["raw_log"] == "" for r in rows)
     for secret in ("worker-a", "password", "secret", "prompt", "response", "command", "worktree"):
