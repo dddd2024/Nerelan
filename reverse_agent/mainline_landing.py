@@ -1003,6 +1003,7 @@ def _validate_false_none_attestation(
     target_decision_digest: str,
     merged_time: datetime | None,
     now: datetime,
+    premerge: bool = False,
 ) -> list[dict[str, str]]:
     """Validate the single active Owner landing merge attestation and every
     remote truth it binds (authority PR/Decision/runs, Owner review, Ready
@@ -1084,43 +1085,44 @@ def _validate_false_none_attestation(
     )
 
     # Attestation comment timestamps must all predate the remote merged_at.
-    comment_times: dict[str, datetime] = {}
-    for field, check_name in (
-        ("_remote_comment_created_at", "false_none_attestation_created_before_merge"),
-        ("_remote_comment_updated_at", "false_none_attestation_updated_before_merge"),
-    ):
-        value = att.get(field)
-        if not isinstance(value, str) or not value:
-            checks.append(_check(check_name, False, "missing"))
-            continue
-        try:
-            parsed = _parse_time(value)
-            if parsed.tzinfo is None:
-                raise ValueError("timezone_required")
-        except (TypeError, ValueError) as exc:
-            checks.append(_check(check_name, False, f"invalid:{exc}"))
-            continue
-        comment_times[field] = parsed
-        if merged_time is None:
-            checks.append(_check(check_name, False, "remote_pr_merged_at_unavailable"))
-        else:
+    if not premerge:
+        comment_times: dict[str, datetime] = {}
+        for field, check_name in (
+            ("_remote_comment_created_at", "false_none_attestation_created_before_merge"),
+            ("_remote_comment_updated_at", "false_none_attestation_updated_before_merge"),
+        ):
+            value = att.get(field)
+            if not isinstance(value, str) or not value:
+                checks.append(_check(check_name, False, "missing"))
+                continue
+            try:
+                parsed = _parse_time(value)
+                if parsed.tzinfo is None:
+                    raise ValueError("timezone_required")
+            except (TypeError, ValueError) as exc:
+                checks.append(_check(check_name, False, f"invalid:{exc}"))
+                continue
+            comment_times[field] = parsed
+            if merged_time is None:
+                checks.append(_check(check_name, False, "remote_pr_merged_at_unavailable"))
+            else:
+                checks.append(
+                    _check(
+                        check_name,
+                        parsed < merged_time,
+                        f"comment={parsed.isoformat()} merged_at={merged_time.isoformat()}",
+                    )
+                )
+        created_time = comment_times.get("_remote_comment_created_at")
+        updated_time = comment_times.get("_remote_comment_updated_at")
+        if created_time is not None and updated_time is not None:
             checks.append(
                 _check(
-                    check_name,
-                    parsed < merged_time,
-                    f"comment={parsed.isoformat()} merged_at={merged_time.isoformat()}",
+                    "false_none_attestation_comment_order",
+                    created_time <= updated_time,
+                    f"created={created_time.isoformat()} updated={updated_time.isoformat()}",
                 )
             )
-    created_time = comment_times.get("_remote_comment_created_at")
-    updated_time = comment_times.get("_remote_comment_updated_at")
-    if created_time is not None and updated_time is not None:
-        checks.append(
-            _check(
-                "false_none_attestation_comment_order",
-                created_time <= updated_time,
-                f"created={created_time.isoformat()} updated={updated_time.isoformat()}",
-            )
-        )
 
     # Independent Owner landing authority sidecar PR.
     authority_pr = int(att.get("authority_pr") or 0)
@@ -1305,29 +1307,30 @@ def _validate_false_none_attestation(
             f"observed={review.get('commit_id')} expected={second_parent}",
         )
     )
-    submitted_at = str(review.get("submitted_at") or "")
-    if submitted_at and merged_time is not None:
-        try:
-            submitted_time = _parse_time(submitted_at)
+    if not premerge:
+        submitted_at = str(review.get("submitted_at") or "")
+        if submitted_at and merged_time is not None:
+            try:
+                submitted_time = _parse_time(submitted_at)
+                checks.append(
+                    _check(
+                        "false_none_owner_review_before_merge",
+                        submitted_time < merged_time,
+                        f"submitted={submitted_time.isoformat()} merged_at={merged_time.isoformat()}",
+                    )
+                )
+            except (TypeError, ValueError) as exc:
+                checks.append(
+                    _check("false_none_owner_review_before_merge", False, f"invalid:{exc}")
+                )
+        else:
             checks.append(
                 _check(
                     "false_none_owner_review_before_merge",
-                    submitted_time < merged_time,
-                    f"submitted={submitted_time.isoformat()} merged_at={merged_time.isoformat()}",
+                    False,
+                    "missing_submitted_at_or_merged_at",
                 )
             )
-        except (TypeError, ValueError) as exc:
-            checks.append(
-                _check("false_none_owner_review_before_merge", False, f"invalid:{exc}")
-            )
-    else:
-        checks.append(
-            _check(
-                "false_none_owner_review_before_merge",
-                False,
-                "missing_submitted_at_or_merged_at",
-            )
-        )
 
     # Ready-triggered State Gate run on the exact target head.
     ready_run_id = int(att.get("ready_state_gate_run_id") or 0)
@@ -1417,67 +1420,93 @@ def _validate_false_none_landing(
     second_parent: str,
     contract: Mapping[str, Any],
     now: datetime,
+    premerge: bool = False,
+    pr_number: int = 0,
 ) -> tuple[list[dict[str, str]], dict[str, Any]]:
     """Run the false/none post-merge validation on the actual merged target."""
 
     checks: list[dict[str, str]] = []
-    checks.append(
-        _check(
-            "merge_tree_policy",
-            _tree(repo_root, merge_commit_sha) == _tree(repo_root, second_parent),
-            f"merge={_tree(repo_root, merge_commit_sha)} accepted={_tree(repo_root, second_parent)}",
+
+    if not premerge:
+        checks.append(
+            _check(
+                "merge_tree_policy",
+                _tree(repo_root, merge_commit_sha) == _tree(repo_root, second_parent),
+                f"merge={_tree(repo_root, merge_commit_sha)} accepted={_tree(repo_root, second_parent)}",
+            )
         )
-    )
 
     # Resolve the true merged PR from the exact merge topology.  Ambiguity and
     # repository mismatch fail closed; the historical active.json is never used
     # as the landing identity on this path.
-    try:
-        resolved_pr = verifier.resolve_merged_pull_request(merge_commit_sha=merge_commit_sha)
-        resolved_pr = resolved_pr if isinstance(resolved_pr, Mapping) else {}
-        source_pr = int(resolved_pr.get("number") or 0)
-        remote_merged_at = str(resolved_pr.get("merged_at") or "")
-        if not source_pr or not remote_merged_at:
-            raise GitHubEvidenceError("resolved_pr_missing_number_or_merged_at")
-        checks.append(_check("false_none_target_pr_resolution", True, f"pr={source_pr}"))
-    except GitHubEvidenceError as exc:
-        checks.append(_check("false_none_target_pr_resolution", False, str(exc)))
-        source_pr = 0
+    if premerge:
+        source_pr = pr_number
         remote_merged_at = ""
         resolved_pr = {}
+        checks.append(_check("premerge_target_pr_provided", source_pr > 0, f"pr={source_pr}"))
+    else:
+        try:
+            resolved_pr = verifier.resolve_merged_pull_request(merge_commit_sha=merge_commit_sha)
+            resolved_pr = resolved_pr if isinstance(resolved_pr, Mapping) else {}
+            source_pr = int(resolved_pr.get("number") or 0)
+            remote_merged_at = str(resolved_pr.get("merged_at") or "")
+            if not source_pr or not remote_merged_at:
+                raise GitHubEvidenceError("resolved_pr_missing_number_or_merged_at")
+            checks.append(_check("false_none_target_pr_resolution", True, f"pr={source_pr}"))
+        except GitHubEvidenceError as exc:
+            checks.append(_check("false_none_target_pr_resolution", False, str(exc)))
+            source_pr = 0
+            remote_merged_at = ""
+            resolved_pr = {}
 
     # Remote PR binding: exact repo, PR, head, base, merge commit, merged state.
     merged_time: datetime | None = None
     if source_pr:
-        pr_result = verifier.verify_pr(
-            pr_number=source_pr,
-            expected_head_sha=second_parent,
-            expected_base_sha=first_parent,
-            expected_merge_commit_sha=merge_commit_sha,
-            require_merged=True,
-        )
-        checks.append(
-            _check(
-                "false_none_remote_pr_binding",
-                bool(pr_result.get("verified")),
-                str(pr_result.get("reason") or "verified"),
+        if premerge:
+            pr_result = verifier.verify_pr(
+                pr_number=source_pr,
+                expected_head_sha=second_parent,
+                expected_base_sha=first_parent,
+                require_merged=False,
             )
-        )
-        if remote_merged_at:
-            try:
-                merged_time = _parse_time(remote_merged_at)
-                if merged_time.tzinfo is None:
-                    raise ValueError("timezone_required")
-                checks.append(
-                    _check("false_none_remote_pr_merged_at", True, remote_merged_at)
+            checks.append(
+                _check(
+                    "false_none_remote_pr_binding",
+                    bool(pr_result.get("verified")),
+                    str(pr_result.get("reason") or "verified"),
                 )
-            except (TypeError, ValueError) as exc:
-                checks.append(
-                    _check("false_none_remote_pr_merged_at", False, f"invalid:{exc}")
-                )
-                merged_time = None
+            )
+            checks.append(_check("false_none_remote_pr_merged_at", True, "pre-merge: not_applicable"))
         else:
-            checks.append(_check("false_none_remote_pr_merged_at", False, "missing"))
+            pr_result = verifier.verify_pr(
+                pr_number=source_pr,
+                expected_head_sha=second_parent,
+                expected_base_sha=first_parent,
+                expected_merge_commit_sha=merge_commit_sha,
+                require_merged=True,
+            )
+            checks.append(
+                _check(
+                    "false_none_remote_pr_binding",
+                    bool(pr_result.get("verified")),
+                    str(pr_result.get("reason") or "verified"),
+                )
+            )
+            if remote_merged_at:
+                try:
+                    merged_time = _parse_time(remote_merged_at)
+                    if merged_time.tzinfo is None:
+                        raise ValueError("timezone_required")
+                    checks.append(
+                        _check("false_none_remote_pr_merged_at", True, remote_merged_at)
+                    )
+                except (TypeError, ValueError) as exc:
+                    checks.append(
+                        _check("false_none_remote_pr_merged_at", False, f"invalid:{exc}")
+                    )
+                    merged_time = None
+            else:
+                checks.append(_check("false_none_remote_pr_merged_at", False, "missing"))
     else:
         checks.append(_check("false_none_remote_pr_binding", False, "no_resolved_pr"))
         checks.append(_check("false_none_remote_pr_merged_at", False, "no_resolved_pr"))
@@ -1542,6 +1571,7 @@ def _validate_false_none_landing(
                 target_decision_digest=decision_digest,
                 merged_time=merged_time,
                 now=now,
+                premerge=premerge,
             )
         )
     extra: dict[str, Any] = {
@@ -1555,6 +1585,84 @@ def _validate_false_none_landing(
         "landing_policy": "false_none_owner_landing_authority",
     }
     return checks, extra
+
+
+def validate_premerge_landing(
+    *,
+    repo_root: Path,
+    verifier: Any,
+    pr_number: int,
+    head_sha: str,
+    base_sha: str,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Validate the false/none pre-merge landing gate.
+
+    Before merge, a false/none Decision at the PR head requires exactly
+    one valid OWNER_LANDING_MERGE_ATTESTATION. This function fails closed
+    if no valid attestation exists or if the Decision is incoherent.
+    """
+    now = now or datetime.now(timezone.utc)
+    checks: list[dict[str, str]] = []
+
+    # Read the Decision at the head SHA.
+    try:
+        decision_meta = _decision_meta_blob(repo_root, head_sha)
+        target_decision_id = str(decision_meta.get("decision_id") or "")
+        checks.append(_check("premerge_target_decision_read", True, target_decision_id))
+    except ValueError as exc:
+        checks.append(_check("premerge_target_decision_read", False, str(exc)))
+        return _result("premerge-landing-validation", checks, extra={
+            "pr_number": pr_number,
+            "head_sha": head_sha,
+            "base_sha": base_sha,
+            "landing_policy": "unknown",
+        })
+
+    # Determine the landing policy mode.
+    policy_mode, contract = _post_merge_landing_policy(repo_root, head_sha)
+    checks.append(_check("landing_policy_mode", True, policy_mode))
+
+    if policy_mode == "incoherent":
+        checks.append(
+            _check(
+                "landing_policy_mode_incoherent",
+                False,
+                f"mainline_merge_intent_required={contract.get('mainline_merge_intent_required', 'missing')} active_pr_binding_mode={contract.get('active_pr_binding_mode', 'missing')}",
+            )
+        )
+        return _result("premerge-landing-validation", checks, extra={
+            "pr_number": pr_number,
+            "head_sha": head_sha,
+            "base_sha": base_sha,
+            "landing_policy": "incoherent",
+        })
+
+    if policy_mode != "cutover":
+        return _result("premerge-landing-validation", checks, extra={
+            "pr_number": pr_number,
+            "head_sha": head_sha,
+            "base_sha": base_sha,
+            "landing_policy": policy_mode,
+        })
+
+    # False/none: run the pre-merge attestation validation.
+    found_checks, extra = _validate_false_none_landing(
+        repo_root=repo_root,
+        verifier=verifier,
+        merge_commit_sha="",
+        first_parent=base_sha,
+        second_parent=head_sha,
+        contract=contract,
+        now=now,
+        premerge=True,
+        pr_number=pr_number,
+    )
+    checks.extend(found_checks)
+    extra["merge_commit_sha"] = ""
+    extra["first_parent_sha"] = base_sha
+    extra["second_parent_sha"] = head_sha
+    return _result("premerge-landing-validation", checks, extra=extra)
 
 
 def validate_future_merge(

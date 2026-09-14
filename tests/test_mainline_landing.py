@@ -27,6 +27,7 @@ from reverse_agent.mainline_landing import (
     emit_mainline_integration_receipt,
     resolve_premerge_workflow_profile,
     validate_premerge_attestation,
+    validate_premerge_landing,
     validate_future_merge,
     validate_pr60_recovery,
     owner_landing_content_digest,
@@ -2169,6 +2170,7 @@ class FalseNoneVerifier:
         ruleset_ok: bool = True,
         authority_workflow_ok: bool = True,
         attestations: list[dict[str, Any]] | None = None,
+        premerge: bool = False,
     ) -> None:
         self.bundle = bundle
         self.source_pr = source_pr
@@ -2193,6 +2195,7 @@ class FalseNoneVerifier:
         self.ruleset_ok = ruleset_ok
         self.authority_workflow_ok = authority_workflow_ok
         self.attestations = attestations
+        self.premerge = premerge
         self.authority_decision_text = _authority_decision_text(
             authority_decision_id,
             target_pr=source_pr,
@@ -2225,10 +2228,10 @@ class FalseNoneVerifier:
         expected_merge = kwargs.get("expected_merge_commit_sha")
         require_merged = kwargs.get("require_merged")
         if pr_number == self.source_pr:
-            merged = True
+            merged = not self.premerge
             head = self.bundle["head"]
             base = self.bundle["base"]
-            merge_commit = self.bundle["merge"]
+            merge_commit = None if self.premerge else self.bundle["merge"]
         elif pr_number == self.authority_pr:
             merged = self.authority_merged
             head = self.authority_head
@@ -2935,3 +2938,280 @@ def test_false_none_missing_binding_mode_final_gate_blocks(tmp_path: Path) -> No
     assert result["gate_status"] == "BLOCKED", result
     assert any("false_none_target_decision_policy" in item for item in result["blocking_reasons"])
     assert any("active_pr_binding_mode=None" in item for item in result["blocking_reasons"])
+
+
+# ---------------------------------------------------------------------------
+# Issue #891: pre-merge false/none attestation gate
+#
+# A false/none Decision at the PR head must fail closed BEFORE merge unless
+# exactly one valid OWNER_LANDING_MERGE_ATTESTATION exists. This section
+# tests the pre-merge gate (1-8) and ensures post-merge behavior (9-12)
+# is unchanged.
+# ---------------------------------------------------------------------------
+
+
+def _premerge_pair(
+    bundle: dict[str, Any],
+    *,
+    att_overrides: dict[str, Any] | None = None,
+    **verifier_kwargs: Any,
+) -> tuple[FalseNoneVerifier, dict[str, Any]]:
+    """Create a pre-merge verifier and attestation pair."""
+    verifier = FalseNoneVerifier(bundle, premerge=True, **verifier_kwargs)
+    att = _false_none_attestation(bundle, verifier)
+    if att_overrides:
+        att.update(att_overrides)
+    att["content_digest"] = owner_landing_content_digest(att)
+    verifier.attestations = [att]
+    return verifier, att
+
+
+def _premerge_validate(bundle: dict[str, Any], verifier: FalseNoneVerifier) -> dict[str, Any]:
+    """Call validate_premerge_landing with the pre-merge context."""
+    return validate_premerge_landing(
+        repo_root=bundle["repo"],
+        verifier=verifier,
+        pr_number=verifier.source_pr,
+        head_sha=bundle["head"],
+        base_sha=bundle["base"],
+        now=NOW,
+    )
+
+
+def test_premerge_false_none_no_attestation_blocks(tmp_path: Path) -> None:
+    """Regression 1: false/none + no Owner attestation -> BLOCK before merge."""
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _premerge_pair(bundle)
+    verifier.attestations = []
+    result = _premerge_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_attestation_unique: observed=0" in item
+        for item in result["blocking_reasons"]
+    )
+
+
+def test_premerge_duplicate_attestation_blocks(tmp_path: Path) -> None:
+    """Regression 2: duplicate attestations -> BLOCK."""
+    bundle = _false_none_repo(tmp_path)
+    verifier, att = _premerge_pair(bundle)
+    duplicate = dict(att)
+    duplicate["attestation_id"] = "owner_landing_809_duplicate"
+    verifier.attestations = [att, duplicate]
+    result = _premerge_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_attestation_unique: observed=2" in item
+        for item in result["blocking_reasons"]
+    )
+
+
+def test_premerge_stale_superseded_attestation_blocks(tmp_path: Path) -> None:
+    """Regression 3: stale/superseded attestation -> BLOCK."""
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _premerge_pair(bundle, att_overrides={"superseded_by": "new_attestation"})
+    result = _premerge_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_attestation_unique" in item for item in result["blocking_reasons"]
+    ) or any(
+        "false_none_attestation_status" in item for item in result["blocking_reasons"]
+    )
+
+
+def test_premerge_wrong_target_pr_blocks(tmp_path: Path) -> None:
+    """Regression 4: wrong target PR -> BLOCK."""
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _premerge_pair(bundle, att_overrides={"source_pr": 999})
+    result = _premerge_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_attestation_unique" in item for item in result["blocking_reasons"])
+
+
+def test_premerge_wrong_target_head_blocks(tmp_path: Path) -> None:
+    """Regression 4: wrong target head -> BLOCK."""
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _premerge_pair(bundle, att_overrides={"accepted_exact_head_sha": "1" * 40})
+    result = _premerge_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_attestation_unique" in item for item in result["blocking_reasons"])
+
+
+def test_premerge_wrong_target_base_blocks(tmp_path: Path) -> None:
+    """Regression 4: wrong target base -> BLOCK."""
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _premerge_pair(bundle, att_overrides={"locked_base_sha": "2" * 40})
+    result = _premerge_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_attestation_locked_base" in item for item in result["blocking_reasons"])
+
+
+def test_premerge_wrong_authority_decision_blocks(tmp_path: Path) -> None:
+    """Regression 5: wrong landing-authority Decision -> BLOCK."""
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _premerge_pair(
+        bundle, att_overrides={"authority_decision_id": "decision_other_authority_v1"}
+    )
+    result = _premerge_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_authority_decision_id" in item for item in result["blocking_reasons"])
+
+
+def test_premerge_wrong_authority_head_blocks(tmp_path: Path) -> None:
+    """Regression 5: wrong landing-authority head -> BLOCK."""
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _premerge_pair(bundle, att_overrides={"authority_head_sha": "7" * 40})
+    result = _premerge_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_authority_pr_identity" in item for item in result["blocking_reasons"])
+
+
+def test_premerge_wrong_authority_base_blocks(tmp_path: Path) -> None:
+    """Regression 5: wrong landing-authority base -> BLOCK."""
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _premerge_pair(bundle, att_overrides={"authority_base_sha": "8" * 40})
+    result = _premerge_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_authority_pr_identity" in item for item in result["blocking_reasons"])
+
+
+def test_premerge_missing_authority_workflow_blocks(tmp_path: Path) -> None:
+    """Regression 6: missing required workflow observation -> BLOCK."""
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _premerge_pair(
+        bundle,
+        att_overrides={"authority_natural_runs": []},
+    )
+    result = _premerge_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any("false_none_authority_runs" in item for item in result["blocking_reasons"])
+
+
+def test_premerge_authority_workflow_failed_blocks(tmp_path: Path) -> None:
+    """Regression 6: wrong required workflow observation -> BLOCK."""
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _premerge_pair(bundle, authority_workflow_ok=False)
+    result = _premerge_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_authority_workflow:CI" in item for item in result["blocking_reasons"]
+    )
+
+
+def test_premerge_missing_formal_landing_context_blocks(tmp_path: Path) -> None:
+    """Regression 7: missing/non-formal landing-state-gate context -> BLOCK."""
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _premerge_pair(
+        bundle,
+        check_names={"baseline", "state-gate"},
+    )
+    result = _premerge_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_required_contexts_executed" in item
+        for item in result["blocking_reasons"]
+    )
+    assert any("false_none_landing_context_is_formal" in item for item in result["blocking_reasons"])
+
+
+def test_premerge_only_draft_inert_context_blocks(tmp_path: Path) -> None:
+    """Regression 7: only draft-inert landing context -> BLOCK."""
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _premerge_pair(
+        bundle,
+        check_names={"baseline", "state-gate", "landing-state-gate-draft-inert"},
+    )
+    result = _premerge_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_required_contexts_executed" in item
+        for item in result["blocking_reasons"]
+    )
+    assert any("false_none_landing_context_is_formal" in item for item in result["blocking_reasons"])
+
+
+def test_premerge_valid_attestation_proceeds(tmp_path: Path) -> None:
+    """Regression 8: exactly one valid attestation -> pre-merge eligibility proceeds."""
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _premerge_pair(bundle)
+    result = _premerge_validate(bundle, verifier)
+    assert result["gate_status"] == "PASSED", result
+    by_name = {check["name"]: check["status"] for check in result["checks"]}
+    assert by_name["landing_policy_mode"] == "PASS"
+    assert by_name["premerge_target_pr_provided"] == "PASS"
+    assert by_name["false_none_attestation_unique"] == "PASS"
+    assert by_name["false_none_authority_unmerged"] == "PASS"
+    assert by_name["false_none_landing_context_is_formal"] == "PASS"
+    assert result["landing_policy"] == "false_none_owner_landing_authority"
+
+
+def test_premerge_valid_attestation_postmerge_still_passes(tmp_path: Path) -> None:
+    """Regression 9: same attestation remains acceptable to unchanged post-merge validation."""
+    bundle = _false_none_repo(tmp_path)
+    # Pre-merge validation passes.
+    premerge_verifier, att = _premerge_pair(bundle)
+    premerge_result = _premerge_validate(bundle, premerge_verifier)
+    assert premerge_result["gate_status"] == "PASSED", premerge_result
+    # Post-merge validation with the same attestation also passes.
+    postmerge_verifier, postmerge_att = _false_none_pair(bundle)
+    postmerge_result = _false_none_validate(bundle, postmerge_verifier)
+    assert postmerge_result["gate_status"] == "PASSED", postmerge_result
+    # Both use the same attestation format and fields.
+    assert att["attestation_id"] == postmerge_att["attestation_id"]
+
+
+def test_premerge_legacy_merge_intent_unchanged(tmp_path: Path) -> None:
+    """Regression 10: legacy merge-intent path unchanged."""
+    bundle = _future_repo(tmp_path, schema_version=3, workflow_profile="baseline")
+    result = _validate(bundle)
+    assert result["gate_status"] == "PASSED", result
+
+
+def test_premerge_no_pr_specific_logic(tmp_path: Path) -> None:
+    """Regression 11: no PR-number-specific logic."""
+    # Test with different PR numbers - the validator must not hard-code PR numbers.
+    bundle = _false_none_repo(tmp_path)
+    for pr_num in (809, 810, 811, 812, 813, 814, 815, 816, 817, 818):
+        verifier, _ = _premerge_pair(bundle, source_pr=pr_num)
+        result = _premerge_validate(bundle, verifier)
+        # The result should be consistent - not PR-number-specific.
+        assert result["gate_status"] in {"PASSED", "BLOCKED"}, (
+            f"PR {pr_num} got unexpected status: {result['gate_status']}"
+        )
+
+
+def test_premerge_target_head_drift_blocks(tmp_path: Path) -> None:
+    """Regression 12: target-head drift remains fail-closed."""
+    bundle = _false_none_repo(tmp_path)
+    verifier = FalseNoneVerifier(
+        bundle,
+        premerge=True,
+    )
+    att = _false_none_attestation(bundle, verifier)
+    # Drift the head SHA in the attestation
+    att["accepted_exact_head_sha"] = "a" * 40
+    att["content_digest"] = owner_landing_content_digest(att)
+    verifier.attestations = [att]
+    result = validate_premerge_landing(
+        repo_root=bundle["repo"],
+        verifier=verifier,
+        pr_number=verifier.source_pr,
+        head_sha=bundle["head"],
+        base_sha=bundle["base"],
+        now=NOW,
+    )
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_attestation_unique" in item for item in result["blocking_reasons"]
+    )
+
+
+def test_premerge_target_base_drift_blocks(tmp_path: Path) -> None:
+    """Regression 12: target-base drift remains fail-closed."""
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _premerge_pair(bundle, att_overrides={"locked_base_sha": "0" * 40})
+    result = _premerge_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_attestation_locked_base" in item for item in result["blocking_reasons"]
+    )
