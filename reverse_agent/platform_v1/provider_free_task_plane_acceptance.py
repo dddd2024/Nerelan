@@ -12,8 +12,7 @@ POST /api/tasks
   -> disposable workspace mutation
   -> validation
   -> persisted backend truth
-  -> GET /api/tasks/{id} readback
-  -> GET /api/tasks/{id}/events
+  -> GET /api/tasks/{id} browser-safe readback
 
 Plus restart/readback persistence proof and injected-router regression proof.
 
@@ -160,7 +159,7 @@ def _run(
     }
     results["chain"].append("http_post_execute_real_fixture")
 
-    # Step 3: GET /api/tasks/{id} readback
+    # Step 3: GET /api/tasks/{id} browser-safe readback
     status_code, get_payload = _http("GET", f"/api/tasks/{http_task_id}", None, port)
     assert status_code == 200
     assert get_payload["id"] == http_task_id
@@ -171,22 +170,7 @@ def _run(
     assert get_payload["validation_exit_code"] == 0
     assert get_payload["changed_files"]
     assert get_payload["evidence"]
-    results["http_readback"] = {
-        "status": get_payload["status"],
-        "state": get_payload["frontend_task"]["state"],
-        "validation_exit_code": get_payload["validation_exit_code"],
-        "changed_file_count": len(get_payload["changed_files"]),
-        "evidence_count": len(get_payload["evidence"]),
-    }
-    results["chain"].append("http_get_task_readback")
-
-    # Step 4: GET /api/tasks/{id}/events
-    status_code, events_payload = _http(
-        "GET", f"/api/tasks/{http_task_id}/events", None, port
-    )
-    assert status_code == 200
-    assert events_payload["task_id"] == http_task_id
-    event_types = [e["type"] for e in events_payload["events"]]
+    event_types = [e["type"] for e in get_payload["events"]]
     assert "DISCOVERED" in event_types, f"DISCOVERED event missing: {event_types}"
     assert "EXECUTOR_RUNNING" in event_types, f"EXECUTOR_RUNNING missing: {event_types}"
     assert "EXECUTOR_FINISHED" in event_types, f"EXECUTOR_FINISHED missing: {event_types}"
@@ -194,11 +178,35 @@ def _run(
     assert (
         "VALIDATED" in event_types or "LOCAL_VALIDATED" in event_types
     ), f"VALIDATED/LOCAL_VALIDATED missing: {event_types}"
-    results["http_events"] = {
-        "event_count": len(events_payload["events"]),
+    assert get_payload["event_count"] >= len(get_payload["events"])
+    assert isinstance(get_payload["events_truncated"], bool)
+    for event in get_payload["events"]:
+        assert "raw_log" not in event
+        assert "metadata" not in event
+    assert "rawLog" not in json.dumps(get_payload)
+    results["http_readback"] = {
+        "status": get_payload["status"],
+        "state": get_payload["frontend_task"]["state"],
+        "validation_exit_code": get_payload["validation_exit_code"],
+        "changed_file_count": len(get_payload["changed_files"]),
+        "evidence_count": len(get_payload["evidence"]),
+        "event_count": get_payload["event_count"],
+        "events_truncated": get_payload["events_truncated"],
         "event_types": event_types,
     }
-    results["chain"].append("http_events_readback")
+    results["chain"].append("http_get_task_readback")
+
+    # Step 4: retired standalone event route must fail closed.
+    from urllib.error import HTTPError
+
+    try:
+        _http("GET", f"/api/tasks/{http_task_id}/events", None, port)
+        assert False, "legacy task event route must return 404"
+    except HTTPError as exc:
+        assert exc.code == 404, f"retired task event route expected 404, got {exc.code}"
+        payload = json.loads(exc.read().decode("utf-8"))
+        assert payload == {"error": "route not found"}
+    results["chain"].append("legacy_task_event_route_retired")
 
     # Step 5: Idempotent create through HTTP (same key -> same task)
     status_code, dup_payload = _http(
@@ -217,8 +225,6 @@ def _run(
     results["chain"].append("http_idempotency_preserved_same_key")
 
     # Idempotency conflict: same key, different title -> 409
-    from urllib.error import HTTPError
-
     try:
         _http(
             "POST",

@@ -43,7 +43,6 @@ export interface ActivityEvent {
   timestamp: string;
   title: string;
   description: string;
-  rawLog?: string;
   expanded: boolean;
 }
 
@@ -217,7 +216,6 @@ export interface WorkerApprovalScope {
   required: boolean;
   approvers: string[];
 }
-
 export interface ResourceAccess {
   filesystem: FilesystemScope;
   network: NetworkScope;

@@ -4,7 +4,6 @@ import {
   createTask,
   executeTask,
   fetchTask,
-  fetchTaskEvents,
   fetchTasks,
 } from "@/lib/task-client";
 import type { ActivityEvent, ActivityEventType, ChangedFile, EvidenceItem, PolicyContract, Task } from "@/types";
@@ -142,11 +141,6 @@ function _toActivity(event: UnknownEvent, fallbackType: ActivityEventType): Acti
     timestamp: String((event as { timestamp?: string }).timestamp ?? ""),
     title: String((event as { title?: string }).title ?? ""),
     description: String((event as { description?: string }).description ?? ""),
-    rawLog: String(
-      (event as { rawLog?: string; raw_log?: string }).rawLog ??
-        (event as { rawLog?: string; raw_log?: string }).raw_log ??
-        "",
-    ),
     expanded: false,
   };
 }
@@ -269,19 +263,6 @@ export function useTasks() {
   });
 }
 
-export function useTaskEvents(taskId: string | undefined) {
-  return useQuery<Array<Record<string, unknown>>>({
-    queryKey: ["tasks", taskId, "events"],
-    queryFn: async () => {
-      if (!taskId) return [];
-      return fetchTaskEvents(taskId);
-    },
-    enabled: Boolean(taskId),
-    staleTime: 1000,
-    retry: 1,
-  });
-}
-
 export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation<Task, Error, CreateTaskInput>({
@@ -315,4 +296,4 @@ export function useCreateTask() {
   });
 }
 
-export { fetchTaskEvents, fetchTasks } from "@/lib/task-client";
+export { fetchTasks } from "@/lib/task-client";

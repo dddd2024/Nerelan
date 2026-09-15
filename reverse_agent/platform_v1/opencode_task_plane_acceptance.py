@@ -4,7 +4,6 @@ Exercises the full HTTP chain:
   POST /api/tasks (executor_kind=opencode)
   -> POST /api/tasks/{id}/execute
   -> GET /api/tasks/{id}
-  -> GET /api/tasks/{id}/events
 
 Proves:
 - OpenCode CLI child process started with non-OpenAI model
@@ -15,7 +14,7 @@ Proves:
 - Changed files recorded
 - Executor/model evidence recorded
 - Backend terminal state READY_FOR_REVIEW -> frontend READY_FOR_HUMAN
-- Events persisted
+- Browser-safe events persisted and projected through the Task readback
 """
 
 from __future__ import annotations
@@ -226,6 +225,8 @@ def _run(
         "changed_file_count": len(get_payload.get("changed_files", [])),
         "evidence_count": len(get_payload.get("evidence", [])),
         "events_count": len(get_payload.get("events", [])),
+        "event_count": get_payload.get("event_count", 0),
+        "events_truncated": get_payload.get("events_truncated", False),
         "execution_id": get_payload.get("execution_id", ""),
     }
     results["phase"].append("http_get_task_readback")
@@ -263,8 +264,9 @@ def _run(
         ),
     }
 
-    # Verify events
-    event_types = [e.get("type", "") for e in get_payload.get("events", [])]
+    # Verify browser-safe events are projected through Task detail.
+    events = get_payload.get("events", [])
+    event_types = [e.get("type", "") for e in events]
     assert "DISCOVERED" in event_types, "DISCOVERED event missing"
     assert "EXECUTOR_RUNNING" in event_types, "EXECUTOR_RUNNING missing"
     assert "EXECUTOR_FINISHED" in event_types, "EXECUTOR_FINISHED missing"
@@ -272,21 +274,24 @@ def _run(
     assert "VALIDATED" in event_types or "LOCAL_VALIDATED" in event_types, (
         "VALIDATED/LOCAL_VALIDATED missing"
     )
+    assert get_payload.get("event_count", 0) >= len(events)
+    assert isinstance(get_payload.get("events_truncated"), bool)
+    for event in events:
+        assert "raw_log" not in event
+        assert "metadata" not in event
+    assert "rawLog" not in json.dumps(get_payload)
     results["event_types"] = event_types
     results["phase"].append("http_events_verified")
 
-    # ---- Step 4: GET /api/tasks/{id}/events ----
-    status_code, events_payload = _http(
-        "GET", "/api/tasks/%s/events" % http_task_id
-    )
-    assert status_code == 200
-    assert events_payload["task_id"] == http_task_id
-    results["http_events_readback"] = {
-        "status": status_code,
-        "event_count": len(events_payload.get("events", [])),
-        "event_types": [e.get("type", "") for e in events_payload.get("events", [])],
-    }
-    results["phase"].append("http_events_readback")
+    # ---- Step 4: retired standalone task event route ----
+    try:
+        _http("GET", "/api/tasks/%s/events" % http_task_id)
+        assert False, "legacy task event route must return 404"
+    except HTTPError as exc:
+        assert exc.code == 404, "retired task event route expected 404, got %d" % exc.code
+        payload = json.loads(exc.read().decode("utf-8"))
+        assert payload == {"error": "route not found"}
+    results["phase"].append("legacy_task_event_route_retired")
 
     server.shutdown()
     server.server_close()

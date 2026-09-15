@@ -6,9 +6,8 @@ function ev(
   timestamp: string,
   title: string,
   description: string,
-  rawLog?: string,
 ): ActivityEvent {
-  return { id, type, timestamp, title, description, rawLog, expanded: false };
+  return { id, type, timestamp, title, description, expanded: false };
 }
 
 const sampleDiff = `--- a/src/lib/format.ts
@@ -64,9 +63,9 @@ const taskProviderFree: Task = {
     ev("a5", "EXECUTOR_FINISHED", "2026-08-04T14:00:00Z", "执行器完成", "实现完成。"),
     ev("a6", "LOCAL_VALIDATED", "2026-08-04T14:30:00Z", "本地验证通过", "pytest + git diff --check 通过。"),
     ev("a7", "COMMITTED", "2026-08-04T14:35:00Z", "已提交", "提交已推送到任务分支。"),
-    ev("a8", "PUSHED", "2026-08-04T14:36:00Z", "已推送", "分支已推送到 origin。", "git push origin fix/pr114-provider-free-closure"),
+    ev("a8", "PUSHED", "2026-08-04T14:36:00Z", "已推送", "分支已推送到 origin。"),
     ev("a9", "DRAFT_PR_OPEN", "2026-08-04T14:40:00Z", "Draft PR 已开启", "PR #114 已创建，目标为 main。"),
-    ev("a10", "WORKFLOWS_OBSERVED", "2026-08-04T15:30:00Z", "工作流已观察", "所有必需检查在 Head 上 SUCCESS。", "ci: success"),
+    ev("a10", "WORKFLOWS_OBSERVED", "2026-08-04T15:30:00Z", "工作流已观察", "所有必需检查在 Head 上 SUCCESS。"),
     ev("a11", "READY_FOR_HUMAN", "2026-08-04T22:00:00Z", "等待人工处理", "独立精确 Head 审计已通过。"),
   ],
   changes: [
@@ -122,7 +121,7 @@ const taskCodexBlocked: Task = {
     ev("b1", "DISCOVERED", "2026-08-04T08:00:00Z", "已发现", "过渡 Decision 已批准。"),
     ev("b2", "VALIDATED", "2026-08-04T08:10:00Z", "已验证", "命令计划已生成。"),
     ev("b3", "EXECUTOR_RUNNING", "2026-08-04T09:00:00Z", "执行器运行中", "Codex ACP 已启动。"),
-    ev("b4", "EXECUTOR_FINISHED", "2026-08-04T18:00:00Z", "执行器中止", "上游协议错误。", "ERROR: rate_limit_exceeded"),
+    ev("b4", "EXECUTOR_FINISHED", "2026-08-04T18:00:00Z", "执行器中止", "上游协议错误。"),
   ],
   changes: [],
   evidence: [
@@ -269,7 +268,7 @@ const taskExpiredWindow: Task = {
   activity: [
     ev("g1", "DISCOVERED", "2026-08-03T20:00:00Z", "已发现", "窗口开启至 03:00。"),
     ev("g2", "EXECUTOR_RUNNING", "2026-08-03T20:30:00Z", "执行器运行中", "在窗口内工作。"),
-    ev("g3", "EXECUTOR_FINISHED", "2026-08-04T03:00:00Z", "窗口过期", "停止条件 window_expired 触发。", "STOP: window_expired"),
+    ev("g3", "EXECUTOR_FINISHED", "2026-08-04T03:00:00Z", "窗口过期", "停止条件 window_expired 触发。"),
   ],
   changes: [],
   evidence: [
@@ -307,7 +306,7 @@ const taskRework: Task = {
   activity: [
     ev("h1", "DISCOVERED", "2026-08-04T22:00:00Z", "已发现", "实现已起草。"),
     ev("h2", "EXECUTOR_FINISHED", "2026-08-04T23:00:00Z", "执行器完成", "已提交审计。"),
-    ev("h3", "READY_FOR_HUMAN", "2026-08-05T04:00:00Z", "审计拒绝", "证据来源缺失。", "AUDIT: REJECT"),
+    ev("h3", "READY_FOR_HUMAN", "2026-08-05T04:00:00Z", "审计拒绝", "证据来源缺失。"),
   ],
   changes: [
     { path: "reverse_agent/evidence.py", status: "modified", additions: 4, deletions: 2, diff: authDiff },
@@ -337,7 +336,7 @@ const taskBudgetExhausted: Task = {
   activity: [
     ev("i1", "DISCOVERED", "2026-08-04T08:00:00Z", "已发现", "设置 2 次合并预算。"),
     ev("i2", "EXECUTOR_RUNNING", "2026-08-04T09:00:00Z", "执行器运行中", "在预算内合并。"),
-    ev("i3", "EXECUTOR_FINISHED", "2026-08-04T16:00:00Z", "预算耗尽", "停止条件 budget_exhausted 触发。", "STOP: budget_exhausted"),
+    ev("i3", "EXECUTOR_FINISHED", "2026-08-04T16:00:00Z", "预算耗尽", "停止条件 budget_exhausted 触发。"),
   ],
   changes: [],
   evidence: [
