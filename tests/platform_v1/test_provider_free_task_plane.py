@@ -132,9 +132,44 @@ def _full_chain(tmp_path) -> dict:
     assert created["frontend_task"]["executor"] == "fixture/provider-free"
     http_tid = created["id"]
 
-    s, events = do_request("GET", f"/api/tasks/{http_tid}/events")
+    service_store.add_event(
+        http_tid,
+        event_type="EXECUTOR_FINISHED",
+        title="Read source",
+        description="bounded event",
+        raw_log="Authorization: bearer-secret",
+        metadata={
+            "activity_kind": "READ",
+            "role": "coder",
+            "agent_id": "worker-coder",
+            "path": "src/service.py",
+            "prompt": "private reasoning must not escape",
+            "nested_secret": "token-value",
+        },
+    )
+
+    s, detail = do_request("GET", f"/api/tasks/{http_tid}")
     assert s == 200
-    assert events["events"][0]["type"] == "DISCOVERED"
+    assert detail["events"][-1]["category"] == "READ"
+    assert detail["events"][-1]["path"] == "src/service.py"
+    assert "raw_log" not in detail["events"][-1]
+    assert "metadata" not in detail["events"][-1]
+    assert detail["event_count"] >= len(detail["events"])
+    assert isinstance(detail["events_truncated"], bool)
+    serialized = json.dumps(detail)
+    assert "bearer-secret" not in serialized
+    assert "private reasoning" not in serialized
+    assert "token-value" not in serialized
+    assert "rawLog" not in serialized
+
+    import urllib.error as _urllib_error
+    try:
+        do_request("GET", f"/api/tasks/{http_tid}/events")
+        assert False, "legacy task event route must be retired"
+    except _urllib_error.HTTPError as exc:
+        assert exc.code == 404
+        payload = json.loads(exc.read().decode())
+        assert payload == {"error": "route not found"}
 
     server.shutdown()
     server.server_close()
