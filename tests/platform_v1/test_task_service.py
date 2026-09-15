@@ -324,18 +324,41 @@ def test_task_api_keeps_legacy_empty_binding_compatible(task_server) -> None:
     assert created["model_profile_ref"] == "provider/model"
 
 
-def test_list_tasks_and_events(task_server) -> None:
-    base, _ = task_server
+def test_list_tasks_and_browser_safe_events(task_server) -> None:
+    base, server = task_server
     _, created = _req(base, "POST", "/api/tasks", {"title": "t", "executor_kind": "deterministic_fixture"})
     tid = created["id"]
+    server.RequestHandlerClass.store.add_event(
+        tid,
+        event_type="EXECUTOR_FINISHED",
+        title="Read source",
+        description="bounded event",
+        raw_log="Authorization: bearer-secret",
+        metadata={
+            "activity_kind": "READ",
+            "path": "src/service.py",
+            "prompt": "private reasoning must not escape",
+            "unknown_secret": "token-value",
+        },
+    )
+
     status, listed = _req(base, "GET", "/api/tasks")
     assert status == 200
-    assert any(t["id"] == tid for t in listed["tasks"])
+    task = next(t for t in listed["tasks"] if t["id"] == tid)
+    assert task["events"][-1]["category"] == "READ"
+    assert task["events"][-1]["path"] == "src/service.py"
+    assert task["event_count"] >= len(task["events"])
+    assert isinstance(task["events_truncated"], bool)
+    serialized = json.dumps(task)
+    for forbidden in (
+        "raw_log", "rawLog", "metadata", "bearer-secret",
+        "private reasoning", "token-value",
+    ):
+        assert forbidden not in serialized
 
-    status, events = _req(base, "GET", f"/api/tasks/{tid}/events")
-    assert status == 200
-    assert events["task_id"] == tid
-    assert events["events"][0]["type"] == "DISCOVERED"
+    status, body = _req(base, "GET", f"/api/tasks/{tid}/events")
+    assert status == 404
+    assert body == {"error": "route not found"}
 
 
 def test_queue_cancel_http_applies_once_and_exposes_run_activity(task_server) -> None:
