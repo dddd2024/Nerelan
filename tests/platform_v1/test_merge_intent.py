@@ -161,6 +161,30 @@ def _contract_defers_pr_binding() -> bool:
     )
 
 
+def _assert_command_plan_projection_binding(
+    tracked: dict | None,
+    projected: dict,
+    meta: dict,
+) -> None:
+    """Keep historical plan evidence without letting it become current authority."""
+
+    assert projected["decision_id"] == meta["decision_id"]
+    assert projected["round_id"] == meta["round_id"]
+    if tracked is None:
+        return
+
+    decision_matches = tracked.get("decision_id") == meta["decision_id"]
+    round_matches = tracked.get("round_id") == meta["round_id"]
+    assert decision_matches == round_matches, (
+        "tracked command-plan identity partially collides with active authority"
+    )
+    if decision_matches:
+        assert tracked == projected, (
+            "tracked current command plan must equal deterministic active "
+            "Decision projection"
+        )
+
+
 # ---------------------------------------------------------------------------
 # Active intent (dynamically bound to current Decision via parser)
 # ---------------------------------------------------------------------------
@@ -317,10 +341,73 @@ class TestActiveMergeIntent:
         assert meta["decision_id"][9:] == meta["round_id"][6:]
 
     def test_command_plan_id_matches_decision(self) -> None:
-        plan = _load_json(COMMAND_PLAN_PATH)
         meta = _parse_decision_meta()
-        assert plan["decision_id"] == meta["decision_id"]
-        assert plan["round_id"] == meta["round_id"]
+        from reverse_agent.control_plane.legacy_adapter import (
+            build_transition_command_plan,
+            load_transition_decision,
+        )
+
+        decision, contract = load_transition_decision(DECISION_PATH)
+        projected = build_transition_command_plan(decision, contract).to_dict()
+        tracked = _load_json(COMMAND_PLAN_PATH) if COMMAND_PLAN_PATH.exists() else None
+        _assert_command_plan_projection_binding(tracked, projected, meta)
+
+
+class TestCommandPlanProjectionBinding:
+    def _current(self) -> tuple[dict, dict]:
+        projected = {
+            "schema_version": 1,
+            "decision_id": "decision_current",
+            "round_id": "round_current",
+            "commands": [{"command_id": "current.command"}],
+        }
+        meta = {
+            "decision_id": "decision_current",
+            "round_id": "round_current",
+        }
+        return projected, meta
+
+    def test_missing_tracked_plan_is_not_a_bootstrap_prerequisite(self) -> None:
+        projected, meta = self._current()
+        _assert_command_plan_projection_binding(None, projected, meta)
+
+    def test_previous_round_plan_is_historical_evidence(self) -> None:
+        projected, meta = self._current()
+        tracked = {
+            **projected,
+            "decision_id": "decision_previous",
+            "round_id": "round_previous",
+        }
+        _assert_command_plan_projection_binding(tracked, projected, meta)
+
+    def test_current_plan_must_equal_deterministic_projection(self) -> None:
+        projected, meta = self._current()
+        _assert_command_plan_projection_binding(dict(projected), projected, meta)
+
+        tampered = {**projected, "commands": [{"command_id": "tampered"}]}
+        with pytest.raises(AssertionError, match="deterministic active Decision projection"):
+            _assert_command_plan_projection_binding(tampered, projected, meta)
+
+    @pytest.mark.parametrize(
+        ("decision_id", "round_id"),
+        [
+            ("decision_current", "round_previous"),
+            ("decision_previous", "round_current"),
+        ],
+    )
+    def test_partial_identity_collision_fails_closed(
+        self,
+        decision_id: str,
+        round_id: str,
+    ) -> None:
+        projected, meta = self._current()
+        tracked = {
+            **projected,
+            "decision_id": decision_id,
+            "round_id": round_id,
+        }
+        with pytest.raises(AssertionError, match="partially collides"):
+            _assert_command_plan_projection_binding(tracked, projected, meta)
 
 
 # ---------------------------------------------------------------------------
