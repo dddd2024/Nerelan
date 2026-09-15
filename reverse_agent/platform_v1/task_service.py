@@ -139,7 +139,11 @@ def _governance_enum(
     return fallback
 
 
-def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
+def _map_task_to_frontend(
+    task: Mapping[str, Any],
+    *,
+    events: list[Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
     from .functional_validation import functional_evidence
     functional = functional_evidence(task)
     state = _map_task_status_to_frontend_state(str(_map_task_field(task, "status", "")))
@@ -187,7 +191,9 @@ def _map_task_to_frontend(task: Mapping[str, Any]) -> dict[str, Any]:
         "permissionProfile": _map_task_field(task, "permission_profile", "ASK_FOR_APPROVAL") or "ASK_FOR_APPROVAL",
         "modelProfileId": _map_task_field(task, "model_profile_ref", ""),
         "branch": _map_task_field(task, "branch", "") or _map_task_field(task, "id", ""),
-        "activity": _map_frontend_events(_map_task_seq(task, "events")),
+        "activity": _map_frontend_events(
+            events if events is not None else _map_task_seq(task, "events")
+        ),
         "changes": _map_frontend_changed_files(_map_task_seq(task, "changed_files")),
         "evidence": _map_frontend_evidence(
             _map_task_seq(task, "evidence_refs") or _map_task_seq(task, "evidence")
@@ -263,7 +269,6 @@ def _map_frontend_events(events: list[Mapping[str, Any]]) -> list[dict[str, Any]
             "timestamp": e.get("timestamp", ""),
             "title": e.get("title", ""),
             "description": e.get("description", ""),
-            "rawLog": e.get("raw_log", ""),
             "expanded": False,
         }
         for e in events
@@ -429,38 +434,6 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 return
             if len(segments) == 2 and segments == ["api", "tasks"]:
                 self._send_json(HTTPStatus.OK, self._list_tasks_response())
-                return
-            if (
-                len(segments) == 4
-                and segments[:2] == ["api", "tasks"]
-                and segments[3] == "events"
-            ):
-                try:
-                    task = self.store.get_task(segments[2])
-                except TaskStoreError:
-                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
-                    return
-                events_out = []
-                for e in task.events:
-                    meta = _attr(e, "metadata", "")
-                    if isinstance(meta, str):
-                        meta = {"raw": meta}
-                    elif isinstance(meta, Mapping) and not isinstance(meta, dict):
-                        meta = dict(meta)
-                    events_out.append({
-                        "id": _attr(e, "id", ""),
-                        "task_id": _attr(e, "task_id", ""),
-                        "type": _attr(e, "type", "EXECUTOR_FINISHED"),
-                        "timestamp": _attr(e, "timestamp", ""),
-                        "title": _attr(e, "title", ""),
-                        "description": _attr(e, "description", ""),
-                        "raw_log": _attr(e, "raw_log", ""),
-                        "metadata": meta,
-                    })
-                self._send_json(
-                    HTTPStatus.OK,
-                    {"task_id": task.id, "events": events_out},
-                )
                 return
             if len(segments) == 3 and segments[:2] == ["api", "tasks"]:
                 try:
@@ -926,17 +899,14 @@ class _TaskHandler(BaseHTTPRequestHandler):
         }
 
     def _task_response(self, task: Any) -> dict[str, Any]:
-        events = task.events
-        if events and isinstance(events[0], Mapping):
-            events = [
-                _EventView(**e) for e in events
-            ]
         changed = task.changed_files
         if changed and isinstance(changed[0], Mapping):
             changed = [dict(f) for f in changed]
         evidence = task.evidence_refs
         if evidence and isinstance(evidence[0], Mapping):
             evidence = [dict(e) for e in evidence]
+        safe_run = self.run_read_model.run_detail(task.id)
+        safe_events = list(safe_run["events"])
         publication = self.control_store.get_publication(task.id)
         publication_view = None
         if publication is not None:
@@ -975,25 +945,12 @@ class _TaskHandler(BaseHTTPRequestHandler):
             "usage": self.store.usage_summary(task.id),
             "changed_files": list(changed),
             "evidence": list(evidence),
-            "events": self._events_response(events),
+            "events": safe_events,
+            "event_count": safe_run["event_count"],
+            "events_truncated": safe_run["events_truncated"],
             "publication": publication_view,
-            "frontend_task": _map_task_to_frontend(task),
+            "frontend_task": _map_task_to_frontend(task, events=safe_events),
         }
-
-    def _events_response(self, events: Sequence[Any]) -> list[dict[str, Any]]:
-        return [
-            {
-                "id": _attr(e, "id", ""),
-                "task_id": _attr(e, "task_id", ""),
-                "type": _attr(e, "type", "EXECUTOR_FINISHED"),
-                "timestamp": _attr(e, "timestamp", ""),
-                "title": _attr(e, "title", ""),
-                "description": _attr(e, "description", ""),
-                "raw_log": _attr(e, "raw_log", ""),
-                "metadata": _mapping(e, "metadata"),
-            }
-            for e in events
-        ]
 
     def _segments(self) -> list[str]:
         path = urlsplit(self.path).path
