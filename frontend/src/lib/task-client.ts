@@ -41,11 +41,6 @@ export interface BackendTaskListResponse extends Record<string, unknown> {
 
 export type BackendTaskDetailResponse = BackendTaskCreateResponse;
 
-export interface BackendTaskEventsResponse extends Record<string, unknown> {
-  task_id: string;
-  events: Array<Record<string, unknown>>;
-}
-
 export interface PublishTaskInput {
   windowId: string;
   title: string;
@@ -254,7 +249,6 @@ function _normalizeTask(raw: Record<string, unknown>) {
       timestamp: String(e.timestamp ?? ""),
       title: String(e.title ?? ""),
       description: String(e.description ?? ""),
-      rawLog: String((e as { raw_log?: string }).raw_log ?? ""),
       expanded: false,
     })),
     changes: changes.map((c: Record<string, unknown>) => ({
@@ -336,27 +330,6 @@ export async function fetchTask(taskId: string) {
     unknown
   >;
   return _normalizeTask(payload);
-}
-
-export async function fetchTaskEvents(
-  taskId: string,
-): Promise<Array<Record<string, unknown>>> {
-  if (!taskId) return [];
-  if (_isMock()) return [];
-  const response = await fetch(
-    `${API_BASE}/api/tasks/${taskId}/events`,
-    {
-      headers: { Accept: "application/json" },
-    },
-  );
-  if (!response.ok) {
-    throw new Error(`fetch task events failed: ${response.status}`);
-  }
-  const payload = (await _json<BackendTaskEventsResponse>(response)) as Record<
-    string,
-    unknown
-  >;
-  return _array(payload.events);
 }
 
 export async function executeTask(taskId: string): Promise<Record<string, unknown>> {
