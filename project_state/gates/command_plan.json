@@ -1,1 +1,178 @@
-{"schema_version":1,"decision_id":"decision_20260914_issue884_compact_instructions_r2_v2","round_id":"round_20260914_issue884_compact_instructions_r2_v2","commands":[{"command_id":"issue884.bootstrap","command":"In a real trusted checkout observe the exact base, branch and immutable Decision-only activation; run existing startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness. Existing repository CI may independently produce preflight evidence on its actual full checkout. Never treat partial materialization as complete or fabricate gate outputs.","phase":"bootstrap","required":false,"required_evidence_source":"repository_state_attestation","expected_exit_codes":[0],"execution_surface":"trusted_worker","operations":["code_read","local_static_check","command_plan_generation"],"network_access":false,"diagnostic_only":false,"allowed_only_after_validation":false,"authority_origin":"normal_plan","bootstrap_exception":false,"produced_artifacts":["project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/bootstrap_state.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"],"subject_to_reconciliation":true,"allowed_mutated_paths":[]},{"command_id":"issue884.implement","command":"After actual pre-execution authorization author only the eleven semantic paths. Preserve every existing authority/acceptance predicate and complete the frozen instruction repair. Use installed provider-free tooling for bounded isolated development checks, accurately identifying partial-materialization limits. No existing test, registry, workflow, dependency, control-plane or other active-lane mutation.","phase":"implementation","required":true,"required_evidence_source":"repository_state_attestation","expected_exit_codes":[0],"execution_surface":"trusted_worker","operations":["source_edit","local_static_check","unit_test"],"network_access":false,"diagnostic_only":false,"allowed_only_after_validation":false,"authority_origin":"normal_plan","bootstrap_exception":false,"produced_artifacts":[],"subject_to_reconciliation":true,"allowed_mutated_paths":["AGENTS.md","docs/agents/governance-reference.md",".codex-skills/reverse-agent-iteration/SKILL.md",".codex-skills/reverse-agent-iteration/references/project-state-round.md",".codex-skills/samplereverse-frontier/SKILL.md",".codex-skills/samplereverse-frontier/references/sample-guardrails.md","docs/prompts/README.md","docs/prompts/codex_execution_prompt.md","docs/prompts/project_workspace_prompt.md","docs/prompts/legacy-project-state-reference.md","tests/test_agent_instruction_context.py"]},{"command_id":"issue884.validate","command":"On a full exact-head checkout run python -m pytest tests/test_agent_instruction_context.py tests/test_codex_skills.py tests/test_minimal_integration_baseline_docs.py -q; python tools/audit_codex_skills.py; python -m reverse_agent.project_gate policy-lint --state-dir project_state; git diff --check. Existing repository workflows retain unchanged setup/checks. Missing full-checkout or PowerShell sync evidence is not success. No skips, exclusions, dependency updates or weakened expectations to hide failures.","phase":"validation","required":true,"required_evidence_source":"repository_state_attestation","expected_exit_codes":[0],"execution_surface":"ci_only","operations":["unit_test","local_static_check","diff_validation"],"network_access":false,"diagnostic_only":false,"allowed_only_after_validation":false,"authority_origin":"normal_plan","bootstrap_exception":false,"produced_artifacts":[],"subject_to_reconciliation":true,"allowed_mutated_paths":[]},{"command_id":"issue884.publish","command":"Publish only owner/issue642-compact-instructions-r2-v2 in dddd2024/Nerelan and one Draft against main@a019b0f7ec3c807869eb076883be737c4dc3116d. Initial publication is Decision-only for natural preflight; semantic publication requires actual pre-execution authorization. Rebind the exact head in the Draft body. Record progress on this Draft and Issues884/642/296 and failed PR885. Never Ready or Merge.","phase":"publication","required":true,"required_evidence_source":"repository_state_attestation","expected_exit_codes":[0],"execution_surface":"github_control_plane","operations":["push","draft_pr","pull_request_comment","issue_comment","network_access"],"network_access":true,"diagnostic_only":false,"allowed_only_after_validation":false,"authority_origin":"normal_plan","bootstrap_exception":false,"produced_artifacts":[],"subject_to_reconciliation":true,"allowed_mutated_paths":[]},{"command_id":"issue884.observe","command":"Fresh-read remote base/head, natural State Gate/Decision Preflight/CI and evidence. Review the full scoped diff and retained authority predicates. Compare actual text bytes/lines only. Do not mislabel self-review as independent, substitute old proof, rerun workflows, or call a blocked Draft completed or merged.","phase":"final_evidence","required":true,"required_evidence_source":"repository_state_attestation","expected_exit_codes":[0],"execution_surface":"remote_observation","operations":["read_only_audit","code_read"],"network_access":false,"diagnostic_only":false,"allowed_only_after_validation":false,"authority_origin":"normal_plan","bootstrap_exception":false,"produced_artifacts":[],"subject_to_reconciliation":true,"allowed_mutated_paths":[]}],"plan_name":"transition-command-plan","plan_status":"PASSED","blocking_reasons":[]}
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260915_issue894_pr893_owner_landing_recovery_r2_v3",
+  "round_id": "round_20260915_issue894_pr893_owner_landing_recovery_r2_v3",
+  "commands": [
+    {
+      "command_id": "issue894v3.bootstrap",
+      "command": "On the exact v3 sidecar activation run existing transition command-plan, lint and preflight against locked main. Require PRE_EXECUTION_AUTHORIZED and immutable Decision evidence before generated-plan materialization.",
+      "phase": "bootstrap",
+      "required": false,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "trusted_worker",
+      "operations": [
+        "code_read",
+        "local_static_check",
+        "command_plan_generation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json"
+      ],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue894v3.materialize",
+      "command": "Materialize exactly one generated-governance commit containing only command_plan.json and transition_command_plan_preview.json from the immutable v3 Decision projection. No product test workflow or source edit.",
+      "phase": "implementation",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "trusted_worker",
+      "operations": [
+        "source_edit",
+        "local_static_check"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json"
+      ]
+    },
+    {
+      "command_id": "issue894v3.validate",
+      "command": "Require natural v3 sidecar CI Decision Preflight and State Gate success; fresh-read current main target exact head/base Ready unmerged state, failed run34946231419, existing canonical attestation comment5677002202, Owner review, Ruleset and review threads; require no drift and no workflow rerun.",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "remote_observation",
+      "operations": [
+        "code_read",
+        "read_only_audit",
+        "repository_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue894v3.publish",
+      "command": "Publish only owner/issue894-pr893-owner-landing-r2-v3 and exactly one Draft recovery sidecar against locked main d3ffafc8924614f309a8f85b6224137f94b2d8c1; keep sidecar Draft and unmerged.",
+      "phase": "publication",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "push",
+        "draft_pr",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue894v3.reset_target_draft",
+      "command": "After exact v3 sidecar acceptance and fresh no-drift validation, convert target PR893 at de5400fe67c33e8f26517fac49f9e28d41132139 back to Draft exactly once. This is a PR readiness-state recovery mutation only; never push the target branch and never rerun or dispatch a workflow.",
+      "phase": "recovery",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "ready",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue894v3.rebind_attestation",
+      "command": "After the natural converted_to_draft State Gate succeeds, update existing top-level attestation comment 5677002202 in place exactly once for v3 binding and preserve parser-visible attestation count=1.",
+      "phase": "final_evidence",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "pull_request_comment",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "issue894v3.land_target",
+      "command": "After the updated attestation is reread and valid, mark target PR893 Ready exactly once under v3; require a new natural formal landing-state-gate SUCCESS; then merge once by ordinary merge with expected head de5400fe67c33e8f26517fac49f9e28d41132139; never rerun or dispatch a workflow.",
+      "phase": "final_evidence",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "mark_ready",
+        "merge",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    }
+  ]
+}
