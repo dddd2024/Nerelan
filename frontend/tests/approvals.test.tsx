@@ -221,6 +221,90 @@ describe("Approvals continuation page", () => {
     });
   });
 
+  it("preserves an activation-level non-window 409 when refresh shows no active window", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
+    const goal = goalFixture("APPROVED");
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ autonomy: { active_window: null } }))
+      .mockResolvedValueOnce(jsonResponse({ error: "invalid_autonomy_policy_identity" }, 409))
+      .mockResolvedValueOnce(jsonResponse({ autonomy: { active_window: null } }));
+
+    let observed: unknown;
+    try {
+      await launchExistingGoal(goal, 2);
+    } catch (error) {
+      observed = error;
+    }
+
+    expect(observed).toBeInstanceOf(platformClient.PlatformClientError);
+    expect(observed).toMatchObject({
+      status: 409,
+      code: "invalid_autonomy_policy_identity",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).endsWith(`/api/goals/${goal.id}/launch`),
+      ),
+    ).toBe(false);
+  });
+
+  it("reuses a same-repository active window discovered after an activation conflict", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
+    const goal = goalFixture("APPROVED");
+    const running = { ...goal, status: "RUNNING" as const, window_id: "window-raced" };
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ autonomy: { active_window: null } }))
+      .mockResolvedValueOnce(jsonResponse({ error: "active_window_conflict" }, 409))
+      .mockResolvedValueOnce(jsonResponse({
+        autonomy: {
+          active_window: {
+            id: "window-raced",
+            repositories: [goal.repository],
+          },
+        },
+      }))
+      .mockResolvedValueOnce(jsonResponse(running))
+      .mockResolvedValueOnce(jsonResponse(running));
+
+    const result = await launchExistingGoal(goal, 2);
+
+    expect(result).toMatchObject({
+      id: goal.id,
+      revision: goal.revision,
+      window_id: "window-raced",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    const launchCall = fetchMock.mock.calls.find(([input]) =>
+      String(input).endsWith(`/api/goals/${goal.id}/launch`),
+    );
+    expect(JSON.parse(String(launchCall?.[1]?.body))).toEqual({
+      expected_revision: goal.revision,
+      window_id: "window-raced",
+    });
+  });
+
+  it("reports a repository conflict only when refresh observes another repository window", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
+    const goal = goalFixture("APPROVED");
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ autonomy: { active_window: null } }))
+      .mockResolvedValueOnce(jsonResponse({ error: "active_window_conflict" }, 409))
+      .mockResolvedValueOnce(jsonResponse({
+        autonomy: {
+          active_window: {
+            id: "window-other-after-race",
+            repositories: ["other/repository"],
+          },
+        },
+      }));
+
+    await expect(launchExistingGoal(goal, 2)).rejects.toMatchObject({
+      code: "active_window_repository_conflict",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it("reuses an active window for the same repository without activating another one", async () => {
     vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
     const goal = goalFixture("APPROVED");
