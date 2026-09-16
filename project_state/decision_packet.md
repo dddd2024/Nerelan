@@ -1,10 +1,10 @@
-# Decision Packet — instruction repair, corrected activation
+# Decision Packet — F03 reviewed Ubuntu goldens current-main successor
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260914_issue884_compact_instructions_r2_v2",
-  "round_id": "round_20260914_issue884_compact_instructions_r2_v2",
+  "decision_id": "decision_20260916_issue913_f03_reviewed_ubuntu_goldens_r2_v9",
+  "round_id": "round_20260916_issue913_f03_reviewed_ubuntu_goldens_r2_v9",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -14,22 +14,23 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "BOUNDED_AGENT_INSTRUCTION_REPAIR",
-  "source_issue": 884,
-  "parent_issue": 642,
+  "decision_scope": "F03_CURRENT_MAIN_EXACT_PRODUCT_REUSE_REVIEWED_UBUNTU_GOLDENS",
+  "source_issue": 913,
+  "parent_issue": 653,
   "repository": "dddd2024/Nerelan",
-  "approved_by": "dddd2024 via explicitly delegated Agent authoring",
-  "approval_basis": "The user requested an article-based instruction audit and corrections and previously delegated repository Owner authoring. This is disclosed Agent authoring, not independent human review. One fresh corrective activation is approved for the exact missing authorized_risk_paths declaration identified in failed PR885; it replaces no historical evidence and grants no Ready/Merge.",
-  "supersedes_decision_id": "decision_20260914_issue884_compact_instructions_r2_v1",
-  "superseded_evidence": "PR885 head ff4fc42105fe3239d95e83a3d28aacf58d4ad2d7; Decision Preflight run34813559273 job103879488607. All shown preflight predicates except path_risk_floor_enforced passed. The failed authoring omitted authorized_risk_paths for generated R2 artifacts. No semantic implementation was published. Preserve v1 unchanged; no rerun or history rewrite.",
+  "approved_by": "dddd2024 via explicitly delegated Agent Owner action",
+  "approval_basis": "The user explicitly delegated Owner authority to complete high-priority non-overlapping work. PR847 is stopped by its immutable failure-stop contract after only eight stable Ubuntu visual-golden mismatches; Issue913 records fresh current-main dedupe, artifact integrity and full-resolution review. This Decision authorizes exact product-blob rematerialization plus only the eight individually reviewed Ubuntu actual PNG bytes. This is disclosed delegated Agent authoring, not independent human review.",
+  "supersedes_decision_id": "decision_20260912_issue844_visible_goal_evidence_r3_v8",
+  "superseded_evidence": "PR847 exact head 7d517b2d84b47c724f3df2218f9b94c02013726e remains unchanged negative chronology: CI, Decision Preflight, State Gate and Model Access succeeded; Frontend Playwright run 34684057222 failed eight visual goldens only, with 24 passed and 2 skipped. Artifact 10294643559 digest sha256:0ae1bfbc2d9e27ea686a45d5836e820a06feceba7ff08060d09c2e903f61db39 is preserved. No workflow rerun or old-branch fix-forward is allowed.",
   "risk_tier": "R2",
   "authorized_risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
+  "workflow_profile": "browser_r3",
   "integration_base_ref": "main",
-  "base_sha": "a019b0f7ec3c807869eb076883be737c4dc3116d",
-  "activation_base_sha": "a019b0f7ec3c807869eb076883be737c4dc3116d",
-  "starting_head": "a019b0f7ec3c807869eb076883be737c4dc3116d",
-  "required_branch": "owner/issue642-compact-instructions-r2-v2",
+  "base_sha": "d3ffafc8924614f309a8f85b6224137f94b2d8c1",
+  "activation_base_sha": "d3ffafc8924614f309a8f85b6224137f94b2d8c1",
+  "starting_head": "d3ffafc8924614f309a8f85b6224137f94b2d8c1",
+  "required_branch": "owner/f03-reviewed-ubuntu-goldens-r2-v9",
   "fresh_worktree_creation_required": false,
   "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
@@ -38,9 +39,9 @@
   "decision_immutability_required": true,
   "decision_immutability_check_required_in": ["transition_preflight", "transition_reconcile", "worktree_publication_readiness"],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 3,
+  "product_change_commit_limit": 1,
   "generated_governance_commit_limit": 1,
-  "normal_push_attempt_limit": 5,
+  "normal_push_attempt_limit": 4,
   "draft_pr_creation_limit": 1,
   "mark_ready_attempt_limit": 0,
   "merge_attempt_limit": 0,
@@ -68,58 +69,198 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "Repair the eleven instruction/test paths defined below. Compact AGENTS into a current Nerelan entry and conditional router without weakening existing authority, risk, immutable scope, exact base/head, dirty-work, security, Draft, independent review or human-versus-Agent landing predicates. Do not implement #677. Narrow skill descriptions, place detailed project-state/sample workflows in skill-local references and retain registry names/scopes/v2 compatibility. Make execution and planning prompts short non-authoritative locators with canonical repository, Work Item, role/surface, outcome and optional stale-detection hints. Ordinary Path A uses its approved Issue snapshot, Path B uses its immutable Decision and generated preflight; no universal Windows drive, historical report stack or reverse-solving default. Preserve legacy report/sample constraints only when the active task selects them. Allow safe development iteration only within existing permissions and budget; final mandatory acceptance failure, drift, missing authority/capability or exhausted budget remains blocking. Define completion as implemented and checked on actual artifacts, otherwise report explicit limitations. Add provider-free text/routing/link/authority regression tests; do not weaken existing tests or policy lint. Measure bytes/lines only, not unmeasured model tokens, speed or quality.",
-    "execution_surface_note": "GitHub-first activation and publication; real trusted tool runtime for bounded authoring/isolated static checks; existing repository CI for full exact-head checkout validation. A partial local materialization is not a full checkout. Natural CI must first produce actual pre-execution authorization on this Decision-only activation. Do not hand-author successful gate outputs. No user-local installation or worktree changes.",
-    "completion_boundary": "Draft only; no Ready/Merge, no parent closure. Failed v1 remains evidence. This corrective activation has no further automatic successor budget. Missing or failed mandatory proof remains blocked."
+    "specification": "After actual PRE_EXECUTION_AUTHORIZED, materialize exactly the 22 product files from PR847 exact head 7d517b2d84b47c724f3df2218f9b94c02013726e by reusing their existing Git blob identities without editing content, and replace exactly the eight existing Ubuntu Home/Settings desktop/mobile light/dark snapshot files with the individually reviewed actual PNG bytes from Playwright artifact 10294643559. Do not change product semantics, tests, thresholds, Playwright configuration, workflows, dependencies, routes or any other snapshot. Preserve all intervening current-main governance and OPS-1 changes.",
+    "product_source_head": "7d517b2d84b47c724f3df2218f9b94c02013726e",
+    "artifact_id": 10294643559,
+    "artifact_zip_sha256": "0ae1bfbc2d9e27ea686a45d5836e820a06feceba7ff08060d09c2e903f61db39",
+    "reviewed_snapshot_sha256": {
+      "frontend/e2e/snapshots/desktop-chromium/home-dark.png": "8b008e1663581d696553caa25ec8610b8e2e5a5a6df4352ca69459a9dadaefd9",
+      "frontend/e2e/snapshots/desktop-chromium/home-light.png": "689e60b0471b901dd1b99e50ff12d50a0afb7f9bda232888702b0a6e84f42c50",
+      "frontend/e2e/snapshots/desktop-chromium/settings-dark.png": "cc9cf3b5f9977db3bcc00a0b8569c7e03514a67dc432d881557864f03a9c2c12",
+      "frontend/e2e/snapshots/desktop-chromium/settings-light.png": "ba6a593f268f051ef6546e1ecff21cfd16376143d4b1f24176e57a7152dadc2d",
+      "frontend/e2e/snapshots/mobile-chromium/home-dark.png": "79c169bfdbffa339ef32688774b912a8880cc63042123fc419ca90576b1ef7f7",
+      "frontend/e2e/snapshots/mobile-chromium/home-light.png": "8ba705e6700335ef354cace5214fdad2b5672eb73528f77e00cc17efce355bd5",
+      "frontend/e2e/snapshots/mobile-chromium/settings-dark.png": "eb69f172446e1db6a02e3d5bdb2b323380b86b01d42c8614c619b499e4116b78",
+      "frontend/e2e/snapshots/mobile-chromium/settings-light.png": "05e0ca5d55bbb8540d0a7e762737b51c80026cf94db1e66e3f7eaf18fdcf237d"
+    },
+    "execution_surface_note": "GitHub-first Decision-only activation and exact blob publication. No user-local/browser/model/provider/credential execution. Existing CI, Decision Preflight, State Gate, Model Access and Frontend Playwright run naturally on GitHub. browser_r3 is selected only to require those five trusted workflows; it grants no local browser capability.",
+    "completion_boundary": "Draft exact head only. All five natural exact-head workflows must succeed with no rerun/dispatch; exact audit must confirm 22 product blobs equal PR847 and eight snapshots equal the bound hashes. No Ready/Merge and no #653/#659 closure."
   },
   "bootstrap_exception_files": ["project_state/decision_packet.md"],
   "bootstrap_exception_commands": [],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
-    "project_state/gates/command_plan.json", "project_state/gates/startup_snapshot.json", "project_state/gates/bootstrap_state.json", "project_state/gates/transition_command_plan_preview.json", "project_state/gates/transition_preflight_result.json",
-    "AGENTS.md", "docs/agents/governance-reference.md",
-    ".codex-skills/reverse-agent-iteration/SKILL.md", ".codex-skills/reverse-agent-iteration/references/project-state-round.md",
-    ".codex-skills/samplereverse-frontier/SKILL.md", ".codex-skills/samplereverse-frontier/references/sample-guardrails.md",
-    "docs/prompts/README.md", "docs/prompts/codex_execution_prompt.md", "docs/prompts/project_workspace_prompt.md", "docs/prompts/legacy-project-state-reference.md", "tests/test_agent_instruction_context.py"
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json",
+    "docs/functional-validation.md",
+    "frontend/e2e/functional-validation.spec.ts",
+    "frontend/src/components/connection-binding-editor.tsx",
+    "frontend/src/components/functional-validation.tsx",
+    "frontend/src/components/goal-composer.tsx",
+    "frontend/src/components/goal-current-activity.tsx",
+    "frontend/src/components/goal-progress.tsx",
+    "frontend/src/components/theme-selector.tsx",
+    "frontend/src/index.css",
+    "frontend/src/lib/functional-validation.ts",
+    "frontend/src/lib/platform-client.ts",
+    "frontend/src/routes/approvals.tsx",
+    "frontend/src/routes/home.tsx",
+    "frontend/src/routes/roadmap.tsx",
+    "frontend/src/routes/runs.tsx",
+    "frontend/src/routes/settings.tsx",
+    "frontend/tests/approvals.test.tsx",
+    "frontend/tests/goal-completion-evidence.test.tsx",
+    "frontend/tests/goal-progress.test.tsx",
+    "frontend/tests/platform-home.test.tsx",
+    "frontend/tests/roadmap.test.tsx",
+    "frontend/tests/task-first-lifecycle-states.test.tsx",
+    "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
+    "frontend/e2e/snapshots/desktop-chromium/home-light.png",
+    "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
+    "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
+    "frontend/e2e/snapshots/mobile-chromium/home-light.png",
+    "frontend/e2e/snapshots/mobile-chromium/settings-dark.png",
+    "frontend/e2e/snapshots/mobile-chromium/settings-light.png"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
-    "project_state/gates/command_plan.json", "project_state/gates/startup_snapshot.json", "project_state/gates/bootstrap_state.json", "project_state/gates/transition_command_plan_preview.json", "project_state/gates/transition_preflight_result.json",
-    "AGENTS.md", "docs/agents/governance-reference.md",
-    ".codex-skills/reverse-agent-iteration/SKILL.md", ".codex-skills/reverse-agent-iteration/references/project-state-round.md",
-    ".codex-skills/samplereverse-frontier/SKILL.md", ".codex-skills/samplereverse-frontier/references/sample-guardrails.md",
-    "docs/prompts/README.md", "docs/prompts/codex_execution_prompt.md", "docs/prompts/project_workspace_prompt.md", "docs/prompts/legacy-project-state-reference.md", "tests/test_agent_instruction_context.py"
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
   ],
-  "generated_artifact_paths": ["project_state/gates/command_plan.json", "project_state/gates/startup_snapshot.json", "project_state/gates/bootstrap_state.json", "project_state/gates/transition_command_plan_preview.json", "project_state/gates/transition_preflight_result.json"],
-  "reference_paths": [".codex-skills/registry.json", ".codex-skills/schema.md", "tools/audit_codex_skills.py", "tools/sync_codex_skills.ps1", "tests/test_codex_skills.py", "tests/test_minimal_integration_baseline_docs.py", "docs/architecture/SOURCE_OF_TRUTH_MATRIX.md", "docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md"],
-  "forbidden_mutated_paths": [".github/**", "reverse_agent/**", "frontend/**", ".codex-skills/registry.json", ".codex-skills/schema.md", "tools/**", "tests/test_codex_skills.py", "tests/test_minimal_integration_baseline_docs.py", "project_state/rounds/**", "project_state/mainline_merge_intents/**", "pyproject.toml", "requirements*.txt", "**/secrets/**", "**/.env"],
+  "generated_artifact_paths": [
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
+  "reference_paths": ["AGENTS.md", "docs/agents/governance-reference.md", ".github/workflows/ci.yml", ".github/workflows/decision-preflight.yml", ".github/workflows/state-gate.yml", ".github/workflows/frontend-playwright.yml", ".github/workflows/model-access.yml"],
+  "forbidden_mutated_paths": [".github/**", "reverse_agent/**", "pyproject.toml", "requirements*.txt", "frontend/package.json", "frontend/package-lock.json", "frontend/playwright.config.ts", "frontend/e2e/visual.spec.ts", "project_state/rounds/**", "project_state/mainline_merge_intents/**", "**/secrets/**", "**/.env"],
   "forbidden_operations": ["direct_push_main", "force_push", "rebase", "merge", "mark_ready", "tag_or_release", "runner_dispatch", "model_api_invocation", "external_reverse_tool_invocation", "unknown_binary_execution", "destructive", "browser_execution", "workflow_dispatch"],
   "capability_policy": {
-    "runner_dispatch_allowed": false, "model_api_invocation_allowed": false, "external_reverse_tool_invocation_allowed": false, "unknown_binary_execution_allowed": false, "destructive_operations_allowed": false, "bmad_installation_allowed": false, "network_access_default_allowed": false, "direct_push_to_main_allowed": false, "force_push_allowed": false, "rebase_during_execution_allowed": false, "tag_or_release_allowed": false, "merge_allowed": false, "remote_observation_read_only_allowed": true,
-    "local_network_exceptions": [], "ci_network_exceptions": [], "trusted_worker_network_exceptions": [], "user_local_network_exceptions": [],
-    "github_control_plane_network_exceptions": ["Publish only owner/issue642-compact-instructions-r2-v2 in dddd2024/Nerelan and one Draft against main@a019b0f7ec3c807869eb076883be737c4dc3116d. Initial publication is Decision-only for natural preflight; semantic publication requires actual pre-execution authorization. Rebind the exact head in the Draft body. Record progress on this Draft and Issues884/642/296 and failed PR885. Never Ready or Merge."]
+    "runner_dispatch_allowed": false,
+    "model_api_invocation_allowed": false,
+    "external_reverse_tool_invocation_allowed": false,
+    "unknown_binary_execution_allowed": false,
+    "destructive_operations_allowed": false,
+    "bmad_installation_allowed": false,
+    "network_access_default_allowed": false,
+    "direct_push_to_main_allowed": false,
+    "force_push_allowed": false,
+    "rebase_during_execution_allowed": false,
+    "tag_or_release_allowed": false,
+    "merge_allowed": false,
+    "remote_observation_read_only_allowed": true,
+    "local_network_exceptions": [],
+    "ci_network_exceptions": [],
+    "trusted_worker_network_exceptions": [],
+    "user_local_network_exceptions": [],
+    "github_control_plane_network_exceptions": ["Publish only owner/f03-reviewed-ubuntu-goldens-r2-v9 in dddd2024/Nerelan and one Draft against main@d3ffafc8924614f309a8f85b6224137f94b2d8c1. Initial publication is Decision-only. After actual PRE_EXECUTION_AUTHORIZED, publish exactly one semantic tree containing only the 22 PR847 product blobs and eight reviewed snapshot blobs. Update only the Draft/evidence. Never Ready or Merge."]
   },
-  "path_risk_floor": [{"pattern": "project_state/**", "minimum_risk": "R2"}, {"pattern": "AGENTS.md", "minimum_risk": "R2"}, {"pattern": ".codex-skills/**", "minimum_risk": "R2"}],
+  "path_risk_floor": [{"pattern": "project_state/**", "minimum_risk": "R2"}],
   "allowed_commands": [
     {
-      "command_id": "issue884.bootstrap", "command": "In a real trusted checkout observe the exact base, branch and immutable Decision-only activation; run existing startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness. Existing repository CI may independently produce preflight evidence on its actual full checkout. Never treat partial materialization as complete or fabricate gate outputs.",
-      "phase": "bootstrap", "required": false, "expected_exit_codes": [0], "execution_surface": "trusted_worker", "operations": ["code_read", "local_static_check", "command_plan_generation"], "network_access": false, "required_evidence_source": "repository_state_attestation", "allowed_mutated_paths": [], "produced_artifacts": ["project_state/gates/command_plan.json", "project_state/gates/startup_snapshot.json", "project_state/gates/bootstrap_state.json", "project_state/gates/transition_command_plan_preview.json", "project_state/gates/transition_preflight_result.json"]
+      "command_id": "issue913.bootstrap",
+      "command": "On a real full checkout of the Decision-only activation run the existing startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness as applicable. Existing repository CI may independently produce this evidence on its actual checkout. Never fabricate successful gate outputs or treat stale gates from main as authorization.",
+      "phase": "bootstrap",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "trusted_worker",
+      "operations": ["code_read", "local_static_check", "command_plan_generation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": ["project_state/gates/command_plan.json", "project_state/gates/startup_snapshot.json", "project_state/gates/bootstrap_state.json", "project_state/gates/transition_command_plan_preview.json", "project_state/gates/transition_preflight_result.json"]
     },
     {
-      "command_id": "issue884.implement", "command": "After actual pre-execution authorization author only the eleven semantic paths. Preserve every existing authority/acceptance predicate and complete the frozen instruction repair. Use installed provider-free tooling for bounded isolated development checks, accurately identifying partial-materialization limits. No existing test, registry, workflow, dependency, control-plane or other active-lane mutation.",
-      "phase": "implementation", "required": true, "expected_exit_codes": [0], "execution_surface": "trusted_worker", "operations": ["source_edit", "local_static_check", "unit_test"], "network_access": false, "required_evidence_source": "repository_state_attestation", "allowed_mutated_paths": ["AGENTS.md", "docs/agents/governance-reference.md", ".codex-skills/reverse-agent-iteration/SKILL.md", ".codex-skills/reverse-agent-iteration/references/project-state-round.md", ".codex-skills/samplereverse-frontier/SKILL.md", ".codex-skills/samplereverse-frontier/references/sample-guardrails.md", "docs/prompts/README.md", "docs/prompts/codex_execution_prompt.md", "docs/prompts/project_workspace_prompt.md", "docs/prompts/legacy-project-state-reference.md", "tests/test_agent_instruction_context.py"], "produced_artifacts": []
+      "command_id": "issue913.materialize",
+      "command": "Only after actual PRE_EXECUTION_AUTHORIZED, create one semantic commit on owner/f03-reviewed-ubuntu-goldens-r2-v9 by reusing the exact Git blobs for the 22 product paths from PR847 head 7d517b2d84b47c724f3df2218f9b94c02013726e and the exact eight reviewed PNG bytes bound in this Decision. No content authoring, threshold/test/config changes, local browser execution, dependency change or other path mutation.",
+      "phase": "implementation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "github_control_plane",
+      "operations": ["source_edit", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [
+        "docs/functional-validation.md",
+        "frontend/e2e/functional-validation.spec.ts",
+        "frontend/src/components/connection-binding-editor.tsx",
+        "frontend/src/components/functional-validation.tsx",
+        "frontend/src/components/goal-composer.tsx",
+        "frontend/src/components/goal-current-activity.tsx",
+        "frontend/src/components/goal-progress.tsx",
+        "frontend/src/components/theme-selector.tsx",
+        "frontend/src/index.css",
+        "frontend/src/lib/functional-validation.ts",
+        "frontend/src/lib/platform-client.ts",
+        "frontend/src/routes/approvals.tsx",
+        "frontend/src/routes/home.tsx",
+        "frontend/src/routes/roadmap.tsx",
+        "frontend/src/routes/runs.tsx",
+        "frontend/src/routes/settings.tsx",
+        "frontend/tests/approvals.test.tsx",
+        "frontend/tests/goal-completion-evidence.test.tsx",
+        "frontend/tests/goal-progress.test.tsx",
+        "frontend/tests/platform-home.test.tsx",
+        "frontend/tests/roadmap.test.tsx",
+        "frontend/tests/task-first-lifecycle-states.test.tsx",
+        "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
+        "frontend/e2e/snapshots/desktop-chromium/home-light.png",
+        "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
+        "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
+        "frontend/e2e/snapshots/mobile-chromium/home-light.png",
+        "frontend/e2e/snapshots/mobile-chromium/settings-dark.png",
+        "frontend/e2e/snapshots/mobile-chromium/settings-light.png"
+      ],
+      "produced_artifacts": []
     },
     {
-      "command_id": "issue884.validate", "command": "On a full exact-head checkout run python -m pytest tests/test_agent_instruction_context.py tests/test_codex_skills.py tests/test_minimal_integration_baseline_docs.py -q; python tools/audit_codex_skills.py; python -m reverse_agent.project_gate policy-lint --state-dir project_state; git diff --check. Existing repository workflows retain unchanged setup/checks. Missing full-checkout or PowerShell sync evidence is not success. No skips, exclusions, dependency updates or weakened expectations to hide failures.",
-      "phase": "validation", "required": true, "expected_exit_codes": [0], "execution_surface": "ci_only", "operations": ["unit_test", "local_static_check", "diff_validation"], "network_access": false, "required_evidence_source": "repository_state_attestation", "allowed_mutated_paths": [], "produced_artifacts": []
+      "command_id": "issue913.validate",
+      "command": "On the exact semantic head, natural repository workflows must execute CI, Decision Preflight, State Gate, Model Access and Frontend Playwright. Playwright must pass existing assertions against the bound goldens without update-snapshots or threshold changes. No workflow rerun/dispatch.",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "ci_only",
+      "operations": ["unit_test", "integration_test", "local_static_check", "diff_validation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
     },
     {
-      "command_id": "issue884.publish", "command": "Publish only owner/issue642-compact-instructions-r2-v2 in dddd2024/Nerelan and one Draft against main@a019b0f7ec3c807869eb076883be737c4dc3116d. Initial publication is Decision-only for natural preflight; semantic publication requires actual pre-execution authorization. Rebind the exact head in the Draft body. Record progress on this Draft and Issues884/642/296 and failed PR885. Never Ready or Merge.",
-      "phase": "publication", "required": true, "expected_exit_codes": [0], "execution_surface": "github_control_plane", "operations": ["push", "draft_pr", "pull_request_comment", "issue_comment", "network_access"], "network_access": true, "required_evidence_source": "repository_state_attestation", "allowed_mutated_paths": [], "produced_artifacts": []
+      "command_id": "issue913.publish",
+      "command": "Publish only owner/f03-reviewed-ubuntu-goldens-r2-v9 and one Draft against main@d3ffafc8924614f309a8f85b6224137f94b2d8c1. First publication is Decision-only for natural pre-execution authorization; after authorization publish at most one semantic commit and update only Draft/evidence. Never Ready/Merge and never rerun/dispatch workflows.",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "github_control_plane",
+      "operations": ["push", "draft_pr", "pull_request_comment", "issue_comment", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
     },
     {
-      "command_id": "issue884.observe", "command": "Fresh-read remote base/head, natural State Gate/Decision Preflight/CI and evidence. Review the full scoped diff and retained authority predicates. Compare actual text bytes/lines only. Do not mislabel self-review as independent, substitute old proof, rerun workflows, or call a blocked Draft completed or merged.",
-      "phase": "final_evidence", "required": true, "expected_exit_codes": [0], "execution_surface": "remote_observation", "operations": ["read_only_audit", "code_read"], "network_access": false, "required_evidence_source": "repository_state_attestation", "allowed_mutated_paths": [], "produced_artifacts": []
+      "command_id": "issue913.observe",
+      "command": "Fresh-read main/base/head, all five natural exact-head workflows, changed paths and blob identities. Verify all 22 product Git blobs exactly equal PR847 and all eight snapshots equal the Decision-bound SHA-256 values. Preserve PR847/844 negative chronology. Do not claim landing.",
+      "phase": "final_evidence",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "remote_observation",
+      "operations": ["read_only_audit", "code_read"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
     }
   ],
   "issue_completion_close_allowed": []
@@ -128,32 +269,12 @@
 
 ## Goal
 
-Complete #884's bounded instruction repair under #642/#296; no product behavior or governance permission change.
+Bind only the individually reviewed Ubuntu Playwright actuals from stopped PR #847 as the eight existing Home/Settings goldens while rematerializing the exact #847 product blobs on current main. No product semantic redesign.
 
 ## Current Evidence
 
-The official source is https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra. Base main was freshly observed at the exact SHA above. PR885 preserves the failed first activation and its known missing risk-path declaration; this fresh activation fixes that declaration without rewriting it.
-
-## Do Not Do
-
-No Ready/Merge, force/history rewrite, workflow rerun/dispatch, policy weakening, dependency changes, provider/browser/binary execution, user-local sync, historical evidence rewrite or other active-lane mutation.
-
-## Files To Inspect
-
-Only task-relevant semantic paths, their referenced contracts/tests and actual generated evidence. No broad historical report replay.
-
-## Required Audit
-
-Retained authority predicates, concise and unambiguous triggers, valid conditional references, sample isolation, current authority routing, full-checkout check provenance and truthful completion.
-
-## Implementation Scope
-
-The eleven exact semantic paths, after actual pre-execution authorization. No new context framework, schema or Gate.
-
-## Tests
-
-The four focused validation commands and applicable natural CI. Development checks on partial files are isolated evidence only.
+PR #847 exact head `7d517b2d84b47c724f3df2218f9b94c02013726e`: four natural workflows succeeded and Frontend Playwright failed only eight stable screenshot comparisons (24 passed, 2 skipped). Artifact `10294643559` ZIP digest and all eight actual PNG SHA-256 values are frozen above. Current main has no intervening change to any authorized product/snapshot path.
 
 ## Stop Conditions
 
-Missing pre-execution proof, changed base, Decision mutation, out-of-scope changes, failed mandatory acceptance or exhausted budget remain blocking. This corrective activation has no further automatic successor budget. Keep blocked evidence; no false green.
+Missing `PRE_EXECUTION_AUTHORIZED`, Decision mutation, base movement, blob/hash mismatch, any extra changed path, failed natural exact-head workflow, snapshot threshold/test change, or any request for local browser/provider/credential capability stops the round. No fix-forward chain; preserve exact evidence.
