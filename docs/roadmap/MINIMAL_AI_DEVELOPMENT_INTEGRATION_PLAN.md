@@ -23,6 +23,175 @@ natural-language goal
 
 Repository-owned capability remains a thin trust layer: risk and authority classification, bounded path/operation policy, autonomous-window budgets, durable claims/idempotency, evidence confinement, exact-path Draft publication, and deterministic acceptance. Spec Kit, LangGraph, OpenCode, OpenHands Agent Canvas, and GitHub provide the mature planning, orchestration, execution, presentation, and repository surfaces.
 
+## Capability-aware critical-path scheduling
+
+**Priority and execution capability are separate axes.** Product and milestone priority determines what matters most; the execution surfaces currently available determine which ready slice of that priority can be executed now.
+
+A missing user-local shell or runtime is therefore not a project-level blocker while useful work on the active critical path remains executable through the repository's currently available surfaces. GitHub-native implementation, review, CI, static verification, documentation, evidence preparation, and remote observation are real development when they advance the current milestone.
+
+The permanent scheduling loop is:
+
+```text
+1. choose the highest-priority active milestone;
+2. enumerate its remaining implementation, verification, and validation slices;
+3. classify each slice by the execution surface it actually requires;
+4. execute the highest-value slice that is runnable on the surfaces currently available;
+5. keep unavailable slices explicitly BLOCKED_BY_CAPABILITY, not BLOCKED_PROJECT;
+6. do not jump to unrelated lower-priority feature work merely because one
+   higher-priority runtime-validation slice is temporarily unavailable;
+7. use GitHub/CI/remote-observation-capable work to prepare implementation,
+   fixtures, evidence, and deterministic checks so later runtime windows are
+   spent on real validation rather than avoidable setup;
+8. when trusted_worker or user_local capacity appears, consume the
+   highest-priority accumulated validation backlog first.
+```
+
+Scheduling uses the execution-surface vocabulary already owned by #156; this roadmap does not add, merge, or redefine those surfaces:
+
+```text
+github_control_plane
+trusted_worker
+ci_only
+remote_observation
+user_local
+```
+
+The surface names remain distinct. A slice must be classified against the actual capability it requires; an unavailable surface must not be silently substituted with a broader one.
+
+The scheduling distinction is:
+
+```text
+BLOCKED_BY_CAPABILITY
+  the specific slice cannot run on any execution surface currently available;
+  the milestone remains active and other useful authorized critical-path slices continue.
+
+BLOCKED_PROJECT
+  no useful authorized slice of the active milestone can progress on any
+  currently available surface, or an actual project-level dependency blocks it.
+```
+
+When real-provider dogfood, desktop proof, or another top-priority validation requires a temporarily unavailable runtime, development should continue on implementation, fixtures, evidence, deterministic checks, and other prerequisites for that same milestone. Once the required trusted_worker or user_local capacity becomes available, the accumulated highest-priority validation backlog takes precedence over unrelated lower-priority work.
+
+This is a scheduling rule, not execution authority. Every selected slice still follows the applicable Path A or Path B authority, risk, publication, and exact-head verification rules below.
+
+## Execution Drift Control
+
+Nerelan must not depend on late human intuition to notice that execution has diverged from the intended design. Non-trivial work is therefore treated as a closed-loop process in which assumptions are made explicit, implementation proceeds in bounded slices, observed evidence is reconciled with the designed state, and material deviations cannot silently rewrite the plan.
+
+The execution loop is:
+
+```text
+Requirement / Design
+-> Assumption Register
+-> Execution Invariants
+-> Pre-mortem
+-> Small implementation slice
+-> Evidence
+-> Reality Reconciliation
+-> CONTINUE / REPLAN / RETURN_TO_DESIGN / STOP
+```
+
+### Execution invariants
+
+Before implementation expands, record the properties that must remain true while the work proceeds. Invariants may cover authority, product behavior, state truth, execution surface, scope, compatibility, safety, complexity budget, or other design commitments. A violated invariant is explicit drift evidence: execution must not silently continue past it.
+
+Examples include:
+
+```text
+frontend state must be derived from real backend/runtime truth;
+missing user_local capability must not become a project-wide blocker;
+GitHub remains publication/check truth;
+no new governance family is introduced merely to patch a normal-path defect;
+implementation stays inside the approved product and path scope.
+```
+
+### Staged implementation and early falsification
+
+Large tasks should be decomposed into independently verifiable slices rather than executed end-to-end before validation. Each meaningful slice ends with an explicit `GO / REVISE / STOP`-equivalent decision before the next slice expands scope. Prefer falsifying a design assumption early to discovering the same defect after a large implementation has accumulated around it.
+
+### Pre-mortem before high-impact implementation
+
+Before a high-impact slice, ask how the proposed design is most likely to fail. Credible failure modes should become acceptance criteria, checks, fixtures, telemetry, recovery scenarios, or explicit known gaps where practical. The objective is not to predict every failure; it is to surface cheap-to-test failure hypotheses before implementation cost rises.
+
+### Drift triggers
+
+Where possible, drift should be detected from observable project evidence rather than intuition alone. The following are examples of signals that require review instead of indefinite patching:
+
+```text
+repeated re-anchor or rework cycles;
+unexpected material scope expansion;
+repeated failures with different root causes;
+runtime evidence contradicting the designed state model;
+a newly required execution surface that the design did not declare;
+governance overhead becoming disproportionate to semantic product work;
+implementation repeatedly crossing assumptions that were never made explicit.
+```
+
+Owning Work Items may define bounded thresholds appropriate to their scope. This planning rule does not itself introduce a new workflow gate, authority object, or mandatory artifact family.
+
+### Correction classification
+
+Corrections are classified by the level at which the original model remains valid:
+
+```text
+L1 IMPLEMENTATION_CORRECTION
+  Design and plan remain valid; fix a bounded implementation, configuration,
+  integration, or test defect and continue within the approved scope.
+
+L2 PLAN_CORRECTION
+  Goal and design remain valid, but task decomposition, sequencing, execution
+  path, or implementation plan must change before execution continues.
+
+L3 DESIGN_CORRECTION
+  A core assumption, interface, state model, architecture, UX model, or execution
+  premise is invalid. Stop expanding implementation and return to design before
+  continuing product work on the affected slice.
+```
+
+This classification prevents architectural defects from being patched indefinitely as L1 bugs and prevents bounded implementation bugs from triggering unnecessary redesign.
+
+### Reality reconciliation
+
+After every meaningful implementation slice, compare `DESIGNED_STATE` with `OBSERVED_STATE` using available evidence. Reconciliation records invalidated assumptions, newly discovered constraints, unresolved gaps, and whether the next planned slice is still justified.
+
+The disposition is explicit:
+
+```text
+CONTINUE
+  evidence remains consistent with the design and plan;
+
+REPLAN
+  the design still holds but the implementation path must change;
+
+RETURN_TO_DESIGN
+  a design-level assumption or model has been invalidated;
+
+STOP
+  authority, safety, scope, dependency, or evidence conditions do not justify
+  further execution.
+```
+
+### No silent plan mutation
+
+Agents may discover better evidence while executing, but material deviation from the approved or recorded plan must become explicit before proceeding. At minimum record:
+
+```text
+original assumption or plan;
+new evidence;
+impact;
+proposed correction;
+L1 / L2 / L3 classification;
+chosen disposition: CONTINUE / REPLAN / RETURN_TO_DESIGN / STOP.
+```
+
+This does not require human approval for every bounded R0/R1 correction. Authority still comes from the existing Path A / Path B model, and a correction that exceeds the active authority must obtain the appropriate authority before continuing.
+
+### Progressive proof
+
+Architecture and product design are progressively proven through bounded implementation evidence and real-world dogfood, not assumed complete because a planning document exists. An invalidated assumption is expected input to the next design round. Repeated discovery of the same failure class without updating the design, coverage checks, assumptions, or acceptance model is a process failure and should trigger reconciliation of the design system itself.
+
+Execution Drift Control complements capability-aware scheduling: capability-aware scheduling decides **which critical-path slice can run now**; drift control decides **whether the current slice is still following a valid design and plan**. Neither section creates execution authority or weakens existing risk, publication, or exact-head verification rules.
+
 ## Two authority paths
 
 ### Path A — ordinary R0/R1
