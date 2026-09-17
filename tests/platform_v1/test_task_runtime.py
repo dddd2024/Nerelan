@@ -1,5 +1,6 @@
 """Task runtime tests: ExecutorRouter, DeterministicFixtureExecutor, validation."""
 
+import hashlib
 import os
 import subprocess
 import tempfile
@@ -9,6 +10,7 @@ import pytest
 from reverse_agent.platform_v1.run_store import TaskStore
 from reverse_agent.platform_v1.task_runtime import (
     _APPROVED_VALIDATION_COMMANDS,
+    _sanitize_output,
     DeterministicFixtureExecutor,
     ExecutorRuntimeError,
     ExecutorRouter,
@@ -127,6 +129,74 @@ def test_validation_runner_runs_git_diff_check() -> None:
         assert exit_code == 0
         assert digest
         assert len(digest) == 64
+
+
+@pytest.mark.parametrize(
+    ("text", "max_bytes", "expected"),
+    [
+        ("", 0, ""),
+        ("ascii", 0, ""),
+        ("ascii", 5, "ascii"),
+        ("ascii", 4, "asci"),
+        ("审", 2, ""),
+        ("审", 3, "审"),
+        ("😀", 3, ""),
+        ("😀", 4, "😀"),
+        ("a审😀z", 4, "a审"),
+        ("a审😀z", 8, "a审😀"),
+        ("a\x00审", 4, "a审"),
+    ],
+)
+def test_sanitize_output_enforces_utf8_byte_budget(
+    text: str,
+    max_bytes: int,
+    expected: str,
+) -> None:
+    output = _sanitize_output(text, max_bytes)
+
+    assert output == expected
+    assert "\x00" not in output
+    assert len(output.encode("utf-8")) <= max_bytes
+
+
+def test_sanitize_output_mixed_unicode_never_splits_code_point() -> None:
+    text = "A审😀B"
+    cleaned = text.replace("\x00", "")
+
+    for max_bytes in range(0, len(cleaned.encode("utf-8")) + 1):
+        output = _sanitize_output(text, max_bytes)
+        assert cleaned.startswith(output)
+        assert len(output.encode("utf-8")) <= max_bytes
+        output.encode("utf-8").decode("utf-8")
+
+
+def test_validation_runner_digest_matches_bounded_sanitized_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    completed = subprocess.CompletedProcess(
+        args=["git", "diff", "--check"],
+        returncode=7,
+        stdout="审" * 1400,
+        stderr="😀" * 1400,
+    )
+
+    def fake_run(*args, **kwargs):
+        return completed
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with tempfile.TemporaryDirectory() as td:
+        exit_code, output, digest = LocalValidationRunner().run(
+            task_id="t",
+            command_id="git_diff_check",
+            cwd=td,
+        )
+
+    expected = _sanitize_output(completed.stdout + "\n" + completed.stderr)
+    assert exit_code == completed.returncode
+    assert output == expected
+    assert len(output.encode("utf-8")) <= 4096
+    assert digest == hashlib.sha256(output.encode("utf-8")).hexdigest()
 
 
 def test_validation_command_surfaces_are_hygiene_only_and_fail_closed() -> None:

@@ -123,8 +123,19 @@ def _digest(text: str) -> str:
 
 
 def _sanitize_output(text: str, max_bytes: int = 4096) -> str:
-    truncated = text[:max_bytes]
-    return truncated.replace("\x00", "")
+    """Return NUL-free text bounded by its UTF-8 byte length.
+
+    Truncation preserves the original text prefix and never returns a partial
+    multi-byte code point. A non-positive budget yields an empty result.
+    """
+    if max_bytes <= 0:
+        return ""
+
+    cleaned = text.replace("\x00", "")
+    encoded = cleaned.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return cleaned
+    return encoded[:max_bytes].decode("utf-8", errors="ignore")
 
 
 # ---------------------------------------------------------------------------
