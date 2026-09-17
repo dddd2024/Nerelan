@@ -166,16 +166,15 @@ async function ensureWindow(
     ) {
       const refreshed = await fetchPlatformStatus();
       const refreshedWindow = refreshed.autonomy.active_window;
-      if (
-        refreshedWindow &&
-        refreshedWindow.repositories.includes(goal.repository)
-      ) {
-        return refreshedWindow;
+      if (refreshedWindow) {
+        if (refreshedWindow.repositories.includes(goal.repository)) {
+          return refreshedWindow;
+        }
+        throw new GoalContinuationError(
+          "active_window_repository_conflict",
+          goal.id,
+        );
       }
-      throw new GoalContinuationError(
-        "active_window_repository_conflict",
-        goal.id,
-      );
     }
     throw error;
   }
