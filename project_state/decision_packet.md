@@ -1,54 +1,60 @@
-# Decision Packet — tracked command-plan normal-path prerequisite closure v2
+# Decision Packet — PR943 Owner landing authority v1
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260915_issue898_tracked_plan_prerequisite_r2_v2",
-  "round_id": "round_20260915_issue898_tracked_plan_prerequisite_r2_v2",
+  "decision_id": "decision_20260918_issue944_pr943_owner_landing_r2_v1",
+  "round_id": "round_20260918_issue944_pr943_owner_landing_r2_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
-  "skill_profiles": ["reverse-agent-iteration@v2"]
+  "skill_profiles": [
+    "reverse-agent-iteration@v2"
+  ]
 }
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "G2_0_TRACKED_PLAN_NORMAL_PATH_PREREQUISITE_CLOSURE",
-  "source_issue": 898,
-  "parent_issue": 156,
+  "decision_scope": "OWNER_LANDING_AUTHORITY_SIDECAR_CURRENT_MAIN",
+  "source_issue": 944,
+  "parent_issue": 891,
   "repository": "dddd2024/Nerelan",
   "approved_by": "dddd2024 via explicitly delegated repository Owner execution",
-  "approval_basis": "The user explicitly delegated repository Owner authority and asked to resolve the repeated user-local handoff caused by fresh Path-B Decisions requiring a tracked command-plan rebind. Fresh current-main audit confirms production transition lint already treats missing or previous-round tracked plans as historical evidence while Platform V1 still unconditionally requires tracked Decision/round equality. V1 activation PR899 is preserved closed/unmerged after natural Decision Preflight #530 proved lint/projection success but preflight correctly rejected the v1 Decision because it also forbade the two ephemeral workflow-generated plan evidence files. V2 only corrects that Decision-authoring omission; generated governance remains forbidden as a commit.",
+  "approval_basis": "User explicitly delegated Owner execution. Target PR943 exact head e37030e2f5d74e3a27125d9b1c092758d034d488 has natural CI/Decision Preflight/State Gate SUCCESS and Owner exact-head audit review 5245094595. This sidecar authorizes bounded landing only and never enters target history.",
   "supersedes_decision_id": "decision_20260915_issue898_tracked_plan_prerequisite_r2_v1",
   "superseded_evidence": "Closed unmerged PR899 head 0e4c6d0111c2485a788a2d850efc9dd3cb3a7a87; natural Decision Preflight #530/run34956053769: transition-lint PASSED with stale tracked plan treated as historical evidence, transition-command-plan PASSED, transition-preflight BLOCKED only because v1 excluded ephemeral project_state/gates/command_plan.json and transition_command_plan_preview.json from allowed/authorized R2 generated paths. No semantic implementation, rerun, merge or history rewrite occurred.",
   "risk_tier": "R2",
   "authorized_risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "main",
-  "base_sha": "d3ffafc8924614f309a8f85b6224137f94b2d8c1",
-  "activation_base_sha": "d3ffafc8924614f309a8f85b6224137f94b2d8c1",
-  "starting_head": "d3ffafc8924614f309a8f85b6224137f94b2d8c1",
-  "fresh_base": "d3ffafc8924614f309a8f85b6224137f94b2d8c1",
-  "current_main_expected": "d3ffafc8924614f309a8f85b6224137f94b2d8c1",
-  "required_branch": "owner/issue898-tracked-plan-prereq-r2-v2",
-  "workstream_id": "issue898-tracked-plan-prereq-r2-v2",
-  "follows_last_decision_id": "decision_20260915_issue898_tracked_plan_prerequisite_r2_v1",
-  "follows_last_round_id": "round_20260915_issue898_tracked_plan_prerequisite_r2_v1",
-  "fresh_worktree_creation_required": false,
+  "base_sha": "3ec2235d583c92c71077aae3751e3216d5bcd94c",
+  "activation_base_sha": "3ec2235d583c92c71077aae3751e3216d5bcd94c",
+  "starting_head": "3ec2235d583c92c71077aae3751e3216d5bcd94c",
+  "fresh_base": "3ec2235d583c92c71077aae3751e3216d5bcd94c",
+  "current_main_expected": "3ec2235d583c92c71077aae3751e3216d5bcd94c",
+  "required_branch": "owner/issue944-pr943-owner-landing-r2-v1",
+  "workstream_id": "issue944-pr943-owner-landing-r2-v1",
+  "follows_last_decision_id": "decision_20260918_issue891_false_none_premerge_attestation_r2_v5",
+  "follows_last_round_id": "round_20260918_issue891_false_none_premerge_attestation_r2_v5",
+  "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
   "decision_immutability_required": true,
-  "decision_immutability_check_required_in": ["transition_preflight", "transition_reconcile", "worktree_publication_readiness"],
+  "decision_immutability_check_required_in": [
+    "transition_preflight",
+    "transition_reconcile",
+    "worktree_publication_readiness"
+  ],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 1,
+  "product_change_commit_limit": 0,
   "generated_governance_commit_limit": 0,
   "normal_push_attempt_limit": 2,
   "draft_pr_creation_limit": 1,
-  "mark_ready_attempt_limit": 0,
-  "merge_attempt_limit": 0,
+  "mark_ready_attempt_limit": 1,
+  "merge_attempt_limit": 1,
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
   "workflow_dispatch_limit": 0,
@@ -58,8 +64,8 @@
   "pr_creation_allowed": true,
   "issue_comment_allowed": true,
   "pull_request_comment_allowed": true,
-  "merge_allowed": false,
-  "mark_ready_allowed": false,
+  "merge_allowed": true,
+  "mark_ready_allowed": true,
   "workflow_rerun_allowed": false,
   "workflow_dispatch_allowed": false,
   "runner_dispatch_allowed": false,
@@ -82,52 +88,54 @@
     "execution_surface_note": "Decision activation/publication and remote observation use GitHub control plane. Decision Preflight/State Gate may generate command_plan.json and transition_command_plan_preview.json only as ephemeral checkout/artifact evidence. They are allowed generated paths but may not be committed in this round because generated_governance_commit_limit=0. The single semantic test authoring step requires a real trusted checkout. Repository CI performs exact-head validation.",
     "completion_boundary": "Draft implementation only. No Ready/Merge, no main mutation, no #893/#897 state mutation. Acceptance requires natural exact-head CI/Decision Preflight/State Gate and proof that the fresh Decision can reach full CI without committing a matching command_plan.json."
   },
-  "bootstrap_exception_files": ["project_state/decision_packet.md"],
+  "bootstrap_exception_files": [
+    "project_state/decision_packet.md"
+  ],
   "bootstrap_exception_commands": [],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "tests/platform_v1/test_merge_intent.py"
+    "project_state/gates/transition_preflight_result.json"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "tests/platform_v1/test_merge_intent.py"
+    "project_state/gates/transition_preflight_result.json"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
-    "project_state/gates/transition_command_plan_preview.json"
-  ],
-  "reference_paths": [
-    "reverse_agent/control_plane/legacy_adapter.py",
-    "reverse_agent/control_plane/command_authority.py",
-    "reverse_agent/control_plane/evidence_recorder.py",
-    "reverse_agent/project_gate.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_trusted_command_runner.py",
-    ".github/workflows/ci.yml",
-    ".github/workflows/decision-preflight.yml",
-    ".github/workflows/state-gate.yml"
-  ],
-  "forbidden_mutated_paths": [
-    ".github/**",
-    "reverse_agent/**",
-    "frontend/**",
-    "docs/**",
-    ".codex-skills/**",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_preflight_result.json",
-    "project_state/gates/execution_log.json",
-    "project_state/gates/evidence/**",
-    "project_state/rounds/**",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
+  "reference_paths": [
+    "AGENTS.md",
+    ".github/workflows/state-gate.yml",
+    ".github/workflows/ci.yml",
+    ".github/workflows/decision-preflight.yml",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/control_plane/transition.py",
+    "reverse_agent/control_plane/command_authority.py"
+  ],
+  "forbidden_mutated_paths": [
+    "AGENTS.md",
+    ".github/**",
+    ".codex-skills/**",
+    "docs/**",
+    "reverse_agent/**",
+    "frontend/**",
+    "tests/**",
     "project_state/mainline_merge_intents/**",
-    "tests/test_mainline_landing.py",
-    "tests/test_project_gate.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_trusted_command_runner.py",
+    "project_state/rounds/**",
     "pyproject.toml",
     "requirements*.txt",
     "**/secrets/**",
@@ -142,20 +150,21 @@
     "squash",
     "amend",
     "history_rewrite",
-    "merge",
-    "mark_ready",
-    "tag_or_release",
-    "runner_dispatch",
+    "target_branch_push",
     "workflow_rerun",
     "workflow_dispatch",
+    "runner_dispatch",
     "model_api_invocation",
     "provider_network_call",
     "credential_access",
     "unknown_binary_execution",
     "external_reverse_tool_invocation",
     "destructive",
+    "tag_or_release",
     "dependency_install",
-    "target_branch_push",
+    "sidecar_pr_ready_or_merge",
+    "post_hoc_attestation_after_target_merge",
+    "second_attestation_family",
     "generated_governance_commit"
   ],
   "capability_policy": {
@@ -167,7 +176,7 @@
     "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
-    "merge_allowed": false,
+    "merge_allowed": true,
     "force_push_allowed": false,
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
@@ -177,110 +186,217 @@
     "trusted_worker_network_exceptions": [],
     "user_local_network_exceptions": [],
     "github_control_plane_network_exceptions": [
-      "Publish only owner/issue898-tracked-plan-prereq-r2-v2 in dddd2024/Nerelan and exactly one Draft PR against main@d3ffafc8924614f309a8f85b6224137f94b2d8c1. Comment only on Issue898 and that Draft for this implementation round. Never Ready or Merge."
+      "Create only the Issue944 Decision commit graph and branch owner/issue944-pr943-owner-landing-r2-v1, then one Draft sidecar against locked main; keep sidecar Draft/unmerged.",
+      "After sidecar natural checks and fresh no-drift validation, publish exactly one existing-format OWNER_LANDING_MERGE_ATTESTATION on target PR943 while it remains Draft, binding exact target, exact unmerged sidecar authority, Owner audit review 5245094595, target State Gate run 35316340394, live Ruleset and canonical contexts.",
+      "Then mark target PR943 Ready at most once, require natural ordinary state-gate and formal landing-state-gate SUCCESS, fresh-read again, merge target PR943 at most once using ordinary merge with expected head e37030e2f5d74e3a27125d9b1c092758d034d488, verify new main, and observe the new natural main-push State Gate; never rerun or dispatch."
     ]
   },
   "path_risk_floor": [
-    {"pattern": "project_state/**", "minimum_risk": "R2"},
-    {"pattern": "tests/platform_v1/test_merge_intent.py", "minimum_risk": "R2"}
+    {
+      "pattern": "project_state/**",
+      "minimum_risk": "R2"
+    }
   ],
   "allowed_commands": [
     {
-      "command_id": "issue898v2.bootstrap",
-      "command": "On an exact trusted checkout of owner/issue898-tracked-plan-prereq-r2-v2 inspect the immutable Decision and current tracked historical command plan. Run transition-lint and transition-preflight semantics. Decision Preflight/State Gate may materialize command_plan.json and transition_command_plan_preview.json only as ephemeral workflow evidence; do not commit them. The stale tracked plan must not be treated as current authority.",
+      "command_id": "issue944v1.bootstrap",
+      "command": "On exact locked main in a fresh isolated trusted-worker worktree, author only this immutable Decision; run startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness. Generated gate files are ephemeral evidence only and must not be committed.",
       "phase": "bootstrap",
-      "required": false,
-      "expected_exit_codes": [0],
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "trusted_worker",
-      "operations": ["code_read", "local_static_check", "command_plan_generation"],
+      "operations": [
+        "code_read",
+        "local_static_check",
+        "command_plan_generation",
+        "commit"
+      ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": ["project_state/gates/command_plan.json", "project_state/gates/transition_command_plan_preview.json"]
+      "allowed_mutated_paths": [
+        "project_state/decision_packet.md"
+      ],
+      "produced_artifacts": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/gates/bootstrap_state.json",
+        "project_state/gates/transition_command_plan_preview.json",
+        "project_state/gates/transition_preflight_result.json"
+      ]
     },
     {
-      "command_id": "issue898v2.implement",
-      "command": "Author only tests/platform_v1/test_merge_intent.py. Replace the unconditional tracked command-plan current-identity assertion with a projection-aware invariant reusing the existing production Decision-to-plan compiler. Both-old identity is historical evidence and allowed; current identity requires exact deterministic equality; partial identity collision fails closed. Do not modify production code or generated governance.",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "trusted_worker",
-      "operations": ["source_edit", "local_static_check", "unit_test"],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": ["tests/platform_v1/test_merge_intent.py"],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue898v2.validate",
-      "command": "Run the affected Platform V1 test file and the existing G2-0 control-plane transition regressions, then git diff --check. Natural exact-head CI, Decision Preflight and State Gate are final repository validation. Do not generate or commit command_plan.json as a repository prerequisite.",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [0],
-      "execution_surface": "ci_only",
-      "operations": ["unit_test", "local_static_check", "diff_validation"],
-      "network_access": false,
-      "required_evidence_source": "ci_check_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue898v2.publish",
-      "command": "Publish only owner/issue898-tracked-plan-prereq-r2-v2 and one Draft PR against exact locked main. Update only Issue898 and that Draft. No target PR893/897 mutation, Ready, Merge, workflow rerun or dispatch.",
+      "command_id": "issue944v1.publish",
+      "command": "Through github_control_plane only create the exact Decision commit/ref and one Draft sidecar PR. No local git push and never Ready/Merge the sidecar.",
       "phase": "publication",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "github_control_plane",
-      "operations": ["push", "draft_pr", "pull_request_comment", "issue_comment", "network_access"],
+      "operations": [
+        "push",
+        "draft_pr",
+        "network_access"
+      ],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "issue898v2.observe",
-      "command": "Fresh-read exact branch/base/head and natural CI/Decision Preflight/State Gate. Confirm full CI no longer requires a tracked current command-plan rebind, no generated-governance commit exists, no active #891/#894 files were touched, and current-identity tamper semantics remain fail closed.",
+      "command_id": "issue944v1.validate",
+      "command": "Require sidecar natural CI Decision Preflight and State Gate SUCCESS; fresh-read current main, target #943 exact head/base/Draft state, target checks, Owner review, Ruleset and threads; require no drift.",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "remote_observation",
+      "operations": [
+        "code_read",
+        "read_only_audit",
+        "repository_observation"
+      ],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "issue944v1.attest",
+      "command": "While target PR943 remains Draft publish exactly one current existing-format OWNER_LANDING_MERGE_ATTESTATION binding target, exact unmerged sidecar authority and natural runs, Owner review 5245094595, target State Gate run 35316340394, Ruleset 21023698 and canonical contexts; reread and require exactly one active matching digest.",
       "phase": "final_evidence",
       "required": true,
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "pull_request_comment",
+        "network_access"
+      ],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "issue944v1.land_target",
+      "command": "Only after valid pre-Ready attestation: mark target PR943 Ready once; require natural state-gate and landing-state-gate SUCCESS on exact target head; fresh no-drift revalidation; merge once with method merge and expected-head protection; verify new main and require new natural main-push State Gate SUCCESS.",
+      "phase": "final_evidence",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "mark_ready",
+        "merge",
+        "network_access"
+      ],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "issue944v1.observe",
+      "command": "Fresh-read sidecar, target and main natural checks, exact merge outcome and new main-push State Gate. Only after success close #891/#944 and reactivate #721.",
+      "phase": "final_evidence",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
       "execution_surface": "remote_observation",
-      "operations": ["read_only_audit", "code_read", "repository_observation"],
+      "operations": [
+        "code_read",
+        "read_only_audit",
+        "repository_observation"
+      ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     }
   ],
-  "issue_completion_close_allowed": []
+  "issue_completion_close_allowed": [
+    891,
+    944
+  ],
+  "sidecar_authority": true,
+  "sidecar_rooted_at_locked_main": true,
+  "sidecar_does_not_enter_target_history": true,
+  "target_pr": 943,
+  "source_pr": 943,
+  "target_branch": "owner/issue891-false-none-attestation-r2-v5-role-split",
+  "accepted_exact_head_sha": "e37030e2f5d74e3a27125d9b1c092758d034d488",
+  "owner_exact_head_review_id": 5245094595,
+  "owner_exact_head_review_commit": "e37030e2f5d74e3a27125d9b1c092758d034d488",
+  "target_decision_id": "decision_20260918_issue891_false_none_premerge_attestation_r2_v5",
+  "target_round_id": "round_20260918_issue891_false_none_premerge_attestation_r2_v5",
+  "target_ci_run_id": 35316340343,
+  "target_decision_preflight_run_id": 35316340446,
+  "target_state_gate_run_ids": [
+    35316340394
+  ],
+  "target_pre_ready_state_gate_run_id": 35316340394,
+  "workflow_profile": "baseline",
+  "expected_head_protection_required": true,
+  "allowed_merge_method": "merge",
+  "landing_actor": "ChatGPT under the user's explicit current repository Owner delegation",
+  "landing_authority_scope_note": "Decision-only governance sidecar for exact target PR943 at locked main. Require sidecar natural CI/Decision Preflight/State Gate SUCCESS, then exactly one pre-Ready existing-format attestation, one Ready transition, both required State Gate contexts SUCCESS, fresh no-drift revalidation, one expected-head ordinary merge, and a new natural main-push State Gate SUCCESS.",
+  "owner_landing_bounds": {
+    "ready_attempts": 1,
+    "merge_attempts": 1,
+    "allowed_merge_method": "merge",
+    "expected_head_protection_required": true,
+    "expected_head": "e37030e2f5d74e3a27125d9b1c092758d034d488"
+  },
+  "attestation_contract": {
+    "marker": "OWNER_LANDING_MERGE_ATTESTATION",
+    "schema_reuse_required": true,
+    "new_receipt_family_allowed": false,
+    "publish_before_target_ready": true,
+    "target_pre_ready_state_gate_run_id": 35316340394,
+    "required_status_contexts": [
+      "baseline",
+      "state-gate",
+      "landing-state-gate"
+    ],
+    "pre_ready_completed_contexts": [
+      "baseline",
+      "state-gate"
+    ],
+    "formal_landing_context_completed_only_after_ready": "landing-state-gate",
+    "exactly_one_active_matching_attestation_required": true,
+    "post_hoc_after_merge_allowed": false
+  },
+  "required_landing_sequence": [
+    "require sidecar natural CI Decision Preflight and State Gate SUCCESS",
+    "fresh-read locked main target PR exact Draft head/base target checks Owner audit review threads and live Ruleset",
+    "while target PR943 remains Draft publish exactly one existing-format OWNER_LANDING_MERGE_ATTESTATION bound to exact target and exact unmerged sidecar authority",
+    "re-read target comments and require exactly one active matching canonical attestation",
+    "mark target PR943 Ready exactly once",
+    "require naturally triggered ordinary state-gate and formal landing-state-gate SUCCESS on exact target head without rerun or dispatch",
+    "fresh-read main target sidecar attestation Ruleset checks and threads and require no drift",
+    "merge PR943 exactly once using method merge and expected head protection",
+    "verify merged state and new main",
+    "require new natural main-push State Gate SUCCESS",
+    "then close Issue891 and Issue944 and reactivate Issue721 from the new main"
+  ]
 }
 ```
 
 ## Goal
 
-Close the remaining G2-0 normal-path bootstrap defect under #156: a fresh Path-B Decision must not require a matching tracked `project_state/gates/command_plan.json` commit before full CI can be green.
+Land accepted PR #943 exactly once under a bounded governance-only sidecar, then require a new natural main-push State Gate before recording acceptance. The sidecar never enters target history.
 
-## Build vs Reuse
+## Build vs reuse
 
-Reuse the existing deterministic Decision compiler and transition-lint/preflight semantics. Do not build a second compiler, workflow, worker runtime, scheduler, evidence family or Git client.
+Reuse existing Path-B transition machinery, current OWNER_LANDING_MERGE_ATTESTATION schema/parser, Ruleset, GitHub Ready/Merge expected-head protection and natural State Gate. No new gate, workflow, receipt family, runner, dependency, database or scheduler.
 
-## V1 Negative Evidence
+## Stop conditions
 
-PR #899 is closed unmerged. Decision Preflight #530 proved the in-memory stale-plan semantics were already correct and exposed only the v1 path-authorization mistake. Do not rerun, reopen, amend or reuse its history.
-
-## Implementation Scope
-
-Exactly one semantic path after pre-execution authorization:
-
-```text
-tests/platform_v1/test_merge_intent.py
-```
-
-The two generated gate paths are **ephemeral workflow evidence only** and have zero commit budget. If production code must change, stop and use a fresh Decision; do not expand this immutable scope.
-
-## Acceptance
-
-Old/missing tracked plan is non-authoritative historical evidence during a fresh Decision; a tracked current-identity plan must still match the deterministic projection exactly; partial identity collision fails closed; existing G2-0 transition regressions stay green; natural full CI/Decision Preflight/State Gate succeed without any generated-governance commit.
-
-## Stop Conditions
-
-Any main drift, Decision mutation, unexpected second semantic path, generated-governance commit, current-plan tamper weakening, #893/#897 overlap, workflow rerun/dispatch, Ready/Merge attempt or failed mandatory natural check stops the round.
+Stop on main/target/sidecar drift, immutable Decision mutation, unexpected changed path, sidecar or target required-check failure, duplicate/stale attestation, blocking review thread, Ruleset drift, exhausted attempt budget or unavailable required GitHub capability. No force/rebase/rerun/dispatch or target-branch push.
