@@ -26,6 +26,7 @@ from reverse_agent.mainline_landing import (
     canonical_digest,
     emit_mainline_integration_receipt,
     resolve_premerge_workflow_profile,
+    validate_false_none_premerge_landing,
     validate_premerge_attestation,
     validate_future_merge,
     validate_pr60_recovery,
@@ -2935,3 +2936,188 @@ def test_false_none_missing_binding_mode_final_gate_blocks(tmp_path: Path) -> No
     assert result["gate_status"] == "BLOCKED", result
     assert any("false_none_target_decision_policy" in item for item in result["blocking_reasons"])
     assert any("active_pr_binding_mode=None" in item for item in result["blocking_reasons"])
+
+
+# ---------------------------------------------------------------------------
+# Pre-merge false/none Owner attestation validation (Issue #891 v2).
+# ---------------------------------------------------------------------------
+
+
+def _false_none_premerge_validate(
+    bundle: dict[str, Any], verifier: FalseNoneVerifier
+) -> tuple[list[dict[str, str]], dict[str, Any]]:
+    return validate_false_none_premerge_landing(
+        repo_root=bundle["repo"],
+        verifier=verifier,
+        source_pr=verifier.source_pr,
+        accepted_head=bundle["head"],
+        locked_base=bundle["base"],
+        now=NOW,
+    )
+
+
+def test_false_none_premerge_valid_attestation_passes(
+    tmp_path: Path,
+) -> None:
+    """A valid pre-merge attestation with formal landing context passes."""
+
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle)
+    checks, extra = _false_none_premerge_validate(bundle, verifier)
+    by_name = {check["name"]: check["status"] for check in checks}
+    assert by_name["false_none_attestation_unique"] == "PASS"
+    assert by_name["false_none_attestation_load"] == "PASS"
+    assert by_name["false_none_landing_context_is_formal"] == "PASS"
+    assert all(c["status"] == "PASS" for c in checks), checks
+    assert extra["landing_policy"] == "false_none_owner_landing_authority"
+
+
+def test_false_none_premerge_zero_attestation_blocks(
+    tmp_path: Path,
+) -> None:
+    """Zero attestations blocks pre-merge validation."""
+
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle)
+    verifier.attestations = []
+    checks, _ = _false_none_premerge_validate(bundle, verifier)
+    by_name = {check["name"]: check["status"] for check in checks}
+    assert by_name["false_none_attestation_unique"] == "FAIL"
+
+
+def test_false_none_premerge_duplicate_attestation_blocks(
+    tmp_path: Path,
+) -> None:
+    """Duplicate attestations block pre-merge validation."""
+
+    bundle = _false_none_repo(tmp_path)
+    verifier, att = _false_none_pair(bundle)
+    verifier.attestations = [att, att]
+    checks, _ = _false_none_premerge_validate(bundle, verifier)
+    by_name = {check["name"]: check["status"] for check in checks}
+    assert by_name["false_none_attestation_unique"] == "FAIL"
+
+
+def test_false_none_premerge_superseded_attestation_blocks(
+    tmp_path: Path,
+) -> None:
+    """A superseded attestation blocks pre-merge validation."""
+
+    bundle = _false_none_repo(tmp_path)
+    verifier, att = _false_none_pair(bundle)
+    att["superseded_by"] = "newer_attestation"
+    att["content_digest"] = owner_landing_content_digest(att)
+    verifier.attestations = [att]
+    checks, _ = _false_none_premerge_validate(bundle, verifier)
+    by_name = {check["name"]: check["status"] for check in checks}
+    assert by_name["false_none_attestation_status"] == "FAIL"
+
+
+def test_false_none_premerge_wrong_target_head_blocks(
+    tmp_path: Path,
+) -> None:
+    """An attestation with wrong target head blocks pre-merge validation."""
+
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle)
+    verifier.attestations[0]["accepted_exact_head_sha"] = "f" * 40
+    verifier.attestations[0]["content_digest"] = owner_landing_content_digest(
+        verifier.attestations[0]
+    )
+    checks, _ = _false_none_premerge_validate(bundle, verifier)
+    by_name = {check["name"]: check["status"] for check in checks}
+    assert by_name["false_none_attestation_unique"] == "FAIL"
+
+
+def test_false_none_premerge_skips_postmerge_time_checks(
+    tmp_path: Path,
+) -> None:
+    """Pre-merge validation skips merged_at time-ordering checks."""
+
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle)
+    checks, _ = _false_none_premerge_validate(bundle, verifier)
+    by_name = {check["name"]: check for check in checks}
+    assert (
+        by_name["false_none_attestation_created_before_merge"]["status"] == "PASS"
+    )
+    assert (
+        by_name["false_none_attestation_created_before_merge"]["detail"]
+        == "premerge_skip_merged_at"
+    )
+    assert (
+        by_name["false_none_attestation_updated_before_merge"]["status"] == "PASS"
+    )
+    assert (
+        by_name["false_none_attestation_updated_before_merge"]["detail"]
+        == "premerge_skip_merged_at"
+    )
+    assert (
+        by_name["false_none_owner_review_before_merge"]["status"] == "PASS"
+    )
+    assert (
+        by_name["false_none_owner_review_before_merge"]["detail"]
+        == "premerge_skip_merged_at"
+    )
+
+
+def test_false_none_premerge_no_completed_landing_state_gate_required(
+    tmp_path: Path,
+) -> None:
+    """Premerge validation must NOT require a completed landing-state-gate.
+
+    The acyclic model: the landing-state-gate is currently executing while
+    evaluating the attestation, so only baseline and state-gate are verified
+    as previously completed.  The trusted current landing execution context
+    is verified separately in project_gate.py.
+    """
+
+    bundle = _false_none_repo(tmp_path)
+    # Only baseline and state-gate are completed; landing-state-gate is
+    # NOT yet completed (it is the currently executing job).
+    verifier, _ = _false_none_pair(
+        bundle,
+        check_names={"baseline", "state-gate"},
+    )
+    checks, _ = _false_none_premerge_validate(bundle, verifier)
+    by_name = {check["name"]: check for check in checks}
+    assert (
+        by_name["false_none_required_contexts_executed"]["status"] == "PASS"
+    ), by_name["false_none_required_contexts_executed"]
+    assert (
+        by_name["false_none_landing_context_is_formal"]["status"] == "PASS"
+    ), by_name["false_none_landing_context_is_formal"]
+    assert (
+        by_name["false_none_landing_context_is_formal"]["detail"]
+        == "premerge_trusted_execution_verified_in_project_gate"
+    )
+    assert all(c["status"] == "PASS" for c in checks), checks
+
+
+def test_false_none_postmerge_requires_completed_landing_state_gate(
+    tmp_path: Path,
+) -> None:
+    """Postmerge validation must require a completed landing-state-gate.
+
+    The same attestation that passes premerge (without completed
+    landing-state-gate) must BLOCK postmerge until the landing-state-gate
+    context is completed.
+    """
+
+    bundle = _false_none_repo(tmp_path)
+    # Only baseline and state-gate completed; landing-state-gate missing.
+    verifier, _ = _false_none_pair(
+        bundle,
+        check_names={"baseline", "state-gate"},
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    checks = {check["name"]: check for check in result["checks"]}
+    assert checks["false_none_landing_context_is_formal"]["status"] == "FAIL"
+
+    # Now add the completed landing-state-gate and postmerge should pass.
+    verifier.check_names = set(FALSE_NONE_REQUIRED_CONTEXTS)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "PASSED", result
+    checks = {check["name"]: check for check in result["checks"]}
+    assert checks["false_none_landing_context_is_formal"]["status"] == "PASS"
