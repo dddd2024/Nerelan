@@ -31999,6 +31999,8 @@ def test_transition_packaging_and_workflow_boundary() -> None:
         "- name: Integration baseline, mainline landing and project audit tests",
         "- name: Platform V1 blocking gate",
         "- name: Repository-wide diagnostic (legacy debt, nonblocking)",
+        "- name: Summarize repository diagnostic",
+        "- name: Upload repository diagnostic",
     ]
     assert f"run: {contract['focused_test_command']}" in ci
     assert "run: python -m pytest tests/test_supervisor_validate.py tests/test_repository_hygiene.py -q" in ci
@@ -32006,7 +32008,23 @@ def test_transition_packaging_and_workflow_boundary() -> None:
     assert "run: python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q" in ci
     assert "run: python -m pytest tests/platform_v1 -q" in ci
     assert "continue-on-error: true" in ci
-    assert "run: python -m pytest -q" in ci
+    diagnostic = ci.split("- name: Repository-wide diagnostic (legacy debt, nonblocking)", 1)[1].split("- name: Summarize repository diagnostic", 1)[0]
+    assert "id: repository_diagnostic" in diagnostic
+    assert "continue-on-error: true" in diagnostic
+    assert "run: |" in diagnostic
+    assert 'python -m pytest -q -m "not installed_opencode" --junitxml=ci-diagnostic.xml' in diagnostic
+    assert 'pytest_exit=$?' in diagnostic
+    assert 'echo "exit_code=$pytest_exit" >> "$GITHUB_OUTPUT"' in diagnostic
+    assert 'exit "$pytest_exit"' in diagnostic
+    summary = ci.split("- name: Summarize repository diagnostic", 1)[1].split("- name: Upload repository diagnostic", 1)[0]
+    assert "always() && steps.repository_diagnostic.outcome != 'skipped'" in summary
+    assert "PYTEST_EXIT_CODE: ${{ steps.repository_diagnostic.outputs.exit_code }}" in summary
+    assert 'python scripts/ci_test_summary.py --report ci-diagnostic.xml --exit-code "$PYTEST_EXIT_CODE" >> "$GITHUB_STEP_SUMMARY"' in summary
+    artifact = ci.split("- name: Upload repository diagnostic", 1)[1]
+    assert "always() && steps.repository_diagnostic.outcome != 'skipped'" in artifact
+    assert "uses: actions/upload-artifact@v4" in artifact
+    assert "name: repository-diagnostic" in artifact
+    assert "path: ci-diagnostic.xml" in artifact
 
     legacy_commands = {
         "state-gate.yml": (

@@ -166,6 +166,7 @@ class _FakeProvider:
 
 class TestCombinedTrustedHostInstalledOpenCodeE2E:
 
+    @pytest.mark.installed_opencode
     def test_real_task_api_opencode_relay_fake_provider_end_to_end(self) -> None:
         MASTER = "prod-e2e-master-" + os.urandom(16).hex()
         BINDING_ID = "e2e-binding-v7"
