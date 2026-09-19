@@ -466,7 +466,8 @@ def test_staged_object_must_be_a_locally_available_blob(tmp_path, object_kind) -
 
 def test_replace_ref_cannot_disguise_staged_tree_as_blob(tmp_path) -> None:
     repo, base = _repo(tmp_path)
-    tree = _run(repo, "git", "mktree", input_text="")
+    # Exercise an ordinary stored tree, not Git's special in-memory empty tree.
+    tree = _run(repo, "git", "rev-parse", f"{base}^{{tree}}")
     blob = _run(repo, "git", "rev-parse", "HEAD:tracked.txt")
     _run(repo, "git", "update-ref", f"refs/replace/{tree}", blob)
     assert _run(repo, "git", "cat-file", "-t", tree) == "blob"
