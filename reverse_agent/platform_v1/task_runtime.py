@@ -123,8 +123,11 @@ def _digest(text: str) -> str:
 
 
 def _sanitize_output(text: str, max_bytes: int = 4096) -> str:
-    truncated = text[:max_bytes]
-    return truncated.replace("\x00", "")
+    cleaned = text.replace("\x00", "")
+    encoded = cleaned.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return cleaned
+    return encoded[:max_bytes].decode("utf-8", errors="ignore")
 
 
 # ---------------------------------------------------------------------------
