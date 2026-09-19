@@ -134,7 +134,8 @@ def test_validation_runner_digests_sanitized_multibyte_output(monkeypatch, tmp_p
     stdout = "\x00" + "中" * 1364
     stderr = "😀error"
     monkeypatch.setattr(
-        "reverse_agent.platform_v1.task_runtime.subprocess.run",
+        subprocess,
+        "run",
         lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 1, stdout, stderr),
     )
     exit_code, output, digest = LocalValidationRunner().run(
