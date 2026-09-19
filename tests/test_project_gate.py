@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 import reverse_agent.project_gate as project_gate_module
+from reverse_agent.github_remote_verifier import GitHubRemoteAcceptanceVerifier
 from reverse_agent.mainline_landing import owner_landing_content_digest
 
 from reverse_agent.project_gate import (
@@ -33297,6 +33298,10 @@ class _V3FakeRemoteVerifier:
         check_names: set[str] | None = None,
         ruleset_ok: bool = True,
         workflow_run_ids: set[int] | None = None,
+        target_base_sha: str | None = None,
+        live_main_sha: str | None = None,
+        live_main_verified: bool = True,
+        authority_decision_base_sha: str | None = None,
     ) -> None:
         self.fixture = fixture
         self.attestation = attestation or fixture.get("attestation")
@@ -33315,6 +33320,14 @@ class _V3FakeRemoteVerifier:
         self.ready_run_id = ready_run_id
         self.check_names = check_names or set()
         self.ruleset_ok = ruleset_ok
+        self.target_base_sha = target_base_sha or fixture["base_sha"]
+        self.live_main_sha = live_main_sha or self.target_base_sha
+        self.live_main_verified = live_main_verified
+        self.authority_decision_base_sha = (
+            authority_decision_base_sha or fixture["base_sha"]
+        )
+        self.verify_ref_sha_calls: list[dict[str, Any]] = []
+        self.owner_attestation_load_calls: list[int] = []
         # When None, verify_workflow_run accepts all run_ids (legacy
         # permissive mode for existing tests).  When a set is provided,
         # only run_ids in that set are considered completed.
@@ -33326,7 +33339,7 @@ class _V3FakeRemoteVerifier:
         if pr_number == self.fixture["source_pr"]:
             ok = (
                 kwargs.get("expected_head_sha") == self.fixture["head_sha"]
-                and kwargs.get("expected_base_sha") == self.fixture["base_sha"]
+                and kwargs.get("expected_base_sha") == self.target_base_sha
                 and not self.live_draft
             )
             return {
@@ -33336,8 +33349,8 @@ class _V3FakeRemoteVerifier:
                     "number": kwargs.get("pr_number"),
                     "merged": False,
                     "draft": self.live_draft,
-                    "head": {"sha": kwargs.get("expected_head_sha")},
-                    "base": {"sha": kwargs.get("expected_base_sha")},
+                    "head": {"sha": self.fixture["head_sha"]},
+                    "base": {"sha": self.target_base_sha},
                 },
             }
         if pr_number == self.authority_pr:
@@ -33361,6 +33374,26 @@ class _V3FakeRemoteVerifier:
             "reason": f"pr_mismatch:pr={pr_number}",
         }
 
+    def verify_ref_sha(
+        self, *, ref_name: str, expected_sha: str
+    ) -> dict[str, Any]:
+        self.verify_ref_sha_calls.append(
+            {"ref_name": ref_name, "expected_sha": expected_sha}
+        )
+        ok = (
+            self.live_main_verified
+            and ref_name == "heads/main"
+            and expected_sha == self.live_main_sha
+        )
+        return {
+            "verified": ok,
+            "reason": "verified" if ok else "ref_mismatch",
+            "ref": {
+                "ref": "refs/heads/main",
+                "object": {"type": "commit", "sha": self.live_main_sha},
+            },
+        }
+
     def load_merge_attestation(self, **_: Any) -> dict[str, Any]:
         if self.load_error:
             from reverse_agent.github_remote_verifier import GitHubEvidenceError
@@ -33378,6 +33411,7 @@ class _V3FakeRemoteVerifier:
     def load_owner_landing_merge_attestations(
         self, *, pr_number: int
     ) -> list[dict[str, Any]]:
+        self.owner_attestation_load_calls.append(pr_number)
         if self.false_none_attestations is not None:
             return [
                 deepcopy(att)
@@ -33394,7 +33428,7 @@ class _V3FakeRemoteVerifier:
         text = _v3_authority_decision_text(
             source_pr=self.fixture["source_pr"],
             head_sha=self.fixture["head_sha"],
-            base_sha=self.fixture["base_sha"],
+            base_sha=self.authority_decision_base_sha,
             authority_decision_id=self.authority_decision_id,
         )
         return {"verified": True, "bytes": text.encode("utf-8")}
@@ -33847,16 +33881,30 @@ def test_v3_cutover_ready_exact_head_mismatch_blocks(
     assert "landing_remote_pr_mismatch" in result["blocking_reasons"]
 
 
-def test_v3_cutover_ready_target_base_drift_blocks(
+def test_v9_cutover_unverified_base_drift_blocks_on_remote_pr_binding(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """false/none still fail closed on target/base freshness drift."""
+    """Base drift is never admitted from event data alone.
+
+    If the event names a refreshed base but the live PR still binds the
+    original base, the exact remote PR check blocks before any ref or
+    attestation proof can be consumed.
+    """
     fx = _v3_cutover_fixture(tmp_path)
-    result, _ = _run_v3_landing_preflight(
-        fx, tmp_path, monkeypatch, action="ready_for_review", base_sha="b" * 40
+    refreshed = "b" * 40
+    remote = _V3FakeRemoteVerifier(fx)
+    result, remote = _run_v3_landing_preflight(
+        fx,
+        tmp_path,
+        monkeypatch,
+        action="ready_for_review",
+        base_sha=refreshed,
+        verifier=remote,
     )
     assert result["gate_status"] == "BLOCKED", result
-    assert "landing_event_base_mismatch" in result["blocking_reasons"]
+    assert "landing_remote_pr_mismatch" in result["blocking_reasons"]
+    assert remote.verify_ref_sha_calls == []
+    assert remote.owner_attestation_load_calls == []
 
 
 def test_v3_legacy_ready_missing_active_intent_blocks(
@@ -34350,3 +34398,311 @@ def test_v3_false_none_acyclic_chronology_regression(
         event_path=str(event), write_result=False,
     )
     assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
+
+
+# ---------------------------------------------------------------------------
+# Issue #721 v9: real Ready-route base refresh over the landed #891 role split.
+# ---------------------------------------------------------------------------
+
+
+def _v9_advance_cutover_main(fx: dict[str, Any]) -> tuple[str, str]:
+    repo = fx["repo"]
+    target_head = fx["head_sha"]
+    _decision_test_git(repo, "checkout", "-q", "main")
+    note = repo / "docs" / "refresh-note.txt"
+    note.parent.mkdir(parents=True, exist_ok=True)
+    note.write_text("unrelated main advance\n", encoding="utf-8")
+    _decision_test_git(repo, "add", "docs/refresh-note.txt")
+    _decision_test_git(repo, "commit", "-qm", "unrelated main advance")
+    refreshed = _decision_test_git(repo, "rev-parse", "HEAD")
+    expected_tree = _decision_test_git(
+        repo, "merge-tree", "--write-tree", refreshed, target_head
+    ).splitlines()[0]
+    _decision_test_git(repo, "checkout", "-q", "test-branch")
+    return refreshed, expected_tree
+
+def _v9_refresh_attestation(
+    fx: dict[str, Any],
+    *,
+    refreshed_base: str,
+    expected_tree: str,
+) -> dict[str, Any]:
+    att = _v3_false_none_attestation(
+        fx,
+        authority_base_sha=refreshed_base,
+    )
+    authority_decision_text = _v3_authority_decision_text(
+        source_pr=fx["source_pr"],
+        head_sha=fx["head_sha"],
+        base_sha=refreshed_base,
+        authority_decision_id=att["authority_decision_id"],
+    )
+    att["authority_decision_content_sha256"] = hashlib.sha256(
+        authority_decision_text.encode("utf-8")
+    ).hexdigest()
+    att.update(
+        {
+            "refresh_authority_original_locked_base_sha": fx["base_sha"],
+            "refresh_authority_refreshed_base_sha": refreshed_base,
+            "refresh_authority_accepted_target_head_sha": fx["head_sha"],
+            "refresh_authority_expected_merge_tree_sha": expected_tree,
+            "refresh_authority_decision_content_sha256": (
+                att["target_decision_content_sha256"]
+            ),
+            "refresh_authority_owner_exact_head_review_sha": fx["head_sha"],
+            "refresh_authority_sidecar_pr": att["authority_pr"],
+            "refresh_authority_sidecar_base_sha": refreshed_base,
+            "refresh_authority_allowed_merge_method": "merge",
+            "refresh_authority_expected_head_protection_required": True,
+        }
+    )
+    att["content_digest"] = owner_landing_content_digest(att)
+    return att
+
+def _v9_refresh_remote(
+    fx: dict[str, Any],
+    *,
+    refreshed_base: str,
+    attestations: list[dict[str, Any]],
+    live_main_sha: str | None = None,
+    live_main_verified: bool = True,
+) -> _V3FakeRemoteVerifier:
+    return _V3FakeRemoteVerifier(
+        fx,
+        false_none_attestations=attestations,
+        target_base_sha=refreshed_base,
+        live_main_sha=live_main_sha or refreshed_base,
+        live_main_verified=live_main_verified,
+        authority_base_sha=refreshed_base,
+        authority_decision_base_sha=refreshed_base,
+        review_commit=fx["head_sha"],
+        check_names={"baseline", "state-gate"},
+    )
+
+
+def _v9_set_ready_job(
+    monkeypatch: pytest.MonkeyPatch, *, job: str
+) -> None:
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_JOB", job)
+    monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
+
+def test_v9_cutover_drift_ordinary_state_gate_validates_live_main_without_attestation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fx = _v3_cutover_fixture(tmp_path)
+    refreshed, _ = _v9_advance_cutover_main(fx)
+    remote = _v9_refresh_remote(
+        fx, refreshed_base=refreshed, attestations=[]
+    )
+    _v9_set_ready_job(monkeypatch, job="state-gate")
+    result, remote = _run_v3_landing_preflight(
+        fx,
+        tmp_path,
+        monkeypatch,
+        action="ready_for_review",
+        base_sha=refreshed,
+        verifier=remote,
+    )
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
+    assert remote.verify_ref_sha_calls == [
+        {"ref_name": "heads/main", "expected_sha": refreshed}
+    ]
+    assert remote.owner_attestation_load_calls == []
+
+def test_v9_cutover_drift_live_main_redrift_blocks_before_attestation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fx = _v3_cutover_fixture(tmp_path)
+    refreshed, _ = _v9_advance_cutover_main(fx)
+    remote = _v9_refresh_remote(
+        fx,
+        refreshed_base=refreshed,
+        attestations=[],
+        live_main_sha="f" * 40,
+        live_main_verified=False,
+    )
+    _v9_set_ready_job(monkeypatch, job="state-gate")
+    result, remote = _run_v3_landing_preflight(
+        fx,
+        tmp_path,
+        monkeypatch,
+        action="ready_for_review",
+        base_sha=refreshed,
+        verifier=remote,
+    )
+    assert result["gate_status"] == "BLOCKED", result
+    assert "landing_main_ref_mismatch" in result["blocking_reasons"]
+    assert remote.owner_attestation_load_calls == []
+
+def test_v9_cutover_drift_formal_landing_without_refresh_authority_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fx = _v3_cutover_fixture(tmp_path)
+    refreshed, _ = _v9_advance_cutover_main(fx)
+    att = _v3_false_none_attestation(
+        fx, authority_base_sha=refreshed
+    )
+    remote = _v9_refresh_remote(
+        fx, refreshed_base=refreshed, attestations=[att]
+    )
+    _v9_set_ready_job(monkeypatch, job="landing-state-gate")
+    result, _ = _run_v3_landing_preflight(
+        fx,
+        tmp_path,
+        monkeypatch,
+        action="ready_for_review",
+        base_sha=refreshed,
+        verifier=remote,
+    )
+    assert result["gate_status"] == "BLOCKED", result
+    assert "landing_attestation_required" in result["blocking_reasons"]
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["false_none_attestation_locked_base"]["status"] == "FAIL"
+
+def test_v9_cutover_drift_formal_landing_with_full_refresh_authority_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fx = _v3_cutover_fixture(tmp_path)
+    refreshed, expected_tree = _v9_advance_cutover_main(fx)
+    att = _v9_refresh_attestation(
+        fx, refreshed_base=refreshed, expected_tree=expected_tree
+    )
+    remote = _v9_refresh_remote(
+        fx, refreshed_base=refreshed, attestations=[att]
+    )
+    _v9_set_ready_job(monkeypatch, job="landing-state-gate")
+    result, remote = _run_v3_landing_preflight(
+        fx,
+        tmp_path,
+        monkeypatch,
+        action="ready_for_review",
+        base_sha=refreshed,
+        verifier=remote,
+    )
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["landing_refreshed_base_live_main"]["status"] == "PASS"
+    assert by_name["base_refresh_authority"]["status"] == "PASS"
+    assert by_name["merge_tree_policy"]["status"] == "PASS"
+    assert remote.owner_attestation_load_calls == [fx["source_pr"]]
+
+def test_v9_cutover_drift_partial_refresh_authority_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fx = _v3_cutover_fixture(tmp_path)
+    refreshed, _ = _v9_advance_cutover_main(fx)
+    att = _v3_false_none_attestation(
+        fx, authority_base_sha=refreshed
+    )
+    att["refresh_authority_original_locked_base_sha"] = fx["base_sha"]
+    att["content_digest"] = owner_landing_content_digest(att)
+    remote = _v9_refresh_remote(
+        fx, refreshed_base=refreshed, attestations=[att]
+    )
+    _v9_set_ready_job(monkeypatch, job="landing-state-gate")
+    result, _ = _run_v3_landing_preflight(
+        fx,
+        tmp_path,
+        monkeypatch,
+        action="ready_for_review",
+        base_sha=refreshed,
+        verifier=remote,
+    )
+    assert result["gate_status"] == "BLOCKED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["false_none_attestation_fields"]["status"] == "FAIL"
+    assert by_name["base_refresh_schema"]["status"] == "FAIL"
+
+def test_v9_legacy_intent_mode_still_blocks_base_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fx = _v3_transition_fixture(tmp_path, intent_required=True)
+    fx["head_sha"] = _decision_test_git(fx["repo"], "rev-parse", "HEAD")
+    refreshed, _ = _v9_advance_cutover_main(fx)
+    remote = _V3FakeRemoteVerifier(
+        fx, target_base_sha=refreshed, live_main_sha=refreshed
+    )
+    result, remote = _run_v3_landing_preflight(
+        fx,
+        tmp_path,
+        monkeypatch,
+        action="ready_for_review",
+        base_sha=refreshed,
+        verifier=remote,
+    )
+    assert result["gate_status"] == "BLOCKED", result
+    assert "landing_event_base_mismatch" in result["blocking_reasons"]
+    assert remote.verify_pr_calls == []
+    assert remote.verify_ref_sha_calls == []
+
+def test_v9_verify_ref_sha_requires_exact_canonical_head_ref(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    verifier = GitHubRemoteAcceptanceVerifier(
+        repository="dddd2024/Nerelan", token="test-token"
+    )
+    expected = "a" * 40
+    seen: list[str] = []
+
+    def fake_request(path: str) -> dict[str, Any]:
+        seen.append(path)
+        return {
+            "ref": "refs/heads/main",
+            "object": {"type": "commit", "sha": expected},
+        }
+
+    monkeypatch.setattr(verifier, "_request_json", fake_request)
+    result = verifier.verify_ref_sha(
+        ref_name="heads/main", expected_sha=expected
+    )
+    assert result["verified"] is True, result
+    assert seen == ["/repos/dddd2024/Nerelan/git/ref/heads/main"]
+
+@pytest.mark.parametrize(
+    ("ref_name", "expected_sha", "reason"),
+    [
+        ("../heads/main", "a" * 40, "invalid_ref_name"),
+        ("heads//main", "a" * 40, "invalid_ref_name"),
+        ("heads/main", "A" * 40, "invalid_expected_sha"),
+        ("heads/main", "a" * 39, "invalid_expected_sha"),
+    ],
+)
+def test_v9_verify_ref_sha_rejects_invalid_input_without_request(
+    monkeypatch: pytest.MonkeyPatch,
+    ref_name: str,
+    expected_sha: str,
+    reason: str,
+) -> None:
+    verifier = GitHubRemoteAcceptanceVerifier(
+        repository="dddd2024/Nerelan", token="test-token"
+    )
+    monkeypatch.setattr(
+        verifier,
+        "_request_json",
+        lambda path: pytest.fail(f"unexpected request: {path}"),
+    )
+    result = verifier.verify_ref_sha(
+        ref_name=ref_name, expected_sha=expected_sha
+    )
+    assert result == {"verified": False, "reason": reason}
+
+def test_v9_verify_ref_sha_rejects_live_ref_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    verifier = GitHubRemoteAcceptanceVerifier(
+        repository="dddd2024/Nerelan", token="test-token"
+    )
+    monkeypatch.setattr(
+        verifier,
+        "_request_json",
+        lambda path: {
+            "ref": "refs/heads/main",
+            "object": {"type": "commit", "sha": "b" * 40},
+        },
+    )
+    result = verifier.verify_ref_sha(
+        ref_name="heads/main", expected_sha="a" * 40
+    )
+    assert result["verified"] is False
+    assert str(result["reason"]).startswith("ref_mismatch:")

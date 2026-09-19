@@ -36669,7 +36669,10 @@ def _check_landing_authority(
             }
         )
 
-    if event_base != locked_base_sha:
+    base_refresh_candidate = (
+        intent_mode == "cutover" and event_base != locked_base_sha
+    )
+    if event_base != locked_base_sha and not base_refresh_candidate:
         checks.append(
             {
                 "name": "landing_event_base_locked",
@@ -36682,7 +36685,11 @@ def _check_landing_authority(
         {
             "name": "landing_event_base_locked",
             "status": "PASS",
-            "detail": f"base={event_base}",
+            "detail": (
+                f"refresh_candidate:event={event_base} original={locked_base_sha}"
+                if base_refresh_candidate
+                else f"base={event_base}"
+            ),
         }
     )
 
@@ -36716,7 +36723,7 @@ def _check_landing_authority(
         "verified": isinstance(remote_result, Mapping) and remote_result.get("verified") is True,
         "number": isinstance(remote_number, int) and not isinstance(remote_number, bool) and remote_number == pr_number,
         "head": remote_head == event_head,
-        "base": remote_base == event_base == locked_base_sha,
+        "base": remote_base == event_base,
         "merged": remote_pr.get("merged") is False,
         "draft": isinstance(remote_draft, bool) and remote_draft is event_draft,
     }
@@ -36729,6 +36736,31 @@ def _check_landing_authority(
     )
     if not all(remote_checks.values()):
         return checks, ("landing_remote_pr_mismatch",)
+
+    if base_refresh_candidate:
+        live_main_result = verifier.verify_ref_sha(
+            ref_name="heads/main",
+            expected_sha=str(event_base),
+        )
+        checks.append(
+            {
+                "name": "landing_refreshed_base_live_main",
+                "status": (
+                    "PASS"
+                    if isinstance(live_main_result, Mapping)
+                    and live_main_result.get("verified") is True
+                    else "FAIL"
+                ),
+                "detail": str(
+                    (live_main_result or {}).get("reason") or "verified"
+                ),
+            }
+        )
+        if not (
+            isinstance(live_main_result, Mapping)
+            and live_main_result.get("verified") is True
+        ):
+            return checks, ("landing_main_ref_mismatch",)
 
     if intent_mode == "cutover":
         # No-legacy-intent cutover mode shares every fail-closed invariant
@@ -36790,6 +36822,7 @@ def _check_landing_authority(
             accepted_head=str(event_head),
             locked_base=str(locked_base_sha),
             now=now,
+            landing_base=str(event_base),
         )
         checks.extend(premerge_checks)
         if any(item.get("status") != "PASS" for item in premerge_checks):
@@ -36967,6 +37000,7 @@ def transition_preflight(
                 newline="\n",
             )
         return result
+    landing_checks: list[dict[str, str]] = []
     if _is_landing_boundary_event(event_payload):
         decision_path = state_dir / "decision_packet.md"
         decision_sha256 = "sha256:" + _sha256_path(decision_path) if decision_path.exists() else ""
@@ -37067,6 +37101,8 @@ def transition_preflight(
     # cannot pass based on stale local provenance.
     pre_result = validate_transition(authority, envelopes=()).to_dict()
     pre_result.setdefault("checks", []).append(live_check)
+    if landing_checks:
+        pre_result["checks"].extend(landing_checks)
     pre_result["decision_immutability"] = live_decision
     # Translate PASSED into PRE_EXECUTION_AUTHORIZED for pre mode.
     if pre_result.get("gate_status") == "PASSED":

@@ -32,6 +32,25 @@ from reverse_agent.mainline_landing import (
     validate_pr60_recovery,
     owner_landing_content_digest,
     FALSE_NONE_REQUIRED_CONTEXTS,
+    BASE_REFRESH_ADMISSIBLE,
+    BASE_REFRESH_BLOCKED_ANCESTRY,
+    BASE_REFRESH_BLOCKED_AUTHORITY_DRIFT,
+    BASE_REFRESH_BLOCKED_DECISION_DRIFT,
+    BASE_REFRESH_BLOCKED_DEPENDENCY_DRIFT,
+    BASE_REFRESH_BLOCKED_MAIN_REDRIFT,
+    BASE_REFRESH_BLOCKED_MERGE_CONFLICT,
+    BASE_REFRESH_BLOCKED_MERGE_TREE_MISMATCH,
+    BASE_REFRESH_BLOCKED_OBJECT_INVALID,
+    BASE_REFRESH_BLOCKED_SCHEMA,
+    BASE_REFRESH_BLOCKED_TARGET_HEAD_DRIFT,
+    BASE_REFRESH_BLOCKED_TARGET_OVERLAP,
+    BASE_REFRESH_AUTHORITY_FIELDS,
+    _is_authority_sensitive_path,
+    _changed_paths,
+    _is_commit_object,
+    _is_dependency_manifest_path,
+    _merge_tree_sha,
+    validate_base_refresh_landing,
 )
 
 
@@ -3121,3 +3140,992 @@ def test_false_none_postmerge_requires_completed_landing_state_gate(
     assert result["gate_status"] == "PASSED", result
     checks = {check["name"]: check for check in result["checks"]}
     assert checks["false_none_landing_context_is_formal"]["status"] == "PASS"
+
+# Issue #721: safe non-overlap Owner landing base refresh (R2 v4).
+#
+# Dependency-manifest matching uses basename plus deterministic basename glob
+# semantics only.  Workflow YAML is never parsed for dependency inference.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "pyproject.toml",
+        "requirements.txt",
+        "requirements-dev.txt",
+        "requirements-test.txt",
+        "requirements-ci.txt",
+        "frontend/requirements-dev.txt",
+        "frontend/src-tauri/Cargo.toml",
+        "uv.lock",
+        "poetry.lock",
+        "Pipfile",
+        "Pipfile.lock",
+        "package.json",
+        "frontend/package.json",
+        "package-lock.json",
+        "frontend/package-lock.json",
+        "pnpm-lock.yaml",
+        "yarn.lock",
+        "Cargo.toml",
+        "frontend/src-tauri/Cargo.lock",
+        "nested/deep/requirements-lint.txt",
+        "./requirements-dev.txt",
+    ],
+)
+def test_dependency_manifest_matcher_blocks_root_and_nested_variants(path: str) -> None:
+    assert _is_dependency_manifest_path(path) is True
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "reverse_agent/mainline_landing.py",
+        "tests/test_mainline_landing.py",
+        ".github/workflows/ci.yml",
+        ".github/workflows/tauri-desktop-check.yml",
+        "requirements-notes.md",
+        "docs/requirements-review.md",
+        "frontend/README.md",
+        "AGENTS.md",
+        "project_state/decision_packet.md",
+    ],
+)
+def test_dependency_manifest_matcher_does_not_overmatch(path: str) -> None:
+    assert _is_dependency_manifest_path(path) is False
+
+
+def test_dependency_manifest_matcher_rejects_bare_suffix_heuristic() -> None:
+    # The rejected v3 suffix approach matched anything ending in the bare
+    # token.  Basename glob matching must not.
+    assert _is_dependency_manifest_path("notes/requirements") is False
+    assert _is_dependency_manifest_path("notes/requirements-") is False
+    assert _is_dependency_manifest_path("notes/lock") is False
+    assert _is_dependency_manifest_path("notes/manifest") is False
+    # And the wildcard family still resolves nested and at root.
+    assert _is_dependency_manifest_path("requirements-dev.txt") is True
+    assert _is_dependency_manifest_path("a/b/requirements-ci.txt") is True
+    assert _is_dependency_manifest_path("a/b/requirements-test.txt") is True
+
+
+def test_dependency_manifest_matcher_never_infers_from_workflow_yaml() -> None:
+    workflow = ".github/workflows/tauri-desktop-check.yml"
+    assert _is_dependency_manifest_path(workflow) is False
+    assert _is_authority_sensitive_path(workflow) is True
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        ".github/workflows/state-gate.yml",
+        ".github/dependabot.yml",
+        "project_state/decision_packet.md",
+        "project_state/gates/command_plan.json",
+        "reverse_agent/control_plane/execution_surface.py",
+        "AGENTS.md",
+        "reverse_agent/mainline_landing.py",
+        "reverse_agent/project_gate.py",
+        "reverse_agent/github_remote_verifier.py",
+    ],
+)
+def test_authority_sensitive_matcher_blocks_governance_paths(path: str) -> None:
+    assert _is_authority_sensitive_path(path) is True
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "src/migration_probe.py",
+        "tests/test_migration_probe.py",
+        "frontend/src-tauri/Cargo.toml",
+        "requirements-dev.txt",
+    ],
+)
+def test_authority_sensitive_matcher_allows_ordinary_paths(path: str) -> None:
+    assert _is_authority_sensitive_path(path) is False
+
+
+def test_changed_paths_disables_rename_detection_and_preserves_both_paths(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "rename-paths"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test")
+    original = repo / "reverse_agent" / "project_gate.py"
+    original.parent.mkdir(parents=True)
+    original.write_text("value = 1\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "base")
+    base = _git(repo, "rev-parse", "HEAD")
+
+    renamed = "reverse_agent/project_gate_renamed.py"
+    _git(repo, "mv", "reverse_agent/project_gate.py", renamed)
+    _git(repo, "commit", "-m", "rename")
+    head = _git(repo, "rev-parse", "HEAD")
+
+    assert _changed_paths(repo, base, head) == {
+        "reverse_agent/project_gate.py",
+        renamed,
+    }
+    assert _is_authority_sensitive_path("reverse_agent/project_gate.py") is True
+
+
+def test_is_commit_object_requires_exact_40_hex_commit(tmp_path: Path) -> None:
+    repo = tmp_path / "objrepo"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test")
+    (repo / "a.txt").write_text("a\n", encoding="utf-8")
+    _git(repo, "add", "a.txt")
+    _git(repo, "commit", "-m", "one")
+    commit = _git(repo, "rev-parse", "HEAD")
+    blob = _git(repo, "rev-parse", "HEAD:a.txt")
+    assert _is_commit_object(repo, commit) is True
+    assert _is_commit_object(repo, blob) is False
+    assert _is_commit_object(repo, "f" * 40) is False
+    assert _is_commit_object(repo, commit[:12]) is False
+    assert _is_commit_object(repo, commit.upper()) is False
+    assert _is_commit_object(repo, "") is False
+    assert _is_commit_object(repo, 1234) is False  # type: ignore[arg-type]
+    assert _merge_tree_sha(repo, commit, commit) == _git(
+        repo, "rev-parse", f"{commit}^{{tree}}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Issue #664 migration fixture: exact historical workflow bytes, exercised in
+# a synthetic offline repository.
+# ---------------------------------------------------------------------------
+
+
+_MIGRATION_664_HISTORICAL_ACCEPTED_TARGET_HEAD = "f72c5f1c5307cf8655715269687541ead8ead180"
+_MIGRATION_664_WORKFLOW_PATH = ".github/workflows/tauri-desktop-check.yml"
+_MIGRATION_664_WORKFLOW_BLOB = "0360c23a3821c38b18f6e0d6abf85ac0531ff08c"
+_MIGRATION_664_WORKFLOW_BYTES_HEX = (
+    "bmFtZTogVGF1cmkgRGVza3RvcCBDaGVjawoKIyBUcmlnZ2VyIHBhdGhzIGFyZSBkZWxpYmVyYXRl"
+    "bHkgbGltaXRlZCB0byBmcm9udGVuZCBwcm9kdWN0IHBhdGhzLgojIFRoZSB3b3JrZmxvdydzIG93"
+    "biBZQU1MIHBhdGggaXMgaW50ZW50aW9uYWxseSBleGNsdWRlZCBzbyB0aGlzIHdvcmtmbG93IGNh"
+    "bgojIG5ldmVyIHNlbGYtdHJpZ2dlciBvbiBpdHMgb3duIGNoYW5nZSwgYW5kIG5vIG1hbnVhbCwg"
+    "c2NoZWR1bGVkLCBvcgojIHJldXNhYmxlLWNhbGwgdHJpZ2dlciBzdXJmYWNlIGlzIGRlY2xhcmVk"
+    "LgoKb246CiAgcHVzaDoKICAgIGJyYW5jaGVzOgogICAgICAtIG1haW4KICAgIHBhdGhzOgogICAg"
+    "ICAtICJmcm9udGVuZC9wYWNrYWdlLmpzb24iCiAgICAgIC0gImZyb250ZW5kL3BhY2thZ2UtbG9j"
+    "ay5qc29uIgogICAgICAtICJmcm9udGVuZC9zcmMtdGF1cmkvKioiCiAgcHVsbF9yZXF1ZXN0Ogog"
+    "ICAgcGF0aHM6CiAgICAgIC0gImZyb250ZW5kL3BhY2thZ2UuanNvbiIKICAgICAgLSAiZnJvbnRl"
+    "bmQvcGFja2FnZS1sb2NrLmpzb24iCiAgICAgIC0gImZyb250ZW5kL3NyYy10YXVyaS8qKiIKCnBl"
+    "cm1pc3Npb25zOgogIGNvbnRlbnRzOiByZWFkCgpqb2JzOgogIHRhdXJpLWRlc2t0b3AtY2hlY2s6"
+    "CiAgICBuYW1lOiBUYXVyaSBkZXNrdG9wIGNvbXBpbGUvY2hlY2sKICAgIHJ1bnMtb246IHdpbmRv"
+    "d3MtbGF0ZXN0CiAgICB0aW1lb3V0LW1pbnV0ZXM6IDI1CiAgICBzdGVwczoKICAgICAgLSBuYW1l"
+    "OiBDaGVja291dCBleGFjdCBwcm9kdWN0IGhlYWQKICAgICAgICB1c2VzOiBhY3Rpb25zL2NoZWNr"
+    "b3V0QHY0CiAgICAgICAgd2l0aDoKICAgICAgICAgIHJlZjogJHt7IGdpdGh1Yi5ldmVudC5wdWxs"
+    "X3JlcXVlc3QuaGVhZC5zaGEgfHwgZ2l0aHViLnNoYSB9fQogICAgICAgICAgZmV0Y2gtZGVwdGg6"
+    "IDAKICAgICAgICAgIHBlcnNpc3QtY3JlZGVudGlhbHM6IGZhbHNlCgogICAgICAtIG5hbWU6IFNl"
+    "dCB1cCBOb2RlCiAgICAgICAgdXNlczogYWN0aW9ucy9zZXR1cC1ub2RlQHY0CiAgICAgICAgd2l0"
+    "aDoKICAgICAgICAgIG5vZGUtdmVyc2lvbjogIjIyLjIzLjEiCiAgICAgICAgICBjYWNoZTogbnBt"
+    "CiAgICAgICAgICBjYWNoZS1kZXBlbmRlbmN5LXBhdGg6IGZyb250ZW5kL3BhY2thZ2UtbG9jay5q"
+    "c29uCgogICAgICAtIG5hbWU6IEluc3RhbGwgZnJvbnRlbmQgZGVwZW5kZW5jaWVzCiAgICAgICAg"
+    "c2hlbGw6IHB3c2gKICAgICAgICB3b3JraW5nLWRpcmVjdG9yeTogZnJvbnRlbmQKICAgICAgICBy"
+    "dW46IG5wbSBjaQoKICAgICAgLSBuYW1lOiBQaW4gUnVzdCB0b29sY2hhaW4KICAgICAgICBzaGVs"
+    "bDogcHdzaAogICAgICAgIHJ1bjogfAogICAgICAgICAgcnVzdHVwIHRvb2xjaGFpbiBpbnN0YWxs"
+    "IDEuOTguMCAtLXByb2ZpbGUgbWluaW1hbCAtLW5vLXNlbGYtdXBkYXRlCiAgICAgICAgICBydXN0"
+    "dXAgZGVmYXVsdCAxLjk4LjAKICAgICAgICAgIHJ1c3RjIC0tdmVyc2lvbgogICAgICAgICAgY2Fy"
+    "Z28gLS12ZXJzaW9uCgogICAgICAtIG5hbWU6IFRhdXJpIGVudmlyb25tZW50IGluZm8KICAgICAg"
+    "ICBzaGVsbDogcHdzaAogICAgICAgIHJ1bjogbnBtIC0tcHJlZml4IGZyb250ZW5kIHJ1biB0YXVy"
+    "aSAtLSBpbmZvCgogICAgICAtIG5hbWU6IENhcmdvIGxvY2tlZCBjaGVjawogICAgICAgIHNoZWxs"
+    "OiBwd3NoCiAgICAgICAgcnVuOiBjYXJnbyBjaGVjayAtLWxvY2tlZCAtLW1hbmlmZXN0LXBhdGgg"
+    "ZnJvbnRlbmQvc3JjLXRhdXJpL0NhcmdvLnRvbWwK"
+)
+MIGRATION_664_WORKFLOW_BYTES = base64.b64decode(_MIGRATION_664_WORKFLOW_BYTES_HEX)
+
+
+def _git_blob_identity(raw: bytes) -> str:
+    return hashlib.sha1(b"blob %d\x00" % len(raw) + raw).hexdigest()
+
+
+def test_migration_664_historical_workflow_bytes_resolve_to_exact_blob() -> None:
+    assert len(MIGRATION_664_WORKFLOW_BYTES) == 1740
+    assert _git_blob_identity(MIGRATION_664_WORKFLOW_BYTES) == _MIGRATION_664_WORKFLOW_BLOB
+    assert MIGRATION_664_WORKFLOW_BYTES.startswith(b"name: Tauri Desktop Check\n")
+    assert MIGRATION_664_WORKFLOW_BYTES.endswith(b"Cargo.toml\n")
+    assert b"\r\n" not in MIGRATION_664_WORKFLOW_BYTES
+    assert b"rustup toolchain install 1.98.0" in MIGRATION_664_WORKFLOW_BYTES
+
+
+def test_migration_664_historical_workflow_blob_identity_is_byte_sensitive() -> None:
+    assert _git_blob_identity(MIGRATION_664_WORKFLOW_BYTES) == _MIGRATION_664_WORKFLOW_BLOB
+    for index in (0, 100, len(MIGRATION_664_WORKFLOW_BYTES) - 1):
+        mutated = bytearray(MIGRATION_664_WORKFLOW_BYTES)
+        mutated[index] ^= 0x01
+        assert _git_blob_identity(bytes(mutated)) != _MIGRATION_664_WORKFLOW_BLOB
+    assert (
+        _git_blob_identity(MIGRATION_664_WORKFLOW_BYTES[:-1])
+        != _MIGRATION_664_WORKFLOW_BLOB
+    )
+    assert (
+        _git_blob_identity(MIGRATION_664_WORKFLOW_BYTES + b"\n")
+        != _MIGRATION_664_WORKFLOW_BLOB
+    )
+
+
+def _git_env(repo: Path, *args: str, **env: str) -> str:
+    merged = {**os.environ, **env}
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+        env=merged,
+    ).stdout.strip()
+
+
+def _commit_message(repo: Path, message: str) -> str:
+    _git(repo, "commit", "-m", message)
+    return _git(repo, "rev-parse", "HEAD")
+
+
+def _migration_664_decision_text(decision_id: str) -> str:
+    contract = {
+        "transition_kernel_required": True,
+        "mainline_merge_intent_required": False,
+        "active_pr_binding_mode": "none",
+    }
+    return (
+        "# Decision Packet\n\n"
+        "```json decision_meta\n"
+        + json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": decision_id,
+                "round_id": "round_" + decision_id[len("decision_") :],
+                "status": "APPROVED",
+                "mainline": "engineering_branch",
+            },
+            separators=(",", ":"),
+        )
+        + "\n```\n\n"
+        "```json decision_contract\n"
+        + json.dumps(contract, separators=(",", ":"))
+        + "\n```\n"
+    )
+
+
+def _migration_664_repo(
+    tmp_path: Path,
+    *,
+    main_files: dict[str, bytes] | None = None,
+) -> dict[str, Any]:
+    """Build A (original base), T (accepted synthetic head), B (refreshed main).
+
+    T carries the exact historical Issue #664 workflow bytes.  B advances only
+    through unrelated safe source/test edits by default, so the refresh path
+    stays non-overlapping.  T is committed exactly once and never rewritten.
+    """
+
+    repo = tmp_path / "mig664"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test")
+    (repo / "base.txt").write_text("base\n", encoding="utf-8")
+    _git(repo, "add", "base.txt")
+    original_base = _commit_message(repo, "A: original locked base")
+
+    _git(repo, "checkout", "-b", "target")
+    (repo / ".github" / "workflows").mkdir(parents=True)
+    (repo / _MIGRATION_664_WORKFLOW_PATH).write_bytes(MIGRATION_664_WORKFLOW_BYTES)
+    (repo / "project_state").mkdir()
+    (repo / "project_state" / "decision_packet.md").write_text(
+        _migration_664_decision_text("decision_20260910_issue664_migration_fixture"),
+        encoding="utf-8",
+    )
+    _git(
+        repo,
+        "add",
+        _MIGRATION_664_WORKFLOW_PATH,
+        "project_state/decision_packet.md",
+    )
+    target_head = _commit_message(repo, "T: accepted synthetic semantic head")
+
+    _git(repo, "checkout", "main")
+    files = (
+        main_files
+        if main_files is not None
+        else {
+            "src/migration_probe.py": b"MIGRATION_PROBE = 1\n",
+            "tests/test_migration_probe.py": b"assert MIGRATION_PROBE == 1\n",
+        }
+    )
+    for rel, raw in files.items():
+        path = repo / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+    for rel in files:
+        _git(repo, "add", rel)
+    refreshed_base = _commit_message(repo, "B: refreshed main")
+
+    decision_bytes = subprocess.check_output(
+        ["git", "show", f"{target_head}:project_state/decision_packet.md"],
+        cwd=repo,
+    )
+    merge_probe = subprocess.run(
+        ["git", "merge-tree", "--write-tree", refreshed_base, target_head],
+        cwd=repo,
+        capture_output=True,
+        check=False,
+    )
+    expected_merge_tree = (
+        merge_probe.stdout.decode("utf-8").strip().splitlines()[0]
+        if merge_probe.returncode == 0 and merge_probe.stdout
+        else ""
+    )
+    return {
+        "repo": repo,
+        "original_base": original_base,
+        "target_head": target_head,
+        "refreshed_base": refreshed_base,
+        "expected_merge_tree": expected_merge_tree,
+        "decision_digest": hashlib.sha256(decision_bytes).hexdigest(),
+        "historical_accepted_target_head": _MIGRATION_664_HISTORICAL_ACCEPTED_TARGET_HEAD,
+        "synthetic_target_head": target_head,
+        "merge_probe_returncode": merge_probe.returncode,
+    }
+
+
+def _migration_664_authority(
+    fixture: dict[str, Any], **overrides: Any
+) -> dict[str, Any]:
+    authority: dict[str, Any] = {
+        "source_pr": 664,
+        "refresh_authority_original_locked_base_sha": fixture["original_base"],
+        "refresh_authority_refreshed_base_sha": fixture["refreshed_base"],
+        "refresh_authority_accepted_target_head_sha": fixture["target_head"],
+        "refresh_authority_expected_merge_tree_sha": fixture["expected_merge_tree"],
+        "refresh_authority_decision_content_sha256": fixture["decision_digest"],
+        "refresh_authority_owner_exact_head_review_sha": fixture["target_head"],
+        "refresh_authority_sidecar_pr": 665,
+        "refresh_authority_sidecar_base_sha": fixture["refreshed_base"],
+        "refresh_authority_allowed_merge_method": "merge",
+        "refresh_authority_expected_head_protection_required": True,
+    }
+    authority.update(overrides)
+    return authority
+
+
+def _migration_664_validate(
+    fixture: dict[str, Any],
+    authority: dict[str, Any],
+    *,
+    merge_commit_sha: str | None = None,
+    first_parent: str | None = None,
+    second_parent: str | None = None,
+) -> dict[str, Any]:
+    return validate_base_refresh_landing(
+        repo_root=fixture["repo"],
+        attestation=authority,
+        first_parent=first_parent
+        if first_parent is not None
+        else fixture["refreshed_base"],
+        second_parent=second_parent
+        if second_parent is not None
+        else fixture["target_head"],
+        merge_commit_sha=merge_commit_sha,
+    )
+
+
+def _migration_664_merge_commit(fixture: dict[str, Any], ref: str = "target") -> str:
+    repo = fixture["repo"]
+    _git(repo, "merge", "--no-ff", ref, "-m", "M: refreshed base merge")
+    return _git(repo, "rev-parse", "HEAD")
+
+
+def test_migration_664_exact_historical_bytes_pass_base_refresh_gate(
+    tmp_path: Path,
+) -> None:
+    fixture = _migration_664_repo(tmp_path)
+    assert fixture["merge_probe_returncode"] == 0
+    authority = _migration_664_authority(fixture)
+    merge_commit = _migration_664_merge_commit(fixture)
+
+    before = _git(
+        fixture["repo"],
+        "rev-parse",
+        f'{fixture["target_head"]}:{_MIGRATION_664_WORKFLOW_PATH}',
+    )
+    after = _git(
+        fixture["repo"],
+        "rev-parse",
+        f"{merge_commit}:{_MIGRATION_664_WORKFLOW_PATH}",
+    )
+    assert before == _MIGRATION_664_WORKFLOW_BLOB
+    assert after == _MIGRATION_664_WORKFLOW_BLOB
+
+    result = _migration_664_validate(fixture, authority, merge_commit_sha=merge_commit)
+    assert result["gate_status"] == "PASSED", result
+    assert result["blocking_reasons"] == []
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["base_refresh_authority"]["status"] == "PASS"
+    assert by_name["base_refresh_authority"]["detail"] == BASE_REFRESH_ADMISSIBLE
+    assert by_name["merge_tree_policy"]["status"] == "PASS"
+    for name in (
+        "base_refresh_schema",
+        "base_refresh_object_validation",
+        "base_refresh_ancestry",
+        "base_refresh_target_head_binding",
+        "base_refresh_target_overlap",
+        "base_refresh_authority_sensitive_drift",
+        "base_refresh_dependency_drift",
+        "base_refresh_decision_digest",
+        "base_refresh_owner_review_binding",
+        "base_refresh_authority_sidecar_pr",
+        "base_refresh_authority_sidecar_base",
+        "base_refresh_current_main_binding",
+        "base_refresh_merge_tree",
+        "base_refresh_merge_tree_identity",
+        "base_refresh_merge_method",
+        "base_refresh_expected_head_protection",
+    ):
+        assert by_name[name]["status"] == "PASS", (name, result)
+
+    # Historical evidence identity is retained and kept distinct from the
+    # synthetic offline execution identity.
+    assert fixture["historical_accepted_target_head"] == _MIGRATION_664_HISTORICAL_ACCEPTED_TARGET_HEAD
+    assert (
+        fixture["synthetic_target_head"]
+        != _MIGRATION_664_HISTORICAL_ACCEPTED_TARGET_HEAD
+    )
+    assert result["refresh_accepted_target_head_sha"] == fixture["synthetic_target_head"]
+    assert result["refresh_expected_merge_tree_sha"] == fixture["expected_merge_tree"]
+    assert result["refresh_computed_merge_tree_sha"] == fixture["expected_merge_tree"]
+    assert result["landing_policy"] == "false_none_owner_landing_base_refresh"
+
+
+def test_migration_664_placeholder_bytes_cannot_reproduce_the_blob_identity() -> None:
+    # A short placeholder stands in for nothing: it cannot reproduce the
+    # historical blob identity, which is what makes the byte binding real.
+    for placeholder in (b"name: Tauri Check\n", b"name: Tauri Desktop Check\n"):
+        assert _git_blob_identity(placeholder) != _MIGRATION_664_WORKFLOW_BLOB
+        assert placeholder != MIGRATION_664_WORKFLOW_BYTES
+
+
+# ---------------------------------------------------------------------------
+# N1-N10 deterministic regressions.
+# ---------------------------------------------------------------------------
+
+
+def test_n1_target_overlap_blocks_with_expected_token(tmp_path: Path) -> None:
+    # Main re-adds the very workflow the target already carries, with identical
+    # bytes, so the write-tree merge still succeeds and only overlap blocks.
+    fixture = _migration_664_repo(
+        tmp_path,
+        main_files={_MIGRATION_664_WORKFLOW_PATH: MIGRATION_664_WORKFLOW_BYTES},
+    )
+    assert fixture["merge_probe_returncode"] == 0
+    result = _migration_664_validate(
+        fixture, _migration_664_authority(fixture)
+    )
+    assert result["gate_status"] == "BLOCKED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["base_refresh_target_overlap"]["status"] == "FAIL"
+    assert BASE_REFRESH_BLOCKED_TARGET_OVERLAP in by_name["base_refresh_target_overlap"]["detail"]
+    assert _MIGRATION_664_WORKFLOW_PATH in by_name["base_refresh_target_overlap"]["detail"]
+    assert by_name["base_refresh_merge_tree"]["status"] == "PASS"
+    assert by_name["base_refresh_merge_tree_identity"]["status"] == "PASS"
+    assert by_name["base_refresh_authority"]["detail"].startswith(
+        BASE_REFRESH_BLOCKED_TARGET_OVERLAP
+    )
+
+
+def _assert_n2_authority_drift_blocks(tmp_path: Path, path: str) -> None:
+    fixture = _migration_664_repo(tmp_path, main_files={path: b"drift\n"})
+    result = _migration_664_validate(fixture, _migration_664_authority(fixture))
+    assert result["gate_status"] == "BLOCKED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["base_refresh_authority_sensitive_drift"]["status"] == "FAIL"
+    detail = by_name["base_refresh_authority_sensitive_drift"]["detail"]
+    assert BASE_REFRESH_BLOCKED_AUTHORITY_DRIFT in detail
+    assert path in detail
+    assert by_name["base_refresh_dependency_drift"]["status"] == "PASS"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        ".github/workflows/state-gate.yml",
+        ".github/workflows/ci.yml",
+        "project_state/decision_packet.md",
+        "project_state/gates/command_plan.json",
+        "reverse_agent/control_plane/execution_surface.py",
+        "AGENTS.md",
+        "reverse_agent/mainline_landing.py",
+        "reverse_agent/github_remote_verifier.py",
+        "reverse_agent/project_gate.py",
+    ],
+)
+def test_n2_authority_drift_blocks_each_governance_family(tmp_path: Path, path: str) -> None:
+    _assert_n2_authority_drift_blocks(tmp_path, path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "pyproject.toml",
+        "requirements.txt",
+        "requirements-dev.txt",
+        "requirements-test.txt",
+        "requirements-ci.txt",
+        "frontend/requirements-dev.txt",
+        "uv.lock",
+        "poetry.lock",
+        "Pipfile",
+        "Pipfile.lock",
+        "package.json",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "yarn.lock",
+        "Cargo.toml",
+        "Cargo.lock",
+        "frontend/src-tauri/Cargo.toml",
+        "frontend/package-lock.json",
+    ],
+)
+def test_n2_dependency_manifest_drift_blocks_with_expected_token(
+    tmp_path: Path, path: str
+) -> None:
+    fixture = _migration_664_repo(tmp_path, main_files={path: b"pytest==8.0.0\n"})
+    result = _migration_664_validate(fixture, _migration_664_authority(fixture))
+    assert result["gate_status"] == "BLOCKED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    check = by_name["base_refresh_dependency_drift"]
+    assert check["status"] == "FAIL", result
+    assert BASE_REFRESH_BLOCKED_DEPENDENCY_DRIFT in check["detail"]
+    assert path in check["detail"]
+    assert by_name["base_refresh_authority_sensitive_drift"]["status"] == "PASS"
+
+
+def test_n3_accepted_target_head_drift_blocks_with_expected_token(
+    tmp_path: Path,
+) -> None:
+    fixture = _migration_664_repo(tmp_path)
+    authority = _migration_664_authority(
+        fixture,
+        refresh_authority_accepted_target_head_sha=fixture["original_base"],
+    )
+    result = _migration_664_validate(fixture, authority)
+    assert result["gate_status"] == "BLOCKED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["base_refresh_target_head_binding"]["status"] == "FAIL"
+    assert (
+        BASE_REFRESH_BLOCKED_TARGET_HEAD_DRIFT
+        in by_name["base_refresh_target_head_binding"]["detail"]
+    )
+
+
+def test_n4_target_decision_drift_blocks_with_expected_token(tmp_path: Path) -> None:
+    fixture = _migration_664_repo(tmp_path)
+    for bad_digest in ("0" * 64, fixture["decision_digest"][:-1] + "0", "sha256:" + fixture["decision_digest"]):
+        authority = _migration_664_authority(
+            fixture, refresh_authority_decision_content_sha256=bad_digest
+        )
+        result = _migration_664_validate(fixture, authority)
+        assert result["gate_status"] == "BLOCKED", result
+        by_name = {item["name"]: item for item in result["checks"]}
+        assert by_name["base_refresh_decision_digest"]["status"] == "FAIL", bad_digest
+        assert (
+            BASE_REFRESH_BLOCKED_DECISION_DRIFT
+            in by_name["base_refresh_decision_digest"]["detail"]
+        )
+
+
+def test_n5_ancestry_failure_blocks_with_expected_token(tmp_path: Path) -> None:
+    fixture = _migration_664_repo(tmp_path)
+    repo = fixture["repo"]
+    _git(repo, "checkout", "main")
+    _git(repo, "checkout", "--orphan", "unrelated")
+    _git(repo, "read-tree", "--empty")
+    _git(repo, "commit", "--allow-empty", "-m", "B: unrelated main")
+    refreshed = _git(repo, "rev-parse", "HEAD")
+    authority = _migration_664_authority(
+        fixture, refresh_authority_refreshed_base_sha=refreshed
+    )
+    result = _migration_664_validate(fixture, authority, first_parent=refreshed)
+    assert result["gate_status"] == "BLOCKED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["base_refresh_ancestry"]["status"] == "FAIL"
+    assert BASE_REFRESH_BLOCKED_ANCESTRY in by_name["base_refresh_ancestry"]["detail"]
+    # Overlap and dependency drift stay clean, isolating the ancestry failure.
+    assert by_name["base_refresh_target_overlap"]["status"] == "PASS"
+    assert by_name["base_refresh_dependency_drift"]["status"] == "PASS"
+
+
+def test_n6_current_main_redrift_blocks_with_expected_token(tmp_path: Path) -> None:
+    fixture = _migration_664_repo(tmp_path)
+    result = _migration_664_validate(
+        fixture,
+        _migration_664_authority(fixture),
+        first_parent=fixture["original_base"],
+    )
+    assert result["gate_status"] == "BLOCKED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["base_refresh_current_main_binding"]["status"] == "FAIL"
+    assert (
+        BASE_REFRESH_BLOCKED_MAIN_REDRIFT
+        in by_name["base_refresh_current_main_binding"]["detail"]
+    )
+    assert by_name["base_refresh_ancestry"]["status"] == "PASS"
+
+
+def test_n7_real_merge_conflict_blocks_with_expected_token(tmp_path: Path) -> None:
+    fixture = _migration_664_repo(
+        tmp_path,
+        main_files={_MIGRATION_664_WORKFLOW_PATH: b"name: Tauri Desktop Check\nother\n"},
+    )
+    assert fixture["merge_probe_returncode"] != 0
+    result = _migration_664_validate(fixture, _migration_664_authority(fixture))
+    assert result["gate_status"] == "BLOCKED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["base_refresh_merge_tree"]["status"] == "FAIL"
+    assert by_name["base_refresh_merge_tree"]["detail"] == BASE_REFRESH_BLOCKED_MERGE_CONFLICT
+    assert by_name["merge_tree_policy"]["status"] == "FAIL"
+
+
+def test_n8_merge_tree_mismatch_blocks_with_expected_token(tmp_path: Path) -> None:
+    fixture = _migration_664_repo(tmp_path)
+    wrong_tree = _git(
+        fixture["repo"], "rev-parse", f'{fixture["refreshed_base"]}^{{tree}}'
+    )
+    assert wrong_tree != fixture["expected_merge_tree"]
+    authority = _migration_664_authority(
+        fixture, refresh_authority_expected_merge_tree_sha=wrong_tree
+    )
+    result = _migration_664_validate(fixture, authority)
+    assert result["gate_status"] == "BLOCKED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["base_refresh_merge_tree"]["status"] == "PASS"
+    assert by_name["base_refresh_merge_tree_identity"]["status"] == "FAIL"
+    assert (
+        BASE_REFRESH_BLOCKED_MERGE_TREE_MISMATCH
+        in by_name["base_refresh_merge_tree_identity"]["detail"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("label", "sha"),
+    [
+        ("missing", "f" * 40),
+        ("non_commit_blob", _MIGRATION_664_WORKFLOW_BLOB),
+        ("abbreviated", "0360c23"),
+        ("uppercase", _MIGRATION_664_WORKFLOW_BLOB.upper()),
+        ("empty", ""),
+    ],
+)
+def test_n9_invalid_git_object_blocks_with_expected_token(
+    tmp_path: Path, label: str, sha: str
+) -> None:
+    fixture = _migration_664_repo(tmp_path)
+    authority = _migration_664_authority(
+        fixture, refresh_authority_refreshed_base_sha=sha
+    )
+    result = _migration_664_validate(fixture, authority, first_parent=sha)
+    assert result["gate_status"] == "BLOCKED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["base_refresh_object_validation"]["status"] == "FAIL", label
+    assert (
+        BASE_REFRESH_BLOCKED_OBJECT_INVALID
+        in by_name["base_refresh_object_validation"]["detail"]
+    )
+
+
+def test_n10_reauthored_target_cannot_bypass_exact_head_binding(tmp_path: Path) -> None:
+    fixture = _migration_664_repo(tmp_path)
+    repo = fixture["repo"]
+    tree = _git(repo, "rev-parse", f'{fixture["target_head"]}^{{tree}}')
+    rewritten = _git_env(
+        repo,
+        "commit-tree",
+        tree,
+        "-p",
+        fixture["original_base"],
+        "-m",
+        "T2: re-authored target with identical tree",
+        GIT_AUTHOR_NAME="Rewriter",
+        GIT_AUTHOR_EMAIL="rewriter@example.com",
+        GIT_COMMITTER_NAME="Rewriter",
+        GIT_COMMITTER_EMAIL="rewriter@example.com",
+        GIT_AUTHOR_DATE="2026-09-10T09:00:00Z",
+        GIT_COMMITTER_DATE="2026-09-10T09:00:00Z",
+    )
+    assert rewritten != fixture["target_head"]
+    assert _git(repo, "rev-parse", f"{rewritten}^{{tree}}") == tree
+    _git(repo, "branch", "target-rewritten", rewritten)
+    merge_commit = _migration_664_merge_commit(fixture, ref="target-rewritten")
+    parents = _git(repo, "rev-list", "--parents", "-n", "1", merge_commit).split()[1:]
+    assert parents == [fixture["refreshed_base"], rewritten]
+
+    result = _migration_664_validate(
+        fixture,
+        _migration_664_authority(fixture),
+        merge_commit_sha=merge_commit,
+        second_parent=rewritten,
+    )
+    assert result["gate_status"] == "BLOCKED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["base_refresh_target_head_binding"]["status"] == "FAIL"
+    assert (
+        BASE_REFRESH_BLOCKED_TARGET_HEAD_DRIFT
+        in by_name["base_refresh_target_head_binding"]["detail"]
+    )
+    # Trees are identical, so tree identity alone would pass; the exact-head
+    # binding is what blocks the re-authored target.
+    assert by_name["base_refresh_merge_tree"]["status"] == "PASS"
+    assert by_name["base_refresh_merge_tree_identity"]["status"] == "PASS"
+
+
+def test_base_refresh_gate_rejects_partial_authority_block(tmp_path: Path) -> None:
+    fixture = _migration_664_repo(tmp_path)
+    authority = _migration_664_authority(fixture)
+    del authority["refresh_authority_decision_content_sha256"]
+    result = _migration_664_validate(fixture, authority)
+    assert result["gate_status"] == "BLOCKED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["base_refresh_schema"]["status"] == "FAIL"
+    assert BASE_REFRESH_BLOCKED_SCHEMA in by_name["base_refresh_schema"]["detail"]
+
+
+def test_base_refresh_gate_rejects_unknown_refresh_field(tmp_path: Path) -> None:
+    fixture = _migration_664_repo(tmp_path)
+    authority = _migration_664_authority(fixture)
+    authority["refresh_authority_extra_field"] = "unexpected"
+    result = _migration_664_validate(fixture, authority)
+    assert result["gate_status"] == "BLOCKED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["base_refresh_schema"]["status"] == "FAIL"
+    assert BASE_REFRESH_BLOCKED_SCHEMA in by_name["base_refresh_schema"]["detail"]
+
+
+def test_base_refresh_gate_rejects_non_merge_method_and_missing_protection(
+    tmp_path: Path,
+) -> None:
+    fixture = _migration_664_repo(tmp_path)
+    authority = _migration_664_authority(
+        fixture,
+        refresh_authority_allowed_merge_method="squash",
+        refresh_authority_expected_head_protection_required=False,
+    )
+    result = _migration_664_validate(fixture, authority)
+    assert result["gate_status"] == "BLOCKED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["base_refresh_merge_method"]["status"] == "FAIL"
+    assert by_name["base_refresh_expected_head_protection"]["status"] == "FAIL"
+
+
+def test_base_refresh_gate_rejects_same_sidecar_pr_and_wrong_sidecar_base(
+    tmp_path: Path,
+) -> None:
+    fixture = _migration_664_repo(tmp_path)
+    authority = _migration_664_authority(
+        fixture,
+        refresh_authority_sidecar_pr=664,
+        refresh_authority_sidecar_base_sha=fixture["original_base"],
+    )
+    result = _migration_664_validate(fixture, authority)
+    assert result["gate_status"] == "BLOCKED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["base_refresh_authority_sidecar_pr"]["status"] == "FAIL"
+    assert by_name["base_refresh_authority_sidecar_base"]["status"] == "FAIL"
+
+
+def test_base_refresh_gate_rejects_owner_review_bound_to_other_head(
+    tmp_path: Path,
+) -> None:
+    fixture = _migration_664_repo(tmp_path)
+    authority = _migration_664_authority(
+        fixture,
+        refresh_authority_owner_exact_head_review_sha=fixture["refreshed_base"],
+    )
+    result = _migration_664_validate(fixture, authority)
+    assert result["gate_status"] == "BLOCKED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["base_refresh_owner_review_binding"]["status"] == "FAIL"
+
+
+# ---------------------------------------------------------------------------
+# Full false/none landing path with base refresh, plus strict legacy behavior
+# when refresh authority is absent.
+# ---------------------------------------------------------------------------
+
+
+def _false_none_refresh_repo(tmp_path: Path) -> dict[str, Any]:
+    repo = tmp_path / "fnrefresh"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test")
+    (repo / "base.txt").write_text("base\n", encoding="utf-8")
+    _git(repo, "add", "base.txt")
+    original_base = _commit_message(repo, "base")
+
+    _git(repo, "checkout", "-b", "feature")
+    decision_path = repo / "project_state" / "decision_packet.md"
+    decision_path.parent.mkdir(parents=True)
+    decision_id = "decision_20260903_issue156_postmerge_validator_cutover_r1"
+    decision_path.write_text(
+        _migration_664_decision_text(decision_id), encoding="utf-8"
+    )
+    (repo / "feature.txt").write_text("feature\n", encoding="utf-8")
+    _git(repo, "add", "project_state/decision_packet.md", "feature.txt")
+    target_head = _commit_message(repo, "false-none feature")
+
+    _git(repo, "checkout", "main")
+    (repo / "docs").mkdir()
+    (repo / "docs" / "refresh_note.md").write_text("# refreshed\n", encoding="utf-8")
+    _git(repo, "add", "docs/refresh_note.md")
+    refreshed_base = _commit_message(repo, "unrelated main refresh")
+
+    _git(repo, "merge", "--no-ff", "feature", "-m", "merge false-none refreshed")
+    merge = _git(repo, "rev-parse", "HEAD")
+    decision_bytes = subprocess.check_output(
+        ["git", "show", f"{target_head}:project_state/decision_packet.md"],
+        cwd=repo,
+    )
+    probe = subprocess.run(
+        ["git", "merge-tree", "--write-tree", refreshed_base, target_head],
+        cwd=repo,
+        capture_output=True,
+        check=False,
+    )
+    assert probe.returncode == 0, probe.stderr.decode("utf-8")
+    expected_merge_tree = probe.stdout.decode("utf-8").strip().splitlines()[0]
+    return {
+        "repo": repo,
+        "state_dir": repo / "project_state",
+        "base": refreshed_base,
+        "head": target_head,
+        "merge": merge,
+        "decision_id": decision_id,
+        "decision_digest": hashlib.sha256(decision_bytes).hexdigest(),
+        "original_base": original_base,
+        "refreshed_base": refreshed_base,
+        "expected_merge_tree": expected_merge_tree,
+    }
+
+
+def _false_none_refresh_pair(
+    bundle: dict[str, Any], *, att_overrides: dict[str, Any] | None = None
+) -> tuple[FalseNoneVerifier, dict[str, Any]]:
+    verifier = FalseNoneVerifier(bundle)
+    att = _false_none_attestation(bundle, verifier)
+    att["locked_base_sha"] = bundle["original_base"]
+    att["refresh_authority_original_locked_base_sha"] = bundle["original_base"]
+    att["refresh_authority_refreshed_base_sha"] = bundle["refreshed_base"]
+    att["refresh_authority_accepted_target_head_sha"] = bundle["head"]
+    att["refresh_authority_expected_merge_tree_sha"] = bundle["expected_merge_tree"]
+    att["refresh_authority_decision_content_sha256"] = bundle["decision_digest"]
+    att["refresh_authority_owner_exact_head_review_sha"] = bundle["head"]
+    att["refresh_authority_sidecar_pr"] = verifier.authority_pr
+    att["refresh_authority_sidecar_base_sha"] = bundle["refreshed_base"]
+    att["refresh_authority_allowed_merge_method"] = "merge"
+    att["refresh_authority_expected_head_protection_required"] = True
+    if att_overrides:
+        att.update(att_overrides)
+    att["content_digest"] = owner_landing_content_digest(att)
+    verifier.attestations = [att]
+    return verifier, att
+
+
+def test_false_none_refreshed_base_landing_passes_with_full_refresh_authority(
+    tmp_path: Path,
+) -> None:
+    bundle = _false_none_refresh_repo(tmp_path)
+    verifier, _ = _false_none_refresh_pair(bundle)
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "PASSED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["false_none_attestation_fields"]["status"] == "PASS"
+    assert by_name["false_none_attestation_locked_base"]["status"] == "PASS"
+    assert by_name["base_refresh_authority"]["status"] == "PASS"
+    assert by_name["base_refresh_authority"]["detail"] == BASE_REFRESH_ADMISSIBLE
+    assert by_name["merge_tree_policy"]["status"] == "PASS"
+    assert result["landing_policy"] == "false_none_owner_landing_base_refresh"
+
+
+def test_false_none_partial_refresh_block_fails_closed(tmp_path: Path) -> None:
+    # A single refresh field is an unknown field, not authority.
+    bundle = _false_none_refresh_repo(tmp_path)
+    verifier, _ = _false_none_pair(
+        bundle,
+        att_overrides={
+            "refresh_authority_original_locked_base_sha": bundle["original_base"]
+        },
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_attestation_fields" in item for item in result["blocking_reasons"]
+    )
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["base_refresh_schema"]["status"] == "FAIL"
+    assert BASE_REFRESH_BLOCKED_SCHEMA in by_name["base_refresh_schema"]["detail"]
+    assert by_name["base_refresh_authority"]["status"] == "FAIL"
+
+
+def test_false_none_full_refresh_block_without_original_base_fails_closed(
+    tmp_path: Path,
+) -> None:
+    # Every refresh field present but the original base wrong: the refresh
+    # chain is rejected rather than silently re-anchored.
+    bundle = _false_none_refresh_repo(tmp_path)
+    verifier, _ = _false_none_refresh_pair(
+        bundle,
+        att_overrides={
+            "refresh_authority_original_locked_base_sha": bundle["head"],
+            "locked_base_sha": bundle["head"],
+        },
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert by_name["false_none_attestation_fields"]["status"] == "PASS"
+    assert by_name["base_refresh_ancestry"]["status"] == "FAIL"
+    assert by_name["base_refresh_authority"]["status"] == "FAIL"
+    assert (
+        BASE_REFRESH_BLOCKED_ANCESTRY in by_name["base_refresh_authority"]["detail"]
+    )
+
+
+def test_false_none_drifted_base_without_refresh_authority_blocks_strictly(
+    tmp_path: Path,
+) -> None:
+    # No refresh authority: the original locked base is still a violation.
+    bundle = _false_none_refresh_repo(tmp_path)
+    verifier, _ = _false_none_pair(
+        bundle,
+        att_overrides={"locked_base_sha": bundle["original_base"]},
+    )
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_attestation_locked_base" in item for item in result["blocking_reasons"]
+    )
+    by_name = {item["name"]: item for item in result["checks"]}
+    assert "base_refresh_authority" not in by_name
+    # Strict legacy merge_tree_policy is unchanged and blocks on its own: a
+    # refreshed landing tree differs from the accepted target tree.
+    assert by_name["merge_tree_policy"]["status"] == "FAIL"
+    assert "accepted=" in by_name["merge_tree_policy"]["detail"]
+    assert "expected=" not in by_name["merge_tree_policy"]["detail"]
+    assert result["landing_policy"] == "false_none_owner_landing_authority"
+
+
+def test_false_none_refresh_authority_cannot_mask_bad_owner_review(tmp_path: Path) -> None:
+    bundle = _false_none_refresh_repo(tmp_path)
+    verifier, _ = _false_none_refresh_pair(bundle)
+    verifier.review_commit = bundle["refreshed_base"]
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED", result
+    assert any(
+        "false_none_owner_review_commit" in item for item in result["blocking_reasons"]
+    )

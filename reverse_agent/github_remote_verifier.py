@@ -77,6 +77,40 @@ class GitHubRemoteAcceptanceVerifier:
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
             raise GitHubEvidenceError(f"github_api_failure:{type(exc).__name__}") from exc
 
+    def verify_ref_sha(
+        self,
+        *,
+        ref_name: str,
+        expected_sha: str,
+    ) -> dict[str, Any]:
+        """Verify one exact GitHub ref points at the expected commit SHA."""
+
+        if (
+            re.fullmatch(r"heads/[A-Za-z0-9._/-]+", ref_name) is None
+            or ".." in ref_name
+            or "//" in ref_name
+            or ref_name.endswith("/")
+        ):
+            return {"verified": False, "reason": "invalid_ref_name"}
+        if re.fullmatch(r"[0-9a-f]{40}", expected_sha) is None:
+            return {"verified": False, "reason": "invalid_expected_sha"}
+        try:
+            ref = self._request_json(
+                f"/repos/{self.repository}/git/ref/{ref_name}"
+            )
+            obj = ref.get("object") if isinstance(ref, dict) else None
+            obj = obj if isinstance(obj, dict) else {}
+            checks = {
+                "ref": ref.get("ref") == f"refs/{ref_name}",
+                "sha": obj.get("sha") == expected_sha,
+                "type": obj.get("type") == "commit",
+            }
+            if not all(checks.values()):
+                return {"verified": False, "reason": f"ref_mismatch:{checks}"}
+            return {"verified": True, "ref": ref}
+        except (GitHubEvidenceError, TypeError, ValueError) as exc:
+            return {"verified": False, "reason": str(exc)}
+
     def verify_workflow_run(
         self,
         *,
