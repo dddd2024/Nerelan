@@ -1,5 +1,10 @@
 import fnmatch
+import ast
+import os
 import re
+import runpy
+import subprocess
+import sys
 from pathlib import Path
 import tomllib
 import pytest
@@ -10,6 +15,98 @@ STATE_GATE_PATH = WORKFLOWS_DIR / "state-gate.yml"
 CI_PATH = WORKFLOWS_DIR / "ci.yml"
 FRONTEND_PLAYWRIGHT_PATH = WORKFLOWS_DIR / "frontend-playwright.yml"
 PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
+
+
+def test_installed_opencode_markers_match_exact_existing_exclusions() -> None:
+    marked = set()
+    attribute_count = 0
+    for path in (REPO_ROOT / "tests").rglob("test_*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        attribute_count += sum(
+            isinstance(node, ast.Attribute) and ast.unparse(node) == "pytest.mark.installed_opencode"
+            for node in ast.walk(tree)
+        )
+        for cls in (node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)):
+            for method in cls.body:
+                if isinstance(method, ast.FunctionDef) and any(
+                    ast.unparse(decorator) == "pytest.mark.installed_opencode"
+                    for decorator in method.decorator_list
+                ):
+                    marked.add(f"{path.relative_to(REPO_ROOT).as_posix()}::{cls.name}::{method.name}")
+    assert marked == set(_EXACT_DESELECTED_NODE_IDS)
+    assert attribute_count == 4, "Only the four method markers are permitted; no broad marking"
+    assert any(marker.startswith("installed_opencode:") for marker in _read_pyproject()["tool"]["pytest"]["ini_options"]["markers"])
+
+
+@pytest.mark.parametrize(
+    ("options", "expected", "exit_code"),
+    [
+        ([], ["test_selection.py::test_default"], 0),
+        (["-m", "installed_opencode"], [], 5),
+        (["--run-installed-opencode"], ["test_selection.py::test_default", "test_selection.py::test_installed"], 0),
+        (["--run-installed-opencode", "-m", "installed_opencode"], ["test_selection.py::test_installed"], 0),
+    ],
+)
+def test_installed_tool_collection_requires_explicit_opt_in(tmp_path, options, expected, exit_code) -> None:
+    (tmp_path / "conftest.py").write_text((REPO_ROOT / "tests/conftest.py").read_text(encoding="utf-8"), encoding="utf-8")
+    (tmp_path / "pytest.ini").write_text("[pytest]\nmarkers =\n    installed_opencode: synthetic collection test\n", encoding="utf-8")
+    (tmp_path / "test_selection.py").write_text(
+        "import pytest\ndef test_default():\n    pass\n"
+        "@pytest.mark.installed_opencode\ndef test_installed():\n    pytest.fail('must never execute')\n",
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    env.pop("PYTEST_ADDOPTS", None)
+    env.pop("PYTEST_PLUGINS", None)
+    env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
+    result = subprocess.run(
+        [sys.executable, "-B", "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider", *options],
+        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == exit_code, result.stdout + result.stderr
+    assert [line for line in result.stdout.splitlines() if line.startswith("test_selection.py::")] == expected
+
+
+@pytest.mark.parametrize(
+    ("exit_code", "tests", "failures", "errors", "skipped", "passed"),
+    [("0", 2, 0, 0, 1, True), ("0", 2, 0, 0, 2, False), ("1", 1, 1, 1, 0, False), ("2", 1, 0, 1, 0, False),
+     ("5", 0, 0, 0, 0, False), ("", 2, 0, 0, 0, False), ("0", 1, 1, 0, 0, False)],
+)
+def test_diagnostic_summary_reports_raw_counts_and_actual_exit(tmp_path, exit_code, tests, failures, errors, skipped, passed) -> None:
+    render = runpy.run_path(str(REPO_ROOT / "scripts/ci_test_summary.py"))["render_summary"]
+    report = tmp_path / "junit.xml"
+    report.write_text(f'<testsuites><testsuite tests="{tests}" failures="{failures}" errors="{errors}" skipped="{skipped}"/></testsuites>', encoding="utf-8")
+    summary = render(report, exit_code)
+    for name, count in [("tests", tests), ("failures", failures), ("errors", errors), ("skipped", skipped)]:
+        assert f"| {name} | {count} |" in summary
+    assert ("**Selected tests passed.**" in summary) == passed
+    assert "| passed |" not in summary, "JUnit double failures must not produce inferred passed counts"
+    assert f"<code>{exit_code or 'unavailable'}</code>" in summary
+    assert "excluded and were not executed" in summary
+
+
+@pytest.mark.parametrize("content", [None, "broken XML", "<testsuites/>", '<testsuite tests="-1" failures="0" errors="0" skipped="0"/>'])
+def test_diagnostic_summary_missing_or_invalid_report_is_unknown(tmp_path, content) -> None:
+    render = runpy.run_path(str(REPO_ROOT / "scripts/ci_test_summary.py"))["render_summary"]
+    report = tmp_path / "junit.xml"
+    if content is not None:
+        report.write_text(content, encoding="utf-8")
+    summary = render(report, "0")
+    assert "statistics unavailable" in summary
+    assert "success is unproven" in summary
+    assert "**Selected tests passed.**" not in summary
+
+
+def test_diagnostic_workflow_preserves_exit_and_publishes_evidence() -> None:
+    content = _read_ci()
+    assert 'pytest_exit=$?' in content
+    assert 'exit "$pytest_exit"' in content
+    assert '--junitxml=ci-diagnostic.xml' in content
+    assert '-m "not installed_opencode"' in content
+    assert 'steps.repository_diagnostic.outputs.exit_code' in content
+    assert '"$GITHUB_STEP_SUMMARY"' in content
+    assert 'path: ci-diagnostic.xml' in content
+    assert "if: always() && steps.repository_diagnostic.outcome != 'skipped'" in content
 
 STATE_GATE_GATEWAYS = [
     "project_state/**",

@@ -1353,6 +1353,7 @@ class TestInstalledOpenCodeFakeProviderSmoke:
         "END USER TASK"
     )
 
+    @pytest.mark.installed_opencode
     def test_installed_opencode_fake_provider_end_to_end(self) -> None:
         opencode_exe = self._resolve_opencode()
         version_out = self._capture_opencode_version(opencode_exe)

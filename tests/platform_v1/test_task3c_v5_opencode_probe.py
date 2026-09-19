@@ -243,6 +243,7 @@ class TestTransientProviderConfig:
 
 class TestDirectFakeProviderControl:
 
+    @pytest.mark.installed_opencode
     def test_opencode_direct_fake_provider(self) -> None:
         opencode_exe, is_cmd = resolve_opencode_cli()
         version_proc = subprocess.run(
@@ -343,6 +344,7 @@ class TestDirectFakeProviderControl:
 
 class TestRelayFakeProviderRun:
 
+    @pytest.mark.installed_opencode
     def test_opencode_relay_fake_provider(self) -> None:
         opencode_exe, is_cmd = resolve_opencode_cli()
 

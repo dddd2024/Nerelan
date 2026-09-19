@@ -51,5 +51,25 @@ jobs:
         run: python -m pytest tests/platform_v1 -q --deselect=tests/platform_v1/test_task3c_v6_production_relay.py::TestCombinedTrustedHostInstalledOpenCodeE2E::test_real_task_api_opencode_relay_fake_provider_end_to_end --deselect=tests/platform_v1/test_task3c_v4_repairs.py::TestInstalledOpenCodeFakeProviderSmoke::test_installed_opencode_fake_provider_end_to_end --deselect=tests/platform_v1/test_task3c_v5_opencode_probe.py::TestDirectFakeProviderControl::test_opencode_direct_fake_provider --deselect=tests/platform_v1/test_task3c_v5_opencode_probe.py::TestRelayFakeProviderRun::test_opencode_relay_fake_provider
 
       - name: Repository-wide diagnostic (legacy debt, nonblocking)
+        id: repository_diagnostic
         continue-on-error: true
-        run: python -m pytest -q
+        run: |
+          set +e
+          python -m pytest -q -m "not installed_opencode" --junitxml=ci-diagnostic.xml
+          pytest_exit=$?
+          echo "exit_code=$pytest_exit" >> "$GITHUB_OUTPUT"
+          exit "$pytest_exit"
+
+      - name: Summarize repository diagnostic
+        if: always() && steps.repository_diagnostic.outcome != 'skipped'
+        env:
+          PYTEST_EXIT_CODE: ${{ steps.repository_diagnostic.outputs.exit_code }}
+        run: python scripts/ci_test_summary.py --report ci-diagnostic.xml --exit-code "$PYTEST_EXIT_CODE" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload repository diagnostic
+        if: always() && steps.repository_diagnostic.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: repository-diagnostic
+          path: ci-diagnostic.xml
+          if-no-files-found: warn
