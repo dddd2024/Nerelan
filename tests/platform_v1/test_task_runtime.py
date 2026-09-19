@@ -1,5 +1,6 @@
 """Task runtime tests: ExecutorRouter, DeterministicFixtureExecutor, validation."""
 
+import hashlib
 import os
 import subprocess
 import tempfile
@@ -9,6 +10,7 @@ import pytest
 from reverse_agent.platform_v1.run_store import TaskStore
 from reverse_agent.platform_v1.task_runtime import (
     _APPROVED_VALIDATION_COMMANDS,
+    _sanitize_output,
     DeterministicFixtureExecutor,
     ExecutorRuntimeError,
     ExecutorRouter,
@@ -98,6 +100,51 @@ def test_executor_changes_file() -> None:
         assert "fixture.txt" in paths
         modified = next(f for f in result.changed_files if f["path"] == "fixture.txt")
         assert modified["additions"] >= 1
+
+
+@pytest.mark.parametrize(
+    ("text", "budget", "expected"),
+    [
+        ("", 0, ""),
+        ("abc", 0, ""),
+        ("abc", 2, "ab"),
+        ("abc", 3, "abc"),
+        ("abc", 4, "abc"),
+        ("中文", 2, ""),
+        ("中文", 3, "中"),
+        ("中文", 5, "中"),
+        ("中文", 6, "中文"),
+        ("😀x", 3, ""),
+        ("😀x", 4, "😀"),
+        ("😀x", 5, "😀x"),
+        ("a中😀z", 7, "a中"),
+        ("a中😀z", 8, "a中😀"),
+        ("\x00a\x00中\x00😀z", 8, "a中😀"),
+        ("\x00\x00", 1, ""),
+    ],
+)
+def test_sanitize_output_respects_utf8_byte_budget(text, budget, expected) -> None:
+    output = _sanitize_output(text, budget)
+    assert output == expected
+    assert len(output.encode("utf-8")) <= budget
+    assert "\x00" not in output
+
+
+def test_validation_runner_digests_sanitized_multibyte_output(monkeypatch, tmp_path) -> None:
+    stdout = "\x00" + "中" * 1364
+    stderr = "😀error"
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 1, stdout, stderr),
+    )
+    exit_code, output, digest = LocalValidationRunner().run(
+        task_id="utf8-budget", command_id="git_diff_check", cwd=str(tmp_path),
+    )
+    assert exit_code == 1
+    assert output == "中" * 1364 + "\n"
+    assert len(output.encode("utf-8")) <= 4096
+    assert digest == hashlib.sha256(output.encode("utf-8")).hexdigest()
 
 
 def test_validation_runner_rejects_unknown_command() -> None:

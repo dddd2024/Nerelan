@@ -45,27 +45,41 @@ def _make_handoff() -> dict:
     }
 
 
-def _make_artifact_index() -> dict:
-    return {
-        "latest_artifacts_v2": {
-            "local_reverse_ida_evidence_18019fca52b389fe": {
-                "kind": "local_reverse_ida_evidence_18019fca52b389fe",
-                "path": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\18019fca52b389fe\\sha_256_ida_evidence.json",
-                "freshness": "current",
-                "sample_id": "18019fca52b389fe",
-            },
-            "local_reverse_ida_evidence_4c69f173f2bd0211": {
-                "kind": "local_reverse_ida_evidence_4c69f173f2bd0211",
-                "path": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\4c69f173f2bd0211\\CPP2_ida_evidence.json",
-                "freshness": "current",
-                "sample_id": "4c69f173f2bd0211",
-            },
+def _make_artifact_index(tmp_path: Path) -> dict:
+    entries = {}
+    for target in _make_handoff()["unresolved_targets"]:
+        sample_id = target["sample_id"]
+        kind = f"local_reverse_ida_evidence_{sample_id}"
+        entries[kind] = {
+            "kind": kind,
+            "path": str(tmp_path / "evidence" / sample_id / "ida_evidence.json"),
+            "freshness": "current",
+            "sample_id": sample_id,
         }
-    }
+    return {"latest_artifacts_v2": entries}
 
 
-def _make_policy() -> dict:
-    return {"root": "E:\\reverse"}
+def _make_policy(tmp_path: Path) -> dict:
+    root = tmp_path / "samples"
+    for target in _make_handoff()["unresolved_targets"]:
+        binary_path = root / target["relative_path"]
+        binary_path.parent.mkdir(parents=True, exist_ok=True)
+        binary_path.write_text("inert mocked-extraction fixture", encoding="utf-8")
+    return {"root": str(root)}
+
+
+def _assert_extractor_calls(mock_run: MagicMock, tmp_path: Path, *, failed: bool = False) -> None:
+    names = [["sub_401005"]] if failed else [["sub_401005"], ["sub_401B20"]]
+    expected = [
+        (tmp_path / "samples" / target["relative_path"], functions)
+        for target in _make_handoff()["unresolved_targets"]
+        for functions in names
+    ]
+    assert [(call.kwargs["binary_path"], call.kwargs["function_names"])
+            for call in mock_run.call_args_list] == expected
+    for call in mock_run.call_args_list:
+        assert call.kwargs["binary_path"].resolve().is_relative_to((tmp_path / "samples").resolve())
+        assert call.kwargs["output_path"].resolve().is_relative_to((tmp_path / "evidence").resolve())
 
 
 def _make_forced_extract_json(thunk: bool = True, has_real_pseudocode: bool = True) -> dict:
@@ -178,6 +192,13 @@ class TestRunForcedIdaExtraction:
 
 
 class TestRunForcedExtraction:
+    @pytest.fixture(autouse=True)
+    def forbid_external_processes(self, monkeypatch):
+        def unexpected_process(*args, **kwargs):
+            pytest.fail("mocked extraction must not launch an external process")
+
+        monkeypatch.setattr("subprocess.run", unexpected_process)
+
     @patch("reverse_agent.local_reverse_forced_ida_extract._run_forced_ida_extraction")
     def test_only_sha256_and_cpp2_selected(self, mock_run, tmp_path: Path):
         """Only sha_256 and CPP2 are selected, not Cpp1."""
@@ -187,8 +208,8 @@ class TestRunForcedExtraction:
         out_path = tmp_path / "out.json"
 
         handoff_path.write_text(json.dumps(_make_handoff()))
-        ai_path.write_text(json.dumps(_make_artifact_index()))
-        policy_path.write_text(json.dumps(_make_policy()))
+        ai_path.write_text(json.dumps(_make_artifact_index(tmp_path)))
+        policy_path.write_text(json.dumps(_make_policy(tmp_path)))
 
         def mock_run_impl(*, binary_path, script_path, output_path, function_names, timeout_seconds):
             artifact = MagicMock()
@@ -206,6 +227,7 @@ class TestRunForcedExtraction:
         mock_run.side_effect = mock_run_impl
 
         result = run_forced_extraction(ai_path, handoff_path, out_path, policy_path)
+        _assert_extractor_calls(mock_run, tmp_path)
 
         assert result["target_count"] == 2
         assert len(result["targets"]) == 2
@@ -221,8 +243,8 @@ class TestRunForcedExtraction:
         out_path = tmp_path / "out.json"
 
         handoff_path.write_text(json.dumps(_make_handoff()))
-        ai_path.write_text(json.dumps(_make_artifact_index()))
-        policy_path.write_text(json.dumps(_make_policy()))
+        ai_path.write_text(json.dumps(_make_artifact_index(tmp_path)))
+        policy_path.write_text(json.dumps(_make_policy(tmp_path)))
 
         def mock_run_impl(*, binary_path, script_path, output_path, function_names, timeout_seconds):
             artifact = MagicMock()
@@ -239,6 +261,7 @@ class TestRunForcedExtraction:
         mock_run.side_effect = mock_run_impl
 
         result = run_forced_extraction(ai_path, handoff_path, out_path, policy_path)
+        _assert_extractor_calls(mock_run, tmp_path)
 
         for t in result["targets"]:
             assert t["sub_401005_is_thunk"] is True
@@ -255,8 +278,8 @@ class TestRunForcedExtraction:
         out_path = tmp_path / "out.json"
 
         handoff_path.write_text(json.dumps(_make_handoff()))
-        ai_path.write_text(json.dumps(_make_artifact_index()))
-        policy_path.write_text(json.dumps(_make_policy()))
+        ai_path.write_text(json.dumps(_make_artifact_index(tmp_path)))
+        policy_path.write_text(json.dumps(_make_policy(tmp_path)))
 
         def mock_run_impl(*, binary_path, script_path, output_path, function_names, timeout_seconds):
             artifact = MagicMock()
@@ -273,6 +296,7 @@ class TestRunForcedExtraction:
         mock_run.side_effect = mock_run_impl
 
         result = run_forced_extraction(ai_path, handoff_path, out_path, policy_path)
+        _assert_extractor_calls(mock_run, tmp_path)
 
         for t in result["targets"]:
             assert "SHA-256" in t["transform_inferred"]
@@ -286,8 +310,8 @@ class TestRunForcedExtraction:
         out_path = tmp_path / "out.json"
 
         handoff_path.write_text(json.dumps(_make_handoff()))
-        ai_path.write_text(json.dumps(_make_artifact_index()))
-        policy_path.write_text(json.dumps(_make_policy()))
+        ai_path.write_text(json.dumps(_make_artifact_index(tmp_path)))
+        policy_path.write_text(json.dumps(_make_policy(tmp_path)))
 
         def mock_run_impl(*, binary_path, script_path, output_path, function_names, timeout_seconds):
             artifact = MagicMock()
@@ -304,6 +328,7 @@ class TestRunForcedExtraction:
         mock_run.side_effect = mock_run_impl
 
         result = run_forced_extraction(ai_path, handoff_path, out_path, policy_path)
+        _assert_extractor_calls(mock_run, tmp_path)
 
         for t in result["targets"]:
             assert t["blocker_resolved"] is True
@@ -318,8 +343,8 @@ class TestRunForcedExtraction:
         out_path = tmp_path / "out.json"
 
         handoff_path.write_text(json.dumps(_make_handoff()))
-        ai_path.write_text(json.dumps(_make_artifact_index()))
-        policy_path.write_text(json.dumps(_make_policy()))
+        ai_path.write_text(json.dumps(_make_artifact_index(tmp_path)))
+        policy_path.write_text(json.dumps(_make_policy(tmp_path)))
 
         def mock_run_impl(*, binary_path, script_path, output_path, function_names, timeout_seconds):
             artifact = MagicMock()
@@ -336,6 +361,7 @@ class TestRunForcedExtraction:
         mock_run.side_effect = mock_run_impl
 
         result = run_forced_extraction(ai_path, handoff_path, out_path, policy_path)
+        _assert_extractor_calls(mock_run, tmp_path)
 
         ids = {t["sample_id"] for t in result["targets"]}
         assert "bcbd9979db015bfd" not in ids
@@ -351,8 +377,8 @@ class TestRunForcedExtraction:
         out_path = tmp_path / "out.json"
 
         handoff_path.write_text(json.dumps(_make_handoff()))
-        ai_path.write_text(json.dumps(_make_artifact_index()))
-        policy_path.write_text(json.dumps(_make_policy()))
+        ai_path.write_text(json.dumps(_make_artifact_index(tmp_path)))
+        policy_path.write_text(json.dumps(_make_policy(tmp_path)))
 
         def mock_run_impl(*, binary_path, script_path, output_path, function_names, timeout_seconds):
             artifact = MagicMock()
@@ -369,6 +395,7 @@ class TestRunForcedExtraction:
         mock_run.side_effect = mock_run_impl
 
         result = run_forced_extraction(ai_path, handoff_path, out_path, policy_path)
+        _assert_extractor_calls(mock_run, tmp_path)
 
         assert result["target_count"] == 2
 
@@ -381,8 +408,8 @@ class TestRunForcedExtraction:
         out_path = tmp_path / "out.json"
 
         handoff_path.write_text(json.dumps(_make_handoff()))
-        ai_path.write_text(json.dumps(_make_artifact_index()))
-        policy_path.write_text(json.dumps(_make_policy()))
+        ai_path.write_text(json.dumps(_make_artifact_index(tmp_path)))
+        policy_path.write_text(json.dumps(_make_policy(tmp_path)))
 
         def mock_run_impl(*, binary_path, script_path, output_path, function_names, timeout_seconds):
             artifact = MagicMock()
@@ -395,8 +422,31 @@ class TestRunForcedExtraction:
         mock_run.side_effect = mock_run_impl
 
         result = run_forced_extraction(ai_path, handoff_path, out_path, policy_path)
+        _assert_extractor_calls(mock_run, tmp_path, failed=True)
 
         for t in result["targets"]:
             assert t["extraction_status"] == "blocked"
             assert t["blocker_resolved"] is False
             assert "timeout" in t["next_action"].lower() or "failed" in t["next_action"].lower()
+
+    @patch("reverse_agent.local_reverse_forced_ida_extract._run_forced_ida_extraction")
+    def test_missing_samples_block_without_extraction(self, mock_run, tmp_path: Path):
+        handoff_path = tmp_path / "handoff.json"
+        ai_path = tmp_path / "artifact_index.json"
+        policy_path = tmp_path / "policy.json"
+        out_path = tmp_path / "out.json"
+        handoff_path.write_text(json.dumps(_make_handoff()), encoding="utf-8")
+        ai_path.write_text(json.dumps(_make_artifact_index(tmp_path)), encoding="utf-8")
+        policy_path.write_text(json.dumps({"root": str(tmp_path / "missing-samples")}), encoding="utf-8")
+
+        result = run_forced_extraction(ai_path, handoff_path, out_path, policy_path)
+
+        mock_run.assert_not_called()
+        assert result["target_count"] == 2
+        assert len(result["targets"]) == 2
+        for target in result["targets"]:
+            assert target["extraction_status"] == "blocked"
+            assert target["forced_ida_ran"] is False
+            assert target["blocker_resolved"] is False
+            assert "binary not found" in target["next_action"]
+        assert not (tmp_path / "evidence").exists()
