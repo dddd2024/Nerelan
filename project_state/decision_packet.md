@@ -1,10 +1,10 @@
-# Decision Packet - Issue659 reviewed fix integration
+# Approved bounded PR964 delegated Owner landing v1
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260919_issue659_reviewed_fixes_integration_r2_v1",
-  "round_id": "round_20260919_issue659_reviewed_fixes_integration_r2_v1",
+  "decision_id": "decision_20260919_issue829_pr964_owner_landing_r2_v1",
+  "round_id": "round_20260919_issue829_pr964_owner_landing_r2_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,18 +16,28 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260918_issue891_false_none_premerge_attestation_r2_v5",
-  "follows_last_round_id": "round_20260918_issue891_false_none_premerge_attestation_r2_v5",
+  "decision_scope": "OWNER_LANDING_AUTHORITY_SIDECAR_CURRENT_MAIN",
+  "source_issue": 829,
+  "parent_issue": 800,
+  "repository": "dddd2024/Nerelan",
+  "approved_by": "dddd2024 via explicitly delegated repository Owner execution",
+  "approval_basis": "User explicitly delegated full Owner completion, independent subagent audit and merge. Exact target c920afa68cee774028cccf5c53407e21e733bbca accepted by independent auditor at PR964 comment5743146841. Transparently delegated Owner COMMENT review5256231312 binds that head. Target naturalCI35451512928 and latestStateGate35451513616 SUCCESS; actual full diagnostic exit0/6542passed23skipped4excluded, nativeartifact10587132287 contains6565cases0failures0errors23skips andall43workspacecasespassed. This is fresh bounded Agent landing authority, not personal human acceptance or reuse of prior961 authority.",
+  "superseded_evidence": "V8 Draft963 stopped before implementation publication due nonexistent required test path; closed unmerged externally. V9 new approval/activation/Draft964 corrected that command and passed all exact-head local checks. The first v9 implementation90a1909 failed naturalCI35449857360 because its replacement-ref positive control used Git2.55 builtinemptytree. Repairc920afa changes only that fixture to an ordinary nonempty tree, retaining all assertions; fresh local checks passed. Earlier checks are not repair-head acceptance. Prior961 landing authority and closed962 sidecar are historical schema references only, never grants for964.",
+  "risk_tier": "R2",
+  "authorized_risk_tier": "R2",
+  "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "main",
-  "base_sha": "ef8bb6959ac37301c880e0971a97a9d56e9c99a9",
-  "activation_base_sha": "ef8bb6959ac37301c880e0971a97a9d56e9c99a9",
-  "starting_head": "ef8bb6959ac37301c880e0971a97a9d56e9c99a9",
+  "base_sha": "61664039f6f1c2684fcb67d7cb24073e7b6b8a63",
+  "activation_base_sha": "61664039f6f1c2684fcb67d7cb24073e7b6b8a63",
+  "starting_head": "61664039f6f1c2684fcb67d7cb24073e7b6b8a63",
+  "fresh_base": "61664039f6f1c2684fcb67d7cb24073e7b6b8a63",
+  "current_main_expected": "61664039f6f1c2684fcb67d7cb24073e7b6b8a63",
+  "required_branch": "codex/pr964-owner-landing-r2-v1-20260919",
+  "workstream_id": "issue829-pr964-owner-landing-r2-v1",
+  "follows_last_decision_id": "decision_20260919_issue659_reviewed_fixes_integration_r2_v1",
+  "follows_last_round_id": "round_20260919_issue659_reviewed_fixes_integration_r2_v1",
   "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
-  "risk_tier": "R2",
-  "governance_artifact_risk_tier": "R2",
-  "authorized_risk_tier": "R2",
-  "workflow_profile": "baseline",
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
@@ -38,34 +48,25 @@
     "worktree_publication_readiness"
   ],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 1,
+  "product_change_commit_limit": 0,
   "generated_governance_commit_limit": 0,
-  "post_publication_binding_commit_limit": 0,
-  "commit_order_contract": [
-    "D_decision_only_on_clean_tree",
-    "startup_snapshot",
-    "transition_command_plan",
-    "transition_lint",
-    "transition_preflight_pre",
-    "worktree_publication_readiness",
-    "S_semantic_implementation_only"
-  ],
   "normal_push_attempt_limit": 0,
   "draft_pr_creation_limit": 1,
-  "dependency_install_limit": 0,
+  "mark_ready_attempt_limit": 1,
+  "merge_attempt_limit": 1,
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
+  "workflow_dispatch_limit": 0,
   "live_model_call_limit": 0,
   "provider_network_call_limit": 0,
   "credential_access_limit": 0,
-  "mark_ready_attempt_limit": 0,
-  "merge_attempt_limit": 0,
   "pr_creation_allowed": true,
   "issue_comment_allowed": true,
   "pull_request_comment_allowed": true,
-  "merge_allowed": false,
-  "mark_ready_allowed": false,
+  "merge_allowed": true,
+  "mark_ready_allowed": true,
   "workflow_rerun_allowed": false,
+  "workflow_dispatch_allowed": false,
   "runner_dispatch_allowed": false,
   "direct_push_to_main_allowed": false,
   "auto_merge_allowed": false,
@@ -74,103 +75,23 @@
   "dependency_install_allowed": false,
   "live_provider_access_allowed": false,
   "credential_access_allowed": false,
+  "unknown_binary_execution_allowed": false,
+  "model_api_invocation_allowed": false,
+  "external_reverse_tool_invocation_allowed": false,
+  "destructive_operations_allowed": false,
+  "provider_free_acceptance_required": true,
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
+  "semantic_implementation_contract": {
+    "specification": "No product implementation. Authorize only one delegated Owner landing of exact Draft964 after targetCI35451512928 actual diagnostic exit0/nativeJUnit0 and StateGate35451513616 SUCCESS, new independent exact-head ACCEPT and new transparently delegated Owner COMMENT review; sidecar canonical CI/Decision Preflight/State Gate SUCCESS and independent review. Preserve R1 Issue829 approval/bodydigest903b987b32ba166e0ca028d22c4e86543603f3b40a832c71a6bdf8510554d580 and exact snapshot/base. Publish one existing-format pre-Ready attestation, verify via existing false/none evaluator even though Ready dispatches Path-A; Ready once, require ordinary+formal StateGate SUCCESS, reobserve no drift/concurrency, ordinary expected-head merge once and verify exactmerge/main/parents and natural mainpush StateGate and CI.",
+    "completion_boundary": "Sidecar stays Draft/unmerged and never enters target history. Close only829 after its actual criteria and postmerge proof. Keep652/800/659/137 open; pure scratch observation is not persistent artifact integration. Preserve721/913 ownership and all source/evidence/refs. No other PR closure authority is required or granted;962/963 already externallyclosed. No target/source/Decision mutation."
+  },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
   ],
   "bootstrap_exception_commands": [],
-  "generated_artifact_paths": [
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
-  ],
-  "path_risk_floor": [
-    {
-      "pattern": "project_state/**",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "reverse_agent/mainline_landing.py",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "reverse_agent/project_gate.py",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "reverse_agent/github_remote_verifier.py",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "tests/test_mainline_landing.py",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "tests/test_project_gate.py",
-      "minimum_risk": "R2"
-    }
-  ],
-  "workflow_dispatch_limit": 0,
-  "workflow_dispatch_allowed": false,
-  "provider_free_acceptance_required": true,
-  "repository": "dddd2024/Nerelan",
-  "source_issue": 659,
-  "parent_issue": 137,
-  "mother_roadmap": 137,
-  "decision_scope": "BOUNDED_REVIEWED_PRODUCT_AND_TEST_FIX_INTEGRATION",
-  "required_branch": "codex/audit-fixes-integration-r2-20260919",
-  "workstream_id": "issue659-reviewed-fixes-integration-r2-v1",
-  "approved_by": "dddd2024 via explicitly delegated repository Owner execution",
-  "approval_basis": "User explicitly renewed full Owner authorization to complete the final project. This bounded integration incorporates independently scoped-reviewed fixes from PR949/952/954/957/959/960 at their exact immutable source blobs, removes duplicated team fixture content and jointly validates the actual combined provider-free product/test result. Prior Decisions are historical evidence only, not reused authority.",
-  "superseded_evidence": "PR958 rejected and not a source. PR959 scoped ACCEPT but separate freshness check failed; this candidate incorporates accepted960 freshness evidence. Prior individual PRs are not claimed merged. Occupied721 worktree is untouched; integration does not grant main mutation or landing.",
-  "fresh_base": "ef8bb6959ac37301c880e0971a97a9d56e9c99a9",
-  "current_main_expected": "ef8bb6959ac37301c880e0971a97a9d56e9c99a9",
-  "source_test_mutation_authorized": true,
-  "source_test_mutation_scope": [
-    ".github/workflows/ci.yml",
-    "docs/architecture/FRESHNESS_AND_DRIFT_GOVERNANCE.md",
-    "governance/freshness-registry.json",
-    "pyproject.toml",
-    "reverse_agent/platform_v1/environment_discovery.py",
-    "reverse_agent/platform_v1/task_runtime.py",
-    "scripts/ci_test_summary.py",
-    "tests/conftest.py",
-    "tests/platform_v1/test_environment_discovery.py",
-    "tests/platform_v1/test_task3c_v4_repairs.py",
-    "tests/platform_v1/test_task3c_v5_opencode_probe.py",
-    "tests/platform_v1/test_task3c_v6_production_relay.py",
-    "tests/platform_v1/test_task_runtime.py",
-    "tests/test_ci_responsibility.py",
-    "tests/test_freshness.py",
-    "tests/test_local_reverse_forced_ida_extract.py",
-    "tests/test_project_gate.py",
-    "tests/test_team_graph.py"
-  ],
-  "issue_completion_close_allowed": [],
-  "landing_authority_scope_note": "Draft implementation only; no Ready/Merge under this Decision. Preserve occupied #721 and all other accepted candidate heads.",
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
-    ".github/workflows/ci.yml",
-    "docs/architecture/FRESHNESS_AND_DRIFT_GOVERNANCE.md",
-    "governance/freshness-registry.json",
-    "pyproject.toml",
-    "reverse_agent/platform_v1/environment_discovery.py",
-    "reverse_agent/platform_v1/task_runtime.py",
-    "scripts/ci_test_summary.py",
-    "tests/conftest.py",
-    "tests/platform_v1/test_environment_discovery.py",
-    "tests/platform_v1/test_task3c_v4_repairs.py",
-    "tests/platform_v1/test_task3c_v5_opencode_probe.py",
-    "tests/platform_v1/test_task3c_v6_production_relay.py",
-    "tests/platform_v1/test_task_runtime.py",
-    "tests/test_ci_responsibility.py",
-    "tests/test_freshness.py",
-    "tests/test_local_reverse_forced_ida_extract.py",
-    "tests/test_project_gate.py",
-    "tests/test_team_graph.py",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
@@ -179,24 +100,13 @@
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
-    ".github/workflows/ci.yml",
-    "docs/architecture/FRESHNESS_AND_DRIFT_GOVERNANCE.md",
-    "governance/freshness-registry.json",
-    "pyproject.toml",
-    "reverse_agent/platform_v1/environment_discovery.py",
-    "reverse_agent/platform_v1/task_runtime.py",
-    "scripts/ci_test_summary.py",
-    "tests/conftest.py",
-    "tests/platform_v1/test_environment_discovery.py",
-    "tests/platform_v1/test_task3c_v4_repairs.py",
-    "tests/platform_v1/test_task3c_v5_opencode_probe.py",
-    "tests/platform_v1/test_task3c_v6_production_relay.py",
-    "tests/platform_v1/test_task_runtime.py",
-    "tests/test_ci_responsibility.py",
-    "tests/test_freshness.py",
-    "tests/test_local_reverse_forced_ida_extract.py",
-    "tests/test_project_gate.py",
-    "tests/test_team_graph.py",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
+  "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
@@ -205,16 +115,26 @@
   ],
   "reference_paths": [
     "AGENTS.md",
-    "docs/agents/governance-reference.md",
-    "reverse_agent/control_plane/path_a.py"
+    ".github/workflows/state-gate.yml",
+    ".github/workflows/ci.yml",
+    ".github/workflows/decision-preflight.yml",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/control_plane/transition.py",
+    "reverse_agent/control_plane/command_authority.py"
   ],
   "forbidden_mutated_paths": [
     "AGENTS.md",
-    "docs/agents/**",
+    ".github/**",
     ".codex-skills/**",
+    "docs/**",
+    "reverse_agent/**",
     "frontend/**",
+    "tests/**",
     "project_state/mainline_merge_intents/**",
     "project_state/rounds/**",
+    "pyproject.toml",
     "requirements*.txt",
     "**/secrets/**",
     "**/.env"
@@ -228,8 +148,7 @@
     "squash",
     "amend",
     "history_rewrite",
-    "mark_ready",
-    "merge",
+    "target_branch_push",
     "workflow_rerun",
     "workflow_dispatch",
     "runner_dispatch",
@@ -241,6 +160,9 @@
     "destructive",
     "tag_or_release",
     "dependency_install",
+    "sidecar_pr_ready_or_merge",
+    "post_hoc_attestation_after_target_merge",
+    "second_attestation_family",
     "generated_governance_commit"
   ],
   "capability_policy": {
@@ -252,7 +174,7 @@
     "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
-    "merge_allowed": false,
+    "merge_allowed": true,
     "force_push_allowed": false,
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
@@ -262,25 +184,22 @@
     "trusted_worker_network_exceptions": [],
     "user_local_network_exceptions": [],
     "github_control_plane_network_exceptions": [
-      "Read canonical candidate/main refs, checks/reviews and source objects; publish exact local Git trees/commits only to codex/audit-fixes-integration-r2-20260919 in dddd2024/Nerelan, one Draft against locked main, its description/comments and Issue659 coordination. No Ready/Merge, main mutation or workflow dispatch."
+      "Publish only the Decision commit graph/ref codex/pr964-owner-landing-r2-v1-20260919 and one Draft sidecar against locked main, via GitHub Git API. No local git push.",
+      "After all exact-head target/sidecar checks and independent acceptance, publish one existing-format preReady attestation for964 using actual new review and canonical run identities. Ready964 once and merge once using method merge with expected headc920afa68cee774028cccf5c53407e21e733bbca after fresh no-drift/no-concurrency. No admin bypass or rerun/dispatch.",
+      "After verified merge/main/parents and natural mainpush CI/StateGate success, record factual evidence and close only completed829. Coordination comments on829/721 permitted; comments never grant authority."
     ]
   },
-  "semantic_implementation_contract": {
-    "specification": "Materialize only these exact reviewed source file blobs on the locked current base, with no new semantic edits: {\".github/workflows/ci.yml\": {\"base_blob\": \"28c25e8b4a43bcd89e3caab5797f10cd918ed3fa\", \"blob\": \"700f614646f9b39b6d50a42c06920983e6f30738\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"docs/architecture/FRESHNESS_AND_DRIFT_GOVERNANCE.md\": {\"base_blob\": \"e7b23330b95ac3dcf6ff60f58cfcd78f1dd8e402\", \"blob\": \"8a49193d4d07830ea158ce24e56530cad1eef5c0\", \"head\": \"8a3a18b9686e64f8f1690feede1dd71199347a4b\", \"pr\": 960}, \"governance/freshness-registry.json\": {\"base_blob\": \"3ed39c67b86fa8b71beeb5b910a534db988d3b7b\", \"blob\": \"4311921ecea8d2d84151bd14a6c4541640bd884b\", \"head\": \"8a3a18b9686e64f8f1690feede1dd71199347a4b\", \"pr\": 960}, \"pyproject.toml\": {\"base_blob\": \"35f5b600704a882193a21329129a5ef01258b5e7\", \"blob\": \"85f0d98d384cbb616bdb0795e4203f3fe201de70\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"reverse_agent/platform_v1/environment_discovery.py\": {\"base_blob\": null, \"blob\": \"3aada0845df464a80ab06db0d2d085a908693db0\", \"head\": \"c6af6dfe06e5371f526d44b4e484896a36275192\", \"pr\": 949}, \"reverse_agent/platform_v1/task_runtime.py\": {\"base_blob\": \"38f52c9f1c3b9d4f82b0d3c547c5ad80bf1c7a35\", \"blob\": \"7e40c13536ce36cacb3eb1d0689a83d370b94eff\", \"head\": \"4070b1592dad3479a82788e7c53140a4f8044877\", \"pr\": 952}, \"scripts/ci_test_summary.py\": {\"base_blob\": null, \"blob\": \"1f33ce1dca8f0cccdca9ca8d4ebe09502a3bf1fd\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"tests/conftest.py\": {\"base_blob\": null, \"blob\": \"586f3fb1a3408c336b81f6fff9f4e9a00376dccb\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"tests/platform_v1/test_environment_discovery.py\": {\"base_blob\": null, \"blob\": \"335945266bd389c1cd547d318b672696a22d8843\", \"head\": \"c6af6dfe06e5371f526d44b4e484896a36275192\", \"pr\": 949}, \"tests/platform_v1/test_task3c_v4_repairs.py\": {\"base_blob\": \"05d066148c6544e473608cec273dc52f62b62ecc\", \"blob\": \"2723b001320c0efb09df9d6af31b4de30a9052f8\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"tests/platform_v1/test_task3c_v5_opencode_probe.py\": {\"base_blob\": \"e11b1ba17a14f4fd5fb4e47e3cd0855c7456c7f8\", \"blob\": \"45575b80f450e84fb9b5751191f8079849391b42\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"tests/platform_v1/test_task3c_v6_production_relay.py\": {\"base_blob\": \"b544c01e6145cfcc2cc71f8c6a0b3d924c3d41ae\", \"blob\": \"a0af2926aee327b15355cda94026af0ee2ed80ed\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"tests/platform_v1/test_task_runtime.py\": {\"base_blob\": \"7214825433053a380a5fd44200ca0b4061c33a56\", \"blob\": \"354cbea0bd0b0a26299a266b1ee50ce9357e91c5\", \"head\": \"4070b1592dad3479a82788e7c53140a4f8044877\", \"pr\": 952}, \"tests/test_ci_responsibility.py\": {\"base_blob\": \"a8bf1f481dd654038c4d4360edbe50171587f07c\", \"blob\": \"8f75d5f1800d6846d698bc96d21a1079f0148d99\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"tests/test_freshness.py\": {\"base_blob\": \"43a82cf4fd866e45ecd4f4b7b258db778bd9ec82\", \"blob\": \"d497b985c8cc2012aac5aa86fff2482d520d66dd\", \"head\": \"8a3a18b9686e64f8f1690feede1dd71199347a4b\", \"pr\": 960}, \"tests/test_local_reverse_forced_ida_extract.py\": {\"base_blob\": \"a96fc664ae14a29e6515a89c4fbdd0ace33cc7e3\", \"blob\": \"15dfe5744f4ef310c58c1caddd77415a177d4ed7\", \"head\": \"19bf478e685007f526c48ab3728c6ec22401b0fd\", \"pr\": 957}, \"tests/test_project_gate.py\": {\"base_blob\": \"ad51d6f178faee71c04b97515d149195bb8b7bd9\", \"blob\": \"5ff02925153f80bda5a75df26fc04541c836ce50\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"tests/test_team_graph.py\": {\"base_blob\": \"c0e8a1ce146b7b0f0d53f0f0532f74553d5ca7b1\", \"blob\": \"fd82474b4a81ed186de125ffb29b0ddeec5e32d9\", \"head\": \"8a3a18b9686e64f8f1690feede1dd71199347a4b\", \"pr\": 960}}. Base blob must equal manifest base_blob (or file must be absent); stop on mismatch rather than overwriting new main work. Duplicated team fixture is identical and included once. Preserve every source assertion, four exact installed markers/default opt-in, blocking controls, 30-day freshness policy, runtime authority and generated-gate exclusion. No dependency change/install, new framework/gate/schema, real external-tool or provider/model invocation.",
-    "completion_boundary": "Joint provider-free correctness is required, not just individual branch evidence. Local targeted checks listed below and current UTC freshness must pass, source-content equality and git diff --check must pass, natural exact-head CI/DecisionPreflight/StateGate/freshness all SUCCESS and native full diagnostic must actually exit0 with no failures/errors and exactly4 installed cases deselected. Historical18 provider-free failures must be repaired, not skipped. Independent exact-head audit required. Keep Draft; main landing requires separately bounded existing PathB mechanism. If721 changes main before publication, stop; never overwrite its test_project_gate changes."
-  },
-  "run_environment_binding": {
-    "run_strategy": "user_local",
-    "canonical_repository": "dddd2024/Nerelan",
-    "target_owner_branch": "codex/audit-fixes-integration-r2-20260919",
-    "authority_path": "Path B R2 transition",
-    "local_agent_ready_or_merge_authority": false
-  },
+  "path_risk_floor": [
+    {
+      "pattern": "project_state/**",
+      "minimum_risk": "R2"
+    }
+  ],
   "allowed_commands": [
     {
-      "command_id": "issue659r2.bootstrap",
+      "command_id": "issue829landingv1.bootstrap",
+      "command": "Use fresh F:/Nerelan-pr964-owner-landing-v1 at locked main; commit only Decision, then startup-snapshot/transition-command-plan/transition-lint/transition-preflight --mode pre and worktree-publication-readiness. Run provider-free tests/test_control_plane_transition.py and tests/test_decision_preflight.py, git diff --check. Generated gate files never committed.",
       "phase": "bootstrap",
-      "command": "Use fresh F:/Nerelan-audit-fixes-integration on exact locked base. Decision-only activation, startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness; require PRE_EXECUTION_AUTHORIZED before source materialization.",
       "required": true,
       "expected_exit_codes": [
         0
@@ -291,11 +210,14 @@
         "local_static_check",
         "command_plan_generation",
         "commit",
+        "unit_test",
         "machine_specific_execution"
       ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
+      "allowed_mutated_paths": [
+        "project_state/decision_packet.md"
+      ],
       "produced_artifacts": [
         "project_state/gates/command_plan.json",
         "project_state/gates/startup_snapshot.json",
@@ -305,69 +227,9 @@
       ]
     },
     {
-      "command_id": "issue659r2.implement",
-      "phase": "implementation",
-      "command": "Materialize only these exact reviewed source file blobs on the locked current base, with no new semantic edits: {\".github/workflows/ci.yml\": {\"base_blob\": \"28c25e8b4a43bcd89e3caab5797f10cd918ed3fa\", \"blob\": \"700f614646f9b39b6d50a42c06920983e6f30738\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"docs/architecture/FRESHNESS_AND_DRIFT_GOVERNANCE.md\": {\"base_blob\": \"e7b23330b95ac3dcf6ff60f58cfcd78f1dd8e402\", \"blob\": \"8a49193d4d07830ea158ce24e56530cad1eef5c0\", \"head\": \"8a3a18b9686e64f8f1690feede1dd71199347a4b\", \"pr\": 960}, \"governance/freshness-registry.json\": {\"base_blob\": \"3ed39c67b86fa8b71beeb5b910a534db988d3b7b\", \"blob\": \"4311921ecea8d2d84151bd14a6c4541640bd884b\", \"head\": \"8a3a18b9686e64f8f1690feede1dd71199347a4b\", \"pr\": 960}, \"pyproject.toml\": {\"base_blob\": \"35f5b600704a882193a21329129a5ef01258b5e7\", \"blob\": \"85f0d98d384cbb616bdb0795e4203f3fe201de70\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"reverse_agent/platform_v1/environment_discovery.py\": {\"base_blob\": null, \"blob\": \"3aada0845df464a80ab06db0d2d085a908693db0\", \"head\": \"c6af6dfe06e5371f526d44b4e484896a36275192\", \"pr\": 949}, \"reverse_agent/platform_v1/task_runtime.py\": {\"base_blob\": \"38f52c9f1c3b9d4f82b0d3c547c5ad80bf1c7a35\", \"blob\": \"7e40c13536ce36cacb3eb1d0689a83d370b94eff\", \"head\": \"4070b1592dad3479a82788e7c53140a4f8044877\", \"pr\": 952}, \"scripts/ci_test_summary.py\": {\"base_blob\": null, \"blob\": \"1f33ce1dca8f0cccdca9ca8d4ebe09502a3bf1fd\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"tests/conftest.py\": {\"base_blob\": null, \"blob\": \"586f3fb1a3408c336b81f6fff9f4e9a00376dccb\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"tests/platform_v1/test_environment_discovery.py\": {\"base_blob\": null, \"blob\": \"335945266bd389c1cd547d318b672696a22d8843\", \"head\": \"c6af6dfe06e5371f526d44b4e484896a36275192\", \"pr\": 949}, \"tests/platform_v1/test_task3c_v4_repairs.py\": {\"base_blob\": \"05d066148c6544e473608cec273dc52f62b62ecc\", \"blob\": \"2723b001320c0efb09df9d6af31b4de30a9052f8\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"tests/platform_v1/test_task3c_v5_opencode_probe.py\": {\"base_blob\": \"e11b1ba17a14f4fd5fb4e47e3cd0855c7456c7f8\", \"blob\": \"45575b80f450e84fb9b5751191f8079849391b42\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"tests/platform_v1/test_task3c_v6_production_relay.py\": {\"base_blob\": \"b544c01e6145cfcc2cc71f8c6a0b3d924c3d41ae\", \"blob\": \"a0af2926aee327b15355cda94026af0ee2ed80ed\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"tests/platform_v1/test_task_runtime.py\": {\"base_blob\": \"7214825433053a380a5fd44200ca0b4061c33a56\", \"blob\": \"354cbea0bd0b0a26299a266b1ee50ce9357e91c5\", \"head\": \"4070b1592dad3479a82788e7c53140a4f8044877\", \"pr\": 952}, \"tests/test_ci_responsibility.py\": {\"base_blob\": \"a8bf1f481dd654038c4d4360edbe50171587f07c\", \"blob\": \"8f75d5f1800d6846d698bc96d21a1079f0148d99\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"tests/test_freshness.py\": {\"base_blob\": \"43a82cf4fd866e45ecd4f4b7b258db778bd9ec82\", \"blob\": \"d497b985c8cc2012aac5aa86fff2482d520d66dd\", \"head\": \"8a3a18b9686e64f8f1690feede1dd71199347a4b\", \"pr\": 960}, \"tests/test_local_reverse_forced_ida_extract.py\": {\"base_blob\": \"a96fc664ae14a29e6515a89c4fbdd0ace33cc7e3\", \"blob\": \"15dfe5744f4ef310c58c1caddd77415a177d4ed7\", \"head\": \"19bf478e685007f526c48ab3728c6ec22401b0fd\", \"pr\": 957}, \"tests/test_project_gate.py\": {\"base_blob\": \"ad51d6f178faee71c04b97515d149195bb8b7bd9\", \"blob\": \"5ff02925153f80bda5a75df26fc04541c836ce50\", \"head\": \"0e3335657dde4720ebc4a1d3673e3a4bfff4859a\", \"pr\": 959}, \"tests/test_team_graph.py\": {\"base_blob\": \"c0e8a1ce146b7b0f0d53f0f0532f74553d5ca7b1\", \"blob\": \"fd82474b4a81ed186de125ffb29b0ddeec5e32d9\", \"head\": \"8a3a18b9686e64f8f1690feede1dd71199347a4b\", \"pr\": 960}}. Base blob must equal manifest base_blob (or file must be absent); stop on mismatch rather than overwriting new main work. Duplicated team fixture is identical and included once. Preserve every source assertion, four exact installed markers/default opt-in, blocking controls, 30-day freshness policy, runtime authority and generated-gate exclusion. No dependency change/install, new framework/gate/schema, real external-tool or provider/model invocation.",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "user_local",
-      "operations": [
-        "source_edit",
-        "unit_test",
-        "local_static_check",
-        "commit",
-        "machine_specific_execution"
-      ],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [
-        ".github/workflows/ci.yml",
-        "docs/architecture/FRESHNESS_AND_DRIFT_GOVERNANCE.md",
-        "governance/freshness-registry.json",
-        "pyproject.toml",
-        "reverse_agent/platform_v1/environment_discovery.py",
-        "reverse_agent/platform_v1/task_runtime.py",
-        "scripts/ci_test_summary.py",
-        "tests/conftest.py",
-        "tests/platform_v1/test_environment_discovery.py",
-        "tests/platform_v1/test_task3c_v4_repairs.py",
-        "tests/platform_v1/test_task3c_v5_opencode_probe.py",
-        "tests/platform_v1/test_task3c_v6_production_relay.py",
-        "tests/platform_v1/test_task_runtime.py",
-        "tests/test_ci_responsibility.py",
-        "tests/test_freshness.py",
-        "tests/test_local_reverse_forced_ida_extract.py",
-        "tests/test_project_gate.py",
-        "tests/test_team_graph.py"
-      ],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue659r2.validate",
-      "phase": "validation",
-      "command": "Run python -B -m pytest tests/platform_v1/test_environment_discovery.py tests/platform_v1/test_task_runtime.py tests/test_team_graph.py tests/test_local_reverse_forced_ida_extract.py tests/test_ci_responsibility.py tests/test_project_gate.py::test_transition_packaging_and_workflow_boundary tests/test_freshness.py tests/test_path_a_gate.py tests/test_control_plane_transition.py tests/test_decision_preflight.py tests/test_development_graph.py tests/platform_v1/test_unattended_coordinator.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_durable_execution_v5.py tests/platform_v1/test_goal_service.py tests/platform_v1/test_goal_plan_revision.py -q -p no:cacheprovider; existing current UTC freshness CLI; safe --collect-only comparison default versus --run-installed-opencode on three integration files; verify all18 exact source blobs, no other semantic path, git diff --check and final preflight/readiness. Natural full diagnostic exacthead must be exit0; no added skips/exclusions hiding historical failures. No execution of opt-in installed cases.",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "user_local",
-      "operations": [
-        "unit_test",
-        "local_static_check",
-        "diff_validation",
-        "machine_specific_execution"
-      ],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue659r2.publish",
+      "command_id": "issue829landingv1.publish",
+      "command": "Publish only exact local Decision tree/commit to named ref via GitHub Git API and create one Draft sidecar. Verify identical SHA. No local git push; never Ready/Merge the sidecar.",
       "phase": "publication",
-      "command": "Publish exact local trees/commits via GitHub Git API to the named fresh branch and one Draft PR for Issue659; re-read exact SHA and main, update its body/comments; no git push/Ready/Merge/dispatch.",
       "required": true,
       "expected_exit_codes": [
         0
@@ -376,8 +238,6 @@
       "operations": [
         "push",
         "draft_pr",
-        "pull_request_comment",
-        "issue_comment",
         "network_access"
       ],
       "network_access": true,
@@ -386,30 +246,161 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "issue659r2.observe",
-      "phase": "final_evidence",
-      "command": "Verify four natural exact-head checks, actual full diagnostic exit0/nativeJUnit and independent exact-head audit. Keep Draft.",
+      "command_id": "issue829landingv1.validate",
+      "command": "Require exact target CI35451512928 actual diagnostic exit0/nativeJUnit0 and StateGate35451513616 SUCCESS, independent acceptance and new Owner COMMENT review; require sidecar canonical three natural workflows SUCCESS and independent sidecar audit. Target R1 has no applicable DecisionPreflight/freshness run. Fresh-read Issue approval/digest, main, heads/base, reviews/threads/ruleset and ownership. No concurrent Ready/landing or new721 successor.",
+      "phase": "validation",
       "required": true,
       "expected_exit_codes": [
         0
       ],
       "execution_surface": "remote_observation",
       "operations": [
-        "read_only_audit",
         "code_read",
+        "read_only_audit",
         "repository_observation"
       ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
+    },
+    {
+      "command_id": "issue829landingv1.attest",
+      "command": "While964 remains Draft, publish exactly one existing-format attestation binding inherited target integration961 Decision ID/digest, fresh sidecar Decision/digest/runs, new actual964 Owner review, preReadySG35451513616 and fresh live Ruleset. Verify unique unmodified payload/digest and existing false/none evaluator; no authored _remote fields.",
+      "phase": "final_evidence",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "pull_request_comment",
+        "network_access"
+      ],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "issue829landingv1.land_target",
+      "command": "Ready964 once after all predicates; wait natural ordinary and formal Path-A StateGate SUCCESS. Independently verify sidecar and false/none attestation since Ready dispatch alone does not do so. Fresh no-drift/no-concurrency, ordinary merge964 once with method merge and expected headc920afa68cee774028cccf5c53407e21e733bbca. Verify newmain/mergeparents and natural mainpush CI/StateGate SUCCESS.",
+      "phase": "final_evidence",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "mark_ready",
+        "merge",
+        "network_access"
+      ],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "issue829landingv1.observe",
+      "command": "Read exactpostmerge main/merge/parents and natural CI/StateGate; inspect829 acceptance. Record factual proof externally. No writes through remote_observation surface.",
+      "phase": "final_evidence",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "remote_observation",
+      "operations": [
+        "code_read",
+        "read_only_audit",
+        "repository_observation"
+      ],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "issue829landingv1.close_completed",
+      "command": "Only after verified postmerge success and829 acceptance, comment and close829. Preserve broad roadmaps,721/913 worktrees, allsource/evidence and refs. No other Issue/PRclosure.",
+      "phase": "final_evidence",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "issue_comment",
+        "pull_request_comment",
+        "network_access"
+      ],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
     }
+  ],
+  "issue_completion_close_allowed": [
+    829
+  ],
+  "sidecar_authority": true,
+  "sidecar_rooted_at_locked_main": true,
+  "sidecar_does_not_enter_target_history": true,
+  "target_pr": 964,
+  "source_pr": 964,
+  "target_branch": "codex/workspace-drift-env-object-integrity-r1-v9-20260919",
+  "accepted_exact_head_sha": "c920afa68cee774028cccf5c53407e21e733bbca",
+  "owner_exact_head_review_id": 5256231312,
+  "owner_exact_head_review_commit": "c920afa68cee774028cccf5c53407e21e733bbca",
+  "target_decision_id": "decision_20260919_issue659_reviewed_fixes_integration_r2_v1",
+  "target_round_id": "round_20260919_issue659_reviewed_fixes_integration_r2_v1",
+  "target_ci_run_id": 35451512928,
+  "target_state_gate_run_ids": [
+    35451513616
+  ],
+  "target_pre_ready_state_gate_run_id": 35451513616,
+  "workflow_profile": "baseline",
+  "expected_head_protection_required": true,
+  "allowed_merge_method": "merge",
+  "landing_actor": "ChatGPT under the user's explicit current repository Owner delegation",
+  "landing_authority_scope_note": "Single964 delegatedAgentlanding only, never personalhuman carve-out. Preserve721/913 owners and serialize main publication. Inherited targetDecision identifies existingfalse/none policy only; newsidecar is landingauthority.",
+  "owner_landing_bounds": {
+    "ready_attempts": 1,
+    "merge_attempts": 1,
+    "allowed_merge_method": "merge",
+    "expected_head_protection_required": true,
+    "expected_head": "c920afa68cee774028cccf5c53407e21e733bbca"
+  },
+  "attestation_contract": {
+    "marker": "OWNER_LANDING_MERGE_ATTESTATION",
+    "schema_reuse_required": true,
+    "new_receipt_family_allowed": false,
+    "publish_before_target_ready": true,
+    "target_pre_ready_state_gate_run_id": 35451513616,
+    "required_status_contexts": [
+      "baseline",
+      "state-gate",
+      "landing-state-gate"
+    ],
+    "pre_ready_completed_contexts": [
+      "baseline",
+      "state-gate"
+    ],
+    "formal_landing_context_completed_only_after_ready": "landing-state-gate",
+    "exactly_one_active_matching_attestation_required": true,
+    "post_hoc_after_merge_allowed": false
+  },
+  "required_landing_sequence": [
+    "require target and sidecar exact-head checks/independent acceptance and fresh964review; no concurrent landing/721 successor",
+    "fresh-read approved829digest and exact main/Draft heads/base/threads/ruleset",
+    "publish one existing-format preReady attestation and verify unique digest plus existing false/none evaluator",
+    "Ready964 once; require natural ordinary and formal StateGate SUCCESS",
+    "fresh no-drift/no-concurrency and expected-head ordinary merge964 once",
+    "verify mergeparents/newmain; require natural mainpush CI and StateGate SUCCESS",
+    "verify829 fullcriteria thencloseonly829; no broadergoalclosure"
   ]
 }
 ```
 
-## Scope
-Joint integration of18 exact reviewed semantic files. No new product scope or landing authority.
-
 ## Stop conditions
-Stop affected action on main/base/source-blob drift, activated Decision mutation, mandatory failure or unexpected file. Preserve occupied721 and all prior evidence. Four excluded installed integrations remain unaccepted; no claim of real-provider or entire project completion.
+Stop affected action on any base/head/Decision/scope drift, failed mandatory check, missing independent acceptance, invalid/repeated attestation or concurrent publication. No target source edit, history rewrite, bypass, generated-gate commit or721/913 takeover.
