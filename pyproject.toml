@@ -15,3 +15,6 @@ test = ["pytest>=8,<9"]
 [tool.setuptools.packages.find]
 include = ["reverse_agent*"]
 exclude = ["tests*", "project_state*", "docs*"]
+
+[tool.pytest.ini_options]
+markers = ["installed_opencode: requires an installed OpenCode CLI and separately authorized integration execution"]
