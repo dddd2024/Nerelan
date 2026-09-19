@@ -1,10 +1,10 @@
-# Decision Packet — #891 false/none Ready job role split v5
+# Decision Packet - Issue955 bounded mocked fixture repair R2
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260918_issue891_false_none_premerge_attestation_r2_v5",
-  "round_id": "round_20260918_issue891_false_none_premerge_attestation_r2_v5",
+  "decision_id": "decision_20260919_issue955_mocked_fixtures_r2_v1",
+  "round_id": "round_20260919_issue955_mocked_fixtures_r2_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,24 +16,18 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "FALSE_NONE_PREMERGE_ATTESTATION_JOB_ROLE_SPLIT_V5",
-  "source_issue": 891,
-  "parent_issue": 156,
-  "repository": "dddd2024/Nerelan",
-  "approved_by": "dddd2024 via explicitly delegated repository Owner execution",
-  "approval_basis": "User delegated Owner execution and Remote Desktop Commander trusted local work. Natural Ready run 35314878448 on terminal v4 PR939 proved formal landing-state-gate SUCCESS but ordinary state-gate FAILURE because v4 required GITHUB_JOB=landing-state-gate for every cutover Ready transition-preflight. V5 reuses v4 semantics and corrects only the required State Gate job responsibility split; no Ready/Merge.",
-  "supersedes_decision_id": "decision_20260918_issue891_false_none_premerge_attestation_r2_v4",
-  "superseded_evidence": "PR939@36bb532126c3ca830bb59155625d2ea012050fcb is CLOSED_UNMERGED_TERMINAL_REVIEW_NEGATIVE. Natural Ready State Gate run 35314878448: landing-state-gate SUCCESS, state-gate FAILURE at false_none_trusted_landing_context because GITHUB_JOB=state-gate. No rerun/dispatch/merge.",
-  "risk_tier": "R2",
-  "authorized_risk_tier": "R2",
-  "governance_artifact_risk_tier": "R2",
+  "follows_last_decision_id": "decision_20260919_issue721_safe_base_refresh_r2_v11_current",
+  "follows_last_round_id": "round_20260919_issue721_safe_base_refresh_r2_v11_current",
   "integration_base_ref": "main",
-  "base_sha": "3ec2235d583c92c71077aae3751e3216d5bcd94c",
-  "activation_base_sha": "3ec2235d583c92c71077aae3751e3216d5bcd94c",
-  "starting_head": "3ec2235d583c92c71077aae3751e3216d5bcd94c",
-  "required_branch": "owner/issue891-false-none-attestation-r2-v5-role-split",
+  "base_sha": "ef8bb6959ac37301c880e0971a97a9d56e9c99a9",
+  "activation_base_sha": "ef8bb6959ac37301c880e0971a97a9d56e9c99a9",
+  "starting_head": "ef8bb6959ac37301c880e0971a97a9d56e9c99a9",
   "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
+  "risk_tier": "R2",
+  "governance_artifact_risk_tier": "R2",
+  "authorized_risk_tier": "R2",
+  "workflow_profile": "baseline",
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
@@ -46,15 +40,26 @@
   "decision_activation_commit_limit": 1,
   "product_change_commit_limit": 1,
   "generated_governance_commit_limit": 0,
-  "normal_push_attempt_limit": 2,
+  "post_publication_binding_commit_limit": 0,
+  "commit_order_contract": [
+    "D_decision_only_on_clean_tree",
+    "startup_snapshot",
+    "transition_command_plan",
+    "transition_lint",
+    "transition_preflight_pre",
+    "worktree_publication_readiness",
+    "S_semantic_implementation_only"
+  ],
+  "normal_push_attempt_limit": 0,
   "draft_pr_creation_limit": 1,
-  "mark_ready_attempt_limit": 0,
-  "merge_attempt_limit": 0,
+  "dependency_install_limit": 0,
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
   "live_model_call_limit": 0,
   "provider_network_call_limit": 0,
   "credential_access_limit": 0,
+  "mark_ready_attempt_limit": 0,
+  "merge_attempt_limit": 0,
   "pr_creation_allowed": true,
   "issue_comment_allowed": true,
   "pull_request_comment_allowed": true,
@@ -69,44 +74,12 @@
   "dependency_install_allowed": false,
   "live_provider_access_allowed": false,
   "credential_access_allowed": false,
-  "local_browser_execution_allowed": false,
-  "provider_free_acceptance_required": true,
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
-  "workflow_profile": "baseline",
-  "semantic_implementation_contract": {
-    "specification": "Reuse the exact v4/#893 false-none attestation semantics and fix only Ready-job role routing. Both required State Gate jobs evaluate the same Ready event. In cutover mode, exact GitHub Actions ordinary state-gate context (GITHUB_ACTIONS=true, GITHUB_JOB=state-gate, GITHUB_WORKFLOW=State Gate) must complete generic transition/Decision/remote PR binding and then return success without performing Owner landing-attestation acceptance. Exact formal landing-state-gate context must continue to validate exactly one existing-format OWNER_LANDING_MERGE_ATTESTATION and fail closed on missing/invalid evidence. Any other Ready execution context must fail closed. Postmerge behavior, Draft/non-landing behavior, legacy merge-intent path and attestation schema remain unchanged.",
-    "execution_surface_note": "Decision/source/test/commit work runs only in the clean isolated trusted_worker checkout. Generated gate evidence has zero commit budget. Remote Decision/semantic commits, branch ref and Draft PR are created only through GitHub control plane; local git push/gh publication is forbidden.",
-    "completion_boundary": "One immutable Decision commit plus one semantic commit and one Draft PR. No generated-governance commit, local git push, Ready, Merge, rerun or dispatch."
-  },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
   ],
   "bootstrap_exception_commands": [],
-  "allowed_mutated_paths": [
-    "project_state/decision_packet.md",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/project_gate.py",
-    "tests/test_mainline_landing.py",
-    "tests/test_project_gate.py"
-  ],
-  "authorized_risk_paths": [
-    "project_state/decision_packet.md",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/project_gate.py",
-    "tests/test_mainline_landing.py",
-    "tests/test_project_gate.py"
-  ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
@@ -114,71 +87,6 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json"
   ],
-  "reference_paths": [
-    "reverse_agent/github_remote_verifier.py",
-    "reverse_agent/control_plane/transition.py",
-    ".github/workflows/state-gate.yml",
-    "tests/test_control_plane_transition.py",
-    "tests/test_decision_preflight.py",
-    "AGENTS.md",
-    "docs/agents/governance-reference.md"
-  ],
-  "forbidden_mutated_paths": [
-    ".github/**",
-    "reverse_agent/github_remote_verifier.py",
-    "reverse_agent/control_plane/**",
-    "frontend/**",
-    "pyproject.toml",
-    "requirements*.txt",
-    "project_state/rounds/**",
-    "project_state/mainline_merge_intents/**",
-    "**/secrets/**",
-    "**/.env"
-  ],
-  "forbidden_operations": [
-    "active_json_rewrite",
-    "amend",
-    "auto_merge",
-    "browser_execution",
-    "destructive",
-    "direct_push_main",
-    "external_reverse_tool_invocation",
-    "force_push",
-    "generated_governance_commit",
-    "history_rewrite",
-    "mark_ready",
-    "merge",
-    "model_api_invocation",
-    "rebase",
-    "runner_dispatch",
-    "squash",
-    "tag_or_release",
-    "unknown_binary_execution",
-    "workflow_dispatch",
-    "workflow_rerun"
-  ],
-  "capability_policy": {
-    "runner_dispatch_allowed": false,
-    "model_api_invocation_allowed": false,
-    "external_reverse_tool_invocation_allowed": false,
-    "unknown_binary_execution_allowed": false,
-    "destructive_operations_allowed": false,
-    "bmad_installation_allowed": false,
-    "network_access_default_allowed": false,
-    "direct_push_to_main_allowed": false,
-    "force_push_allowed": false,
-    "rebase_during_execution_allowed": false,
-    "tag_or_release_allowed": false,
-    "merge_allowed": false,
-    "remote_observation_read_only_allowed": true,
-    "local_network_exceptions": [],
-    "ci_network_exceptions": [],
-    "trusted_worker_network_exceptions": [],
-    "user_local_network_exceptions": [],
-    "github_control_plane_network_exceptions": [
-      "Create only the v5 Decision/semantic commit graph and branch owner/issue891-false-none-attestation-r2-v5-role-split in dddd2024/Nerelan, then one Draft PR against main@3ec2235d583c92c71077aae3751e3216d5bcd94c; comment only on Issue891/156 and that Draft; never Ready/Merge."
-    ]
-  },
   "path_risk_floor": [
     {
       "pattern": "project_state/**",
@@ -191,22 +99,152 @@
     {
       "pattern": "reverse_agent/project_gate.py",
       "minimum_risk": "R2"
+    },
+    {
+      "pattern": "reverse_agent/github_remote_verifier.py",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "tests/test_mainline_landing.py",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "tests/test_project_gate.py",
+      "minimum_risk": "R2"
     }
   ],
+  "workflow_dispatch_limit": 0,
+  "workflow_dispatch_allowed": false,
+  "provider_free_acceptance_required": true,
+  "repository": "dddd2024/Nerelan",
+  "source_issue": 955,
+  "parent_issue": 687,
+  "mother_roadmap": 137,
+  "decision_scope": "BOUNDED_MOCKED_TEST_FIXTURE_REPAIR",
+  "required_branch": "codex/legacy-mocked-fixtures-r2-20260919",
+  "workstream_id": "issue955-mocked-fixtures-r2",
+  "approved_by": "dddd2024 via explicitly delegated repository Owner execution",
+  "approval_basis": "User renewed full authorization on 2026-09-19 after concrete Issue955 was prepared. Path-A PR956 is stopped: its one test path is outside the repository-owned R1 check mapping. This bounded Path-B execution authorizes only the same test correction and existing transition metadata; no selector or workflow weakening.",
+  "superseded_evidence": "PR956 head c9d3af29d44f110798762ee69cf65cfaeab8a1c4 is content evidence only. Local 10 focused and191 PathA tests pass, but natural State Gate35440311126 failed task_checks_not_selected. Do not alter its history or treat its CI as successor acceptance.",
+  "fresh_base": "ef8bb6959ac37301c880e0971a97a9d56e9c99a9",
+  "current_main_expected": "ef8bb6959ac37301c880e0971a97a9d56e9c99a9",
+  "source_test_mutation_authorized": true,
+  "source_test_mutation_scope": [
+    "tests/test_local_reverse_forced_ida_extract.py"
+  ],
+  "issue_completion_close_allowed": [],
+  "landing_authority_scope_note": "Draft implementation only. Ready/Merge require separately bound exact-head landing authority after independent acceptance.",
+  "allowed_mutated_paths": [
+    "project_state/decision_packet.md",
+    "tests/test_local_reverse_forced_ida_extract.py",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
+  "authorized_risk_paths": [
+    "project_state/decision_packet.md",
+    "tests/test_local_reverse_forced_ida_extract.py",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json"
+  ],
+  "reference_paths": [
+    "AGENTS.md",
+    "docs/agents/governance-reference.md",
+    "reverse_agent/local_reverse_forced_ida_extract.py",
+    "reverse_agent/control_plane/path_a.py"
+  ],
+  "forbidden_mutated_paths": [
+    "AGENTS.md",
+    ".github/**",
+    ".codex-skills/**",
+    "docs/**",
+    "reverse_agent/**",
+    "frontend/**",
+    "project_state/mainline_merge_intents/**",
+    "project_state/rounds/**",
+    "pyproject.toml",
+    "requirements*.txt",
+    "**/secrets/**",
+    "**/.env"
+  ],
+  "forbidden_operations": [
+    "active_json_rewrite",
+    "direct_push_main",
+    "auto_merge",
+    "force_push",
+    "rebase",
+    "squash",
+    "amend",
+    "history_rewrite",
+    "mark_ready",
+    "merge",
+    "workflow_rerun",
+    "workflow_dispatch",
+    "runner_dispatch",
+    "model_api_invocation",
+    "provider_network_call",
+    "credential_access",
+    "unknown_binary_execution",
+    "external_reverse_tool_invocation",
+    "destructive",
+    "tag_or_release",
+    "dependency_install",
+    "generated_governance_commit"
+  ],
+  "capability_policy": {
+    "runner_dispatch_allowed": false,
+    "model_api_invocation_allowed": false,
+    "external_reverse_tool_invocation_allowed": false,
+    "unknown_binary_execution_allowed": false,
+    "destructive_operations_allowed": false,
+    "bmad_installation_allowed": false,
+    "network_access_default_allowed": false,
+    "direct_push_to_main_allowed": false,
+    "merge_allowed": false,
+    "force_push_allowed": false,
+    "rebase_during_execution_allowed": false,
+    "tag_or_release_allowed": false,
+    "remote_observation_read_only_allowed": true,
+    "local_network_exceptions": [],
+    "ci_network_exceptions": [],
+    "trusted_worker_network_exceptions": [],
+    "user_local_network_exceptions": [],
+    "github_control_plane_network_exceptions": [
+      "Publish only the exact locally authored Decision and test commit graph to codex/legacy-mocked-fixtures-r2-20260919 in dddd2024/Nerelan using GitHub Git API, one Draft against main@ef8bb6959ac37301c880e0971a97a9d56e9c99a9, and descriptions/comments for Issue955/687 and predecessor/successor PRs. No local git push, Ready/Merge, rerun/dispatch."
+    ]
+  },
+  "semantic_implementation_contract": {
+    "specification": "Reuse the exact one-file semantic content of PR956 c9d3af29d44f110798762ee69cf65cfaeab8a1c4 after independently comparing original tests/assertions. Test-owned inert sample files, native absolute temporary evidence paths, exact4 successful or2 failure extractor calls, confinement assertions, fail guard against real subprocess and missing-source zero-call coverage. No other test or production change.",
+    "completion_boundary": "Exact-head provider-free local tests, natural CI/Decision Preflight/State Gate, raw failure-node comparison removing only4 legacy tests, independent exact-head review. No real IDA/model/executable or full-suite-green claim."
+  },
+  "run_environment_binding": {
+    "run_strategy": "user_local",
+    "canonical_repository": "dddd2024/Nerelan",
+    "target_owner_branch": "codex/legacy-mocked-fixtures-r2-20260919",
+    "authority_path": "Path B R2 transition",
+    "local_agent_ready_or_merge_authority": false
+  },
   "allowed_commands": [
     {
-      "command_id": "issue891v5.bootstrap",
-      "command": "On this exact clean isolated current-main checkout verify Decision/branch/base. Run startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness. Generated gate files are ephemeral evidence only and must not be committed. Require PRE_EXECUTION_AUTHORIZED before semantic mutation.",
+      "command_id": "issue955r2.bootstrap",
       "phase": "bootstrap",
+      "command": "Use this exact Windows local checkout F:/Nerelan-issue955-mocked-fixtures-r2. Commit Decision only, then startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness; require PRE_EXECUTION_AUTHORIZED before test edits.",
       "required": true,
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "trusted_worker",
+      "execution_surface": "user_local",
       "operations": [
         "code_read",
         "local_static_check",
-        "command_plan_generation"
+        "command_plan_generation",
+        "commit",
+        "machine_specific_execution"
       ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
@@ -220,43 +258,42 @@
       ]
     },
     {
-      "command_id": "issue891v5.implement",
-      "command": "After PRE_EXECUTION_AUTHORIZED rematerialize v4 semantic bytes in the four authorized files and correct only Ready job role routing in project_gate plus focused regression coverage. Ordinary state-gate must remain satisfiable without performing attestation acceptance; formal landing-state-gate remains the sole attestation validator; any other Ready context fails closed. Commit exactly one semantic commit.",
+      "command_id": "issue955r2.implement",
       "phase": "implementation",
+      "command": "Materialize only the approved predecessor test blob, compare assertions, and commit once. No arbitrary source editing, real tools, binary execution or dependency install.",
       "required": true,
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "trusted_worker",
+      "execution_surface": "user_local",
       "operations": [
         "source_edit",
         "unit_test",
         "local_static_check",
-        "commit"
+        "commit",
+        "machine_specific_execution"
       ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "reverse_agent/mainline_landing.py",
-        "reverse_agent/project_gate.py",
-        "tests/test_mainline_landing.py",
-        "tests/test_project_gate.py"
+        "tests/test_local_reverse_forced_ida_extract.py"
       ],
       "produced_artifacts": []
     },
     {
-      "command_id": "issue891v5.validate",
-      "command": "Run python -m pytest tests/test_mainline_landing.py -k false_none -q; python -m pytest tests/test_project_gate.py -k 'false_none or landing_authority' -q; git diff --check. Add/execute regression proving the same Ready event can satisfy both required Ruleset jobs: ordinary state-gate succeeds as non-landing generic validation and formal landing-state-gate succeeds only with valid attestation. Natural exact-head CI/Decision Preflight/State Gate are final validation.",
+      "command_id": "issue955r2.validate",
       "phase": "validation",
+      "command": "Run python -B -m pytest tests/test_local_reverse_forced_ida_extract.py tests/test_path_a_gate.py -q -p no:cacheprovider; python -B -m pytest tests/test_control_plane_transition.py tests/test_decision_preflight.py -q -p no:cacheprovider; git diff --check; final transition-preflight/readiness. Natural CI validates Ubuntu and raw diagnostic removes only4 legacy failures, no new nodes.",
       "required": true,
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "trusted_worker",
+      "execution_surface": "user_local",
       "operations": [
         "unit_test",
         "local_static_check",
-        "diff_validation"
+        "diff_validation",
+        "machine_specific_execution"
       ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
@@ -264,9 +301,9 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "issue891v5.publish",
-      "command": "Through github_control_plane only, create exact Decision then semantic commit graph, create branch owner/issue891-false-none-attestation-r2-v5-role-split, and one Draft PR against main@3ec2235d583c92c71077aae3751e3216d5bcd94c. No local git push, Ready or Merge.",
+      "command_id": "issue955r2.publish",
       "phase": "publication",
+      "command": "Publish exact local trees/commits with GitHub Git API; create one named branch and one Draft PR, update its body/comments; never local git push, Ready/Merge or workflow rerun.",
       "required": true,
       "expected_exit_codes": [
         0
@@ -285,9 +322,9 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "issue891v5.observe",
-      "command": "Fresh-read remote commit trees/ref/PR and natural exact-head Actions. Confirm remote tree identities match trusted-worker trees and Owner-audit the production path. No Ready/Merge.",
+      "command_id": "issue955r2.observe",
       "phase": "final_evidence",
+      "command": "Observe natural exact-head CI/Decision Preflight/State Gate and independent audit. Keep Draft.",
       "required": true,
       "expected_exit_codes": [
         0
@@ -295,39 +332,20 @@
       "execution_surface": "remote_observation",
       "operations": [
         "read_only_audit",
-        "code_read"
+        "code_read",
+        "repository_observation"
       ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     }
-  ],
-  "issue_completion_close_allowed": [],
-  "workstream_id": "issue891-false-none-attestation-r2-v5-role-split",
-  "follows_last_decision_id": "decision_20260918_issue891_false_none_premerge_attestation_r2_v4",
-  "follows_last_round_id": "round_20260918_issue891_false_none_premerge_attestation_r2_v4",
-  "fresh_base": "3ec2235d583c92c71077aae3751e3216d5bcd94c",
-  "current_main_expected": "3ec2235d583c92c71077aae3751e3216d5bcd94c"
+  ]
 }
 ```
 
 ## Goal
-
-Make the false/none Ready lifecycle satisfy both required Ruleset State Gate jobs without weakening landing attestation enforcement: ordinary state-gate performs generic validation, while formal landing-state-gate alone validates OWNER_LANDING_MERGE_ATTESTATION.
-
-## Build vs reuse
-
-Reuse v4/#893 semantic content, existing OWNER_LANDING_MERGE_ATTESTATION parser/digest/binding, GitHubRemoteAcceptanceVerifier, current State Gate workflow, and unchanged post-merge validation. Do not add a receipt family, workflow, scheduler, GitHub client, dependency, database or policy engine.
-
-## Implementation scope
-
-After PRE_EXECUTION_AUTHORIZED, exactly four semantic paths:
-- reverse_agent/mainline_landing.py
-- reverse_agent/project_gate.py
-- tests/test_mainline_landing.py
-- tests/test_project_gate.py
+Repair the existing provider-free legacy mocked tests through the existing bounded transition path. The failed R1 selector remains unchanged. This is test maintenance, not reverse-engineering execution.
 
 ## Stop conditions
-
-Stop on main/base drift, Decision mutation, failed preflight, scope expansion, test/check failure, unexpected workflow semantics or exhausted publication budget. Never rerun/dispatch, Ready or Merge under this Decision.
+Stop on base drift, Decision mutation, scope expansion, failed mandatory test/preflight, unexpected files, or unavailable publication surface. Preserve prior PR956 as negative gate evidence; no fix-forward or rerun. Generated gate files stay uncommitted. No merge under this implementation Decision.
