@@ -250,30 +250,30 @@ export function SettingsPage() {
         "lg:px-7 lg:py-7",
       )}
     >
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
               <Settings className="h-5 w-5 text-ra-text-tertiary" />
-              <h1 className="text-lg font-semibold text-ra-text-secondary">
+              <h1 className="text-xl font-semibold tracking-tight text-ra-text">
                 连接与绑定
               </h1>
             </div>
-            <p className="mt-1.5 max-w-2xl text-sm text-ra-text-tertiary">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-ra-text-secondary">
               管理 Model Control 连接与 OpenCode 绑定。API Key 仅通过模型控制服务传输，
               不写入浏览器存储。
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex shrink-0 flex-wrap gap-2">
             <button
               type="button"
               onClick={() => switchView("connection")}
               className={cn(
-                "inline-flex items-center justify-center gap-2 rounded-md",
-                "px-3 py-2 text-sm font-medium",
-                "focus:outline-none focus-visible:ring-2 focus-visible:ring-white",
+                "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg transition-colors",
+                "px-3.5 py-2 text-sm font-medium",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ra-workspace",
                 view === "connection"
-                  ? "bg-ra-accent text-ra-base"
+                  ? "bg-ra-accent text-ra-base hover:bg-ra-accent-hover"
                   : "border border-ra-border text-ra-text-secondary hover:bg-ra-tertiary",
               )}
             >
@@ -284,11 +284,11 @@ export function SettingsPage() {
               type="button"
               onClick={() => switchView("binding")}
               className={cn(
-                "inline-flex items-center justify-center gap-2 rounded-md",
-                "px-3 py-2 text-sm font-medium",
-                "focus:outline-none focus-visible:ring-2 focus-visible:ring-white",
+                "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg transition-colors",
+                "px-3.5 py-2 text-sm font-medium",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ra-workspace",
                 view === "binding"
-                  ? "bg-ra-accent text-ra-base"
+                  ? "bg-ra-accent text-ra-base hover:bg-ra-accent-hover"
                   : "border border-ra-border text-ra-text-secondary hover:bg-ra-tertiary",
               )}
             >
@@ -321,7 +321,7 @@ export function SettingsPage() {
 
         <div
           data-testid="settings-model-access-layout"
-          className="grid min-h-0 grid-cols-1 gap-5 lg:grid-cols-[224px_minmax(0,1fr)]"
+          className="grid min-h-0 grid-cols-1 items-start gap-5 lg:grid-cols-[224px_minmax(0,1fr)]"
         >
           <aside
             data-testid="settings-model-access-index"
