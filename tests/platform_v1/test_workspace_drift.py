@@ -772,7 +772,11 @@ def test_newline_paths_are_argv_batched_and_preserve_identity(tmp_path, monkeypa
         if "hash-object" in command and "--stdin-paths" not in command
     ]
     assert len(argv_batches) == 2  # one argv batch per stability observation
-    assert all(sum(path in command for path in paths) == len(paths) for command in argv_batches)
+    expected_sources = {str(repo / path) for path in paths}
+    assert all(
+        set(command[command.index("--") + 1 :]) == expected_sources
+        for command in argv_batches
+    )
     assert classify_workspace_generation(generation, repo).state == CAPTURED_DIRTY_MATCH
 
 @pytest.mark.parametrize("stream_name", ["stdout", "stderr"])
