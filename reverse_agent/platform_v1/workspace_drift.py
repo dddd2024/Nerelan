@@ -10,15 +10,21 @@ import re
 import stat
 import subprocess
 import tempfile
+import threading
+import time
 from typing import Any, Mapping, Sequence
 
-_SHA40 = re.compile(r"^[0-9a-f]{40}$")
+_OBJECT_ID = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+_OBJECT_FORMAT_LENGTHS = {"sha1": 40, "sha256": 64}
 _SHA256_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 _SCHEMA_VERSION = "3"
 _MAX_GENERATION_ID_LENGTH = 128
 _MAX_PATH_BYTES = 4096
 _MAX_PATHS = 10_000
 _MAX_GIT_OUTPUT_BYTES = 32 * 1024 * 1024
+_GIT_IO_CHUNK_BYTES = 64 * 1024
+_MAX_HASH_ARG_BATCH_COUNT = 256
+_MAX_HASH_ARG_BATCH_BYTES = 24 * 1024
 _GIT_TIMEOUT_SECONDS = 60
 _SUPPORTED_FILE_MODES = frozenset({"100644", "100755", "120000"})
 
@@ -37,21 +43,50 @@ class WorkspaceObservationError(ValueError):
         super().__init__(code)
 
 
+def _valid_object_id(value: str, expected_length: int | None = None) -> bool:
+    if not isinstance(value, str) or _OBJECT_ID.fullmatch(value) is None:
+        return False
+    return expected_length is None or len(value) == expected_length
+
+
+def _object_id_length(value: str) -> int | None:
+    return len(value) if _valid_object_id(value) else None
+
+
+def _storage_object_id_length(repo: Path) -> int:
+    object_format = _git_text(
+        repo,
+        "rev-parse",
+        "--show-object-format=storage",
+        error_code="OBJECT_FORMAT_UNOBSERVABLE",
+    ).strip()
+    length = _OBJECT_FORMAT_LENGTHS.get(object_format)
+    if length is None:
+        raise WorkspaceObservationError("OBJECT_FORMAT_UNSUPPORTED")
+    return length
+
+
 @dataclass(frozen=True, order=True)
 class WorkspaceIndexEntry:
     path: str
     mode: str
     object_id: str
+    skip_worktree: bool = False
+    assume_unchanged: bool = False
 
     def __post_init__(self) -> None:
         if not _valid_path(self.path):
             raise ValueError("workspace_index_path_invalid")
         if self.mode not in _SUPPORTED_FILE_MODES:
             raise ValueError("workspace_index_mode_invalid")
-        if not _SHA40.fullmatch(self.object_id):
+        if not _valid_object_id(self.object_id):
             raise ValueError("workspace_index_object_invalid")
+        if not isinstance(self.skip_worktree, bool) or not isinstance(
+            self.assume_unchanged, bool
+        ):
+            raise ValueError("workspace_index_flags_invalid")
 
-    def to_dict(self) -> dict[str, str]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -83,9 +118,17 @@ class WorkspaceGeneration:
             raise ValueError("workspace_generation_repository_identity_invalid")
         if not _SHA256_ID.fullmatch(self.index_digest):
             raise ValueError("workspace_generation_index_digest_invalid")
-        for name in ("base_commit", "head_commit", "base_tree", "observed_tree"):
-            if not _SHA40.fullmatch(str(getattr(self, name))):
-                raise ValueError(f"workspace_generation_{name}_invalid")
+        object_ids = [
+            str(getattr(self, name))
+            for name in ("base_commit", "head_commit", "base_tree", "observed_tree")
+        ]
+        object_lengths = {_object_id_length(value) for value in object_ids}
+        if None in object_lengths or len(object_lengths) != 1:
+            raise ValueError("workspace_generation_object_format_invalid")
+        expected_oid_length = next(iter(object_lengths))
+        for entry in self.index_entries:
+            if not _valid_object_id(entry.object_id, expected_oid_length):
+                raise ValueError("workspace_generation_index_object_format_invalid")
         if (
             len(self.changed_paths) > _MAX_PATHS
             or tuple(sorted(set(self.changed_paths))) != self.changed_paths
@@ -180,8 +223,9 @@ def capture_workspace_generation(
     repo = _resolve_git_root(supplied)
     if repo != supplied:
         raise WorkspaceObservationError("REPOSITORY_ROOT_MISMATCH")
+    oid_length = _storage_object_id_length(repo)
     base = str(base_commit).strip().lower()
-    if not _SHA40.fullmatch(base):
+    if not _valid_object_id(base, oid_length):
         raise WorkspaceObservationError("BASE_COMMIT_INVALID")
     actual = _git_text(
         repo,
@@ -189,10 +233,10 @@ def capture_workspace_generation(
         f"{base}^{{commit}}",
         error_code="BASE_COMMIT_UNOBSERVABLE",
     ).strip().lower()
-    if actual != base:
+    if actual != base or not _valid_object_id(actual, oid_length):
         raise WorkspaceObservationError("BASE_COMMIT_MISMATCH")
-    first = _observe_once(repo, actual)
-    second = _observe_once(repo, actual)
+    first = _observe_once(repo, actual, oid_length)
+    second = _observe_once(repo, actual, oid_length)
     if first != second:
         raise WorkspaceObservationError("WORKSPACE_CHANGED_DURING_CAPTURE")
     return WorkspaceGeneration(
@@ -253,31 +297,39 @@ def classify_workspace_generation(
     )
 
 
-def _observe_once(repo: Path, base_commit: str) -> _Observation:
+def _observe_once(
+    repo: Path, base_commit: str, oid_length: int
+) -> _Observation:
     index_path = _real_index_path(repo)
     index_before = _read_optional_bytes(index_path)
     head_before = _git_text(repo, "rev-parse", "HEAD").strip().lower()
     base_tree = _git_text(repo, "rev-parse", f"{base_commit}^{{tree}}").strip().lower()
-    if not _SHA40.fullmatch(head_before) or not _SHA40.fullmatch(base_tree):
+    if not _valid_object_id(head_before, oid_length) or not _valid_object_id(
+        base_tree, oid_length
+    ):
         raise WorkspaceObservationError("GIT_IDENTITY_INVALID")
-    base_entries = _base_entries(repo, base_commit)
-    index_entries = _index_entries(repo)
+    base_entries = _base_entries(repo, base_commit, oid_length)
+    index_entries = _index_entries(repo, oid_length)
     untracked = _untracked_paths(repo)
     observed_tree, worktree_delta = _raw_observed_tree(
-        repo, base_tree, index_entries, untracked
+        repo, base_tree, index_entries, untracked, oid_length
     )
     changed_paths = _bounded_paths(
         (*worktree_delta, *_entry_delta_paths(base_entries, index_entries))
     )
     head_after = _git_text(repo, "rev-parse", "HEAD").strip().lower()
     index_after = _read_optional_bytes(index_path)
-    if head_before != head_after or index_before != index_after:
+    if (
+        head_before != head_after
+        or not _valid_object_id(head_after, oid_length)
+        or index_before != index_after
+    ):
         raise WorkspaceObservationError("WORKSPACE_CHANGED_DURING_CAPTURE")
     return _Observation(
         head_after,
         base_tree,
         observed_tree,
-        _sha256_id(index_before),
+        _semantic_index_digest(index_entries),
         changed_paths,
         index_entries,
     )
@@ -288,6 +340,7 @@ def _raw_observed_tree(
     base_tree: str,
     index_entries: tuple[WorkspaceIndexEntry, ...],
     untracked_paths: tuple[str, ...],
+    oid_length: int,
 ) -> tuple[str, tuple[str, ...]]:
     tracked = {entry.path: entry for entry in index_entries}
     paths = _bounded_paths((*tracked, *untracked_paths))
@@ -305,21 +358,27 @@ def _raw_observed_tree(
             ),
         }
         _git_bytes(repo, "read-tree", "--empty", extra_env=env)
-        for path in paths:
-            item = _worktree_item(repo, path, tracked.get(path), env)
-            if item is not None:
-                _git_bytes(
-                    repo,
-                    "update-index",
-                    "--add",
-                    "--cacheinfo",
-                    item[0],
-                    item[1],
-                    path,
-                    extra_env=env,
-                )
+        items = _worktree_items(repo, paths, tracked, env, oid_length, temp)
+        if items:
+            index_info = b"".join(
+                mode.encode("ascii")
+                + b" "
+                + oid.encode("ascii")
+                + b"\t"
+                + path.encode("utf-8")
+                + b"\0"
+                for path, mode, oid in items
+            )
+            _git_bytes(
+                repo,
+                "update-index",
+                "-z",
+                "--index-info",
+                extra_env=env,
+                input_bytes=index_info,
+            )
         tree = _git_text(repo, "write-tree", extra_env=env).strip().lower()
-        if not _SHA40.fullmatch(tree):
+        if not _valid_object_id(tree, oid_length):
             raise WorkspaceObservationError("OBSERVED_TREE_INVALID")
         delta = _git_bytes(
             repo,
@@ -339,64 +398,151 @@ def _raw_observed_tree(
         return tree, _parse_path_tokens(delta)
 
 
-def _worktree_item(
+def _worktree_items(
     repo: Path,
-    path: str,
-    tracked: WorkspaceIndexEntry | None,
+    paths: Sequence[str],
+    tracked: Mapping[str, WorkspaceIndexEntry],
     env: Mapping[str, str],
-) -> tuple[str, str] | None:
-    _ensure_no_parent_symlink(repo, path)
-    candidate = repo.joinpath(*path.split("/"))
-    try:
-        info = os.lstat(candidate)
-    except FileNotFoundError:
-        return None
-    except OSError as exc:
-        raise WorkspaceObservationError("WORKTREE_PATH_UNOBSERVABLE") from exc
-    if stat.S_ISLNK(info.st_mode):
+    oid_length: int,
+    scratch: Path,
+) -> tuple[tuple[str, str, str], ...]:
+    modes: dict[str, str] = {}
+    line_safe_paths: list[str] = []
+    argv_sources: list[tuple[str, str]] = []
+    payload_dir = scratch / "hash-inputs"
+
+    for path in paths:
+        _ensure_no_parent_symlink(repo, path)
+        candidate = repo.joinpath(*path.split("/"))
         try:
-            payload = os.fsencode(os.readlink(candidate))
+            info = os.lstat(candidate)
+        except FileNotFoundError:
+            continue
         except OSError as exc:
             raise WorkspaceObservationError("WORKTREE_PATH_UNOBSERVABLE") from exc
-        oid = _git_text(
-            repo,
-            "hash-object",
-            "-w",
-            "--no-filters",
-            "--stdin",
-            extra_env=env,
-            input_bytes=payload,
-        ).strip().lower()
-        mode = "120000"
-    elif stat.S_ISREG(info.st_mode):
-        oid = _git_text(
-            repo,
-            "hash-object",
-            "-w",
-            "--no-filters",
-            "--",
-            path,
-            extra_env=env,
-        ).strip().lower()
-        mode = (
-            tracked.mode
+
+        if stat.S_ISLNK(info.st_mode):
+            try:
+                payload = os.fsencode(os.readlink(candidate))
+            except OSError as exc:
+                raise WorkspaceObservationError("WORKTREE_PATH_UNOBSERVABLE") from exc
+            payload_dir.mkdir(exist_ok=True)
+            payload_file = payload_dir / f"{len(argv_sources):05d}.blob"
+            try:
+                payload_file.write_bytes(payload)
+            except OSError as exc:
+                raise WorkspaceObservationError("WORKTREE_PATH_UNOBSERVABLE") from exc
+            modes[path] = "120000"
+            argv_sources.append((path, str(payload_file)))
+            continue
+        if not stat.S_ISREG(info.st_mode):
+            raise WorkspaceObservationError("WORKTREE_PATH_TYPE_UNSUPPORTED")
+
+        tracked_entry = tracked.get(path)
+        modes[path] = (
+            tracked_entry.mode
             if os.name == "nt"
-            and tracked is not None
-            and tracked.mode in {"100644", "100755"}
+            and tracked_entry is not None
+            and tracked_entry.mode in {"100644", "100755"}
             else (
                 "100755"
                 if os.name != "nt" and info.st_mode & 0o111
                 else "100644"
             )
         )
-    else:
-        raise WorkspaceObservationError("WORKTREE_PATH_TYPE_UNSUPPORTED")
-    if not _SHA40.fullmatch(oid):
+        if "\n" in path or "\r" in path:
+            argv_sources.append((path, str(candidate)))
+        else:
+            line_safe_paths.append(path)
+
+    object_ids: dict[str, str] = {}
+    if line_safe_paths:
+        output = _git_bytes(
+            repo,
+            "hash-object",
+            "-w",
+            "--no-filters",
+            "--stdin-paths",
+            extra_env=env,
+            input_bytes=("\n".join(line_safe_paths) + "\n").encode("utf-8"),
+        )
+        hashed = output.splitlines()
+        if len(hashed) != len(line_safe_paths):
+            raise WorkspaceObservationError("WORKTREE_OBJECT_INVALID")
+        for path, raw_oid in zip(line_safe_paths, hashed, strict=True):
+            oid = _ascii(raw_oid, "WORKTREE_OBJECT_INVALID").lower()
+            if not _valid_object_id(oid, oid_length):
+                raise WorkspaceObservationError("WORKTREE_OBJECT_INVALID")
+            object_ids[path] = oid
+
+    if argv_sources:
+        source_paths = [source for _, source in argv_sources]
+        hashed = _hash_object_argv_batches(repo, source_paths, env, oid_length)
+        for (path, _), oid in zip(argv_sources, hashed, strict=True):
+            object_ids[path] = oid
+
+    return tuple(
+        (path, modes[path], object_ids[path])
+        for path in paths
+        if path in object_ids
+    )
+
+
+def _hash_object_argv_batches(
+    repo: Path,
+    source_paths: Sequence[str],
+    env: Mapping[str, str],
+    oid_length: int,
+) -> tuple[str, ...]:
+    object_ids: list[str] = []
+    for batch in _command_arg_batches(source_paths):
+        output = _git_bytes(
+            repo,
+            "hash-object",
+            "-w",
+            "--no-filters",
+            "--",
+            *batch,
+            extra_env=env,
+        )
+        hashed = output.splitlines()
+        if len(hashed) != len(batch):
+            raise WorkspaceObservationError("WORKTREE_OBJECT_INVALID")
+        for raw_oid in hashed:
+            oid = _ascii(raw_oid, "WORKTREE_OBJECT_INVALID").lower()
+            if not _valid_object_id(oid, oid_length):
+                raise WorkspaceObservationError("WORKTREE_OBJECT_INVALID")
+            object_ids.append(oid)
+    if len(object_ids) != len(source_paths):
         raise WorkspaceObservationError("WORKTREE_OBJECT_INVALID")
-    return mode, oid
+    return tuple(object_ids)
 
 
-def _base_entries(repo: Path, base: str) -> tuple[WorkspaceIndexEntry, ...]:
+def _command_arg_batches(values: Sequence[str]) -> tuple[tuple[str, ...], ...]:
+    batches: list[tuple[str, ...]] = []
+    current: list[str] = []
+    current_cost = 0
+    for value in values:
+        # Conservative cross-platform allowance for quoting / UTF encoding.
+        item_cost = len(os.fsencode(value)) * 2 + 4
+        if item_cost > _MAX_HASH_ARG_BATCH_BYTES:
+            raise WorkspaceObservationError("WORKTREE_PATH_UNOBSERVABLE")
+        if current and (
+            len(current) >= _MAX_HASH_ARG_BATCH_COUNT
+            or current_cost + item_cost > _MAX_HASH_ARG_BATCH_BYTES
+        ):
+            batches.append(tuple(current))
+            current = []
+            current_cost = 0
+        current.append(value)
+        current_cost += item_cost
+    if current:
+        batches.append(tuple(current))
+    return tuple(batches)
+
+def _base_entries(
+    repo: Path, base: str, oid_length: int
+) -> tuple[WorkspaceIndexEntry, ...]:
     output = _git_bytes(repo, "ls-tree", "-r", "-z", "--full-tree", base, "--")
     entries: list[WorkspaceIndexEntry] = []
     for token in _nul_tokens(output):
@@ -408,15 +554,21 @@ def _base_entries(repo: Path, base: str) -> tuple[WorkspaceIndexEntry, ...]:
         mode = _ascii(mode_raw, "BASE_TREE_EVIDENCE_INVALID")
         oid = _ascii(oid_raw, "BASE_TREE_EVIDENCE_INVALID").lower()
         path = _path_text(raw_path)
-        if kind != b"blob" or mode not in _SUPPORTED_FILE_MODES:
+        if (
+            kind != b"blob"
+            or mode not in _SUPPORTED_FILE_MODES
+            or not _valid_object_id(oid, oid_length)
+        ):
             raise WorkspaceObservationError("GITLINK_OR_TREE_STATE_UNSUPPORTED")
         entries.append(WorkspaceIndexEntry(path, mode, oid))
     return _sorted_entries(entries)
 
 
-def _index_entries(repo: Path) -> tuple[WorkspaceIndexEntry, ...]:
+def _index_entries(
+    repo: Path, oid_length: int
+) -> tuple[WorkspaceIndexEntry, ...]:
     output = _git_bytes(repo, "ls-files", "--stage", "-z", "--full-name", "--")
-    entries: list[WorkspaceIndexEntry] = []
+    raw_entries: list[WorkspaceIndexEntry] = []
     for token in _nul_tokens(output):
         try:
             metadata, raw_path = token.split(b"\t", 1)
@@ -426,19 +578,51 @@ def _index_entries(repo: Path) -> tuple[WorkspaceIndexEntry, ...]:
         if _ascii(stage_raw, "INDEX_EVIDENCE_INVALID") != "0":
             raise WorkspaceObservationError("UNMERGED_INDEX")
         mode = _ascii(mode_raw, "INDEX_EVIDENCE_INVALID")
-        if mode not in _SUPPORTED_FILE_MODES:
+        oid = _ascii(oid_raw, "INDEX_EVIDENCE_INVALID").lower()
+        if (
+            mode not in _SUPPORTED_FILE_MODES
+            or not _valid_object_id(oid, oid_length)
+        ):
             raise WorkspaceObservationError("GITLINK_OR_INDEX_STATE_UNSUPPORTED")
-        entries.append(
+        raw_entries.append(WorkspaceIndexEntry(_path_text(raw_path), mode, oid))
+
+    semantic_flags = _index_semantic_flags(repo)
+    raw_paths = {entry.path for entry in raw_entries}
+    if set(semantic_flags) != raw_paths:
+        raise WorkspaceObservationError("INDEX_EVIDENCE_INVALID")
+    ordered = _sorted_entries(
+        [
             WorkspaceIndexEntry(
-                _path_text(raw_path),
-                mode,
-                _ascii(oid_raw, "INDEX_EVIDENCE_INVALID").lower(),
+                entry.path,
+                entry.mode,
+                entry.object_id,
+                semantic_flags[entry.path][0],
+                semantic_flags[entry.path][1],
             )
-        )
-    ordered = _sorted_entries(entries)
+            for entry in raw_entries
+        ]
+    )
     _validate_index_blobs(repo, ordered)
     return ordered
 
+
+def _index_semantic_flags(repo: Path) -> dict[str, tuple[bool, bool]]:
+    # -v lowercases the ordinary/skip-worktree tag for assume-unchanged.
+    # Deliberately do not use -f: fsmonitor-valid is cache state, not semantic
+    # generation identity.
+    output = _git_bytes(repo, "ls-files", "-v", "-z", "--full-name", "--")
+    flags: dict[str, tuple[bool, bool]] = {}
+    for token in _nul_tokens(output):
+        if len(token) < 3 or token[1:2] != b" ":
+            raise WorkspaceObservationError("INDEX_EVIDENCE_INVALID")
+        tag = token[:1]
+        if tag not in {b"H", b"h", b"S", b"s"}:
+            raise WorkspaceObservationError("INDEX_EVIDENCE_INVALID")
+        path = _path_text(token[2:])
+        if path in flags:
+            raise WorkspaceObservationError("INDEX_EVIDENCE_DUPLICATE_PATH")
+        flags[path] = (tag in {b"S", b"s"}, tag in {b"h", b"s"})
+    return flags
 
 def _validate_index_blobs(repo: Path, entries: Sequence[WorkspaceIndexEntry]) -> None:
     # ls-files reports index metadata even when the recorded object is missing
@@ -469,8 +653,8 @@ def _entry_delta_paths(
     base: tuple[WorkspaceIndexEntry, ...],
     current: tuple[WorkspaceIndexEntry, ...],
 ) -> tuple[str, ...]:
-    left = {entry.path: (entry.mode, entry.object_id) for entry in base}
-    right = {entry.path: (entry.mode, entry.object_id) for entry in current}
+    left = {entry.path: _entry_identity(entry) for entry in base}
+    right = {entry.path: _entry_identity(entry) for entry in current}
     return tuple(sorted(path for path in set(left) | set(right) if left.get(path) != right.get(path)))
 
 
@@ -479,10 +663,10 @@ def _conservative_delta_paths(
     current: WorkspaceGeneration,
 ) -> tuple[str, ...]:
     left = {
-        entry.path: (entry.mode, entry.object_id) for entry in expected.index_entries
+        entry.path: _entry_identity(entry) for entry in expected.index_entries
     }
     right = {
-        entry.path: (entry.mode, entry.object_id) for entry in current.index_entries
+        entry.path: _entry_identity(entry) for entry in current.index_entries
     }
     changed = {
         path for path in set(left) | set(right) if left.get(path) != right.get(path)
@@ -491,6 +675,15 @@ def _conservative_delta_paths(
         changed.update(expected.changed_paths)
         changed.update(current.changed_paths)
     return _bounded_paths(changed)
+
+
+def _entry_identity(entry: WorkspaceIndexEntry) -> tuple[str, str, bool, bool]:
+    return (
+        entry.mode,
+        entry.object_id,
+        entry.skip_worktree,
+        entry.assume_unchanged,
+    )
 
 
 def _sorted_entries(
@@ -694,6 +887,17 @@ def _git_bytes(
     return result.stdout
 
 
+def _stop_process(process: subprocess.Popen[bytes]) -> None:
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=0.5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
 def _execute_git(
     command: Sequence[str],
     *,
@@ -701,16 +905,91 @@ def _execute_git(
     env: Mapping[str, str],
     input_bytes: bytes | None,
 ) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run(
+    process = subprocess.Popen(
         command,
         cwd=cwd,
         env=dict(env),
-        input=input_bytes,
-        capture_output=True,
+        stdin=subprocess.PIPE if input_bytes is not None else subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=False,
-        timeout=_GIT_TIMEOUT_SECONDS,
-        check=False,
         shell=False,
+        bufsize=0,
+    )
+    assert process.stdout is not None and process.stderr is not None
+
+    stdout = bytearray()
+    stderr = bytearray()
+    overflow = threading.Event()
+
+    def read_bounded(stream: Any, sink: bytearray) -> None:
+        while True:
+            chunk = stream.read(_GIT_IO_CHUNK_BYTES)
+            if not chunk:
+                return
+            remaining = _MAX_GIT_OUTPUT_BYTES - len(sink)
+            if remaining > 0:
+                sink.extend(chunk[:remaining])
+            if len(chunk) > max(remaining, 0):
+                overflow.set()
+
+    readers = [
+        threading.Thread(target=read_bounded, args=(process.stdout, stdout), daemon=True),
+        threading.Thread(target=read_bounded, args=(process.stderr, stderr), daemon=True),
+    ]
+    for reader in readers:
+        reader.start()
+
+    writer: threading.Thread | None = None
+    if input_bytes is not None:
+        assert process.stdin is not None
+
+        def write_input() -> None:
+            try:
+                process.stdin.write(input_bytes)
+            except (BrokenPipeError, OSError):
+                pass
+            finally:
+                try:
+                    process.stdin.close()
+                except OSError:
+                    pass
+
+        writer = threading.Thread(target=write_input, daemon=True)
+        writer.start()
+
+    deadline = time.monotonic() + _GIT_TIMEOUT_SECONDS
+    timed_out = False
+    while process.poll() is None:
+        if overflow.is_set():
+            _stop_process(process)
+            break
+        if time.monotonic() >= deadline:
+            timed_out = True
+            _stop_process(process)
+            break
+        time.sleep(0.005)
+
+    if writer is not None:
+        writer.join(timeout=1)
+    for reader in readers:
+        reader.join(timeout=1)
+
+    if timed_out:
+        raise subprocess.TimeoutExpired(
+            command,
+            _GIT_TIMEOUT_SECONDS,
+            output=bytes(stdout),
+            stderr=bytes(stderr),
+        )
+    returncode = process.returncode if process.returncode is not None else 1
+    if overflow.is_set() and returncode == 0:
+        returncode = 125
+    return subprocess.CompletedProcess(
+        command,
+        returncode,
+        bytes(stdout),
+        bytes(stderr),
     )
 
 
@@ -746,6 +1025,26 @@ def _sha256_digest(value: Any) -> str:
 
 def _sha256_id(payload: bytes) -> str:
     return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+def _semantic_index_digest(
+    entries: Sequence[WorkspaceIndexEntry],
+) -> str:
+    payload = json.dumps(
+        [
+            [
+                entry.mode,
+                entry.object_id,
+                entry.path,
+                entry.skip_worktree,
+                entry.assume_unchanged,
+            ]
+            for entry in entries
+        ],
+        ensure_ascii=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return _sha256_id(payload)
 
 
 def _safe_expected_digest(expected: WorkspaceGeneration) -> str | None:

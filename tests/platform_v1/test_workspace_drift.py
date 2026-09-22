@@ -5,6 +5,8 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
+import time
 
 import pytest
 
@@ -624,3 +626,204 @@ def test_external_diff_and_textconv_are_not_executed(tmp_path) -> None:
     assert expected.dirty
     assert classify_workspace_generation(expected, repo).state == CAPTURED_DIRTY_MATCH
     assert not marker.exists()
+
+
+# ---------------------------------------------------------------------------
+# #829 v10 hardening: batching, semantic index identity, object formats,
+# and hard runtime output bounds.
+# ---------------------------------------------------------------------------
+
+
+def test_stat_cache_refresh_does_not_change_semantic_generation(tmp_path) -> None:
+    repo, base = _repo(tmp_path)
+    expected = capture_workspace_generation(repo, base, "semantic-index")
+    before_index = _index_bytes(repo)
+    tracked = repo / "tracked.txt"
+    now_ns = tracked.stat().st_mtime_ns + 2_000_000_000
+    os.utime(tracked, ns=(now_ns, now_ns))
+    _run(repo, "git", "update-index", "--refresh")
+    refreshed_index = _index_bytes(repo)
+
+    current = capture_workspace_generation(repo, base, "semantic-index")
+    assert current.index_entries == expected.index_entries
+    assert current.index_digest == expected.index_digest
+    assert current.digest == expected.digest
+    assert classify_workspace_generation(expected, repo).state == NO_DRIFT
+    assert refreshed_index or before_index
+
+    _run(repo, "git", "update-index", "--fsmonitor-valid", "tracked.txt")
+    cache_only = capture_workspace_generation(repo, base, "semantic-index")
+    assert cache_only.index_entries == expected.index_entries
+    assert cache_only.index_digest == expected.index_digest
+    assert cache_only.digest == expected.digest
+
+
+def test_semantic_index_flags_are_bound_to_generation_identity(tmp_path) -> None:
+    repo, base = _repo(tmp_path)
+    expected = capture_workspace_generation(repo, base, "semantic-flags")
+
+    _run(repo, "git", "update-index", "--skip-worktree", "tracked.txt")
+    skipped = capture_workspace_generation(repo, base, "semantic-flags")
+    assert skipped.index_digest != expected.index_digest
+    assert skipped.digest != expected.digest
+    assert skipped.index_entries[0].skip_worktree is True
+    result = classify_workspace_generation(expected, repo)
+    assert result.state == LOCAL_GENERATION_CHANGED
+    assert result.changed_paths == ("tracked.txt",)
+
+    _run(repo, "git", "update-index", "--no-skip-worktree", "tracked.txt")
+    baseline = capture_workspace_generation(repo, base, "semantic-flags")
+    assert baseline.digest == expected.digest
+    _run(repo, "git", "update-index", "--assume-unchanged", "tracked.txt")
+    assumed = capture_workspace_generation(repo, base, "semantic-flags")
+    assert assumed.index_digest != expected.index_digest
+    assert assumed.index_entries[0].assume_unchanged is True
+    result = classify_workspace_generation(expected, repo)
+    assert result.state == LOCAL_GENERATION_CHANGED
+    assert result.changed_paths == ("tracked.txt",)
+
+
+def test_sha256_repository_is_supported_when_git_supports_it(tmp_path) -> None:
+    repo = tmp_path / "sha256-repo"
+    repo.mkdir()
+    initialized = subprocess.run(
+        ["git", "init", "-q", "--initial-branch=master", "--object-format=sha256"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if initialized.returncode != 0:
+        pytest.skip("installed Git does not support SHA-256 repositories")
+    _run(repo, "git", "config", "core.autocrlf", "false")
+    _run(repo, "git", "config", "user.email", "drift@test.local")
+    _run(repo, "git", "config", "user.name", "Drift Fixture")
+    (repo / "tracked.txt").write_text("base\n", encoding="utf-8")
+    _run(repo, "git", "add", "tracked.txt")
+    _run(repo, "git", "commit", "-q", "-m", "base")
+    base = _run(repo, "git", "rev-parse", "HEAD")
+    assert len(base) == 64
+
+    expected = capture_workspace_generation(repo, base, "sha256")
+    assert len(expected.head_commit) == 64
+    assert len(expected.observed_tree) == 64
+    assert all(len(entry.object_id) == 64 for entry in expected.index_entries)
+    assert classify_workspace_generation(expected, repo).state == NO_DRIFT
+    (repo / "tracked.txt").write_text("changed\n", encoding="utf-8")
+    result = classify_workspace_generation(expected, repo)
+    assert result.state == LOCAL_GENERATION_CHANGED
+    assert result.changed_paths == ("tracked.txt",)
+
+
+def test_three_thousand_paths_use_bounded_git_process_count(tmp_path, monkeypatch) -> None:
+    repo, base = _repo(tmp_path)
+    for index in range(3000):
+        (repo / f"bulk-{index:04d}.txt").write_text("x", encoding="utf-8")
+
+    import reverse_agent.platform_v1.workspace_drift as module
+
+    real_execute = module._execute_git
+    calls: list[tuple[str, ...]] = []
+
+    def recording_execute(command, *, cwd, env, input_bytes):
+        calls.append(tuple(command))
+        return real_execute(command, cwd=cwd, env=env, input_bytes=input_bytes)
+
+    monkeypatch.setattr(module, "_execute_git", recording_execute)
+    generation = capture_workspace_generation(repo, base, "bulk-3000")
+    assert generation.dirty
+    assert len(generation.changed_paths) == 3000
+    hash_batches = [
+        command
+        for command in calls
+        if "hash-object" in command and "--stdin-paths" in command
+    ]
+    index_batches = [
+        command
+        for command in calls
+        if "update-index" in command and "--index-info" in command
+    ]
+    assert len(hash_batches) == 2  # one per stability observation
+    assert len(index_batches) == 2
+    assert len(calls) < 40
+
+
+@pytest.mark.skipif(os.name == "nt", reason="newline path is not a Windows filename")
+def test_newline_paths_are_argv_batched_and_preserve_identity(tmp_path, monkeypatch) -> None:
+    repo, base = _repo(tmp_path)
+    paths = tuple(f"line\nbreak-{index:02d}.txt" for index in range(32))
+    for path in paths:
+        (repo / path).write_text("newline\n", encoding="utf-8")
+    import reverse_agent.platform_v1.workspace_drift as module
+
+    real_execute = module._execute_git
+    calls: list[tuple[str, ...]] = []
+
+    def recording_execute(command, *, cwd, env, input_bytes):
+        calls.append(tuple(command))
+        return real_execute(command, cwd=cwd, env=env, input_bytes=input_bytes)
+
+    monkeypatch.setattr(module, "_execute_git", recording_execute)
+    generation = capture_workspace_generation(repo, base, "newline-paths")
+    assert set(paths).issubset(generation.changed_paths)
+    argv_batches = [
+        command
+        for command in calls
+        if "hash-object" in command and "--stdin-paths" not in command
+    ]
+    assert len(argv_batches) == 2  # one argv batch per stability observation
+    assert all(sum(path in command for path in paths) == len(paths) for command in argv_batches)
+    assert classify_workspace_generation(generation, repo).state == CAPTURED_DIRTY_MATCH
+
+@pytest.mark.parametrize("stream_name", ["stdout", "stderr"])
+def test_execute_git_hard_bounds_each_output_stream(tmp_path, monkeypatch, stream_name) -> None:
+    import reverse_agent.platform_v1.workspace_drift as module
+
+    monkeypatch.setattr(module, "_MAX_GIT_OUTPUT_BYTES", 1024)
+    monkeypatch.setattr(module, "_GIT_TIMEOUT_SECONDS", 5)
+    target = "stdout" if stream_name == "stdout" else "stderr"
+    code = (
+        "import sys,time;"
+        f"s=getattr(sys,'{target}').buffer;"
+        "s.write(b'x'*10000000);s.flush();time.sleep(10)"
+    )
+    started = time.perf_counter()
+    result = module._execute_git(
+        (sys.executable, "-c", code),
+        cwd=tmp_path,
+        env=os.environ,
+        input_bytes=None,
+    )
+    elapsed = time.perf_counter() - started
+    assert result.returncode != 0
+    assert len(result.stdout) <= 1024
+    assert len(result.stderr) <= 1024
+    assert elapsed < 5
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows-specific helper suppression proof")
+def test_windows_repository_helpers_remain_inert(tmp_path) -> None:
+    repo, base = _repo(tmp_path)
+    fsmonitor_marker = tmp_path / "fsmonitor-hit"
+    fsmonitor = tmp_path / "fsmonitor.cmd"
+    fsmonitor.write_text(
+        f'@echo hit> "{fsmonitor_marker}"\r\n@exit /b 1\r\n',
+        encoding="utf-8",
+    )
+    hooks_marker = tmp_path / "hook-hit"
+    hooks = tmp_path / "configured-hooks"
+    hooks.mkdir()
+    hook = hooks / "post-index-change"
+    hook.write_text(
+        "#!/bin/sh\nprintf hit > "
+        + repr(hooks_marker.as_posix())
+        + "\n",
+        encoding="utf-8",
+    )
+    _run(repo, "git", "config", "core.fsmonitor", str(fsmonitor))
+    _run(repo, "git", "config", "core.hooksPath", str(hooks))
+    (repo / "tracked.txt").write_text("dirty\n", encoding="utf-8")
+    generation = capture_workspace_generation(repo, base, "windows-helper-inert")
+    assert classify_workspace_generation(generation, repo).state == CAPTURED_DIRTY_MATCH
+    assert not fsmonitor_marker.exists()
+    assert not hooks_marker.exists()
