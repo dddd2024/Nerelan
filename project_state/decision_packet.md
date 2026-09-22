@@ -1,10 +1,10 @@
-# Approved explicit user_local F03 reviewed source and Ubuntu goldens v3
+# Approved #891 postmerge State Gate applicability successor
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260920_issue913_reviewed_goldens_r3_v3",
-  "round_id": "round_20260920_issue913_reviewed_goldens_r3_v3",
+  "decision_id": "decision_20260922_issue891_postmerge_applicability_r2_v2",
+  "round_id": "round_20260922_issue891_postmerge_applicability_r2_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,9 +16,25 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
+  "decision_scope": "POSTMERGE_STATE_GATE_APPLICABILITY_R2_V1",
+  "source_issue": 891,
+  "parent_issue": 156,
   "repository": "dddd2024/Nerelan",
-  "mainline_merge_intent_required": false,
-  "active_pr_binding_mode": "none",
+  "approved_by": "dddd2024 via explicitly delegated repository Owner execution",
+  "approval_basis": "User explicitly delegated Owner execution. Fresh Issue #891 scope audit comment 5773910906 on main@3b9eb3806ca59e119d2f8db36537b7efe593c729 identifies postmerge evidence applicability/coherence as the first governance implementation priority after #968 landing. V1 stopped before semantic commit/publication because its immutable project-gate selector matched zero tests (Issue comment 5774880763). V2 keeps the same bounded semantics, fixes only that validation selector to the real false_none test family, keeps state-gate.yml reference-only, and adds only a conservative repository-owned applicability classifier plus focused regressions.",
+  "risk_tier": "R2",
+  "authorized_risk_tier": "R2",
+  "governance_artifact_risk_tier": "R2",
+  "integration_base_ref": "main",
+  "base_sha": "3b9eb3806ca59e119d2f8db36537b7efe593c729",
+  "activation_base_sha": "3b9eb3806ca59e119d2f8db36537b7efe593c729",
+  "starting_head": "3b9eb3806ca59e119d2f8db36537b7efe593c729",
+  "fresh_base": "3b9eb3806ca59e119d2f8db36537b7efe593c729",
+  "current_main_expected": "3b9eb3806ca59e119d2f8db36537b7efe593c729",
+  "required_branch": "owner/issue891-postmerge-applicability-r2-v2-20260922",
+  "workstream_id": "issue891-postmerge-applicability-r2-v2",
+  "fresh_worktree_creation_required": true,
+  "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
@@ -28,28 +44,6 @@
     "transition_reconcile",
     "worktree_publication_readiness"
   ],
-  "fresh_worktree_creation_required": true,
-  "history_reuse_allowed": false,
-  "provider_free_acceptance_required": true,
-  "decision_scope": "F03_EXACT_REVIEWED_SOURCE_AND_UBUNTU_GOLDEN_REUSE",
-  "source_issue": 913,
-  "parent_issue": 653,
-  "approved_by": "dddd2024 via explicit delegated Owner execution",
-  "approval_basis": "User explicitly delegated full Owner completion, independent subagent auditing and merge. Owner-approved freshv3 preserves stoppedv2 and corrects only targetidentity/delta cardinality. Independent913v3candidate audit derived all30actualdelta paths, confirmed31targetidentities and31totalcommitteddelta includingDecision, unchangedsource/artifact/capability and existing7commandplan errors=(). Currentmain8fb passed966postmergeacceptance5747578095 and931closed. Fresh owner-published913v3planning is context; this new immutableAPPROVEDDecision authorizes the bounded explicituser_local round.",
-  "risk_tier": "R3",
-  "authorized_risk_tier": "R3",
-  "governance_artifact_risk_tier": "R3",
-  "integration_base_ref": "main",
-  "base_sha": "8fb171e6a395caf5c757bb44d43acf34bf06c03a",
-  "activation_base_sha": "8fb171e6a395caf5c757bb44d43acf34bf06c03a",
-  "starting_head": "8fb171e6a395caf5c757bb44d43acf34bf06c03a",
-  "fresh_base": "8fb171e6a395caf5c757bb44d43acf34bf06c03a",
-  "current_main_expected": "8fb171e6a395caf5c757bb44d43acf34bf06c03a",
-  "required_branch": "codex/f03-reviewed-goldens-r3-v3-20260920",
-  "workstream_id": "issue913-f03-reviewed-goldens-r3-v3",
-  "follows_last_decision_id": "decision_20260919_issue659_reviewed_fixes_integration_r2_v1",
-  "follows_last_round_id": "round_20260919_issue659_reviewed_fixes_integration_r2_v1",
-  "workflow_profile": "browser_r3",
   "decision_activation_commit_limit": 1,
   "product_change_commit_limit": 1,
   "generated_governance_commit_limit": 0,
@@ -59,18 +53,15 @@
   "merge_attempt_limit": 0,
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
-  "workflow_dispatch_limit": 0,
   "live_model_call_limit": 0,
   "provider_network_call_limit": 0,
   "credential_access_limit": 0,
-  "local_browser_launch_limit": 0,
   "pr_creation_allowed": true,
   "issue_comment_allowed": true,
   "pull_request_comment_allowed": true,
   "merge_allowed": false,
   "mark_ready_allowed": false,
   "workflow_rerun_allowed": false,
-  "workflow_dispatch_allowed": false,
   "runner_dispatch_allowed": false,
   "direct_push_to_main_allowed": false,
   "auto_merge_allowed": false,
@@ -79,91 +70,39 @@
   "dependency_install_allowed": false,
   "live_provider_access_allowed": false,
   "credential_access_allowed": false,
-  "unknown_binary_execution_allowed": false,
-  "model_api_invocation_allowed": false,
-  "external_reverse_tool_invocation_allowed": false,
-  "destructive_operations_allowed": false,
+  "local_browser_execution_allowed": false,
+  "provider_free_acceptance_required": true,
+  "mainline_merge_intent_required": false,
+  "active_pr_binding_mode": "none",
+  "workflow_profile": "baseline",
+  "semantic_implementation_contract": {
+    "specification": "Add one conservative repository-owned State Gate push applicability classifier to the existing false/none landing validator. Derive APPLICABLE / EXPECTED_NOT_APPLICABLE / UNKNOWN only from the trusted locked-base .github/workflows/state-gate.yml bytes plus the exact base-to-accepted-head path set. Current supported workflow grammar is intentionally narrow: push on main, optional positive paths list, exact literal paths and terminal /** directory-prefix patterns. Any workflow mutation by the target, unsupported/negative glob syntax, paths-ignore, malformed/duplicate blocks, incomplete path evidence, Git diff failure, or unknown trigger semantics yields UNKNOWN and blocks before merge. Future false/none landing-authority Decisions must bind the machine-derived classification, workflow SHA-256 and changed-path-set digest; no PR/sidecar prose can self-declare N/A. Reuse the same derivation postmerge so the pre/post contract is coherent.",
+    "build_vs_reuse": "REUSE existing false/none attestation/authority validation, current mainline landing path, system Git, hashlib/json and the current State Gate path contract. SELF-DEVELOP only the thin conservative classifier and binding checks. No YAML/pathspec dependency, no new workflow/client/database/receipt/gate family.",
+    "completion_boundary": "One immutable Decision commit, one semantic commit touching exactly reverse_agent/mainline_landing.py and tests/test_mainline_landing.py, one Draft PR, natural exact-head CI/Decision Preflight/State Gate and independent exact-head audit. No Ready/Merge."
+  },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
   ],
   "bootstrap_exception_commands": [],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
-    "docs/functional-validation.md",
-    "frontend/e2e/functional-validation.spec.ts",
-    "frontend/src/components/connection-binding-editor.tsx",
-    "frontend/src/components/functional-validation.tsx",
-    "frontend/src/components/goal-composer.tsx",
-    "frontend/src/components/goal-current-activity.tsx",
-    "frontend/src/components/goal-progress.tsx",
-    "frontend/src/components/theme-selector.tsx",
-    "frontend/src/index.css",
-    "frontend/src/lib/functional-validation.ts",
-    "frontend/src/lib/platform-client.ts",
-    "frontend/src/routes/approvals.tsx",
-    "frontend/src/routes/home.tsx",
-    "frontend/src/routes/roadmap.tsx",
-    "frontend/src/routes/runs.tsx",
-    "frontend/src/routes/settings.tsx",
-    "frontend/tests/approvals.test.tsx",
-    "frontend/tests/functional-validation.test.tsx",
-    "frontend/tests/goal-completion-evidence.test.tsx",
-    "frontend/tests/goal-progress.test.tsx",
-    "frontend/tests/platform-home.test.tsx",
-    "frontend/tests/roadmap.test.tsx",
-    "frontend/tests/task-first-lifecycle-states.test.tsx",
-    "frontend/e2e/snapshots/desktop-chromium/home-light.png",
-    "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
-    "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
-    "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
-    "frontend/e2e/snapshots/mobile-chromium/home-light.png",
-    "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
-    "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
-    "frontend/e2e/snapshots/mobile-chromium/settings-dark.png",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/gates/transition_preflight_result.json",
+    "reverse_agent/mainline_landing.py",
+    "tests/test_mainline_landing.py"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
-    "docs/functional-validation.md",
-    "frontend/e2e/functional-validation.spec.ts",
-    "frontend/src/components/connection-binding-editor.tsx",
-    "frontend/src/components/functional-validation.tsx",
-    "frontend/src/components/goal-composer.tsx",
-    "frontend/src/components/goal-current-activity.tsx",
-    "frontend/src/components/goal-progress.tsx",
-    "frontend/src/components/theme-selector.tsx",
-    "frontend/src/index.css",
-    "frontend/src/lib/functional-validation.ts",
-    "frontend/src/lib/platform-client.ts",
-    "frontend/src/routes/approvals.tsx",
-    "frontend/src/routes/home.tsx",
-    "frontend/src/routes/roadmap.tsx",
-    "frontend/src/routes/runs.tsx",
-    "frontend/src/routes/settings.tsx",
-    "frontend/tests/approvals.test.tsx",
-    "frontend/tests/functional-validation.test.tsx",
-    "frontend/tests/goal-completion-evidence.test.tsx",
-    "frontend/tests/goal-progress.test.tsx",
-    "frontend/tests/platform-home.test.tsx",
-    "frontend/tests/roadmap.test.tsx",
-    "frontend/tests/task-first-lifecycle-states.test.tsx",
-    "frontend/e2e/snapshots/desktop-chromium/home-light.png",
-    "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
-    "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
-    "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
-    "frontend/e2e/snapshots/mobile-chromium/home-light.png",
-    "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
-    "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
-    "frontend/e2e/snapshots/mobile-chromium/settings-dark.png",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/gates/transition_preflight_result.json",
+    "reverse_agent/mainline_landing.py",
+    "tests/test_mainline_landing.py"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -173,128 +112,50 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "reference_paths": [
-    "AGENTS.md",
-    "docs/agents/governance-reference.md",
-    ".github/workflows/ci.yml",
     ".github/workflows/state-gate.yml",
-    ".github/workflows/decision-preflight.yml",
-    ".github/workflows/frontend-playwright.yml",
-    ".github/workflows/model-access.yml",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "frontend/src/lib/goal-continuation-operation.ts",
-    "frontend/tests/goal-continuation-activation-errors.test.ts"
+    "reverse_agent/project_gate.py",
+    "reverse_agent/github_remote_verifier.py",
+    "tests/test_ci_responsibility.py",
+    "tests/test_project_gate.py",
+    "AGENTS.md"
   ],
   "forbidden_mutated_paths": [
-    "AGENTS.md",
     ".github/**",
-    ".codex-skills/**",
-    "reverse_agent/**",
-    "tests/**",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "frontend/src/lib/goal-continuation-operation.ts",
-    "frontend/tests/goal-continuation-activation-errors.test.ts",
-    "project_state/mainline_merge_intents/**",
-    "project_state/rounds/**",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/control_plane/**",
+    "frontend/**",
+    "docs/**",
     "pyproject.toml",
     "requirements*.txt",
+    "project_state/rounds/**",
+    "project_state/mainline_merge_intents/**",
     "**/secrets/**",
     "**/.env"
   ],
   "forbidden_operations": [
-    "direct_push_main",
-    "auto_merge",
-    "force_push",
-    "rebase",
-    "squash",
+    "active_json_rewrite",
     "amend",
+    "auto_merge",
+    "browser_execution",
+    "destructive",
+    "direct_push_main",
+    "external_reverse_tool_invocation",
+    "force_push",
+    "generated_governance_commit",
     "history_rewrite",
     "mark_ready",
     "merge",
-    "workflow_rerun",
-    "workflow_dispatch",
-    "runner_dispatch",
     "model_api_invocation",
     "provider_network_call",
-    "credential_access",
-    "unknown_binary_execution",
-    "external_reverse_tool_invocation",
-    "destructive",
+    "rebase",
+    "runner_dispatch",
+    "squash",
     "tag_or_release",
-    "dependency_install",
-    "generated_governance_commit",
-    "local_browser_execution",
-    "snapshot_generation_or_threshold_change",
-    "fix_forward_after_mandatory_failure"
+    "unknown_binary_execution",
+    "workflow_dispatch",
+    "workflow_rerun"
   ],
-  "path_risk_floor": [
-    {
-      "pattern": "project_state/**",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "frontend/e2e/snapshots/**",
-      "minimum_risk": "R3"
-    }
-  ],
-  "semantic_implementation_contract": {
-    "specification": "Materialize exactly23reviewed847source blobs and8frozenUbuntuactualPNG bytes on freshbase. No semantic adaptation, dependency/workflow/assertion/threshold changes. Preserve current931activationerrors behavior and all unrelated edits. New source provenance is actual Windows user_local, not trusted_worker.",
-    "completion_boundary": "Draft-only exacthead acceptance after all localdeterministic and5naturalbrowser_r3 workflows, actual diagnostic exit0/nativeJUnit0, independent review. No landing/Issueclosure in this round. Old847/914 remainnegativechronology; no new Windowsbrowser evidence is claimed."
-  },
-  "reference_product_head": "7d517b2d84b47c724f3df2218f9b94c02013726e",
-  "reference_product_base": "1b87cb41606bfbda0b4b49dd18259550fbf5bb58",
-  "reference_product_blobs": {
-    "docs/functional-validation.md": "63cd425d669f895f3f0c767e0ded255ffe8fbe6b",
-    "frontend/e2e/functional-validation.spec.ts": "d010279ca5d4d8a1fbf82730f4110ed979ae271c",
-    "frontend/src/components/connection-binding-editor.tsx": "280f50dcf3976c84ca6892d7ba2930c98b15cc0c",
-    "frontend/src/components/functional-validation.tsx": "ad8518bec8dfbdaf4d3c7df9b2f8dfa427c8b014",
-    "frontend/src/components/goal-composer.tsx": "817916489cccd463686860103b88c7fc9d68389f",
-    "frontend/src/components/goal-current-activity.tsx": "91c5390649b33bbd054dea81936ec1734104acdc",
-    "frontend/src/components/goal-progress.tsx": "77230adce3289e28409ad6e74ed99b3ffc33961c",
-    "frontend/src/components/theme-selector.tsx": "17dc3a0d9363b399bdcf3e68e1721c54ea878c0f",
-    "frontend/src/index.css": "81c72a660782bd14377ea8f329ddfb1bb6192013",
-    "frontend/src/lib/functional-validation.ts": "a11d55e6f75f79aaf35afac9a9981980c1613749",
-    "frontend/src/lib/platform-client.ts": "8b08d357b382be763b23d59914407a0ea44a3e75",
-    "frontend/src/routes/approvals.tsx": "0d0d537e76aeb940c3f7ab71d938eb58f3bf1d03",
-    "frontend/src/routes/home.tsx": "3afaa77629ac7c0add01fb895f0feef77fd6b8bc",
-    "frontend/src/routes/roadmap.tsx": "0872355f4dc5b54a2f94bc6019a265a9058086a5",
-    "frontend/src/routes/runs.tsx": "441531971ceb8c408a2da0fd90f9d63ebbcd7eae",
-    "frontend/src/routes/settings.tsx": "944ded2aa28987a83d91aad06c459bc02e817f00",
-    "frontend/tests/approvals.test.tsx": "a13de082577be79f9f61ff29d7c602a9e67b484e",
-    "frontend/tests/functional-validation.test.tsx": "dc72f43ba45f5179423a744c89ef76d3465aef98",
-    "frontend/tests/goal-completion-evidence.test.tsx": "c1308dccadb30db4a9f07dc3b891aef4ef6386df",
-    "frontend/tests/goal-progress.test.tsx": "f0f90e7c44fae0f2728f987e4a30ad314ec70278",
-    "frontend/tests/platform-home.test.tsx": "05abbcfda1135e9cf0dd83cc4b141fa788a7d745",
-    "frontend/tests/roadmap.test.tsx": "14d6d72f5d5f21d8b921d3df112322b099fe1a37",
-    "frontend/tests/task-first-lifecycle-states.test.tsx": "ca162428692cfdece43ab1e00836ea0590d7bf1d"
-  },
-  "reference_golden_hashes": {
-    "frontend/e2e/snapshots/desktop-chromium/home-light.png": "689e60b0471b901dd1b99e50ff12d50a0afb7f9bda232888702b0a6e84f42c50",
-    "frontend/e2e/snapshots/desktop-chromium/home-dark.png": "8b008e1663581d696553caa25ec8610b8e2e5a5a6df4352ca69459a9dadaefd9",
-    "frontend/e2e/snapshots/desktop-chromium/settings-light.png": "ba6a593f268f051ef6546e1ecff21cfd16376143d4b1f24176e57a7152dadc2d",
-    "frontend/e2e/snapshots/desktop-chromium/settings-dark.png": "cc9cf3b5f9977db3bcc00a0b8569c7e03514a67dc432d881557864f03a9c2c12",
-    "frontend/e2e/snapshots/mobile-chromium/home-light.png": "8ba705e6700335ef354cace5214fdad2b5672eb73528f77e00cc17efce355bd5",
-    "frontend/e2e/snapshots/mobile-chromium/home-dark.png": "79c169bfdbffa339ef32688774b912a8880cc63042123fc419ca90576b1ef7f7",
-    "frontend/e2e/snapshots/mobile-chromium/settings-light.png": "05e0ca5d55bbb8540d0a7e762737b51c80026cf94db1e66e3f7eaf18fdcf237d",
-    "frontend/e2e/snapshots/mobile-chromium/settings-dark.png": "eb69f172446e1db6a02e3d5bdb2b323380b86b01d42c8614c619b499e4116b78"
-  },
-  "reference_artifact": {
-    "id": 10294643559,
-    "run_id": 34684057222,
-    "sha256": "0ae1bfbc2d9e27ea686a45d5836e820a06feceba7ff08060d09c2e903f61db39"
-  },
-  "runtime_scratch_policy": {
-    "paths": [
-      "frontend/node_modules/**",
-      "frontend/dist/**",
-      "frontend/.pytest_cache/**",
-      "**/__pycache__/**",
-      ".pytest_cache/**"
-    ],
-    "stage_allowed": false,
-    "note": "Only existingtool normal ignored outputs; compatible ignorednode_modules copied from F:/Nerelan-issue931-activation-error-v4/frontend/node_modules after exact package+lock equality. No install,trackeddependencyedit or cleanup."
-  },
   "capability_policy": {
     "runner_dispatch_allowed": false,
     "model_api_invocation_allowed": false,
@@ -310,21 +171,27 @@
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [],
-    "ci_network_exceptions": [
-      "Only unchanged existing natural workflows provider-free dependencies/tests; no added workflow, manual dispatch or rerun."
-    ],
+    "ci_network_exceptions": [],
     "trusted_worker_network_exceptions": [],
-    "user_local_network_exceptions": [
-      "Only existing scoped backendtest fixtures may bind isolated ephemeral127.0.0.1 and use fake Git/SQLite/model/binding doubles. No externalprovider/browser/credential/network."
-    ],
+    "user_local_network_exceptions": [],
     "github_control_plane_network_exceptions": [
-      "Canonical dddd2024/Nerelan Git API publish identical locally created2commitgraph/ref to exactnamedbranch andoneDraft; bounded evidence comments only913/newDraft/653/659. No Ready/merge/other refs."
+      "Create only the exact Decision/semantic commit graph and branch owner/issue891-postmerge-applicability-r2-v2-20260922 in dddd2024/Nerelan, then one Draft PR against locked main; comment only on Issue #891/#156 and that Draft. Never Ready/Merge."
     ]
   },
+  "path_risk_floor": [
+    {
+      "pattern": "project_state/**",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "reverse_agent/mainline_landing.py",
+      "minimum_risk": "R2"
+    }
+  ],
   "allowed_commands": [
     {
-      "command_id": "issue913v3.bootstrap",
-      "command": "Create fresh full Windows checkout F:/Nerelan-issue913-reviewed-goldens-v3 from exact lockedbase after main966 postmergeacceptance. Verify clean tree/localGitidentity,31pathcollision/ownership and allfrozenblob/archive/PNG identities. Commit only thisAPPROVEDDecision once. Sequential startup-snapshot,transition-command-plan,transition-lint,transition-preflight --mode pre must reach PRE_EXECUTION_AUTHORIZED; worktree-publication-readiness must pass before source mutation. KnownGit/Python only; no copiedgates/history.",
+      "command_id": "issue891appv2.bootstrap",
+      "command": "On the fresh isolated exact-main worktree commit this immutable Decision once. Run startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre, focused transition/Decision tests, git diff --check and worktree-publication-readiness. Generated gate files are ephemeral and must not be committed. Require PRE_EXECUTION_AUTHORIZED before semantic mutation.",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [
@@ -352,8 +219,8 @@
       ]
     },
     {
-      "command_id": "issue913v3.materialize",
-      "command": "Afterpreflight materializeexact23sourceGitblobs from frozen847head and8frozenPNGbytes from verifiedartifact. Recheck all31target identities; compute actualdelta against lockedbase including new untracked files. Require exact30productdelta paths frozen in expected_product_delta_paths; functional-validation.test.tsx remains identicalbase/847 bytes and intentionally has no Gitdelta. No semanticediting/fixup. One productcommit only, separate fromDecisionactivation. Windows user_local sourceprovenance; never GitHubside sourceediting.",
+      "command_id": "issue891appv2.implement",
+      "command": "After PRE_EXECUTION_AUTHORIZED edit only reverse_agent/mainline_landing.py and tests/test_mainline_landing.py. Add a conservative State Gate push applicability classifier and bind future false/none authority Decisions to machine-derived applicability + trusted workflow digest + exact changed-path digest. Reuse the same derivation premerge/postmerge. UNKNOWN always blocks. Commit exactly one semantic commit.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -362,68 +229,22 @@
       "execution_surface": "user_local",
       "operations": [
         "source_edit",
-        "commit",
+        "unit_test",
         "local_static_check",
+        "commit",
         "machine_specific_execution"
       ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "docs/functional-validation.md",
-        "frontend/e2e/functional-validation.spec.ts",
-        "frontend/src/components/connection-binding-editor.tsx",
-        "frontend/src/components/functional-validation.tsx",
-        "frontend/src/components/goal-composer.tsx",
-        "frontend/src/components/goal-current-activity.tsx",
-        "frontend/src/components/goal-progress.tsx",
-        "frontend/src/components/theme-selector.tsx",
-        "frontend/src/index.css",
-        "frontend/src/lib/functional-validation.ts",
-        "frontend/src/lib/platform-client.ts",
-        "frontend/src/routes/approvals.tsx",
-        "frontend/src/routes/home.tsx",
-        "frontend/src/routes/roadmap.tsx",
-        "frontend/src/routes/runs.tsx",
-        "frontend/src/routes/settings.tsx",
-        "frontend/tests/approvals.test.tsx",
-        "frontend/tests/functional-validation.test.tsx",
-        "frontend/tests/goal-completion-evidence.test.tsx",
-        "frontend/tests/goal-progress.test.tsx",
-        "frontend/tests/platform-home.test.tsx",
-        "frontend/tests/roadmap.test.tsx",
-        "frontend/tests/task-first-lifecycle-states.test.tsx",
-        "frontend/e2e/snapshots/desktop-chromium/home-light.png",
-        "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
-        "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
-        "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
-        "frontend/e2e/snapshots/mobile-chromium/home-light.png",
-        "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
-        "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
-        "frontend/e2e/snapshots/mobile-chromium/settings-dark.png"
+        "reverse_agent/mainline_landing.py",
+        "tests/test_mainline_landing.py"
       ],
       "produced_artifacts": []
     },
     {
-      "command_id": "issue913v3.dependencies",
-      "command": "Use existing Node/npm/Python/Git. Verify currentfrontendpackage.json andpackage-lock exactbytes against F:/Nerelan-issue931-activation-error-v4. Copyonly matchingexistingignoredfrontendnode_modules into thisfreshworktree; no dependencyinstallation/download/lockfilechange. Do notstage ignoredcache or buildoutputs.",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "user_local",
-      "operations": [
-        "local_static_check",
-        "machine_specific_execution"
-      ],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue913v3.validate",
-      "command": "On exactcommittedimplementation head run frontend npm test, npm run lint, npm run typecheck, npm run build. Run python -B -m pytest tests/platform_v1/test_goal_completion_evidence.py tests/platform_v1/test_goal_service.py tests/platform_v1/test_run_read_model.py -q -p no:cacheprovider; theseexisting fixtures only may use isolatedloopbackGit/SQLite/pytest andfakebinding/model doubles. No actualmodel/provider calls. Preserve new931activationerrors tests within full frontendtests. Run git diff --check on wholebase-to-head andworktree; sequentialexistingpreflight/immutability/publicationreadiness must pass. Any mandatoryfailure stops round, nofix-forward.",
+      "command_id": "issue891appv2.validate",
+      "command": "Run python -B -m pytest tests/test_mainline_landing.py -k 'false_none or applicability' -q -p no:cacheprovider; python -B -m pytest tests/test_mainline_landing.py -q -p no:cacheprovider; python -B -m pytest tests/test_project_gate.py -k false_none -q -p no:cacheprovider; python -m compileall -q reverse_agent/mainline_landing.py; git diff --check. Prove #966-style frontend-only paths EXPECTED_NOT_APPLICABLE, #968-style decision/control path APPLICABLE, and UNKNOWN for workflow drift, unsupported trigger syntax and incomplete path evidence.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -432,27 +253,18 @@
       "execution_surface": "user_local",
       "operations": [
         "unit_test",
-        "integration_test",
-        "build",
-        "diff_validation",
         "local_static_check",
-        "machine_specific_execution",
-        "network_access"
+        "diff_validation",
+        "machine_specific_execution"
       ],
-      "network_access": true,
+      "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
-      "produced_artifacts": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/bootstrap_state.json",
-        "project_state/gates/transition_command_plan_preview.json",
-        "project_state/gates/transition_preflight_result.json"
-      ]
+      "produced_artifacts": []
     },
     {
-      "command_id": "issue913v3.publish",
-      "command": "Afterallmandatorylocalchecks andPUBLICATION_READY, freshremote main/base/ownership; publish identical locally authoredDecision+productblob/tree/commit graph throughcanonicalGitAPI to exactfreshbranch,verifyeverySHA,createoneDraft againstmain. Normalgitpushbudget0. Comment disclosedproof only913/newDraft/653/659. NoGitHubsemanticedit.",
+      "command_id": "issue891appv2.publish",
+      "command": "Through github_control_plane only, publish the exact locally authored Decision and semantic Git objects to owner/issue891-postmerge-applicability-r2-v2-20260922 and create one Draft PR against locked main. Verify exact tree/commit identities. No local git push, Ready or Merge.",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -472,28 +284,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "issue913v3.natural_checks",
-      "command": "Only existing natural pull_request workflows verify exactpublishedhead; no manually invokedCI,runnerdispatch/rerun or productmutation. CI,DecisionPreflight,StateGate,ModelAccess,FrontendPlaywright must allSUCCESS andactualfullpytestdiagnosticexit0/nativeJUnit0. Browser_r3 profile selects existingCI validation; no user_localbrowsergrant. ExistingCI-owned network use is confined to unchangedworkflow dependency/test setup under the boundedci_network_exceptions; this command is not authority for local installation or manualCI execution.",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "ci_only",
-      "operations": [
-        "unit_test",
-        "integration_test",
-        "local_static_check",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue913v3.audit",
-      "command": "Read actualcanonicalrun identities/results/nativeartifacts and independentexactheadaudit. Verify23sourceblobs equal847,8PNGhashes frozen,exact31committeddelta paths(Decision+30productdelta) inside32pathallowlist(Decision+31materializedtargets),preserved931behavior,currentbase/ownership. Separate currentnaturalvisualregression acceptance from historicalWindowsbrowserproof andoldPNGdesignreferences. Failedmandatory/naturalchecks stop,no rerun,no snapshotgeneration,no fixforward. KeepDraftunmerged for separatelyauthorizedlanding.",
+      "command_id": "issue891appv2.observe",
+      "command": "Fresh-read remote exact commit trees/ref/PR and natural exact-head CI/Decision Preflight/State Gate. Independently audit classifier fail-closed semantics, source scope and #966/#968 controls. Keep Draft; no Ready/Merge.",
       "phase": "final_evidence",
       "required": true,
       "expected_exit_codes": [
@@ -501,8 +293,8 @@
       ],
       "execution_surface": "remote_observation",
       "operations": [
-        "code_read",
         "read_only_audit",
+        "code_read",
         "repository_observation"
       ],
       "network_access": false,
@@ -511,55 +303,6 @@
       "produced_artifacts": []
     }
   ],
-  "superseded_evidence": {
-    "status": "STOPPED_EXTERNAL_MATERIALIZATION_GUARD_CONTRACT_COUNT_MISMATCH",
-    "decision_head": "804488bf8b8eeb88cf60dc2ab6e176d1f228da06",
-    "expected_target_identities": 31,
-    "actual_product_delta_count": 30,
-    "unchanged_target": "frontend/tests/functional-validation.test.tsx",
-    "new_untracked_target": "frontend/tests/goal-completion-evidence.test.tsx",
-    "staged_files": [],
-    "product_commit_count": 0,
-    "remote_publication_count": 0,
-    "all23source_and8PNG_identities_match": true,
-    "reason": "Required command said diffexact31paths; impossible because one target has identicalbaseblob. No reinterpretation/fixforward; preserve thisworktree."
-  },
-  "expected_product_delta_paths": [
-    "docs/functional-validation.md",
-    "frontend/e2e/functional-validation.spec.ts",
-    "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
-    "frontend/e2e/snapshots/desktop-chromium/home-light.png",
-    "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
-    "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
-    "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
-    "frontend/e2e/snapshots/mobile-chromium/home-light.png",
-    "frontend/e2e/snapshots/mobile-chromium/settings-dark.png",
-    "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
-    "frontend/src/components/connection-binding-editor.tsx",
-    "frontend/src/components/functional-validation.tsx",
-    "frontend/src/components/goal-composer.tsx",
-    "frontend/src/components/goal-current-activity.tsx",
-    "frontend/src/components/goal-progress.tsx",
-    "frontend/src/components/theme-selector.tsx",
-    "frontend/src/index.css",
-    "frontend/src/lib/functional-validation.ts",
-    "frontend/src/lib/platform-client.ts",
-    "frontend/src/routes/approvals.tsx",
-    "frontend/src/routes/home.tsx",
-    "frontend/src/routes/roadmap.tsx",
-    "frontend/src/routes/runs.tsx",
-    "frontend/src/routes/settings.tsx",
-    "frontend/tests/approvals.test.tsx",
-    "frontend/tests/goal-completion-evidence.test.tsx",
-    "frontend/tests/goal-progress.test.tsx",
-    "frontend/tests/platform-home.test.tsx",
-    "frontend/tests/roadmap.test.tsx",
-    "frontend/tests/task-first-lifecycle-states.test.tsx"
-  ],
-  "expected_product_delta_count": 30,
-  "materialized_target_identity_count": 31,
-  "expected_total_committed_delta_count": 31
+  "issue_completion_close_allowed": []
 }
 ```
-
-Require freshactivation and sequential PRE_EXECUTION_AUTHORIZED; preserve stoppedv2. Any mandatoryfailure stops this newround.
