@@ -69,6 +69,12 @@ _SENSITIVE_PATTERNS = (
     "**/*.dylib",
 )
 
+# Reviewed repository code, not a general exemption for Python filenames.
+# Only the validated Path-B readiness caller supplies Git identity evidence.
+REVIEWED_SENSITIVE_SOURCE_PATHS = frozenset({
+    "reverse_agent/model_access/credential_relay.py",
+})
+
 
 def _normalized(path: str) -> str:
     value = path.replace("\\", "/").strip("/")
@@ -94,21 +100,28 @@ def classify_worktree_path(
     *,
     tracked: bool,
     authorized_paths: Iterable[str] = (),
+    verified_existing_source_paths: Iterable[str] = (),
 ) -> WorktreePathClassification:
     """Classify one path without changing it or the repository."""
 
     normalized = _normalized(path)
     folded = normalized.casefold()
     sensitive = _matches(folded, (pattern.casefold() for pattern in _SENSITIVE_PATTERNS))
-    if sensitive:
+    authority = tuple(_normalized(item) for item in authorized_paths)
+    verified_source = (
+        tracked
+        and normalized in REVIEWED_SENSITIVE_SOURCE_PATHS
+        and normalized in authority
+        and normalized in verified_existing_source_paths
+    )
+    if sensitive and not verified_source:
         classification = WorktreeClassification.UNAUTHORIZED_TRACKED_OR_SENSITIVE
     elif normalized == "project_state/gates" or normalized.startswith("project_state/gates/"):
         classification = WorktreeClassification.GENERATED_GOVERNANCE_ARTIFACT
     elif tracked:
-        normalized_authority = tuple(_normalized(item) for item in authorized_paths)
         classification = (
             WorktreeClassification.AUTHORIZED_TRACKED_DELTA
-            if _matches(normalized, normalized_authority)
+            if _matches(normalized, authority)
             else WorktreeClassification.UNAUTHORIZED_TRACKED_OR_SENSITIVE
         )
     elif normalized in {"task_workspaces", ".platform_v1_runtime"} or normalized.startswith(
@@ -137,6 +150,7 @@ def classify_worktree_status(
     status_lines: Iterable[str],
     *,
     authorized_paths: Iterable[str] = (),
+    verified_existing_source_paths: Iterable[str] = (),
 ) -> tuple[WorktreePathClassification, ...]:
     """Normalize ``git status --short`` records and classify every path.
 
@@ -146,6 +160,7 @@ def classify_worktree_status(
     """
 
     authority = tuple(_normalized(path) for path in authorized_paths)
+    verified_sources = frozenset(verified_existing_source_paths)
     records: list[WorktreePathClassification] = []
     for raw_line in status_lines:
         line = str(raw_line).rstrip()
@@ -164,6 +179,11 @@ def classify_worktree_status(
                 normalized,
                 tracked=git_tracked or authority_tracked,
                 authorized_paths=authority,
+                verified_existing_source_paths=(
+                    verified_sources
+                    if status_code in {" M", "M ", "MM"} and len(paths) == 1
+                    else ()
+                ),
             )
             records.append(
                 replace(
