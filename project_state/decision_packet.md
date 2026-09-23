@@ -1,59 +1,44 @@
-# Bounded GPT OAuth network and failure presentation repair
+# Decision Packet — Issue #120 resume identity binding and auditable write-gate v2
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260923_issue982_gpt_oauth_network_r3_v1",
-  "round_id": "round_20260923_issue982_gpt_oauth_network_r3_v1",
+  "decision_id": "decision_20260923_issue120_resume_identity_receipts_r2_v2",
+  "round_id": "round_20260923_issue120_resume_identity_receipts_r2_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
-  "skill_profiles": [
-    "reverse-agent-iteration@v2"
-  ]
+  "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
+  "decision_scope": "ISSUE120_RESUME_IDENTITY_BOUND_RECEIPTED_WRITE_GATE",
+  "source_issue": 120,
+  "parent_issue": 137,
   "repository": "dddd2024/Nerelan",
-  "mainline_merge_intent_required": false,
-  "active_pr_binding_mode": "none",
+  "approved_by": "dddd2024 via explicit current request to assess the new Issue #120 review concern and fix the project where warranted",
+  "approval_basis": "Fresh current-main audit confirms the concern is real: durable runs persist execution_authority_sha/planning_sha, but coordinator claims and budget reservations do not bind those identities, and operation receipts persist only an input digest. An interrupted task can therefore mutate claim/retry/reservation control state before DurableExecutionService later rejects a planning mismatch, and the stored receipt is not sufficient to reconstruct which identities were checked. This v2 successor preserves closed stale PR #979 as historical evidence and authorizes one current-main correction. It grants no Ready/Merge/direct-main publication.",
+  "risk_tier": "R2",
+  "authorized_risk_tier": "R2",
+  "governance_artifact_risk_tier": "R2",
+  "integration_base_ref": "main",
+  "base_sha": "58d4068f43ca4914b122445685cae410a8fa156e",
+  "activation_base_sha": "58d4068f43ca4914b122445685cae410a8fa156e",
+  "starting_head": "58d4068f43ca4914b122445685cae410a8fa156e",
+  "required_branch": "owner/issue120-resume-identity-receipts-r2-v2-20260923",
+  "fresh_worktree_creation_required": false,
+  "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
   "decision_immutability_required": true,
-  "decision_immutability_check_required_in": [
-    "transition_preflight",
-    "transition_reconcile",
-    "worktree_publication_readiness"
-  ],
-  "fresh_worktree_creation_required": true,
-  "history_reuse_allowed": false,
-  "provider_free_acceptance_required": true,
-  "decision_scope": "GPT_OAUTH_NETWORK_AND_FAILURE_PRESENTATION",
-  "source_issue": 982,
-  "parent_issue": 260,
-  "approved_by": "dddd2024 via explicit delegated Owner execution",
-  "approval_basis": "Explicit user delegation of full Owner completion and independent subagent audit, plus current instruction to finish GPT authentication and supervise subsequent Nerelan work. This fresh bounded source-repair round preserves user credentials and unrelated work. It authorizes no live OAuth/model execution or landing; those require subsequent exact-result stages.",
-  "risk_tier": "R3",
-  "authorized_risk_tier": "R3",
-  "governance_artifact_risk_tier": "R3",
-  "integration_base_ref": "main",
-  "base_sha": "3b9eb3806ca59e119d2f8db36537b7efe593c729",
-  "activation_base_sha": "3b9eb3806ca59e119d2f8db36537b7efe593c729",
-  "starting_head": "3b9eb3806ca59e119d2f8db36537b7efe593c729",
-  "fresh_base": "3b9eb3806ca59e119d2f8db36537b7efe593c729",
-  "current_main_expected": "3b9eb3806ca59e119d2f8db36537b7efe593c729",
-  "required_branch": "codex/gpt-oauth-network-r3-v1-20260923",
-  "workstream_id": "issue982-gpt-oauth-network-r3-v1",
-  "follows_last_decision_id": "decision_20260920_issue913_reviewed_goldens_r3_v3",
-  "follows_last_round_id": "round_20260920_issue913_reviewed_goldens_r3_v3",
-  "workflow_profile": "browser_r3",
+  "decision_immutability_check_required_in": ["transition_preflight","transition_reconcile","worktree_publication_readiness"],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 1,
-  "generated_governance_commit_limit": 0,
-  "normal_push_attempt_limit": 0,
+  "product_change_commit_limit": 3,
+  "generated_governance_commit_limit": 1,
+  "normal_push_attempt_limit": 5,
   "draft_pr_creation_limit": 1,
   "mark_ready_attempt_limit": 0,
   "merge_attempt_limit": 0,
@@ -63,7 +48,6 @@
   "live_model_call_limit": 0,
   "provider_network_call_limit": 0,
   "credential_access_limit": 0,
-  "local_browser_launch_limit": 0,
   "pr_creation_allowed": true,
   "issue_comment_allowed": true,
   "pull_request_comment_allowed": true,
@@ -79,51 +63,48 @@
   "dependency_install_allowed": false,
   "live_provider_access_allowed": false,
   "credential_access_allowed": false,
-  "unknown_binary_execution_allowed": false,
+  "local_browser_execution_allowed": false,
   "model_api_invocation_allowed": false,
   "external_reverse_tool_invocation_allowed": false,
+  "unknown_binary_execution_allowed": false,
   "destructive_operations_allowed": false,
-  "bootstrap_exception_files": [
-    "project_state/decision_packet.md"
-  ],
+  "provider_free_acceptance_required": true,
+  "mainline_merge_intent_required": false,
+  "active_pr_binding_mode": "none",
+  "semantic_implementation_contract": {
+    "specification": "Re-anchor the public Resume write-gate from closed stale PR #979 onto current main and strengthen it so resume admission is identity-bound and auditable. Reuse the existing durable run identity, owner window, AutonomyService, PlatformControlStore claim/budget reservation, and operation-receipt tables. Add execution_authority_sha/planning_sha binding to coordinator claims and budget reservations; compare current identities to the durable run inside the same BEGIN IMMEDIATE claim transaction before claim/retry/budget mutation; fail closed on disagreement. Existing legacy active reservations without identity may be bound only by an explicit atomic compatible migration when the durable run exactly matches the current identities, and that migration must be receipted. Extend the existing operation receipt with a bounded non-secret identity snapshot rather than creating a Vestige subsystem or second audit table. Successful resume admission must persist its allow receipt atomically with the claim/reservation before any durable executor/tool re-entry. Denied resume admission must record a deny receipt when the referenced window exists; failure to record an allow receipt must prevent execution. Reuse the same identity-bound claim path for unattended Resume and manual Task API Resume. Preserve DurableExecutionService repository/worktree/HEAD/checkpoint checks.",
+    "execution_surface_note": "GitHub-first, provider-free. No live provider/model calls, credentials, dependency installation or user-local machine work. Natural repository workflows provide transition/preflight and exact-head evidence.",
+    "completion_boundary": "Draft implementation only. Deterministic tests must prove planning mismatch causes no claim/retry/budget mutation and no executor/tool dispatch; budget-reservation planning mismatch fails closed before dispatch; allow and deny receipts expose bounded checked identity facts; legacy unbound active reservation is only safely rebound when durable/current identities agree; admitted manual and unattended Resume use the identity-bound claim path. No Ready/Merge or Issue closure."
+  },
+  "bootstrap_exception_files": ["project_state/decision_packet.md"],
   "bootstrap_exception_commands": [],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
-    "reverse_agent/platform_v1/opencode_executor.py",
-    "reverse_agent/model_access/account_auth.py",
-    "reverse_agent/model_access/service.py",
-    "tests/platform_v1/test_opencode_executor.py",
-    "tests/test_model_access.py",
-    "frontend/src/schemas/model-access.ts",
-    "frontend/src/lib/model-control-client.ts",
-    "frontend/src/components/connection-binding-editor.tsx",
-    "frontend/src/routes/settings.tsx",
-    "frontend/tests/connection-binding-flow.test.tsx",
-    "frontend/tests/model-settings.test.tsx",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/gates/transition_preflight_result.json",
+    "reverse_agent/platform_v1/control_store.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/unattended_coordinator.py",
+    "tests/platform_v1/test_autonomy.py",
+    "tests/platform_v1/test_task_service.py",
+    "tests/platform_v1/test_unattended_coordinator.py"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
-    "reverse_agent/platform_v1/opencode_executor.py",
-    "reverse_agent/model_access/account_auth.py",
-    "reverse_agent/model_access/service.py",
-    "tests/platform_v1/test_opencode_executor.py",
-    "tests/test_model_access.py",
-    "frontend/src/schemas/model-access.ts",
-    "frontend/src/lib/model-control-client.ts",
-    "frontend/src/components/connection-binding-editor.tsx",
-    "frontend/src/routes/settings.tsx",
-    "frontend/tests/connection-binding-flow.test.tsx",
-    "frontend/tests/model-settings.test.tsx",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/gates/transition_preflight_result.json",
+    "reverse_agent/platform_v1/control_store.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/unattended_coordinator.py",
+    "tests/platform_v1/test_autonomy.py",
+    "tests/platform_v1/test_task_service.py",
+    "tests/platform_v1/test_unattended_coordinator.py"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -132,279 +113,156 @@
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json"
   ],
+  "reference_paths": [
+    "AGENTS.md",
+    "docs/agents/governance-reference.md",
+    "reverse_agent/platform_v1/autonomy.py",
+    "reverse_agent/platform_v1/durable_execution.py",
+    "reverse_agent/platform_v1/run_store.py",
+    "tests/platform_v1/test_durable_execution.py",
+    "tests/platform_v1/test_run_resume_control.py"
+  ],
   "forbidden_mutated_paths": [
     "AGENTS.md",
+    "docs/agents/**",
     ".github/**",
     ".codex-skills/**",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "frontend/e2e/snapshots/**",
-    "project_state/mainline_merge_intents/**",
+    "reverse_agent/platform_v1/autonomy.py",
+    "reverse_agent/platform_v1/durable_execution.py",
+    "reverse_agent/platform_v1/run_store.py",
+    "reverse_agent/model_access/**",
+    "frontend/**",
+    "tests/platform_v1/test_durable_execution.py",
+    "tests/platform_v1/test_run_resume_control.py",
     "project_state/rounds/**",
+    "project_state/mainline_merge_intents/**",
     "pyproject.toml",
     "requirements*.txt",
     "**/secrets/**",
     "**/.env"
   ],
   "forbidden_operations": [
-    "direct_push_main",
-    "auto_merge",
-    "force_push",
-    "rebase",
-    "squash",
-    "amend",
-    "history_rewrite",
-    "mark_ready",
-    "merge",
-    "workflow_rerun",
-    "workflow_dispatch",
-    "runner_dispatch",
-    "model_api_invocation",
-    "provider_network_call",
-    "credential_access",
-    "unknown_binary_execution",
-    "external_reverse_tool_invocation",
-    "destructive",
-    "tag_or_release",
-    "dependency_install",
-    "generated_governance_commit",
-    "local_browser_execution",
-    "snapshot_generation_or_threshold_change",
-    "fix_forward_after_mandatory_failure"
+    "direct_push_main","auto_merge","force_push","rebase","squash","amend","history_rewrite",
+    "mark_ready","merge","workflow_rerun","workflow_dispatch","runner_dispatch",
+    "model_api_invocation","provider_network_call","credential_access","unknown_binary_execution",
+    "external_reverse_tool_invocation","destructive","tag_or_release","dependency_install","local_browser_execution"
   ],
-  "path_risk_floor": [
-    {
-      "pattern": "project_state/**",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "frontend/e2e/snapshots/**",
-      "minimum_risk": "R3"
-    }
-  ],
-  "semantic_implementation_contract": {
-    "specification": "Repair only provider-owned OAuth child networking and truthful account-auth failure presentation. Validate explicitly supported HTTP(S) proxy variables; reject userinfo, control characters, query/fragment, ambiguous case conflicts and invalid settings without silent direct fallback. Preserve loopback bypass and never print proxy values or copy arbitrary environment. Preserve failed terminal status and safe error classification, reset on a new login, keep cancellation and expiry semantics. Reconcile frontend failed callback state with backend and provide Chinese recovery guidance. No credential reads/writes, OAuth reimplementation, service-policy bypass, model call or endpoint substitution. Do not modify assistant-evidence logic belonging to Draft981.",
-    "completion_boundary": "Provider-free exact-head source and component acceptance and independent review; Draft-only. Browser success, unit tests and identity discovery do not prove real authentication or GPT execution. Subsequent runtime and landing stages remain required."
-  },
-  "runtime_scratch_policy": {
-    "paths": [
-      "frontend/node_modules/**",
-      "frontend/dist/**",
-      "**/__pycache__/**",
-      ".pytest_cache/**"
-    ],
-    "stage_allowed": false,
-    "note": "Existing ignored frontend dependencies may be copied from F:/Nerelan-first-use-20260923 only after exact package and lockfile equality. No install or tracked dependency mutation."
-  },
   "capability_policy": {
     "runner_dispatch_allowed": false,
+    "workflow_dispatch_allowed": false,
     "model_api_invocation_allowed": false,
     "external_reverse_tool_invocation_allowed": false,
     "unknown_binary_execution_allowed": false,
     "destructive_operations_allowed": false,
-    "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
-    "merge_allowed": false,
     "force_push_allowed": false,
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
+    "merge_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [],
-    "ci_network_exceptions": [
-      "Only unchanged existing natural workflows provider-free dependencies/tests; no added workflow, manual dispatch or rerun."
-    ],
+    "ci_network_exceptions": [],
     "trusted_worker_network_exceptions": [],
-    "user_local_network_exceptions": [
-      "Provider-free tests may bind isolated loopback fixture servers only. No provider network, browser login, model or credential access. No local git push."
-    ],
+    "user_local_network_exceptions": [],
     "github_control_plane_network_exceptions": [
-      "Observe canonical dddd2024/Nerelan and publish only the exact named branch and one Draft PR against locked main. No Ready, merge, unrelated branch, tag or release."
+      "Publish only owner/issue120-resume-identity-receipts-r2-v2-20260923 and one Draft PR against exact main@58d4068f43ca4914b122445685cae410a8fa156e. Initial publication is Decision-only. Semantic publication requires PRE_EXECUTION_AUTHORIZED. Update that Draft and Issue #120 only. Never Ready or Merge."
     ]
   },
+  "path_risk_floor": [
+    {"pattern":"project_state/**","minimum_risk":"R2"},
+    {"pattern":"reverse_agent/platform_v1/control_store.py","minimum_risk":"R2"},
+    {"pattern":"reverse_agent/platform_v1/task_service.py","minimum_risk":"R2"},
+    {"pattern":"reverse_agent/platform_v1/unattended_coordinator.py","minimum_risk":"R2"}
+  ],
   "allowed_commands": [
     {
-      "command_id": "issue982v1.bootstrap",
-      "command": "Fresh full Windows checkout F:/Nerelan-issue982-gpt-oauth-network from exact locked base. Verify clean tree and canonical repository; consume immediately preceding independent remote-observation evidence of main and concurrent ownership. This bootstrap command itself performs no network calls. Commit only this APPROVED Decision once. Run startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness in sequence. Require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before source mutation. Never modify activated Decision.",
-      "phase": "bootstrap",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "user_local",
-      "operations": [
-        "code_read",
-        "local_static_check",
-        "command_plan_generation",
-        "commit",
-        "machine_specific_execution"
-      ],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [
-        "project_state/decision_packet.md"
-      ],
-      "produced_artifacts": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/bootstrap_state.json",
-        "project_state/gates/transition_command_plan_preview.json",
-        "project_state/gates/transition_preflight_result.json"
-      ]
+      "command_id":"issue120v2.bootstrap",
+      "command":"On the exact fresh branch/base verify the immutable Decision-only activation; run existing startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and publication-readiness. Natural GitHub workflows may produce the full-checkout evidence. Do not fabricate gates.",
+      "phase":"bootstrap","required":false,"expected_exit_codes":[0],"execution_surface":"trusted_worker",
+      "operations":["code_read","local_static_check","command_plan_generation"],"network_access":false,
+      "required_evidence_source":"repository_state_attestation","allowed_mutated_paths":[],
+      "produced_artifacts":["project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/bootstrap_state.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"]
     },
     {
-      "command_id": "issue982v1.implement",
-      "command": "Implement the semantic contract only within the exact source/test allowlist. Disposable provider-free development tests may guide fixes before final acceptance, at most 8 development check rounds. No live auth/provider/model or credentials. Freeze implementation in one product commit after development checks. No commit amendment or changes to Draft981 assistant-evidence logic. Preserve other active owner work.",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "user_local",
-      "operations": [
-        "source_edit",
-        "commit",
-        "local_static_check",
-        "machine_specific_execution",
-        "unit_test",
-        "integration_test",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/opencode_executor.py",
-        "reverse_agent/model_access/account_auth.py",
-        "reverse_agent/model_access/service.py",
-        "tests/platform_v1/test_opencode_executor.py",
-        "tests/test_model_access.py",
-        "frontend/src/schemas/model-access.ts",
-        "frontend/src/lib/model-control-client.ts",
-        "frontend/src/components/connection-binding-editor.tsx",
-        "frontend/src/routes/settings.tsx",
-        "frontend/tests/connection-binding-flow.test.tsx",
-        "frontend/tests/model-settings.test.tsx"
-      ],
-      "produced_artifacts": []
+      "command_id":"issue120v2.implement",
+      "command":"After actual PRE_EXECUTION_AUTHORIZED, implement only the identity-bound claim/reservation, existing-receipt identity snapshot, current-main manual Resume write-gate and unattended Resume binding in the exact authorized source/test paths. Reuse current stores/services; no new audit subsystem/table/dependency.",
+      "phase":"implementation","required":true,"expected_exit_codes":[0],"execution_surface":"trusted_worker",
+      "operations":["source_edit","unit_test","local_static_check"],"network_access":false,
+      "required_evidence_source":"repository_state_attestation",
+      "allowed_mutated_paths":[
+        "reverse_agent/platform_v1/control_store.py",
+        "reverse_agent/platform_v1/task_service.py",
+        "reverse_agent/platform_v1/unattended_coordinator.py",
+        "tests/platform_v1/test_autonomy.py",
+        "tests/platform_v1/test_task_service.py",
+        "tests/platform_v1/test_unattended_coordinator.py"
+      ],"produced_artifacts":[]
     },
     {
-      "command_id": "issue982v1.dependencies",
-      "command": "Reuse existing Git/Python/Node/npm. Verify frontend package.json and package-lock.json bytes against F:/Nerelan-first-use-20260923 and copy only matching ignored node_modules. No installation, download or dependency file changes.",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "user_local",
-      "operations": [
-        "local_static_check",
-        "machine_specific_execution"
-      ],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
+      "command_id":"issue120v2.validate",
+      "command":"On a full exact-head checkout run python -m pytest -q tests/platform_v1/test_autonomy.py tests/platform_v1/test_task_service.py tests/platform_v1/test_unattended_coordinator.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_run_resume_control.py and git diff --check. Exact-head CI remains mandatory. No provider/model calls, skips or weakened expectations.",
+      "phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"ci_only",
+      "operations":["unit_test","local_static_check","diff_validation"],"network_access":false,
+      "required_evidence_source":"repository_state_attestation","allowed_mutated_paths":[],"produced_artifacts":[]
     },
     {
-      "command_id": "issue982v1.validate",
-      "command": "At the frozen implementation head run python -B -m pytest tests/test_model_access.py tests/platform_v1/test_opencode_executor.py tests/platform_v1/test_opencode_server_transport.py tests/platform_v1/test_trusted_host.py -q -p no:cacheprovider; frontend npm test, npm run lint, npm run typecheck, npm run build; git diff --check for base-to-head and working tree; sequential startup/plan/lint/preflight/readiness. Any mandatory failure stops this round. Do not weaken tests, thresholds or goldens.",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "user_local",
-      "operations": [
-        "unit_test",
-        "integration_test",
-        "build",
-        "diff_validation",
-        "local_static_check",
-        "machine_specific_execution",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/bootstrap_state.json",
-        "project_state/gates/transition_command_plan_preview.json",
-        "project_state/gates/transition_preflight_result.json"
-      ]
+      "command_id":"issue120v2.publish",
+      "command":"Publish only owner/issue120-resume-identity-receipts-r2-v2-20260923 and its single Draft PR against exact main@58d4068f43ca4914b122445685cae410a8fa156e. Rebind exact_head_sha after implementation and record the analysis/answer on Issue #120. Never Ready or Merge.",
+      "phase":"publication","required":true,"expected_exit_codes":[0],"execution_surface":"github_control_plane",
+      "operations":["push","draft_pr","pull_request_comment","issue_comment","network_access"],"network_access":true,
+      "required_evidence_source":"repository_state_attestation","allowed_mutated_paths":[],"produced_artifacts":[]
     },
     {
-      "command_id": "issue982v1.publish",
-      "command": "After all mandatory local checks and PUBLICATION_READY, verify current remote main equals locked base and ownership remains unchanged. Through canonical GitHub Git API publish only the identical locally authored Decision and implementation blob/tree/commit graph to codex/gpt-oauth-network-r3-v1-20260923. Verify every SHA before ref creation. At most one successful ref publication and one Draft PR against main binding exact head and immutable Decision. No remote semantic source editing, local git push, merge or mark-ready.",
-      "phase": "publication",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "github_control_plane",
-      "operations": [
-        "push",
-        "draft_pr",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue982v1.natural_checks",
-      "command": "Only the unchanged existing workflows naturally execute exact-head CI, Decision Preflight, State Gate, Model Access and Frontend Playwright on ci_only. Require all SUCCESS and actual full pytest diagnostic exit zero with no native JUnit failures. Agent observation belongs to the separate remote_observation command. No dispatch, rerun, manual CI, snapshots or threshold changes. Existing unchanged CI dependency setup only. Any visual snapshot failure stops the round.",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "ci_only",
-      "operations": [
-        "unit_test",
-        "integration_test",
-        "local_static_check",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue982v1.audit",
-      "command": "Read canonical Actions/run identities, results and artifacts through remote_observation; this command does not execute CI. Independent exact-head audit must verify bounded networking, no secret copying/logging, lifecycle failure persistence and expiry/cancel semantics, frontend failure reconciliation, all deterministic and natural evidence, allowed paths, base freshness and frozen PR981 head. Keep Draft unmerged. Report runtime OAuth and GPT invocation as not verified in this provider-free round.",
-      "phase": "final_evidence",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "remote_observation",
-      "operations": [
-        "code_read",
-        "read_only_audit",
-        "repository_observation"
-      ],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
+      "command_id":"issue120v2.observe",
+      "command":"Fresh-read exact base/head, natural State Gate/Decision Preflight/CI and scoped diff. Confirm planning/budget identity disagreement fails before claim/retry/reservation/executor mutation and receipts expose bounded identity evidence. Do not call self-review independent acceptance or Draft landing.",
+      "phase":"final_evidence","required":true,"expected_exit_codes":[0],"execution_surface":"remote_observation",
+      "operations":["read_only_audit","code_read"],"network_access":false,
+      "required_evidence_source":"repository_state_attestation","allowed_mutated_paths":[],"produced_artifacts":[]
     }
   ],
-  "concurrent_work_preservation": {
-    "pr": 981,
-    "frozen_head": "849af4ae2039bb7d30ebb442404a567e5c7152f2",
-    "shared_path": "reverse_agent/platform_v1/opencode_executor.py",
-    "policy": "PR981 is paused while this round runs. Before activation and publication reobserve its exact frozen head; any mutation stops for revised coordination. This round may edit only the account-auth environment builder and adjacent pure helper in the shared file, never _bounded_value or assistant evidence. Do not import PR981 commits. Paths of other owners PR978 and PR979 remain untouched."
-  },
-  "reference_paths": [
-    "AGENTS.md",
-    "docs/agents/governance-reference.md",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "reverse_agent/platform_v1/opencode_server_transport.py"
-  ]
+  "issue_completion_close_allowed": []
 }
 ```
+
+## Build vs reuse
+
+```text
+REUSE DurableRun execution_authority_sha / planning_sha
+REUSE PlatformControlStore coordinator claim + budget reservation transaction
+REUSE platform_operation_receipts as the audit trail
+REUSE AutonomyService owner-window/capability policy
+REUSE DurableExecutionService final repository/worktree/HEAD/checkpoint validation
+
+SELF-DEVELOP only:
+  identity columns + compatible migration
+  atomic resume-claim identity comparison
+  bounded receipt identity snapshot
+  manual/unattended resume wiring
+  focused regressions
+
+DO NOT create a new "Vestige" subsystem/table, second budget ledger or second authority engine.
+```
+
+## Why this improvement is warranted
+
+The existing late DurableExecutionService planning check prevents executor/tool re-entry under a stale plan, but it occurs after the unattended coordinator can already claim the task, increment retry usage and move/reuse a budget reservation. The claim/reservation itself has no planning identity. Existing receipts store only a digest of their input, so later audit cannot reconstruct which authority/planning identities were compared.
+
+Therefore the current state is safer than an unchecked resume, but still not sufficient for a fail-closed identity-bound write-gate.
+
+## Acceptance
+
+1. resume claim compares current authority/planning identity to DurableRun inside the same SQLite claim transaction;
+2. planning mismatch causes no claim, retry increment, budget reservation move/create, or executor dispatch;
+3. an active reservation bound to another planning identity fails closed;
+4. legacy blank identity may only be atomically bound when current and DurableRun identities exactly agree, with an auditable receipt;
+5. successful resume claim and its allow receipt are committed together before durable resume;
+6. deny receipt records current/stored identity facts when the referenced window exists;
+7. receipts expose only bounded non-secret identity values, never prompts/tokens/credentials;
+8. both manual API Resume and unattended Resume use the same bound claim semantics;
+9. existing DurableExecutionService authority/worktree/HEAD/checkpoint checks remain unchanged;
+10. exact-head blocking CI passes.
+
+## Stop conditions
+
+Changed base, Decision mutation, missing PRE_EXECUTION_AUTHORIZED, active overlapping ownership of the same source paths, out-of-scope diff, failed mandatory checks or stale current-main authority stops semantic publication.
