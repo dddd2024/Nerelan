@@ -341,6 +341,78 @@ def test_parallel_batch_isolates_worker_exception_and_claim_finalization(tmp_pat
     assert coordinator.status()["last_batch"]["accepted"] is False
 
 
+def test_opencode_claim_receives_current_runtime_identity_before_dispatch(
+    tmp_path, monkeypatch
+):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "identity-wiring", "policy_revision": 1,
+        "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"],
+        "capabilities": ["execute_task", "resume_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 1, "max_retries": 1,
+        "confirmation": "ACTIVATE",
+    })
+    task = store.create_task(
+        title="opencode identity wiring",
+        repository="dddd2024/reverse-agent",
+        executor_kind="opencode",
+        orchestration_mode="single",
+    )
+    goal = control.create_goal(
+        title="identity wiring",
+        objective="prove coordinator forwards runtime identity",
+        repository=task.repository,
+        idempotency_key="identity-wiring-goal",
+        executor_kind="opencode",
+        orchestration_mode="single",
+    )
+    goal = control.save_goal_plan(
+        goal.id,
+        expected_revision=goal.revision,
+        spec_markdown="spec",
+        plan_markdown="plan",
+        tasks=[{"id": "T001"}],
+        acceptance_criteria=["identity forwarded"],
+    )
+    goal = control.approve_goal(goal.id, expected_revision=goal.revision)
+    goal = control.mark_goal_running(
+        goal.id, revision=goal.revision, window_id=window.id
+    )
+    control.link_goal_task(
+        goal.id,
+        goal_revision=goal.revision,
+        plan_task_id="T001",
+        task_id=task.id,
+        dependencies=(),
+        seq=0,
+    )
+
+    observed = []
+    def reject_after_capture(**kwargs):
+        observed.append(kwargs)
+        raise TaskStoreError("window_task_budget_exhausted")
+
+    monkeypatch.setattr(control, "claim_task", reject_after_capture)
+    coordinator = UnattendedCoordinator(
+        store=store,
+        control_store=control,
+        autonomy=autonomy,
+        router=ExecutorRouter(),
+        workspace_root=tmp_path,
+        execution_authority_sha="auth-current",
+        planning_sha="plan-current",
+    )
+    assert coordinator.tick() == 0
+    assert observed[0]["execution_authority_sha"] == "auth-current"
+    assert observed[0]["planning_sha"] == "plan-current"
+
+
 def test_parallel_restart_reclaims_interrupted_task_once_with_retained_budget(tmp_path):
     store = TaskStore(":memory:")
     control = PlatformControlStore(store)
