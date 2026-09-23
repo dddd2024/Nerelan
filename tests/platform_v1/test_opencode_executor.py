@@ -638,6 +638,8 @@ class _GuardedParentEnvironment(Mapping[str, str]):
         self.allowed = {
             "PATH": "C:\\safe-bin",
             "SystemRoot": "C:\\Windows",
+            "SystemDrive": "C:",
+            "PATHEXT": ".COM;.EXE;.BAT;.CMD",
         }
 
     def get(self, key: str, default=None):
@@ -683,6 +685,8 @@ def test_binding_child_environment_uses_explicit_allowlist_without_iteration() -
     assert child == {
         "PATH": "C:\\safe-bin",
         "SystemRoot": "C:\\Windows",
+        "SystemDrive": "C:",
+        "PATHEXT": ".COM;.EXE;.BAT;.CMD",
         "OPENCODE_DISABLE_AUTOUPDATE": "true",
         "OPENCODE_DISABLE_MODELS_FETCH": "true",
         "OPENCODE_DISABLE_LSP_DOWNLOAD": "true",
@@ -2334,6 +2338,8 @@ def test_binding_child_env_still_uses_allowlist() -> None:
     assert child == {
         "PATH": "C:\\safe-bin",
         "SystemRoot": "C:\\Windows",
+        "SystemDrive": "C:",
+        "PATHEXT": ".COM;.EXE;.BAT;.CMD",
         "OPENCODE_DISABLE_AUTOUPDATE": "true",
         "OPENCODE_DISABLE_MODELS_FETCH": "true",
         "OPENCODE_DISABLE_LSP_DOWNLOAD": "true",

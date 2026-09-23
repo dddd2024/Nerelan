@@ -267,6 +267,9 @@ class CombinedTrustedHost:
                 relay_url=lease.relay_url,
                 model_id=cli_model,
                 _release_callback=_release,
+                _deadline_callback=lambda seconds: manager.bind_execution_deadline(
+                    lease_id, seconds
+                ),
             )
 
         return _provider

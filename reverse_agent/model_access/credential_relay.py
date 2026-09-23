@@ -25,8 +25,10 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ipaddress import ip_address
 import json
+import math
 import secrets
 import threading
+import time
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -75,10 +77,19 @@ class _ActiveLease:
     model_id: str
     used: bool = False
     released: bool = False
+    execution_deadline_bound: bool = False
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_monotonic: float = field(default_factory=lambda: time.monotonic())
+    expires_monotonic: float = 0.0
+    expiration_observed: bool = False
 
     @property
     def expired(self) -> bool:
-        return datetime.now(timezone.utc) >= self.expires_at
+        self.expiration_observed = self.expiration_observed or (
+            datetime.now(timezone.utc) >= self.expires_at
+            or time.monotonic() >= self.expires_monotonic
+        )
+        return self.expiration_observed
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +158,7 @@ class CredentialRelayManager:
                 expires_at=expires_at,
                 relay_url=relay_url,
                 model_id=model_id,
+                expires_monotonic=time.monotonic() + expiry,
             )
             self._leases[lease_id] = active
 
@@ -163,6 +175,39 @@ class CredentialRelayManager:
             if active is not None:
                 active.released = True
             self._cleanup_locked()
+
+    def bind_execution_deadline(self, lease_id: str, timeout_seconds: float) -> None:
+        """Bind an unused live capability once to a trusted execution budget.
+
+        This is not a renewal API. The executor supplies its process timeout
+        before launching; the fixed setup margin does not extend that timeout.
+        """
+        if (
+            isinstance(timeout_seconds, bool)
+            or not isinstance(timeout_seconds, (int, float))
+            or not 0 < timeout_seconds <= 3600
+            or not math.isfinite(timeout_seconds)
+        ):
+            raise CredentialRelayError("invalid_execution_timeout")
+        with self._lock:
+            active = self._leases.get(lease_id)
+            if active is None or active.released or active.expired:
+                raise CredentialRelayError("execution_lease_unavailable")
+            if active.execution_deadline_bound or active.used:
+                raise CredentialRelayError("execution_deadline_already_bound")
+            now = datetime.now(timezone.utc)
+            monotonic_now = time.monotonic()
+            if now < active.created_at or monotonic_now < active.created_monotonic:
+                raise CredentialRelayError("execution_clock_invalid")
+            active.expires_at = min(
+                now + timedelta(seconds=timeout_seconds + 30),
+                active.created_at + timedelta(seconds=3630),
+            )
+            active.expires_monotonic = min(
+                monotonic_now + timeout_seconds + 30,
+                active.created_monotonic + 3630,
+            )
+            active.execution_deadline_bound = True
 
     def release_all(self) -> None:
         with self._lock:
@@ -195,6 +240,8 @@ class CredentialRelayManager:
         expected_model = active.model_id
         if model is None or model != expected_model:
             raise CredentialRelayError("lease_model_mismatch")
+        with self._lock:
+            active.used = True
         return active
 
     def _cleanup_locked(self) -> None:

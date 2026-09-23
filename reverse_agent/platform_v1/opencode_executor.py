@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import platform
 import re
@@ -72,6 +73,11 @@ class ExecutionLeaseHandle:
     relay_url: str
     model_id: str
     _release_callback: Callable[[], None] | None = None
+    _deadline_callback: Callable[[float], None] | None = None
+
+    def bind_execution_deadline(self, timeout_seconds: float) -> None:
+        if self._deadline_callback is not None:
+            self._deadline_callback(timeout_seconds)
 
     def release(self) -> None:
         callback = self._release_callback
@@ -227,7 +233,26 @@ _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 _BINDING_CHILD_ENV_ALLOWLIST = (
     "PATH",
     "SystemRoot",
+    "SystemDrive",
+    "PATHEXT",
 )
+
+
+def _binding_environment_value(parent: Mapping[str, str], key: str) -> str | None:
+    value = parent.get(key)
+    if value is None and key == "SystemDrive":
+        value = parent.get("SYSTEMDRIVE")
+    if value and key == "SystemDrive" and (
+        not isinstance(value, str) or not re.fullmatch(r"[A-Za-z]:", value)
+    ):
+        raise ExecutorRuntimeError("invalid_child_system_drive")
+    if value and key == "PATHEXT" and (
+        not isinstance(value, str)
+        or len(value) > 256
+        or not re.fullmatch(r"\.[A-Za-z0-9]+(?:;\.[A-Za-z0-9]+)*;?", value)
+    ):
+        raise ExecutorRuntimeError("invalid_child_path_extensions")
+    return value
 
 
 def validate_model_id(model_id: str) -> str:
@@ -426,7 +451,7 @@ def build_role_child_env(
     child: dict[str, str] = {}
     if existing_config:
         for key in _BINDING_CHILD_ENV_ALLOWLIST:
-            value = parent_env.get(key)
+            value = _binding_environment_value(parent_env, key)
             if isinstance(value, str) and value:
                 child[key] = value
         for key, value in _OPENCODE_DISABLE_ENV.items():
@@ -473,7 +498,7 @@ def build_binding_child_env(
     """
     child: dict[str, str] = {}
     for key in _BINDING_CHILD_ENV_ALLOWLIST:
-        value = parent_env.get(key)
+        value = _binding_environment_value(parent_env, key)
         if isinstance(value, str) and value:
             child[key] = value
     for key, value in _OPENCODE_DISABLE_ENV.items():
@@ -1188,6 +1213,13 @@ class OpenCodeExecutor:
         self._repo_dir_explicit = bool(self._repo_dir)
         self._base_ref = base_ref
         self._opencode_exe = opencode_exe
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not 0 < timeout <= 3600
+            or not math.isfinite(timeout)
+        ):
+            raise ExecutorRuntimeError("invalid_execution_timeout")
         self._timeout = timeout
         self._use_auto = use_auto
         if transport_kind not in {"cli", "server"}:
@@ -1274,6 +1306,7 @@ class OpenCodeExecutor:
         try:
             if self._binding_resolution is not None and self._binding_resolution.relay_required:
                 lease_handle = self._lease_provider(self._binding_resolution)
+                lease_handle.bind_execution_deadline(self._timeout)
 
             model_for_cli = self._model_id
             if lease_handle is not None:
@@ -1379,6 +1412,11 @@ class OpenCodeExecutor:
                 process_exit_code=-2,
                 failure_classification="cli_unavailable",
             )
+        finally:
+            # Also release if deadline binding, argv construction or the
+            # running-event callback fails before subprocess.run's finally.
+            if lease_handle is not None:
+                lease_handle.release()
 
         exit_code = proc.returncode
         stdout = proc.stdout or ""
@@ -1526,6 +1564,7 @@ class OpenCodeExecutor:
         try:
             if self._binding_resolution is not None and self._binding_resolution.relay_required:
                 lease_handle = self._lease_provider(self._binding_resolution)
+                lease_handle.bind_execution_deadline(self._timeout)
                 model_for_server = lease_handle.model_id
             role = role_context.role
             config_content: str | None = None
