@@ -271,7 +271,9 @@ export function ConnectionBindingEditor({
                 {creating ? "新建连接" : connection?.name ?? "选择连接"}
               </h2>
               <p className="mt-1 text-xs text-ra-text-tertiary">
-                API Key 只发送到模型控制服务，不写入浏览器存储。
+                {connDraft.authMethod === "account_login"
+                  ? "账号授权由执行器管理，无需填写 API 密钥。"
+                  : "API Key 只发送到模型控制服务，不写入浏览器存储。"}
               </p>
             </div>
           </div>
@@ -833,6 +835,8 @@ function accountAuthStatusLabel(status: string): string {
       return "授权完成，等待会话复核";
     case "expired":
       return "已超时";
+    case "failed":
+      return "登录失败，请检查服务端网络后重新登录";
     case "canceled":
       return "已取消";
     case "provider_logout_required":

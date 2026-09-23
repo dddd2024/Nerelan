@@ -130,6 +130,8 @@ export function SettingsPage() {
 
   async function handleAccountAuthStart(connectionId: string) {
     setError(null);
+    setStatus(null);
+    setAccountAuthState(null);
     setAccountAuthPending(true);
     try {
       const result = await getDefaultModelControlClient().startAccountAuth(connectionId);
@@ -138,7 +140,7 @@ export function SettingsPage() {
         window.open(result.authorizationUrl, "_blank", "noopener,noreferrer");
       }
     } catch (cause) {
-      setError(errorMessage(cause));
+      await reconcileAccountAuthFailure(connectionId, cause);
     } finally {
       setAccountAuthPending(false);
     }
@@ -146,6 +148,7 @@ export function SettingsPage() {
 
   async function handleAccountAuthComplete(connectionId: string, code?: string) {
     setError(null);
+    setStatus(null);
     setAccountAuthPending(true);
     try {
       const result = await getDefaultModelControlClient().completeAccountAuth(
@@ -160,11 +163,28 @@ export function SettingsPage() {
           : "授权已完成，正在等待 OpenCode 会话复核",
       );
     } catch (cause) {
-      setError(errorMessage(cause));
+      await reconcileAccountAuthFailure(connectionId, cause);
       throw cause;
     } finally {
       setAccountAuthPending(false);
     }
+  }
+
+  async function reconcileAccountAuthFailure(connectionId: string, cause: unknown) {
+    // Discard stale authorization links even if the status request also fails.
+    setAccountAuthState(null);
+    try {
+      const latest = await getDefaultModelControlClient().getAccountAuthStatus(connectionId);
+      setAccountAuthState(latest);
+      setError(
+        latest.status === "failed"
+          ? "账号登录未完成。请检查服务端网络配置，然后重新点击浏览器登录。"
+          : errorMessage(cause),
+      );
+    } catch {
+      setError("暂时无法确认登录状态，请稍后重试。浏览器授权成功不代表账号连接已完成。");
+    }
+    await connectionsQuery.refetch();
   }
 
   async function handleAccountAuthCancel(connectionId: string) {

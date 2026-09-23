@@ -149,6 +149,7 @@ export const AccountAuthStatusSchema = z.object({
     "busy",
     "awaiting_browser",
     "expired",
+    "failed",
     "canceled",
     "authenticated",
     "verification_pending",

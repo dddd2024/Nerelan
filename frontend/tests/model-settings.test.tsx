@@ -2,7 +2,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsPage } from "@/routes/settings";
-import { resetDefaultModelControlClientForTests } from "@/lib/model-control-client";
+import { getDefaultModelControlClient, resetDefaultModelControlClientForTests } from "@/lib/model-control-client";
 import { renderWithProviders } from "./test-utils";
 
 describe("Connection and Binding settings workspace", () => {
@@ -23,6 +23,47 @@ describe("Connection and Binding settings workspace", () => {
     expect(
       await screen.findByTestId("binding-item-coding-binding"),
     ).toBeInTheDocument();
+  });
+
+  it.each([false, true])("removes stale OAuth continuation when status lookup fails: %s", async (statusUnavailable) => {
+    const client = getDefaultModelControlClient();
+    await client.upsertConnection({
+      connectionId: "gpt-account", name: "GPT account", provider: "openai",
+      baseUrl: "https://api.openai.com/v1", authMethod: "account_login", enabled: true,
+    });
+    vi.spyOn(client, "startAccountAuth").mockResolvedValue({
+      status: "awaiting_browser", provider: "openai", callbackMethod: "auto",
+      authorizationUrl: "https://auth.example.test/authorize", expiresInSeconds: 300,
+    });
+    vi.spyOn(client, "completeAccountAuth").mockRejectedValue(new Error("internal model control error"));
+    const statusLookup = vi.spyOn(client, "getAccountAuthStatus");
+    if (statusUnavailable) {
+      statusLookup.mockRejectedValue(new Error("status lookup unavailable"));
+    } else {
+      statusLookup.mockResolvedValue({
+        status: "failed", provider: "openai", externalSessionStatus: "missing",
+      });
+    }
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const user = userEvent.setup();
+    renderWithProviders(<SettingsPage />);
+    await user.click(await screen.findByTestId("connection-item-gpt-account"));
+    expect(screen.queryByText("API Key 只发送到模型控制服务，不写入浏览器存储。")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("account-auth-start"));
+    expect(await screen.findByTestId("account-auth-browser-link")).toBeInTheDocument();
+    await user.click(screen.getByTestId("account-auth-complete"));
+    expect(await screen.findByText(statusUnavailable
+      ? "暂时无法确认登录状态，请稍后重试。浏览器授权成功不代表账号连接已完成。"
+      : "账号登录未完成。请检查服务端网络配置，然后重新点击浏览器登录。")).toBeInTheDocument();
+    if (statusUnavailable) {
+      expect(screen.queryByTestId("account-auth-status")).not.toBeInTheDocument();
+    } else {
+      expect(screen.getByTestId("account-auth-status")).toHaveTextContent("登录失败");
+    }
+    expect(screen.queryByTestId("account-auth-browser-link")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("account-auth-complete")).not.toBeInTheDocument();
+    expect(screen.getByTestId("account-auth-start")).toBeEnabled();
+    open.mockRestore();
   });
 
   it("configures a Connection through mock Model Control and never persists its API Key in browser storage", async () => {
