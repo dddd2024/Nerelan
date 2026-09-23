@@ -170,6 +170,14 @@ class UnattendedCoordinator:
                     task_id=task_id,
                     owner=self.owner,
                     lease_ms=self.claim_lease_ms,
+                    execution_authority_sha=(
+                        self.execution_authority_sha
+                        if task.executor_kind == "opencode"
+                        else ""
+                    ),
+                    planning_sha=(
+                        self.planning_sha if task.executor_kind == "opencode" else ""
+                    ),
                 )
             except TaskStoreError as exc:
                 if str(exc) in {

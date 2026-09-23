@@ -80,6 +80,34 @@ def reject_sensitive_keys(value: Any, *, path: str = "$") -> None:
             reject_sensitive_keys(child, path=f"{path}[{index}]")
 
 
+def normalize_receipt_identities(
+    value: Mapping[str, Any] | None,
+) -> dict[str, str]:
+    """Persist only bounded, non-secret identity facts in operation receipts."""
+
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise TaskStoreError("receipt_identities_must_be_mapping")
+    reject_sensitive_keys(value, path="$.identities")
+    if len(value) > 32:
+        raise TaskStoreError("receipt_identities_too_many_fields")
+    normalized: dict[str, str] = {}
+    for raw_key, raw_value in value.items():
+        key = str(raw_key)
+        if re.fullmatch(r"[a-z][a-z0-9_]{0,63}", key) is None:
+            raise TaskStoreError(f"invalid_receipt_identity_key:{key}")
+        if isinstance(raw_value, bool) or not isinstance(raw_value, (str, int)):
+            raise TaskStoreError(f"invalid_receipt_identity_value:{key}")
+        rendered = str(raw_value)
+        if len(rendered) > 256:
+            raise TaskStoreError(f"receipt_identity_value_too_long:{key}")
+        normalized[key] = rendered
+    if len(canonical_json(normalized).encode("utf-8")) > 4096:
+        raise TaskStoreError("receipt_identities_too_large")
+    return normalized
+
+
 @dataclass(frozen=True)
 class GoalRecord:
     id: str
@@ -147,6 +175,7 @@ class OperationReceipt:
     decision: str
     reason: str
     input_digest: str
+    identities: Mapping[str, str]
     external_id: str
     result: str
     remaining_tasks: int
@@ -283,6 +312,7 @@ class PlatformControlStore:
                     decision TEXT NOT NULL,
                     reason TEXT NOT NULL,
                     input_digest TEXT NOT NULL,
+                    identity_json TEXT NOT NULL DEFAULT '{}',
                     external_id TEXT NOT NULL,
                     result TEXT NOT NULL,
                     remaining_tasks INTEGER NOT NULL,
@@ -293,6 +323,8 @@ class PlatformControlStore:
                     window_id TEXT NOT NULL,
                     owner TEXT NOT NULL,
                     epoch INTEGER NOT NULL,
+                    execution_authority_sha TEXT NOT NULL DEFAULT '',
+                    planning_sha TEXT NOT NULL DEFAULT '',
                     expires_at_ms INTEGER NOT NULL,
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
@@ -302,6 +334,8 @@ class PlatformControlStore:
                     task_id TEXT NOT NULL REFERENCES tasks(id),
                     claim_epoch INTEGER NOT NULL,
                     window_id TEXT NOT NULL,
+                    execution_authority_sha TEXT NOT NULL DEFAULT '',
+                    planning_sha TEXT NOT NULL DEFAULT '',
                     reserved_token_units INTEGER NOT NULL,
                     reserved_cost_micro_units INTEGER NOT NULL,
                     state TEXT NOT NULL,
@@ -383,6 +417,44 @@ class PlatformControlStore:
                     self._conn.execute(
                         f"ALTER TABLE platform_autonomous_windows ADD COLUMN {column} {definition}"
                     )
+
+        receipt_columns = {
+            row["name"]
+            for row in self._conn.execute(
+                "PRAGMA table_info(platform_operation_receipts)"
+            )
+        }
+        if "identity_json" not in receipt_columns:
+            self._conn.execute(
+                "ALTER TABLE platform_operation_receipts "
+                "ADD COLUMN identity_json TEXT NOT NULL DEFAULT '{}'"
+            )
+
+        claim_columns = {
+            row["name"]
+            for row in self._conn.execute(
+                "PRAGMA table_info(platform_coordinator_claims)"
+            )
+        }
+        for column in ("execution_authority_sha", "planning_sha"):
+            if column not in claim_columns:
+                self._conn.execute(
+                    f"ALTER TABLE platform_coordinator_claims "
+                    f"ADD COLUMN {column} TEXT NOT NULL DEFAULT ''"
+                )
+
+        reservation_columns = {
+            row["name"]
+            for row in self._conn.execute(
+                "PRAGMA table_info(platform_budget_reservations)"
+            )
+        }
+        for column in ("execution_authority_sha", "planning_sha"):
+            if column not in reservation_columns:
+                self._conn.execute(
+                    f"ALTER TABLE platform_budget_reservations "
+                    f"ADD COLUMN {column} TEXT NOT NULL DEFAULT ''"
+                )
 
     # Goal records -----------------------------------------------------
 
@@ -833,14 +905,126 @@ class PlatformControlStore:
         task_id: str,
         owner: str,
         lease_ms: int,
+        execution_authority_sha: str = "",
+        planning_sha: str = "",
     ) -> tuple[int, AutonomousWindowRecord]:
+        authority_sha = str(execution_authority_sha or "").strip()
+        plan_sha = str(planning_sha or "").strip()
+        if bool(authority_sha) != bool(plan_sha):
+            raise TaskStoreError("claim_identity_incomplete")
+
+        task_before = self.task_store.get_task(task_id)
+        receipted_resume = (
+            task_before.status == "INTERRUPTED"
+            and bool(authority_sha)
+            and bool(plan_sha)
+        )
+        try:
+            with self._lock:
+                return self._claim_task_locked(
+                    window_id=window_id,
+                    task_id=task_id,
+                    owner=owner,
+                    lease_ms=lease_ms,
+                    execution_authority_sha=authority_sha,
+                    planning_sha=plan_sha,
+                )
+        except TaskStoreError as exc:
+            if receipted_resume:
+                try:
+                    self.get_window(window_id)
+                except TaskStoreError:
+                    raise
+                identities = self._resume_claim_identity_snapshot(
+                    window_id=window_id,
+                    task_id=task_id,
+                    execution_authority_sha=authority_sha,
+                    planning_sha=plan_sha,
+                )
+                try:
+                    self.append_receipt(
+                        window_id=window_id,
+                        operation_type="resume_write_gate",
+                        capability="resume_task",
+                        repository=task_before.repository,
+                        subject_id=task_id,
+                        decision="denied",
+                        reason=str(exc),
+                        input_payload={
+                            "task_id": task_id,
+                            "window_id": window_id,
+                            "status": task_before.status,
+                        },
+                        identities=identities,
+                    )
+                except Exception as receipt_exc:
+                    raise TaskStoreError(
+                        "resume_claim_denial_receipt_failed:"
+                        f"{type(receipt_exc).__name__}:{exc}"
+                    ) from exc
+            raise
+
+    def _resume_claim_identity_snapshot(
+        self,
+        *,
+        window_id: str,
+        task_id: str,
+        execution_authority_sha: str,
+        planning_sha: str,
+    ) -> dict[str, str]:
         with self._lock:
-            return self._claim_task_locked(
-                window_id=window_id,
-                task_id=task_id,
-                owner=owner,
-                lease_ms=lease_ms,
-            )
+            window = self._conn.execute(
+                "SELECT policy_digest FROM platform_autonomous_windows WHERE id = ?",
+                (window_id,),
+            ).fetchone()
+            run = self._conn.execute(
+                "SELECT run_id, execution_authority_sha, planning_sha "
+                "FROM durable_runs WHERE task_id = ?",
+                (task_id,),
+            ).fetchone()
+            reservation = self._conn.execute(
+                "SELECT claim_epoch, execution_authority_sha, planning_sha "
+                "FROM platform_budget_reservations "
+                "WHERE task_id = ? AND window_id = ? AND state = 'ACTIVE' "
+                "ORDER BY claim_epoch DESC LIMIT 1",
+                (task_id, window_id),
+            ).fetchone()
+            claim = self._conn.execute(
+                "SELECT epoch, execution_authority_sha, planning_sha "
+                "FROM platform_coordinator_claims WHERE task_id = ?",
+                (task_id,),
+            ).fetchone()
+        return normalize_receipt_identities({
+            "current_execution_authority_sha": execution_authority_sha,
+            "current_planning_sha": planning_sha,
+            "durable_run_id": "" if run is None else str(run["run_id"]),
+            "durable_execution_authority_sha": (
+                "" if run is None else str(run["execution_authority_sha"] or "")
+            ),
+            "durable_planning_sha": (
+                "" if run is None else str(run["planning_sha"] or "")
+            ),
+            "reservation_execution_authority_sha": (
+                "" if reservation is None
+                else str(reservation["execution_authority_sha"] or "")
+            ),
+            "reservation_planning_sha": (
+                "" if reservation is None else str(reservation["planning_sha"] or "")
+            ),
+            "reservation_claim_epoch": (
+                0 if reservation is None else int(reservation["claim_epoch"])
+            ),
+            "claim_execution_authority_sha": (
+                "" if claim is None else str(claim["execution_authority_sha"] or "")
+            ),
+            "claim_planning_sha": (
+                "" if claim is None else str(claim["planning_sha"] or "")
+            ),
+            "claim_epoch": 0 if claim is None else int(claim["epoch"]),
+            "window_policy_digest": (
+                "" if window is None else str(window["policy_digest"] or "")
+            ),
+        })
 
     def _claim_task_locked(
         self,
@@ -849,6 +1033,8 @@ class PlatformControlStore:
         task_id: str,
         owner: str,
         lease_ms: int,
+        execution_authority_sha: str,
+        planning_sha: str,
     ) -> tuple[int, AutonomousWindowRecord]:
         now_ms = _utc_now_ms()
         cur = self._conn.cursor()
@@ -861,36 +1047,98 @@ class PlatformControlStore:
                 raise TaskStoreError("window_not_active")
             if str(window["expires_at"]) <= _utc_now():
                 cur.execute(
-                    "UPDATE platform_autonomous_windows SET status = 'EXPIRED', stop_reason = 'window_expired', updated_at = ? WHERE id = ?",
+                    "UPDATE platform_autonomous_windows SET status = 'EXPIRED', "
+                    "stop_reason = 'window_expired', updated_at = ? WHERE id = ?",
                     (_utc_now(), window_id),
                 )
                 raise TaskStoreError("window_expired")
             active_count = cur.execute(
-                "SELECT COUNT(*) AS c FROM platform_coordinator_claims WHERE window_id = ? AND status = 'ACTIVE' AND expires_at_ms > ?",
+                "SELECT COUNT(*) AS c FROM platform_coordinator_claims "
+                "WHERE window_id = ? AND status = 'ACTIVE' AND expires_at_ms > ?",
                 (window_id, now_ms),
             ).fetchone()["c"]
             if int(active_count) >= int(window["max_concurrent_tasks"]):
                 raise TaskStoreError("window_wip_limit_reached")
-            task = cur.execute("SELECT status FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            task = cur.execute(
+                "SELECT status, repository, executor_kind FROM tasks WHERE id = ?",
+                (task_id,),
+            ).fetchone()
             if task is None or task["status"] not in {"QUEUED", "INTERRUPTED"}:
                 raise TaskStoreError("task_not_claimable")
+
+            identity_bound = bool(execution_authority_sha and planning_sha)
+            durable_run = None
+            # Generic low-level claim callers may omit runtime identity for
+            # provider-free budget bookkeeping. Production durable Resume callers
+            # pass both identities; once supplied, the run/reservation binding below
+            # is mandatory and fail-closed.
+            if task["status"] == "INTERRUPTED" and identity_bound:
+                durable_run = cur.execute(
+                    "SELECT run_id, execution_authority_sha, planning_sha "
+                    "FROM durable_runs WHERE task_id = ?",
+                    (task_id,),
+                ).fetchone()
+                if durable_run is None:
+                    raise TaskStoreError("resume_claim_durable_run_missing")
+                if str(durable_run["execution_authority_sha"] or "") != execution_authority_sha:
+                    raise TaskStoreError("resume_claim_execution_authority_identity_mismatch")
+                if str(durable_run["planning_sha"] or "") != planning_sha:
+                    raise TaskStoreError("resume_claim_planning_identity_mismatch")
+
             if task["status"] == "INTERRUPTED":
                 if int(window["retries_used"]) >= int(window["max_retries"]):
                     raise TaskStoreError("window_retry_budget_exhausted")
             elif int(window["tasks_started"]) >= int(window["max_tasks"]):
                 raise TaskStoreError("window_task_budget_exhausted")
+
             existing = cur.execute(
                 "SELECT * FROM platform_coordinator_claims WHERE task_id = ?", (task_id,)
             ).fetchone()
-            if existing is not None and existing["status"] == "ACTIVE" and int(existing["expires_at_ms"]) > now_ms:
+            if (
+                existing is not None
+                and existing["status"] == "ACTIVE"
+                and int(existing["expires_at_ms"]) > now_ms
+            ):
                 raise TaskStoreError("task_already_claimed")
             epoch = int(existing["epoch"]) + 1 if existing is not None else 1
+
             active_reservation = cur.execute(
                 "SELECT * FROM platform_budget_reservations "
                 "WHERE task_id = ? AND window_id = ? AND state = 'ACTIVE' "
                 "ORDER BY claim_epoch DESC LIMIT 1",
                 (task_id, window_id),
             ).fetchone()
+            legacy_reservation_bound = False
+            if active_reservation is not None and identity_bound:
+                reservation_authority = str(
+                    active_reservation["execution_authority_sha"] or ""
+                )
+                reservation_plan = str(active_reservation["planning_sha"] or "")
+                if not reservation_authority and not reservation_plan:
+                    if task["status"] != "INTERRUPTED" or durable_run is None:
+                        raise TaskStoreError("budget_claim_identity_unbound")
+                    cur.execute(
+                        "UPDATE platform_budget_reservations SET "
+                        "execution_authority_sha = ?, planning_sha = ?, updated_at = ? "
+                        "WHERE task_id = ? AND claim_epoch = ? AND state = 'ACTIVE'",
+                        (
+                            execution_authority_sha,
+                            planning_sha,
+                            _utc_now(),
+                            task_id,
+                            int(active_reservation["claim_epoch"]),
+                        ),
+                    )
+                    legacy_reservation_bound = True
+                elif not reservation_authority or not reservation_plan:
+                    raise TaskStoreError("budget_claim_identity_incomplete")
+                elif reservation_authority != execution_authority_sha:
+                    raise TaskStoreError(
+                        "budget_claim_execution_authority_identity_mismatch"
+                    )
+                elif reservation_plan != planning_sha:
+                    raise TaskStoreError("budget_claim_planning_identity_mismatch")
+
             token_reservation = int(window["per_task_token_reservation"])
             cost_reservation = int(window["per_task_cost_reservation"])
             if active_reservation is None:
@@ -917,26 +1165,42 @@ class PlatformControlStore:
                     > max_cost
                 ):
                     raise TaskStoreError("window_cost_budget_exhausted")
+
             if existing is None:
                 cur.execute(
-                    "INSERT INTO platform_coordinator_claims VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?)",
-                    (task_id, window_id, owner, epoch, now_ms + lease_ms, _utc_now(), _utc_now()),
+                    "INSERT INTO platform_coordinator_claims "
+                    "(task_id, window_id, owner, epoch, execution_authority_sha, "
+                    "planning_sha, expires_at_ms, status, created_at, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?)",
+                    (
+                        task_id, window_id, owner, epoch,
+                        execution_authority_sha, planning_sha,
+                        now_ms + lease_ms, _utc_now(), _utc_now(),
+                    ),
                 )
             else:
                 cur.execute(
-                    "UPDATE platform_coordinator_claims SET window_id = ?, owner = ?, epoch = ?, expires_at_ms = ?, status = 'ACTIVE', updated_at = ? WHERE task_id = ?",
-                    (window_id, owner, epoch, now_ms + lease_ms, _utc_now(), task_id),
+                    "UPDATE platform_coordinator_claims SET window_id = ?, owner = ?, "
+                    "epoch = ?, execution_authority_sha = ?, planning_sha = ?, "
+                    "expires_at_ms = ?, status = 'ACTIVE', updated_at = ? "
+                    "WHERE task_id = ?",
+                    (
+                        window_id, owner, epoch, execution_authority_sha, planning_sha,
+                        now_ms + lease_ms, _utc_now(), task_id,
+                    ),
                 )
+
             if active_reservation is None:
                 cur.execute(
                     "INSERT INTO platform_budget_reservations "
-                    "(task_id, claim_epoch, window_id, reserved_token_units, "
-                    "reserved_cost_micro_units, state, observed_token_units, "
-                    "observed_cost_micro_units, created_at, updated_at, reconciled_at) "
-                    "VALUES (?, ?, ?, ?, ?, 'ACTIVE', NULL, NULL, ?, ?, '')",
+                    "(task_id, claim_epoch, window_id, execution_authority_sha, planning_sha, "
+                    "reserved_token_units, reserved_cost_micro_units, state, "
+                    "observed_token_units, observed_cost_micro_units, created_at, updated_at, "
+                    "reconciled_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', NULL, NULL, ?, ?, '')",
                     (
-                        task_id, epoch, window_id, token_reservation,
-                        cost_reservation, _utc_now(), _utc_now(),
+                        task_id, epoch, window_id,
+                        execution_authority_sha, planning_sha,
+                        token_reservation, cost_reservation, _utc_now(), _utc_now(),
                     ),
                 )
             elif int(active_reservation["claim_epoch"]) != epoch:
@@ -948,6 +1212,7 @@ class PlatformControlStore:
                         int(active_reservation["claim_epoch"]),
                     ),
                 )
+
             if task["status"] == "INTERRUPTED":
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET retries_used = retries_used + 1, "
@@ -956,9 +1221,60 @@ class PlatformControlStore:
                 )
             else:
                 cur.execute(
-                    "UPDATE platform_autonomous_windows SET tasks_started = tasks_started + 1, updated_at = ? WHERE id = ?",
+                    "UPDATE platform_autonomous_windows SET tasks_started = tasks_started + 1, "
+                    "updated_at = ? WHERE id = ?",
                     (_utc_now(), window_id),
                 )
+
+            if task["status"] == "INTERRUPTED" and identity_bound:
+                identity_payload = normalize_receipt_identities({
+                    "current_execution_authority_sha": execution_authority_sha,
+                    "current_planning_sha": planning_sha,
+                    "durable_run_id": str(durable_run["run_id"]),
+                    "durable_execution_authority_sha": str(
+                        durable_run["execution_authority_sha"] or ""
+                    ),
+                    "durable_planning_sha": str(durable_run["planning_sha"] or ""),
+                    "reservation_execution_authority_sha": execution_authority_sha,
+                    "reservation_planning_sha": planning_sha,
+                    "claim_epoch": epoch,
+                    "window_policy_digest": str(window["policy_digest"] or ""),
+                    "legacy_reservation_identity_bound": (
+                        "true" if legacy_reservation_bound else "false"
+                    ),
+                })
+                cur.execute(
+                    "INSERT INTO platform_operation_receipts "
+                    "(id, window_id, operation_type, capability, repository, subject_id, "
+                    "decision, reason, input_digest, identity_json, external_id, result, "
+                    "remaining_tasks, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        _id("receipt"),
+                        window_id,
+                        "resume_write_gate",
+                        "resume_task",
+                        str(task["repository"]),
+                        task_id,
+                        "allowed",
+                        (
+                            "resume_claim_legacy_identity_bound"
+                            if legacy_reservation_bound
+                            else "resume_claim_identity_bound"
+                        ),
+                        sha256_json({
+                            "task_id": task_id,
+                            "window_id": window_id,
+                            "claim_epoch": epoch,
+                            "status": task["status"],
+                        }),
+                        canonical_json(identity_payload),
+                        "",
+                        f"claim_epoch={epoch}",
+                        max(0, int(window["max_tasks"]) - int(window["tasks_started"])),
+                        _utc_now(),
+                    ),
+                )
+
             cur.execute("COMMIT")
             return epoch, self.get_window(window_id)
         except TaskStoreError:
@@ -1250,17 +1566,20 @@ class PlatformControlStore:
         decision: str,
         reason: str,
         input_payload: Mapping[str, Any],
+        identities: Mapping[str, Any] | None = None,
         external_id: str = "",
         result: str = "",
     ) -> OperationReceipt:
         reject_sensitive_keys(input_payload)
+        identity_payload = normalize_receipt_identities(identities)
         window = self.get_window(window_id)
         receipt_id = _id("receipt")
         with self._lock:
             self._conn.execute(
                 "INSERT INTO platform_operation_receipts "
-                "(id, window_id, operation_type, capability, repository, subject_id, decision, reason, "
-                "input_digest, external_id, result, remaining_tasks, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "(id, window_id, operation_type, capability, repository, subject_id, "
+                "decision, reason, input_digest, identity_json, external_id, result, "
+                "remaining_tasks, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     receipt_id,
                     window_id,
@@ -1271,6 +1590,7 @@ class PlatformControlStore:
                     decision,
                     reason[:300],
                     sha256_json(input_payload),
+                    canonical_json(identity_payload),
                     external_id,
                     result[:300],
                     max(0, window.max_tasks - window.tasks_started),
@@ -1544,6 +1864,7 @@ class PlatformControlStore:
             id=row["id"], window_id=row["window_id"], operation_type=row["operation_type"],
             capability=row["capability"], repository=row["repository"], subject_id=row["subject_id"],
             decision=row["decision"], reason=row["reason"], input_digest=row["input_digest"],
+            identities=dict(json.loads(row["identity_json"] or "{}")),
             external_id=row["external_id"], result=row["result"], remaining_tasks=int(row["remaining_tasks"]),
             created_at=row["created_at"],
         )
