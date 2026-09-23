@@ -2593,6 +2593,13 @@ def _bounded_value(event: dict[str, Any], limit: int) -> str:
         if v is not None:
             s = str(v)[:limit]
             return redact_secrets(s)
+    part = event.get("part")
+    if event.get("type") == "text" and isinstance(part, Mapping):
+        text = part.get("text")
+        if part.get("type") == "text" and isinstance(text, str):
+            # OpenCode CLI text lives inside a typed part. Redact before
+            # truncation so a boundary cannot hide the end of a secret pattern.
+            return redact_secrets(text.replace("\x00", ""))[:limit]
     return ""
 
 
