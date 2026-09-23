@@ -1068,9 +1068,10 @@ class PlatformControlStore:
 
             identity_bound = bool(execution_authority_sha and planning_sha)
             durable_run = None
-            if task["status"] == "INTERRUPTED" and task["executor_kind"] == "opencode":
-                if not identity_bound:
-                    raise TaskStoreError("resume_claim_identity_required")
+            # Generic low-level claim callers may omit runtime identity for
+            # provider-free budget bookkeeping. Production durable Resume callers
+            # pass both identities; once supplied, the run/reservation binding below
+            # is mandatory and fail-closed.
             if task["status"] == "INTERRUPTED" and identity_bound:
                 durable_run = cur.execute(
                     "SELECT run_id, execution_authority_sha, planning_sha "
