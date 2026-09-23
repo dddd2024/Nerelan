@@ -815,12 +815,92 @@ class _TaskHandler(BaseHTTPRequestHandler):
                         "error": f"not_durable_mode:{task.orchestration_mode}"
                     })
                     return
+                if task.status != "INTERRUPTED":
+                    self._send_json(HTTPStatus.CONFLICT, {
+                        "error": f"resume_write_gate_denied:task_not_interrupted:{task.status}"
+                    })
+                    return
+
                 run = self.store._find_active_durable_run(segments[2])
                 if run is None:
                     self._send_json(HTTPStatus.CONFLICT, {
                         "error": "no_active_durable_run_to_resume"
                     })
                     return
+                run_obj = self.store._get_durable_run(run["run_id"])
+                current_authority_sha = str(
+                    getattr(self, "execution_authority_sha", "") or ""
+                ).strip()
+                current_planning_sha = str(
+                    getattr(self, "planning_sha", "") or ""
+                ).strip()
+                if (
+                    not current_authority_sha
+                    or run_obj.execution_authority_sha != current_authority_sha
+                ):
+                    self._send_json(HTTPStatus.CONFLICT, {
+                        "error": "resume_write_gate_denied:authority_sha_mismatch"
+                    })
+                    return
+                if (
+                    not current_planning_sha
+                    or run_obj.planning_sha != current_planning_sha
+                ):
+                    self._send_json(HTTPStatus.CONFLICT, {
+                        "error": "resume_write_gate_denied:planning_sha_mismatch"
+                    })
+                    return
+
+                try:
+                    goal_id = self.control_store.goal_id_for_task(task.id)
+                    goal = self.control_store.get_goal(goal_id)
+                except TaskStoreError as exc:
+                    self._send_json(HTTPStatus.CONFLICT, {
+                        "error": f"resume_write_gate_denied:{exc}"
+                    })
+                    return
+                if goal.status != "RUNNING" or not goal.window_id:
+                    self._send_json(HTTPStatus.CONFLICT, {
+                        "error": "resume_write_gate_denied:goal_window_not_running"
+                    })
+                    return
+                if not self.autonomy_service.authorize(
+                    window_id=goal.window_id,
+                    operation="resume_task",
+                    repository=task.repository,
+                    subject_id=task.id,
+                    input_payload={
+                        "task_id": task.id,
+                        "goal_id": goal.id,
+                        "status": task.status,
+                    },
+                ):
+                    self._send_json(HTTPStatus.CONFLICT, {
+                        "error": "resume_write_gate_denied:resume_task_not_authorized"
+                    })
+                    return
+
+                claim_owner = "task-api-resume"
+                claim_lease_ms = int(
+                    getattr(
+                        getattr(self, "coordinator", None),
+                        "claim_lease_ms",
+                        15 * 60 * 1000,
+                    )
+                )
+                try:
+                    claim_epoch, _ = self.control_store.claim_task(
+                        window_id=goal.window_id,
+                        task_id=task.id,
+                        owner=claim_owner,
+                        lease_ms=claim_lease_ms,
+                    )
+                except TaskStoreError as exc:
+                    self._send_json(HTTPStatus.CONFLICT, {
+                        "error": f"resume_write_gate_denied:{exc}"
+                    })
+                    return
+
                 dur_svc = DurableExecutionService(
                     store=self.store,
                     router=self.router,
@@ -836,22 +916,84 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 try:
                     if task.orchestration_mode == "single":
                         outcome = dur_svc.resume_single(
-                            task_id=segments[2],
-                            lease_owner="task-api-resume",
+                            task_id=task.id,
+                            lease_owner=claim_owner,
                         )
                     else:
                         outcome = dur_svc.resume_sequential_team(
-                            task_id=segments[2],
-                            lease_owner="task-api-resume",
+                            task_id=task.id,
+                            lease_owner=claim_owner,
                         )
                 except DurableResumeError as exc:
+                    try:
+                        self.control_store.abandon_task_claim(
+                            window_id=goal.window_id,
+                            task_id=task.id,
+                            owner=claim_owner,
+                            epoch=claim_epoch,
+                            reason="durable_resume_rejected",
+                        )
+                    except TaskStoreError:
+                        pass
                     self._send_json(HTTPStatus.CONFLICT, {"error": str(exc)})
                     return
                 except TaskExecutionError as exc:
+                    try:
+                        self.control_store.abandon_task_claim(
+                            window_id=goal.window_id,
+                            task_id=task.id,
+                            owner=claim_owner,
+                            epoch=claim_epoch,
+                            reason="durable_resume_execution_failed",
+                        )
+                    except TaskStoreError:
+                        pass
                     self._send_json(HTTPStatus.CONFLICT, {"error": str(exc)})
                     return
-                task = self.store.get_task(segments[2])
-                self._send_json(HTTPStatus.OK, self._task_response(task))
+                except ExecutorRuntimeError as exc:
+                    try:
+                        self.control_store.abandon_task_claim(
+                            window_id=goal.window_id,
+                            task_id=task.id,
+                            owner=claim_owner,
+                            epoch=claim_epoch,
+                            reason="durable_resume_runtime_failed",
+                        )
+                    except TaskStoreError:
+                        pass
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                    return
+                except Exception:
+                    try:
+                        self.control_store.abandon_task_claim(
+                            window_id=goal.window_id,
+                            task_id=task.id,
+                            owner=claim_owner,
+                            epoch=claim_epoch,
+                            reason="durable_resume_unexpected_failure",
+                        )
+                    except TaskStoreError:
+                        pass
+                    raise
+
+                final_task = self.store.get_task(task.id)
+                success = bool(getattr(outcome, "success", True)) and final_task.status in {
+                    "READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"
+                }
+                try:
+                    self.control_store.complete_task_claim(
+                        window_id=goal.window_id,
+                        task_id=task.id,
+                        owner=claim_owner,
+                        epoch=claim_epoch,
+                        result="success" if success else f"terminal:{final_task.status}",
+                    )
+                except TaskStoreError as exc:
+                    self._send_json(HTTPStatus.CONFLICT, {
+                        "error": f"resume_claim_finalize_failed:{exc}"
+                    })
+                    return
+                self._send_json(HTTPStatus.OK, self._task_response(final_task))
                 return
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "route not found"})
         except (DuplicateTaskError, InvalidTransitionError, TaskStoreError) as exc:
