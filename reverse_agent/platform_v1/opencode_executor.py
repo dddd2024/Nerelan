@@ -621,6 +621,50 @@ _ACCOUNT_AUTH_ENV_ALLOWLIST = (
 )
 
 
+def _account_auth_proxy_env(environment: Mapping[str, str]) -> dict[str, str]:
+    """Forward bounded credential-free proxy settings, keeping OAuth local."""
+    from urllib.parse import urlsplit
+
+    result: dict[str, str] = {}
+    for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY"):
+        upper, lower = environment.get(key), environment.get(key.lower())
+        if upper is not None and lower is not None and upper != lower:
+            raise ValueError("account login proxy configuration is invalid")
+        value = upper if upper is not None else lower
+        if value is None or value == "":
+            continue
+        if len(value) > 4096 or any(ord(c) < 32 or ord(c) == 127 for c in value):
+            raise ValueError("account login proxy configuration is invalid")
+        if key == "NO_PROXY":
+            if not re.fullmatch(r"[A-Za-z0-9.*,:\[\]/_ -]+", value):
+                raise ValueError("account login proxy configuration is invalid")
+        else:
+            try:
+                parsed = urlsplit(value)
+                valid = (
+                    parsed.scheme in {"http", "https"}
+                    and bool(parsed.hostname)
+                    and parsed.username is None
+                    and parsed.password is None
+                    and parsed.path in {"", "/"}
+                    and not parsed.query and not parsed.fragment
+                    and "?" not in value and "#" not in value
+                    and not any(c.isspace() for c in value)
+                    and "\\" not in value and "%" not in parsed.netloc
+                    and (parsed.port is None or parsed.port > 0)
+                )
+            except ValueError:
+                valid = False
+            if not valid:
+                raise ValueError("account login proxy configuration is invalid")
+        result[key] = value
+        result[key.lower()] = value
+    bypass = result.get("NO_PROXY", "")
+    bypass = ",".join(filter(None, [bypass, "localhost", "127.0.0.1", "::1"]))
+    result["NO_PROXY"] = result["no_proxy"] = bypass
+    return result
+
+
 def start_opencode_account_auth_server(
     *,
     opencode_exe: str | None = None,
@@ -641,6 +685,7 @@ def start_opencode_account_auth_server(
         value = os.environ.get(key)
         if isinstance(value, str) and value:
             child_env[key] = value
+    child_env.update(_account_auth_proxy_env(os.environ))
     child_env.update(
         {
             "OPENCODE_DISABLE_AUTOUPDATE": "true",

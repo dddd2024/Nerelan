@@ -149,7 +149,12 @@ class AccountAuthManager:
             raise ValueError("native account login is unavailable on this host")
         with self._lock:
             self._cancel_locked()
-            server = factory()
+            self._last_terminal = None
+            try:
+                server = factory()
+            except Exception:
+                self._last_terminal = (connection_id, "failed")
+                raise
             deadline = self._clock() + self._timeout_seconds
             self._generation += 1
             flow = _ActiveFlow(
@@ -195,6 +200,8 @@ class AccountAuthManager:
                 expired = self._expire_if_needed(flow)
                 if self._active is flow:
                     self._active = None
+                if not expired:
+                    self._last_terminal = (connection_id, "failed")
                 flow.cancel()
                 if expired and str(exc) != "account login expired":
                     raise ValueError("account login expired") from exc
@@ -254,11 +261,19 @@ class AccountAuthManager:
                 expired = self._expire_if_needed(active)
                 if self._active is active:
                     self._active = None
+                if not expired:
+                    self._last_terminal = (connection_id, "failed")
                 active.cancel()
                 if expired and str(exc) != "account login expired":
                     raise ValueError("account login expired") from exc
                 raise
-        self._refresh(True, connection_id)
+        try:
+            self._refresh(True, connection_id)
+        except Exception:
+            with self._lock:
+                if self._generation == active.generation and self._last_terminal is None:
+                    self._last_terminal = (connection_id, "failed")
+            raise
         connection = self._validated_connection(connection_id)
         flow_status = (
             "authenticated"
@@ -274,6 +289,7 @@ class AccountAuthManager:
             if active is not None and active.connection_id != connection_id:
                 raise ValueError("another connection owns the active account login")
             self._cancel_locked()
+            self._last_terminal = (connection_id, "canceled")
         return self._status_payload(connection, "canceled")
 
     def logout(self, connection_id: str) -> dict[str, Any]:

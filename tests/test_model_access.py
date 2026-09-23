@@ -1248,7 +1248,83 @@ def test_account_auth_provider_error_before_deadline_is_preserved() -> None:
         manager.callback("openai-account", "TRANSIENT_CODE")
 
     assert server.close_calls == 1
-    assert manager.status("openai-account")["status"] == "idle"
+    assert manager.status("openai-account")["status"] == "failed"
+
+
+def test_account_auth_failure_is_safe_persistent_and_reset_by_retry() -> None:
+    store = _account_login_store()
+    servers = []
+
+    def factory():
+        if not servers:
+            servers.append(_FakeAccountAuthServer())
+            raise RuntimeError("private upstream response SECRET_SENTINEL")
+        return servers[0]
+
+    manager = AccountAuthManager(
+        store=store, server_factory=factory, refresh=lambda *_: None,
+        timer_factory=_FakeAccountAuthTimerFactory(),
+    )
+    with pytest.raises(RuntimeError):
+        manager.start("openai-account")
+    for _ in range(2):
+        status = manager.status("openai-account")
+        assert status["status"] == "failed"
+        assert "SECRET_SENTINEL" not in json.dumps(status)
+    assert manager.start("openai-account")["status"] == "awaiting_browser"
+    assert manager.status("openai-account")["status"] == "awaiting_browser"
+    manager.cancel("openai-account")
+    assert manager.status("openai-account")["status"] == "canceled"
+
+
+@pytest.mark.parametrize("next_action", ["new_login", "cancel"])
+def test_old_account_refresh_failure_cannot_overwrite_newer_state(next_action) -> None:
+    store = _account_login_store()
+    entered, release = threading.Event(), threading.Event()
+    failures = []
+    refresh_count = 0
+
+    def refresh(*_):
+        nonlocal refresh_count
+        refresh_count += 1
+        if refresh_count == 1:
+            entered.set()
+            assert release.wait(3)
+            raise RuntimeError("old refresh failure")
+        store.refresh_external_session_status({"openai": "oauth"})
+
+    manager = AccountAuthManager(
+        store=store, server_factory=_FakeAccountAuthServer, refresh=refresh,
+        timer_factory=_FakeAccountAuthTimerFactory(),
+    )
+    manager.start("openai-account")
+
+    def complete_old():
+        try:
+            manager.callback("openai-account", "TRANSIENT_CODE")
+        except RuntimeError as error:
+            failures.append(str(error))
+
+    worker = threading.Thread(target=complete_old)
+    worker.start()
+    try:
+        assert entered.wait(3)
+        if next_action == "new_login":
+            manager.start("openai-account")
+            assert manager.callback("openai-account", "NEW_CODE")["status"] == "authenticated"
+        else:
+            manager.cancel("openai-account")
+    finally:
+        release.set()
+        worker.join(3)
+    assert not worker.is_alive()
+    assert failures == ["old refresh failure"]
+    status = manager.status("openai-account")
+    if next_action == "new_login":
+        assert status["status"] != "failed"
+        assert status["external_session_status"] == "available"
+    else:
+        assert status["status"] == "canceled"
 
 
 def test_account_auth_cancel_and_logout_are_explicit_provider_boundaries() -> None:

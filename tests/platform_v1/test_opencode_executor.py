@@ -2766,6 +2766,45 @@ def test_auth_list_probe_forces_utf8_and_replaces_invalid_bytes() -> None:
     assert captured["errors"] == "replace"
 
 
+@pytest.mark.parametrize("key", ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy"])
+def test_account_auth_proxy_configuration_keeps_network_and_loopback(key):
+    from reverse_agent.platform_v1.opencode_executor import _account_auth_proxy_env
+
+    result = _account_auth_proxy_env({key: "http://127.0.0.1:8080", "NO_PROXY": ".example.test", "OPENAI_API_KEY": "secret"})
+    assert result[key.upper()] == "http://127.0.0.1:8080"
+    assert result[key.lower()] == result[key.upper()]
+    assert result["NO_PROXY"] == ".example.test,localhost,127.0.0.1,::1"
+    assert result["no_proxy"] == result["NO_PROXY"]
+    assert "secret" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("value", [
+    "http://user:secret@proxy.test", "http://proxy.test/?secret=value",
+    "http://proxy.test/#secret", "http://proxy.test/path", "socks5://proxy.test",
+    "http://proxy.test/?", "http://proxy.test/#",
+    "http://proxy.test:99999", "http://proxy.test:0", "http://proxy.test\n",
+    "http://proxy.test\\@other.test", "http://%70roxy.test", "not-a-url",
+])
+def test_account_auth_proxy_invalid_configuration_never_echoes_values(value):
+    from reverse_agent.platform_v1.opencode_executor import _account_auth_proxy_env
+
+    with pytest.raises(ValueError) as error:
+        _account_auth_proxy_env({"HTTPS_PROXY": value})
+    assert str(error.value) == "account login proxy configuration is invalid"
+
+
+def test_account_auth_proxy_conflicts_and_invalid_bypass_fail_closed():
+    from reverse_agent.platform_v1.opencode_executor import _account_auth_proxy_env
+
+    for env in [
+        {"HTTP_PROXY": "http://one.test", "http_proxy": "http://two.test"},
+        {"NO_PROXY": "user:secret@host"},
+        {"NO_PROXY": "localhost\nsecret"},
+    ]:
+        with pytest.raises(ValueError, match="^account login proxy configuration is invalid$"):
+            _account_auth_proxy_env(env)
+
+
 def test_account_auth_server_uses_only_bounded_non_secret_location_env(
     monkeypatch, tmp_path
 ) -> None:
@@ -2785,6 +2824,8 @@ def test_account_auth_server_uses_only_bounded_non_secret_location_env(
     monkeypatch.setenv("OPENAI_API_KEY", "MASTER_SECRET_SENTINEL")
     monkeypatch.setenv("UNRELATED_SENTINEL", "must-not-cross")
     monkeypatch.setattr(executor, "start_managed_server", fake_start_managed_server)
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.example.test:8080")
+    monkeypatch.setenv("https_proxy", "http://proxy.example.test:8080")
 
     result = executor.start_opencode_account_auth_server(
         opencode_exe="C:/tools/opencode.exe",
@@ -2805,6 +2846,8 @@ def test_account_auth_server_uses_only_bounded_non_secret_location_env(
     assert "OPENAI_API_KEY" not in child_env
     assert "UNRELATED_SENTINEL" not in child_env
     assert "MASTER_SECRET_SENTINEL" not in json.dumps(child_env)
+    assert child_env["HTTPS_PROXY"] == "http://proxy.example.test:8080"
+    assert "127.0.0.1" in child_env["NO_PROXY"].split(",")
 
 
 # ===================================================================
