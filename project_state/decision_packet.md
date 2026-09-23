@@ -1,24 +1,35 @@
-# Approved explicit user_local F03 reviewed source and Ubuntu goldens v3
+# Decision Packet — Issue #120 resume write-gate
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260920_issue913_reviewed_goldens_r3_v3",
-  "round_id": "round_20260920_issue913_reviewed_goldens_r3_v3",
+  "decision_id": "decision_20260923_issue120_resume_write_gate_r2_v1",
+  "round_id": "round_20260923_issue120_resume_write_gate_r2_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
-  "skill_profiles": [
-    "reverse-agent-iteration@v2"
-  ]
+  "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
+  "decision_scope": "ISSUE120_RESUME_WRITE_GATE",
+  "source_issue": 120,
+  "parent_issue": 137,
   "repository": "dddd2024/Nerelan",
-  "mainline_merge_intent_required": false,
-  "active_pr_binding_mode": "none",
+  "approved_by": "dddd2024 via explicit current request to resolve Issue #120 and persist the fix to GitHub",
+  "approval_basis": "The repository owner explicitly requested that the current Issue #120 resume-safety problem be solved and fixed on GitHub. This bounded R2 Decision is delegated Agent authoring, not independent human review. It authorizes only a Draft implementation of a server-side Resume write-gate using already-landed authority/autonomy/budget/durable-execution primitives; it grants no Ready, Merge, direct-main push, workflow rerun/dispatch, provider call, credential access or release.",
+  "risk_tier": "R2",
+  "authorized_risk_tier": "R2",
+  "governance_artifact_risk_tier": "R2",
+  "integration_base_ref": "main",
+  "base_sha": "3b9eb3806ca59e119d2f8db36537b7efe593c729",
+  "activation_base_sha": "3b9eb3806ca59e119d2f8db36537b7efe593c729",
+  "starting_head": "3b9eb3806ca59e119d2f8db36537b7efe593c729",
+  "required_branch": "owner/issue120-resume-write-gate-r2-v1-20260923",
+  "fresh_worktree_creation_required": false,
+  "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
@@ -28,32 +39,10 @@
     "transition_reconcile",
     "worktree_publication_readiness"
   ],
-  "fresh_worktree_creation_required": true,
-  "history_reuse_allowed": false,
-  "provider_free_acceptance_required": true,
-  "decision_scope": "F03_EXACT_REVIEWED_SOURCE_AND_UBUNTU_GOLDEN_REUSE",
-  "source_issue": 913,
-  "parent_issue": 653,
-  "approved_by": "dddd2024 via explicit delegated Owner execution",
-  "approval_basis": "User explicitly delegated full Owner completion, independent subagent auditing and merge. Owner-approved freshv3 preserves stoppedv2 and corrects only targetidentity/delta cardinality. Independent913v3candidate audit derived all30actualdelta paths, confirmed31targetidentities and31totalcommitteddelta includingDecision, unchangedsource/artifact/capability and existing7commandplan errors=(). Currentmain8fb passed966postmergeacceptance5747578095 and931closed. Fresh owner-published913v3planning is context; this new immutableAPPROVEDDecision authorizes the bounded explicituser_local round.",
-  "risk_tier": "R3",
-  "authorized_risk_tier": "R3",
-  "governance_artifact_risk_tier": "R3",
-  "integration_base_ref": "main",
-  "base_sha": "8fb171e6a395caf5c757bb44d43acf34bf06c03a",
-  "activation_base_sha": "8fb171e6a395caf5c757bb44d43acf34bf06c03a",
-  "starting_head": "8fb171e6a395caf5c757bb44d43acf34bf06c03a",
-  "fresh_base": "8fb171e6a395caf5c757bb44d43acf34bf06c03a",
-  "current_main_expected": "8fb171e6a395caf5c757bb44d43acf34bf06c03a",
-  "required_branch": "codex/f03-reviewed-goldens-r3-v3-20260920",
-  "workstream_id": "issue913-f03-reviewed-goldens-r3-v3",
-  "follows_last_decision_id": "decision_20260919_issue659_reviewed_fixes_integration_r2_v1",
-  "follows_last_round_id": "round_20260919_issue659_reviewed_fixes_integration_r2_v1",
-  "workflow_profile": "browser_r3",
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 1,
-  "generated_governance_commit_limit": 0,
-  "normal_push_attempt_limit": 0,
+  "product_change_commit_limit": 3,
+  "generated_governance_commit_limit": 1,
+  "normal_push_attempt_limit": 5,
   "draft_pr_creation_limit": 1,
   "mark_ready_attempt_limit": 0,
   "merge_attempt_limit": 0,
@@ -63,7 +52,6 @@
   "live_model_call_limit": 0,
   "provider_network_call_limit": 0,
   "credential_access_limit": 0,
-  "local_browser_launch_limit": 0,
   "pr_creation_allowed": true,
   "issue_comment_allowed": true,
   "pull_request_comment_allowed": true,
@@ -79,91 +67,40 @@
   "dependency_install_allowed": false,
   "live_provider_access_allowed": false,
   "credential_access_allowed": false,
-  "unknown_binary_execution_allowed": false,
+  "local_browser_execution_allowed": false,
   "model_api_invocation_allowed": false,
   "external_reverse_tool_invocation_allowed": false,
+  "unknown_binary_execution_allowed": false,
   "destructive_operations_allowed": false,
-  "bootstrap_exception_files": [
-    "project_state/decision_packet.md"
-  ],
+  "provider_free_acceptance_required": true,
+  "mainline_merge_intent_required": false,
+  "active_pr_binding_mode": "none",
+  "semantic_implementation_contract": {
+    "specification": "Close the concrete Issue #120 write-gate gap at the public POST /api/tasks/{task_id}/resume boundary. Reuse the existing TaskStore/PlatformControlStore, AutonomyService resume_task authorization, owner-activated window, atomic claim/budget reservation, and DurableExecutionService authority/planning/repository/worktree validation. Manual Resume must not reach durable executor/tool re-entry unless the task is INTERRUPTED, is linked to its current RUNNING Goal and owner window, resume_task is currently authorized for the task repository, and current token/cost admission can be reserved. Preserve existing durable authority SHA/planning SHA and HEAD/worktree fail-closed checks; do not create a second RunStore, quota ledger, policy engine or generic resume state machine. Provider-official quota truth remains distinct from Nerelan local budget truth: do not fabricate provider remaining quota when no trustworthy source exists. The server gate is authoritative; a stale advisory UI control may receive HTTP 409 rather than being allowed to bypass the gate.",
+    "execution_surface_note": "GitHub-first activation and publication. The user-local Remote Desktop device is not required for this provider-free change. Natural repository workflows and an actual full checkout provide transition/preflight and exact-head test evidence. No live provider/model calls, credentials or dependency installation.",
+    "completion_boundary": "Draft implementation only. Exact-head deterministic tests must prove denied/missing owner authority and exhausted token/cost admission cannot call durable Resume, while an admitted interrupted task calls exactly one correct durable resume path and finalizes the claim. Existing durable authority/planning mismatch regressions must remain green. No Ready/Merge or Issue closure in this Decision."
+  },
+  "bootstrap_exception_files": ["project_state/decision_packet.md"],
   "bootstrap_exception_commands": [],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
-    "docs/functional-validation.md",
-    "frontend/e2e/functional-validation.spec.ts",
-    "frontend/src/components/connection-binding-editor.tsx",
-    "frontend/src/components/functional-validation.tsx",
-    "frontend/src/components/goal-composer.tsx",
-    "frontend/src/components/goal-current-activity.tsx",
-    "frontend/src/components/goal-progress.tsx",
-    "frontend/src/components/theme-selector.tsx",
-    "frontend/src/index.css",
-    "frontend/src/lib/functional-validation.ts",
-    "frontend/src/lib/platform-client.ts",
-    "frontend/src/routes/approvals.tsx",
-    "frontend/src/routes/home.tsx",
-    "frontend/src/routes/roadmap.tsx",
-    "frontend/src/routes/runs.tsx",
-    "frontend/src/routes/settings.tsx",
-    "frontend/tests/approvals.test.tsx",
-    "frontend/tests/functional-validation.test.tsx",
-    "frontend/tests/goal-completion-evidence.test.tsx",
-    "frontend/tests/goal-progress.test.tsx",
-    "frontend/tests/platform-home.test.tsx",
-    "frontend/tests/roadmap.test.tsx",
-    "frontend/tests/task-first-lifecycle-states.test.tsx",
-    "frontend/e2e/snapshots/desktop-chromium/home-light.png",
-    "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
-    "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
-    "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
-    "frontend/e2e/snapshots/mobile-chromium/home-light.png",
-    "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
-    "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
-    "frontend/e2e/snapshots/mobile-chromium/settings-dark.png",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/gates/transition_preflight_result.json",
+    "reverse_agent/platform_v1/task_service.py",
+    "tests/platform_v1/test_task_service.py"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
-    "docs/functional-validation.md",
-    "frontend/e2e/functional-validation.spec.ts",
-    "frontend/src/components/connection-binding-editor.tsx",
-    "frontend/src/components/functional-validation.tsx",
-    "frontend/src/components/goal-composer.tsx",
-    "frontend/src/components/goal-current-activity.tsx",
-    "frontend/src/components/goal-progress.tsx",
-    "frontend/src/components/theme-selector.tsx",
-    "frontend/src/index.css",
-    "frontend/src/lib/functional-validation.ts",
-    "frontend/src/lib/platform-client.ts",
-    "frontend/src/routes/approvals.tsx",
-    "frontend/src/routes/home.tsx",
-    "frontend/src/routes/roadmap.tsx",
-    "frontend/src/routes/runs.tsx",
-    "frontend/src/routes/settings.tsx",
-    "frontend/tests/approvals.test.tsx",
-    "frontend/tests/functional-validation.test.tsx",
-    "frontend/tests/goal-completion-evidence.test.tsx",
-    "frontend/tests/goal-progress.test.tsx",
-    "frontend/tests/platform-home.test.tsx",
-    "frontend/tests/roadmap.test.tsx",
-    "frontend/tests/task-first-lifecycle-states.test.tsx",
-    "frontend/e2e/snapshots/desktop-chromium/home-light.png",
-    "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
-    "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
-    "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
-    "frontend/e2e/snapshots/mobile-chromium/home-light.png",
-    "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
-    "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
-    "frontend/e2e/snapshots/mobile-chromium/settings-dark.png",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/gates/transition_preflight_result.json",
+    "reverse_agent/platform_v1/task_service.py",
+    "tests/platform_v1/test_task_service.py"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -175,28 +112,33 @@
   "reference_paths": [
     "AGENTS.md",
     "docs/agents/governance-reference.md",
-    ".github/workflows/ci.yml",
-    ".github/workflows/state-gate.yml",
-    ".github/workflows/decision-preflight.yml",
-    ".github/workflows/frontend-playwright.yml",
-    ".github/workflows/model-access.yml",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "frontend/src/lib/goal-continuation-operation.ts",
-    "frontend/tests/goal-continuation-activation-errors.test.ts"
+    "reverse_agent/platform_v1/autonomy.py",
+    "reverse_agent/platform_v1/control_store.py",
+    "reverse_agent/platform_v1/durable_execution.py",
+    "reverse_agent/platform_v1/unattended_coordinator.py",
+    "reverse_agent/platform_v1/run_read_model.py",
+    "reverse_agent/model_access/provider_usage.py",
+    "tests/platform_v1/test_durable_execution.py",
+    "tests/platform_v1/test_unattended_coordinator.py",
+    "tests/platform_v1/test_run_resume_control.py"
   ],
   "forbidden_mutated_paths": [
     "AGENTS.md",
+    "docs/agents/**",
     ".github/**",
     ".codex-skills/**",
-    "reverse_agent/**",
-    "tests/**",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "frontend/src/lib/goal-continuation-operation.ts",
-    "frontend/tests/goal-continuation-activation-errors.test.ts",
-    "project_state/mainline_merge_intents/**",
+    "reverse_agent/platform_v1/autonomy.py",
+    "reverse_agent/platform_v1/control_store.py",
+    "reverse_agent/platform_v1/durable_execution.py",
+    "reverse_agent/platform_v1/unattended_coordinator.py",
+    "reverse_agent/platform_v1/run_read_model.py",
+    "reverse_agent/model_access/**",
+    "frontend/**",
+    "tests/platform_v1/test_durable_execution.py",
+    "tests/platform_v1/test_unattended_coordinator.py",
+    "tests/platform_v1/test_run_resume_control.py",
     "project_state/rounds/**",
+    "project_state/mainline_merge_intents/**",
     "pyproject.toml",
     "requirements*.txt",
     "**/secrets/**",
@@ -223,126 +165,46 @@
     "destructive",
     "tag_or_release",
     "dependency_install",
-    "generated_governance_commit",
-    "local_browser_execution",
-    "snapshot_generation_or_threshold_change",
-    "fix_forward_after_mandatory_failure"
+    "local_browser_execution"
   ],
-  "path_risk_floor": [
-    {
-      "pattern": "project_state/**",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "frontend/e2e/snapshots/**",
-      "minimum_risk": "R3"
-    }
-  ],
-  "semantic_implementation_contract": {
-    "specification": "Materialize exactly23reviewed847source blobs and8frozenUbuntuactualPNG bytes on freshbase. No semantic adaptation, dependency/workflow/assertion/threshold changes. Preserve current931activationerrors behavior and all unrelated edits. New source provenance is actual Windows user_local, not trusted_worker.",
-    "completion_boundary": "Draft-only exacthead acceptance after all localdeterministic and5naturalbrowser_r3 workflows, actual diagnostic exit0/nativeJUnit0, independent review. No landing/Issueclosure in this round. Old847/914 remainnegativechronology; no new Windowsbrowser evidence is claimed."
-  },
-  "reference_product_head": "7d517b2d84b47c724f3df2218f9b94c02013726e",
-  "reference_product_base": "1b87cb41606bfbda0b4b49dd18259550fbf5bb58",
-  "reference_product_blobs": {
-    "docs/functional-validation.md": "63cd425d669f895f3f0c767e0ded255ffe8fbe6b",
-    "frontend/e2e/functional-validation.spec.ts": "d010279ca5d4d8a1fbf82730f4110ed979ae271c",
-    "frontend/src/components/connection-binding-editor.tsx": "280f50dcf3976c84ca6892d7ba2930c98b15cc0c",
-    "frontend/src/components/functional-validation.tsx": "ad8518bec8dfbdaf4d3c7df9b2f8dfa427c8b014",
-    "frontend/src/components/goal-composer.tsx": "817916489cccd463686860103b88c7fc9d68389f",
-    "frontend/src/components/goal-current-activity.tsx": "91c5390649b33bbd054dea81936ec1734104acdc",
-    "frontend/src/components/goal-progress.tsx": "77230adce3289e28409ad6e74ed99b3ffc33961c",
-    "frontend/src/components/theme-selector.tsx": "17dc3a0d9363b399bdcf3e68e1721c54ea878c0f",
-    "frontend/src/index.css": "81c72a660782bd14377ea8f329ddfb1bb6192013",
-    "frontend/src/lib/functional-validation.ts": "a11d55e6f75f79aaf35afac9a9981980c1613749",
-    "frontend/src/lib/platform-client.ts": "8b08d357b382be763b23d59914407a0ea44a3e75",
-    "frontend/src/routes/approvals.tsx": "0d0d537e76aeb940c3f7ab71d938eb58f3bf1d03",
-    "frontend/src/routes/home.tsx": "3afaa77629ac7c0add01fb895f0feef77fd6b8bc",
-    "frontend/src/routes/roadmap.tsx": "0872355f4dc5b54a2f94bc6019a265a9058086a5",
-    "frontend/src/routes/runs.tsx": "441531971ceb8c408a2da0fd90f9d63ebbcd7eae",
-    "frontend/src/routes/settings.tsx": "944ded2aa28987a83d91aad06c459bc02e817f00",
-    "frontend/tests/approvals.test.tsx": "a13de082577be79f9f61ff29d7c602a9e67b484e",
-    "frontend/tests/functional-validation.test.tsx": "dc72f43ba45f5179423a744c89ef76d3465aef98",
-    "frontend/tests/goal-completion-evidence.test.tsx": "c1308dccadb30db4a9f07dc3b891aef4ef6386df",
-    "frontend/tests/goal-progress.test.tsx": "f0f90e7c44fae0f2728f987e4a30ad314ec70278",
-    "frontend/tests/platform-home.test.tsx": "05abbcfda1135e9cf0dd83cc4b141fa788a7d745",
-    "frontend/tests/roadmap.test.tsx": "14d6d72f5d5f21d8b921d3df112322b099fe1a37",
-    "frontend/tests/task-first-lifecycle-states.test.tsx": "ca162428692cfdece43ab1e00836ea0590d7bf1d"
-  },
-  "reference_golden_hashes": {
-    "frontend/e2e/snapshots/desktop-chromium/home-light.png": "689e60b0471b901dd1b99e50ff12d50a0afb7f9bda232888702b0a6e84f42c50",
-    "frontend/e2e/snapshots/desktop-chromium/home-dark.png": "8b008e1663581d696553caa25ec8610b8e2e5a5a6df4352ca69459a9dadaefd9",
-    "frontend/e2e/snapshots/desktop-chromium/settings-light.png": "ba6a593f268f051ef6546e1ecff21cfd16376143d4b1f24176e57a7152dadc2d",
-    "frontend/e2e/snapshots/desktop-chromium/settings-dark.png": "cc9cf3b5f9977db3bcc00a0b8569c7e03514a67dc432d881557864f03a9c2c12",
-    "frontend/e2e/snapshots/mobile-chromium/home-light.png": "8ba705e6700335ef354cace5214fdad2b5672eb73528f77e00cc17efce355bd5",
-    "frontend/e2e/snapshots/mobile-chromium/home-dark.png": "79c169bfdbffa339ef32688774b912a8880cc63042123fc419ca90576b1ef7f7",
-    "frontend/e2e/snapshots/mobile-chromium/settings-light.png": "05e0ca5d55bbb8540d0a7e762737b51c80026cf94db1e66e3f7eaf18fdcf237d",
-    "frontend/e2e/snapshots/mobile-chromium/settings-dark.png": "eb69f172446e1db6a02e3d5bdb2b323380b86b01d42c8614c619b499e4116b78"
-  },
-  "reference_artifact": {
-    "id": 10294643559,
-    "run_id": 34684057222,
-    "sha256": "0ae1bfbc2d9e27ea686a45d5836e820a06feceba7ff08060d09c2e903f61db39"
-  },
-  "runtime_scratch_policy": {
-    "paths": [
-      "frontend/node_modules/**",
-      "frontend/dist/**",
-      "frontend/.pytest_cache/**",
-      "**/__pycache__/**",
-      ".pytest_cache/**"
-    ],
-    "stage_allowed": false,
-    "note": "Only existingtool normal ignored outputs; compatible ignorednode_modules copied from F:/Nerelan-issue931-activation-error-v4/frontend/node_modules after exact package+lock equality. No install,trackeddependencyedit or cleanup."
-  },
   "capability_policy": {
     "runner_dispatch_allowed": false,
+    "workflow_dispatch_allowed": false,
     "model_api_invocation_allowed": false,
     "external_reverse_tool_invocation_allowed": false,
     "unknown_binary_execution_allowed": false,
     "destructive_operations_allowed": false,
-    "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
-    "merge_allowed": false,
     "force_push_allowed": false,
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
+    "merge_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [],
-    "ci_network_exceptions": [
-      "Only unchanged existing natural workflows provider-free dependencies/tests; no added workflow, manual dispatch or rerun."
-    ],
+    "ci_network_exceptions": [],
     "trusted_worker_network_exceptions": [],
-    "user_local_network_exceptions": [
-      "Only existing scoped backendtest fixtures may bind isolated ephemeral127.0.0.1 and use fake Git/SQLite/model/binding doubles. No externalprovider/browser/credential/network."
-    ],
+    "user_local_network_exceptions": [],
     "github_control_plane_network_exceptions": [
-      "Canonical dddd2024/Nerelan Git API publish identical locally created2commitgraph/ref to exactnamedbranch andoneDraft; bounded evidence comments only913/newDraft/653/659. No Ready/merge/other refs."
+      "Publish only owner/issue120-resume-write-gate-r2-v1-20260923 in dddd2024/Nerelan and one Draft PR against main@3b9eb3806ca59e119d2f8db36537b7efe593c729. Initial publication is Decision-only. Semantic publication requires actual PRE_EXECUTION_AUTHORIZED evidence. Update that Draft and comment on Issue #120 only. Never Ready or Merge."
     ]
   },
+  "path_risk_floor": [
+    {"pattern": "project_state/**", "minimum_risk": "R2"},
+    {"pattern": "reverse_agent/platform_v1/task_service.py", "minimum_risk": "R2"}
+  ],
   "allowed_commands": [
     {
-      "command_id": "issue913v3.bootstrap",
-      "command": "Create fresh full Windows checkout F:/Nerelan-issue913-reviewed-goldens-v3 from exact lockedbase after main966 postmergeacceptance. Verify clean tree/localGitidentity,31pathcollision/ownership and allfrozenblob/archive/PNG identities. Commit only thisAPPROVEDDecision once. Sequential startup-snapshot,transition-command-plan,transition-lint,transition-preflight --mode pre must reach PRE_EXECUTION_AUTHORIZED; worktree-publication-readiness must pass before source mutation. KnownGit/Python only; no copiedgates/history.",
+      "command_id": "issue120.bootstrap",
+      "command": "On the exact fresh branch/base, verify the immutable Decision-only activation and run the repository transition startup snapshot, command-plan generation, transition lint, transition preflight --mode pre, and applicable publication-readiness gate. Natural GitHub workflows may produce the same evidence in their full checkout. Do not fabricate successful gates.",
       "phase": "bootstrap",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "user_local",
-      "operations": [
-        "code_read",
-        "local_static_check",
-        "command_plan_generation",
-        "commit",
-        "machine_specific_execution"
-      ],
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "trusted_worker",
+      "operations": ["code_read", "local_static_check", "command_plan_generation"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [
-        "project_state/decision_packet.md"
-      ],
+      "allowed_mutated_paths": [],
       "produced_artifacts": [
         "project_state/gates/command_plan.json",
         "project_state/gates/startup_snapshot.json",
@@ -352,214 +214,93 @@
       ]
     },
     {
-      "command_id": "issue913v3.materialize",
-      "command": "Afterpreflight materializeexact23sourceGitblobs from frozen847head and8frozenPNGbytes from verifiedartifact. Recheck all31target identities; compute actualdelta against lockedbase including new untracked files. Require exact30productdelta paths frozen in expected_product_delta_paths; functional-validation.test.tsx remains identicalbase/847 bytes and intentionally has no Gitdelta. No semanticediting/fixup. One productcommit only, separate fromDecisionactivation. Windows user_local sourceprovenance; never GitHubside sourceediting.",
+      "command_id": "issue120.implement",
+      "command": "Only after actual PRE_EXECUTION_AUTHORIZED evidence, implement the smallest server-side manual Resume write-gate in reverse_agent/platform_v1/task_service.py and provider-free focused regressions in tests/platform_v1/test_task_service.py. Reuse existing AutonomyService authorization, current Goal/window, PlatformControlStore claim/budget reservation, and DurableExecutionService authority checks. No second policy, budget, quota or resume subsystem.",
       "phase": "implementation",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "user_local",
-      "operations": [
-        "source_edit",
-        "commit",
-        "local_static_check",
-        "machine_specific_execution"
-      ],
+      "expected_exit_codes": [0],
+      "execution_surface": "trusted_worker",
+      "operations": ["source_edit", "unit_test", "local_static_check"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "docs/functional-validation.md",
-        "frontend/e2e/functional-validation.spec.ts",
-        "frontend/src/components/connection-binding-editor.tsx",
-        "frontend/src/components/functional-validation.tsx",
-        "frontend/src/components/goal-composer.tsx",
-        "frontend/src/components/goal-current-activity.tsx",
-        "frontend/src/components/goal-progress.tsx",
-        "frontend/src/components/theme-selector.tsx",
-        "frontend/src/index.css",
-        "frontend/src/lib/functional-validation.ts",
-        "frontend/src/lib/platform-client.ts",
-        "frontend/src/routes/approvals.tsx",
-        "frontend/src/routes/home.tsx",
-        "frontend/src/routes/roadmap.tsx",
-        "frontend/src/routes/runs.tsx",
-        "frontend/src/routes/settings.tsx",
-        "frontend/tests/approvals.test.tsx",
-        "frontend/tests/functional-validation.test.tsx",
-        "frontend/tests/goal-completion-evidence.test.tsx",
-        "frontend/tests/goal-progress.test.tsx",
-        "frontend/tests/platform-home.test.tsx",
-        "frontend/tests/roadmap.test.tsx",
-        "frontend/tests/task-first-lifecycle-states.test.tsx",
-        "frontend/e2e/snapshots/desktop-chromium/home-light.png",
-        "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
-        "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
-        "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
-        "frontend/e2e/snapshots/mobile-chromium/home-light.png",
-        "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
-        "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
-        "frontend/e2e/snapshots/mobile-chromium/settings-dark.png"
+        "reverse_agent/platform_v1/task_service.py",
+        "tests/platform_v1/test_task_service.py"
       ],
       "produced_artifacts": []
     },
     {
-      "command_id": "issue913v3.dependencies",
-      "command": "Use existing Node/npm/Python/Git. Verify currentfrontendpackage.json andpackage-lock exactbytes against F:/Nerelan-issue931-activation-error-v4. Copyonly matchingexistingignoredfrontendnode_modules into thisfreshworktree; no dependencyinstallation/download/lockfilechange. Do notstage ignoredcache or buildoutputs.",
+      "command_id": "issue120.validate",
+      "command": "On a full exact-head checkout run python -m pytest -q tests/platform_v1/test_task_service.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_unattended_coordinator.py tests/platform_v1/test_run_resume_control.py and git diff --check. Existing exact-head CI remains mandatory. No provider/model call, skip, dependency change or weakened expectation.",
       "phase": "validation",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "user_local",
-      "operations": [
-        "local_static_check",
-        "machine_specific_execution"
-      ],
+      "expected_exit_codes": [0],
+      "execution_surface": "ci_only",
+      "operations": ["unit_test", "local_static_check", "diff_validation"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "issue913v3.validate",
-      "command": "On exactcommittedimplementation head run frontend npm test, npm run lint, npm run typecheck, npm run build. Run python -B -m pytest tests/platform_v1/test_goal_completion_evidence.py tests/platform_v1/test_goal_service.py tests/platform_v1/test_run_read_model.py -q -p no:cacheprovider; theseexisting fixtures only may use isolatedloopbackGit/SQLite/pytest andfakebinding/model doubles. No actualmodel/provider calls. Preserve new931activationerrors tests within full frontendtests. Run git diff --check on wholebase-to-head andworktree; sequentialexistingpreflight/immutability/publicationreadiness must pass. Any mandatoryfailure stops round, nofix-forward.",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "user_local",
-      "operations": [
-        "unit_test",
-        "integration_test",
-        "build",
-        "diff_validation",
-        "local_static_check",
-        "machine_specific_execution",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/bootstrap_state.json",
-        "project_state/gates/transition_command_plan_preview.json",
-        "project_state/gates/transition_preflight_result.json"
-      ]
-    },
-    {
-      "command_id": "issue913v3.publish",
-      "command": "Afterallmandatorylocalchecks andPUBLICATION_READY, freshremote main/base/ownership; publish identical locally authoredDecision+productblob/tree/commit graph throughcanonicalGitAPI to exactfreshbranch,verifyeverySHA,createoneDraft againstmain. Normalgitpushbudget0. Comment disclosedproof only913/newDraft/653/659. NoGitHubsemanticedit.",
+      "command_id": "issue120.publish",
+      "command": "Publish only owner/issue120-resume-write-gate-r2-v1-20260923 and its single Draft PR against exact main@3b9eb3806ca59e119d2f8db36537b7efe593c729. Rebind the Draft exact_head_sha after implementation and post a concise Issue #120 handoff/reply. Never Ready or Merge.",
       "phase": "publication",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "github_control_plane",
-      "operations": [
-        "push",
-        "draft_pr",
-        "pull_request_comment",
-        "issue_comment",
-        "network_access"
-      ],
+      "operations": ["push", "draft_pr", "pull_request_comment", "issue_comment", "network_access"],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "issue913v3.natural_checks",
-      "command": "Only existing natural pull_request workflows verify exactpublishedhead; no manually invokedCI,runnerdispatch/rerun or productmutation. CI,DecisionPreflight,StateGate,ModelAccess,FrontendPlaywright must allSUCCESS andactualfullpytestdiagnosticexit0/nativeJUnit0. Browser_r3 profile selects existingCI validation; no user_localbrowsergrant. ExistingCI-owned network use is confined to unchangedworkflow dependency/test setup under the boundedci_network_exceptions; this command is not authority for local installation or manualCI execution.",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "ci_only",
-      "operations": [
-        "unit_test",
-        "integration_test",
-        "local_static_check",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue913v3.audit",
-      "command": "Read actualcanonicalrun identities/results/nativeartifacts and independentexactheadaudit. Verify23sourceblobs equal847,8PNGhashes frozen,exact31committeddelta paths(Decision+30productdelta) inside32pathallowlist(Decision+31materializedtargets),preserved931behavior,currentbase/ownership. Separate currentnaturalvisualregression acceptance from historicalWindowsbrowserproof andoldPNGdesignreferences. Failedmandatory/naturalchecks stop,no rerun,no snapshotgeneration,no fixforward. KeepDraftunmerged for separatelyauthorizedlanding.",
+      "command_id": "issue120.observe",
+      "command": "Fresh-read exact base/head, natural State Gate/Decision Preflight/CI and the scoped diff. Confirm denied authority/budget paths cannot reach durable Resume and existing authority/head checks remain intact. Do not call self-review independent acceptance or treat a Draft as landed.",
       "phase": "final_evidence",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "remote_observation",
-      "operations": [
-        "code_read",
-        "read_only_audit",
-        "repository_observation"
-      ],
+      "operations": ["read_only_audit", "code_read"],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     }
   ],
-  "superseded_evidence": {
-    "status": "STOPPED_EXTERNAL_MATERIALIZATION_GUARD_CONTRACT_COUNT_MISMATCH",
-    "decision_head": "804488bf8b8eeb88cf60dc2ab6e176d1f228da06",
-    "expected_target_identities": 31,
-    "actual_product_delta_count": 30,
-    "unchanged_target": "frontend/tests/functional-validation.test.tsx",
-    "new_untracked_target": "frontend/tests/goal-completion-evidence.test.tsx",
-    "staged_files": [],
-    "product_commit_count": 0,
-    "remote_publication_count": 0,
-    "all23source_and8PNG_identities_match": true,
-    "reason": "Required command said diffexact31paths; impossible because one target has identicalbaseblob. No reinterpretation/fixforward; preserve thisworktree."
-  },
-  "expected_product_delta_paths": [
-    "docs/functional-validation.md",
-    "frontend/e2e/functional-validation.spec.ts",
-    "frontend/e2e/snapshots/desktop-chromium/home-dark.png",
-    "frontend/e2e/snapshots/desktop-chromium/home-light.png",
-    "frontend/e2e/snapshots/desktop-chromium/settings-dark.png",
-    "frontend/e2e/snapshots/desktop-chromium/settings-light.png",
-    "frontend/e2e/snapshots/mobile-chromium/home-dark.png",
-    "frontend/e2e/snapshots/mobile-chromium/home-light.png",
-    "frontend/e2e/snapshots/mobile-chromium/settings-dark.png",
-    "frontend/e2e/snapshots/mobile-chromium/settings-light.png",
-    "frontend/src/components/connection-binding-editor.tsx",
-    "frontend/src/components/functional-validation.tsx",
-    "frontend/src/components/goal-composer.tsx",
-    "frontend/src/components/goal-current-activity.tsx",
-    "frontend/src/components/goal-progress.tsx",
-    "frontend/src/components/theme-selector.tsx",
-    "frontend/src/index.css",
-    "frontend/src/lib/functional-validation.ts",
-    "frontend/src/lib/platform-client.ts",
-    "frontend/src/routes/approvals.tsx",
-    "frontend/src/routes/home.tsx",
-    "frontend/src/routes/roadmap.tsx",
-    "frontend/src/routes/runs.tsx",
-    "frontend/src/routes/settings.tsx",
-    "frontend/tests/approvals.test.tsx",
-    "frontend/tests/goal-completion-evidence.test.tsx",
-    "frontend/tests/goal-progress.test.tsx",
-    "frontend/tests/platform-home.test.tsx",
-    "frontend/tests/roadmap.test.tsx",
-    "frontend/tests/task-first-lifecycle-states.test.tsx"
-  ],
-  "expected_product_delta_count": 30,
-  "materialized_target_identity_count": 31,
-  "expected_total_committed_delta_count": 31
+  "issue_completion_close_allowed": []
 }
 ```
 
-Require freshactivation and sequential PRE_EXECUTION_AUTHORIZED; preserve stoppedv2. Any mandatoryfailure stops this newround.
+## Goal
+
+Close the concrete public Resume admission gap identified in Issue #120 without rebuilding durable execution.
+
+## Build vs reuse decision
+
+```text
+REUSE current DurableExecutionService checkpoint/authority/HEAD fail-closed validation
+REUSE current AutonomyService owner-window + resume_task capability authorization
+REUSE current PlatformControlStore claim and token/cost reservation accounting
+SELF-DEVELOP only the thin Task API write-gate and focused regressions
+NO new dependency / RunStore / quota ledger / provider collector / policy engine
+```
+
+Provider-official quota and rate-limit observations remain the distinct #667 truth domain; this slice does not invent upstream remaining quota when it is unavailable.
+
+## Acceptance
+
+1. public manual Resume requires an INTERRUPTED task linked to a current RUNNING Goal/owner window;
+2. current `resume_task` repository/capability authority is rechecked immediately before admission;
+3. current token/cost admission is atomically reserved before durable resume dispatch;
+4. authority/planning SHA and repository/worktree/HEAD checks remain enforced by the durable resume layer before executor/tool re-entry;
+5. missing/expired/stopped/out-of-scope authority returns a bounded conflict and makes zero durable-resume calls;
+6. exhausted token/cost budget returns a bounded conflict and makes zero durable-resume calls;
+7. an admitted task calls exactly one correct durable resume path and finalizes its claim;
+8. provider-free regression suite and exact-head CI pass;
+9. no destructive cleanup, provider calls, secrets, dependency changes, second resume state machine or second usage/quota ledger.
+
+## Stop conditions
+
+Changed base, Decision mutation, missing pre-execution authorization, out-of-scope diff, failed mandatory checks, authority mismatch, budget denial, or unavailable required CI proof stops semantic publication. Preserve evidence and fail closed.
