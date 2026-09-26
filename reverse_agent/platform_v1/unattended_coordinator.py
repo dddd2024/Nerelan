@@ -433,7 +433,18 @@ class UnattendedCoordinator:
             while not self._stop.is_set():
                 try:
                     self.tick()
-                except Exception as exc:
+                except (Exception, SystemExit) as exc:
+                    # SystemExit is deliberately caught alongside Exception.
+                    # A hosted runtime can wrap this process with a shell shim
+                    # whose destructive-operation guard aborts a thread by
+                    # raising SystemExit; because SystemExit derives from
+                    # BaseException it slips past `except Exception`, escapes
+                    # this loop and silently kills the only autonomous worker
+                    # thread.  The observed symptom is a coordinator reporting
+                    # lifecycle=STOPPED with ticks=1 and executions=0 while an
+                    # ACTIVE window still has claimable work.  One misbehaving
+                    # tick must never disable unattended execution, so it is
+                    # recorded and the loop continues.
                     self._last_error = f"coordinator_tick_failed:{type(exc).__name__}"
                 self._stop.wait(self.poll_interval)
         finally:

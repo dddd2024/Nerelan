@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 import threading
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -773,3 +774,45 @@ def test_retry_exhausted_orphan_does_not_starve_claimable_tasks(tmp_path):
     # The orphan is untouched: its resume is still refused, not silently forced.
     assert store.get_task(orphan_task_id).status == "INTERRUPTED"
 
+
+
+def test_tick_raising_systemexit_cannot_kill_the_autonomous_loop(tmp_path):
+    """A guarded tick must not silently disable unattended execution.
+
+    ``SystemExit`` derives from ``BaseException`` while the worker loop only
+    caught ``Exception``.  A hosted runtime can wrap this process with a shell
+    shim whose destructive-operation guard aborts a thread with
+    ``SystemExit(1)``; observed in production as a coordinator reporting
+    ``lifecycle=STOPPED`` with ``ticks=1`` and ``executions=0`` while an ACTIVE
+    window still had claimable work.  The failure must be recorded and the loop
+    must survive it.
+    """
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy, router=ExecutorRouter(),
+        workspace_root=tmp_path, task_executor=lambda task_id: None,
+        poll_interval=0.1,
+    )
+    calls = []
+
+    def guarded_tick():
+        calls.append(len(calls) + 1)
+        if len(calls) <= 2:
+            raise SystemExit(1)
+        return 0
+
+    coordinator.tick = guarded_tick
+    coordinator.start()
+    try:
+        deadline = time.monotonic() + 10
+        while len(calls) < 4 and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert len(calls) >= 4, "the loop died after a SystemExit-raising tick"
+        status = coordinator.status()
+        assert status["lifecycle"] == "RUNNING"
+        assert status["enabled"] is True
+        assert status["last_error"] == "coordinator_tick_failed:SystemExit"
+    finally:
+        coordinator.stop()
