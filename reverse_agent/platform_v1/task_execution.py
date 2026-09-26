@@ -26,6 +26,8 @@ from .opencode_executor import (
     _validate_plan_handoff,
     _validate_review_handoff,
     handoff_dir,
+    resolve_role_models,
+    resolve_role_timeout_seconds,
 )
 from .repository_workspace import (
     RepositoryWorkspaceError,
@@ -89,6 +91,8 @@ def _build_executor_kwargs(
         kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
         kwargs["base_ref"] = (artifact_input["producer"]["commit"] if artifact_input is not None
                               else str(_map_task_field(task, "branch", "")))
+        kwargs["timeout"] = resolve_role_timeout_seconds()
+        kwargs["role_models"] = resolve_role_models()
         kwargs["transport_kind"] = os.environ.get(
             "REVERSE_AGENT_OPENCODE_TRANSPORT", "cli"
         ).strip() or "cli"

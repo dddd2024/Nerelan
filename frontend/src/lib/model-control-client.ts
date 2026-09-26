@@ -10,6 +10,7 @@ import {
   ConnectionInputSchema,
   ConnectionSchema,
   ConnectionProbeResultSchema,
+  ConnectionModelsResultSchema,
   AccountAuthStatusSchema,
   ExecutorSchema,
   BindingInputSchema,
@@ -20,6 +21,7 @@ import {
   type Binding,
   type BindingInput,
   type ConnectionProbeResult,
+  type ConnectionModelsResult,
   type AccountAuthStatus,
 } from "@/schemas/model-access";
 
@@ -34,6 +36,7 @@ export interface ModelControlClient {
   upsertConnection(input: ConnectionInput): Promise<Connection>;
   deleteConnection(connectionId: string): Promise<void>;
   testConnection(connectionId: string): Promise<ConnectionProbeResult>;
+  listConnectionModels(connectionId: string): Promise<ConnectionModelsResult>;
   getAccountAuthStatus(connectionId: string): Promise<AccountAuthStatus>;
   startAccountAuth(connectionId: string): Promise<AccountAuthStatus>;
   completeAccountAuth(connectionId: string, code?: string): Promise<AccountAuthStatus>;
@@ -363,6 +366,24 @@ export function createHttpModelControlClient(
       });
     },
 
+    async listConnectionModels(connectionId) {
+      const payload = await requestJson(
+        `${connectionsUrl}/${encodeURIComponent(connectionId)}/models`,
+        {
+          method: "POST",
+          body: JSON.stringify({}),
+        },
+      );
+      const raw = payload as Record<string, unknown>;
+      return ConnectionModelsResultSchema.parse({
+        ok: raw.ok,
+        status: raw.status,
+        message: raw.message,
+        latencyMs: raw.latencyMs ?? raw.latency_ms ?? null,
+        models: Array.isArray(raw.models) ? raw.models : [],
+      });
+    },
+
     async getAccountAuthStatus(connectionId) {
       const payload = await requestJson(
         `${connectionsUrl}/${encodeURIComponent(connectionId)}/account-auth`,
@@ -642,6 +663,41 @@ export function createMockModelControlClient(
         status: "connected",
         message: "连接成功",
         latencyMs: 18,
+      };
+    },
+
+    async listConnectionModels(connectionId) {
+      const connection = connections.find((c) => c.connectionId === connectionId);
+      if (!connection) {
+        throw new Error(`Connection not found: ${connectionId}`);
+      }
+      if (!connection.enabled) {
+        return {
+          ok: false,
+          status: "disabled",
+          message: "连接已禁用",
+          latencyMs: null,
+          models: [],
+        };
+      }
+      if (connection.authMethod !== "api_key" && connection.authMethod !== "none") {
+        return {
+          ok: false,
+          status: "unsupported_auth_method",
+          message: "认证由执行器管理，当前不支持获取模型列表",
+          latencyMs: null,
+          models: [],
+        };
+      }
+      return {
+        ok: true,
+        status: "connected",
+        message: "连接成功",
+        latencyMs: 18,
+        models: [
+          `${connection.provider}/mock-model-a`,
+          `${connection.provider}/mock-model-b`,
+        ],
       };
     },
 

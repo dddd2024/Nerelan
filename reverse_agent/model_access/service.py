@@ -120,6 +120,191 @@ def _do_probe(
         )
 
 
+def _parse_model_ids(payload: Any) -> list[str]:
+    """Extract bounded, de-duplicated model IDs from an OpenAI-compatible
+    ``/models`` response body (``{"data": [{"id": "..."}]}``).
+
+    Defensive against malformed upstream shapes: only string IDs within the
+    binding model-id length bound are kept, duplicates collapse, and the
+    result is capped so a hostile upstream cannot balloon the response.
+    """
+    if not isinstance(payload, dict):
+        return []
+    candidates = payload.get("data")
+    if not isinstance(candidates, list):
+        # Some OpenAI-compatible gateways return {"models": [...]} instead.
+        alt = payload.get("models")
+        candidates = alt if isinstance(alt, list) else []
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for entry in candidates[:1000]:
+        if len(ordered) >= 500:
+            break
+        if isinstance(entry, str):
+            model_id = entry.strip()
+        elif isinstance(entry, dict):
+            raw = entry.get("id")
+            if not isinstance(raw, str):
+                continue
+            model_id = raw.strip()
+        else:
+            continue
+        if not model_id or len(model_id) > 200 or model_id in seen:
+            continue
+        seen.add(model_id)
+        ordered.append(model_id)
+    return ordered
+
+
+def list_saved_connection_models(
+    *,
+    store: ModelProfileStore,
+    connection_id: str,
+    payload: dict[str, Any],
+    live_enabled: bool,
+    transport: ProbeTransport | None = None,
+    timeout: float = 10.0,
+) -> dict[str, Any]:
+    """List model IDs from a saved Connection's ``/models`` endpoint.
+
+    Same fail-closed semantics as ``probe_saved_connection``:
+      - The request body must be empty or ``{}`` — no config overrides.
+      - Connection metadata comes from the trusted store, not the request.
+      - API-key secrets are resolved server-side; no credential, environment
+        variable name or Authorization header is ever returned.
+    The response adds ``models`` (the bounded de-duplicated ID list) on top
+    of the standard probe fields.
+    """
+    if payload:
+        conflicting = sorted(k for k in payload if k in _PROBE_PAYLOAD_FORBIDDEN_FIELDS)
+        if conflicting:
+            raise ValueError(
+                "probe payload must not contain configuration overrides"
+            )
+        raise ValueError("probe payload must be an empty JSON object")
+
+    try:
+        connection = Connection.from_mapping(
+            store.get_connection_public(connection_id)
+        )
+    except KeyError:
+        return ProbeResult(
+            ok=False,
+            status="not_found",
+            message="Connection not found",
+            latency_ms=None,
+        ).to_dict()
+
+    if not connection.enabled:
+        return ProbeResult(
+            ok=False,
+            status="disabled",
+            message="Connection is disabled",
+            latency_ms=None,
+        ).to_dict()
+
+    if connection.auth_method == "api_key":
+        try:
+            secret = store.resolve_connection_secret(connection_id)
+        except VaultUnavailableError:
+            return ProbeResult(
+                ok=False,
+                status="credential_store_locked",
+                message="Credential store is locked or unavailable",
+                latency_ms=None,
+            ).to_dict()
+        if not secret:
+            return ProbeResult(
+                ok=False,
+                status="credential_missing",
+                message="API key is not configured or needs to be re-entered",
+                latency_ms=None,
+            ).to_dict()
+        headers = {"Accept": "application/json", "Authorization": f"Bearer {secret}"}
+    elif connection.auth_method == "none":
+        headers = {"Accept": "application/json"}
+    else:
+        return ProbeResult(
+            ok=False,
+            status="unsupported_auth_method",
+            message="Listing models for this authentication method is not yet supported",
+            latency_ms=None,
+        ).to_dict()
+
+    if not live_enabled:
+        return ProbeResult(
+            ok=False,
+            status="live_probe_disabled",
+            message="Live model probes require REVERSE_AGENT_MODEL_CONTROL_LIVE=1",
+            latency_ms=None,
+        ).to_dict()
+
+    url = f"{connection.base_url.rstrip('/')}/models"
+    started = perf_counter()
+    try:
+        status_code, body = (transport or _default_transport)(url, headers, timeout)
+        latency_ms = max(0, round((perf_counter() - started) * 1000))
+        if not 200 <= status_code < 300:
+            return ProbeResult(
+                ok=False,
+                status="upstream_http_error",
+                message=f"Upstream returned HTTP {status_code}",
+                latency_ms=latency_ms,
+            ).to_dict()
+        try:
+            parsed = json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return ProbeResult(
+                ok=False,
+                status="invalid_upstream_response",
+                message="Upstream returned invalid JSON",
+                latency_ms=latency_ms,
+            ).to_dict()
+        models = _parse_model_ids(parsed)
+        if not models:
+            return ProbeResult(
+                ok=False,
+                status="invalid_upstream_response",
+                message="Upstream did not return a recognizable model list",
+                latency_ms=latency_ms,
+            ).to_dict()
+        return {
+            "ok": True,
+            "status": "connected",
+            "message": "Connection succeeded",
+            "latency_ms": latency_ms,
+            "models": models,
+        }
+    except HTTPError as error:
+        return ProbeResult(
+            ok=False,
+            status="upstream_http_error",
+            message=f"Upstream returned HTTP {error.code}",
+            latency_ms=max(0, round((perf_counter() - started) * 1000)),
+        ).to_dict()
+    except TimeoutError:
+        return ProbeResult(
+            ok=False,
+            status="timeout",
+            message="Upstream request timed out",
+            latency_ms=max(0, round((perf_counter() - started) * 1000)),
+        ).to_dict()
+    except URLError:
+        return ProbeResult(
+            ok=False,
+            status="connection_error",
+            message="Unable to connect to upstream model endpoint",
+            latency_ms=max(0, round((perf_counter() - started) * 1000)),
+        ).to_dict()
+    except OSError:
+        return ProbeResult(
+            ok=False,
+            status="connection_error",
+            message="Unable to connect to upstream model endpoint",
+            latency_ms=max(0, round((perf_counter() - started) * 1000)),
+        ).to_dict()
+
+
 def probe_openai_compatible(
     *,
     profile: ModelProfile,
@@ -417,6 +602,20 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
                     live_enabled=self.live_enabled,
                 )
                 self._send_json(HTTPStatus.OK, result.to_dict())
+                return
+            if (
+                len(segments) == 4
+                and segments[:2] == ["api", "connections"]
+                and segments[3] == "models"
+            ):
+                payload = self._read_json(optional=True)
+                result = list_saved_connection_models(
+                    store=self.store,
+                    connection_id=segments[2],
+                    payload=payload,
+                    live_enabled=self.live_enabled,
+                )
+                self._send_json(HTTPStatus.OK, result)
                 return
             if (
                 len(segments) == 5

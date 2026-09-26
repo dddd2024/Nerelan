@@ -8,6 +8,7 @@ import {
   useDeleteConnection,
   useExecutors,
   useTestConnection,
+  useListConnectionModels,
   useUpsertBinding,
   useUpsertConnection,
 } from "@/hooks/use-model-access";
@@ -58,6 +59,7 @@ export function SettingsPage() {
   const [accountAuthPending, setAccountAuthPending] = useState(false);
 
   const testConnectionMutation = useTestConnection();
+  const listConnectionModelsMutation = useListConnectionModels();
 
   useEffect(() => {
     if (creating) return;
@@ -126,6 +128,10 @@ export function SettingsPage() {
     } catch (cause) {
       setError(errorMessage(cause));
     }
+  }
+
+  async function handleConnectionModelsFetch(connectionId: string) {
+    return listConnectionModelsMutation.mutateAsync(connectionId);
   }
 
   async function handleAccountAuthStart(connectionId: string) {
@@ -271,7 +277,6 @@ export function SettingsPage() {
               className={cn(
                 "inline-flex items-center justify-center gap-2 rounded-md",
                 "px-3 py-2 text-sm font-medium",
-                "focus:outline-none focus-visible:ring-2 focus-visible:ring-white",
                 view === "connection"
                   ? "bg-ra-accent text-ra-base"
                   : "border border-ra-border text-ra-text-secondary hover:bg-ra-tertiary",
@@ -286,7 +291,6 @@ export function SettingsPage() {
               className={cn(
                 "inline-flex items-center justify-center gap-2 rounded-md",
                 "px-3 py-2 text-sm font-medium",
-                "focus:outline-none focus-visible:ring-2 focus-visible:ring-white",
                 view === "binding"
                   ? "bg-ra-accent text-ra-base"
                   : "border border-ra-border text-ra-text-secondary hover:bg-ra-tertiary",
@@ -442,8 +446,10 @@ export function SettingsPage() {
             onConnectionDelete={handleConnectionDelete}
             onBindingDelete={handleBindingDelete}
             onConnectionTest={handleConnectionTest}
+            onConnectionModelsFetch={handleConnectionModelsFetch}
             connectionProbeResult={connProbeResult}
             connectionProbePending={testConnectionMutation.isPending}
+            connectionModelsPending={listConnectionModelsMutation.isPending}
             accountAuthState={accountAuthState}
             accountAuthPending={accountAuthPending}
             onAccountAuthStart={handleAccountAuthStart}

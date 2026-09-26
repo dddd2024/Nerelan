@@ -53,3 +53,10 @@ task_workspaces/
 # Legacy provider-free tests may materialize nested fixture repositories at the
 # selected workspace root. They are runtime scratch, never product source.
 task-[0-9]*-*/
+
+# Vite writes a timestamped temp config alongside vite.config.ts on every dev
+# start. Runtime scratch, never product source (see _is_transient_artifact_path).
+frontend/vite.config.ts.timestamp-*.mjs
+
+# Agent workspace (notes, evidence, deliverable reports). Runtime scratch.
+.workbuddy/

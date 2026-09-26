@@ -1876,3 +1876,78 @@ def test_locked_vault_fails_execution_lease_creation_closed(tmp_path) -> None:
         host._lease_provider_factory()(resolution)
     assert host.relay_manager.lease_count() == 0
     host.stop()
+
+
+def test_relay_upstream_timeout_defaults_to_library_value_when_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """缺陷 15：中继上游 socket 超时缺省必须是库默认值的可复现镜像。
+
+    ``forward_to_upstream`` 把该值交给 ``urlopen`` 作为 socket 超时，界定的
+    是 SSE 相邻两 chunk 之间的静默间隔。缺省值必须与库默认一致，否则未显式
+    配置的部署会静默获得一个与库文档不符的预算。
+    """
+    from reverse_agent.model_access.credential_relay import (
+        run_credential_relay_server,
+    )
+    from reverse_agent.platform_v1.trusted_host import (
+        _resolve_relay_upstream_timeout_seconds,
+    )
+
+    monkeypatch.delenv("REVERSE_AGENT_RELAY_UPSTREAM_TIMEOUT_SECONDS", raising=False)
+    assert _resolve_relay_upstream_timeout_seconds() == 120.0
+
+    import inspect
+
+    library_default = inspect.signature(run_credential_relay_server).parameters[
+        "upstream_timeout"
+    ].default
+    assert _resolve_relay_upstream_timeout_seconds() == library_default
+
+
+def test_relay_upstream_timeout_rejects_invalid_values_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """非法值必须回落而不是把畸形预算带进 socket 层。"""
+    from reverse_agent.platform_v1.trusted_host import (
+        _resolve_relay_upstream_timeout_seconds,
+    )
+
+    for raw in ("", "   ", "abc", "1e999999", "-1", "0", "nan"):
+        monkeypatch.setenv("REVERSE_AGENT_RELAY_UPSTREAM_TIMEOUT_SECONDS", raw)
+        resolved = _resolve_relay_upstream_timeout_seconds()
+        assert resolved > 0, raw
+        assert resolved == resolved, raw  # 拒绝 NaN：NaN != NaN
+        assert resolved == 120.0, raw
+
+
+def test_relay_upstream_timeout_honours_operator_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """角色超时（2700s）远长于库默认 120s，算符必须能抬高该预算。"""
+    from reverse_agent.platform_v1.trusted_host import (
+        _resolve_relay_upstream_timeout_seconds,
+    )
+
+    monkeypatch.setenv("REVERSE_AGENT_RELAY_UPSTREAM_TIMEOUT_SECONDS", "2700")
+    assert _resolve_relay_upstream_timeout_seconds() == 2700.0
+
+    monkeypatch.setenv("REVERSE_AGENT_RELAY_UPSTREAM_TIMEOUT_SECONDS", " 180.5 ")
+    assert _resolve_relay_upstream_timeout_seconds() == 180.5
+
+
+def test_trusted_host_wires_resolved_relay_upstream_timeout_into_relay_server(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """接线断言：解析结果必须真正到达中继 handler。
+
+    只测纯函数无法阻止调用点回退成硬编码常量（这正是缺陷 15 的形态）。
+    """
+    monkeypatch.setenv("REVERSE_AGENT_RELAY_UPSTREAM_TIMEOUT_SECONDS", "2700")
+    host = CombinedTrustedHost(task_store=_make_store(tmp_path))
+    host.start(model_control_port=0, task_api_port=0)
+    try:
+        handler_cls = host._relay_server_inner.RequestHandlerClass
+        assert handler_cls.upstream_timeout == 2700.0
+    finally:
+        host.stop()

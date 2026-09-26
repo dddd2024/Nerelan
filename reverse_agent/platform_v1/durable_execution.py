@@ -2090,6 +2090,8 @@ class DurableExecutionService:
             failure_classification="" if passed else "deterministic_validation_failure", failure_detail=reason)
 
     def _build_executor_kwargs(self, task: Any) -> dict[str, Any]:
+        from .opencode_executor import resolve_role_models, resolve_role_timeout_seconds
+
         kwargs: dict[str, Any] = {}
         artifact_input = load_input_binding(self.store.get_task(task.id))
         if getattr(task, "executor_kind", "") == "opencode":
@@ -2106,6 +2108,8 @@ class DurableExecutionService:
             kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
             kwargs["base_ref"] = (artifact_input["producer"]["commit"] if artifact_input is not None
                                    else getattr(task, "branch", "") or "")
+            kwargs["timeout"] = resolve_role_timeout_seconds()
+            kwargs["role_models"] = resolve_role_models()
             kwargs["transport_kind"] = os.environ.get(
                 "REVERSE_AGENT_OPENCODE_TRANSPORT", "cli"
             ).strip() or "cli"
@@ -2118,7 +2122,7 @@ class DurableExecutionService:
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
-                cwd=wt_path, capture_output=True, text=True, check=True,
+                cwd=wt_path, capture_output=True, text=True, errors="replace", check=True,
             )
             return result.stdout.strip()
         except Exception:
@@ -4052,6 +4056,8 @@ def _build_resume_executor_kwargs(
     binding_resolver: Any | None = None,
     lease_provider: Any | None = None,
 ) -> dict[str, Any]:
+    from .opencode_executor import resolve_role_models, resolve_role_timeout_seconds
+
     kwargs: dict[str, Any] = {}
     if stored_task.executor_kind == "opencode":
         binding_ref = getattr(stored_task, "binding_ref", "") or ""
@@ -4070,6 +4076,8 @@ def _build_resume_executor_kwargs(
             kwargs["model_id"] = model_id
         kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
         kwargs["base_ref"] = getattr(stored_task, "branch", "") or ""
+        kwargs["timeout"] = resolve_role_timeout_seconds()
+        kwargs["role_models"] = resolve_role_models()
         kwargs["transport_kind"] = os.environ.get(
             "REVERSE_AGENT_OPENCODE_TRANSPORT", "cli"
         ).strip() or "cli"

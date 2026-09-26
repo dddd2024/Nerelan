@@ -140,7 +140,7 @@ function GoalDetail({
         <p
           role="alert"
           data-testid="approval-error"
-          className="mt-5 rounded-xl border border-red-400/20 bg-red-400/5 px-3 py-2 text-sm text-red-300"
+          className="mt-5 rounded-xl border border-ra-status-error/20 bg-ra-status-error/5 px-3 py-2 text-sm text-ra-status-error"
         >
           {mutationMessage(error)}
         </p>
@@ -279,7 +279,7 @@ export function ApprovalsPage() {
           <p className="text-sm text-ra-text-tertiary">正在读取待处理目标…</p>
         )}
         {goalsQuery.error && (
-          <p role="alert" className="text-sm text-red-300">
+          <p role="alert" className="text-sm text-ra-status-error">
             {mutationMessage(goalsQuery.error)}
           </p>
         )}
@@ -329,7 +329,7 @@ export function ApprovalsPage() {
                 <p className="text-sm text-ra-text-tertiary">正在读取目标…</p>
               )}
               {selectedGoalQuery.error && (
-                <p role="alert" className="text-sm text-red-300">
+                <p role="alert" className="text-sm text-ra-status-error">
                   {mutationMessage(selectedGoalQuery.error)}
                 </p>
               )}

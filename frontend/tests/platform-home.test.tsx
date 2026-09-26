@@ -436,7 +436,7 @@ describe("Platform V2 Home Workspace V2", () => {
 
     expect(goalSpy.mock.calls.length).toBe(fetchesDuringTerminal);
     expect(getGoalDetailCacheData(client)?.status).toBe("COMPLETED");
-    expect(screen.queryByText("需要处理阻塞")).not.toBeInTheDocument();
+    expect(hasTextInCurrentSection("需要处理阻塞")).toBe(false);
   });
 
   it("keeps Recent Goals capped at 3 entries even with more goals", async () => {

@@ -9,6 +9,7 @@ import { LoadingState } from "@/components/loading-state";
 import { useGoal, useGoals, usePlatformStatus, useCreateGoalDraft } from "@/hooks/use-platform";
 import { useRuns } from "@/hooks/use-runs";
 import type { PlatformGoal } from "@/lib/platform-client";
+import { goalStatusLabel } from "@/lib/goal-status-label";
 import { cn } from "@/lib/cn";
 
 function relativeTime(value: string) {
@@ -24,16 +25,6 @@ function goalStatusTextClass(status: string) {
   if (status === "BLOCKED" || status === "INVALIDATED") return "text-ra-status-error";
   if (status === "RUNNING") return "text-ra-accent";
   return "text-ra-text-tertiary";
-}
-
-function goalStatusLabel(status: PlatformGoal["status"]) {
-  if (status === "RUNNING") return "正在执行";
-  if (status === "COMPLETED") return "已完成";
-  if (status === "BLOCKED") return "需要处理阻塞";
-  if (status === "INVALIDATED") return "已失效";
-  if (status === "APPROVED" || status === "PLANNED") return "等待启动";
-  if (status === "DRAFT") return "草稿";
-  return status;
 }
 
 function ReadFeedback({ query, label }: {
@@ -286,7 +277,7 @@ export function HomePage() {
                       goalStatusTextClass(goal.status),
                     )}
                   >
-                    {goal.status}
+                    {goalStatusLabel(goal.status)}
                   </span>
                 </div>
                 <div className="mt-0.5 flex items-center gap-4 text-[11px] text-ra-text-tertiary">

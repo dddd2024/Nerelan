@@ -219,7 +219,7 @@ def retain_validated_artifact(store: Any, task_id: str, identity: str, *,
     created = subprocess.run(["git", "-C", str(root), "-c", "commit.gpgSign=false",
         "-c", f"core.hooksPath={os.devnull}", "commit-tree",
         proof["tree"], "-p", proof["head"], "-m", message], env=env, stdin=subprocess.DEVNULL,
-        capture_output=True, text=True, encoding="utf-8", timeout=15, check=False)
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15, check=False)
     commit = created.stdout.strip()
     if created.returncode or not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise TaskStoreError("artifact_commit_creation_failed")

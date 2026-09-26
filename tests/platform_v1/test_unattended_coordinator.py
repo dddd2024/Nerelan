@@ -704,3 +704,72 @@ def test_unknown_or_overrun_usage_blocks_future_dispatch(
         assert stopped.enforcement_class == "USAGE_UNKNOWN"
         assert stopped.unknown_observation_count == 1
     assert control.active_window() is None
+
+
+def test_retry_exhausted_orphan_does_not_starve_claimable_tasks(tmp_path):
+    """A resume-blocked orphan must not hide fresh QUEUED work.
+
+    ``window_retry_budget_exhausted`` is a per-attempt restriction, not a
+    window-wide capacity limit.  The orphaned INTERRUPTED Task is ordered
+    first here on purpose: before the guard, claiming it aborted the whole
+    claim loop and every fresh QUEUED Task behind it stayed QUEUED forever
+    even though the window had spare capacity and budget.
+    """
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "retry-starve", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"],
+        "capabilities": ["execute_task", "resume_task"],
+        "max_concurrent_tasks": 2, "max_tasks": 10, "max_retries": 1,
+        "confirmation": "ACTIVATE",
+    })
+
+    def _launch(objective: str, key: str) -> str:
+        goal = goals.create({
+            "objective": objective, "idempotency_key": key,
+            "executor_kind": "deterministic_fixture", "orchestration_mode": "single",
+        })
+        goals.plan(goal.id, expected_revision=1, tasks=[
+            {"id": "T001", "title": objective, "instruction": objective},
+        ])
+        goals.approve(goal.id, expected_revision=1)
+        goals.launch(goal.id, expected_revision=1, window_id=window.id)
+        return control.list_goal_tasks(goal.id)[0]["task_id"]
+
+    orphan_task_id = _launch("orphan", "starve-orphan")
+    fresh_task_id = _launch("fresh", "starve-fresh")
+    # The orphan sits in the resumable state whose claim needs retry budget.
+    store.set_state(orphan_task_id, "INTERRUPTED")
+    # Spend the window's single retry so the orphan's resume is refused.
+    control._conn.execute(
+        "UPDATE platform_autonomous_windows SET retries_used = max_retries WHERE id = ?",
+        (window.id,),
+    )
+    control._conn.commit()
+
+    order = control.runnable_tasks(window.id, limit=10)
+    assert order[0] == orphan_task_id, "the orphan must be considered first"
+    assert fresh_task_id in order
+
+    calls = []
+
+    def execute(task_id):
+        calls.append(task_id)
+        return _ready_fixture(store, task_id)
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy, router=ExecutorRouter(),
+        workspace_root=tmp_path, task_executor=execute,
+    )
+    assert coordinator.tick() == 1
+    assert calls == [fresh_task_id]
+    assert store.get_task(fresh_task_id).status == "READY_FOR_REVIEW_FIXTURE"
+    # The orphan is untouched: its resume is still refused, not silently forced.
+    assert store.get_task(orphan_task_id).status == "INTERRUPTED"
+

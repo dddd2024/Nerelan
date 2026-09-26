@@ -78,6 +78,7 @@ class LiveGitAdapter:
             cwd=self.repo_dir,
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=30,
         )
         if result.returncode != 0:
@@ -94,6 +95,7 @@ class LiveGitAdapter:
             cwd=self.repo_dir,
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=30,
         )
         if result.returncode not in (0, 2):
@@ -109,6 +111,7 @@ class LiveGitAdapter:
             cwd=self.repo_dir,
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=30,
         )
         if result.returncode != 0:
@@ -197,6 +200,7 @@ class LiveCommandRunner:
             cwd=cwd or self.default_cwd,
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=600,
         )
         return (result.returncode, result.stdout, result.stderr)

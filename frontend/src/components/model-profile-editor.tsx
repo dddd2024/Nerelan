@@ -288,7 +288,6 @@ const inputClass = cn(
 const primaryButtonClass = cn(
   "inline-flex items-center gap-2 rounded-md bg-ra-accent px-3 py-2",
   "text-sm font-medium text-ra-base disabled:cursor-not-allowed disabled:opacity-50",
-  "focus:outline-none focus-visible:ring-2 focus-visible:ring-white",
 );
 
 const secondaryButtonClass = cn(

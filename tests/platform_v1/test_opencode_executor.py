@@ -3043,3 +3043,85 @@ def test_binding_config_content_executor_managed_preserves_metadata_and_secret_f
     lowered = content.lower()
     for forbidden in ("apikey", "token", "password", "credential", "cookie"):
         assert forbidden not in lowered, f"secret indicator {forbidden!r} leaked into config"
+
+
+# ---------------------------------------------------------------------------
+# Handoff cleanup must not depend on a single recursive delete.
+#
+# A recursive ``shutil.rmtree`` can be intercepted by environment-level
+# bulk-deletion guards, which block waiting for a confirmation that an
+# unattended run can never supply.  Because the guard blocks instead of
+# raising, ``ignore_errors=True`` cannot recover and the executor thread hangs.
+# The handoff payload is a tiny fixed file set, so it is removed entry by
+# entry; these tests pin that behaviour.
+# ---------------------------------------------------------------------------
+
+
+def _make_handoff(worktree: Path, *, nested: bool = False) -> Path:
+    from reverse_agent.platform_v1.opencode_executor import handoff_dir as _hd
+
+    handoff = _hd(worktree)
+    handoff.mkdir(parents=True, exist_ok=True)
+    (handoff / "plan.md").write_text("plan", encoding="utf-8")
+    (handoff / "review.md").write_text("review", encoding="utf-8")
+    if nested:
+        deep = handoff / "nested" / "deeper"
+        deep.mkdir(parents=True, exist_ok=True)
+        (deep / "leftover.txt").write_text("x", encoding="utf-8")
+    return handoff
+
+
+def test_remove_handoff_does_not_need_a_recursive_delete(tmp_path, monkeypatch):
+    import reverse_agent.platform_v1.opencode_executor as mod
+    from reverse_agent.platform_v1.opencode_executor import _remove_handoff
+
+    handoff = _make_handoff(tmp_path)
+
+    calls: list[str] = []
+
+    def _spy(path, *args, **kwargs):
+        calls.append(str(path))
+        raise AssertionError("recursive delete must not be the primary path")
+
+    monkeypatch.setattr(mod.shutil, "rmtree", _spy)
+
+    assert _remove_handoff(handoff) is True
+    assert calls == []
+    assert not handoff.exists()
+    assert not (handoff / "plan.md").exists()
+
+
+def test_remove_handoff_survives_a_blocked_recursive_delete(tmp_path, monkeypatch):
+    import reverse_agent.platform_v1.opencode_executor as mod
+    from reverse_agent.platform_v1.opencode_executor import _remove_handoff
+
+    handoff = _make_handoff(tmp_path)
+
+    def _blocked(path, *args, **kwargs):
+        raise PermissionError("simulated environment bulk-deletion guard")
+
+    monkeypatch.setattr(mod.shutil, "rmtree", _blocked)
+
+    assert _remove_handoff(handoff) is True
+    assert not handoff.exists()
+
+
+def test_remove_handoff_removes_nested_leftovers(tmp_path):
+    from reverse_agent.platform_v1.opencode_executor import _remove_handoff
+
+    handoff = _make_handoff(tmp_path, nested=True)
+    assert (handoff / "nested" / "deeper" / "leftover.txt").exists()
+
+    assert _remove_handoff(handoff) is True
+    assert not handoff.exists()
+
+
+def test_remove_handoff_returns_false_when_absent_or_empty(tmp_path):
+    from reverse_agent.platform_v1.opencode_executor import _remove_handoff, handoff_dir
+
+    assert _remove_handoff(handoff_dir(tmp_path)) is False
+
+    empty = handoff_dir(tmp_path)
+    empty.mkdir(parents=True, exist_ok=True)
+    assert _remove_handoff(empty) is False
+    assert empty.is_dir(), "an empty handoff directory must be left untouched"

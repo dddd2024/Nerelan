@@ -1,6 +1,7 @@
 import { Flag, Map } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchRoadmap, type PlatformRoadmapPhase } from "@/lib/platform-client";
+import { goalStatusLabel } from "@/lib/goal-status-label";
 import { cn } from "@/lib/cn";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
@@ -85,7 +86,7 @@ export function RoadmapPage() {
                     className="flex items-center justify-between gap-3 rounded-lg bg-ra-light/40 px-3 py-2"
                   >
                     <span className="min-w-0 truncate text-sm text-ra-text">{goal.title}</span>
-                    <span className="shrink-0 text-[11px] text-ra-text-tertiary">{goal.status}</span>
+                    <span className="shrink-0 text-[11px] text-ra-text-tertiary">{goalStatusLabel(goal.status)}</span>
                   </li>
                 ))}
                 {phase.goals.length === 0 && (

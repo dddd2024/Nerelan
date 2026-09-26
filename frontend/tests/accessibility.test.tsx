@@ -126,4 +126,13 @@ describe("accessibility", () => {
     expect(contrastRatio("#66675f", "#fffefa")).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio("#66675f", "#f1eee6")).toBeGreaterThanOrEqual(4.5);
   });
+
+  it("keeps light error text at WCAG AA contrast on both light surfaces", () => {
+    const css = read("src/index.css");
+
+    expect(css).not.toContain("--ra-status-error: #b9473f;");
+    expect(css).toContain("--ra-status-error: #a83c35;");
+    expect(contrastRatio("#a83c35", "#fffefa")).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio("#a83c35", "#f1eee6")).toBeGreaterThanOrEqual(4.5);
+  });
 });

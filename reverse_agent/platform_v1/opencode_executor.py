@@ -25,13 +25,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import platform
 import re
 import shutil
 import subprocess
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -251,6 +252,52 @@ def validate_model_id(model_id: str) -> str:
     if any(c.isspace() for c in stripped):
         raise ExecutorRuntimeError("model_id_contains_whitespace")
     return stripped
+
+
+ROLE_MODEL_ENV = "REVERSE_AGENT_ROLE_MODELS_JSON"
+ROLE_MODEL_KEYS = ("planner", "coder", "reviewer")
+
+
+def resolve_role_models(raw: str | None = None) -> dict[str, str]:
+    """Resolve the owner-declared per-role model map.
+
+    Multi-model collaboration: the planner, coder and reviewer roles of one
+    Task may be served by different models of the same Connection, so the
+    roles genuinely divide the labour instead of one model doing all three
+    passes.  The mapping is supplied out-of-band by the owner as a JSON
+    object, for example::
+
+        {"planner": "glm-5.2", "coder": "sensenova-6.8-flash-lite",
+         "reviewer": "kimi-k3"}
+
+    The resolver is fail-closed.  A missing, malformed, non-object or
+    partially invalid payload yields only the entries that validate; an
+    entry that is not a well-formed model id for one of the three
+    sequential roles is dropped rather than trusted, so a bad
+    configuration degrades to the Binding's own single model instead of
+    widening execution authority.
+    """
+    if raw is None:
+        raw = os.environ.get(ROLE_MODEL_ENV, "")
+    if not isinstance(raw, str) or not raw.strip():
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+    resolved: dict[str, str] = {}
+    for key, value in parsed.items():
+        if not isinstance(key, str) or key not in ROLE_MODEL_KEYS:
+            continue
+        if not isinstance(value, str) or not value.strip():
+            continue
+        try:
+            resolved[key] = validate_model_id(value.strip())
+        except ExecutorRuntimeError:
+            continue
+    return resolved
 
 
 _TRANSIENT_PROVIDER_ID = "reverse-agent-relay"
@@ -524,6 +571,7 @@ def _resolve_windows_exe() -> str | None:
                 ["where.exe", candidate],
                 capture_output=True,
                 text=True,
+                errors="replace",
                 timeout=10,
             )
             if proc.returncode == 0:
@@ -540,6 +588,7 @@ def _resolve_windows_exe() -> str | None:
             ["where.exe", "opencode"],
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=10,
         )
         if proc.returncode == 0:
@@ -564,6 +613,7 @@ def _resolve_windows_cmd() -> str | None:
             ["where.exe", "opencode.cmd"],
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=10,
         )
         if proc.returncode == 0:
@@ -619,6 +669,30 @@ _ACCOUNT_AUTH_ENV_ALLOWLIST = (
     "XDG_DATA_HOME",
     "XDG_CONFIG_HOME",
 )
+
+
+def resolve_role_timeout_seconds(default: int = 300) -> int:
+    """Resolve the per-role OpenCode CLI timeout from trusted config.
+
+    Planner/coder/reviewer exploration of a real repository routinely
+    exceeds the 300-second library default, which silently truncates runs
+    that are otherwise progressing normally. Operators extend the ceiling
+    via ``REVERSE_AGENT_OPENCODE_TIMEOUT_SECONDS``; invalid or missing
+    values keep the library default.
+    """
+    raw = os.environ.get("REVERSE_AGENT_OPENCODE_TIMEOUT_SECONDS", "").strip()
+    if not raw:
+        return default
+    try:
+        numeric = float(raw)
+    except ValueError:
+        return default
+    if not math.isfinite(numeric) or numeric <= 0:
+        return default
+    value = int(numeric)
+    if value <= 0:
+        return default
+    return value
 
 
 def start_opencode_account_auth_server(
@@ -844,8 +918,8 @@ def execute_opencode_auth_list_probe(
                 cwd=os.getcwd(),
                 capture_output=True,
                 text=True,
-                encoding="utf-8",
                 errors="replace",
+                encoding="utf-8",
                 timeout=15,
                 check=False,
                 env=child_env,
@@ -919,6 +993,18 @@ _ROLE_CODER_INSTRUCTIONS = (
     "You remain prohibited from commit, push, PR, merge, tag, release,\n"
     "and deploy. Your modifications become the product diff observed\n"
     "by the reviewer.\n"
+    "ENCODING SAFETY (mandatory): never write or rewrite product file\n"
+    "content via shell or PowerShell commands. Console pipelines are not\n"
+    "UTF-8 safe on Windows, so non-ASCII text -- including pre-existing\n"
+    "localized UI strings -- is silently corrupted into invalid literals.\n"
+    "Always edit or write files with the dedicated file tools. If a shell\n"
+    "write is truly unavoidable, keep the payload strictly ASCII and\n"
+    "verify the file afterward with a parse or type check.\n"
+    "After every edit, re-read the file and confirm the surrounding\n"
+    "non-ASCII text is unchanged. If a product file you touch already\n"
+    "contains a corrupted or unterminated string literal, restore the\n"
+    "correct original text with the file tools before continuing -- do\n"
+    "not leave the worktree in a non-parsing state.\n"
 )
 
 _ROLE_REVIEWER_INSTRUCTIONS = (
@@ -938,6 +1024,12 @@ _ROLE_REVIEWER_INSTRUCTIONS = (
     "```.reverse-agent-handoff/review.md```. Do NOT rewrite, amend, or\n"
     "repair any product file in this slice. You MUST NOT fix a defect\n"
     "you discover.\n"
+    "Review checklist item (mandatory): confirm every changed file still\n"
+    "parses and that pre-existing non-ASCII text (for example localized\n"
+    "UI strings) is intact. Corrupted or unterminated string literals --\n"
+    "typical mojibake such as CJK text rendered as unrelated CJK\n"
+    "characters with a broken closing quote -- are blocking defects and\n"
+    "must be reported as such.\n"
 )
 
 _ROLE_INSTRUCTIONS: dict[str, str] = {
@@ -1034,17 +1126,55 @@ def _has_handoff_files(handoff: Path) -> bool:
     return any(True for _ in _iter_handoff_files(handoff))
 
 
-def _remove_handoff(handoff: Path) -> bool:
-    """Remove the handoff directory recursively if it exists and contains files.
+def _iter_handoff_entries_bottom_up(root: Path) -> list[Path]:
+    """Return every entry under *root*, files first then directories, deepest first.
 
-    Returns True iff the directory existed and had at least one file (i.e.
-    there was something to clean up).
+    Ordering guarantees a directory is only offered for removal after all of its
+    children, so the caller never needs a recursive delete.
+    """
+    files: list[Path] = []
+    dirs: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(root, topdown=False):
+        base = Path(dirpath)
+        files.extend(base / name for name in filenames)
+        dirs.extend(base / name for name in dirnames)
+    return files + dirs
+
+
+def _remove_handoff(handoff: Path) -> bool:
+    """Remove the handoff directory if it exists and contains files.
+
+    Returns True iff the directory existed, had at least one file, and was
+    removed.
+
+    The handoff payload is a small, fixed file set (``plan.md`` and
+    ``review.md``), so it is removed entry by entry instead of through a single
+    recursive ``shutil.rmtree`` call.  A recursive delete can be intercepted by
+    environment-level bulk-deletion guards, which surface as a *blocking*
+    confirmation prompt rather than an error.  In an unattended run nothing can
+    answer that prompt, so the executor thread hangs instead of failing -- and
+    because the guard blocks rather than raises, ``ignore_errors=True`` cannot
+    recover.  Removing the handful of entries individually stays far below any
+    such bulk threshold.  A recursive call is kept only as a last-resort
+    fallback for unexpected leftovers, and never as the primary path.
     """
     if not handoff.is_dir():
         return False
     if not _has_handoff_files(handoff):
         return False
-    shutil.rmtree(handoff, ignore_errors=True)
+
+    for entry in _iter_handoff_entries_bottom_up(handoff):
+        try:
+            entry.unlink()
+        except OSError:
+            pass
+    try:
+        handoff.rmdir()
+    except OSError:
+        pass
+
+    if handoff.exists():
+        shutil.rmtree(handoff, ignore_errors=True)
     return not handoff.exists()
 
 
@@ -1113,9 +1243,23 @@ class OpenCodeExecutor:
         use_auto: bool = True,
         transport_kind: str = "cli",
         lease_provider: LeaseProvider | None = None,
+        role_models: Mapping[str, str] | None = None,
     ) -> None:
         self._binding_resolution = binding_resolution
         self._lease_provider = lease_provider
+        self._role_models: dict[str, str] = {}
+        if role_models:
+            for key, value in role_models.items():
+                if not isinstance(key, str) or key not in ROLE_MODEL_KEYS:
+                    continue
+                if not isinstance(value, str) or not value.strip():
+                    continue
+                try:
+                    self._role_models[key] = validate_model_id(value.strip())
+                except ExecutorRuntimeError:
+                    # A malformed declaration degrades to the Binding's own
+                    # model for that role instead of aborting the Task.
+                    continue
         if binding_resolution is not None:
             if binding_resolution.executor_id != "opencode":
                 raise ExecutorRuntimeError("binding_executor_mismatch")
@@ -1148,6 +1292,45 @@ class OpenCodeExecutor:
         if transport_kind not in {"cli", "server"}:
             raise ExecutorRuntimeError("opencode_transport_kind_invalid")
         self._transport_kind = transport_kind
+
+    def _model_for_role(self, role: str) -> str:
+        """Return the provider-qualified model id that serves one role.
+
+        A declared per-role model wins; otherwise every role falls back to
+        the Binding's own model, which keeps single-model behaviour
+        byte-identical to before this capability existed.  A bare
+        ``model`` declaration is qualified with the Binding's provider id
+        so it takes exactly the ``provider/model`` CLI-selector form used
+        everywhere else; the trusted host then sees one normalised value
+        and can authorise it against the owner-declared role models.
+        """
+        override = self._role_models.get(role)
+        if not override:
+            return self._model_id
+        if "/" in override:
+            return override
+        resolution = self._binding_resolution
+        provider = resolution.provider_id if resolution is not None else ""
+        if provider:
+            return f"{provider}/{override}"
+        return override
+
+    def _role_binding_resolution(
+        self, role_model: str
+    ) -> OpenCodeBindingResolution | None:
+        """Return the Binding resolution as viewed for one role's model.
+
+        When a role is served by a declared role model rather than the
+        Binding's own model, the leased execution must carry that model, so
+        the credential relay mints a lease for exactly that model and the
+        CLI selector resolves to it. Every other Binding field is
+        unchanged, so the pre-lease drift checks still pin connection,
+        executor, provider, base URL and auth method.
+        """
+        resolution = self._binding_resolution
+        if resolution is None or role_model == self._model_id:
+            return resolution
+        return replace(resolution, model_id=role_model)
 
     def execute(
         self,
@@ -1226,11 +1409,13 @@ class OpenCodeExecutor:
         binding_metadata = self._binding_event_metadata()
 
         lease_handle: ExecutionLeaseHandle | None = None
+        role_model = self._model_for_role(role_context.role)
+        resolution_for_role = self._role_binding_resolution(role_model)
         try:
-            if self._binding_resolution is not None and self._binding_resolution.relay_required:
-                lease_handle = self._lease_provider(self._binding_resolution)
+            if resolution_for_role is not None and resolution_for_role.relay_required:
+                lease_handle = self._lease_provider(resolution_for_role)
 
-            model_for_cli = self._model_id
+            model_for_cli = role_model
             if lease_handle is not None:
                 model_for_cli = lease_handle.model_id
 
@@ -1268,12 +1453,16 @@ class OpenCodeExecutor:
                     "errors": "replace",
                     "timeout": self._timeout,
                     "check": False,
+                    # Non-interactive CLI: never inherit the parent's stdin.
+                    # An inherited open pipe makes the CLI block on stdin EOF
+                    # until the role timeout on Windows service hosts.
+                    "stdin": subprocess.DEVNULL,
                 }
                 role = role_context.role
                 is_sequential_role = role in _ROLE_INSTRUCTIONS
-                if self._binding_resolution is not None:
+                if resolution_for_role is not None:
                     config_content = build_binding_config_content(
-                        self._binding_resolution,
+                        resolution_for_role,
                         lease=lease_handle,
                     )
                     run_kwargs["env"] = build_role_child_env(
@@ -1477,16 +1666,18 @@ class OpenCodeExecutor:
 
         binding_metadata = self._binding_event_metadata()
         lease_handle: ExecutionLeaseHandle | None = None
-        model_for_server = self._model_id
+        role = role_context.role
+        role_model = self._model_for_role(role)
+        resolution_for_role = self._role_binding_resolution(role_model)
+        model_for_server = role_model
         try:
-            if self._binding_resolution is not None and self._binding_resolution.relay_required:
-                lease_handle = self._lease_provider(self._binding_resolution)
+            if resolution_for_role is not None and resolution_for_role.relay_required:
+                lease_handle = self._lease_provider(resolution_for_role)
                 model_for_server = lease_handle.model_id
-            role = role_context.role
             config_content: str | None = None
-            if self._binding_resolution is not None:
+            if resolution_for_role is not None:
                 config_content = build_binding_config_content(
-                    self._binding_resolution,
+                    resolution_for_role,
                     lease=lease_handle,
                 )
             child_env = build_role_child_env(
@@ -1900,6 +2091,7 @@ class OpenCodeExecutor:
             cwd=str(wt),
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=10,
             check=False,
         )
@@ -1950,6 +2142,7 @@ class OpenCodeExecutor:
                 cwd=str(cwd),
                 capture_output=True,
                 text=True,
+                errors="replace",
                 timeout=timeout,
                 check=False,
             )
@@ -2179,6 +2372,57 @@ def _is_handoff_path(path: str) -> bool:
     return path.startswith(_HANDOFF_DIR + "/") or path == _HANDOFF_DIR
 
 
+# Transient build/test artifacts that tooling writes into the worktree while a
+# role runs. They are not product changes: a role that simply runs the
+# repository's own type check or test suite creates them, and treating them as
+# product mutations failed otherwise-clean runs.
+_TRANSIENT_ARTIFACT_DIR_NAMES = frozenset(
+    {
+        "node_modules",
+        "dist",
+        "build",
+        "coverage",
+        ".vite",
+        ".turbo",
+        ".next",
+        ".cache",
+        "__pycache__",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".mypy_cache",
+        ".tsbuildinfo",
+    }
+)
+_TRANSIENT_ARTIFACT_FILE_SUFFIXES = (
+    ".log",
+    ".tsbuildinfo",
+    ".pyc",
+    ".pyo",
+)
+_TRANSIENT_ARTIFACT_FILE_MARKERS = (
+    ".timestamp-",
+)
+
+
+def _is_transient_artifact_path(path: str) -> bool:
+    """Return True for tool-generated scratch paths inside a worktree.
+
+    Matches by path segment so a nested ``frontend/node_modules`` is covered,
+    and by filename marker/suffix for single generated files such as the Vite
+    timestamped config emitted by ``vite``/``vitest`` runs.
+    """
+    normalized = path.replace("\\", "/").strip()
+    if not normalized:
+        return False
+    segments = [segment for segment in normalized.split("/") if segment]
+    if any(segment in _TRANSIENT_ARTIFACT_DIR_NAMES for segment in segments):
+        return True
+    name = segments[-1] if segments else ""
+    if name.endswith(_TRANSIENT_ARTIFACT_FILE_SUFFIXES):
+        return True
+    return any(marker in name for marker in _TRANSIENT_ARTIFACT_FILE_MARKERS)
+
+
 def _handoff_file_under_worktree(file_path: Path, worktree: Path) -> bool:
     """Return True iff file_path resolves to a real file strictly under worktree
     and under the executor-owned handoff directory, with no symlink traversal."""
@@ -2270,17 +2514,20 @@ def _handoff_digest(handoff_path: Path) -> str:
 
 def _collect_product_diff(worktree: Path) -> tuple[dict[str, Any], ...]:
     """Collect tracked/untracked product changes inside ``worktree``,
-    excluding the runtime handoff directory.
+    excluding the runtime handoff directory and transient build artifacts.
 
     Used by TaskExecutionService to snapshot the product diff before and
     after each role. A role that changes only ``.reverse-agent-handoff/**``
-    will not affect the returned tuple; a role that changes any tracked or
-    untracked non-handoff file will appear here.
+    or only tool-generated scratch paths will not affect the returned tuple;
+    a role that changes any tracked or untracked non-handoff, non-scratch
+    file will appear here.
     """
     return tuple(
         f
         for f in _collect_changed_files(worktree)
-        if f.get("path") and not _is_handoff_path(f["path"])
+        if f.get("path")
+        and not _is_handoff_path(f["path"])
+        and not _is_transient_artifact_path(f["path"])
     )
 
 
@@ -2289,11 +2536,15 @@ def _collect_final_product_files(worktree: Path) -> list[dict[str, Any]]:
 
     The handoff directory has already been removed at this point, so this
     is a thin wrapper that preserves the API shape used by TaskExecutionService.
+    Tool-generated scratch paths are excluded for the same reason as in
+    :func:`_collect_product_diff`: they are not part of the delivered change.
     """
     return [
         f
         for f in _collect_changed_files(worktree)
-        if f.get("path") and not _is_handoff_path(f["path"])
+        if f.get("path")
+        and not _is_handoff_path(f["path"])
+        and not _is_transient_artifact_path(f["path"])
     ]
 
 
@@ -2677,6 +2928,7 @@ def _collect_changed_files(worktree: Path) -> list[dict[str, Any]]:
             cwd=str(worktree),
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=15,
             check=False,
         )
@@ -2714,6 +2966,7 @@ def _collect_changed_files(worktree: Path) -> list[dict[str, Any]]:
             cwd=str(worktree),
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=15,
             check=False,
         )
@@ -2772,6 +3025,56 @@ def _is_binary_file(fpath: Path) -> bool:
 # Exit classification
 # ---------------------------------------------------------------------------
 
+# Only these keys can carry provider/CLI diagnostics. Model-visible payloads
+# (file content a role read, tool arguments, diffs) are deliberately excluded:
+# scanning them let ordinary role failures match arbitrary keywords from
+# repository source -- a planner that read the word "auth" in application code
+# was reported as an authentication failure.
+_CLASSIFY_TEXT_KEYS = (
+    "error",
+    "errors",
+    "error_message",
+    "message",
+    "detail",
+    "details",
+    "reason",
+    "stderr",
+    "stderr_summary",
+    "failure_reason",
+    "name",
+)
+
+
+def _classification_text(value: Any, depth: int = 0) -> str:
+    """Flatten one diagnostic subtree into searchable text."""
+    if depth > 4:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, Mapping):
+        return "\n".join(_classification_text(item, depth + 1) for item in value.values())
+    if isinstance(value, (list, tuple)):
+        return "\n".join(_classification_text(item, depth + 1) for item in value)
+    return ""
+
+
+def _event_diagnostic_text(event: Any) -> str:
+    """Extract diagnostic-only text from one executor event.
+
+    Only diagnostic root keys are entered; everything nested below them is
+    diagnostics too. Model-visible payloads elsewhere in the event (file
+    content, tool arguments, diffs) are never read.
+    """
+    if not isinstance(event, Mapping):
+        return ""
+    parts = [
+        _classification_text(event[key])
+        for key in _CLASSIFY_TEXT_KEYS
+        if key in event
+    ]
+    return "\n".join(part for part in parts if part)
+
+
 def _classify_exit(
     self: "OpenCodeExecutor",
     exit_code: int,
@@ -2782,7 +3085,11 @@ def _classify_exit(
     if exit_code in (124, 137, 143):
         return "timeout"
     for ev in events_raw:
-        msg = json.dumps(ev, ensure_ascii=False, sort_keys=True).lower()
+        if not isinstance(ev, Mapping):
+            continue
+        msg = _event_diagnostic_text(ev).lower()
+        if not msg:
+            continue
         if "auth" in msg or "unauthorized" in msg or "forbidden" in msg:
             return "auth_provider_route_failure"
         if "network" in msg or "connection" in msg or "dns" in msg:

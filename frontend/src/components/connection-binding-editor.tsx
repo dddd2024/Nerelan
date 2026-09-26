@@ -7,6 +7,7 @@ import {
   type AuthMethod,
   type AccountAuthStatus,
   type ConnectionProbeResult,
+  type ConnectionModelsResult,
   type ConnectionVerificationCapability,
   type Binding,
   type BindingInput,
@@ -32,8 +33,10 @@ interface ConnectionBindingEditorProps {
   onConnectionDelete: (connectionId: string) => Promise<void>;
   onBindingDelete: (bindingId: string) => Promise<void>;
   onConnectionTest: (connectionId: string) => Promise<void>;
+  onConnectionModelsFetch?: (connectionId: string) => Promise<ConnectionModelsResult>;
   connectionProbeResult: ConnectionProbeResult | null;
   connectionProbePending: boolean;
+  connectionModelsPending?: boolean;
   accountAuthState?: AccountAuthStatus | null;
   accountAuthPending?: boolean;
   onAccountAuthStart?: (connectionId: string) => Promise<void>;
@@ -73,8 +76,10 @@ export function ConnectionBindingEditor({
   onConnectionDelete,
   onBindingDelete,
   onConnectionTest,
+  onConnectionModelsFetch,
   connectionProbeResult,
   connectionProbePending,
+  connectionModelsPending = false,
   accountAuthState = null,
   accountAuthPending = false,
   onAccountAuthStart,
@@ -89,6 +94,8 @@ export function ConnectionBindingEditor({
   const [bindDraft, setBindDraft] = useState<BindingInput>(EMPTY_BINDING);
   const [bindError, setBindError] = useState<string | null>(null);
   const [accountAuthCode, setAccountAuthCode] = useState("");
+  const [connModels, setConnModels] = useState<string[]>([]);
+  const [connModelsMessage, setConnModelsMessage] = useState<string | null>(null);
 
   const [connSavedDraft, setConnSavedDraft] = useState<ConnectionInput | null>(null);
   const [connSavedApiKey, setConnSavedApiKey] = useState("");
@@ -126,6 +133,8 @@ export function ConnectionBindingEditor({
           : EMPTY_BINDING,
       );
       setBindError(null);
+      setConnModels([]);
+      setConnModelsMessage(null);
     }
   }, [view, connection, binding, creating]);
 
@@ -211,6 +220,26 @@ export function ConnectionBindingEditor({
     }
     setBindError(null);
     await onBindingSave(parsed.data);
+  }
+
+  async function handleFetchModels() {
+    if (!bindDraft.connectionId || !onConnectionModelsFetch) return;
+    setConnModelsMessage(null);
+    try {
+      const result = await onConnectionModelsFetch(bindDraft.connectionId);
+      if (result.ok && result.models.length > 0) {
+        setConnModels(result.models);
+        setConnModelsMessage(`已获取 ${result.models.length} 个可用模型`);
+      } else {
+        setConnModels([]);
+        setConnModelsMessage(localizedModelsMessage(result));
+      }
+    } catch (cause) {
+      setConnModels([]);
+      setConnModelsMessage(
+        cause instanceof Error ? cause.message : "获取模型列表失败",
+      );
+    }
   }
 
   async function handleTestConnection() {
@@ -737,15 +766,59 @@ export function ConnectionBindingEditor({
               </select>
             </Field>
             <Field label="Model ID" className="md:col-span-2">
-              <input
-                aria-label="Model ID"
-                value={bindDraft.modelId}
-                onChange={(event) =>
-                  setBindDraft((d) => ({ ...d, modelId: event.target.value }))
-                }
-                className={inputClass}
-                autoComplete="off"
-              />
+              <div className="flex gap-2">
+                <input
+                  aria-label="Model ID"
+                  value={bindDraft.modelId}
+                  list="binding-model-id-options"
+                  onChange={(event) =>
+                    setBindDraft((d) => ({ ...d, modelId: event.target.value }))
+                  }
+                  className={inputClass}
+                  autoComplete="off"
+                  placeholder={
+                    connModels.length > 0
+                      ? "从下方列表选择或输入"
+                      : "填写 Model ID 或点击右侧按钮获取列表"
+                  }
+                />
+                {onConnectionModelsFetch ? (
+                  <button
+                    type="button"
+                    onClick={handleFetchModels}
+                    disabled={
+                      !bindDraft.connectionId || connectionModelsPending || busy
+                    }
+                    data-testid="fetch-models-button"
+                    title={
+                      bindDraft.connectionId
+                        ? "从该连接的 /models 端点获取全部可用模型"
+                        : "请先选择连接"
+                    }
+                    className={cn(
+                      secondaryButtonClass,
+                      "shrink-0 whitespace-nowrap",
+                      connectionModelsPending && "opacity-60",
+                    )}
+                  >
+                    {connectionModelsPending ? "获取中…" : "获取模型列表"}
+                  </button>
+                ) : null}
+              </div>
+              <datalist id="binding-model-id-options">
+                {connModels.map((modelId) => (
+                  <option key={modelId} value={modelId} />
+                ))}
+              </datalist>
+              {connModelsMessage && (
+                <p
+                  role="status"
+                  data-testid="connection-models-message"
+                  className="text-xs text-ra-text-tertiary"
+                >
+                  {connModelsMessage}
+                </p>
+              )}
             </Field>
           </div>
 
@@ -844,8 +917,36 @@ function accountAuthStatusLabel(status: string): string {
   }
 }
 
-function localizedProbeMessage(result: ConnectionProbeResult): string {
+function localizedModelsMessage(result: ConnectionModelsResult): string {
   switch (result.status) {
+    case "connected":
+      return "上游未返回可识别的模型列表";
+    case "credential_missing":
+      return "API Key 未配置或需要重新输入";
+    case "credential_store_locked":
+      return "系统凭据库不可用或已锁定，暂时无法读取已保存的密钥";
+    case "disabled":
+      return "连接已禁用";
+    case "live_probe_disabled":
+      return "实时模型探测未启用（需要 REVERSE_AGENT_MODEL_CONTROL_LIVE=1）";
+    case "unsupported_auth_method":
+      return "当前认证方式不支持获取模型列表";
+    case "upstream_http_error":
+      return "上游模型端点返回错误";
+    case "invalid_upstream_response":
+      return "上游模型端点返回了无效响应";
+    case "timeout":
+      return "获取模型列表超时";
+    case "connection_error":
+      return "无法连接上游模型端点";
+    case "not_found":
+      return "连接不存在";
+    default:
+      return result.ok ? "未获取到模型" : "获取模型列表失败";
+  }
+}
+
+function localizedProbeMessage(result: ConnectionProbeResult): string {  switch (result.status) {
     case "connected":
       return "连接成功";
     case "credential_missing":
@@ -947,7 +1048,6 @@ const inputClass = cn(
 const primaryButtonClass = cn(
   "inline-flex items-center gap-2 rounded-md bg-ra-accent px-3 py-2",
   "text-sm font-medium text-ra-base disabled:cursor-not-allowed disabled:opacity-50",
-  "focus:outline-none focus-visible:ring-2 focus-visible:ring-white",
 );
 
 const secondaryButtonClass = cn(

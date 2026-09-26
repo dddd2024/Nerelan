@@ -112,8 +112,8 @@ def _run_git(repo_dir: Path, args: Sequence[str]) -> str:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            encoding="utf-8",
             errors="replace",
+            encoding="utf-8",
             timeout=_GIT_TIMEOUT_SECONDS,
             check=False,
         )

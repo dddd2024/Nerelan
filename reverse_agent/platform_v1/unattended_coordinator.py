@@ -172,15 +172,23 @@ class UnattendedCoordinator:
                     lease_ms=self.claim_lease_ms,
                 )
             except TaskStoreError as exc:
-                if str(exc) in {
+                reason = str(exc)
+                if reason == "window_retry_budget_exhausted":
+                    # Per-attempt restriction, not a window-wide capacity
+                    # limit. A Task that cannot be resumed because the
+                    # window's retry budget is spent must not starve the
+                    # other claimable Tasks in the same tick: an orphaned
+                    # INTERRUPTED Task used to block every fresh QUEUED Task
+                    # behind it.
+                    continue
+                if reason in {
                     "window_wip_limit_reached", "window_task_budget_exhausted",
-                    "window_retry_budget_exhausted", "window_token_budget_exhausted",
-                    "window_cost_budget_exhausted",
+                    "window_token_budget_exhausted", "window_cost_budget_exhausted",
                 }:
                     break
-                if str(exc) == "task_already_claimed":
+                if reason == "task_already_claimed":
                     continue
-                self._last_error = str(exc)
+                self._last_error = reason
                 continue
             claimed[task_id] = epoch
             if self._stop.is_set():

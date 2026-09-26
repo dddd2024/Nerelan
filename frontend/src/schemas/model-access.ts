@@ -143,6 +143,16 @@ export const ConnectionProbeResultSchema = z.object({
 
 export type ConnectionProbeResult = z.infer<typeof ConnectionProbeResultSchema>;
 
+export const ConnectionModelsResultSchema = z.object({
+  ok: z.boolean(),
+  status: z.string(),
+  message: z.string(),
+  latencyMs: z.number().nullable(),
+  models: z.array(z.string()).default([]),
+});
+
+export type ConnectionModelsResult = z.infer<typeof ConnectionModelsResultSchema>;
+
 export const AccountAuthStatusSchema = z.object({
   status: z.enum([
     "idle",

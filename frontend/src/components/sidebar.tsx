@@ -208,7 +208,7 @@ export function Sidebar({
         collapsed={collapsed}
         active={conversationPanelOpen}
         label={conversationPanelOpen ? "关闭任务列表" : "打开任务列表"}
-        text="搜索"
+        text="任务列表"
         testId="toggle-conversation-panel"
         icon={<Search className="h-4 w-4" />}
         onClick={

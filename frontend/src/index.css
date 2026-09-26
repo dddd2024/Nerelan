@@ -93,7 +93,7 @@ html[data-theme="system"] {
   --ra-status-running: #2f7d50;
   --ra-status-starting: #956313;
   --ra-status-stopped: #65665f;
-  --ra-status-error: #b9473f;
+  --ra-status-error: #a83c35;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -229,8 +229,21 @@ code {
   padding: 0;
 }
 
+/*
+ * Focus visibility baseline.
+ *
+ * Components are expected to opt into their own ring via
+ * `focus:outline-none focus-visible:ring-2 ...`, but relying on every call site
+ * to do so is what left several interactive surfaces with no keyboard focus
+ * indicator at all. This baseline guarantees a visible, theme-correct outline
+ * for anything that forgets. `--ra-accent` resolves to a value that holds at
+ * least 3:1 against every surface in both themes, for all five accents.
+ * Component utilities keep working because `focus:outline-none` has higher
+ * specificity than this single pseudo-class.
+ */
 :focus-visible {
-  outline: none;
+  outline: 2px solid var(--ra-accent);
+  outline-offset: 2px;
 }
 
 .custom-scrollbar,

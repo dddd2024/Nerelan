@@ -17,9 +17,10 @@ credential relay used internally during execution.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from http.server import ThreadingHTTPServer
 import json
+import math
 import os
 import subprocess
 import threading
@@ -40,6 +41,7 @@ from .github_adapter import LiveGitHubAdapter
 from .opencode_executor import (
     ExecutionLeaseHandle,
     execute_opencode_auth_list_probe,
+    resolve_role_models,
     start_opencode_account_auth_server,
 )
 from .run_store import TaskStore
@@ -52,6 +54,34 @@ from .control_store import PlatformControlStore
 from .goal_service import GoalService
 from .publication_controller import PublicationController
 from .unattended_coordinator import UnattendedCoordinator
+
+
+def _resolve_role_model_override(
+    *,
+    expected_model: str,
+    requested_model: str,
+    declared_role_models: set[str],
+) -> str | None:
+    """Decide the provider-facing model override for one lease.
+
+    Returns ``None`` when the request asks for the Binding's own model, so
+    the single-model path stays byte-identical. Multi-model collaboration:
+    a role may be served by a different model, but only one the owner
+    declared for a role. Connection, executor, provider, base URL and auth
+    method are pinned by the caller's drift checks, so this widens the
+    lease to exactly one declared model of the same Connection and never
+    disables the relay's own model comparison.
+
+    Raises ``RuntimeError`` for an undeclared model so a configuration
+    mistake fails closed before any provider credential is minted.
+    """
+    if expected_model == requested_model:
+        return None
+    if requested_model not in declared_role_models:
+        raise RuntimeError("role_model_not_declared_before_lease")
+    if "/" not in requested_model:
+        return requested_model
+    return requested_model.split("/", 1)[1]
 
 
 class CombinedTrustedHost:
@@ -82,6 +112,7 @@ class CombinedTrustedHost:
         auth_refresh_clock: Callable[[], float] = time.monotonic,
         account_auth_server_factory: ServerFactory | None = None,
         vault: Any = _PLATFORM_VAULT,
+        role_models: Mapping[str, str] | None = None,
     ) -> None:
         if auth_refresh_ttl_seconds < 0:
             raise ValueError("auth_refresh_ttl_seconds must be non-negative")
@@ -103,7 +134,12 @@ class CombinedTrustedHost:
                 vault=resolved_vault,
             )
         self._task_store = task_store
-        self._relay_manager = relay_manager or CredentialRelayManager()
+        self._role_models: dict[str, str] = (
+            dict(role_models) if role_models is not None else resolve_role_models()
+        )
+        self._relay_manager = relay_manager or CredentialRelayManager(
+            default_expiry_seconds=_resolve_relay_lease_ttl_seconds()
+        )
         self._router = ExecutorRouter()
         self._github_adapter = github_adapter
         self._execution_authority_sha = execution_authority_sha
@@ -231,6 +267,7 @@ class CombinedTrustedHost:
         manager = self._relay_manager
         store = self._store
         relay_url = self.relay_url
+        role_models = dict(self._role_models)
 
         def _provider(resolution: Any) -> ExecutionLeaseHandle:
             snapshot = store.resolve_execution_snapshot(resolution.binding_ref)
@@ -247,12 +284,20 @@ class CombinedTrustedHost:
             if snapshot.auth_method != resolution.auth_method:
                 raise RuntimeError("auth_method_drift_before_lease")
             expected_model = _normalize_model_id(snapshot.provider, snapshot.raw_model_id)
-            if expected_model != resolution.model_id:
-                raise RuntimeError("model_drift_before_lease")
+            declared_role_models = {
+                _normalize_model_id(snapshot.provider, declared)
+                for declared in role_models.values()
+            }
+            model_override = _resolve_role_model_override(
+                expected_model=expected_model,
+                requested_model=resolution.model_id,
+                declared_role_models=declared_role_models,
+            )
 
             lease = manager.create_lease(
                 snapshot,
                 relay_url=relay_url,
+                model_override=model_override,
             )
             lease_id = lease.lease_id
 
@@ -345,7 +390,7 @@ class CombinedTrustedHost:
                 manager=self._relay_manager,
                 host="127.0.0.1",
                 port=0,
-                upstream_timeout=120.0,
+                upstream_timeout=_resolve_relay_upstream_timeout_seconds(),
             )
             self._relay_server_port = relay_srv.server_address[1]
             self._relay_server_inner = relay_srv
@@ -486,6 +531,54 @@ def _resolve_store_state_path(task_store: TaskStore) -> str:
     parent = os.path.dirname(os.path.abspath(db_path)) or "."
     os.makedirs(parent, exist_ok=True)
     return os.path.join(parent, "model_setup_state.json")
+
+
+def _resolve_relay_lease_ttl_seconds() -> float:
+    """Resolve the credential-relay default lease TTL from trusted config.
+
+    The lease must outlive the OpenCode child process for a single role:
+    role-level timeouts exceed two minutes, while the library default lease
+    TTL is 120 seconds. A lease that expires while the child is still
+    running surfaces as ``Unauthorized`` mid-role. Operators extend the TTL
+    via ``REVERSE_AGENT_RELAY_LEASE_TTL_SECONDS``; the fail-closed library
+    default stays in force when the variable is unset or invalid.
+    """
+    raw = os.environ.get("REVERSE_AGENT_RELAY_LEASE_TTL_SECONDS", "").strip()
+    if not raw:
+        return 120.0
+    try:
+        value = float(raw)
+    except ValueError:
+        return 120.0
+    if not math.isfinite(value) or value <= 0:
+        return 120.0
+    return value
+
+
+def _resolve_relay_upstream_timeout_seconds() -> float:
+    """Resolve the credential-relay upstream socket timeout from trusted config.
+
+    ``forward_to_upstream`` passes this value to ``urlopen`` as a *socket*
+    timeout, so it bounds the silent gap between two SSE chunks rather than
+    the total duration of a role. The library default of 120 seconds is
+    shorter than a long reasoning completion, which surfaces as a mid-stream
+    ``502 upstream_error`` (observed as ``stream error`` in the OpenCode log)
+    and makes the role retry forever without ever writing an artifact.
+
+    Operators raise it via ``REVERSE_AGENT_RELAY_UPSTREAM_TIMEOUT_SECONDS``;
+    the fail-closed library default stays in force when the variable is
+    unset or invalid.
+    """
+    raw = os.environ.get("REVERSE_AGENT_RELAY_UPSTREAM_TIMEOUT_SECONDS", "").strip()
+    if not raw:
+        return 120.0
+    try:
+        value = float(raw)
+    except ValueError:
+        return 120.0
+    if not math.isfinite(value) or value <= 0:
+        return 120.0
+    return value
 
 
 def _resolve_trusted_authority_sha() -> str:

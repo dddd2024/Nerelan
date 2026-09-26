@@ -117,8 +117,16 @@ class CredentialRelayManager:
         *,
         relay_url: str,
         expiry_seconds: float | None = None,
+        model_override: str | None = None,
     ) -> ExecutionLease:
-        """Create one execution-scoped lease from an atomic snapshot."""
+        """Create one execution-scoped lease from an atomic snapshot.
+
+        ``model_override`` lets the trusted host issue a lease for a
+        *declared* role model of the same Connection instead of the
+        Binding's own model. The relay still compares the requested model
+        against the lease, so an override only ever widens the lease to
+        exactly one owner-declared model id; it never disables the check.
+        """
         if snapshot.auth_method != "api_key":
             raise CredentialRelayError("lease_requires_api_key_auth")
         if not snapshot.resolved_api_key:
@@ -126,6 +134,8 @@ class CredentialRelayManager:
 
         _validate_loopback_url(relay_url)
         model_id = snapshot.raw_model_id
+        if model_override is not None:
+            model_id = _validate_lease_model_override(model_override)
 
         expiry = expiry_seconds if expiry_seconds is not None else self._default_expiry
         if not isinstance(expiry, (int, float)) or expiry <= 0:
@@ -527,6 +537,39 @@ def _normalize_model_id(provider: str, model_id: str) -> str:
     if "/" not in model_id:
         return f"{provider}/{model_id}"
     return model_id
+
+
+_MAX_MODEL_OVERRIDE_LENGTH = 200
+_MODEL_OVERRIDE_ALLOWED = frozenset(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._:-/@+"
+)
+
+
+def _validate_lease_model_override(value: str) -> str:
+    """Validate an owner-declared role model id for one lease.
+
+    Kept deliberately conservative: a lease may only be widened to a model
+    id that is a bounded, plain provider-facing identifier. Anything with
+    whitespace, control characters, separators outside the OpenCode model
+    alphabet, or excessive length is rejected so a malformed host
+    configuration can never mint a permissive lease.
+    """
+    if not isinstance(value, str):
+        raise CredentialRelayError("invalid_model_override")
+    if not value or value != value.strip():
+        raise CredentialRelayError("invalid_model_override")
+    if len(value) > _MAX_MODEL_OVERRIDE_LENGTH:
+        raise CredentialRelayError("invalid_model_override")
+    if any(ch not in _MODEL_OVERRIDE_ALLOWED for ch in value):
+        raise CredentialRelayError("invalid_model_override")
+    return value
+
+
+def _provider_facing_model(cli_model_id: str) -> str:
+    """Return the provider-facing model segment of a CLI model selector."""
+    if "/" not in cli_model_id:
+        return cli_model_id
+    return cli_model_id.split("/", 1)[1]
 
 
 def run_credential_relay_server(

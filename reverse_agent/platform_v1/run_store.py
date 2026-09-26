@@ -2565,12 +2565,15 @@ class TaskStore:
         runs = self._conn.execute(
             "SELECT dr.*, t.status as task_status FROM durable_runs dr "
             "JOIN tasks t ON t.id = dr.task_id "
-            "WHERE dr.lease_expiry_ms > 0 "
-            "AND dr.lease_expiry_ms < ? "
+            "WHERE ("
+            "  (dr.lease_expiry_ms > 0 AND dr.lease_expiry_ms < ?) "
+            "  OR (dr.lease_expiry_ms <= 0 AND dr.heartbeat_at_ms > 0 "
+            "      AND dr.heartbeat_at_ms < ?)"
+            ") "
             "AND t.status IN ('PREPARING_WORKSPACE', 'RUNNING', "
             "'RUNNING_FIXTURE', 'VALIDATING') "
             "ORDER BY dr.created_at ASC",
-            (now_ms,),
+            (now_ms, now_ms - max_age_ms),
         ).fetchall()
         records: list[dict[str, Any]] = []
         for row in runs:
@@ -2582,6 +2585,7 @@ class TaskStore:
                 cur.execute("BEGIN IMMEDIATE")
                 recheck = cur.execute(
                     "SELECT dr.lease_expiry_ms, dr.lease_epoch, "
+                    "dr.heartbeat_at_ms, "
                     "dr.recovery_classification, t.status as task_status2 "
                     "FROM durable_runs dr "
                     "JOIN tasks t ON t.id = dr.task_id "
@@ -2592,7 +2596,16 @@ class TaskStore:
                     cur.execute("ROLLBACK")
                     continue
                 current_expiry = int(recheck["lease_expiry_ms"])
-                if current_expiry >= now_ms:
+                current_heartbeat = int(recheck["heartbeat_at_ms"] or 0)
+                if current_expiry > 0 and current_expiry >= now_ms:
+                    # Lease renewed since the candidate scan: still alive.
+                    cur.execute("ROLLBACK")
+                    continue
+                if current_expiry <= 0 and (
+                    current_heartbeat <= 0 or current_heartbeat >= now_ms - max_age_ms
+                ):
+                    # Released lease whose heartbeat is recent or unknown:
+                    # not provably abandoned yet.
                     cur.execute("ROLLBACK")
                     continue
                 current_status = recheck["task_status2"]
@@ -2608,9 +2621,10 @@ class TaskStore:
                     "lease_owner = '', "
                     "interrupted_at = ?, updated_at = ? "
                     "WHERE run_id = ? "
-                    "AND lease_expiry_ms < ? "
+                    "AND (lease_expiry_ms < ? "
+                    "     OR (lease_expiry_ms <= 0 AND heartbeat_at_ms < ?)) "
                     "AND recovery_classification IN ('normal', 'orphan_stale_lease')",
-                    (_utc_now(), _utc_now(), run_id, now_ms),
+                    (_utc_now(), _utc_now(), run_id, now_ms, now_ms - max_age_ms),
                 )
                 if cur.rowcount == 0:
                     cur.execute("ROLLBACK")

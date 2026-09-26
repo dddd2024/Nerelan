@@ -113,7 +113,7 @@ export function InboxPage() {
               aria-label="捕获想法"
               data-testid="inbox-capture-button"
               disabled={captureMutation.isPending || !objective.trim()}
-              className="inline-flex items-center gap-2 rounded-lg bg-ra-accent px-3 py-2 text-sm font-medium text-ra-base disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="inline-flex items-center gap-2 rounded-lg bg-ra-accent px-3 py-2 text-sm font-medium text-ra-base disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Sparkles className="h-4 w-4" aria-hidden="true" />
               捕获
@@ -166,7 +166,7 @@ export function InboxPage() {
                     data-testid={`inbox-promote-${item.id}`}
                     disabled={promoteMutation.isPending}
                     onClick={() => promoteMutation.mutate(item.id)}
-                    className="rounded-lg bg-ra-accent px-3 py-1.5 text-xs font-medium text-ra-base disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    className="rounded-lg bg-ra-accent px-3 py-1.5 text-xs font-medium text-ra-base disabled:opacity-50"
                   >
                     晋升为目标
                   </button>
