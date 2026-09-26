@@ -26,7 +26,7 @@ export function GoalsPage() {
           {query.data.items.map((goal) => <li key={goal.id}>
             <Link to={`/?goal=${encodeURIComponent(goal.id)}`} className="block rounded-xl p-4 hover:bg-ra-light/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
               <div className="flex items-start justify-between gap-4"><span className="text-sm font-medium text-ra-text">{goal.title}</span><span className="text-xs text-ra-text-secondary">{goalStatusLabel(goal.status)}</span></div>
-              <p className="mt-2 text-xs text-ra-text-secondary">{goal.objective}</p>
+              <p className="ra-measure mt-2 text-xs text-ra-text-secondary">{goal.objective}</p>
               <p className="mt-2 text-xs text-ra-text-tertiary">{goal.repository}</p>
             </Link>
             {["DRAFT", "PLANNED", "APPROVED"].includes(goal.status) && <Link

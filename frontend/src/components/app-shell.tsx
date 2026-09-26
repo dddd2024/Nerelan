@@ -210,7 +210,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         aria-hidden={!mobileNavOpen}
         tabIndex={-1}
         data-testid="mobile-drawer"
-        className="fixed top-0 bottom-0 left-0 z-50 w-[min(300px,85vw)] md:hidden bg-ra-base flex flex-col border-r border-ra-border shadow-lg"
+        className="fixed top-0 bottom-0 left-0 z-50 w-[min(300px,85vw)] md:hidden bg-ra-base flex flex-col border-r border-ra-border shadow-[var(--ra-shadow-3)]"
         style={{ display: mobileNavOpen ? "" : "none" }}
       >
         <div className="flex items-center justify-between p-4 border-b border-ra-border/70">

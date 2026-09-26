@@ -110,7 +110,7 @@ export function PermissionSelector({
           ref={listRef}
           role="listbox"
           aria-label={label}
-          className="absolute z-20 mt-1 w-full overflow-auto rounded-md border border-ra-border bg-ra-light py-1 shadow-lg"
+          className="absolute z-20 mt-1 w-full overflow-auto rounded-md border border-ra-border bg-ra-light py-1 shadow-[var(--ra-shadow-2)]"
         >
           {MODES.map((m, i) => {
             const selected = m === value;

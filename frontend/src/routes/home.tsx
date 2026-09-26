@@ -91,7 +91,7 @@ export function HomePage() {
                 {detailGoal.title}
               </h1>
               {detailGoal.objective ? (
-                <p className="mt-2 max-w-3xl text-sm leading-5 text-ra-text-secondary">
+                <p className="ra-measure mt-2 text-sm leading-5 text-ra-text-secondary">
                   {detailGoal.objective}
                 </p>
               ) : null}

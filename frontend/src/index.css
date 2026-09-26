@@ -47,6 +47,25 @@
   --ra-panel-bg: #20211e;
   --ra-panel-input: #292a26;
 
+  /*
+   * Elevation.
+   *
+   * Shadow is reserved for surfaces that float ABOVE the page (drawer, popover,
+   * command panel, dropdown) -- not for in-flow panels, whose layering is
+   * expressed by a 1px border. Using it for in-page cards too would produce
+   * shadow soup and fight the existing flat language.
+   *
+   * Dark surfaces need a stronger alpha to register at all: a soft light-theme
+   * shadow is invisible on `--ra-base`, which is why the previous hardcoded
+   * `rgba(0,0,0,.16)` panel shadow disappeared entirely in dark mode.
+   */
+  --ra-shadow-1: 0 1px 2px rgb(0 0 0 / 0.45);
+  --ra-shadow-2: 0 6px 16px rgb(0 0 0 / 0.55);
+  --ra-shadow-3: 0 20px 60px rgb(0 0 0 / 0.65);
+
+  /* Theme-independent layout tokens. */
+  --ra-measure: 72ch;
+
   /* Pinned Agent Canvas presentation aliases. */
   --oh-border: var(--ra-border);
   --oh-muted: var(--ra-text-secondary);
@@ -94,6 +113,11 @@ html[data-theme="system"] {
   --ra-status-starting: #956313;
   --ra-status-stopped: #65665f;
   --ra-status-error: #a83c35;
+
+  /* Softer than the dark set: a light surface needs only a hint of lift. */
+  --ra-shadow-1: 0 1px 2px rgb(31 30 26 / 0.06);
+  --ra-shadow-2: 0 6px 16px rgb(31 30 26 / 0.10);
+  --ra-shadow-3: 0 20px 60px rgb(31 30 26 / 0.16);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -116,6 +140,11 @@ html[data-theme="system"] {
     --ra-status-starting: #d8b868;
     --ra-status-stopped: #d7d5cf;
     --ra-status-error: #e27b6c;
+    /* Must be restated here: this block comes after the light palette and
+       would otherwise leave system+dark rendering light-theme shadows. */
+    --ra-shadow-1: 0 1px 2px rgb(0 0 0 / 0.45);
+    --ra-shadow-2: 0 6px 16px rgb(0 0 0 / 0.55);
+    --ra-shadow-3: 0 20px 60px rgb(0 0 0 / 0.65);
   }
 }
 
@@ -244,6 +273,20 @@ code {
 :focus-visible {
   outline: 2px solid var(--ra-accent);
   outline-offset: 2px;
+}
+
+/*
+ * Readable measure for long-form prose.
+ *
+ * Workspace panels are laid out for tables and dense metadata, so a paragraph
+ * placed in one measures the full panel width. Measured on the live UI: a
+ * 996px summary at 11px ran to roughly 181 characters per line, and the home
+ * objective reached 135 at 16px, against a comfortable 45-75 character range.
+ * Constraining the measure is what turns a paragraph back into prose; the
+ * surrounding panel keeps its full width for non-text content.
+ */
+.ra-measure {
+  max-width: var(--ra-measure);
 }
 
 .custom-scrollbar,

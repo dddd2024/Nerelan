@@ -72,7 +72,7 @@ export function ConversationPanel({ open, onClose }: ConversationPanelProps) {
         role="dialog"
         aria-modal="true"
         aria-label="搜索任务"
-        className="flex max-h-[68vh] w-full max-w-[620px] flex-col overflow-hidden rounded-[14px] border border-ra-border/70 bg-ra-workspace shadow-[0_24px_70px_rgba(0,0,0,.16)]"
+        className="flex max-h-[68vh] w-full max-w-[620px] flex-col overflow-hidden rounded-[14px] border border-ra-border/70 bg-ra-workspace shadow-[var(--ra-shadow-3)]"
       >
         <div className="flex h-12 shrink-0 items-center gap-2 border-b border-ra-border/60 px-3">
           <Search className="h-4 w-4 shrink-0 text-ra-text-tertiary" aria-hidden="true" />

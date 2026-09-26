@@ -70,7 +70,7 @@ function GoalDetail({
             Goal
           </p>
           <h2 className="mt-1 text-xl font-semibold text-ra-text">{goal.title}</h2>
-          <p className="mt-2 text-sm leading-6 text-ra-text-secondary">
+          <p className="ra-measure mt-2 text-sm leading-6 text-ra-text-secondary">
             {goal.objective}
           </p>
         </div>
@@ -113,7 +113,7 @@ function GoalDetail({
           </p>
           <pre
             data-testid="approval-plan"
-            className="mt-2 whitespace-pre-wrap rounded-xl border border-ra-border bg-ra-light/30 p-4 font-sans text-sm leading-6 text-ra-text-secondary"
+            className="ra-measure mt-2 whitespace-pre-wrap rounded-xl border border-ra-border bg-ra-light/30 p-4 font-sans text-sm leading-6 text-ra-text-secondary"
           >
             {goal.plan_markdown || "当前 Goal 没有可显示的计划内容。"}
           </pre>
