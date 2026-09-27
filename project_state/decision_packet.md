@@ -1,10 +1,10 @@
-# Bounded Windows Binding child tool environment repair
+# Bounded system Runs usage and task identity repair
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260927_issue997_windows_binding_env_r2_v1",
-  "round_id": "round_20260927_issue997_windows_binding_env_r2_v1",
+  "decision_id": "decision_20260927_runs_usage_identity_r2_v1",
+  "round_id": "round_20260927_runs_usage_identity_r2_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -31,24 +31,24 @@
   "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
   "provider_free_acceptance_required": true,
-  "decision_scope": "WINDOWS_BINDING_TOOL_ENVIRONMENT_ONLY",
-  "source_issue": 997,
-  "parent_issue": 643,
+  "decision_scope": "RUNS_USAGE_AND_TASK_IDENTITY_ONLY",
+  "source_issue": 999,
+  "parent_issue": 448,
   "approved_by": "dddd2024 via explicit delegated Owner authorization",
-  "approval_basis": "The Owner explicitly authorizes all pending and newly discovered system tasks, configured API use, no monetary/token limit, independent AI/supervisor acceptance, and publication. This bounded source/worker-configuration stage repairs reproduced Windows tool invocation failure without broad environment or credential exposure. It permits system-authored implementation and exact Draft publication, not landing or application-code deployment.",
+  "approval_basis": "Owner delegates completion of all open and discovered tasks to the Nerelan system, supervisor audit and independent AI acceptance, with no token/cost cap. This bounded batch implements Issues999 and1001 in an isolated exact-base worker, keeping individual acceptance criteria. It permits known installed browser validation and existing launcher SourceDir/preview operation, not source deployment or landing. Product code/tests remain system-authored.",
   "risk_tier": "R2",
   "authorized_risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "main",
-  "base_sha": "cf0c06aaee9d21e5da6c8d558387017ad4259edb",
-  "activation_base_sha": "cf0c06aaee9d21e5da6c8d558387017ad4259edb",
-  "starting_head": "cf0c06aaee9d21e5da6c8d558387017ad4259edb",
-  "fresh_base": "cf0c06aaee9d21e5da6c8d558387017ad4259edb",
-  "current_main_expected": "cf0c06aaee9d21e5da6c8d558387017ad4259edb",
-  "required_branch": "codex/windows-binding-tool-env-r2-v1-20260927",
-  "workstream_id": "issue997-windows-binding-env-r2-v1",
-  "follows_last_decision_id": "decision_20260923_issue982_gpt_oauth_network_r3_v1",
-  "follows_last_round_id": "round_20260923_issue982_gpt_oauth_network_r3_v1",
+  "base_sha": "607d8daf72ec809cfe5d09bd2b5b7f711d9e294f",
+  "activation_base_sha": "607d8daf72ec809cfe5d09bd2b5b7f711d9e294f",
+  "starting_head": "607d8daf72ec809cfe5d09bd2b5b7f711d9e294f",
+  "fresh_base": "607d8daf72ec809cfe5d09bd2b5b7f711d9e294f",
+  "current_main_expected": "607d8daf72ec809cfe5d09bd2b5b7f711d9e294f",
+  "required_branch": "codex/runs-usage-identity-r2-v1-20260927",
+  "workstream_id": "runs-usage-identity-r2-v1",
+  "follows_last_decision_id": "decision_20260927_issue997_windows_binding_env_r2_v1",
+  "follows_last_round_id": "round_20260927_issue997_windows_binding_env_r2_v1",
   "workflow_profile": "baseline",
   "decision_activation_commit_limit": 1,
   "product_change_commit_limit": 1,
@@ -60,10 +60,10 @@
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
   "workflow_dispatch_limit": 0,
-  "live_model_call_limit": 3,
+  "live_model_call_limit": 6,
   "provider_network_call_limit": 0,
   "credential_access_limit": 0,
-  "local_browser_launch_limit": 0,
+  "local_browser_launch_limit": 12,
   "pr_creation_allowed": true,
   "issue_comment_allowed": true,
   "pull_request_comment_allowed": true,
@@ -89,9 +89,11 @@
   "bootstrap_exception_commands": [],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
-    "reverse_agent/platform_v1/opencode_executor.py",
-    "tests/platform_v1/test_binding_windows_env.py",
-    "tests/platform_v1/test_opencode_executor.py",
+    "frontend/src/routes/runs.tsx",
+    "frontend/tests/runs.test.tsx",
+    "frontend/e2e/runs.spec.ts",
+    "frontend/src/lib/usage-presentation.ts",
+    "frontend/tests/usage-presentation.test.ts",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
@@ -100,9 +102,11 @@
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
-    "reverse_agent/platform_v1/opencode_executor.py",
-    "tests/platform_v1/test_binding_windows_env.py",
-    "tests/platform_v1/test_opencode_executor.py",
+    "frontend/src/routes/runs.tsx",
+    "frontend/tests/runs.test.tsx",
+    "frontend/e2e/runs.spec.ts",
+    "frontend/src/lib/usage-presentation.ts",
+    "frontend/tests/usage-presentation.test.ts",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
@@ -120,13 +124,14 @@
     "AGENTS.md",
     ".github/**",
     ".codex-skills/**",
-    "frontend/**",
+    "reverse_agent/**",
     "dev-up.ps1",
     "dev-down.ps1",
-    "reverse_agent/model_access/**",
-    "reverse_agent/platform_v1/trusted_host.py",
-    "reverse_agent/platform_v1/task_service.py",
-    "reverse_agent/platform_v1/repository_workspace.py",
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/playwright.config.ts",
+    "frontend/vite.config.ts",
+    "frontend/e2e/snapshots/**",
     "project_state/mainline_merge_intents/**",
     "project_state/rounds/**",
     "pyproject.toml",
@@ -152,7 +157,6 @@
     "tag_or_release",
     "dependency_install",
     "generated_governance_commit",
-    "local_browser_execution",
     "snapshot_generation_or_threshold_change",
     "fix_forward_after_mandatory_failure"
   ],
@@ -167,17 +171,23 @@
     }
   ],
   "semantic_implementation_contract": {
-    "specification": "Only repair Windows executable discovery/invocation in _BINDING_CHILD_ENV_ALLOWLIST, build_binding_child_env, build_role_child_env and immediately adjacent pure helper if needed. Preserve known non-secret allowlisting, relay configuration and all existing permission, credential, budget and network fences. Do not modify model/provider configuration or copy the full parent environment. Preserve existing _bounded_value from merged PR996 and unrelated account-auth/runtime-launch behavior. Handle absent/nonstring environment values conservatively; portable behavior must stay compatible. Use existing test framework, no new dependency or runner. All product code and tests are authored by Nerelan system workers; supervisor may prepare authority, transfer exact reviewed system artifacts to this branch, run checks and publish. Workers use a clean detached materialization of this activated Decision commit through existing SourceDir configuration; the named branch belongs to the trusted publisher, and worker base/provenance must be verified before artifact acceptance.",
-    "completion_boundary": "Provider-free exact-head tests, independent AI or supervisor review, and natural exact-head CI. Draft only. No Ready/merge/deployment under this source stage. Live configured model calls are solely system implementation/review dispatch through existing coding-glm binding; no model call in tests. No live model/provider operation introduced into product tests."
+    "specification": "System implements Issues999/1001 only: truthful no/unknown/partial/fully observed token and reported-cost presentation using current summary status/counts, and task-first run headings with descriptive accessible toggle names, preserved Enter/Space/aria-expanded/focus and improved metadata/action hierarchy. Preserve true observed zero, label partial totals, never claim provider billing/free service/remaining quota. Preserve all API control eligibility, failure/recovery explanations and existing theme tokens. No runtime/store/API/state mapping change; Issue1002 separately owns queued/cancelled projection. Allowed optional pure presentation helper/tests must remain within listed paths. No dependency or configuration/baseline change. System alone authors product/tests; supervisor transfers exact system bytes to canonical publisher branch and commits once. Detached worker materialization of activation is permitted. Preserve71 dirty/unknown root records and all existing PRs; do not adopt unrelated root visual/brand edits.",
+    "completion_boundary": "Exact-source frontend typecheck/tests/build, existing read-model regressions, installed Edge browser/keyboard/visual evidence, independent acceptance and natural exact-head CI. Fixtures, live dirty-root observations, candidate previews and source acceptance are distinguished. Draft only; later landing/deployment needs separate bounded authority. Product checks call no model/provider."
   },
   "runtime_scratch_policy": {
     "paths": [
       ".platform_v1_runtime/**",
+      "frontend/node_modules",
+      "frontend/node_modules/**",
+      "frontend/dist/**",
+      "frontend/test-results/**",
+      "frontend/playwright-report/**",
+      "frontend/*.tsbuildinfo",
       "**/__pycache__/**",
       ".pytest_cache/**"
     ],
     "stage_allowed": false,
-    "note": "Existing host F:/reverse-agent runtime metadata/database effects are permitted only through its existing dev-up and Task APIs in the bounded runtime command. Preserve all tracked/unknown user files and existing stores; never stage runtime scratch."
+    "note": "Canonical/worker node_modules junction may point only to existing F:/reverse-agent/frontend/node_modules after identical package and lock manifests are verified. No install, dependency mutation or global env change. Temporary config/reports/screenshots remain under supervisor Temp artifacts. Root runtime stores/metadata change only through existing APIs/launcher. Preserve unknown files."
   },
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -199,16 +209,16 @@
     ],
     "trusted_worker_network_exceptions": [],
     "user_local_network_exceptions": [
-      "Existing loopback Task API/Model Control API and the already configured coding-glm binding via its existing trusted relay, for at most three system implementation/review calls. Provider-free local fixture servers only during tests. No credential reads or arbitrary endpoint access."
+      "Existing loopback Task/Model APIs and configured coding-glm trusted relay for at most6 system implementation/review tasks; no token/cost cap; one concurrent task and zero automatic retries. Provider-free local test servers and known installed Node/PowerShell/Python/Edge. Read-only browser Task API use during exact-source preview; no browser execution authority or credentials."
     ],
     "github_control_plane_network_exceptions": [
-      "Only canonical dddd2024/Nerelan exact approved branch pushes and one Draft against locked main. No Ready/merge/tag/release."
+      "Canonical exact branch activation/implementation pushes and one Draft; descriptions only. No Ready/merge/tag/release under source stage."
     ]
   },
   "allowed_commands": [
     {
-      "command_id": "issue997.bootstrap",
-      "command": "Fresh full checkout F:/Nerelan-issue997-windows-tool-env-20260927 from locked main. Commit only this Decision once; run startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness, all through python -m reverse_agent.project_gate --state-dir project_state. Require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before implementation. Never edit activated Decision.",
+      "command_id": "runsux.bootstrap",
+      "command": "Fresh full exact-base checkout F:/Nerelan-runs-ux-r2-v1-20260927 on codex/runs-usage-identity-r2-v1-20260927; commit only immutable Decision once. Existing startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness via python -m reverse_agent.project_gate SUBCOMMAND --state-dir project_state. Require PRE_EXECUTION_AUTHORIZED/PUBLICATION_READY before product work; never stage generated gates.",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [
@@ -236,8 +246,8 @@
       ]
     },
     {
-      "command_id": "issue997.runtime_source",
-      "command": "Only after all current tasks finish and the active window is stopped, use existing unchanged F:/reverse-agent/dev-up.ps1 -RepoDir F:/reverse-agent -SourceDir F:/Nerelan-issue997-windows-tool-env-20260927 -NoBrowser, preserving the recorded model selector and ports4173/8766/8765. Permit its verified-owned process restart and existing .platform_v1_runtime metadata/store writes; no source edits, package installs, global environment changes, browser launch or model call from startup. This reconfigures task source authority, not the existing host/frontend code. Verify SourceDir and execution_authority_sha equal the activated Decision checkout, all three health endpoints, prior Task counts/history and fresh task worker HEAD before acceptance. On startup failure restore the prior SourceDir F:/reverse-agent with the same existing launcher and model selector; no unverified process kill or data removal.",
+      "command_id": "runsux.runtime",
+      "command": "After no active tasks and stopping old autonomy window, run unchanged F:/reverse-agent/dev-up.ps1 -RepoDir F:/reverse-agent -SourceDir F:/Nerelan-runs-ux-r2-v1-20260927 -OpenCodeModel sensenova-6.8-flash-lite -NoBrowser. Preserve recorded public role selectors/timeouts, ports4173/8766/8765, stores and user files; set process-local planning/execution authority SHA to activation. Permit launcher verified-owned restart only. Verify health, history counts and exact worker initial activation HEAD. No install/model calls from startup. Rollback SourceDir to prior997 checkout on failure with same existing launcher.",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [
@@ -255,8 +265,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "issue997.system_implement",
-      "command": "Dispatch at most three bounded system implementation/review tasks via existing local Task API using coding-glm, one concurrent task, zero automatic retries, optional token/cost caps unset as Owner requested. The canonical source directory is the activated Decision checkout; verify worker initial HEAD matches activation commit. System worker may edit only approved source/test region inside its own worktree with native file tools, never commit/push/PR or access outside files. For read-only installed Git or Python tool invocation, use only the demonstrated process-local PATHEXT standard-extension workaround; no global change. Supervisor may transfer only the exact reviewed system patch and byte-identical tests to the named source branch and commit once, preserving provenance and pre-transfer clean state.",
+      "command_id": "runsux.system",
+      "command": "Dispatch at most6 system coding/review tasks through existing Task API/coding-glm, at mostone concurrent, zero automatic retries, no token/cost cap. Workers edit only listed frontend paths via native file tools, no commit/push/PR/outside source edits. Known installed executables are allowed with process-local PATHEXT workaround, no tool/drive scans or install. Supervisor verifies source provenance, may transfer byte-identical system candidate files to canonical source and commit once only after development verification. Review tasks can inspect immutable exported exact patch without tools.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -274,15 +284,17 @@
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/opencode_executor.py",
-        "tests/platform_v1/test_binding_windows_env.py",
-        "tests/platform_v1/test_opencode_executor.py"
+        "frontend/src/routes/runs.tsx",
+        "frontend/tests/runs.test.tsx",
+        "frontend/e2e/runs.spec.ts",
+        "frontend/src/lib/usage-presentation.ts",
+        "frontend/tests/usage-presentation.test.ts"
       ],
       "produced_artifacts": []
     },
     {
-      "command_id": "issue997.validate",
-      "command": "Provider-free development checks followed by final exact-head python -B -m pytest tests/platform_v1/test_binding_windows_env.py tests/platform_v1/test_opencode_executor.py -q -p no:cacheprovider; python -m compileall -q reverse_agent/platform_v1/opencode_executor.py tests/platform_v1/test_binding_windows_env.py; git diff --check. Verify Windows installed-Git --version via disposable PowerShell child current/repaired environment; no provider, credential, global env or source change in probe. A failing mandatory final check stops publication; development iteration within this bounded scope precedes final checks.",
+      "command_id": "runsux.checks",
+      "command": "Verify frontend package.json/package-lock.json identical to existing root dependency installation before creating canonical/worker frontend/node_modules junction only to that existing directory. Run npm --prefix frontend run typecheck, npm --prefix frontend test, npm --prefix frontend run build, python -B -m pytest tests/platform_v1/test_run_read_model.py -q -p no:cacheprovider and git diff --check on final source. Development corrections precede final mandatory checks. No install, provider calls, manifest/lock edits or weakening tests.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -292,6 +304,7 @@
       "operations": [
         "unit_test",
         "integration_test",
+        "build",
         "local_static_check",
         "diff_validation",
         "machine_specific_execution",
@@ -303,8 +316,28 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "issue997.publish",
-      "command": "Push only codex/windows-binding-tool-env-r2-v1-20260927 to canonical origin and create/update its one exact Draft against main at cf0c06aaee9d21e5da6c8d558387017ad4259edb, binding this immutable Decision and each exact source head. Require local publication readiness, live main equality, unchanged approved scope, and no concurrent source-branch mutation. No Ready, merge, other branch, tag or release.",
+      "command_id": "runsux.browser",
+      "command": "Known installed msedge/Playwright only, at most12 launches. Use isolated source Vite preview on free loopback4174 and external Playwright config inheriting unchanged repository config, exact testDir, installed msedge, fixed desktop1440x900/mobile390x844 and light/dark themes; no snapshot baseline writes. Run scoped Runs E2E with disclosed fixture data. For real Task API browser validation, after all model tasks finish, temporarily replace only verified-owned frontend4173 process with exact-source Vite at4173; preserve Task/Model API processes/stores, record PID/executable/starttime, use read-only UI actions. Stop only that verified preview and restore root frontend with unchanged existing launcher and current SourceDir, with no active tasks. If ownership/port validation fails, do not kill unknown processes; retain blocked live-path evidence. Capture/view exact-source screenshots, keyboard expansion, titles/usage/controls, overflow; distinguish fixture/live and preview/deployment. No browser shell/filesystem/policy authority.",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "user_local",
+      "operations": [
+        "integration_test",
+        "local_static_check",
+        "machine_specific_execution",
+        "network_access"
+      ],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "runsux.publish",
+      "command": "Push only codex/runs-usage-identity-r2-v1-20260927 at mosttwice total (activation, oneimplementation) and create/update one Draft against main locked at607d8daf72ec809cfe5d09bd2b5b7f711d9e294f. Before each push require publication readiness, exact main/base and scope, no concurrent branch mutation. Draft before any source changes. Bind immutable Decision/exact head and truthful evidence. No Ready/merge/deployment.",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -322,8 +355,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "issue997.natural_ci",
-      "command": "Observe unchanged natural CI, State Gate and Decision Preflight on exact Draft head. CI executes provider-free tests only; no manual rerun or dispatch and no model calls.",
+      "command_id": "runsux.ci",
+      "command": "Observe existing natural CI, Decision Preflight, State Gate and applicable frontend workflow. Zero provider/model calls in checks. No reruns/dispatch or workflow/dependency edits. Inspect native diagnostic, not only wrapper green.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -342,8 +375,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "issue997.audit",
-      "command": "Independent exact-head audit: verify narrow Windows environment repair, secret exclusion and unchanged role/relay semantics, actual worker/publisher provenance, local checks and native CI diagnostic. Preserve all unrelated PRs and user dirty files. Report source acceptance separately from runtime deployment or landing.",
+      "command_id": "runsux.audit",
+      "command": "Independent exact-head source/visual audit, distinct acceptance for999 and1001. Preserve current root, other PRs and scratch; report actual tests and unavailable checks. Exact source acceptance is not deployment/landing.",
       "phase": "final_evidence",
       "required": true,
       "expected_exit_codes": [
@@ -362,17 +395,33 @@
     }
   ],
   "concurrent_work_preservation": {
-    "pr": 995,
-    "frozen_head": "22ece480512a5ad14205db1a7bc436fdc4a123ce",
-    "shared_path": "reverse_agent/platform_v1/opencode_executor.py",
-    "policy": "Preserve existing dirty host/frontend workspace and PR995/991/992 source branches. Host code stays unchanged. Only this bounded environment helper repair is permitted; no transfer of unrelated root user changes."
+    "prs": [
+      991,
+      992,
+      995,
+      1000
+    ],
+    "root_branch": "owner/20260926-defect11-rootcause-and-frontend-focus",
+    "root_head": "22ece480512a5ad14205db1a7bc436fdc4a123ce",
+    "policy": "Preserve root71statusrecords, active landing evidence and unrelated PR heads. No adoption or publication of root dirty frontend/brand changes. No mutation of1002 backend state contract in this batch."
   },
   "reference_paths": [
     "AGENTS.md",
     "docs/agents/governance-reference.md",
     "dev-up.ps1",
-    "reverse_agent/platform_v1/repository_workspace.py",
-    "reverse_agent/platform_v1/trusted_host.py"
+    "frontend/src/lib/platform-client.ts",
+    "frontend/src/lib/format.ts",
+    "frontend/src/lib/display-title.ts",
+    "frontend/src/types/index.ts",
+    "frontend/e2e/fixtures.ts",
+    "frontend/playwright.config.ts",
+    "frontend/vite.config.ts",
+    "reverse_agent/platform_v1/run_read_model.py",
+    "reverse_agent/platform_v1/run_store.py"
+  ],
+  "source_issues": [
+    999,
+    1001
   ]
 }
 ```
