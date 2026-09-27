@@ -680,7 +680,7 @@ def test_binding_child_environment_uses_explicit_allowlist_without_iteration() -
 
     child = build_binding_child_env(parent, content)
 
-    assert child == {
+    expected = {
         "PATH": "C:\\safe-bin",
         "SystemRoot": "C:\\Windows",
         "OPENCODE_DISABLE_AUTOUPDATE": "true",
@@ -690,6 +690,9 @@ def test_binding_child_environment_uses_explicit_allowlist_without_iteration() -
         "OPENCODE_DISABLE_CLAUDE_CODE": "true",
         "OPENCODE_CONFIG_CONTENT": content,
     }
+    if platform.system() == "Windows":
+        expected["PATHEXT"] = ".COM;.EXE;.BAT;.CMD"
+    assert child == expected
     assert not parent.forbidden.intersection(parent.read_keys)
 
 
@@ -2331,7 +2334,7 @@ def test_binding_child_env_still_uses_allowlist() -> None:
     parent = _GuardedParentEnvironment()
     content = build_binding_config_content(_binding_resolution())
     child = build_binding_child_env(parent, content)
-    assert child == {
+    expected = {
         "PATH": "C:\\safe-bin",
         "SystemRoot": "C:\\Windows",
         "OPENCODE_DISABLE_AUTOUPDATE": "true",
@@ -2341,6 +2344,9 @@ def test_binding_child_env_still_uses_allowlist() -> None:
         "OPENCODE_DISABLE_CLAUDE_CODE": "true",
         "OPENCODE_CONFIG_CONTENT": content,
     }
+    if platform.system() == "Windows":
+        expected["PATHEXT"] = ".COM;.EXE;.BAT;.CMD"
+    assert child == expected
     assert not parent.forbidden.intersection(parent.read_keys)
 
 

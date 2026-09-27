@@ -227,7 +227,32 @@ _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 _BINDING_CHILD_ENV_ALLOWLIST = (
     "PATH",
     "SystemRoot",
+    "PATHEXT",
 )
+
+# Conservative Windows executable-extension default used only when the parent
+# environment supplies no usable PATHEXT value. PATHEXT is required for child
+# executable discovery/invocation on Windows (e.g. resolving ``git.exe`` from
+# an extensionless absolute path); this is a fixed non-secret OS standard
+# value, not parent-environment inheritance.
+_DEFAULT_WINDOWS_PATHEXT = ".COM;.EXE;.BAT;.CMD"
+
+
+def _ensure_windows_pathext(child: dict[str, str]) -> None:
+    """Ensure PATHEXT is present in a Windows Binding child environment.
+
+    The allowlist already copies PATHEXT from the parent when it supplies a
+    usable string. On Windows PATHEXT is required for reliable executable
+    extension discovery/invocation; when the restricted parent omits it (or
+    supplies a non-string/empty value), inject the conservative non-secret
+    OS standard default. No-op on non-Windows. Never reads secrets.
+    """
+    if platform.system() != "Windows":
+        return
+    existing = child.get("PATHEXT")
+    if isinstance(existing, str) and existing:
+        return
+    child["PATHEXT"] = _DEFAULT_WINDOWS_PATHEXT
 
 
 def validate_model_id(model_id: str) -> str:
@@ -429,6 +454,7 @@ def build_role_child_env(
             value = parent_env.get(key)
             if isinstance(value, str) and value:
                 child[key] = value
+        _ensure_windows_pathext(child)
         for key, value in _OPENCODE_DISABLE_ENV.items():
             child[key] = value
         merged = _merge_opencode_config(existing_config, build_role_permission_config(role))
@@ -476,6 +502,7 @@ def build_binding_child_env(
         value = parent_env.get(key)
         if isinstance(value, str) and value:
             child[key] = value
+    _ensure_windows_pathext(child)
     for key, value in _OPENCODE_DISABLE_ENV.items():
         child[key] = value
     child["OPENCODE_CONFIG_CONTENT"] = config_content
