@@ -31,7 +31,7 @@ function httpRun(taskId: string) {
     change_summary: null,
     validation: null,
     usage: {
-      status: "OBSERVED",
+      status: "USAGE_UNKNOWN",
       input_units: 0,
       output_units: 0,
       reasoning_units: 0,
@@ -383,6 +383,232 @@ describe("Agent Runs page", () => {
     const alert = await screen.findByTestId("run-cancel-error-task-http-isolated");
     expect(alert).toHaveAttribute("role", "alert");
     expect(screen.queryByTestId("run-cancel-error-task-http-other")).not.toBeInTheDocument();
+  });
+
+  it("renders truthful usage for observed-zero, no-observations, all-unknown and partial runs", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
+    const zeroTotals = { input_units: 0, output_units: 0, reasoning_units: 0, cache_read_units: 0, cache_write_units: 0, cost_micro_units: 0, total_token_units: 0 };
+    const observedZero = { ...httpRun("task-usage-observed-zero"),
+      usage: { status: "OBSERVED", ...zeroTotals, observation_count: 2, unknown_observation_count: 0, provenance_ids: ["a", "b"], per_role: [] } };
+    const noObs = { ...httpRun("task-usage-no-obs"),
+      usage: { status: "USAGE_UNKNOWN", ...zeroTotals, observation_count: 0, unknown_observation_count: 0, provenance_ids: [], per_role: [] } };
+    const allUnknown = { ...httpRun("task-usage-all-unknown"),
+      usage: { status: "USAGE_UNKNOWN", ...zeroTotals, observation_count: 1, unknown_observation_count: 1, provenance_ids: ["u"], per_role: [] } };
+    const partial = { ...httpRun("task-usage-partial"),
+      usage: { status: "USAGE_UNKNOWN", input_units: 1000, output_units: 200, reasoning_units: 0, cache_read_units: 300, cache_write_units: 0, cost_micro_units: 5000, total_token_units: 1500, observation_count: 3, unknown_observation_count: 1, provenance_ids: ["o1", "o2", "u"], per_role: [] } };
+    const partialZero = { ...httpRun("task-usage-partial-zero"),
+      usage: { status: "USAGE_UNKNOWN", ...zeroTotals, observation_count: 2, unknown_observation_count: 1, provenance_ids: ["z", "u"], per_role: [] } };
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/runs")) return jsonResponse({ runs: [observedZero, noObs, allUnknown, partial, partialZero] });
+      return jsonResponse({ error: "not found" }, 404);
+    }));
+
+    renderWithProviders(<RunsPage />);
+
+    const observedZeroUsage = await screen.findByTestId("run-usage-task-usage-observed-zero");
+    expect(observedZeroUsage.textContent).toContain("Tokens 0");
+    expect(observedZeroUsage.textContent).toContain("Cost $0.0000");
+    expect(observedZeroUsage.textContent).toContain("已观测为 0");
+    expect(observedZeroUsage.textContent).not.toContain("用量未知");
+
+    const noObservations = await screen.findByTestId("run-usage-task-usage-no-obs");
+    expect(noObservations.textContent).toContain("尚无用量观测记录");
+    expect(noObservations.textContent).not.toContain("Tokens");
+
+    const allUnknownUsage = await screen.findByTestId("run-usage-task-usage-all-unknown");
+    expect(allUnknownUsage.textContent).toContain("用量未知：1 条观测均未提供数值");
+    expect(allUnknownUsage.textContent).not.toContain("Tokens");
+
+    const partialUsage = await screen.findByTestId("run-usage-task-usage-partial");
+    expect(partialUsage.textContent).toContain("Tokens 1,500（部分）");
+    expect(partialUsage.textContent).toContain("Cost $0.0050（部分）");
+    expect(partialUsage.textContent).toContain("1 条未知");
+    expect(partialUsage.textContent).not.toContain("尚无可信数值观测");
+
+    // A mixed summary with a genuinely observed-zero subtotal must still show
+    // the zero truthfully and mark it partial, never hiding behind
+    // no-trustworthy-observation copy.
+    const partialZeroUsage = await screen.findByTestId("run-usage-task-usage-partial-zero");
+    expect(partialZeroUsage.textContent).toContain("Tokens 0（部分）");
+    expect(partialZeroUsage.textContent).toContain("Cost $0.0000（部分）");
+    expect(partialZeroUsage.textContent).toContain("1 条未知");
+    expect(partialZeroUsage.textContent).not.toContain("尚无可信数值观测");
+    expect(partialZeroUsage.textContent).not.toContain("已观测为 0");
+
+    // The provider-reported cost disclaimer lives once at the page level instead
+    // of repeating in every observed row.
+    expect(screen.getByTestId("runs-cost-context").textContent).toContain("成本为 Provider");
+    expect(screen.getByTestId("runs-cost-context").textContent).toContain("不代表免费");
+  });
+
+  it("identifies each run by task title in the toggle accessible name", async () => {
+    renderWithProviders(<RunsPage />);
+    const toggle = await screen.findByTestId("run-toggle-task-demo-1");
+    const label = toggle.getAttribute("aria-label") ?? "";
+    expect(label).toMatch(/运行：.*T001 分析目标与代码库/);
+    expect(label).toContain("等待人工审查");
+    expect(screen.getByText(/T001 分析目标与代码库/)).toBeInTheDocument();
+  });
+
+  it("progressively discloses unavailable controls while keeping applicable ones prominent", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
+    const unavailableRun = {
+      ...httpRun("task-disc-unavailable"),
+      controls: {
+        cancel: { action: "CANCEL", scope: "QUEUE_ONLY", availability: "UNAVAILABLE", reason_code: "STATUS_NOT_CANCELLABLE" },
+      },
+    };
+    const availableRun = { ...httpRun("task-disc-available") };
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/runs")) return jsonResponse({ runs: [unavailableRun, availableRun] });
+      if (url.endsWith("/api/runs/task-disc-unavailable")) return jsonResponse(unavailableRun);
+      if (url.endsWith("/api/runs/task-disc-available")) return jsonResponse(availableRun);
+      return jsonResponse({ error: "not found" }, 404);
+    }));
+
+    const user = userEvent.setup();
+    renderWithProviders(<RunsPage />);
+
+    // An unavailable control collapses into a native details so the expanded
+    // card no longer leads with two large unavailable panels; the disabled
+    // button and server-authoritative reason remain reachable.
+    await user.click(await screen.findByTestId("run-toggle-task-disc-unavailable"));
+    await waitFor(() => expect(screen.getByTestId("run-cancel-help-task-disc-unavailable").textContent).toContain("当前状态不支持取消"));
+    const cancelDetails = screen.getByTestId("run-control-task-disc-unavailable");
+    expect(cancelDetails.tagName).toBe("DETAILS");
+    expect(cancelDetails).not.toHaveAttribute("open");
+    expect(screen.getByTestId("run-cancel-task-disc-unavailable")).toBeDisabled();
+
+    // Resume is unavailable here too: same compact disclosure, truthful reason.
+    const resumeDetails = screen.getByTestId("run-resume-control-task-disc-unavailable");
+    expect(resumeDetails.tagName).toBe("DETAILS");
+    expect(resumeDetails).not.toHaveAttribute("open");
+    expect(screen.getByTestId("run-resume-task-disc-unavailable")).toBeDisabled();
+    expect(screen.getByTestId("run-resume-help-task-disc-unavailable").textContent).toContain("服务器未提供");
+
+    // An applicable control stays a prominent section, not a collapsed disclosure.
+    await user.click(await screen.findByTestId("run-toggle-task-disc-available"));
+    const availableCancel = await screen.findByTestId("run-cancel-task-disc-available");
+    await waitFor(() => expect(availableCancel).toBeEnabled());
+    expect(screen.getByTestId("run-control-task-disc-available").tagName).toBe("SECTION");
+  });
+
+  it("renders a truthful task-id heading and accessible name when the public title is empty or whitespace", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
+    const emptyTitleRun = { ...httpRun("task-empty-title"), title: "", goal_id: "goal-redacted", goal_title: "被脱敏的目标标题" };
+    const whitespaceRun = { ...httpRun("task-whitespace-title"), title: "   \t  ", goal_id: "goal-redacted", goal_title: "被脱敏的目标标题" };
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/runs")) return jsonResponse({ runs: [emptyTitleRun, whitespaceRun] });
+      return jsonResponse({ error: "not found" }, 404);
+    }));
+
+    renderWithProviders(<RunsPage />);
+
+    const emptyHeading = await screen.findByTestId("run-heading-task-empty-title");
+    expect(emptyHeading.textContent).toBe("任务 task-empty-title · 标题暂不可用");
+    expect(emptyHeading.textContent).not.toContain("被脱敏的目标标题");
+    const emptyToggle = screen.getByTestId("run-toggle-task-empty-title");
+    expect(emptyToggle.getAttribute("aria-label") ?? "").toMatch(/运行：.*任务 task-empty-title/);
+    expect(emptyToggle.getAttribute("aria-label") ?? "").toContain("标题暂不可用");
+
+    const wsHeading = screen.getByTestId("run-heading-task-whitespace-title");
+    expect(wsHeading.textContent).toBe("任务 task-whitespace-title · 标题暂不可用");
+    expect(wsHeading.textContent).not.toContain("被脱敏的目标标题");
+    expect((screen.getByTestId("run-toggle-task-whitespace-title").getAttribute("aria-label") ?? "")).toContain("任务 task-whitespace-title");
+
+    // The goal remains truthful secondary metadata, never promoted to the heading.
+    expect(screen.getByTestId("run-goal-task-empty-title").textContent).toContain("被脱敏的目标标题");
+  });
+
+  it("keeps same-goal runs with empty titles distinguishable by task id", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
+    const runA = { ...httpRun("task-samegoal-a"), title: "", goal_id: "goal-same", goal_title: "同一目标" };
+    const runB = { ...httpRun("task-samegoal-b"), title: "", goal_id: "goal-same", goal_title: "同一目标" };
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/runs")) return jsonResponse({ runs: [runA, runB] });
+      return jsonResponse({ error: "not found" }, 404);
+    }));
+
+    renderWithProviders(<RunsPage />);
+
+    const headingA = await screen.findByTestId("run-heading-task-samegoal-a");
+    const headingB = screen.getByTestId("run-heading-task-samegoal-b");
+    expect(headingA.textContent).toContain("task-samegoal-a");
+    expect(headingB.textContent).toContain("task-samegoal-b");
+    expect(headingA.textContent).not.toStrictEqual(headingB.textContent);
+
+    const labelA = screen.getByTestId("run-toggle-task-samegoal-a").getAttribute("aria-label") ?? "";
+    const labelB = screen.getByTestId("run-toggle-task-samegoal-b").getAttribute("aria-label") ?? "";
+    expect(labelA).not.toStrictEqual(labelB);
+    expect(labelA).toContain("task-samegoal-a");
+    expect(labelB).toContain("task-samegoal-b");
+  });
+
+  it("falls back to the task id for runs with no goal and an empty title", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
+    const noGoalRun = { ...httpRun("task-nogoal"), title: "  ", goal_id: "", goal_title: "" };
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/runs")) return jsonResponse({ runs: [noGoalRun] });
+      return jsonResponse({ error: "not found" }, 404);
+    }));
+
+    renderWithProviders(<RunsPage />);
+
+    const heading = await screen.findByTestId("run-heading-task-nogoal");
+    expect(heading.textContent).toBe("任务 task-nogoal · 标题暂不可用");
+    expect(screen.getByText("未关联目标")).toBeInTheDocument();
+    const toggle = screen.getByTestId("run-toggle-task-nogoal");
+    expect(toggle.getAttribute("aria-label") ?? "").toMatch(/运行：.*任务 task-nogoal/);
+  });
+
+  it("keeps keyboard focus on the run disclosure when a 409 makes cancel unavailable", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
+    const queuedRun = httpRun("task-focus-409");
+    const cancelledRun = {
+      ...queuedRun,
+      status: "CANCELLED",
+      state: "CANCELLED",
+      controls: { cancel: { action: "CANCEL", scope: "QUEUE_ONLY", availability: "UNAVAILABLE", reason_code: "ALREADY_CANCELLED" } },
+    };
+    let cancelCalls = 0;
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const afterAttempt = cancelCalls > 0;
+      if (url.endsWith("/api/runs")) return jsonResponse({ runs: [afterAttempt ? cancelledRun : queuedRun] });
+      if (url.endsWith("/api/runs/task-focus-409")) return jsonResponse(afterAttempt ? cancelledRun : queuedRun);
+      if (url.endsWith("/api/runs/task-focus-409/cancel")) {
+        cancelCalls += 1;
+        return cancelCalls === 1
+          ? jsonResponse({ error: "queue_cancel_unavailable", reason_code: "STATUS_NOT_CANCELLABLE" }, 409)
+          : jsonResponse({ status: "APPLIED" });
+      }
+      return jsonResponse({ error: "not found" }, 404);
+    }));
+
+    const user = userEvent.setup();
+    renderWithProviders(<RunsPage />);
+    const toggle = await screen.findByTestId("run-toggle-task-focus-409");
+    await user.click(toggle);
+    await user.click(await screen.findByTestId("run-cancel-task-focus-409"));
+    await user.click(await screen.findByRole("button", { name: "确认取消" }));
+
+    const alert = await screen.findByTestId("run-cancel-error-task-focus-409");
+    expect(alert).toHaveTextContent("取消请求与最新运行状态冲突");
+    const retryButton = within(alert).getByRole("button", { name: "重试" });
+    await waitFor(() => expect(document.activeElement).toBe(retryButton));
+
+    await user.click(retryButton);
+    await waitFor(() => expect(screen.queryByTestId("run-cancel-error-task-focus-409")).not.toBeInTheDocument());
+    // The retry removed the error button; the control is unavailable, so focus
+    // must land on the stable run disclosure, not a disabled control or body.
+    expect(document.activeElement).toBe(toggle);
+    expect(screen.getByTestId("run-control-task-focus-409").tagName).toBe("DETAILS");
+    expect(screen.getByTestId("run-cancel-help-task-focus-409").textContent).toContain("任务已取消");
   });
 });
 
