@@ -1742,21 +1742,22 @@ def test_sequential_task_execute_dispatches_to_sequential_team_method_once(
     assert svc.execute_sequential_team_calls == 1
 
 
-def test_http_resume_sequential_routes_to_durable_recovery_once(
-    tmp_path, monkeypatch
-) -> None:
-    """The public resume route must preserve the sequential durable path.
+def _resume_gate_fixture(
+    tmp_path,
+    *,
+    authority_sha: str = "test_authority",
+    planning_sha: str = "test_planning",
+    capabilities: tuple[str, ...] = ("resume_task",),
+    max_token_units: int = 0,
+    per_task_token_reservation: int = 0,
+    observed_token_units: int = 0,
+):
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
 
-    This is provider-free: a tracing service replaces durable execution and
-    proves that the API dispatches exactly one sequential resume, never the
-    single-mode path.
-    """
-    from http.server import ThreadingHTTPServer
-    import reverse_agent.platform_v1.task_service as task_service_module
-
-    store = TaskStore(db_path=str(tmp_path / "resume-route.sqlite3"))
+    store = TaskStore(db_path=str(tmp_path / f"resume-gate-{authority_sha}.sqlite3"))
     task = store.create_task(
-        title="issue-246-http-resume",
+        title="issue-120-http-resume",
+        repository="dddd2024/Nerelan",
         executor_kind="opencode",
         orchestration_mode="sequential_team",
     )
@@ -1767,7 +1768,106 @@ def test_http_resume_sequential_routes_to_durable_recovery_once(
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
     )
+    store.set_state(task.id, "INTERRUPTED")
 
+    control = PlatformControlStore(store)
+    goal = control.create_goal(
+        title="Issue 120 resume gate",
+        objective="Resume only with current authority and budget",
+        repository=task.repository,
+        idempotency_key=f"goal-{task.id}",
+        executor_kind="opencode",
+        orchestration_mode="sequential_team",
+    )
+    goal = control.save_goal_plan(
+        goal.id,
+        expected_revision=goal.revision,
+        spec_markdown="spec",
+        plan_markdown="plan",
+        tasks=[{"id": "resume-task"}],
+        acceptance_criteria=["safe resume"],
+    )
+    goal = control.approve_goal(goal.id, expected_revision=goal.revision)
+
+    now = datetime.now(timezone.utc)
+    window = control.activate_window(
+        {
+            "policy_id": f"resume-{task.id}",
+            "policy_revision": 1,
+            "owner_identity": "test-owner",
+            "starts_at": (now - timedelta(minutes=1)).isoformat(),
+            "expires_at": (now + timedelta(hours=1)).isoformat(),
+            "repositories": [task.repository],
+            "capabilities": list(capabilities),
+            "max_concurrent_tasks": 1,
+            "max_tasks": 1,
+            "max_retries": 1,
+            "max_token_units": max_token_units,
+            "max_cost_micro_units": 0,
+            "per_task_token_reservation": per_task_token_reservation,
+            "per_task_cost_reservation": 0,
+            "provider_quota_state": (
+                "OBSERVED" if max_token_units else "NOT_CONFIGURED"
+            ),
+            "enforcement_class": (
+                "HARD_ADMISSION_ENFORCED"
+                if max_token_units
+                else "POST_RUN_OBSERVED"
+            ),
+        },
+        confirmation="ACTIVATE",
+    )
+    goal = control.mark_goal_running(
+        goal.id, revision=goal.revision, window_id=window.id
+    )
+    control.link_goal_task(
+        goal.id,
+        goal_revision=goal.revision,
+        plan_task_id="resume-task",
+        task_id=task.id,
+        dependencies=(),
+        seq=0,
+    )
+    if observed_token_units:
+        store._conn.execute(
+            "UPDATE platform_autonomous_windows SET observed_token_units = ? WHERE id = ?",
+            (observed_token_units, window.id),
+        )
+    return store, control, task, goal, window, authority_sha, planning_sha
+
+
+def _run_resume_route_server(
+    store,
+    control,
+    *,
+    authority_sha: str,
+    planning_sha: str,
+):
+    from http.server import ThreadingHTTPServer
+
+    handler_cls = _handler_factory(
+        store,
+        ExecutorRouter(),
+        allowed_origin="http://localhost:5173",
+        execution_authority_sha=authority_sha,
+        planning_sha=planning_sha,
+        control_store=control,
+    )
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, f"http://127.0.0.1:{server.server_address[1]}"
+
+
+def test_http_resume_sequential_routes_to_durable_recovery_once(
+    tmp_path, monkeypatch
+) -> None:
+    """An admitted manual Resume dispatches exactly one durable team recovery."""
+    import reverse_agent.platform_v1.task_service as task_service_module
+
+    store, control, task, _, window, authority_sha, planning_sha = _resume_gate_fixture(
+        tmp_path
+    )
     calls = []
 
     class TracingDurableExecutionService:
@@ -1779,6 +1879,24 @@ def test_http_resume_sequential_routes_to_durable_recovery_once(
 
         def resume_sequential_team(self, **kwargs):
             calls.append(kwargs)
+            self.store.append_usage_observation(
+                task.id,
+                observation_id="issue120-resume-usage",
+                execution_id=f"exec-{task.id}",
+                role="coder",
+                model_id="fixture-model",
+                provider_id="fixture-provider",
+                source_kind="fixture",
+                source_id="issue120",
+                status="OBSERVED",
+                input_units=0,
+                output_units=0,
+                reasoning_units=0,
+                cache_read_units=0,
+                cache_write_units=0,
+                cost_micro_units=0,
+            )
+            self.store.set_state(task.id, "READY_FOR_REVIEW")
             return object()
 
     monkeypatch.setattr(
@@ -1786,26 +1904,160 @@ def test_http_resume_sequential_routes_to_durable_recovery_once(
         "DurableExecutionService",
         TracingDurableExecutionService,
     )
-    handler_cls = _handler_factory(
+    server, base = _run_resume_route_server(
         store,
-        ExecutorRouter(),
-        allowed_origin="http://localhost:5173",
-        execution_authority_sha="test_authority",
-        planning_sha="test_planning",
+        control,
+        authority_sha=authority_sha,
+        planning_sha=planning_sha,
     )
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    base = f"http://127.0.0.1:{server.server_address[1]}"
     try:
         status, body = _req(base, "POST", f"/api/tasks/{task.id}/resume")
         assert status == 200
         assert body["id"] == task.id
+        assert body["status"] == "READY_FOR_REVIEW"
     finally:
         server.shutdown()
         server.server_close()
 
     assert calls == [{"task_id": task.id, "lease_owner": "task-api-resume"}]
+    claim = store._conn.execute(
+        "SELECT status FROM platform_coordinator_claims "
+        "WHERE window_id = ? AND task_id = ?",
+        (window.id, task.id),
+    ).fetchone()
+    assert claim["status"] == "COMPLETE"
+    assert control.get_window(window.id).status == "ACTIVE"
+
+
+def test_http_resume_denies_stale_execution_authority_before_dispatch(
+    tmp_path, monkeypatch
+) -> None:
+    import reverse_agent.platform_v1.task_service as task_service_module
+
+    store, control, task, _, _, _, planning_sha = _resume_gate_fixture(
+        tmp_path, authority_sha="current_authority"
+    )
+    calls = []
+
+    class TracingDurableExecutionService:
+        def __init__(self, **kwargs):
+            calls.append(("constructed", kwargs))
+
+        def resume_single(self, **kwargs):
+            calls.append(("single", kwargs))
+
+        def resume_sequential_team(self, **kwargs):
+            calls.append(("team", kwargs))
+
+    monkeypatch.setattr(
+        task_service_module,
+        "DurableExecutionService",
+        TracingDurableExecutionService,
+    )
+    server, base = _run_resume_route_server(
+        store,
+        control,
+        authority_sha="current_authority",
+        planning_sha=planning_sha,
+    )
+    try:
+        status, body = _req(base, "POST", f"/api/tasks/{task.id}/resume")
+        assert status == 409
+        assert body["error"] == "resume_write_gate_denied:authority_sha_mismatch"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert calls == []
+    assert store._conn.execute(
+        "SELECT COUNT(*) FROM platform_coordinator_claims WHERE task_id = ?",
+        (task.id,),
+    ).fetchone()[0] == 0
+
+
+def test_http_resume_denies_missing_resume_capability_before_dispatch(
+    tmp_path, monkeypatch
+) -> None:
+    import reverse_agent.platform_v1.task_service as task_service_module
+
+    store, control, task, _, _, authority_sha, planning_sha = _resume_gate_fixture(
+        tmp_path, capabilities=("execute_task",)
+    )
+    calls = []
+
+    class TracingDurableExecutionService:
+        def __init__(self, **kwargs):
+            calls.append(("constructed", kwargs))
+
+    monkeypatch.setattr(
+        task_service_module,
+        "DurableExecutionService",
+        TracingDurableExecutionService,
+    )
+    server, base = _run_resume_route_server(
+        store,
+        control,
+        authority_sha=authority_sha,
+        planning_sha=planning_sha,
+    )
+    try:
+        status, body = _req(base, "POST", f"/api/tasks/{task.id}/resume")
+        assert status == 409
+        assert body["error"] == (
+            "resume_write_gate_denied:resume_task_not_authorized"
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert calls == []
+    assert store._conn.execute(
+        "SELECT COUNT(*) FROM platform_coordinator_claims WHERE task_id = ?",
+        (task.id,),
+    ).fetchone()[0] == 0
+
+
+def test_http_resume_denies_exhausted_token_budget_before_dispatch(
+    tmp_path, monkeypatch
+) -> None:
+    import reverse_agent.platform_v1.task_service as task_service_module
+
+    store, control, task, _, _, authority_sha, planning_sha = _resume_gate_fixture(
+        tmp_path,
+        max_token_units=100,
+        per_task_token_reservation=60,
+        observed_token_units=50,
+    )
+    calls = []
+
+    class TracingDurableExecutionService:
+        def __init__(self, **kwargs):
+            calls.append(("constructed", kwargs))
+
+    monkeypatch.setattr(
+        task_service_module,
+        "DurableExecutionService",
+        TracingDurableExecutionService,
+    )
+    server, base = _run_resume_route_server(
+        store,
+        control,
+        authority_sha=authority_sha,
+        planning_sha=planning_sha,
+    )
+    try:
+        status, body = _req(base, "POST", f"/api/tasks/{task.id}/resume")
+        assert status == 409
+        assert "window_token_budget_exhausted" in body["error"]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert calls == []
+    assert store._conn.execute(
+        "SELECT COUNT(*) FROM platform_coordinator_claims WHERE task_id = ?",
+        (task.id,),
+    ).fetchone()[0] == 0
 
 
 def test_single_task_execute_does_not_call_sequential_team(tmp_path) -> None:
