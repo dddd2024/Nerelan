@@ -1,10 +1,10 @@
-# Bounded Windows Binding child tool environment repair
+# Bounded delegated exact Runs PR1006 landing authority
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260927_issue997_windows_binding_env_r2_v1",
-  "round_id": "round_20260927_issue997_windows_binding_env_r2_v1",
+  "decision_id": "decision_20260927_pr1006_delegated_landing_r2_v1",
+  "round_id": "round_20260927_pr1006_delegated_landing_r2_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -31,44 +31,43 @@
   "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
   "provider_free_acceptance_required": true,
-  "decision_scope": "WINDOWS_BINDING_TOOL_ENVIRONMENT_ONLY",
-  "source_issue": 997,
-  "parent_issue": 643,
-  "approved_by": "dddd2024 via explicit delegated Owner authorization",
-  "approval_basis": "The Owner explicitly authorizes all pending and newly discovered system tasks, configured API use, no monetary/token limit, independent AI/supervisor acceptance, and publication. This bounded source/worker-configuration stage repairs reproduced Windows tool invocation failure without broad environment or credential exposure. It permits system-authored implementation and exact Draft publication, not landing or application-code deployment.",
+  "decision_scope": "EXACT_PR1006_DELEGATED_LANDING_ONLY",
+  "source_issue": 999,
+  "parent_issue": 448,
+  "approved_by": "dddd2024 via explicit current delegated Owner authorization",
+  "approval_basis": "Owner explicitly delegated all pending/new tasks, system implementation, independent AI or supervisor acceptance and publication/merge, with no token/cost cap. This bounded Decision authorizes a Decision-only unmerged authority Draft and exact PR1006 landing under the existing false/none attestation protocol. All Owner-account actions are disclosed delegated automation, never personal human review.",
   "risk_tier": "R2",
   "authorized_risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "main",
-  "base_sha": "cf0c06aaee9d21e5da6c8d558387017ad4259edb",
-  "activation_base_sha": "cf0c06aaee9d21e5da6c8d558387017ad4259edb",
-  "starting_head": "cf0c06aaee9d21e5da6c8d558387017ad4259edb",
-  "fresh_base": "cf0c06aaee9d21e5da6c8d558387017ad4259edb",
-  "current_main_expected": "cf0c06aaee9d21e5da6c8d558387017ad4259edb",
-  "required_branch": "codex/windows-binding-tool-env-r2-v1-20260927",
-  "workstream_id": "issue997-windows-binding-env-r2-v1",
-  "follows_last_decision_id": "decision_20260923_issue982_gpt_oauth_network_r3_v1",
-  "follows_last_round_id": "round_20260923_issue982_gpt_oauth_network_r3_v1",
-  "workflow_profile": "baseline",
+  "required_branch": "codex/pr1006-delegated-landing-v1-20260927",
+  "workstream_id": "pr1006-delegated-landing-r2-v1",
+  "follows_last_decision_id": "decision_20260927_issue997_windows_binding_env_r2_v1",
+  "follows_last_round_id": "round_20260927_issue997_windows_binding_env_r2_v1",
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 1,
+  "product_change_commit_limit": 0,
   "generated_governance_commit_limit": 0,
-  "normal_push_attempt_limit": 2,
+  "normal_push_attempt_limit": 1,
   "draft_pr_creation_limit": 1,
-  "mark_ready_attempt_limit": 0,
-  "merge_attempt_limit": 0,
+  "mark_ready_attempt_limit": 1,
+  "merge_attempt_limit": 1,
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
   "workflow_dispatch_limit": 0,
-  "live_model_call_limit": 3,
+  "live_model_call_limit": 0,
   "provider_network_call_limit": 0,
   "credential_access_limit": 0,
   "local_browser_launch_limit": 0,
   "pr_creation_allowed": true,
   "issue_comment_allowed": true,
   "pull_request_comment_allowed": true,
-  "merge_allowed": false,
-  "mark_ready_allowed": false,
+  "merge_allowed": true,
+  "mark_ready_allowed": true,
+  "base_sha": "607d8daf72ec809cfe5d09bd2b5b7f711d9e294f",
+  "activation_base_sha": "607d8daf72ec809cfe5d09bd2b5b7f711d9e294f",
+  "starting_head": "607d8daf72ec809cfe5d09bd2b5b7f711d9e294f",
+  "fresh_base": "607d8daf72ec809cfe5d09bd2b5b7f711d9e294f",
+  "current_main_expected": "607d8daf72ec809cfe5d09bd2b5b7f711d9e294f",
   "workflow_rerun_allowed": false,
   "workflow_dispatch_allowed": false,
   "runner_dispatch_allowed": false,
@@ -77,10 +76,10 @@
   "force_push_allowed": false,
   "rebase_during_execution_allowed": false,
   "dependency_install_allowed": false,
-  "live_provider_access_allowed": true,
+  "live_provider_access_allowed": false,
   "credential_access_allowed": false,
   "unknown_binary_execution_allowed": false,
-  "model_api_invocation_allowed": true,
+  "model_api_invocation_allowed": false,
   "external_reverse_tool_invocation_allowed": false,
   "destructive_operations_allowed": false,
   "bootstrap_exception_files": [
@@ -89,9 +88,6 @@
   "bootstrap_exception_commands": [],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
-    "reverse_agent/platform_v1/opencode_executor.py",
-    "tests/platform_v1/test_binding_windows_env.py",
-    "tests/platform_v1/test_opencode_executor.py",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
@@ -100,9 +96,6 @@
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
-    "reverse_agent/platform_v1/opencode_executor.py",
-    "tests/platform_v1/test_binding_windows_env.py",
-    "tests/platform_v1/test_opencode_executor.py",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
@@ -120,100 +113,91 @@
     "AGENTS.md",
     ".github/**",
     ".codex-skills/**",
+    "reverse_agent/**",
     "frontend/**",
-    "dev-up.ps1",
-    "dev-down.ps1",
-    "reverse_agent/model_access/**",
-    "reverse_agent/platform_v1/trusted_host.py",
-    "reverse_agent/platform_v1/task_service.py",
-    "reverse_agent/platform_v1/repository_workspace.py",
+    "tests/**",
+    "docs/**",
     "project_state/mainline_merge_intents/**",
     "project_state/rounds/**",
     "pyproject.toml",
     "requirements*.txt"
   ],
   "forbidden_operations": [
+    "source_edit",
     "direct_push_main",
-    "auto_merge",
     "force_push",
     "rebase",
-    "squash",
-    "amend",
     "history_rewrite",
-    "mark_ready",
-    "merge",
+    "auto_merge",
+    "tag_or_release",
     "workflow_rerun",
-    "workflow_dispatch",
     "runner_dispatch",
+    "model_api_invocation",
     "credential_access",
     "unknown_binary_execution",
     "external_reverse_tool_invocation",
     "destructive",
-    "tag_or_release",
     "dependency_install",
     "generated_governance_commit",
-    "local_browser_execution",
-    "snapshot_generation_or_threshold_change",
-    "fix_forward_after_mandatory_failure"
+    "active_json_rewrite",
+    "authority_pr_ready_or_merge",
+    "target_branch_mutation"
   ],
   "path_risk_floor": [
     {
       "pattern": "project_state/**",
       "minimum_risk": "R2"
-    },
-    {
-      "pattern": "frontend/e2e/snapshots/**",
-      "minimum_risk": "R3"
     }
   ],
+  "reference_paths": [
+    "AGENTS.md",
+    "docs/agents/governance-reference.md",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/project_gate.py",
+    "tests/test_mainline_landing.py"
+  ],
   "semantic_implementation_contract": {
-    "specification": "Only repair Windows executable discovery/invocation in _BINDING_CHILD_ENV_ALLOWLIST, build_binding_child_env, build_role_child_env and immediately adjacent pure helper if needed. Preserve known non-secret allowlisting, relay configuration and all existing permission, credential, budget and network fences. Do not modify model/provider configuration or copy the full parent environment. Preserve existing _bounded_value from merged PR996 and unrelated account-auth/runtime-launch behavior. Handle absent/nonstring environment values conservatively; portable behavior must stay compatible. Use existing test framework, no new dependency or runner. All product code and tests are authored by Nerelan system workers; supervisor may prepare authority, transfer exact reviewed system artifacts to this branch, run checks and publish. Workers use a clean detached materialization of this activated Decision commit through existing SourceDir configuration; the named branch belongs to the trusted publisher, and worker base/provenance must be verified before artifact acceptance.",
-    "completion_boundary": "Provider-free exact-head tests, independent AI or supervisor review, and natural exact-head CI. Draft only. No Ready/merge/deployment under this source stage. Live configured model calls are solely system implementation/review dispatch through existing coding-glm binding; no model call in tests. No live model/provider operation introduced into product tests."
-  },
-  "runtime_scratch_policy": {
-    "paths": [
-      ".platform_v1_runtime/**",
-      "**/__pycache__/**",
-      ".pytest_cache/**"
-    ],
-    "stage_allowed": false,
-    "note": "Existing host F:/reverse-agent runtime metadata/database effects are permitted only through its existing dev-up and Task APIs in the bounded runtime command. Preserve all tracked/unknown user files and existing stores; never stage runtime scratch."
+    "specification": "No product changes. Decision-only unmerged authority Draft from locked main 607d8daf72ec809cfe5d09bd2b5b7f711d9e294f. Exact source PR1006 head d4ee4e743d402fd465108cae46cf5fca7efda2c3, tree96dad4dbed2cd86a4d328e837626742ef4cc3a9f, target Decisiondecision_20260927_runs_usage_identity_r2_v3. Independent supervisor authored no product/test changes and accepted scoped source after actual final-head typecheck/461Vitest/build/40read-model/diff checks plus real/mock desktop/mobile light/dark browser evidence,10Playwright checks and47unique live accessible names including duplicate-title groups. Latest system author task-1790522355226-9393a716c142; original input system authors E/B recorded in sourceDecision. Trusted native functional verification461passed at exactly the same produced tree. Use existing false/none Issue944 protocol with pre-Ready ordinary StateGate bound in legacy field and separate new formal Ready landing gate. No invented Gate/receipt/schema. Preserve all unrelated PRs, root71records and other source Drafts.",
+    "completion_boundary": "After exact target and authority natural CI/Decision/State success and native diagnostic validation, create transparent Owner-account COMMENTED exact-head review and one existing-format OWNER_LANDING_MERGE_ATTESTATION while target Draft. Verify canonical validator and immutable remote bindings, mark target Ready once, require new natural formal landing-state-gate SUCCESS, then fresh no-drift expected-head method=merge once. Verify merge parents/tree/main and natural main CI and State Gate (Decision changes make State push applicable). Close Issues999 and1001 only after complete acceptance. No deployment or other Issue closure."
   },
   "capability_policy": {
     "runner_dispatch_allowed": false,
-    "model_api_invocation_allowed": true,
+    "model_api_invocation_allowed": false,
     "external_reverse_tool_invocation_allowed": false,
     "unknown_binary_execution_allowed": false,
     "destructive_operations_allowed": false,
     "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
-    "merge_allowed": false,
+    "merge_allowed": true,
     "force_push_allowed": false,
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [],
     "ci_network_exceptions": [
-      "Unchanged natural CI package setup and provider-free checks only; no added workflow or manual dispatch."
+      "Unchanged natural CI setup and provider-free checks only."
     ],
     "trusted_worker_network_exceptions": [],
-    "user_local_network_exceptions": [
-      "Existing loopback Task API/Model Control API and the already configured coding-glm binding via its existing trusted relay, for at most three system implementation/review calls. Provider-free local fixture servers only during tests. No credential reads or arbitrary endpoint access."
-    ],
+    "user_local_network_exceptions": [],
     "github_control_plane_network_exceptions": [
-      "Only canonical dddd2024/Nerelan exact approved branch pushes and one Draft against locked main. No Ready/merge/tag/release."
+      "Only canonical dddd2024/Nerelan exact authority branch push/Draft, PR1006 review/attestation/Ready/expected-head merge and completed Issues999 and1001 closure after verification."
     ]
+  },
+  "runtime_scratch_policy": {
+    "paths": [
+      "**/__pycache__/**",
+      ".pytest_cache/**"
+    ],
+    "stage_allowed": false,
+    "note": "Only pre-existing/generated ignored local Python scratch; never stage."
   },
   "allowed_commands": [
     {
-      "command_id": "issue997.bootstrap",
-      "command": "Fresh full checkout F:/Nerelan-issue997-windows-tool-env-20260927 from locked main. Commit only this Decision once; run startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness, all through python -m reverse_agent.project_gate --state-dir project_state. Require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY before implementation. Never edit activated Decision.",
+      "command_id": "pr1006.bootstrap",
+      "command": "Commit only this Decision once in fresh exact-base codex/pr1006-delegated-landing-v1-20260927 checkout. Run existing startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre, worktree-publication-readiness using python -m reverse_agent.project_gate SUBCOMMAND --state-dir project_state. Require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY. Never edit activated Decision or stage generated gates.",
       "phase": "bootstrap",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
       "execution_surface": "user_local",
       "operations": [
         "code_read",
@@ -223,6 +207,10 @@
         "machine_specific_execution"
       ],
       "network_access": false,
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
         "project_state/decision_packet.md"
@@ -236,80 +224,30 @@
       ]
     },
     {
-      "command_id": "issue997.runtime_source",
-      "command": "Only after all current tasks finish and the active window is stopped, use existing unchanged F:/reverse-agent/dev-up.ps1 -RepoDir F:/reverse-agent -SourceDir F:/Nerelan-issue997-windows-tool-env-20260927 -NoBrowser, preserving the recorded model selector and ports4173/8766/8765. Permit its verified-owned process restart and existing .platform_v1_runtime metadata/store writes; no source edits, package installs, global environment changes, browser launch or model call from startup. This reconfigures task source authority, not the existing host/frontend code. Verify SourceDir and execution_authority_sha equal the activated Decision checkout, all three health endpoints, prior Task counts/history and fresh task worker HEAD before acceptance. On startup failure restore the prior SourceDir F:/reverse-agent with the same existing launcher and model selector; no unverified process kill or data removal.",
-      "phase": "bootstrap",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "user_local",
-      "operations": [
-        "local_static_check",
-        "machine_specific_execution",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue997.system_implement",
-      "command": "Dispatch at most three bounded system implementation/review tasks via existing local Task API using coding-glm, one concurrent task, zero automatic retries, optional token/cost caps unset as Owner requested. The canonical source directory is the activated Decision checkout; verify worker initial HEAD matches activation commit. System worker may edit only approved source/test region inside its own worktree with native file tools, never commit/push/PR or access outside files. For read-only installed Git or Python tool invocation, use only the demonstrated process-local PATHEXT standard-extension workaround; no global change. Supervisor may transfer only the exact reviewed system patch and byte-identical tests to the named source branch and commit once, preserving provenance and pre-transfer clean state.",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "user_local",
-      "operations": [
-        "source_edit",
-        "commit",
-        "local_static_check",
-        "machine_specific_execution",
-        "model_api_invocation",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/opencode_executor.py",
-        "tests/platform_v1/test_binding_windows_env.py",
-        "tests/platform_v1/test_opencode_executor.py"
-      ],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue997.validate",
-      "command": "Provider-free development checks followed by final exact-head python -B -m pytest tests/platform_v1/test_binding_windows_env.py tests/platform_v1/test_opencode_executor.py -q -p no:cacheprovider; python -m compileall -q reverse_agent/platform_v1/opencode_executor.py tests/platform_v1/test_binding_windows_env.py; git diff --check. Verify Windows installed-Git --version via disposable PowerShell child current/repaired environment; no provider, credential, global env or source change in probe. A failing mandatory final check stops publication; development iteration within this bounded scope precedes final checks.",
+      "command_id": "pr1006.validate",
+      "command": "Run existing python -B -m pytest tests/test_mainline_landing.py -q -p no:cacheprovider and git diff --check on exact sidecar head. Verify source mandatory checks and system/independent review provenance, target scope and native CI diagnostic.",
       "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
       "execution_surface": "user_local",
       "operations": [
+        "code_read",
         "unit_test",
-        "integration_test",
         "local_static_check",
         "diff_validation",
-        "machine_specific_execution",
-        "network_access"
+        "machine_specific_execution"
       ],
-      "network_access": true,
+      "network_access": false,
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "issue997.publish",
-      "command": "Push only codex/windows-binding-tool-env-r2-v1-20260927 to canonical origin and create/update its one exact Draft against main at cf0c06aaee9d21e5da6c8d558387017ad4259edb, binding this immutable Decision and each exact source head. Require local publication readiness, live main equality, unchanged approved scope, and no concurrent source-branch mutation. No Ready, merge, other branch, tag or release.",
+      "command_id": "pr1006.publish_authority",
+      "command": "Push exact authority branch once and create one Draft against locked main. Decision-only sidecar, never Ready/merge. Observe natural authority CI, Decision Preflight and State Gate SUCCESS plus native diagnostic. No reruns or dispatch.",
       "phase": "publication",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
       "execution_surface": "github_control_plane",
       "operations": [
         "push",
@@ -317,18 +255,71 @@
         "network_access"
       ],
       "network_access": true,
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "issue997.natural_ci",
-      "command": "Observe unchanged natural CI, State Gate and Decision Preflight on exact Draft head. CI executes provider-free tests only; no manual rerun or dispatch and no model calls.",
-      "phase": "validation",
+      "command_id": "pr1006.attest",
+      "command": "After source and authority checks succeed, fresh-read exact heads/base/Decision digests, blocking review threads, ruleset21023698 and independent ACCEPT. Post one transparent delegated Owner-account COMMENTED review on exact target head. Publish exactly one existing-format OWNER_LANDING_MERGE_ATTESTATION on Draft1006 binding that review, both Decisions, sidecar natural runs, target pre-Ready ordinary State Gate and canonical contexts. Validate with existing read-only false/none validator; no invented schemas or tests bypass.",
+      "phase": "final_evidence",
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "network_access"
+      ],
+      "network_access": true,
       "required": true,
       "expected_exit_codes": [
         0
       ],
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "pr1006.ready",
+      "command": "Only after valid attestation and no drift, gh pr ready 1006 --repo dddd2024/Nerelan exactly once. Require naturally triggered formal landing-state-gate and ordinary state-gate SUCCESS at exact target head. No rerun, dispatch, conversion cycling or fake context.",
+      "phase": "publication",
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "mark_ready",
+        "network_access"
+      ],
+      "network_access": true,
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "pr1006.merge",
+      "command": "Immediately verify main/base equal 607d8daf72ec809cfe5d09bd2b5b7f711d9e294f, target head d4ee4e743d402fd465108cae46cf5fca7efda2c3, MERGEABLE/CLEAN, accepted scope, checks and attestation, no concurrent source mutation. gh pr merge 1006 --repo dddd2024/Nerelan --merge --match-head-commit d4ee4e743d402fd465108cae46cf5fca7efda2c3 once. Verify merged=true, merge parents/tree/main, native mainline receipt and natural main CI/State success. Only then close Issues999 and1001 completed with concise evidence. Preserve sidecar Draft and all other Issues/PRs.",
+      "phase": "publication",
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "merge",
+        "network_access"
+      ],
+      "network_access": true,
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "pr1006.natural_ci",
+      "command": "Observe unchanged natural authority and target/main CI, Decision Preflight and State Gate; no provider calls in tests.",
+      "phase": "validation",
       "execution_surface": "ci_only",
       "operations": [
         "unit_test",
@@ -337,42 +328,23 @@
         "network_access"
       ],
       "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue997.audit",
-      "command": "Independent exact-head audit: verify narrow Windows environment repair, secret exclusion and unchanged role/relay semantics, actual worker/publisher provenance, local checks and native CI diagnostic. Preserve all unrelated PRs and user dirty files. Report source acceptance separately from runtime deployment or landing.",
-      "phase": "final_evidence",
       "required": true,
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "remote_observation",
-      "operations": [
-        "code_read",
-        "read_only_audit",
-        "repository_observation"
-      ],
-      "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     }
   ],
-  "concurrent_work_preservation": {
-    "pr": 995,
-    "frozen_head": "22ece480512a5ad14205db1a7bc436fdc4a123ce",
-    "shared_path": "reverse_agent/platform_v1/opencode_executor.py",
-    "policy": "Preserve existing dirty host/frontend workspace and PR995/991/992 source branches. Host code stays unchanged. Only this bounded environment helper repair is permitted; no transfer of unrelated root user changes."
-  },
-  "reference_paths": [
-    "AGENTS.md",
-    "docs/agents/governance-reference.md",
-    "dev-up.ps1",
-    "reverse_agent/platform_v1/repository_workspace.py",
-    "reverse_agent/platform_v1/trusted_host.py"
+  "target_pr": 1006,
+  "accepted_exact_head_sha": "d4ee4e743d402fd465108cae46cf5fca7efda2c3",
+  "expected_head_protection_required": true,
+  "allowed_merge_method": "merge",
+  "workflow_profile": "baseline",
+  "source_issues": [
+    999,
+    1001
   ]
 }
 ```
