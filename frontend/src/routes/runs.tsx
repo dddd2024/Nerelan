@@ -237,8 +237,21 @@ function runHeading(run: PlatformAgentRun): string {
   return "未命名任务 · 标题暂不可用";
 }
 
+function runHasNonemptyTitle(run: PlatformAgentRun): boolean {
+  return Boolean((run.title ?? "").trim());
+}
+
+function runTaskId(run: PlatformAgentRun): string {
+  return (run.task_id ?? "").trim();
+}
+
 function runToggleAriaLabel(run: PlatformAgentRun): string {
-  return `运行：${runHeading(run)}，${STATE_LABELS[run.state] ?? run.state}`;
+  const state = STATE_LABELS[run.state] ?? run.state;
+  const taskId = runTaskId(run);
+  if (runHasNonemptyTitle(run) && taskId) {
+    return `运行：${runHeading(run)}，${state}，任务 ${taskId}`;
+  }
+  return `运行：${runHeading(run)}，${state}`;
 }
 
 function eventAgent(event?: { agent?: PlatformRunAgent | null; agent_id?: string; role?: string } | null): PlatformRunAgent | null {
@@ -694,7 +707,7 @@ function RunCard({ run, defaultOpen = false }: { run: PlatformAgentRun; defaultO
     <li data-testid={`run-${run.task_id}`} className="rounded-2xl border border-ra-border bg-ra-base p-4">
       <button type="button" id={`run-toggle-${run.task_id}`} data-testid={`run-toggle-${run.task_id}`} aria-expanded={open} aria-controls={`run-detail-${run.task_id}`} aria-label={runToggleAriaLabel(run)} onClick={() => setOpen((value) => !value)} className="w-full rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-2">{open ? <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-ra-text-tertiary" aria-hidden="true" /> : <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-ra-text-tertiary" aria-hidden="true" />}<div className="min-w-0"><p className="min-w-0 break-words text-sm font-medium text-ra-text" data-testid={`run-heading-${run.task_id}`}>{heading}</p><p className="mt-1 text-xs text-ra-text-tertiary">{run.repository} · {run.executor_kind} · {relativeTime(run.updated_at)}</p></div></div>
+          <div className="flex min-w-0 items-start gap-2">{open ? <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-ra-text-tertiary" aria-hidden="true" /> : <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-ra-text-tertiary" aria-hidden="true" />}<div className="min-w-0"><p className="min-w-0 break-words text-sm font-medium text-ra-text" data-testid={`run-heading-${run.task_id}`}>{heading}</p>{runHasNonemptyTitle(run) && runTaskId(run) ? <p className="mt-1 min-w-0 break-all font-mono text-xs text-ra-text-tertiary" data-testid={`run-task-id-${run.task_id}`}>ID {run.task_id}</p> : null}<p className="mt-1 text-xs text-ra-text-tertiary">{run.repository} · {run.executor_kind} · {relativeTime(run.updated_at)}</p></div></div>
           <span data-testid={`run-state-${run.task_id}`} className={cn("shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium", STATE_STYLES[run.state] ?? STATE_STYLES.WAITING_FOR_OWNER)}>{STATE_LABELS[run.state] ?? run.state}</span>
         </div>
       </button>

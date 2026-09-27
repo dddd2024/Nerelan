@@ -610,6 +610,99 @@ describe("Agent Runs page", () => {
     expect(screen.getByTestId("run-control-task-focus-409").tagName).toBe("DETAILS");
     expect(screen.getByTestId("run-cancel-help-task-focus-409").textContent).toContain("任务已取消");
   });
+
+  it("distinguishes same nonempty title and state runs by public task id in name and visible id", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
+    const sharedTitle = "同名运行任务 · 共享标题";
+    const runA = { ...httpRun("task-collision-a"), title: sharedTitle, state: "QUEUED", status: "QUEUED" };
+    const runB = { ...httpRun("task-collision-b"), title: sharedTitle, state: "QUEUED", status: "QUEUED" };
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/runs")) return jsonResponse({ runs: [runA, runB] });
+      if (url.endsWith("/api/runs/task-collision-a")) return jsonResponse(runA);
+      if (url.endsWith("/api/runs/task-collision-b")) return jsonResponse(runB);
+      return jsonResponse({ error: "not found" }, 404);
+    }));
+
+    renderWithProviders(<RunsPage />);
+
+    const headingA = await screen.findByTestId("run-heading-task-collision-a");
+    const headingB = screen.getByTestId("run-heading-task-collision-b");
+    // The meaningful public title stays primary and identical for both rows.
+    expect(headingA.textContent).toBe(sharedTitle);
+    expect(headingB.textContent).toBe(sharedTitle);
+
+    // A readable secondary visible identifier exposes each distinct public id.
+    const idA = screen.getByTestId("run-task-id-task-collision-a");
+    const idB = screen.getByTestId("run-task-id-task-collision-b");
+    expect(idA.textContent).toContain("task-collision-a");
+    expect(idB.textContent).toContain("task-collision-b");
+    expect(idA.textContent).not.toStrictEqual(idB.textContent);
+
+    // Accessible toggle names retain state and are distinguished by the full id.
+    const labelA = screen.getByTestId("run-toggle-task-collision-a").getAttribute("aria-label") ?? "";
+    const labelB = screen.getByTestId("run-toggle-task-collision-b").getAttribute("aria-label") ?? "";
+    expect(labelA).not.toStrictEqual(labelB);
+    expect(labelA).toContain("task-collision-a");
+    expect(labelB).toContain("task-collision-b");
+    expect(labelA).toContain("QUEUED");
+    expect(labelB).toContain("QUEUED");
+  });
+
+  it("renders a long public task id verbatim and expands the run by keyboard", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
+    const longId = "task-1790522355226-9393a716c142-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const run = { ...httpRun(longId), title: "长 ID 运行任务" };
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/runs")) return jsonResponse({ runs: [run] });
+      if (url.endsWith(`/api/runs/${longId}`)) return jsonResponse(run);
+      return jsonResponse({ error: "not found" }, 404);
+    }));
+
+    const user = userEvent.setup();
+    renderWithProviders(<RunsPage />);
+
+    const idElement = await screen.findByTestId(`run-task-id-${longId}`);
+    // The full public id is present as text (not truncated to empty); actual
+    // wrapping/overflow is supervisor-verified in a real browser viewport.
+    expect(idElement.textContent).toContain(longId);
+
+    const toggle = screen.getByTestId(`run-toggle-${longId}`);
+    expect(toggle.getAttribute("aria-label") ?? "").toContain(longId);
+
+    toggle.focus();
+    expect(document.activeElement).toBe(toggle);
+    await user.keyboard("{Enter}");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const region = await screen.findByTestId(`run-detail-${longId}`);
+    expect(region).toHaveAttribute("role", "region");
+    await user.keyboard("{Enter}");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId(`run-detail-${longId}`)).not.toBeInTheDocument();
+  });
+
+  it("does not render a separate visible id when the empty-title fallback already shows it", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
+    const emptyRun = { ...httpRun("task-no-redundant-id"), title: "" };
+    const whitespaceRun = { ...httpRun("task-no-redundant-id-ws"), title: "   \t  " };
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/runs")) return jsonResponse({ runs: [emptyRun, whitespaceRun] });
+      return jsonResponse({ error: "not found" }, 404);
+    }));
+
+    renderWithProviders(<RunsPage />);
+
+    const emptyHeading = await screen.findByTestId("run-heading-task-no-redundant-id");
+    expect(emptyHeading.textContent).toBe("任务 task-no-redundant-id · 标题暂不可用");
+    // No redundant separate visible id: the fallback heading already carries it.
+    expect(screen.queryByTestId("run-task-id-task-no-redundant-id")).not.toBeInTheDocument();
+
+    const wsHeading = screen.getByTestId("run-heading-task-no-redundant-id-ws");
+    expect(wsHeading.textContent).toBe("任务 task-no-redundant-id-ws · 标题暂不可用");
+    expect(screen.queryByTestId("run-task-id-task-no-redundant-id-ws")).not.toBeInTheDocument();
+  });
 });
 
 it.each([
