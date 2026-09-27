@@ -7,6 +7,7 @@ import io
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import time
@@ -40,6 +41,7 @@ from .control_plane.path_a import (
     write_task_check_outputs,
 )
 from .control_plane.worktree_state import (
+    REVIEWED_SENSITIVE_SOURCE_PATHS,
     WorktreeClassification,
     classify_worktree_status,
 )
@@ -9658,6 +9660,91 @@ def startup_snapshot(
     return snapshot
 
 
+def _verified_existing_sensitive_sources(
+    repo_root: Path,
+    contract: Mapping[str, Any],
+    authorized_paths: tuple[str, ...],
+    raw_status: list[str],
+    *,
+    authority_valid: bool,
+    live_decision: Mapping[str, Any],
+) -> tuple[str, ...]:
+    """Verify ordinary source identity without reading credential-like files.
+
+    This evidence is derived here, never from a Decision waiver or the
+    classifier's historical tracked/authorized-addition boolean.
+    """
+    if not (
+        authority_valid
+        and live_decision.get("applicable")
+        and live_decision.get("passed")
+        and contract.get("transition_kernel_required") is True
+        and contract.get("risk_tier") == "R3"
+        and contract.get("authorized_risk_tier") == "R3"
+    ):
+        return ()
+    base = str(contract.get("base_sha") or "")
+    head = str(live_decision.get("head") or "")
+    if (
+        not re.fullmatch(r"[0-9a-f]{40}", base)
+        or not re.fullmatch(r"[0-9a-f]{40}", head)
+        or base != contract.get("starting_head")
+    ):
+        return ()
+    verified: list[str] = []
+    literal_allowed = contract.get("allowed_mutated_paths")
+    if not isinstance(literal_allowed, list):
+        return ()
+    for path in sorted(REVIEWED_SENSITIVE_SOURCE_PATHS):
+        if path not in authorized_paths or path not in literal_allowed:
+            continue
+        matching = [line for line in raw_status if line[3:] == path]
+        if len(matching) != 1 or matching[0][:2] not in {" M", "M ", "MM"}:
+            continue
+        # An additional rename/copy record involving this path is never a
+        # same-path modification, even if another record appears acceptable.
+        if any(" -> " in line and path in line[3:].split(" -> ") for line in raw_status):
+            continue
+        trees_valid = True
+        for revision in (base, head):
+            entry = _decision_immutability_git(repo_root, "ls-tree", revision, "--", path)
+            if not entry or not re.fullmatch(
+                r"100(?:644|755) blob [0-9a-f]{40}\t" + re.escape(path), entry
+            ):
+                trees_valid = False
+                break
+        if not trees_valid:
+            continue
+        index = _decision_immutability_git(repo_root, "ls-files", "--stage", "--", path)
+        if not index or not re.fullmatch(
+            r"100(?:644|755) [0-9a-f]{40} 0\t" + re.escape(path), index
+        ):
+            continue
+        try:
+            root = repo_root.resolve(strict=True)
+            candidate = root / path
+            if not stat.S_ISREG(candidate.lstat().st_mode):
+                continue
+            if not candidate.resolve(strict=True).is_relative_to(root):
+                continue
+            components = [candidate, *candidate.parents]
+            unsafe = False
+            for component in components:
+                if component == root:
+                    break
+                if component.is_symlink() or (
+                    hasattr(component, "is_junction") and component.is_junction()
+                ):
+                    unsafe = True
+                    break
+            if unsafe:
+                continue
+        except (OSError, RuntimeError, ValueError):
+            continue
+        verified.append(path)
+    return tuple(verified)
+
+
 def worktree_publication_readiness(
     *,
     state_dir: Path,
@@ -9703,7 +9790,14 @@ def worktree_publication_readiness(
     raw_status = _git_status_short_lines(repo_root)
     status_error = ""
     try:
-        records = classify_worktree_status(raw_status, authorized_paths=authorized_paths)
+        verified_sources = _verified_existing_sensitive_sources(
+            repo_root, decision_contract, authorized_paths, raw_status,
+            authority_valid=authority_valid, live_decision=live_decision,
+        )
+        records = classify_worktree_status(
+            raw_status, authorized_paths=authorized_paths,
+            verified_existing_source_paths=verified_sources,
+        )
     except ValueError as exc:
         records = ()
         status_error = str(exc)
