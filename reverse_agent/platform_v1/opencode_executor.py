@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import platform
 import re
@@ -72,6 +73,18 @@ class ExecutionLeaseHandle:
     relay_url: str
     model_id: str
     _release_callback: Callable[[], None] | None = None
+    _deadline_callback: Callable[[int | float], None] | None = None
+
+    def bind_execution_deadline(self, timeout_seconds: int | float) -> None:
+        """Bind this capability to the executor's validated execution budget.
+
+        Called exactly once by the executor immediately after the lease is
+        acquired and before any transport invocation. The relay adds a
+        bounded setup margin to this timeout; it never renews it.
+        """
+        callback = self._deadline_callback
+        if callback is not None:
+            callback(timeout_seconds)
 
     def release(self) -> None:
         callback = self._release_callback
@@ -1169,6 +1182,23 @@ def build_opencode_argv(
 # Executor
 # ---------------------------------------------------------------------------
 
+# One OpenCode role invocation is bounded by this hard execution budget. The
+# relay adds a fixed setup margin on top; the combined lease lifetime is
+# capped separately, and neither value is extendable from here.
+_EXECUTION_TIMEOUT_HARD_CAP_SECONDS = 3600
+
+
+def _validate_execution_timeout(timeout: object) -> int | float:
+    """Reject an invalid execution budget before any lease or transport work."""
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
+        raise ExecutorRuntimeError("invalid_execution_timeout")
+    if not 0 < timeout <= _EXECUTION_TIMEOUT_HARD_CAP_SECONDS:
+        raise ExecutorRuntimeError("invalid_execution_timeout")
+    if isinstance(timeout, float) and not math.isfinite(timeout):
+        raise ExecutorRuntimeError("invalid_execution_timeout")
+    return timeout
+
+
 class OpenCodeExecutor:
     """Launches OpenCode CLI as a child process in a real linked Git worktree."""
 
@@ -1181,11 +1211,12 @@ class OpenCodeExecutor:
         repo_dir: str = "",
         base_ref: str = "",
         opencode_exe: str | None = None,
-        timeout: int = 300,
+        timeout: int | float = 300,
         use_auto: bool = True,
         transport_kind: str = "cli",
         lease_provider: LeaseProvider | None = None,
     ) -> None:
+        timeout = _validate_execution_timeout(timeout)
         self._binding_resolution = binding_resolution
         self._lease_provider = lease_provider
         if binding_resolution is not None:
@@ -1301,6 +1332,7 @@ class OpenCodeExecutor:
         try:
             if self._binding_resolution is not None and self._binding_resolution.relay_required:
                 lease_handle = self._lease_provider(self._binding_resolution)
+                lease_handle.bind_execution_deadline(self._timeout)
 
             model_for_cli = self._model_id
             if lease_handle is not None:
@@ -1406,6 +1438,11 @@ class OpenCodeExecutor:
                 process_exit_code=-2,
                 failure_classification="cli_unavailable",
             )
+        finally:
+            # Covers deadline binding, argv construction, the running event,
+            # and the launch itself; release is idempotent.
+            if lease_handle is not None:
+                lease_handle.release()
 
         exit_code = proc.returncode
         stdout = proc.stdout or ""
@@ -1553,6 +1590,7 @@ class OpenCodeExecutor:
         try:
             if self._binding_resolution is not None and self._binding_resolution.relay_required:
                 lease_handle = self._lease_provider(self._binding_resolution)
+                lease_handle.bind_execution_deadline(self._timeout)
                 model_for_server = lease_handle.model_id
             role = role_context.role
             config_content: str | None = None

@@ -1,10 +1,10 @@
-# Bounded system successor for Issue990 on current main
+# Exact-byte system lifetime continuation with canonical LF authority
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260928_issue990_system_source_policy_r3_v2",
-  "round_id": "round_20260928_issue990_system_source_policy_r3_v2",
+  "decision_id": "decision_20260928_issue989_system_runtime_budget_r3_v5",
+  "round_id": "round_20260928_issue989_system_runtime_budget_r3_v5",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -31,24 +31,24 @@
   "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
   "provider_free_acceptance_required": true,
-  "decision_scope": "ISSUE990_SYSTEM_CURRENT_BASE_SUCCESSOR_ONLY",
-  "source_issue": 990,
-  "parent_issue": 989,
+  "decision_scope": "ISSUE989_BOUNDED_LEASE_LIFETIME_RESIDUAL_ONLY",
+  "source_issue": 989,
+  "parent_issue": 1010,
   "approved_by": "dddd2024 via explicit delegated Owner authorization",
-  "approval_basis": "Owner explicitly delegates all GitHub tasks to the Nerelan system, supervisor independent acceptance and bounded publication/landing, no monetary/token cap. Latest request follows priority index1010: after PR1006 complete, continue990 before989. Old991 is preserved unchanged on stale base; system must adapt its existing narrow design to current main, not duplicate or widen it. This source stage authorizes three system tasks and existing launcher recovery only, with Draft publication; landing remains separate.",
+  "approval_basis": "Owner latest explicitly authorizes autonomous resolution of this and similar blockers. v4 exactsourceheadc328b1217bf181c2193e24dd28cbbd588ad32eca passed94+193+68tests with1skip, but mandatory base-to-head diffcheckFAILED because its immutableDecisionblobcontainsCRLF435lines. Preservefrozenv4Decision andcandidate andDraft1015, no fixforward/amend/publicationthere. Freshcurrentmain successor writesnewDecisionLF, copiesexactsame system-authored fourproductfiles withno edits, onefinalproductcommit, allfinalchecksagain. No newmodelcall orsourceauthoring. Supervisor remainsnonproductauthor.",
   "risk_tier": "R3",
   "authorized_risk_tier": "R3",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "main",
-  "base_sha": "54b161e8799d1a5ccce498e8f8dfc2519e943a22",
-  "activation_base_sha": "54b161e8799d1a5ccce498e8f8dfc2519e943a22",
-  "starting_head": "54b161e8799d1a5ccce498e8f8dfc2519e943a22",
-  "fresh_base": "54b161e8799d1a5ccce498e8f8dfc2519e943a22",
-  "current_main_expected": "54b161e8799d1a5ccce498e8f8dfc2519e943a22",
-  "required_branch": "codex/issue990-source-policy-system-v2-20260928",
-  "workstream_id": "issue990-system-source-policy-v2",
-  "follows_last_decision_id": "decision_20260927_issue997_windows_binding_env_r2_v1",
-  "follows_last_round_id": "round_20260927_issue997_windows_binding_env_r2_v1",
+  "base_sha": "86844b5bc8e42172f2a39d555fd7053973a01155",
+  "activation_base_sha": "86844b5bc8e42172f2a39d555fd7053973a01155",
+  "starting_head": "86844b5bc8e42172f2a39d555fd7053973a01155",
+  "fresh_base": "86844b5bc8e42172f2a39d555fd7053973a01155",
+  "current_main_expected": "86844b5bc8e42172f2a39d555fd7053973a01155",
+  "required_branch": "codex/issue989-runtime-budget-system-v5-20260928",
+  "workstream_id": "issue989-system-runtime-budget-v5",
+  "follows_last_decision_id": "decision_20260928_issue990_system_source_policy_r3_v2",
+  "follows_last_round_id": "round_20260928_issue990_system_source_policy_r3_v2",
   "workflow_profile": "baseline",
   "decision_activation_commit_limit": 1,
   "product_change_commit_limit": 1,
@@ -60,7 +60,7 @@
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
   "workflow_dispatch_limit": 0,
-  "live_model_call_limit": 3,
+  "live_model_call_limit": 0,
   "provider_network_call_limit": 0,
   "credential_access_limit": 0,
   "local_browser_launch_limit": 0,
@@ -77,10 +77,10 @@
   "force_push_allowed": false,
   "rebase_during_execution_allowed": false,
   "dependency_install_allowed": false,
-  "live_provider_access_allowed": true,
+  "live_provider_access_allowed": false,
   "credential_access_allowed": false,
   "unknown_binary_execution_allowed": false,
-  "model_api_invocation_allowed": true,
+  "model_api_invocation_allowed": false,
   "external_reverse_tool_invocation_allowed": false,
   "destructive_operations_allowed": false,
   "bootstrap_exception_files": [
@@ -89,9 +89,11 @@
   "bootstrap_exception_commands": [],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
-    "reverse_agent/control_plane/worktree_state.py",
-    "reverse_agent/project_gate.py",
-    "tests/test_worktree_source_policy.py",
+    "reverse_agent/platform_v1/opencode_executor.py",
+    "reverse_agent/platform_v1/trusted_host.py",
+    "reverse_agent/model_access/credential_relay.py",
+    "tests/platform_v1/test_execution_runtime_budget.py",
+    "tests/platform_v1/test_opencode_executor.py",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
@@ -100,9 +102,11 @@
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
-    "reverse_agent/control_plane/worktree_state.py",
-    "reverse_agent/project_gate.py",
-    "tests/test_worktree_source_policy.py",
+    "reverse_agent/platform_v1/opencode_executor.py",
+    "reverse_agent/platform_v1/trusted_host.py",
+    "reverse_agent/model_access/credential_relay.py",
+    "tests/platform_v1/test_execution_runtime_budget.py",
+    "tests/platform_v1/test_opencode_executor.py",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
@@ -121,8 +125,12 @@
     ".github/**",
     ".codex-skills/**",
     "frontend/**",
-    "reverse_agent/model_access/**",
-    "reverse_agent/platform_v1/**",
+    "reverse_agent/control_plane/**",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/coordinator.py",
+    "reverse_agent/platform_v1/run_store.py",
+    "reverse_agent/model_access/store.py",
     "dev-up.ps1",
     "dev-down.ps1",
     "project_state/mainline_merge_intents/**",
@@ -159,14 +167,13 @@
       "minimum_risk": "R2"
     },
     {
-      "pattern": "frontend/e2e/snapshots/**",
+      "pattern": "reverse_agent/model_access/credential_relay.py",
       "minimum_risk": "R3"
     }
   ],
   "semantic_implementation_contract": {
-    "specification": "Introduce only the reviewed exact source identity reverse_agent/model_access/credential_relay.py as a narrow exception to soft credential/secret basename classification in applicable, passed, validated Path-B publication readiness with an immutable APPROVED R3 Decision and its matching current valid preflight. Require literal exact allowed path (not wildcard), ordinary regular source blobs at both frozen integration base and current HEAD, same-path M-only modification in index/worktree, no symlink or type change. Obtain independent Git tree/index/filesystem metadata; fail closed on missing or inconsistent identity. Never infer existence from tracked=git_tracked or authority_matched, from status!=??, or from .py extension. Deny additions including staged A and additions committed after base, deletions, rename/copy both ends, type changes, untracked, sensitive case variants and unauthorized neighbors. Preserve hard deny for secret directories, actual credential stores/config, .env, private keys, cert/key and binary paths before any soft-name exception. No global authorization-first reorder, generic Python exception, new Decision schema, override flag or receipt. Keep Path A sensitive R3 risk floor and behavior unchanged; no exception in startup or clean-start policy. Preserve ordinary authorized nonsensitive additions and generated-governance nonstageable semantics. Only validated Path-B readiness caller may supply separately named verified source evidence to pure classifier, default empty.",
-    "tests": "New test file must cover positive exact existing base/HEAD regular source M in both unstaged and staged states; missing/stale/invalid authority or preflight; broad glob; neighbors; untracked, staged A, committed-after-base addition, deletion, rename/copy both ends, symlink/type change, failed metadata lookup, hard secret/config/key/binary and case variants; unchanged Path A and ordinary additions/gates behavior. Include real production worktree-publication-readiness in isolated synthetic Git repositories with test-only approved fixture Decision/preflight and regular source metadata. Never modify user repository/Issue989 to fabricate readiness; no real secret content reads.",
-    "completion_boundary": "System authors all three allowed product/test files on detached exact activation worker. Supervisor may supply old991 three-file diff as read-only task data, not copy its obsolete Decision. Review and adapt existing implementation; no wholesale gate redesign. Supervisor transfers exact system output, independently validates, one final product commit and one final Draft push. No mark-ready/merge/deployment or Issue closure under source stage. Mandatory exact-head failure stops publication; development fixes allowed before freeze."
+    "specification": "Exactbyte reuse of four system-authored product/test files at v4commitc328b1217bf181c2193e24dd28cbbd588ad32eca: reverse_agent/platform_v1/opencode_executor.py,reverse_agent/platform_v1/trusted_host.py,reverse_agent/model_access/credential_relay.py,tests/platform_v1/test_execution_runtime_budget.py. No source edits. Preserve v4 system provenance: archivedworkerpartial plus text-onlycalls2/4/5/6,0tools; calls1/3notaccepted. Same lifetimecontract includingdefaults120/300, execution<=3600,margin<=30,lifetime<=3630, finiteadmission/atomicusedstate/noexpiryrevival/terminalrelease. OnlynewDecisionusesLF. Do not import oldDecision or generatedgates. Mandatoryfailurestopsaffectedpublication, nofixforward. Windowsresidualandfullsandboxremainopen.",
+    "completion_boundary": "No new implementation/modelcalls. Exactbyte transfer afteractivationDraft, oneproductcommit, exacthead94budget+transport+hostrelaychecks,diffandgates; independentacceptance/naturalCI before laterseparatelanding. No source-stageReady/merge/closure/deployment. Keep989OPENWindowsresidual and299OPEN."
   },
   "runtime_scratch_policy": {
     "paths": [
@@ -175,11 +182,11 @@
       ".pytest_cache/**"
     ],
     "stage_allowed": false,
-    "note": "Existing launcher runtime stores/metadata only; task-specific evidence outside repository. Never edit credentials, user settings or unknown files."
+    "note": "Existing launcher runtime stores/metadata only, preserve persisted settings. For approved provider-free tests ONLY, a test subprocess may set PYTHONPATH to existing trusted installed C:/Users/wjc27/AppData/Roaming/Python/Python313/site-packages so pytest is visible. No install, global env change or product child-env relaxation; no arbitrary home/secret reads. Evidence remains outside tracked source."
   },
   "capability_policy": {
     "runner_dispatch_allowed": false,
-    "model_api_invocation_allowed": true,
+    "model_api_invocation_allowed": false,
     "external_reverse_tool_invocation_allowed": false,
     "unknown_binary_execution_allowed": false,
     "destructive_operations_allowed": false,
@@ -197,7 +204,7 @@
     ],
     "trusted_worker_network_exceptions": [],
     "user_local_network_exceptions": [
-      "Existing loopback Task/Model public API and unchanged configured coding-glm binding via trusted executor, at most3 system tasks,1concurrent,0automaticretries,no monetary/token cap. Known installed Python/PowerShell/Git only. Provider-free tests may use test-owned loopback. No credential content read, connection/binding mutation or provider health probe."
+      "Existingloopbackpublicmetadataread andsyntheticprovider-freetest-ownedloopback only. No liveprovider calls."
     ],
     "github_control_plane_network_exceptions": [
       "Canonical exact branch activation/implementation pushes and one Draft; descriptions only. No Ready/merge/tag/release under source stage."
@@ -205,8 +212,8 @@
   },
   "allowed_commands": [
     {
-      "command_id": "issue990v2.bootstrap",
-      "command": "Create fresh exact-base F:/Nerelan-issue990-system-v2-20260928 on codex/issue990-source-policy-system-v2-20260928; commit only immutable Decision once; existing startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness via python -m reverse_agent.project_gate SUBCOMMAND --state-dir project_state; require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY. No product edits before activation Draft.",
+      "command_id": "issue989v5.bootstrap",
+      "command": "Fresh exactbase 86844b5bc8e42172f2a39d555fd7053973a01155 checkout F:/Nerelan-issue989-system-v5-20260928 branchcodex/issue989-runtime-budget-system-v5-20260928; one immutableDecisionactivationcommit only. Existing startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness via python -m reverse_agent.project_gate SUBCOMMAND --state-dir project_state. Require PRE_EXECUTION_AUTHORIZED/PUBLICATION_READY. FirstDraft before sourcechanges; generatedgates neverstaged.",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [
@@ -234,8 +241,8 @@
       ]
     },
     {
-      "command_id": "issue990v2.runtime",
-      "command": "Current services are not listening. Inspect only existing launcher public metadata and process identity; preserve TaskStore and settings. Use unchanged Windows PowerShell5 F:/reverse-agent/dev-up.ps1 -RepoDir F:/reverse-agent -SourceDir F:/Nerelan-issue990-system-v2-20260928 -OpenCodeModel sensenova-6.8-flash-lite -NoBrowser with execution/planning SHA equal activation. Process-local autonomous/live ports and2700timeout/3600lease may restore previously working values without changing persisted user settings. Only launcher-verified owned processes may restart, and never with inflight tasks. If unknown ownership or start failure stop affected action, do not kill by name. No deployment of candidate into dirty root.",
+      "command_id": "issue989v5.runtime",
+      "command": "No runtime restart/deployment/modelcalls. Readonlystatus and exactbyteverification.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -253,8 +260,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "issue990v2.system",
-      "command": "After activation Draft exists, dispatch at most3 scoped tasks via existing Task API/coding-glm, one concurrent, zeroautomaticretry, no monetary/token cap. Exact activation detached worker only. System reads approved old991 three-file diff as task data and adapts within semantic contract. No external worktree access, commit/push or governance edits by worker. Process-local PATHEXT workaround allowed. Supervisor transfers only exact system output bytes, reviews/checks, then one final product commit.",
+      "command_id": "issue989v5.system",
+      "command": "AfteractivationDraft copyexactGitblobsof fourapprovedfiles from knownv4systemcommitc328b1217bf181c2193e24dd28cbbd588ad32eca; verifyeachSHA256before/aftertransfer. No sourceedit,modelcall oroldDecisionimport. Oneproductcommitafterdevelopmentchecks andreadiness.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -265,22 +272,22 @@
         "source_edit",
         "commit",
         "local_static_check",
-        "machine_specific_execution",
-        "model_api_invocation",
-        "network_access"
+        "machine_specific_execution"
       ],
-      "network_access": true,
+      "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "reverse_agent/control_plane/worktree_state.py",
-        "reverse_agent/project_gate.py",
-        "tests/test_worktree_source_policy.py"
+        "reverse_agent/platform_v1/opencode_executor.py",
+        "reverse_agent/platform_v1/trusted_host.py",
+        "reverse_agent/model_access/credential_relay.py",
+        "tests/platform_v1/test_execution_runtime_budget.py",
+        "tests/platform_v1/test_opencode_executor.py"
       ],
       "produced_artifacts": []
     },
     {
-      "command_id": "issue990v2.checks",
-      "command": "Before freeze, development checks and fixes by system within3Task bound. Final exact-head mandatory: python -B -m pytest tests/test_worktree_source_policy.py -q -p no:cacheprovider; python -B -m pytest tests/test_path_a_gate.py tests/test_project_gate.py -q -p no:cacheprovider; python -B -m pytest tests/test_control_plane_transition.py tests/test_decision_preflight.py -q -p no:cacheprovider; git diff --check base HEAD. Existing publication readiness before stage and after commit; generated gates never staged. No dependencies/install/live providers in tests.",
+      "command_id": "issue989v5.checks",
+      "command": "Developmentchecks/fixesbeforefreeze. Finalexactheadmandatory python -B -m pytest tests/platform_v1/test_execution_runtime_budget.py -q -p no:cacheprovider; python -B -m pytest tests/platform_v1/test_opencode_executor.py tests/platform_v1/test_opencode_server_transport.py -q -p no:cacheprovider; python -B -m pytest tests/platform_v1/test_credential_relay.py tests/platform_v1/test_trusted_host.py tests/platform_v1/test_trusted_host_lifecycle.py -q -p no:cacheprovider; git diff --check base HEAD. Synthetickeys/fakeclock/testloopbackonly, norealcredentials/providers. Canonicalreadinessbeforestageusingcachedcleanstart; aftercommitallgatesagain. Neverrerunstartupmid-dirtytooverwritecleansnapshot. R3literalrelay-sourceauthorization mustpass existing990policy, no waiver.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -301,8 +308,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "issue990v2.publish",
-      "command": "At mosttwo exact branch codex/issue990-source-policy-system-v2-20260928 pushes (activation then final),one Draft against main at 54b161e8799d1a5ccce498e8f8dfc2519e943a22, description updates exact head. Preserve991; no Ready/merge/closure/rebase. Require fresh main/base/head and PUBLICATION_READY before each push.",
+      "command_id": "issue989v5.publish",
+      "command": "Exactbranchcodex/issue989-runtime-budget-system-v5-20260928 atmost2pushesactivation/final,oneDraftagainstmain@86844b5bc8e42172f2a39d555fd7053973a01155; headboundbodyupdates. RequirePUBLICATION_READY/freshbase/scope/no concurrentmutation. NoReady/merge/closure/historyrewrite.",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -320,8 +327,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "issue990v2.ci",
-      "command": "Observe natural CI/Decision/State exact-head checks and native diagnostic artifact; no reruns/manualdispatch.",
+      "command_id": "issue989v5.ci",
+      "command": "Observe naturalexactheadCI/Decision/State plusnativeartifact, providerfreechecks. No reruns/manualdispatch/dependency/workflowchanges.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -340,8 +347,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "issue990v2.audit",
-      "command": "Supervisor independent source acceptance (no supervisor authored product/test code), exact scope/tree/checks and negative security cases. Candidate work is not deployed. Record old991 reuse and residual989 responsibility.",
+      "command_id": "issue989v5.audit",
+      "command": "Independent supervisor exactheadreview including actual composedhost/executor/relay tests, boundeddeadline/clock/type/cleanup and secretisolation; notmodelselfreport. Distinguish sourceacceptance fromdirtyhost/deployment/landing.",
       "phase": "final_evidence",
       "required": true,
       "expected_exit_codes": [
@@ -367,28 +374,61 @@
       1000,
       1003,
       1007,
-      1008
+      1008,
+      1012,
+      1013,
+      1014,
+      1015
     ],
-    "policy": "Preserve all old PR heads and worktrees, dirty root71records, user Connections/Bindings/API keys. No new UI changes, provider setting changes or old991 mutation. Same responsible supervisor serially resumes990 after1006, old991 retained as source evidence."
+    "policy": "Preservev4frozenDecision/sourcecommit/Draft1015 aftermandatoryCRLFdiffcheckfailure; no v4publication oritsconditionalPR1015landing. Preserveallroot71records/settings/keys/oldworktrees. Newboundedv5correctsactivationformatonly, sourcebytesidentical."
   },
   "reference_paths": [
     "AGENTS.md",
     "docs/agents/governance-reference.md",
-    "reverse_agent/control_plane/path_a.py",
-    "tests/test_path_a_gate.py",
-    "tests/test_project_gate.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_decision_preflight.py",
-    "dev-up.ps1"
+    "dev-up.ps1",
+    "reverse_agent/platform_v1/binding_resolver.py",
+    "reverse_agent/model_access/contracts.py",
+    "tests/platform_v1/test_opencode_server_transport.py",
+    "tests/platform_v1/test_credential_relay.py",
+    "tests/platform_v1/test_trusted_host.py",
+    "tests/platform_v1/test_trusted_host_lifecycle.py"
   ],
   "source_issues": [
-    990
+    989
   ],
   "required_provider_free_checks": [
-    "python -m pytest tests/test_worktree_source_policy.py -q",
-    "python -m pytest tests/test_path_a_gate.py tests/test_project_gate.py -q",
-    "python -m pytest tests/test_control_plane_transition.py tests/test_decision_preflight.py -q",
+    "python -m pytest tests/platform_v1/test_execution_runtime_budget.py -q",
+    "python -m pytest tests/platform_v1/test_opencode_executor.py tests/platform_v1/test_opencode_server_transport.py -q",
+    "python -m pytest tests/platform_v1/test_credential_relay.py tests/platform_v1/test_trusted_host.py tests/platform_v1/test_trusted_host_lifecycle.py -q",
     "git diff --check"
-  ]
+  ],
+  "runtime_budget_contract": {
+    "default_executor_seconds": 300,
+    "generic_default_lease_seconds": 120,
+    "finite_execution_hard_cap_seconds": 3600,
+    "maximum_setup_margin_seconds": 30,
+    "finite_lease_hard_cap_seconds": 3630,
+    "deadline_semantics": "Retain default executor300 and generic lease120seconds. Bind once before actual CLI/server invocation from validated executor timeout plus at most30seconds setup margin, or equivalent bounded deadline provider API. Only finite positive execution durations <=3600seconds; total execution-scoped lease lifetime <=3630seconds. No recurring renewal, revival of expired/released lease, unlimited grace, or global default extension. Reject expired deadlines/clock ambiguity instead of extending them.",
+    "tests": "Synthetic snapshots/fake clock only. Prove request after120seconds succeeds within300-second task; expiry after exact configured deadline plus bounded margin rejects; release immediately rejects. Prove nondefault actual CLI/server timeouts reach binding and release on success/error/timeout/cancellation. Validate NaN/infinity/bool/negative/excessive values before side effects. Existing cancellation semantics only; no new cancellation API."
+  },
+  "fallback_provenance": {
+    "prior_task": "task-1790571994971-a36dab8a3edc",
+    "prior_source_pr": 1013,
+    "prior_activation": "954135486f474d4186b3df98ee581ee06c6670f1",
+    "failure": "Observed GLM token plan entitlement exhausted/rpm exhausted; guarded process termination yielded FAILED/executor_nonzero, no tests run.",
+    "healthy_route_task": "task-1790573146048-ec27e932825b",
+    "health_session": "ses_f19859ef7ffeNcIJ1WLkRIVBsd",
+    "health_response": "READY, zero tools",
+    "partial_source_manifest": {
+      "status": "UNACCEPTED_PARTIAL",
+      "last_tool_updated": 1790572486448,
+      "hashes": {
+        "reverse_agent/model_access/credential_relay.py": "9347df926260364eac7ad9254ba980881ca719a4d948c04ea287d8b374a776f1",
+        "reverse_agent/platform_v1/opencode_executor.py": "b6690a9d6675fb48782dd4e2b8add2fe77e410f552f861688b079dacc740cd5a"
+      },
+      "task_status": "RUNNING"
+    },
+    "v3_scope_failure": "task-1790573660303-1c993d91167f FAILED after guardedstop05:50:47Z, externalonebyteprobe written/deleted. Archived4filesUNACCEPTED_SCOPE_VIOLATION. Do not resume unconfinedexecutor."
+  }
 }
 ```

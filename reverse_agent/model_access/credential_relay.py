@@ -25,8 +25,10 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ipaddress import ip_address
 import json
+import math
 import secrets
 import threading
+import time
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -46,6 +48,67 @@ _HOP_BY_HOP = {
     "transfer-encoding",
     "upgrade",
 }
+
+
+# ---------------------------------------------------------------------------
+# Errors and duration admission
+# ---------------------------------------------------------------------------
+
+class CredentialRelayError(Exception):
+    """Fail-closed lease or relay failure."""
+
+
+# Execution-budget deadline caps. The executor supplies its validated process
+# timeout; the relay adds a fixed setup margin and never extends it further.
+_EXECUTION_TIMEOUT_MAX_SECONDS = 3600
+_EXECUTION_SETUP_MARGIN_SECONDS = 30
+_EXECUTION_LEASE_MAX_SECONDS = 3630
+
+def _is_finite_number(value: object) -> bool:
+    """True for bool-free int/float values that survive a float conversion.
+
+    Ints too large to convert raise ``OverflowError``; those are valid input
+    types with unusable magnitudes, so they are reported as non-finite rather
+    than leaking a numeric-conversion error to callers.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except (OverflowError, ValueError):
+        return False
+
+
+def _absolute_expiry(
+    now: datetime, seconds: int | float, *, error_code: str
+) -> datetime:
+    """Return a representable UTC expiry instant or fail closed.
+
+    ``timedelta`` is bounded to +/-999999999 days and ``datetime`` to year
+    9999, so a finite duration can still overflow when anchored to the current
+    clock.  No policy cap is applied here: only representability is enforced.
+    """
+    try:
+        return now + timedelta(seconds=seconds)
+    except (OverflowError, ValueError):
+        raise CredentialRelayError(error_code)
+
+
+def _validate_duration(
+    value: object,
+    *,
+    error_code: str,
+    minimum: float,
+    maximum: float | None = None,
+) -> float:
+    """Reject invalid durations before any lease side effect."""
+    if not _is_finite_number(value):
+        raise CredentialRelayError(error_code)
+    if value <= minimum:
+        raise CredentialRelayError(error_code)
+    if maximum is not None and value > maximum:
+        raise CredentialRelayError(error_code)
+    return float(value)
 
 
 # ---------------------------------------------------------------------------
@@ -75,19 +138,28 @@ class _ActiveLease:
     model_id: str
     used: bool = False
     released: bool = False
+    execution_deadline_bound: bool = False
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_monotonic: float = field(default_factory=time.monotonic)
+    # create_lease sets a monotonic expiry on every issued lease; the inf
+    # default is a private fallback for construction outside the relay.
+    expires_monotonic: float = field(default_factory=lambda: float("inf"))
+    expiration_observed: bool = False
 
     @property
     def expired(self) -> bool:
-        return datetime.now(timezone.utc) >= self.expires_at
+        # Observed expiry is sticky: a wall-clock rollback can neither undo an
+        # observed expiration nor extend the monotonic lifetime.
+        self.expiration_observed = self.expiration_observed or (
+            datetime.now(timezone.utc) >= self.expires_at
+            or time.monotonic() >= self.expires_monotonic
+        )
+        return self.expiration_observed
 
 
 # ---------------------------------------------------------------------------
 # Manager
 # ---------------------------------------------------------------------------
-
-class CredentialRelayError(Exception):
-    """Fail-closed lease or relay failure."""
-
 
 class CredentialRelayManager:
     """Owns the lease registry for one trusted host instance.
@@ -102,9 +174,9 @@ class CredentialRelayManager:
         default_expiry_seconds: float = 120.0,
         cleanup_margin_seconds: float = 30.0,
     ) -> None:
-        if not isinstance(default_expiry_seconds, (int, float)) or default_expiry_seconds <= 0:
+        if not _is_finite_number(default_expiry_seconds) or default_expiry_seconds <= 0:
             raise CredentialRelayError("invalid_default_expiry")
-        if not isinstance(cleanup_margin_seconds, (int, float)) or cleanup_margin_seconds < 0:
+        if not _is_finite_number(cleanup_margin_seconds) or cleanup_margin_seconds < 0:
             raise CredentialRelayError("invalid_cleanup_margin")
         self._leases: dict[str, _ActiveLease] = {}
         self._lock = threading.RLock()
@@ -128,8 +200,19 @@ class CredentialRelayManager:
         model_id = snapshot.raw_model_id
 
         expiry = expiry_seconds if expiry_seconds is not None else self._default_expiry
-        if not isinstance(expiry, (int, float)) or expiry <= 0:
-            raise CredentialRelayError("invalid_expiry_seconds")
+        expiry_error = (
+            "invalid_expiry_seconds"
+            if expiry_seconds is not None
+            else "invalid_default_expiry"
+        )
+        if not _is_finite_number(expiry) or expiry <= 0:
+            raise CredentialRelayError(expiry_error)
+
+        # Resolve the expiry instant before minting a token or mutating the
+        # registry: a finite duration can still overflow ``timedelta`` or the
+        # ``datetime`` range, and that must remain a domain error.
+        now = datetime.now(timezone.utc)
+        expires_at = _absolute_expiry(now, expiry, error_code=expiry_error)
 
         # Lease IDs are prefixed with "sk-" so that OpenCode's built-in
         # OpenAI provider validator accepts them as valid API keys.
@@ -138,7 +221,7 @@ class CredentialRelayManager:
         assert len(raw) >= 32
         lease_id = "sk-" + raw
 
-        expires_at = datetime.now(timezone.utc) + timedelta(seconds=expiry)
+        monotonic_now = time.monotonic()
 
         with self._lock:
             active = _ActiveLease(
@@ -147,6 +230,9 @@ class CredentialRelayManager:
                 expires_at=expires_at,
                 relay_url=relay_url,
                 model_id=model_id,
+                created_at=now,
+                created_monotonic=monotonic_now,
+                expires_monotonic=monotonic_now + float(expiry),
             )
             self._leases[lease_id] = active
 
@@ -163,6 +249,40 @@ class CredentialRelayManager:
             if active is not None:
                 active.released = True
             self._cleanup_locked()
+
+    def bind_execution_deadline(self, lease_id: str, timeout_seconds: float) -> None:
+        """Bind an unused live capability once to a trusted execution budget.
+
+        The executor supplies its validated process timeout before launching.
+        The fixed setup margin only covers pre-invocation setup and does not
+        extend the timeout. This is not a renewal API: used, expired, or
+        released leases are never revived or re-bound.
+        """
+        timeout = _validate_duration(
+            timeout_seconds,
+            error_code="invalid_execution_timeout",
+            minimum=0.0,
+            maximum=_EXECUTION_TIMEOUT_MAX_SECONDS,
+        )
+        with self._lock:
+            active = self._leases.get(lease_id)
+            if active is None or active.released or active.expired:
+                raise CredentialRelayError("execution_lease_unavailable")
+            if active.execution_deadline_bound or active.used:
+                raise CredentialRelayError("execution_deadline_already_bound")
+            now = datetime.now(timezone.utc)
+            monotonic_now = time.monotonic()
+            if now < active.created_at or monotonic_now < active.created_monotonic:
+                raise CredentialRelayError("execution_clock_invalid")
+            active.expires_at = min(
+                now + timedelta(seconds=timeout + _EXECUTION_SETUP_MARGIN_SECONDS),
+                active.created_at + timedelta(seconds=_EXECUTION_LEASE_MAX_SECONDS),
+            )
+            active.expires_monotonic = min(
+                monotonic_now + timeout + _EXECUTION_SETUP_MARGIN_SECONDS,
+                active.created_monotonic + _EXECUTION_LEASE_MAX_SECONDS,
+            )
+            active.execution_deadline_bound = True
 
     def release_all(self) -> None:
         with self._lock:
@@ -188,13 +308,14 @@ class CredentialRelayManager:
                 raise CredentialRelayError("lease_expired")
             self._cleanup_locked()
 
-        if method.upper() != "POST":
-            raise CredentialRelayError(f"lease_method_mismatch:{method}")
-        if path != "/chat/completions":
-            raise CredentialRelayError(f"lease_path_mismatch:{path}")
-        expected_model = active.model_id
-        if model is None or model != expected_model:
-            raise CredentialRelayError("lease_model_mismatch")
+            if method.upper() != "POST":
+                raise CredentialRelayError(f"lease_method_mismatch:{method}")
+            if path != "/chat/completions":
+                raise CredentialRelayError(f"lease_path_mismatch:{path}")
+            expected_model = active.model_id
+            if model is None or model != expected_model:
+                raise CredentialRelayError("lease_model_mismatch")
+            active.used = True
         return active
 
     def _cleanup_locked(self) -> None:
