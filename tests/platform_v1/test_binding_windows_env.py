@@ -140,8 +140,10 @@ def test_binding_env_never_reads_or_echoes_secrets(monkeypatch) -> None:
         "OPENCODE_DISABLE_AUTOUPDATE", "OPENCODE_DISABLE_MODELS_FETCH",
         "OPENCODE_DISABLE_LSP_DOWNLOAD", "OPENCODE_DISABLE_DEFAULT_PLUGINS",
         "OPENCODE_DISABLE_CLAUDE_CODE",
+        "SystemDrive"
     }
     assert set(child.keys()) == allowed_keys
+    assert child["SystemDrive"] == "C:"
 
 
 # ---------------------------------------------------------------------------
@@ -164,17 +166,18 @@ def test_windows_role_env_preserves_role_permissions(monkeypatch, role) -> None:
     assert merged["permission"] == expected_perm["permission"]
 
 
-def test_windows_direct_auth_role_env_does_not_inject_default_pathext(monkeypatch) -> None:
-    """Direct authenticated sessions (no binding config) preserve full parent
-    inheritance and are NOT subject to the Binding PATHEXT default injection;
-    unrelated account-auth behavior stays unchanged."""
+def test_windows_direct_auth_role_env_uses_safe_defaults(monkeypatch) -> None:
+    """Direct authenticated sessions (no binding config) only inherit explicitly allowed environment variables."""
     import reverse_agent.platform_v1.opencode_executor as exec_mod
 
     monkeypatch.setattr(exec_mod.platform, "system", lambda: "Windows")
-    parent = {"PATH": "C:\\safe-bin", "SystemRoot": "C:\\Windows"}
+    parent = {"PATH": "C:\\safe-bin", "SystemRoot": "C:\\Windows", "GH_TOKEN": "synthetic_value"}
     child = build_role_child_env(parent, None, "planner")
 
-    assert "PATHEXT" not in child
+    assert child["PATHEXT"] == exec_mod._DEFAULT_WINDOWS_PATHEXT
+    assert child["SystemDrive"] == "C:"
+    assert child["SystemRoot"] == "C:\\Windows"
+    assert "GH_TOKEN" not in child
     assert child["PATH"] == "C:\\safe-bin"
     assert child["OPENCODE_CONFIG_CONTENT"]
 
