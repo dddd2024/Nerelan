@@ -1,10 +1,10 @@
-# System-owned final execution-path regressions for child environment repair
+# Reuse existing Resume identity candidate on accepted main
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260928_issue372_windows_isolation_r3_v6",
-  "round_id": "round_20260928_issue372_windows_isolation_r3_v6",
+  "decision_id": "decision_20260928_issue120_resume_identity_r3_v3",
+  "round_id": "round_20260928_issue120_resume_identity_r3_v3",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -31,24 +31,24 @@
   "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
   "provider_free_acceptance_required": true,
-  "decision_scope": "DIRECT_SESSION_ENV_CONFINEMENT_AND_989_WINDOWS_RESIDUAL",
-  "source_issue": 372,
+  "decision_scope": "REUSE_PR992_ATOMIC_RESUME_IDENTITY_AND_RECEIPTS",
+  "source_issue": 120,
   "parent_issue": 1010,
   "approved_by": "dddd2024 via explicit delegated Owner authorization",
-  "approval_basis": "Owner continuation delegates bounded system implementation and independent supervision. V4 accepted system-authored three-file candidate has34 passing new tests including real Windows Git/cmd. Full-platform development identifies obsolete Windows Binding expectations; include only their fourth test file to preserve and update regressions. V5 activation remains unpublished and unchanged; no modelcalls or product edits there. Fresh v6 exact-main successor copies reviewed v4 bytes after Draft, completes actual CLI/server/authmode checks and Windows expectation updates using tool-free system authored edits, then final checks. No weakened secret assertions or acceptance criteria. Third failure reproduces unchanged base: combined trusted host lease-provider test resolves api-binding from default live8765 rather than its own host. Permit only test fixture resolver wiring to own host, retaining lease assertions; no production taskservice/store/credentials edits.",
+  "approval_basis": "Owner mandates system completion of all prioritized GitHub work with independent supervisor acceptance. After verified PR1022 mainline closeout, priority02 resumes existing PR992 candidate without rewriting it. Original head a0af0b1508fd10295c463ff9f6c8b16bedc70106 six-product-file patch applies cleanly to current code. Fresh exactbase/Draft preserves old PR992 and reuses existing implementation, no second claim/budget/receipt subsystem. Supervisor transfers exact existing candidate and any strictly validated system-authored correction only, never authors product logic. Final exacthead and naturalCI remain mandatory; landing separate.",
   "risk_tier": "R3",
   "authorized_risk_tier": "R3",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "main",
-  "base_sha": "18c5030fabeb72288ea2de56314579e339995182",
-  "activation_base_sha": "18c5030fabeb72288ea2de56314579e339995182",
-  "starting_head": "18c5030fabeb72288ea2de56314579e339995182",
-  "fresh_base": "18c5030fabeb72288ea2de56314579e339995182",
-  "current_main_expected": "18c5030fabeb72288ea2de56314579e339995182",
-  "required_branch": "codex/issue372-windows-isolation-system-v6-20260928",
-  "workstream_id": "issue372-windows-isolation-system-v6",
-  "follows_last_decision_id": "decision_20260928_issue372_windows_isolation_r3_v5",
-  "follows_last_round_id": "round_20260928_issue372_windows_isolation_r3_v5",
+  "base_sha": "393886c2e1b764e6f8a4ed638aceb24cccdc92a8",
+  "activation_base_sha": "393886c2e1b764e6f8a4ed638aceb24cccdc92a8",
+  "starting_head": "393886c2e1b764e6f8a4ed638aceb24cccdc92a8",
+  "fresh_base": "393886c2e1b764e6f8a4ed638aceb24cccdc92a8",
+  "current_main_expected": "393886c2e1b764e6f8a4ed638aceb24cccdc92a8",
+  "required_branch": "codex/issue120-resume-identity-system-v3-20260928",
+  "workstream_id": "issue120-resume-identity-system-v3",
+  "follows_last_decision_id": "decision_20260923_issue120_resume_identity_receipts_r2_v2",
+  "follows_last_round_id": "round_20260923_issue120_resume_identity_receipts_r2_v2",
   "workflow_profile": "baseline",
   "decision_activation_commit_limit": 1,
   "product_change_commit_limit": 1,
@@ -60,8 +60,8 @@
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
   "workflow_dispatch_limit": 0,
-  "live_model_call_limit": 16,
-  "provider_network_call_limit": 16,
+  "live_model_call_limit": 48,
+  "provider_network_call_limit": 48,
   "credential_access_limit": 0,
   "local_browser_launch_limit": 0,
   "pr_creation_allowed": true,
@@ -94,11 +94,12 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/opencode_executor.py",
-    "tests/platform_v1/test_opencode_executor.py",
-    "tests/platform_v1/test_child_environment_isolation.py",
-    "tests/platform_v1/test_binding_windows_env.py",
-    "tests/platform_v1/test_task3c_v4_repairs.py"
+    "reverse_agent/platform_v1/control_store.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/unattended_coordinator.py",
+    "tests/platform_v1/test_autonomy.py",
+    "tests/platform_v1/test_task_service.py",
+    "tests/platform_v1/test_unattended_coordinator.py"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
@@ -107,11 +108,12 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/opencode_executor.py",
-    "tests/platform_v1/test_opencode_executor.py",
-    "tests/platform_v1/test_child_environment_isolation.py",
-    "tests/platform_v1/test_binding_windows_env.py",
-    "tests/platform_v1/test_task3c_v4_repairs.py"
+    "reverse_agent/platform_v1/control_store.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/unattended_coordinator.py",
+    "tests/platform_v1/test_autonomy.py",
+    "tests/platform_v1/test_task_service.py",
+    "tests/platform_v1/test_unattended_coordinator.py"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -127,10 +129,10 @@
     "frontend/**",
     "reverse_agent/control_plane/**",
     "reverse_agent/project_gate.py",
-    "reverse_agent/platform_v1/task_service.py",
-    "reverse_agent/platform_v1/coordinator.py",
+    "reverse_agent/platform_v1/opencode_executor.py",
+    "reverse_agent/platform_v1/durable_execution.py",
     "reverse_agent/platform_v1/run_store.py",
-    "reverse_agent/model_access/store.py",
+    "reverse_agent/model_access/**",
     "dev-up.ps1",
     "dev-down.ps1",
     "project_state/mainline_merge_intents/**",
@@ -172,8 +174,9 @@
     }
   ],
   "semantic_implementation_contract": {
-    "specification": "System implements explicit minimal childenv admission for ordinarynoBindingCLI, direct sequentialplanner/coder/reviewer andserver, andauthnone/external_cli_session/account_login. Never iterate/copy arbitraryparentenv orinheritimplicitprocessenv. PreservefixedOpenCodeflags androle/providerconfig. Use repository existingaccountauthnonsecretlocationallowlist ascompatibilityprecedent; justify mode-specific subset, no arbitrarysecret/proxy forwarding. Binding/relay remainsminimallyconfined; onlyexplicit989WindowsSystemDrive/PATHEXTvalidationresidualmaychangeBindingenv. EnsuretypedvalidSystemDriveavailable/derivedfromvalidSystemRootonWindows; missing/invalidPATHEXT handlingpreserves997safeextensiondiscovery andrejectsunsafecontrol/pathinjection. Preservemerged989lifetime/980evidence. Replaceobsolete testdirectauthenticatedparentmarkersassertion withstrongersecretconfinementcoverage; do notdeleteacceptedregressions. Adddeterministic guardedMapping(noitems/iteration),sentinelGH/provider/cloud/package/passwordexclusion,realCLI/serverkwargs androles/authmodes/safetyconfig coverage. No rawenvvaluesinstore/events/errors. ActualWindowsknownGit --version andknowncmd/PowerShellNoProfile fixedread-onlycommands inpytest-ownedtemp verifyminimalenvandSystemDriveexpansion,noliteralSystemDrivecachepath. No realOpenCode/OAuth/credentialstoretest,model/providercallsintests ordependencyinstall. No frontend/TaskStore/coordinator/credentialrelay redesign. Fiveproductpaths only; systemauthorsallbytes through16tool-freemaxcalls,0autoretry,600sectimeout/no spendcap; supervisorvalidatesstrictallowlist/nonlinks/exactoldtextandreviewsbeforefixedtests. Update obsolete test_binding_windows_env.py expectations to admit validated Windows SystemDrive and direct PATHEXT while retaining all secret guards, exact key-set checks, role/config and non-Windows regressions. In test_task3c_v4_repairs.py only bind test_combined_trusted_host_task_api_injects_lease_provider to its own CombinedTrustedHost model_control_url using existing BindingResolver precedent. Preserve real loopback lease create/release assertions; no fake-success or skip.",
-    "completion_boundary": "Onefinalproductcommit/twopushes/oneDraft. Exactheadfocusedandfullplatformproviderfreechecks,diff,gates,naturalCI andindependentacceptance. No source-stageReady/merge/closure/deployment. Laterseparatelandingmayclose372and989onlyafteralltheirresidualproofs andmainreceipt/CI;299fullOSsandboxstaysOPEN. NoTaskAPInativeverificationclaim forsupervisedtextinference."
+    "specification": "Re-anchor the public Resume write-gate from closed stale PR #979 onto current main and strengthen it so resume admission is identity-bound and auditable. Reuse the existing durable run identity, owner window, AutonomyService, PlatformControlStore claim/budget reservation, and operation-receipt tables. Add execution_authority_sha/planning_sha binding to coordinator claims and budget reservations; compare current identities to the durable run inside the same BEGIN IMMEDIATE claim transaction before claim/retry/budget mutation; fail closed on disagreement. Existing legacy active reservations without identity may be bound only by an explicit atomic compatible migration when the durable run exactly matches the current identities, and that migration must be receipted. Extend the existing operation receipt with a bounded non-secret identity snapshot rather than creating a Vestige subsystem or second audit table. Successful resume admission must persist its allow receipt atomically with the claim/reservation before any durable executor/tool re-entry. Denied resume admission must record a deny receipt when the referenced window exists; failure to record an allow receipt must prevent execution. Reuse the same identity-bound claim path for unattended Resume and manual Task API Resume. Preserve DurableExecutionService repository/worktree/HEAD/checkpoint checks. Preserve original PR992 implementation provenance and six-file scope; no wholesale file replacement over currentmain changes. Use exact git patch context/check, system text edits only for verified regression gaps within these six paths. Do not alter test expectations merely to hide failures; retain actual manualHTTP/unattended Resume no-dispatch/no-budget-mutation and atomic receipt rollback controls. Before accepting reused candidate, reproduce and resolve within same six paths: production unattended opencode Resume with missing both/partial current identities must fail BEFORE claim/retry/reservation writes; low-level provider-free bookkeeping compatibility must not become a production bypass. Manual Resume early identity rejection with an existing referenced window must persist bounded denial identity evidence rather than silently returning before the existing receipt path. Check whether denial receipt identity snapshots can race after comparison; if reproduced, retain compared facts captured at the transactional comparison point instead of later unrelated state. No new receipt table/ledger/authority engine. Regression tests must assert no executor dispatch/no budget mutation, correct denial evidence, and existing admitted resume still works.",
+    "execution_surface_note": "Exact old six-file candidate patch only after fresh activationDraft. Provider-free disposable tests, no real Task/model executor dispatch. If correction needed, at most48 serial tool-free Codestral calls600sec each with0tools/dispatch/autoretry/spendcap; only named owned binding temporarilyenabled thenrestored, trustedstore/vault/relay resolves credentials internally withno rawsecretread/output. All tests zero model/provider calls. No source-stageReady/merge or deployment.",
+    "completion_boundary": "Draft implementation only. Deterministic tests must prove planning mismatch causes no claim/retry/budget mutation and no executor/tool dispatch; budget-reservation planning mismatch fails closed before dispatch; allow and deny receipts expose bounded checked identity facts; legacy unbound active reservation is only safely rebound when durable/current identities agree; admitted manual and unattended Resume use the identity-bound claim path. No Ready/Merge or Issue closure."
   },
   "runtime_scratch_policy": {
     "paths": [
@@ -204,7 +207,7 @@
     ],
     "trusted_worker_network_exceptions": [],
     "user_local_network_exceptions": [
-      "Verify existing owned supervised-route-mistral-20260928b exact connectionmistral/modelcodestral-latest/executoropencode disabled; temporarilyenable only it for each tool-free call and restore exactdisabled metadata finally. No other Binding/Connection/key mutations. Native trusted store/OSvault/relay internal credential use only, no rawsecretreads/output/export. Max16text-onlycalls600sec0tools/dispatch/automaticretry. Provider-free deterministic tests, ownedloopback and known Git/Windows fixed read-only pytesttemp proofs authorized."
+      "Verify owned supervised-route-mistral-20260928b exact mistral/codestral-latest/opencode disabled; temporaryenable onlyduringboundedtoolfreecalls, restoreexactdisabledfinally. Max48serialtextcalls600sec0autoretry0tools/dispatch. Nativecredentialresolutiononly,no rawkeyread/export, no userBinding/Connection edits. Existing provider-free tests/local fakeHTTP allowed. No actual OpenCodeTask, runtime restart, deployment, realOAuth or arbitrarycommands."
     ],
     "github_control_plane_network_exceptions": [
       "Canonical exact branch activation/implementation pushes and one Draft; descriptions only. No Ready/merge/tag/release under source stage."
@@ -212,8 +215,8 @@
   },
   "allowed_commands": [
     {
-      "command_id": "issue372v6.bootstrap",
-      "command": "Fresh exactbase 18c5030fabeb72288ea2de56314579e339995182 checkout F:\\Nerelan-issue372-system-v6-20260928 branchcodex/issue372-windows-isolation-system-v6-20260928;writeimmutableDecisionUTF8LFoneactivationcommit; existingstartup-snapshot/transition-command-plan/transition-lint/transition-preflight --modepre/worktree-publication-readiness andgitdiffcheckbaseHEAD. FirstDraftbeforeproductchanges; neverstagegeneratedgates.",
+      "command_id": "issue120v3.bootstrap",
+      "command": "After1022maincloseout fresh exactbase393886c2e1b764e6f8a4ed638aceb24cccdc92a8 F:/Nerelan-issue120-system-v3-20260928 branchcodex/issue120-resume-identity-system-v3-20260928. One immutableUTF8LFDecisioncommit; all5nativegates+diffcheck. Pushactivation/createDraft/readback beforeproductbytes. Nohistoryreuse/rewrite.",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [
@@ -241,8 +244,8 @@
       ]
     },
     {
-      "command_id": "issue372v6.runtime",
-      "command": "No runtime restart/deployment or OpenCodeTask. Verify existing owned supervised-route-mistral-20260928b exact connectionmistral/modelcodestral-latest/executoropencode disabled; temporarilyenable only it for each tool-free call and restore exactdisabled metadata finally. No other Binding/Connection/key mutations. Native trusted store/OSvault/relay internal credential use only, no rawsecretreads/output/export. Max16text-onlycalls600sec0tools/dispatch/automaticretry. Provider-free deterministic tests, ownedloopback and known Git/Windows fixed read-only pytesttemp proofs authorized.",
+      "command_id": "issue120v3.runtime",
+      "command": "Verify owned supervised-route-mistral-20260928b exact mistral/codestral-latest/opencode disabled; temporaryenable onlyduringboundedtoolfreecalls, restoreexactdisabledfinally. Max48serialtextcalls600sec0autoretry0tools/dispatch. Nativecredentialresolutiononly,no rawkeyread/export, no userBinding/Connection edits. Existing provider-free tests/local fakeHTTP allowed. No actual OpenCodeTask, runtime restart, deployment, realOAuth or arbitrarycommands.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -260,8 +263,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "issue372v6.system",
-      "command": "After activation Draft transfer exact reviewed v4 three product files, excluding rejected model call16. Up to16 tool-free Codestral calls for CLI/server/authmode execution coverage and Windows legacy expectation updates; only five approved product paths. Supervisor authors no product or test bytes; apply validated exact system edits. Final checks on frozen v6 exact head. Include isolated known baseline test fixture resolver correction only.",
+      "command_id": "issue120v3.system",
+      "command": "AfterverifiedDraft copy exact sixproduct-file gitdiff fromPR992head a0af0b1508fd10295c463ff9f6c8b16bedc70106 againstapprovedoriginalbase58d4068f43ca4914b122445685cae410a8fa156e; gitapplycheckfirst, applyonlydeclaredpaths, noDecisioncopy. Reuseexistingimplementation; ifneeded max48toolfreeCodestralcorrections withstrictnonlink/path/uniqueold/scope validation. Supervisorreviews/transfers, no product/testauthorship. Onefinalproductcommitafterdevelopmentchecks.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -279,17 +282,18 @@
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/opencode_executor.py",
-        "tests/platform_v1/test_opencode_executor.py",
-        "tests/platform_v1/test_child_environment_isolation.py",
-        "tests/platform_v1/test_binding_windows_env.py",
-        "tests/platform_v1/test_task3c_v4_repairs.py"
+        "reverse_agent/platform_v1/control_store.py",
+        "reverse_agent/platform_v1/task_service.py",
+        "reverse_agent/platform_v1/unattended_coordinator.py",
+        "tests/platform_v1/test_autonomy.py",
+        "tests/platform_v1/test_task_service.py",
+        "tests/platform_v1/test_unattended_coordinator.py"
       ],
       "produced_artifacts": []
     },
     {
-      "command_id": "issue372v6.checks",
-      "command": "Developmentchecks/fixesbeforefreeze; finalexacthead python -B -m pytest tests/platform_v1/test_child_environment_isolation.py -q -p no:cacheprovider; python -B -m pytest tests/platform_v1/test_opencode_executor.py tests/platform_v1/test_opencode_server_transport.py tests/platform_v1/test_execution_runtime_budget.py -q -p no:cacheprovider; python -B -m pytest tests/platform_v1 -q -p no:cacheprovider; git diff --check 18c5030fabeb72288ea2de56314579e339995182 HEAD. Providerfree only, syntheticsentinels/fakeprocess exceptexplicitfixedWindowsGit/cmd/PowerShell read-only temp proofs. Beforestagecachedstartupreadiness;aftercommitall5gatesagain. Mandatoryfailurestopspublicationnofixforward.",
+      "command_id": "issue120v3.checks",
+      "command": "Developmentchecks/fixesbeforefreeze. Mandatoryexacthead: python -B -m pytest tests/platform_v1/test_autonomy.py tests/platform_v1/test_task_service.py tests/platform_v1/test_unattended_coordinator.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_run_resume_control.py -q -p no:cacheprovider; python -B -m pytest tests/platform_v1 -q -p no:cacheprovider; git diff --check 393886c2e1b764e6f8a4ed638aceb24cccdc92a8 HEAD. Beforestagecachedstartupreadiness;stageonlysixproductpaths, oneproductcommit,all5gates. Finalmandatoryfailurestopspublication,no fixforward or weakentest.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -310,8 +314,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "issue372v6.publish",
-      "command": "Atmost2pushesactivation/final exactbranchcodex/issue372-windows-isolation-system-v6-20260928 andoneDraftagainstmain@18c5030fabeb72288ea2de56314579e339995182;rebindexactheadbody. Requireallchecks/PUBLICATION_READY/freshbase/scope. NoReady/merge/closure/historyrewrite.",
+      "command_id": "issue120v3.publish",
+      "command": "Atmosttwoexactbranchpushesactivation/final codex/issue120-resume-identity-system-v3-20260928 andoneDraftagainstmain@393886c2e1b764e6f8a4ed638aceb24cccdc92a8. Rebindexactheadbody, requirefinalchecks/readiness/base/scope. NoReady/merge/closure/historyrewrite.",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -329,8 +333,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "issue372v6.ci",
-      "command": "Observe naturalexactheadCI/Decision/State plusnativeartifact, providerfreechecks. No reruns/manualdispatch/dependency/workflowchanges.",
+      "command_id": "issue120v3.ci",
+      "command": "Natural exacthead sourceCI/Decision/State native diagnostics; no manualdispatch/rerun/workflowchanges.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -349,8 +353,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "issue372v6.audit",
-      "command": "Independent supervisor source/sink/compatibilityreview, actualminimalenvpositivecontrols andsentinelnegatives, bothtransports+ordinaryroles,Windowsproof. No modelselfacceptance orOSsandboxclaim. Distinguishmainline/source fromdirtylocalhost.",
+      "command_id": "issue120v3.audit",
+      "command": "Independent supervisor examines resume identity BEFORE claim/retry/reservation mutation, sameSQLite transaction andreceiptrollback, boundedidentitydata,manualHTTP andunattendedadmission. Preserve durableworktree/HEAD/checkpoint checks. No separateledger or modelselfacceptance. Frontendnotdeployed; no newvisualclaim.",
       "phase": "final_evidence",
       "required": true,
       "expected_exit_codes": [
@@ -370,49 +374,27 @@
   ],
   "concurrent_work_preservation": {
     "prs": [
-      991,
       992,
-      995,
-      1000,
-      1003,
-      1007,
-      1008,
-      1012,
-      1013,
-      1014,
-      1015,
-      1017,
-      1018,
-      1019,
-      1020,
-      1021
+      1023
     ],
-    "policy": "Preserve all previous Drafts, root user edits and partial worktrees; v5 unpublished activation preserved unchanged. V6 alone active for product completion after v4 full development results observed. No concurrent model calls; owned Codestral binding restored disabled after each call."
+    "policy": "Preserve old992 head a0af0b1508fd10295c463ff9f6c8b16bedc70106 and all other PR/source/root user edits. Activate only after1022 native maincloseout. No concurrent productmutation of same6paths; onlyone controlledlandinglane. Existing source/authority artifacts anduserAPIsettings unchanged."
   },
   "reference_paths": [
     "AGENTS.md",
     "docs/agents/governance-reference.md",
-    "dev-up.ps1",
-    "reverse_agent/platform_v1/binding_resolver.py",
-    "reverse_agent/model_access/contracts.py",
-    "tests/platform_v1/test_opencode_server_transport.py",
-    "tests/platform_v1/test_credential_relay.py",
-    "tests/platform_v1/test_trusted_host.py",
-    "tests/platform_v1/test_trusted_host_lifecycle.py",
-    "reverse_agent/model_access/credential_relay.py",
-    "reverse_agent/platform_v1/trusted_host.py",
-    "tests/platform_v1/test_execution_runtime_budget.py"
+    "reverse_agent/platform_v1/autonomy.py",
+    "reverse_agent/platform_v1/durable_execution.py",
+    "reverse_agent/platform_v1/run_store.py",
+    "tests/platform_v1/test_durable_execution.py",
+    "tests/platform_v1/test_run_resume_control.py"
   ],
   "source_issues": [
-    372,
-    989
+    120
   ],
   "required_provider_free_checks": [
-    "python -B -m pytest tests/platform_v1/test_child_environment_isolation.py tests/platform_v1/test_binding_windows_env.py -q -p no:cacheprovider",
-    "python -B -m pytest tests/platform_v1/test_opencode_executor.py tests/platform_v1/test_opencode_server_transport.py tests/platform_v1/test_execution_runtime_budget.py -q -p no:cacheprovider",
-    "python -B -m pytest tests/platform_v1/test_task3c_v4_repairs.py -q -p no:cacheprovider",
+    "python -B -m pytest tests/platform_v1/test_autonomy.py tests/platform_v1/test_task_service.py tests/platform_v1/test_unattended_coordinator.py tests/platform_v1/test_durable_execution.py tests/platform_v1/test_run_resume_control.py -q -p no:cacheprovider",
     "python -B -m pytest tests/platform_v1 -q -p no:cacheprovider",
-    "git diff --check 18c5030fabeb72288ea2de56314579e339995182 HEAD"
+    "git diff --check 393886c2e1b764e6f8a4ed638aceb24cccdc92a8 HEAD"
   ]
 }
 ```
