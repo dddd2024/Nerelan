@@ -251,21 +251,38 @@ _BINDING_CHILD_ENV_ALLOWLIST = (
 _DEFAULT_WINDOWS_PATHEXT = ".COM;.EXE;.BAT;.CMD"
 
 
-def _ensure_windows_pathext(child: dict[str, str]) -> None:
-    """Ensure PATHEXT is present in a Windows Binding child environment.
+def _ensure_windows_pathext(child: dict[str, str], parent_env: Mapping[str, str]) -> None:
+    """Ensure PATHEXT and SystemDrive are present in a Windows child environment.
 
-    The allowlist already copies PATHEXT from the parent when it supplies a
-    usable string. On Windows PATHEXT is required for reliable executable
-    extension discovery/invocation; when the restricted parent omits it (or
-    supplies a non-string/empty value), inject the conservative non-secret
-    OS standard default. No-op on non-Windows. Never reads secrets.
+    On Windows PATHEXT is required for reliable executable extension
+    discovery/invocation; when the child omits it or supplies an invalid
+    value, inject the conservative OS standard default.  SystemDrive is
+    sourced explicitly from the parent env when it holds a valid single
+    letter+colon value; otherwise it is derived from the child's absolute
+    drive-rooted SystemRoot.  No-op on non-Windows. Never reads secrets.
     """
     if platform.system() != "Windows":
         return
+    # --- PATHEXT ---
     existing = child.get("PATHEXT")
-    if isinstance(existing, str) and existing:
+    if not (isinstance(existing, str) and existing):
+        child["PATHEXT"] = _DEFAULT_WINDOWS_PATHEXT
+    elif not re.fullmatch(r'\.[A-Za-z0-9]+(?:;\.[A-Za-z0-9]+)*', existing):
+        child["PATHEXT"] = _DEFAULT_WINDOWS_PATHEXT
+    # --- SystemDrive (always runs; never skipped by PATHEXT outcome) ---
+    sd = parent_env.get("SystemDrive")
+    if isinstance(sd, str) and re.fullmatch(r'[A-Za-z]:', sd):
+        child["SystemDrive"] = sd
         return
-    child["PATHEXT"] = _DEFAULT_WINDOWS_PATHEXT
+    sr = child.get("SystemRoot")
+    if not (isinstance(sr, str) and sr):
+        return
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in sr):
+        return
+    m = re.fullmatch(r'([A-Za-z]):[/\\](.+)', sr)
+    if not m:
+        return
+    child["SystemDrive"] = m.group(1) + ':'
 
 
 def validate_model_id(model_id: str) -> str:
@@ -456,9 +473,9 @@ def build_role_child_env(
 
     For Binding/relay sessions the existing provider config is preserved
     and role permissions are merged in. For direct authenticated sessions
-    (no binding config), the parent environment is copied in full (not
-    restricted to the Binding allowlist) and role permissions are injected
-    via OPENCODE_CONFIG_CONTENT. The OpenCode safety disable flags are
+    (no binding config), a fixed allowlist of environment variables is
+    copied from the parent, and role permissions are injected via
+    OPENCODE_CONFIG_CONTENT. The OpenCode safety disable flags are
     injected regardless.
     """
     child: dict[str, str] = {}
@@ -467,16 +484,26 @@ def build_role_child_env(
             value = parent_env.get(key)
             if isinstance(value, str) and value:
                 child[key] = value
-        _ensure_windows_pathext(child)
+        _ensure_windows_pathext(child, parent_env)
         for key, value in _OPENCODE_DISABLE_ENV.items():
             child[key] = value
         merged = _merge_opencode_config(existing_config, build_role_permission_config(role))
         if merged:
             child["OPENCODE_CONFIG_CONTENT"] = merged
     else:
-        for key, value in parent_env.items():
-            if isinstance(value, str) and value:
-                child[key] = value
+        direct_env_allowlist = [
+            "PATH", "SystemRoot", "PATHEXT", "COMSPEC",
+            "TEMP", "TMP", "USERPROFILE", "LOCALAPPDATA", "APPDATA",
+            "HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME",
+        ]
+        for key in direct_env_allowlist:
+            value = parent_env.get(key)
+            if not isinstance(value, str) or not value:
+                continue
+            if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+                continue
+            child[key] = value
+        _ensure_windows_pathext(child, parent_env)
         for key, value in _OPENCODE_DISABLE_ENV.items():
             child[key] = value
         role_perm = build_role_permission_config(role)
@@ -515,7 +542,7 @@ def build_binding_child_env(
         value = parent_env.get(key)
         if isinstance(value, str) and value:
             child[key] = value
-    _ensure_windows_pathext(child)
+    _ensure_windows_pathext(child, parent_env)
     for key, value in _OPENCODE_DISABLE_ENV.items():
         child[key] = value
     child["OPENCODE_CONFIG_CONTENT"] = config_content
@@ -1374,7 +1401,6 @@ class OpenCodeExecutor:
                     "check": False,
                 }
                 role = role_context.role
-                is_sequential_role = role in _ROLE_INSTRUCTIONS
                 if self._binding_resolution is not None:
                     config_content = build_binding_config_content(
                         self._binding_resolution,
@@ -1385,7 +1411,7 @@ class OpenCodeExecutor:
                         config_content,
                         role,
                     )
-                elif is_sequential_role:
+                else:
                     run_kwargs["env"] = build_role_child_env(
                         self._parent_env,
                         None,

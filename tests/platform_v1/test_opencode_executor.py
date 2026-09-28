@@ -167,6 +167,9 @@ def test_server_executor_stream_usage_is_idempotent_and_secret_confined(
 
     def fake_server(**kwargs):
         assert kwargs["child_env"]["OPENCODE_DISABLE_AUTOUPDATE"] == "true"
+        assert kwargs["child_env"]["PATH"] == "C:\\safe-bin"
+        assert kwargs["child_env"]["SystemRoot"] == "C:\\Windows"
+        assert not set(kwargs["child_env"].keys()) & set(_GuardedParentEnvironment.forbidden)
         assert kwargs["provider_id"] == "p"
         assert kwargs["model_id"] == "m"
         assert kwargs["usage_observer"](message) is False
@@ -183,6 +186,7 @@ def test_server_executor_stream_usage_is_idempotent_and_secret_confined(
         model_id="p/m",
         opencode_exe="/fake/opencode",
         transport_kind="server",
+        parent_env=_GuardedParentEnvironment()
     )
     result = executor._run_executor_core(
         task_id=task.id,
@@ -692,6 +696,7 @@ def test_binding_child_environment_uses_explicit_allowlist_without_iteration() -
     }
     if platform.system() == "Windows":
         expected["PATHEXT"] = ".COM;.EXE;.BAT;.CMD"
+        expected["SystemDrive"] = "C:"
     assert child == expected
     assert not parent.forbidden.intersection(parent.read_keys)
 
@@ -1043,6 +1048,7 @@ def test_executor_success_with_json_events() -> None:
         executor = OpenCodeExecutor(
             model_id="sensetime/sensenova-6.7-flash-lite",
             opencode_exe="/fake/opencode",
+            parent_env=_GuardedParentEnvironment(),
         )
         received_argvs: list[list[str]] = []
 
@@ -1050,6 +1056,10 @@ def test_executor_success_with_json_events() -> None:
 
         def fake_run(argv, **kwargs):
             received_argvs.append(list(argv))
+            if argv[0] == "/fake/opencode":
+                assert kwargs["env"]["PATH"] == "C:\\safe-bin"
+                assert not any(key in kwargs["env"] for key in _GuardedParentEnvironment.forbidden)
+                assert kwargs["env"]["OPENCODE_DISABLE_AUTOUPDATE"] == "true"
             return subprocess.CompletedProcess(
                 args=argv,
                 returncode=0,
@@ -1080,7 +1090,9 @@ def test_executor_success_with_json_events() -> None:
             exec_mod.subprocess.run = original_run
 
 
-def test_binding_execution_passes_only_secret_free_env_and_sanitized_metadata() -> None:
+@pytest.mark.parametrize("auth_method", ["none", "external_cli_session", "account_login"])
+def test_binding_execution_passes_only_secret_free_env_and_sanitized_metadata(auth_method: str) -> None:
+    from dataclasses import replace
     fake_secret_sentinels = (
         "fake-openai-key-not-real",
         "fake-anthropic-key-not-real",
@@ -1098,7 +1110,7 @@ def test_binding_execution_passes_only_secret_free_env_and_sanitized_metadata() 
             binding_ref="coding-fast",
         )
         executor = OpenCodeExecutor(
-            binding_resolution=_binding_resolution(),
+            binding_resolution=replace(_binding_resolution(), auth_method=auth_method),
             parent_env=parent,
             opencode_exe="/fake/opencode",
         )
@@ -1167,7 +1179,7 @@ def test_binding_execution_passes_only_secret_free_env_and_sanitized_metadata() 
         )
         assert "coding-fast" in serialized
         assert "sense-api" in serialized
-        assert "external_cli_session" in serialized
+        assert auth_method in serialized
         assert "OPENCODE_CONFIG_CONTENT" not in serialized
         assert "models.example.test" not in serialized
         for sentinel in fake_secret_sentinels:
@@ -2233,7 +2245,7 @@ def test_binding_relay_runtime_config_contains_provider_and_permission() -> None
     assert merged_config["permission"]["edit"][".reverse-agent-handoff/plan.md"] == "allow"
 
 
-def test_direct_authenticated_session_env_preserves_parent_markers() -> None:
+def test_direct_authenticated_session_env_excludes_parent_markers() -> None:
     from reverse_agent.platform_v1.opencode_executor import build_role_child_env
 
     parent_env = {
@@ -2244,8 +2256,8 @@ def test_direct_authenticated_session_env_preserves_parent_markers() -> None:
     }
 
     child = build_role_child_env(parent_env, None, "planner")
-    assert child["OPENCODE_TEST_MARKER"] == "keep-me"
-    assert child["FAKE_API_KEY_NOT_SECRET"] == "fake-marker-value"
+    assert "OPENCODE_TEST_MARKER" not in child
+    assert "FAKE_API_KEY_NOT_SECRET" not in child
     assert child["PATH"] == "/usr/bin:/usr/local/bin"
     assert child["OPENCODE_CONFIG_CONTENT"]
     config = json.loads(child["OPENCODE_CONFIG_CONTENT"])
@@ -2346,6 +2358,7 @@ def test_binding_child_env_still_uses_allowlist() -> None:
     }
     if platform.system() == "Windows":
         expected["PATHEXT"] = ".COM;.EXE;.BAT;.CMD"
+        expected["SystemDrive"] = "C:"
     assert child == expected
     assert not parent.forbidden.intersection(parent.read_keys)
 

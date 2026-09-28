@@ -474,7 +474,7 @@ class TestTaskApiApiKeyWiring:
 
         fake_srv, received = _start_fake_provider(port)
         try:
-            host = CombinedTrustedHost(store=store)
+            host = CombinedTrustedHost(store=store, model_control_port=0, task_api_port=0)
             host.start()
             try:
                 task_store = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
@@ -504,10 +504,14 @@ class TestTaskApiApiKeyWiring:
                             validation_output_summary="",
                         )
 
+                from reverse_agent.platform_v1.binding_resolver import BindingResolver
+
+                binding_resolver = BindingResolver(base_url=host.model_control_url)
                 svc = TaskExecutionService(
                     store=task_store,
                     router=_SpyRouter(),
                     lease_provider=host._lease_provider_factory(),
+                    binding_resolver=binding_resolver,
                 )
                 outcome = svc.execute(
                     task.id, workspace_root=str(tmp_path / "ws")
