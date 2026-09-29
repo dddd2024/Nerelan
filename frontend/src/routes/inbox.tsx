@@ -12,6 +12,8 @@ import {
 import { cn } from "@/lib/cn";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
+import { PageHeader, PageSurface } from "@/components/page-header";
+import { TONE_MUTED_FLAT, TONE_SUCCESS_FLAT } from "@/lib/format";
 
 const STATUS_LABELS: Record<PlatformInboxItem["status"], string> = {
   CAPTURED: "已捕获",
@@ -60,27 +62,16 @@ export function InboxPage() {
   const settled = items.filter((item) => item.status !== "CAPTURED");
 
   return (
-    <main
-      data-testid="inbox-page"
-      className="min-h-full bg-[var(--oh-surface)] px-4 py-7 sm:px-8 lg:px-12 lg:py-10"
-    >
-      <div className="mx-auto w-full max-w-[900px]">
-        <header className="mb-8">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-ra-text-tertiary">
-            Human inbox
-          </p>
-          <h1 className="mt-2 flex items-center gap-2 text-3xl font-medium tracking-[-0.025em] text-ra-text sm:text-4xl">
-            <InboxIcon className="h-7 w-7" aria-hidden="true" />
-            想法收件箱
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-ra-text-secondary">
-            先把想法记下来。捕获的内容只是展示状态，不具备执行权限；晋升会通过既有的目标审批链路创建普通 DRAFT 目标。
-          </p>
-        </header>
+    <PageSurface data-testid="inbox-page" measureClassName="max-w-[900px]">
+      <PageHeader
+        title="想法收件箱"
+        icon={InboxIcon}
+        description="先把想法记下来。捕获的内容只是展示状态，不具备执行权限；晋升会通过既有的目标审批链路创建普通 DRAFT 目标。"
+      />
 
-        <form
-          data-testid="inbox-composer"
-          className="rounded-2xl border border-ra-border bg-ra-light/40 p-4"
+      <form
+        data-testid="inbox-composer"
+        className="rounded-2xl border border-ra-border bg-ra-light/40 p-4"
           onSubmit={(event) => {
             event.preventDefault();
             const trimmed = objective.trim();
@@ -113,7 +104,7 @@ export function InboxPage() {
               aria-label="捕获想法"
               data-testid="inbox-capture-button"
               disabled={captureMutation.isPending || !objective.trim()}
-              className="inline-flex items-center gap-2 rounded-lg bg-ra-accent px-3 py-2 text-sm font-medium text-ra-base disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className="inline-flex items-center gap-2 rounded-lg bg-ra-accent px-3 py-2 text-sm font-medium text-ra-base disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Sparkles className="h-4 w-4" aria-hidden="true" />
               捕获
@@ -125,7 +116,7 @@ export function InboxPage() {
           <p
             role="alert"
             data-testid="inbox-error"
-            className="mt-3 text-sm text-red-300"
+            className="mt-3 text-sm text-ra-status-error"
           >
             {error}
           </p>
@@ -166,7 +157,7 @@ export function InboxPage() {
                     data-testid={`inbox-promote-${item.id}`}
                     disabled={promoteMutation.isPending}
                     onClick={() => promoteMutation.mutate(item.id)}
-                    className="rounded-lg bg-ra-accent px-3 py-1.5 text-xs font-medium text-ra-base disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    className="rounded-lg bg-ra-accent px-3 py-1.5 text-xs font-medium text-ra-base disabled:opacity-50"
                   >
                     晋升为目标
                   </button>
@@ -185,7 +176,7 @@ export function InboxPage() {
               </li>
             ))}
             {captured.length === 0 && (
-              <li className="rounded-xl border border-dashed border-ra-border py-10 text-center text-sm text-ra-text-tertiary">
+              <li className="rounded-xl border border-dashed border-ra-border py-8 text-center text-sm text-ra-text-tertiary">
                 没有待处理的想法。
               </li>
             )}
@@ -212,8 +203,8 @@ export function InboxPage() {
                     className={cn(
                       "rounded-full px-2 py-0.5 text-[11px]",
                       item.status === "PROMOTED"
-                        ? "bg-emerald-400/10 text-emerald-300"
-                        : "bg-ra-light text-ra-text-tertiary",
+                        ? TONE_SUCCESS_FLAT
+                        : TONE_MUTED_FLAT,
                     )}
                   >
                     {STATUS_LABELS[item.status]}
@@ -231,14 +222,17 @@ export function InboxPage() {
               </li>
             ))}
             {settled.length === 0 && (
-              <li className="py-6 text-center text-xs text-ra-text-tertiary">
+              /* Same framed treatment as the primary empty state above; the two
+                 sections carry identical headers ("0 条"), so rendering one as a
+                 dashed box and the other as bare centred text read as an
+                 inconsistency rather than a hierarchy. */
+              <li className="rounded-xl border border-dashed border-ra-border py-8 text-center text-sm text-ra-text-tertiary">
                 暂无历史。
               </li>
             )}
           </ul>
         </section>
         </>}
-      </div>
-    </main>
+    </PageSurface>
   );
 }

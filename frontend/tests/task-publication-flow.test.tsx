@@ -170,11 +170,11 @@ describe("Task Draft PR publication flow", () => {
     const user = userEvent.setup();
     renderWithProviders(<Harness />);
 
-    const publish = await screen.findByRole("button", { name: "Publish Draft PR" });
+    const publish = await screen.findByRole("button", { name: "发布草稿 PR" });
     await user.click(publish);
 
     await screen.findByRole("link", { name: /Draft PR #732/ });
-    expect(screen.queryByRole("button", { name: "Publish Draft PR" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "发布草稿 PR" })).not.toBeInTheDocument();
     expect(taskReads).toBeGreaterThanOrEqual(2);
     expect(publishBodies).toEqual([
       {
@@ -205,7 +205,7 @@ describe("Task Draft PR publication flow", () => {
 
     const link = await screen.findByRole("link", { name: /Draft PR #732/ });
     expect(link).toHaveAttribute("href", COMPLETE_PUBLICATION.pr_url);
-    expect(screen.queryByRole("button", { name: "Publish Draft PR" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "发布草稿 PR" })).not.toBeInTheDocument();
   });
 
   it("keeps a failed publication visible and retryable without inventing a PR", async () => {
@@ -236,7 +236,7 @@ describe("Task Draft PR publication flow", () => {
       await screen.findByText("Draft PR publication failed: github_draft_pr_failed"),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("task-draft-pr")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Publish Draft PR" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "发布草稿 PR" })).toBeEnabled();
   });
 
   it("disables duplicate submission while publication is pending", async () => {
@@ -264,7 +264,7 @@ describe("Task Draft PR publication flow", () => {
 
     const user = userEvent.setup();
     renderWithProviders(<Harness />);
-    const publish = await screen.findByRole("button", { name: "Publish Draft PR" });
+    const publish = await screen.findByRole("button", { name: "发布草稿 PR" });
     await user.click(publish);
 
     await waitFor(() => expect(publish).toBeDisabled());

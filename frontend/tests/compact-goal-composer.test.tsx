@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import { renderWithProviders } from "./test-utils";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GoalComposer } from "@/components/goal-composer";
@@ -23,7 +24,7 @@ describe("GoalComposer compact progressive disclosure", () => {
 
   it("starts compact and keeps secondary configuration out of the empty idle surface", async () => {
     const user = userEvent.setup();
-    render(<GoalComposer busy={false} onSubmit={async () => {}} />);
+    renderWithProviders(<GoalComposer busy={false} onSubmit={async () => {}} />);
 
     const objective = screen.getByLabelText("描述最终目标");
     expect(objective).toHaveAttribute("rows", "1");
@@ -46,7 +47,7 @@ describe("GoalComposer compact progressive disclosure", () => {
     const submission = deferred();
     const onSubmit = vi.fn((_input: StartGoalInput) => submission.promise);
     const user = userEvent.setup();
-    render(<GoalComposer busy={false} onSubmit={onSubmit} />);
+    renderWithProviders(<GoalComposer busy={false} onSubmit={onSubmit} />);
 
     const objective = screen.getByLabelText("描述最终目标");
     const submit = screen.getByLabelText("创建并审阅目标");
@@ -63,11 +64,12 @@ describe("GoalComposer compact progressive disclosure", () => {
     const sent = onSubmit.mock.calls[0][0];
     expect(sent).toMatchObject({
       objective: "完成 provider-free 多 Agent 验证",
-      repository: "dddd2024/reverse-agent",
+      repository: "dddd2024/Nerelan",
       executorKind: "deterministic_fixture",
-      bindingRef: "coding-default",
       autonomyHours: 2,
     });
+    // The binding is resolved from the bindings that exist, never hardcoded.
+    expect(sent.bindingRef).toBeTruthy();
     expect(sent.operationId).toMatch(/^[A-Za-z0-9._:-]{8,160}$/);
     expect(objective).toHaveValue("完成 provider-free 多 Agent 验证");
 
@@ -92,7 +94,7 @@ describe("GoalComposer compact progressive disclosure", () => {
       Promise.reject(new Error("connection_lost")),
     );
     const user = userEvent.setup();
-    const view = render(<GoalComposer busy={false} onSubmit={onSubmit} />);
+    const view = renderWithProviders(<GoalComposer busy={false} onSubmit={onSubmit} />);
 
     await user.type(
       screen.getByLabelText("描述最终目标"),
@@ -114,7 +116,7 @@ describe("GoalComposer compact progressive disclosure", () => {
     const retrySubmit = vi.fn((_input: StartGoalInput) =>
       Promise.reject(new Error("still_offline")),
     );
-    render(<GoalComposer busy={false} onSubmit={retrySubmit} />);
+    renderWithProviders(<GoalComposer busy={false} onSubmit={retrySubmit} />);
 
     expect(screen.getByLabelText("描述最终目标")).toHaveValue(
       "恢复同一个 Goal 启动操作",

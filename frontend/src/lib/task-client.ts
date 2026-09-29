@@ -125,7 +125,7 @@ async function _json<T>(response: Response): Promise<T> {
   try {
     return JSON.parse(text) as T;
   } catch {
-    throw new Error("invalid api response");
+    throw new Error("服务返回了无法解析的响应。");
   }
 }
 
@@ -307,7 +307,7 @@ export async function fetchTasks(): Promise<Record<string, unknown>[]> {
     headers: { Accept: "application/json" },
   });
   if (!response.ok) {
-    throw new Error(`fetch tasks failed: ${response.status}`);
+    throw new Error(`读取任务列表失败（HTTP ${response.status}）。`);
   }
   const payload = (await _json<BackendTaskListResponse>(response)) as Record<
     string,
@@ -321,7 +321,7 @@ export async function fetchTask(taskId: string) {
   if (_isMock()) {
     const { findFixtureTask } = await import("@/fixtures/tasks");
     const found = findFixtureTask(taskId);
-    if (!found) throw new Error(`Task not found: ${taskId}`);
+    if (!found) throw new Error(`未找到该任务（${taskId}）。它可能已被移除。`);
     return _normalizeTask(found as unknown as Record<string, unknown>);
   }
   const response = await fetch(`${API_BASE}/api/tasks/${taskId}`, {
@@ -329,7 +329,11 @@ export async function fetchTask(taskId: string) {
     headers: { Accept: "application/json" },
   });
   if (!response.ok) {
-    throw new Error(`fetch task failed: ${response.status}`);
+    throw new Error(
+      response.status === 404
+        ? `未找到该任务（${taskId}）。它可能已被移除。`
+        : `读取任务失败（HTTP ${response.status}）。`,
+    );
   }
   const payload = (await _json<BackendTaskDetailResponse>(response)) as Record<
     string,
@@ -350,7 +354,7 @@ export async function fetchTaskEvents(
     },
   );
   if (!response.ok) {
-    throw new Error(`fetch task events failed: ${response.status}`);
+    throw new Error(`读取任务事件失败（HTTP ${response.status}）。`);
   }
   const payload = (await _json<BackendTaskEventsResponse>(response)) as Record<
     string,
@@ -404,9 +408,9 @@ export async function executeTask(taskId: string): Promise<Record<string, unknow
       () => ({}),
     );
     throw new Error(
-      `execute task failed: ${response.status} ${(payload as {
+      `启动任务失败（HTTP ${response.status}）${(payload as {
         error?: string;
-      }).error ?? ""}`,
+      }).error ? `：${(payload as { error?: string }).error}` : "。"}`,
     );
   }
   const payload = (await _json<BackendTaskCreateResponse>(response)) as Record<
@@ -481,9 +485,9 @@ export async function createTask(
       () => ({}),
     );
     throw new Error(
-      `create task failed: ${response.status} ${(payload as {
+      `创建任务失败（HTTP ${response.status}）${(payload as {
         error?: string;
-      }).error ?? ""}`,
+      }).error ? `：${(payload as { error?: string }).error}` : "。"}`,
     );
   }
   const payload = (await _json<BackendTaskCreateResponse>(response)) as Record<
@@ -534,7 +538,7 @@ export async function publishTask(
       () => ({}),
     );
     const code = String((payload as { error?: string }).error ?? "publish_failed");
-    throw new Error(`publish task failed: ${response.status} ${code}`);
+    throw new Error(`发布任务失败（HTTP ${response.status}）：${code}`);
   }
   return _json<BackendPublicationResponse>(response);
 }

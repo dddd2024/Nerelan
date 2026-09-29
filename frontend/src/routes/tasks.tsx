@@ -1,7 +1,9 @@
 import { Link, useSearchParams } from "react-router";
 import { useEffect, useMemo } from "react";
+import { ListChecks } from "lucide-react";
 import { useTasks } from "@/hooks/use-tasks";
 import { TaskInbox } from "@/components/task-inbox";
+import { PageHeader } from "@/components/page-header";
 import { cn } from "@/lib/cn";
 
 export const TASK_LIST_REFRESH_INTERVAL_MS = 2_500;
@@ -50,17 +52,26 @@ export function TasksPage() {
   }, [refetch]);
 
   return (
-    <div
+    <main
       data-testid="tasks-page"
       className={cn(
-        "px-0 pt-4 bg-transparent h-full flex flex-col",
-        "rounded-xl lg:px-[42px] lg:pt-[42px] custom-scrollbar-always",
+        "flex h-full flex-col bg-ra-workspace px-4 py-6 sm:px-6 lg:px-7 lg:py-8",
+        "custom-scrollbar-always",
       )}
     >
+      {/*
+       * The task collection previously rendered with no heading at all: this
+       * was the only top-level surface without an `h1` or a page header.
+       */}
+      <PageHeader
+        title="任务"
+        icon={ListChecks}
+        description="按状态分组的任务集合；打开任一任务查看执行流、变更与证据。"
+      />
       {repository ? (
         <div
           data-testid="tasks-repository-filter"
-          className="mb-3 flex items-center gap-2 px-4 text-xs text-ra-text-tertiary lg:px-0"
+          className="mb-3 flex items-center gap-2 text-xs text-ra-text-tertiary"
         >
           <span className="min-w-0 truncate">项目 · {repository}</span>
           <Link
@@ -71,7 +82,7 @@ export function TasksPage() {
           </Link>
         </div>
       ) : null}
-      <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex flex-1 flex-col min-h-0">
         <TaskInbox
           tasks={filtered}
           isLoading={isLoading}
@@ -79,6 +90,6 @@ export function TasksPage() {
           error={error}
         />
       </div>
-    </div>
+    </main>
   );
 }

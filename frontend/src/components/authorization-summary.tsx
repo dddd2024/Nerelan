@@ -16,11 +16,11 @@ export function AuthorizationSummary({ policy }: AuthorizationSummaryProps) {
   return (
     <div
       data-testid="authorization-summary"
-      className="rounded-lg border border-[#FFD43B]/30 bg-[#FFD43B]/10 p-4"
+      className="rounded-lg border border-ra-status-warning/30 bg-ra-status-warning/10 p-4"
     >
       <div className="flex items-center gap-2">
-        <AlertTriangle className="h-4 w-4 text-[#FFD43B]" />
-        <h3 className="text-sm font-medium text-[#FFD43B]">授权摘要</h3>
+        <AlertTriangle className="h-4 w-4 text-ra-status-warning" />
+        <h3 className="text-sm font-medium text-ra-status-warning">授权摘要</h3>
       </div>
       <p
         className="mt-2 text-sm text-ra-text-secondary"

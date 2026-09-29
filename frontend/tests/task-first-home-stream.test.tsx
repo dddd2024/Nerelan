@@ -96,7 +96,7 @@ describe("task-first active Goal workspace", () => {
   it("keeps progress compact without a visible module heading or repeated Goal title", () => {
     renderWithProviders(<GoalProgress goal={GOAL} />);
 
-    expect(screen.getByText("Agent progress")).toHaveClass("sr-only");
+    expect(screen.getByText("执行进度")).toHaveClass("sr-only");
     expect(screen.queryByText("Task-first workspace")).not.toBeInTheDocument();
     expect(screen.getByText("Converge active workspace")).toBeInTheDocument();
     expect(screen.getByText("Agent 正在执行")).toBeInTheDocument();
@@ -122,7 +122,9 @@ describe("task-first active Goal workspace", () => {
     const source = readFileSync("src/routes/home.tsx", "utf8");
 
     expect(source).toContain('data-testid="active-goal-header"');
-    expect(source).toContain("{detailGoal.title}");
+    // The Goal title is still the primary heading; it is now derived through
+    // `displayTitle` so machine-written titles do not become a text wall.
+    expect(source).toContain("displayTitle(detailGoal.title");
     expect(source).toContain('data-testid="active-goal-stream"');
     expect(source).toContain("platform.coordinator.enabled");
     expect(source).toContain('? "sr-only"');

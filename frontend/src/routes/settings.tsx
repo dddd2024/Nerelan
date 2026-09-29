@@ -8,6 +8,7 @@ import {
   useDeleteConnection,
   useExecutors,
   useTestConnection,
+  useListConnectionModels,
   useUpsertBinding,
   useUpsertConnection,
 } from "@/hooks/use-model-access";
@@ -58,6 +59,7 @@ export function SettingsPage() {
   const [accountAuthPending, setAccountAuthPending] = useState(false);
 
   const testConnectionMutation = useTestConnection();
+  const listConnectionModelsMutation = useListConnectionModels();
 
   useEffect(() => {
     if (creating) return;
@@ -98,6 +100,22 @@ export function SettingsPage() {
     setAccountAuthState(null);
   }
 
+  /* The three list reads share one failure surface so the page states the
+     problem once instead of scattering three separate alerts. */
+  const failedReads = [
+    connectionsQuery.isError ? "连接" : null,
+    executorsQuery.isError ? "执行器" : null,
+    bindingsQuery.isError ? "绑定" : null,
+  ].filter((value): value is string => value !== null);
+  const loadFailureCount = failedReads.length;
+  const loadFailureMessage = `无法读取${failedReads.join("、")}；下面显示的不是真实数据。`;
+
+  function retryFailedLoads() {
+    if (connectionsQuery.isError) void connectionsQuery.refetch();
+    if (executorsQuery.isError) void executorsQuery.refetch();
+    if (bindingsQuery.isError) void bindingsQuery.refetch();
+  }
+
   async function handleConnectionSave(input: ConnectionInput) {
     setStatus(null);
     setError(null);
@@ -126,6 +144,10 @@ export function SettingsPage() {
     } catch (cause) {
       setError(errorMessage(cause));
     }
+  }
+
+  async function handleConnectionModelsFetch(connectionId: string) {
+    return listConnectionModelsMutation.mutateAsync(connectionId);
   }
 
   async function handleAccountAuthStart(connectionId: string) {
@@ -263,19 +285,27 @@ export function SettingsPage() {
   const editorBusy = busy || accountAuthPending;
 
   return (
-    <div
+    <main
       data-testid="settings-page"
       className={cn(
-        "h-full overflow-auto bg-transparent px-4 py-4 custom-scrollbar",
+        "h-full overflow-auto bg-ra-workspace px-4 py-4 custom-scrollbar",
         "lg:px-7 lg:py-7",
       )}
     >
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
+      {/*
+       * Settings keeps its own compact header on purpose: this surface has its
+       * own density contract (see the Settings density test), so it does not
+       * adopt the larger shared page-title scale. What it did need fixing was
+       * the missing `<main>` landmark, the `bg-transparent` surface that broke
+       * the workspace token, and a page title rendered in *secondary* colour
+       * as if it were de-emphasised metadata.
+       */}
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
               <Settings className="h-5 w-5 text-ra-text-tertiary" />
-              <h1 className="text-xl font-semibold tracking-tight text-ra-text">
+              <h1 className="text-lg font-medium text-ra-text">
                 连接与绑定
               </h1>
             </div>
@@ -289,9 +319,8 @@ export function SettingsPage() {
               type="button"
               onClick={() => switchView("connection")}
               className={cn(
-                "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg transition-colors",
-                "px-3.5 py-2 text-sm font-medium",
-                "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ra-workspace",
+                "inline-flex items-center justify-center gap-2 rounded-md",
+                "px-3 py-2 text-sm font-medium",
                 view === "connection"
                   ? "bg-ra-accent text-ra-base hover:bg-ra-accent-hover"
                   : "border border-ra-border text-ra-text-secondary hover:bg-ra-tertiary",
@@ -304,9 +333,8 @@ export function SettingsPage() {
               type="button"
               onClick={() => switchView("binding")}
               className={cn(
-                "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg transition-colors",
-                "px-3.5 py-2 text-sm font-medium",
-                "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ra-workspace",
+                "inline-flex items-center justify-center gap-2 rounded-md",
+                "px-3 py-2 text-sm font-medium",
                 view === "binding"
                   ? "bg-ra-accent text-ra-base hover:bg-ra-accent-hover"
                   : "border border-ra-border text-ra-text-secondary hover:bg-ra-tertiary",
@@ -337,6 +365,29 @@ export function SettingsPage() {
           </p>
         )}
 
+        {/* A failed read must never be rendered as an empty collection: the
+            page previously fell straight through to "还没有连接。/ 还没有绑定。",
+            which asserts "you have none" when the truth may be "the request
+            failed". Failures are stated once, here, with an explicit retry, and
+            the two lists below repeat the reason in place of their empty text. */}
+        {loadFailureCount > 0 && (
+          <div
+            data-testid="settings-load-error"
+            role="alert"
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-ra-status-error/40 bg-ra-status-error/5 px-3 py-2 text-sm text-ra-status-error"
+          >
+            <span>{loadFailureMessage}</span>
+            <button
+              type="button"
+              data-testid="settings-load-retry"
+              onClick={retryFailedLoads}
+              className="inline-flex min-h-6 items-center rounded px-1.5 text-xs font-medium underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+            >
+              重试
+            </button>
+          </div>
+        )}
+
         <ThemeSelector />
 
         <div
@@ -347,13 +398,21 @@ export function SettingsPage() {
             data-testid="settings-model-access-index"
             className="flex min-w-0 flex-col gap-1 self-start lg:pr-2"
           >
-            <h2 className="px-2 text-xs font-semibold uppercase tracking-wide text-ra-text-tertiary">
+            <h2 className="px-2 text-xs font-semibold text-ra-text-tertiary">
               连接
             </h2>
             {(connectionsQuery.isLoading || executorsQuery.isLoading) && (
               <p className="px-2 py-2 text-sm text-ra-text-tertiary">正在加载…</p>
             )}
-            {connections.length === 0 && !connectionsQuery.isLoading ? (
+            {connectionsQuery.isError ? (
+              <p
+                data-testid="settings-connections-error"
+                role="alert"
+                className="px-2 py-2 text-sm text-ra-status-error"
+              >
+                无法读取连接：{errorMessage(connectionsQuery.error)}
+              </p>
+            ) : connections.length === 0 && !connectionsQuery.isLoading ? (
               <p className="px-2 py-2 text-sm text-ra-text-tertiary">
                 还没有连接。
               </p>
@@ -381,19 +440,19 @@ export function SettingsPage() {
                     <span className="truncate text-sm font-medium text-ra-text">
                       {conn.name}
                     </span>
-                    <span className="ml-auto shrink-0 text-[10px] font-medium text-ra-accent">
+                    <span className="ml-auto shrink-0 text-[11px] font-medium text-ra-accent">
                       {conn.enabled ? "启用" : "禁用"}
                     </span>
                   </span>
                   <span className="truncate text-xs text-ra-text-tertiary">
                     {conn.provider} · {conn.authMethod}
                   </span>
-                  <span className="text-[10px] text-ra-text-tertiary">
+                  <span className="text-[11px] text-ra-text-tertiary">
                     密钥：{secretStatusLabel(conn.secretStatus)}
                   </span>
                   {executorManagedAuth(conn.authMethod) && (
                     <span
-                      className="text-[10px] text-ra-text-tertiary"
+                      className="text-[11px] text-ra-text-tertiary"
                       data-testid={`connection-list-external-session-${conn.connectionId}`}
                     >
                       外部会话：{externalSessionStatusLabel(conn.externalSessionStatus)}
@@ -403,10 +462,18 @@ export function SettingsPage() {
               ))
             )}
 
-            <h2 className="mt-3 px-2 text-xs font-semibold uppercase tracking-wide text-ra-text-tertiary">
+            <h2 className="mt-3 px-2 text-xs font-semibold text-ra-text-tertiary">
               绑定
             </h2>
-            {bindings.length === 0 && !bindingsQuery.isLoading ? (
+            {bindingsQuery.isError ? (
+              <p
+                data-testid="settings-bindings-error"
+                role="alert"
+                className="px-2 py-2 text-sm text-ra-status-error"
+              >
+                无法读取绑定：{errorMessage(bindingsQuery.error)}
+              </p>
+            ) : bindings.length === 0 && !bindingsQuery.isLoading ? (
               <p className="px-2 py-2 text-sm text-ra-text-tertiary">
                 还没有绑定。
               </p>
@@ -434,14 +501,14 @@ export function SettingsPage() {
                     <span className="truncate text-sm font-medium text-ra-text">
                       {bind.name}
                     </span>
-                    <span className="ml-auto shrink-0 text-[10px] font-medium text-ra-accent">
+                    <span className="ml-auto shrink-0 text-[11px] font-medium text-ra-accent">
                       {bind.enabled ? "启用" : "禁用"}
                     </span>
                   </span>
                   <span className="truncate text-xs text-ra-text-tertiary">
                     {bind.executorId} · {bind.modelId}
                   </span>
-                  <span className="text-[10px] text-ra-text-tertiary">
+                  <span className="text-[11px] text-ra-text-tertiary">
                     连接：{bind.connectionId}
                   </span>
                 </button>
@@ -462,8 +529,10 @@ export function SettingsPage() {
             onConnectionDelete={handleConnectionDelete}
             onBindingDelete={handleBindingDelete}
             onConnectionTest={handleConnectionTest}
+            onConnectionModelsFetch={handleConnectionModelsFetch}
             connectionProbeResult={connProbeResult}
             connectionProbePending={testConnectionMutation.isPending}
+            connectionModelsPending={listConnectionModelsMutation.isPending}
             accountAuthState={accountAuthState}
             accountAuthPending={accountAuthPending}
             onAccountAuthStart={handleAccountAuthStart}
@@ -473,7 +542,7 @@ export function SettingsPage() {
           />
         </div>
       </div>
-    </div>
+    </main>
   );
 }
 

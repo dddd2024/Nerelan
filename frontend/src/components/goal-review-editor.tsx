@@ -93,7 +93,7 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
     {mode && <div className="space-y-4 rounded-xl border border-ra-border bg-ra-light/20 p-4">
       <p className="text-sm font-medium">{mode === "configuration" ? "目标配置" : "计划内容"} · 版本 {base.revision}</p>
       <p className="text-xs text-ra-text-secondary">保存修改后需要重新审阅。编辑期间不会批准或启动目标。</p>
-      {(stale || !editable) && <div role="alert" className="text-sm text-amber-600">
+      {(stale || !editable) && <div role="alert" className="text-sm text-ra-status-warning">
         目标状态已更新，本地输入仍保留。请重新载入后核对修改。
         <button type="button" className={`${buttonClass} ml-2`} disabled={busy} onClick={() => reload()}>放弃本地修改并重新载入</button>
       </div>}
@@ -148,7 +148,7 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
           </select></label>
           <p className="text-xs text-ra-text-secondary">选择后，本任务将使用该前置任务已通过检查的代码产物。双方都需要功能检查；仅验证任务不会修改输入。</p>
           {task.artifact_input && (!task.validation_checks?.length || !tasks.some((source) => source.id === task.artifact_input?.plan_task_id && source.validation_checks?.length))
-            && <p role="alert" className="text-xs text-red-500">输入任务和当前任务都需要功能检查。</p>}
+            && <p role="alert" className="text-xs text-ra-status-error">输入任务和当前任务都需要功能检查。</p>}
           <div className="space-y-2">
             <p className="text-sm font-medium">功能检查</p>
             <p className="text-xs text-ra-text-secondary">选择任务完成后必须通过的检查。目录相对于仓库根目录；保存后须重新审阅计划。</p>
@@ -162,7 +162,7 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
               <button type="button" className={buttonClass} aria-label={`移除任务 ${task.id} 检查 ${checkIndex + 1}`} disabled={busy}
                 onClick={() => updateChecks(index, checks.filter((_, item) => item !== checkIndex))}>移除</button>
             </div>)}
-            {functionalChecksError(task.validation_checks) && <p role="alert" className="text-xs text-red-500">{functionalChecksError(task.validation_checks)}</p>}
+            {functionalChecksError(task.validation_checks) && <p role="alert" className="text-xs text-ra-status-error">{functionalChecksError(task.validation_checks)}</p>}
             <button type="button" className={buttonClass} aria-label={`添加任务 ${task.id} 功能检查`} disabled={busy || (task.validation_checks?.length ?? 0) >= 8}
               onClick={() => updateChecks(index, [...(task.validation_checks ?? []), { profile_id: "python_pytest", working_directory: "." }])}>添加功能检查</button>
           </div>
@@ -170,7 +170,7 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
         <label className="block text-sm">验收标准（每行一项）<textarea aria-label="计划验收标准" className={fieldClass} value={criteria} disabled={busy} rows={4}
           onChange={(event) => setCriteria(event.target.value)} /></label>
       </>}
-      {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
+      {error && <p role="alert" className="text-sm text-ra-status-error">{error}</p>}
       <div className="flex flex-wrap gap-2">
         <button type="button" className={buttonClass} disabled={busy || stale || !editable || (mode === "configuration" ? !configurationValid : !planValid)} onClick={() => void save()}>
           {mode === "configuration" ? "保存目标配置" : "保存计划修改"}

@@ -202,6 +202,11 @@ describe("Task detail (OpenHands ConversationMain adaptation)", () => {
     const handle = screen.getByTestId("resize-handle");
     expect(handle).toBeInTheDocument();
     expect(handle.tagName).toBe("DIV");
+    // The slider's own indicator is a one-pixel line, and it is the only tab stop
+    // on the surface, so `focus:outline-none` would leave keyboard focus
+    // effectively invisible. It has to inherit the `:focus-visible` baseline
+    // declared in index.css rather than opt out of it.
+    expect(handle.className).not.toContain("focus:outline-none");
   });
 });
 

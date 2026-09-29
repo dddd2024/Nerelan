@@ -25,13 +25,13 @@ interface TaskInboxProps {
  *   — section with h3 header, conversation list, skeleton
  *   frontend/src/components/features/conversation-panel/
  *     conversation-panel.tsx
- *   — conversation cards with border-b, hover:bg-[#454545]
+ *   — conversation cards with border-b, hover:bg-ra-tertiary
  *
  * Structurally ported: section-based list with category headers
  * ("需要 Owner 关注", "运行中", "最近任务"), each containing compact
  * conversation-card-style items. Loading shows skeleton cards.
  * Empty state uses icon + text pattern from RecentConversations.
- * Error state uses AlertCircle with danger color (#FF684E).
+ * Error state uses AlertCircle with the `ra-status-error` token.
  *
  * Modifications: reverse-agent task states replace sandbox statuses;
  * categories map to reverse-agent RunState groups.
@@ -78,11 +78,11 @@ export function TaskInbox({ tasks, isLoading, isError, error }: TaskInboxProps) 
   );
 
   return (
-    <div data-testid="task-inbox" className="space-y-6">
+    <div data-testid="task-inbox" className="space-y-5">
       <Section
         title="需要 Owner 关注"
         testId="section-needs-attention"
-        icon={<Flag className="h-4 w-4 text-ra-accent" />}
+        icon={<Flag className="h-4 w-4 text-ra-text-tertiary" />}
         count={needsAttention.length}
       >
         <Cards tasks={needsAttention} />
@@ -90,7 +90,7 @@ export function TaskInbox({ tasks, isLoading, isError, error }: TaskInboxProps) 
       <Section
         title="运行中"
         testId="section-running"
-        icon={<PlayCircle className="h-4 w-4 text-[#FFD43B]" />}
+        icon={<PlayCircle className="h-4 w-4 text-ra-text-tertiary" />}
         count={running.length}
       >
         <Cards tasks={running} />
@@ -122,18 +122,19 @@ function Section({
 }) {
   return (
     <section data-testid={testId} aria-label={title} className="flex flex-col">
-      <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-ra-text-secondary">
+      {/*
+       * Group icons were tinted accent/warning, which made a decorative icon
+       * carry status meaning the heading text already states (`#448` §12
+       * "colorful icons as default hierarchy" is an explicit avoid).
+       */}
+      <div className="flex items-baseline gap-2 px-1 pb-1.5 pt-2 text-xs font-semibold text-ra-text-secondary">
         {icon}
         <h2>{title}</h2>
         {typeof count === "number" ? (
-          <span className="text-ra-text-tertiary">({count})</span>
+          <span className="font-normal text-ra-text-tertiary tabular-nums">({count})</span>
         ) : null}
       </div>
-      <div
-        className={cn(
-          "rounded-xl border border-ra-border bg-ra-sidebar overflow-hidden",
-        )}
-      >
+      <div className={cn("overflow-hidden rounded-xl border border-ra-border bg-ra-base")}>
         {children}
       </div>
     </section>
@@ -143,7 +144,7 @@ function Section({
 function Cards({ tasks }: { tasks: Task[] }) {
   if (tasks.length === 0) {
     return (
-      <p className="px-4 py-3 text-xs text-ra-text-tertiary" data-testid="no-tasks">
+      <p className="px-3.5 py-3 text-xs text-ra-text-tertiary" data-testid="no-tasks">
         无。
       </p>
     );

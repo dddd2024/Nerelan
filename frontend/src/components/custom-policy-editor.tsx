@@ -100,7 +100,7 @@ export function CustomPolicyEditor({
       <div
         ref={dialogRef}
         className={cn(
-          "relative ml-auto h-full w-full max-w-2xl overflow-auto bg-ra-light shadow-xl",
+          "relative ml-auto h-full w-full max-w-2xl overflow-auto bg-ra-light shadow-[var(--ra-shadow-3)]",
         )}
       >
         <div className="sticky top-0 flex items-center justify-between border-b border-ra-border bg-ra-light px-4 py-3">

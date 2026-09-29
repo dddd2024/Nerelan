@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import {
   BarChart2,
+  ChevronRight,
   ExternalLink,
   FileText,
   GitBranch,
@@ -21,6 +22,12 @@ import { useBreakpoint } from "@/hooks/use-breakpoint";
 import { usePlatformStatus } from "@/hooks/use-platform";
 import { usePublishTask } from "@/hooks/use-task";
 import { cn } from "@/lib/cn";
+import { displayObjective, displayTitle } from "@/lib/display-title";
+import {
+  authorityStatusLabel,
+  testStatusLabel,
+  validationStatusLabel,
+} from "@/lib/task-labels";
 import {
   permissionModeLabel,
   riskTierStyle,
@@ -39,9 +46,9 @@ const RIGHT_TABS: {
   label: string;
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
 }[] = [
-  { id: "changes", label: "Changed Files", icon: GitBranch },
-  { id: "evidence", label: "Evidence", icon: BarChart2 },
-  { id: "authority", label: "Authority", icon: ShieldCheck },
+  { id: "changes", label: "变更文件", icon: GitBranch },
+  { id: "evidence", label: "证据", icon: BarChart2 },
+  { id: "authority", label: "授权", icon: ShieldCheck },
 ];
 
 interface RightPanelProps {
@@ -197,25 +204,25 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
 
   if (isLoading) {
     return (
-      <div data-testid="task-detail">
+      <main data-testid="task-detail">
         <LoadingState label="加载任务中…" />
-      </div>
+      </main>
     );
   }
 
   if (isError || !displayTask) {
     return (
-      <div data-testid="task-detail">
+      <main data-testid="task-detail">
         <ErrorState title="未找到任务" error={error} />
         <div className="px-4">
           <Link
             to="/tasks"
-            className="text-sm text-ra-text-tertiary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+            className="inline-flex min-h-6 items-center text-sm text-ra-text-tertiary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
           >
             ← 返回任务列表
           </Link>
         </div>
-      </div>
+      </main>
     );
   }
 
@@ -243,19 +250,11 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
     !displayTask.draftPr &&
     windowCanPublish;
 
-  const stateDotColor =
-    {
-      "bg-emerald-500": "bg-[#BCFF8C]",
-      "bg-sky-500": "bg-[#FFD43B]",
-      "bg-amber-500": "bg-[#FFD43B]",
-      "bg-orange-500": "bg-[#FFD43B]",
-      "bg-rose-500": "bg-ra-status-error",
-      "bg-violet-500": "bg-[#A3A3A3]",
-      "bg-slate-400": "bg-[#A3A3A3]",
-    }[state.dot] ?? "bg-[#A3A3A3]";
+  const stateDotColor = state.dot;
+  const objective = displayObjective(displayTask.title);
 
   return (
-    <div
+    <main
       data-testid="task-detail"
       className="flex flex-col h-full gap-3 p-3 md:p-0"
     >
@@ -272,7 +271,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
             <Link
               to="/tasks"
               aria-label="返回任务列表"
-              className="text-ra-text-tertiary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+              className="inline-flex h-6 w-6 items-center justify-center rounded text-ra-text-tertiary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
             >
               ←
             </Link>
@@ -310,7 +309,9 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
               setCustomEditorOpen(true);
             }}
             className={cn(
-              "rounded-md px-2 py-1 text-xs text-ra-text-tertiary",
+              // min-h-6 guarantees the 24px minimum target regardless of the
+              // 14px icon vs 16px line box that made this button 22px tall.
+              "inline-flex min-h-6 min-w-6 items-center justify-center rounded-md px-2 py-1 text-xs text-ra-text-tertiary",
               "hover:text-ra-text hover:bg-ra-tertiary",
               "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
             )}
@@ -321,50 +322,87 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
         </div>
       </div>
 
-      <h1 className="text-lg font-semibold text-ra-text">
-        {displayTask.title}
-      </h1>
+      <div className="min-w-0">
+        <h1 className="text-lg font-semibold leading-6 text-ra-text">
+          {displayTitle(displayTask.title)}
+        </h1>
 
-      <div
-        className="flex items-center gap-2 mt-2"
-        data-testid="task-executor-panel"
-      >
-        {displayTask.executor ? (
-          <span
-            className={cn(
-              "inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium",
-              displayTask.executor === "fixture/provider-free"
-                ? "bg-[#BCFF8C]/10 text-[#BCFF8C]"
-                : "bg-ra-accent/10 text-ra-accent",
-            )}
-            title={`executor=${displayTask.executor}`}
-          >
-            <span className="w-1 h-1 rounded-full bg-current shrink-0" />
-            executor: {displayTask.executor}
-          </span>
-        ) : null}
-        {displayTask.validationCommandId ? (
-          <span className="text-xs text-ra-text-tertiary">
-            validation: {displayTask.validationCommandId}{" "}
-            {displayTask.validationExitCode !== undefined
-              ? `(exit ${displayTask.validationExitCode})`
-              : ""}
-          </span>
-        ) : null}
-        {displayTask.executionId ? (
-          <span className="text-xs font-mono text-ra-text-tertiary">
-            {displayTask.executionId}
-          </span>
+        {objective ? (
+          <details className="group mt-1.5" data-testid="task-objective-disclosure">
+            <summary
+              className={cn(
+                // min-h-6 holds the 24px minimum target: a bare `text-xs`
+                // inline-flex summary computes to a 16px hit box, and both
+                // disclosures in this panel measured 64x16.
+                "inline-flex min-h-6 cursor-pointer list-none items-center gap-1 text-xs text-ra-text-tertiary",
+                "hover:text-ra-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+                "[&::-webkit-details-marker]:hidden",
+              )}
+            >
+              <ChevronRight
+                className="h-3 w-3 transition-transform group-open:rotate-90"
+                aria-hidden="true"
+              />
+              目标详情
+            </summary>
+            <p className="ra-measure mt-2 whitespace-pre-wrap text-sm leading-5 text-ra-text-secondary">
+              {objective}
+            </p>
+          </details>
         ) : null}
       </div>
 
-      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs">
-        <Meta label="Executor" value={displayTask.executor ?? "—"} />
-        <Meta label="下一步" value={displayTask.nextAction ?? "—"} />
-        <Meta label="阻塞项" value={displayTask.blocker ?? "无"} />
-        <Meta label="Authority" value={displayTask.authorityStatus} />
-        <Meta label="测试" value={displayTask.testStatus} />
+      <dl
+        className="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-xs"
+        data-testid="task-level-one-meta"
+      >
+        <div className="flex items-baseline gap-1.5">
+          <dt className="text-ra-text-tertiary">下一步：</dt>
+          <dd className="text-ra-text-secondary">{displayTask.nextAction ?? "无待办动作"}</dd>
+        </div>
+        <div className="flex items-baseline gap-1.5">
+          {/* The 6px dt/dd gap read as a fused "阻塞无" next to the 20px group
+              gap, so each pair now carries the same `标签：值` colon the rest of
+              the product uses (阶段：/ 目标：/ 活跃度：). */}
+          <dt className="text-ra-text-tertiary">阻塞项：</dt>
+          <dd className="text-ra-text-secondary">{displayTask.blocker ?? "无"}</dd>
+        </div>
+        <div className="flex items-baseline gap-1.5">
+          <dt className="text-ra-text-tertiary">验证：</dt>
+          <dd className="text-ra-text-secondary">{testStatusLabel(displayTask.testStatus)}</dd>
+        </div>
       </dl>
+
+      <details className="group text-xs" data-testid="task-diagnostics">
+        <summary
+          className={cn(
+            // Same 24px minimum target as the objective disclosure above.
+            "inline-flex min-h-6 cursor-pointer list-none items-center gap-1 text-ra-text-tertiary",
+            "hover:text-ra-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+            "[&::-webkit-details-marker]:hidden",
+          )}
+        >
+          <ChevronRight
+            className="h-3 w-3 transition-transform group-open:rotate-90"
+            aria-hidden="true"
+          />
+          诊断信息
+        </summary>
+        <dl className="mt-2 grid grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
+          <Meta label="执行器" value={displayTask.executor ?? "—"} />
+          <Meta label="授权" value={authorityStatusLabel(displayTask.authorityStatus)} />
+          <Meta
+            label="校验命令"
+            value={
+              displayTask.validationCommandId
+                ? `${displayTask.validationCommandId} · ${validationStatusLabel(displayTask.validationExitCode)}`
+                : "未记录"
+            }
+          />
+          <Meta label="执行 ID" value={displayTask.executionId ?? "—"} />
+          <Meta label="任务 ID" value={displayTask.id} />
+        </dl>
+      </details>
 
       {displayTask.functionalValidation && <FunctionalValidationView evidence={displayTask.functionalValidation} executor={displayTask.executor} />}
 
@@ -393,7 +431,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
         <div className="flex items-center gap-2" data-testid="task-publication-action">
           <button
             type="button"
-            aria-label="Publish Draft PR"
+            aria-label="发布草稿 PR"
             disabled={publication.isPending}
             onClick={() => {
               if (!activeWindow) return;
@@ -410,7 +448,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
             )}
           >
             <GitPullRequest className="h-4 w-4" aria-hidden="true" />
-            {publication.isPending ? "Publishing Draft PR…" : "Publish Draft PR"}
+            {publication.isPending ? "正在发布草稿 PR…" : "发布草稿 PR"}
           </button>
         </div>
       ) : null}
@@ -418,21 +456,23 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
       {publication.isError ? (
         <p role="alert" className="text-sm text-ra-status-error">
           {publication.error instanceof Error
-            ? publication.error.message
-            : "Draft PR publication failed"}
+            ? `发布草稿 PR 失败：${publication.error.message}`
+            : "发布草稿 PR 失败"}
         </p>
       ) : null}
 
       {isDesktop ? (
         <AgentCanvasWorkbenchFrame
+          primaryLabel="执行活动"
+          secondaryLabel="任务工作台"
           containerRef={splitContainerRef}
           leftWidth={leftWidth}
           isDragging={isDragging}
           primaryHeader={
             <div className="flex min-w-0 items-center gap-2">
-              <span className="text-sm font-medium text-ra-text">Activity</span>
-              <span className="text-xs text-[var(--oh-muted)]">
-                {displayTask.activity.length} events
+              <span className="text-sm font-medium text-ra-text">执行活动</span>
+              <span className="text-xs text-ra-text-secondary">
+                {displayTask.activity.length} 条事件
               </span>
             </div>
           }
@@ -474,7 +514,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
           >
             <MobileTab
               id="activity"
-              label="Activity"
+              label="执行活动"
               selected={mobilePane === "activity"}
               onSelect={() => setMobilePane("activity")}
               testId="mobile-pane-activity"
@@ -513,7 +553,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
           onClose={() => setCustomEditorOpen(false)}
         />
       ) : null}
-    </div>
+    </main>
   );
 }
 

@@ -8,82 +8,23 @@ import type {
   PlatformRunAgent,
 } from "@/lib/platform-client";
 import { cn } from "@/lib/cn";
+import {
+  activityCategoryClass,
+  activityCategoryLabel,
+  activityTitleRestatesCategory,
+  enumKey,
+  executionStageLabel,
+  livenessDotClass,
+  livenessLabel,
+} from "@/lib/run-vocabulary";
 
-const CATEGORY_LABELS: Record<string, string> = {
-  PLAN: "计划",
-  READ: "读取",
-  SEARCH: "搜索",
-  EDIT: "编辑",
-  COMMAND: "命令",
-  TEST: "测试",
-  VERIFY: "验证",
-  AGENT_STARTED: "Agent 开始",
-  AGENT_WAITING: "Agent 等待",
-  AGENT_COMPLETED: "Agent 完成",
-  CHECKPOINT: "检查点",
-  RECOVERY: "恢复",
-  BLOCKED: "阻塞",
-  OWNER_ACTION_REQUIRED: "需要 Owner 处理",
-  PUBLICATION: "发布",
-};
-
-const STAGE_LABELS: Record<string, string> = {
-  PLAN: "计划",
-  PREPARE: "准备",
-  EXECUTE: "执行",
-  VERIFY: "验证",
-  REVIEW: "审查",
-  RECOVERY: "恢复",
-  PUBLISH: "发布",
-  COMPLETE: "完成",
-  TERMINAL: "终态",
-  UNKNOWN: "未知阶段",
-};
-
-const LIVENESS_LABELS: Record<string, string> = {
-  ACTIVE: "有新活动",
-  WAITING: "等待中",
-  VALIDATING: "验证中",
-  BLOCKED: "已阻塞",
-  OWNER_ACTION_REQUIRED: "需要 Owner 处理",
-  STALE: "疑似停滞",
-  TERMINAL: "已结束",
-  UNKNOWN: "未知",
-};
-
-const LIVENESS_DOT_STYLES: Record<string, string> = {
-  ACTIVE: "bg-ra-accent",
-  WAITING: "bg-ra-text-tertiary",
-  VALIDATING: "bg-ra-accent",
-  BLOCKED: "bg-ra-status-error",
-  OWNER_ACTION_REQUIRED: "bg-ra-status-error",
-  STALE: "bg-ra-status-error",
-  TERMINAL: "bg-ra-text-tertiary",
-  UNKNOWN: "bg-ra-text-tertiary",
-};
-
-const CATEGORY_TEXT_STYLES: Record<string, string> = {
-  BLOCKED: "text-ra-status-error",
-  OWNER_ACTION_REQUIRED: "text-ra-status-error",
-  VERIFY: "text-ra-status-running",
-  TEST: "text-ra-status-running",
-  CHECKPOINT: "text-ra-status-running",
-  AGENT_STARTED: "text-ra-accent",
-  COMMAND: "text-ra-accent",
-};
-
-function enumKey(value: string | undefined) {
-  return String(value ?? "UNKNOWN").toUpperCase();
-}
-
-function categoryLabel(value: string | undefined) {
-  return CATEGORY_LABELS[enumKey(value)] ?? "活动";
-}
-
-function stageLabel(value: string | undefined) {
-  return STAGE_LABELS[enumKey(value)] ?? STAGE_LABELS.UNKNOWN;
-}
-
+/*
+ * Stage / liveness / activity-category labels and tones come from
+ * `@/lib/run-vocabulary`. This component used to keep its own copies, which
+ * had already drifted from the Agent Runs page: identical `BLOCKED` and
+ * `OWNER_ACTION_REQUIRED` values rendered in different colours depending on
+ * which surface you were looking at (`#448` §9 forbids that).
+ */
 function agentLabel(agent?: PlatformRunAgent | null) {
   if (!agent) return "未分配 Agent";
   return agent.display_name || agent.role || agent.agent_id || "未命名 Agent";
@@ -126,7 +67,7 @@ function livenessState(run: PlatformAgentRun) {
 }
 
 function categoryTextStyle(value: string | undefined) {
-  return CATEGORY_TEXT_STYLES[enumKey(value)] ?? "text-ra-text-tertiary";
+  return activityCategoryClass(value);
 }
 
 function eventKey(event: PlatformRunActivityEvent, runId: string) {
@@ -239,8 +180,7 @@ export function GoalCurrentActivity({
     ? relativeSeconds(view.lastActivity)
     : null;
   const livenessTime = livenessTimeText(livenessSeconds);
-  const livenessLabel =
-    LIVENESS_LABELS[livenessKey] ?? LIVENESS_LABELS.UNKNOWN;
+  const livenessTextLabel = livenessLabel(livenessKey);
   const livenessText =
     livenessKey === "ACTIVE"
       ? livenessTime
@@ -251,13 +191,19 @@ export function GoalCurrentActivity({
           ? `${livenessTime}没有新活动`
           : "疑似停滞"
         : livenessTime
-          ? `${livenessLabel} · ${livenessTime}`
-          : livenessLabel;
+          ? `${livenessTextLabel} · ${livenessTime}`
+          : livenessTextLabel;
   const quietLiveness =
     livenessKey === "ACTIVE" || livenessKey === "TERMINAL";
   const currentAgent = view.currentActivity
     ? view.currentActivity.agent ?? eventAgent(view.currentActivity)
     : null;
+  const currentActivityTitleRestatesCategory = view.currentActivity
+    ? activityTitleRestatesCategory(
+        view.currentActivity.category,
+        view.currentActivity.title,
+      )
+    : false;
 
   return (
     <section
@@ -292,7 +238,7 @@ export function GoalCurrentActivity({
           <span
             className={cn(
               "h-1.5 w-1.5 rounded-full",
-              LIVENESS_DOT_STYLES[livenessKey] ?? LIVENESS_DOT_STYLES.UNKNOWN,
+              livenessDotClass(livenessKey),
             )}
             aria-hidden="true"
           />
@@ -305,18 +251,34 @@ export function GoalCurrentActivity({
           className="mb-3 rounded-xl border border-ra-accent/20 bg-ra-accent/5 px-3 py-3"
           data-testid="goal-current-activity-now"
         >
-          <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <p className="min-w-0 flex-1 break-words text-sm font-medium text-ra-text">
-              {view.currentActivity.title}
+          {/*
+            Same rule as the Runs page: the read-model derives the activity title
+            from the category alone, so on live data the title is a static
+            English humanisation and printing it beside our own label stated one
+            fact twice in two languages. The product language leads instead, and
+            a title the server did not derive from the category — the fixtures
+            carry real ones — is left exactly as it was.
+          */}
+          <div className="flex min-w-0 items-baseline justify-between gap-4">
+            <p className="min-w-0 flex-1 truncate text-sm font-medium text-ra-text">
+              {currentActivityTitleRestatesCategory
+                ? activityCategoryLabel(view.currentActivity.category)
+                : view.currentActivity.title}
             </p>
             <span
               className={cn(
-                "shrink-0 text-[10px]",
+                "shrink-0 text-[11px]",
                 categoryTextStyle(view.currentActivity.category),
               )}
             >
-              {categoryLabel(view.currentActivity.category)}
-              {currentAgent ? ` · ${agentLabel(currentAgent)}` : ""}
+              {[
+                currentActivityTitleRestatesCategory
+                  ? ""
+                  : activityCategoryLabel(view.currentActivity.category),
+                currentAgent ? agentLabel(currentAgent) : "",
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </span>
           </div>
           {view.currentActivity.description ? (
@@ -336,8 +298,8 @@ export function GoalCurrentActivity({
           {view.events.map(({ event, key }) => {
             const agent = eventAgent(event);
             const metadata = [
-              categoryLabel(event.category),
-              event.stage ? stageLabel(event.stage) : "",
+              activityCategoryLabel(event.category),
+              event.stage ? executionStageLabel(event.stage) : "",
               agent ? agentLabel(agent) : "",
             ].filter(Boolean);
             const detail = event.path
@@ -359,14 +321,14 @@ export function GoalCurrentActivity({
                     {event.title}
                   </p>
                   {detail ? (
-                    <p className="mt-0.5 truncate font-mono text-[10px] text-ra-text-tertiary">
+                    <p className="mt-0.5 truncate font-mono text-[11px] text-ra-text-tertiary">
                       {detail}
                     </p>
                   ) : null}
                 </div>
                 <span
                   className={cn(
-                    "hidden shrink-0 text-[10px] sm:inline",
+                    "hidden shrink-0 text-[11px] sm:inline",
                     categoryTextStyle(event.category),
                   )}
                 >
@@ -394,7 +356,7 @@ export function GoalCurrentActivity({
         <Link
           to="/runs"
           data-testid="goal-activity-full-run-link"
-          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-ra-accent underline-offset-4 hover:bg-ra-light hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+          className="inline-flex min-h-6 items-center gap-1 rounded-lg py-0.5 text-[11px] font-medium text-ra-text-secondary underline-offset-2 hover:text-ra-text hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
         >
           查看完整 Run
           <ChevronRight className="h-3 w-3" aria-hidden="true" />

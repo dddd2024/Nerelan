@@ -15,7 +15,10 @@ import {
   Settings,
 } from "lucide-react";
 import { useTasks } from "@/hooks/use-tasks";
+import { NerelanMark, NerelanWordmark } from "@/components/brand-logo";
 import { cn } from "@/lib/cn";
+import { displayTitle } from "@/lib/display-title";
+import { runStateStyle } from "@/lib/format";
 import { AgentCanvasSidebarFrame } from "@/vendor/agent-canvas-v1.6.1/agent-canvas-sidebar-frame";
 import { SidebarCollapsedIconSlot } from "@/vendor/agent-canvas-v1.6.1/sidebar-collapsed-icon-slot";
 import {
@@ -60,13 +63,14 @@ function projectLabel(repository: string) {
   return pieces.at(-1) ?? repository;
 }
 
+/**
+ * The sidebar is a third renderer of the same authoritative task state, so it
+ * must not keep its own colour table: it previously painted `BLOCKED_EXTERNAL`
+ * amber while the task list and Home painted it red. It reads the shared
+ * mapping instead.
+ */
 function stateDot(task: Task) {
-  if (task.state === "RUNNING") return "bg-ra-accent";
-  if (task.state === "BLOCKED_EXTERNAL" || task.state === "REWORK_REQUIRED") {
-    return "bg-ra-status-starting";
-  }
-  if (task.state === "FAILED_TERMINAL") return "bg-ra-status-error";
-  return "bg-ra-text-tertiary/55";
+  return runStateStyle(task.state).dot;
 }
 
 function SidebarAction({
@@ -105,10 +109,17 @@ function SidebarAction({
 }
 
 function SectionLabel({ children, testId }: { children: ReactNode; testId: string }) {
+  /*
+   * Section labels are Chinese to match the product surface and their own
+   * `aria-label`. They previously read `Recent` / `Projects` while the
+   * surrounding section was already labelled 最近任务 / 项目, which broke
+   * WCAG 2.5.3 (Label in Name) and mixed scripts in one sidebar.
+   * 10px was also below the 11px metadata floor used everywhere else.
+   */
   return (
     <div
       data-testid={testId}
-      className="px-2.5 pb-1 pt-2 text-[10px] font-medium uppercase tracking-[0.13em] text-ra-text-tertiary"
+      className="px-2.5 pb-1 pt-2 text-[11px] font-medium tracking-[0.04em] text-ra-text-tertiary"
     >
       {children}
     </div>
@@ -162,16 +173,15 @@ export function Sidebar({
       data-testid="sidebar-logo"
       onClick={() => navigate("/")}
       className={cn(
-        "flex h-9 w-full items-center text-sm font-semibold tracking-[-0.015em]",
-        "text-ra-text hover:text-ra-text",
+        "flex h-9 w-full items-center text-ra-text",
         collapsed ? "justify-center" : "justify-start px-2.5",
       )}
       title="Nerelan"
     >
       {collapsed ? (
-        <span className="text-[15px] font-semibold">N</span>
+        <NerelanMark className="h-[22px] w-[21px]" />
       ) : (
-        <span className="text-[15px] font-semibold">Nerelan</span>
+        <NerelanWordmark className="h-[19px] w-[106px]" />
       )}
     </button>
   );
@@ -183,7 +193,7 @@ export function Sidebar({
       aria-pressed={!collapsed}
       data-testid="sidebar-collapse-toggle"
       onClick={() => setCollapsed((value) => !value)}
-      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--oh-muted)] hover:bg-[var(--oh-surface-raised)] hover:text-ra-text"
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-ra-text-secondary hover:bg-ra-tertiary hover:text-ra-text"
       title={collapsed ? "展开" : "收起"}
     >
       {collapsed ? (
@@ -208,7 +218,7 @@ export function Sidebar({
         collapsed={collapsed}
         active={conversationPanelOpen}
         label={conversationPanelOpen ? "关闭任务列表" : "打开任务列表"}
-        text="搜索"
+        text="任务列表"
         testId="toggle-conversation-panel"
         icon={<Search className="h-4 w-4" />}
         onClick={
@@ -227,7 +237,7 @@ export function Sidebar({
       </Link>
 
       <section aria-label="最近任务">
-        <SectionLabel testId="sidebar-section-recent">Recent</SectionLabel>
+        <SectionLabel testId="sidebar-section-recent">最近任务</SectionLabel>
         <div className="flex flex-col gap-0.5">
           {recentTasks.length > 0 ? (
             recentTasks.map((task) => {
@@ -243,15 +253,15 @@ export function Sidebar({
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
                     selected
                       ? "bg-ra-tertiary text-ra-text"
-                      : "text-ra-text-secondary hover:bg-[var(--oh-surface-raised)] hover:text-ra-text",
+                      : "text-ra-text-secondary hover:bg-ra-tertiary hover:text-ra-text",
                   )}
-                  title={task.title}
+                  title={displayTitle(task.title)}
                 >
                   <span
                     className={cn("h-1.5 w-1.5 shrink-0 rounded-full", stateDot(task))}
                     aria-hidden="true"
                   />
-                  <span className="min-w-0 flex-1 truncate">{task.title}</span>
+                  <span className="min-w-0 flex-1 truncate">{displayTitle(task.title)}</span>
                 </Link>
               );
             })
@@ -262,7 +272,7 @@ export function Sidebar({
       </section>
 
       <section aria-label="项目" className="mt-2">
-        <SectionLabel testId="sidebar-section-projects">Projects</SectionLabel>
+        <SectionLabel testId="sidebar-section-projects">项目</SectionLabel>
         <div className="flex flex-col gap-0.5">
           {projects.length > 0 ? (
             projects.map((repository) => {
@@ -279,7 +289,7 @@ export function Sidebar({
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
                     selected
                       ? "font-medium text-ra-text"
-                      : "text-ra-text-tertiary hover:bg-[var(--oh-surface-raised)] hover:text-ra-text-secondary",
+                      : "text-ra-text-tertiary hover:bg-ra-tertiary hover:text-ra-text-secondary",
                   )}
                   title={repository}
                 >
@@ -334,7 +344,7 @@ export function Sidebar({
           data-testid="sidebar-more-menu"
           hidden={!moreOpen}
           aria-hidden={!moreOpen}
-          className="absolute bottom-[34px] left-0 z-30 w-[205px] rounded-lg border border-ra-border/70 bg-ra-workspace p-1 shadow-[0_10px_30px_rgba(0,0,0,.12)]"
+          className="absolute bottom-[34px] left-0 z-30 w-[205px] rounded-lg border border-ra-border/70 bg-ra-workspace p-1 shadow-[var(--ra-shadow-2)]"
         >
           {SECONDARY_ROUTES.map((item) => {
             const Icon = item.icon;
@@ -349,7 +359,7 @@ export function Sidebar({
                     "flex h-8 items-center gap-2 rounded-md px-2 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
                     isActive
                       ? "bg-ra-tertiary text-ra-text"
-                      : "text-ra-text-secondary hover:bg-[var(--oh-surface-raised)] hover:text-ra-text",
+                      : "text-ra-text-secondary hover:bg-ra-tertiary hover:text-ra-text",
                   )
                 }
               >

@@ -10,6 +10,7 @@ import {
   ConnectionInputSchema,
   ConnectionSchema,
   ConnectionProbeResultSchema,
+  ConnectionModelsResultSchema,
   AccountAuthStatusSchema,
   ExecutorSchema,
   BindingInputSchema,
@@ -20,8 +21,23 @@ import {
   type Binding,
   type BindingInput,
   type ConnectionProbeResult,
+  type ConnectionModelsResult,
   type AccountAuthStatus,
 } from "@/schemas/model-access";
+
+/**
+ * Loopback default for the Model Control service.
+ *
+ * This deliberately mirrors the sibling clients (`task-client`,
+ * `platform-client`, `repository-client`), which all fall back to an absolute
+ * `http://127.0.0.1:<port>` URL. A relative `/api` cannot work here: the Vite
+ * dev server has no `/api` proxy, so a bare `/api/bindings` request lands on
+ * the frontend origin, misses Vite's HTML fallback (it is not an `text/html`
+ * navigation) and returns 404 - the Settings page then renders empty
+ * connection/binding/executor lists with no visible explanation. The same is
+ * true of any static build, where no server-side `/api` exists either.
+ */
+export const DEFAULT_MODEL_CONTROL_API_BASE = "http://127.0.0.1:8765/api";
 
 export interface ModelControlClient {
   listProfiles(): Promise<ModelProfile[]>;
@@ -34,6 +50,7 @@ export interface ModelControlClient {
   upsertConnection(input: ConnectionInput): Promise<Connection>;
   deleteConnection(connectionId: string): Promise<void>;
   testConnection(connectionId: string): Promise<ConnectionProbeResult>;
+  listConnectionModels(connectionId: string): Promise<ConnectionModelsResult>;
   getAccountAuthStatus(connectionId: string): Promise<AccountAuthStatus>;
   startAccountAuth(connectionId: string): Promise<AccountAuthStatus>;
   completeAccountAuth(connectionId: string, code?: string): Promise<AccountAuthStatus>;
@@ -257,7 +274,7 @@ function safeJson(text: string): unknown {
 }
 
 export function createHttpModelControlClient(
-  apiBase = "/api",
+  apiBase = DEFAULT_MODEL_CONTROL_API_BASE,
 ): ModelControlClient {
   const baseUrl = apiBase.replace(/\/$/, "");
   const profilesUrl = `${baseUrl}/model-profiles`;
@@ -360,6 +377,24 @@ export function createHttpModelControlClient(
         status: raw.status,
         message: raw.message,
         latencyMs: raw.latencyMs ?? raw.latency_ms ?? null,
+      });
+    },
+
+    async listConnectionModels(connectionId) {
+      const payload = await requestJson(
+        `${connectionsUrl}/${encodeURIComponent(connectionId)}/models`,
+        {
+          method: "POST",
+          body: JSON.stringify({}),
+        },
+      );
+      const raw = payload as Record<string, unknown>;
+      return ConnectionModelsResultSchema.parse({
+        ok: raw.ok,
+        status: raw.status,
+        message: raw.message,
+        latencyMs: raw.latencyMs ?? raw.latency_ms ?? null,
+        models: Array.isArray(raw.models) ? raw.models : [],
       });
     },
 
@@ -596,13 +631,13 @@ export function createMockModelControlClient(
 
     async deleteConnection(connectionId) {
       if (!connections.some((c) => c.connectionId === connectionId)) {
-        throw new Error(`Connection not found: ${connectionId}`);
+        throw new Error(`未找到该连接（${connectionId}）。`);
       }
       const usedByBinding = bindings.some(
         (b) => b.connectionId === connectionId,
       );
       if (usedByBinding) {
-        throw new Error("connection is referenced by binding");
+        throw new Error("该连接仍被一个绑定引用，请先删除绑定。");
       }
       connections = connections.filter((c) => c.connectionId !== connectionId);
     },
@@ -610,7 +645,7 @@ export function createMockModelControlClient(
     async testConnection(connectionId) {
       const connection = connections.find((c) => c.connectionId === connectionId);
       if (!connection) {
-        throw new Error(`Connection not found: ${connectionId}`);
+        throw new Error(`未找到该连接（${connectionId}）。`);
       }
       if (!connection.enabled) {
         return {
@@ -645,9 +680,44 @@ export function createMockModelControlClient(
       };
     },
 
+    async listConnectionModels(connectionId) {
+      const connection = connections.find((c) => c.connectionId === connectionId);
+      if (!connection) {
+        throw new Error(`未找到该连接（${connectionId}）。`);
+      }
+      if (!connection.enabled) {
+        return {
+          ok: false,
+          status: "disabled",
+          message: "连接已禁用",
+          latencyMs: null,
+          models: [],
+        };
+      }
+      if (connection.authMethod !== "api_key" && connection.authMethod !== "none") {
+        return {
+          ok: false,
+          status: "unsupported_auth_method",
+          message: "认证由执行器管理，当前不支持获取模型列表",
+          latencyMs: null,
+          models: [],
+        };
+      }
+      return {
+        ok: true,
+        status: "connected",
+        message: "连接成功",
+        latencyMs: 18,
+        models: [
+          `${connection.provider}/mock-model-a`,
+          `${connection.provider}/mock-model-b`,
+        ],
+      };
+    },
+
     async getAccountAuthStatus(connectionId) {
       const connection = connections.find((c) => c.connectionId === connectionId);
-      if (!connection) throw new Error(`Connection not found: ${connectionId}`);
+      if (!connection) throw new Error(`未找到该连接（${connectionId}）。`);
       return {
         status: "idle",
         provider: "openai",
@@ -658,7 +728,7 @@ export function createMockModelControlClient(
     async startAccountAuth(connectionId) {
       const connection = connections.find((c) => c.connectionId === connectionId);
       if (!connection || connection.authMethod !== "account_login") {
-        throw new Error("connection does not use account_login");
+        throw new Error("该连接不使用账号登录方式，无法发起登录。");
       }
       return {
         status: "awaiting_browser",
@@ -685,7 +755,7 @@ export function createMockModelControlClient(
 
     async cancelAccountAuth(connectionId) {
       const connection = connections.find((c) => c.connectionId === connectionId);
-      if (!connection) throw new Error(`Connection not found: ${connectionId}`);
+      if (!connection) throw new Error(`未找到该连接（${connectionId}）。`);
       return {
         status: "canceled",
         provider: "openai",
@@ -695,7 +765,7 @@ export function createMockModelControlClient(
 
     async logoutAccountAuth(connectionId) {
       const connection = connections.find((c) => c.connectionId === connectionId);
-      if (!connection) throw new Error(`Connection not found: ${connectionId}`);
+      if (!connection) throw new Error(`未找到该连接（${connectionId}）。`);
       return {
         status: "provider_logout_required",
         provider: "openai",
@@ -715,10 +785,10 @@ export function createMockModelControlClient(
     async upsertBinding(input) {
       const parsed = BindingInputSchema.parse(input);
       if (!connections.some((c) => c.connectionId === parsed.connectionId)) {
-        throw new Error(`unknown connection_id: ${parsed.connectionId}`);
+        throw new Error(`未知的连接（${parsed.connectionId}）。`);
       }
       if (!executors.some((e) => e.executorId === parsed.executorId)) {
-        throw new Error(`unknown executor_id: ${parsed.executorId}`);
+        throw new Error(`未知的执行器（${parsed.executorId}）。`);
       }
       const saved: Binding = {
         bindingId: parsed.bindingId,
@@ -756,7 +826,8 @@ export function getDefaultModelControlClient(): ModelControlClient {
     defaultClient = useMock
       ? createMockModelControlClient()
       : createHttpModelControlClient(
-          import.meta.env.VITE_MODEL_CONTROL_API_BASE || "/api",
+          import.meta.env.VITE_MODEL_CONTROL_API_BASE ||
+            DEFAULT_MODEL_CONTROL_API_BASE,
         );
   }
   return defaultClient;

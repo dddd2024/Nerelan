@@ -10,9 +10,9 @@ interface EvidencePanelProps {
 }
 
 const STATUS_STYLE: Record<EvidenceStatus, { badge: string; label: string }> = {
-  pass: { badge: "border-[#BCFF8C]/30 bg-[#BCFF8C]/10 text-[#BCFF8C]", label: "通过" },
+  pass: { badge: "border-ra-status-success/30 bg-ra-status-success/10 text-ra-status-success", label: "通过" },
   fail: { badge: "border-ra-status-error/30 bg-ra-status-error/10 text-ra-status-error", label: "失败" },
-  pending: { badge: "border-[#FFD43B]/30 bg-[#FFD43B]/10 text-[#FFD43B]", label: "待处理" },
+  pending: { badge: "border-ra-status-warning/30 bg-ra-status-warning/10 text-ra-status-warning", label: "待处理" },
   info: { badge: "border-ra-text-tertiary/30 bg-ra-text-tertiary/10 text-ra-text-tertiary", label: "信息" },
 };
 
@@ -84,13 +84,13 @@ function EvidenceSummary({ evidence }: { evidence: EvidenceItem[] }) {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-ra-border bg-ra-light px-4 py-3 text-xs">
       <span className="font-medium text-ra-text-secondary">证据摘要</span>
-      <Badge className="border-[#BCFF8C]/30 bg-[#BCFF8C]/10 text-[#BCFF8C]">
+      <Badge className="border-ra-status-success/30 bg-ra-status-success/10 text-ra-status-success">
         {pass} 通过
       </Badge>
       <Badge className="border-ra-status-error/30 bg-ra-status-error/10 text-ra-status-error">
         {fail} 失败
       </Badge>
-      <Badge className="border-[#FFD43B]/30 bg-[#FFD43B]/10 text-[#FFD43B]">
+      <Badge className="border-ra-status-warning/30 bg-ra-status-warning/10 text-ra-status-warning">
         {pending} 待处理
       </Badge>
     </div>
@@ -146,7 +146,7 @@ function EvidenceRow({
           </button>
         )}
         {copiedId === item.id ? (
-          <span className="text-xs text-[#BCFF8C]" data-testid={`evidence-copied-${item.id}`}>
+          <span className="text-xs text-ra-status-success" data-testid={`evidence-copied-${item.id}`}>
             已复制
           </span>
         ) : null}

@@ -196,9 +196,11 @@ describe("Task governance truth", () => {
     const style = riskTierStyle("UNKNOWN");
 
     expect(style.label).toBe("风险未提供");
-    expect(style.badge).toContain("slate");
-    expect(style.dot).toContain("slate");
-    expect(style.badge).not.toContain("rose");
-    expect(style.badge).not.toContain("amber");
+    // Neutral surface tokens only: an unknown risk must not borrow the
+    // warning or error tone, and must not fall back to a raw palette ramp.
+    expect(style.badge).toContain("bg-ra-tertiary");
+    expect(style.dot).toContain("bg-ra-status-stopped");
+    expect(style.badge).not.toContain("ra-status-error");
+    expect(style.badge).not.toContain("ra-status-warning");
   });
 });

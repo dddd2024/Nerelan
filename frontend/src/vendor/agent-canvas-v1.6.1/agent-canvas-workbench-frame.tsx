@@ -10,6 +10,14 @@ interface AgentCanvasWorkbenchFrameProps {
   resizeHandle: ReactNode;
   secondaryTabs: ReactNode;
   secondaryPane: ReactNode;
+  /*
+   * Local addition. The upstream adapter hardcoded the two region labels in
+   * English, which leaked English into an otherwise Chinese product surface
+   * for screen-reader users. Callers can now supply localized labels; the
+   * upstream defaults are preserved so the slot adapter stays reusable.
+   */
+  primaryLabel?: string;
+  secondaryLabel?: string;
 }
 
 /**
@@ -26,6 +34,8 @@ export function AgentCanvasWorkbenchFrame({
   resizeHandle,
   secondaryTabs,
   secondaryPane,
+  primaryLabel = "Activity",
+  secondaryLabel = "Task workbench",
 }: AgentCanvasWorkbenchFrameProps) {
   return (
     <div className="h-full min-h-0 flex flex-col overflow-hidden">
@@ -40,7 +50,7 @@ export function AgentCanvasWorkbenchFrame({
         <section
           id="desktop-left-panel"
           data-testid="desktop-left-panel"
-          aria-label="Activity"
+          aria-label={primaryLabel}
           className="flex flex-col bg-[var(--oh-surface)] overflow-hidden transition-all duration-300 ease-in-out"
           style={{
             width: `${leftWidth}%`,
@@ -60,7 +70,7 @@ export function AgentCanvasWorkbenchFrame({
         <section
           id="desktop-right-panel"
           data-testid="desktop-right-panel"
-          aria-label="Task workbench"
+          aria-label={secondaryLabel}
           className={cn(
             "flex flex-col overflow-hidden bg-[var(--oh-surface-raised)]",
             "border-l border-[var(--oh-border)] transition-all duration-300 ease-in-out",

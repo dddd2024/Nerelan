@@ -24,7 +24,7 @@ async function _json<T>(response: Response): Promise<T> {
   try {
     return JSON.parse(text) as T;
   } catch {
-    throw new Error("invalid api response");
+    throw new Error("服务返回了无法解析的响应。");
   }
 }
 
@@ -40,7 +40,7 @@ export async function fetchRepositories(): Promise<Repository[]> {
       () => ({}),
     );
     throw new Error(
-      `github adapter unavailable: ${(payload as { error?: string }).error ?? "unavailable"}`,
+      `GitHub 适配器暂不可用：${(payload as { error?: string }).error ?? "服务未就绪"}`,
     );
   }
   if (response.status === 500) {
@@ -48,11 +48,11 @@ export async function fetchRepositories(): Promise<Repository[]> {
       () => ({}),
     );
     throw new Error(
-      `repository discovery failed: ${(payload as { error?: string }).error ?? "failed"}`,
+      `读取仓库失败：${(payload as { error?: string }).error ?? "服务返回错误"}`,
     );
   }
   if (!response.ok) {
-    throw new Error(`fetch repositories failed: ${response.status}`);
+    throw new Error(`读取仓库列表失败（HTTP ${response.status}）。`);
   }
   const payload = (await _json<{
     repositories: Array<Record<string, unknown>>;

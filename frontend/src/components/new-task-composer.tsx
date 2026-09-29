@@ -305,12 +305,12 @@ export function NewTaskComposer({
                   </select>
                 </div>
                 {bindingsQuery.isError && (
-                  <p role="alert" className="mt-1 text-xs text-red-300">
+                  <p role="alert" className="mt-1 text-xs text-ra-status-error">
                     绑定加载失败
                   </p>
                 )}
                 {!bindingsQuery.isLoading && opencodeBindings.length === 0 && (
-                  <p className="mt-1 text-xs text-amber-300" data-testid="no-binding-hint">
+                  <p className="mt-1 text-xs text-ra-status-warning" data-testid="no-binding-hint">
                     没有可用的 OpenCode 绑定，请前往设置创建。
                   </p>
                 )}
@@ -366,7 +366,7 @@ export function NewTaskComposer({
                 {reposQuery.isError && (
                   <p
                     role="alert"
-                    className="mt-1 text-xs text-red-300"
+                    className="mt-1 text-xs text-ra-status-error"
                     data-testid="repository-discovery-error"
                   >
                     仓库发现失败：{reposQuery.error?.message ?? "未知错误"}。请确认 GitHub CLI 已登录。
@@ -374,7 +374,7 @@ export function NewTaskComposer({
                 )}
                 {!reposQuery.isLoading && repositories.length === 0 && (
                   <p
-                    className="mt-1 text-xs text-amber-300"
+                    className="mt-1 text-xs text-ra-status-warning"
                     data-testid="no-repositories-hint"
                   >
                     未找到可用的 GitHub 仓库，请确认 GitHub 登录状态。
@@ -436,8 +436,11 @@ export function NewTaskComposer({
               )}
             >
               <Send
-                className="h-4 w-4"
-                color={canSubmit ? "#ffffff" : "#9299aa"}
+                className={cn(
+                  "h-4 w-4",
+                  canSubmit ? "text-ra-text" : "text-ra-text-tertiary",
+                )}
+                aria-hidden="true"
               />
             </button>
           </div>

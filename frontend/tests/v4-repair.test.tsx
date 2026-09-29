@@ -97,7 +97,9 @@ describe("sidebar collapse/expand — Nerelan desktop contract", () => {
     const sidebar = screen.getByTestId("sidebar");
     expect(sidebar).toHaveAttribute("data-collapsed", "false");
     expect(sidebar).toHaveClass("sidebar-expanded");
-    expect(screen.getByText("Nerelan")).toBeInTheDocument();
+    // #475: the expanded brand surface is the approved F1.1 wordmark, not text.
+    expect(screen.getByTestId("sidebar-logo")).toHaveAccessibleName("Nerelan");
+    expect(screen.getByTestId("nerelan-wordmark")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-collapse-toggle")).toHaveAttribute(
       "aria-pressed",
       "true",

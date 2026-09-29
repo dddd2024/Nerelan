@@ -16,18 +16,20 @@ const diff = `--- a/a.ts
 `;
 
 describe("diff viewer", () => {
-  it("renders added and removed lines with colors", () => {
+  it("renders added and removed lines with tokens instead of hardcoded colors", () => {
     const { container } = renderWithProviders(<DiffViewer diff={diff} />);
     expect(screen.getByTestId("diff-viewer")).toBeInTheDocument();
-    const added = container.querySelectorAll(".bg-\\[\\#014b01AA\\]\\/20");
-    const removed = container.querySelectorAll(".bg-\\[\\#750000AA\\]\\/20");
+    const added = container.querySelectorAll(".bg-ra-status-success\\/15");
+    const removed = container.querySelectorAll(".bg-ra-status-error\\/15");
     expect(added.length).toBeGreaterThan(0);
     expect(removed.length).toBeGreaterThan(0);
+    // Theme-token only: no OpenHands-era hex may survive in the diff surface.
+    expect(container.innerHTML).not.toMatch(/#[0-9A-Fa-f]{6}/);
   });
 
   it("renders hunk header", () => {
     const { container } = renderWithProviders(<DiffViewer diff={diff} />);
-    const hunk = container.querySelectorAll(".bg-\\[\\#525252\\]\\/30");
+    const hunk = container.querySelectorAll(".bg-ra-text-tertiary\\/15");
     expect(hunk.length).toBeGreaterThan(0);
   });
 });

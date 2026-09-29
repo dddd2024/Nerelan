@@ -7,6 +7,7 @@ import {
   ACCENTS,
   APPEARANCE_STORAGE_KEY,
   DEFAULT_APPEARANCE,
+  LEGACY_APPEARANCE_STORAGE_KEY,
   normalizeAppearance,
   readAppearance,
   setAppearance,
@@ -62,5 +63,31 @@ describe("presentation appearance", () => {
 
     expect(readAppearance(throwingStorage)).toEqual(DEFAULT_APPEARANCE);
     expect(() => setAppearance({ mode: "dark", accent: "blue" }, document.documentElement, throwingStorage)).not.toThrow();
+  });
+
+  it("migrates the legacy appearance key without losing the saved preference", () => {
+    window.localStorage.setItem(
+      LEGACY_APPEARANCE_STORAGE_KEY,
+      JSON.stringify({ mode: "dark", accent: "amber" }),
+    );
+
+    expect(readAppearance()).toEqual({ mode: "dark", accent: "amber" });
+    expect(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toContain("amber");
+    expect(window.localStorage.getItem(LEGACY_APPEARANCE_STORAGE_KEY)).toBeNull();
+  });
+
+  it("prefers the current appearance key over the legacy one", () => {
+    window.localStorage.setItem(
+      LEGACY_APPEARANCE_STORAGE_KEY,
+      JSON.stringify({ mode: "dark", accent: "amber" }),
+    );
+    window.localStorage.setItem(
+      APPEARANCE_STORAGE_KEY,
+      JSON.stringify({ mode: "light", accent: "rose" }),
+    );
+
+    expect(readAppearance()).toEqual({ mode: "light", accent: "rose" });
+    // The legacy key is only retired by migration, never silently dropped.
+    expect(window.localStorage.getItem(LEGACY_APPEARANCE_STORAGE_KEY)).not.toBeNull();
   });
 });

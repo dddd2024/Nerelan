@@ -10,7 +10,7 @@ interface ErrorStateProps {
 /**
  * OpenHands-style error state.
  * Upstream reference: OpenHands error handling patterns (tag 1.8.0)
- * using danger color (#FF684E) and AlertCircle icon.
+ * using the `ra-status-error` token and an AlertCircle icon.
  * License: MIT (inherited from OpenHands)
  */
 export function ErrorState({

@@ -9,6 +9,7 @@ import type {
   Binding,
   Connection,
   ConnectionInput,
+  ConnectionModelsResult,
   ConnectionProbeResult,
   Executor,
 } from "@/schemas/model-access";
@@ -110,5 +111,12 @@ export function useTestConnection() {
   const client = getDefaultModelControlClient();
   return useMutation<ConnectionProbeResult, Error, string>({
     mutationFn: (connectionId) => client.testConnection(connectionId),
+  });
+}
+
+export function useListConnectionModels() {
+  const client = getDefaultModelControlClient();
+  return useMutation<ConnectionModelsResult, Error, string>({
+    mutationFn: (connectionId) => client.listConnectionModels(connectionId),
   });
 }
