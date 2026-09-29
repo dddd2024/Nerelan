@@ -590,7 +590,7 @@ def _resolve_windows_exe() -> str | None:
             proc = subprocess.run(
                 ["where.exe", candidate],
                 capture_output=True,
-                text=True,
+                text=True, errors="replace",
                 timeout=10,
             )
             if proc.returncode == 0:
@@ -606,7 +606,7 @@ def _resolve_windows_exe() -> str | None:
         proc = subprocess.run(
             ["where.exe", "opencode"],
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             timeout=10,
         )
         if proc.returncode == 0:
@@ -630,7 +630,7 @@ def _resolve_windows_cmd() -> str | None:
         proc = subprocess.run(
             ["where.exe", "opencode.cmd"],
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             timeout=10,
         )
         if proc.returncode == 0:
@@ -2035,7 +2035,7 @@ class OpenCodeExecutor:
             ["git", "rev-parse", "HEAD"],
             cwd=str(wt),
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             timeout=10,
             check=False,
         )
@@ -2085,7 +2085,7 @@ class OpenCodeExecutor:
                 argv,
                 cwd=str(cwd),
                 capture_output=True,
-                text=True,
+                text=True, errors="replace",
                 timeout=timeout,
                 check=False,
             )
@@ -2819,7 +2819,7 @@ def _collect_changed_files(worktree: Path) -> list[dict[str, Any]]:
             ["git", "diff", "--numstat", "HEAD"],
             cwd=str(worktree),
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             timeout=15,
             check=False,
         )
@@ -2856,7 +2856,7 @@ def _collect_changed_files(worktree: Path) -> list[dict[str, Any]]:
             ["git", "ls-files", "--others", "--exclude-standard"],
             cwd=str(worktree),
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             timeout=15,
             check=False,
         )

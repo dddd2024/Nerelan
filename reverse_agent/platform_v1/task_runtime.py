@@ -158,7 +158,7 @@ class LocalValidationRunner:
                 argv,
                 cwd=cwd,
                 capture_output=True,
-                text=True,
+                text=True, errors="replace",
                 timeout=30,
                 check=False,
             )
@@ -347,7 +347,7 @@ def _run(argv: list[str], cwd: Path) -> None:
         argv,
         cwd=str(cwd),
         capture_output=True,
-        text=True,
+        text=True, errors="replace",
         timeout=30,
         check=True,
     )
@@ -358,7 +358,7 @@ def _collect_changed_files(worktree: Path, task_id: str) -> list[dict[str, Any]]
         ["git", "diff", "--numstat", "HEAD"],
         cwd=str(worktree),
         capture_output=True,
-        text=True,
+        text=True, errors="replace",
         timeout=30,
         check=False,
     )

@@ -94,7 +94,7 @@ class LiveIssueProvider:
                 "--json", "body,state,labels",
             ],
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             timeout=60,
         )
         if result.returncode != 0:
@@ -130,7 +130,7 @@ class LivePRProvider:
                 "--json", "state,isDraft,baseRefName,baseRefOid,headRefName,headRefOid",
             ],
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             timeout=60,
         )
         if result.returncode != 0:
