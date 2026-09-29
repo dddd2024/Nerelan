@@ -22,15 +22,21 @@ Issue #343 bounded re-capture (single permitted snapshot update): the replayed P
 
 Snapshot paths and SHA256 (current working tree, verified by `sha256sum`):
 
-- frontend/e2e/snapshots/desktop-chromium/home-light.png — EDF146B22451F9C9069F5C17A7F4B9B4D9517933514577E6054EEB7F6978BDFE
-- frontend/e2e/snapshots/desktop-chromium/home-dark.png — 1AE03A05903872120B47DE03F42B24565FBF0279D5FC130C4F98A3BAB4ABF038
-- frontend/e2e/snapshots/desktop-chromium/settings-light.png — 89DA7AEFC61530ED3E1536CEE21DCD6CBB76260073AC261F6C6884460724D5E7
-- frontend/e2e/snapshots/desktop-chromium/settings-dark.png — 05655B3F094453DAB0AFDEB7121DE94B10FF057765BD7688A971DCA7898AC4DF
-- frontend/e2e/snapshots/mobile-chromium/home-light.png — 3DC8D0483058BE539D2F746C81463BD9B02A945E280387268D194D94B0CC1656
-- frontend/e2e/snapshots/mobile-chromium/home-dark.png — E46DE700DA483331DFA1D8418CF3914B3D06493262896FBFB739DB985D68AB50
-- frontend/e2e/snapshots/mobile-chromium/settings-light.png — D61689D9C0AC72E5BBA2AD3FDF60A9A5F537277B19182FED75575994A98E889A
-- frontend/e2e/snapshots/mobile-chromium/settings-dark.png — EEC0946C153AA54FA3090FF1AC8A2CC97DE802E5D522027BB4CEDC14856DAB2F
+- frontend/e2e/snapshots/desktop-chromium/home-light.png — 1F4CE0A1AB8A6134A5EC0B4D935365A0F2620398968A9F2EB77D0DA475C7AAD1
+- frontend/e2e/snapshots/desktop-chromium/home-dark.png — 103A0E9DDA814FC778310ACF36BBE31E147A62D6297F9816128A0DDC03C2293C
+- frontend/e2e/snapshots/desktop-chromium/settings-light.png — B52BB59C15905FB7AC619C2341FDE637F665FF60EDD4B1658930F52ED103848B
+- frontend/e2e/snapshots/desktop-chromium/settings-dark.png — F72DC4AEF7817746514839B583EE2048EDF6321F1BE9E898F78599898F36F9EF
+- frontend/e2e/snapshots/mobile-chromium/home-light.png — EE87FBBED2750C07256DB297051BC3C59C143463359772CFFD1CD5FAE3AF3523
+- frontend/e2e/snapshots/mobile-chromium/home-dark.png — 1E09C8C1A60E743987EA12E7E3A749889E5C9FC81E955B034D359381269786A2
+- frontend/e2e/snapshots/mobile-chromium/settings-light.png — 97A34B2177F69F13BF4B88C1C75A9CCE6E057B1EEDA478DC797F7707457C7F91
+- frontend/e2e/snapshots/mobile-chromium/settings-dark.png — 9DE1B453F113631907E5B8283537F636E7DCD98FD8C8D47F46F46D82C7F823F7
 
-Previous recorded hashes for the same eight paths (desktop home-light `AA4EB97D…`, home-dark `7827EF30…`, settings-light `D262BB23…`, settings-dark `DB7F60B4…`; mobile home-light `76727CE5…`, home-dark `0AC46E91…`, settings-light `CA0EB688…`, settings-dark `395C49F1…`) no longer matched the working tree and have been replaced with the values above. Four of the eight — the settings pair on both viewports — were re-captured in this round for two rendering changes: the accent swatch in `theme.ts` now resolves from the `--ra-swatch-*` tokens instead of a hardcoded saturated hex, and `src/index.css` now sets `accent-color: var(--ra-accent)` on native checkbox/radio so those controls follow the product accent instead of the browser default blue. The remaining four had already drifted from this document before this round; they are recorded here as observed rather than re-captured.
+Provenance of the eight values above. The previously recorded hashes for the same paths (desktop home-light `AA4EB97D…`, home-dark `7827EF30…`, settings-light `D262BB23…`, settings-dark `DB7F60B4…`; mobile home-light `76727CE5…`, home-dark `0AC46E91…`, settings-light `CA0EB688…`, settings-dark `395C49F1…`) were captured before this round re-anchored the frontend onto current main, and no longer matched the rendering produced by this branch. All eight were therefore re-captured, and they are recorded here as the observed render of this branch rather than inherited from the earlier round.
+
+Capture source. The eight baselines were taken from the canonical CI container, not from a local run: GitHub Actions workflow `.github/workflows/frontend-playwright.yml`, job `e2e`, run `36562645075`, artifact `frontend-playwright-results`. Each `*-actual.png` produced by that job was written to its corresponding path above, so the baselines are the exact bytes the workflow itself renders. That workflow runs in the same official image and runtime recorded under "Reference and capture contract" above (`mcr.microsoft.com/playwright:v1.62.1-noble`, Chromium revision 1234), which is what makes them valid as the pixel contract for the required `e2e` check.
+
+Why CI rather than local. A local `--update-snapshots` run did not complete — one test in 29 minutes — while the identical suite finished on CI in 1.9 minutes, so the local capture path is unreliable in this environment and was not used. Because `frontend-playwright.yml` triggers on `frontend/**` changes and runs the full suite including the `@visual` projects, these baselines are a hard required check rather than an optional record, which is why the refresh is in scope for this round.
+
+Rendering changes behind the refresh. Four of the eight — the settings pair on both viewports — additionally reflect two changes in this round: the accent swatch in `theme.ts` now resolves from the `--ra-swatch-*` tokens instead of a hardcoded saturated hex, and `src/index.css` now sets `accent-color: var(--ra-accent)` on native checkbox/radio so those controls follow the product accent instead of the browser default blue. The remaining four reflect the broader re-anchor of the frontend onto current main.
 
 The implementation retains the current product Home/Settings information architecture and does not fabricate unavailable capabilities or states.
