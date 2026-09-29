@@ -22,6 +22,9 @@
   --color-ra-accent-hover: var(--ra-accent-hover);
   --color-ra-status-running: var(--ra-status-running);
   --color-ra-status-starting: var(--ra-status-starting);
+  --color-ra-status-stopped: var(--ra-status-stopped);
+  --color-ra-status-success: var(--ra-status-success);
+  --color-ra-status-warning: var(--ra-status-warning);
   --color-ra-status-error: var(--ra-status-error);
 }
 
@@ -36,16 +39,48 @@
   --ra-border-strong: #51534c;
   --ra-text: #f4f3ef;
   --ra-text-secondary: #b7b5ae;
-  --ra-text-tertiary: #8f8e88;
+  /* Lightened from #8f8e88: on `--ra-tertiary` (42,43,39) it measured 4.34:1
+     and on `--ra-input` (45,46,42) 4.16:1, so tertiary metadata such as the
+     task-detail "证据"/"授权" tabs and the settings hint text failed 4.5:1.
+     #979690 is the smallest lightening that reaches 4.61:1 on all six dark
+     surfaces while staying visibly dimmer than --ra-text-secondary. */
+  --ra-text-tertiary: #979690;
   --ra-text-code: #aaa9a3;
-  --ra-accent: #7ea7a2;
-  --ra-accent-hover: #98bbb7;
+  --ra-accent: var(--ra-accent-tone-cyan);
+  --ra-accent-hover: var(--ra-accent-tone-cyan-hover);
   --ra-status-running: #9ccf91;
   --ra-status-starting: #d8b868;
   --ra-status-stopped: #d7d5cf;
+  --ra-status-success: #9ccf91;
+  --ra-status-warning: #d8b868;
   --ra-status-error: #e27b6c;
   --ra-panel-bg: #20211e;
   --ra-panel-input: #292a26;
+
+  /* Accent tones — one definition per accent per theme, shared by the live
+     accent, its hover state and the settings picker swatch.
+     These were previously two independent lists: `--ra-accent` carried a
+     literal per selector while the picker painted its own hardcoded hexes
+     (#18c6cf for "青色"). The picker therefore advertised colours the product
+     never rendered. Both now read the same variable, which makes that drift
+     structurally impossible — the light block and the system-dark block below
+     only have to restate these ten values. Dark theme values live here. */
+  --ra-accent-tone-cyan: #7ea7a2;
+  --ra-accent-tone-cyan-hover: #98bbb7;
+  --ra-accent-tone-blue: #5597f5;
+  --ra-accent-tone-blue-hover: #68a4ff;
+  --ra-accent-tone-violet: #9e85f3;
+  --ra-accent-tone-violet-hover: #aa95ff;
+  --ra-accent-tone-amber: #d88a19;
+  --ra-accent-tone-amber-hover: #efa83a;
+  --ra-accent-tone-rose: #e87185;
+  --ra-accent-tone-rose-hover: #f17d90;
+
+  --ra-swatch-cyan: var(--ra-accent-tone-cyan);
+  --ra-swatch-blue: var(--ra-accent-tone-blue);
+  --ra-swatch-violet: var(--ra-accent-tone-violet);
+  --ra-swatch-amber: var(--ra-accent-tone-amber);
+  --ra-swatch-rose: var(--ra-accent-tone-rose);
 
   /*
    * Elevation.
@@ -73,24 +108,39 @@
   --oh-surface-raised: var(--ra-tertiary);
 }
 
+/* Non-default accents are text colours as well as fills: `text-ra-accent`
+   carries run state, activity verbs and inline links on all six dark surfaces
+   (base / light / workspace / sidebar / tertiary / input). The original seeds
+   were tuned against the workspace alone, so blue, violet and rose fell to
+   4.10, 3.58 and 3.93 on `--ra-input`. The dark tone values declared in
+   `:root` are each the smallest lightening toward white that reaches >=4.61:1
+   on all six, which keeps the hue and the hue order intact; amber already
+   cleared it. The light tones live in the light palette below.
+   Every selector here only *points at* a tone, so a swatch and the accent it
+   previews can never disagree. */
+html[data-accent="cyan"] {
+  --ra-accent: var(--ra-accent-tone-cyan);
+  --ra-accent-hover: var(--ra-accent-tone-cyan-hover);
+}
+
 html[data-accent="blue"] {
-  --ra-accent: #438cf4;
-  --ra-accent-hover: #68a4ff;
+  --ra-accent: var(--ra-accent-tone-blue);
+  --ra-accent-hover: var(--ra-accent-tone-blue-hover);
 }
 
 html[data-accent="violet"] {
-  --ra-accent: #8a6cf1;
-  --ra-accent-hover: #aa95ff;
+  --ra-accent: var(--ra-accent-tone-violet);
+  --ra-accent-hover: var(--ra-accent-tone-violet-hover);
 }
 
 html[data-accent="amber"] {
-  --ra-accent: #d88a19;
-  --ra-accent-hover: #efa83a;
+  --ra-accent: var(--ra-accent-tone-amber);
+  --ra-accent-hover: var(--ra-accent-tone-amber-hover);
 }
 
 html[data-accent="rose"] {
-  --ra-accent: #e45b72;
-  --ra-accent-hover: #f17d90;
+  --ra-accent: var(--ra-accent-tone-rose);
+  --ra-accent-hover: var(--ra-accent-tone-rose-hover);
 }
 
 html[data-theme="light"],
@@ -109,10 +159,34 @@ html[data-theme="system"] {
   --ra-text-code: #555851;
   --ra-panel-bg: #fffefa;
   --ra-panel-input: #f6f2ea;
-  --ra-status-running: #2f7d50;
-  --ra-status-starting: #956313;
+  /* Status hues are foreground-on-light-surface colours, so each must clear
+     4.5:1 against every surface the product actually renders them on:
+     #f1eee6 base, #fffefa workspace, #ece8de sidebar, #ebe7dd tertiary,
+     #f7f4ed light. The earlier values were tuned against base alone and fell
+     to 3.65:1 (accent) and 4.08:1 (success) on `--ra-tertiary`. The variants
+     below are the smallest darkenings that reach >=4.61:1 on all five. */
+  --ra-status-running: #2b734a;
+  --ra-status-starting: #8c5d12;
   --ra-status-stopped: #65665f;
+  --ra-status-success: #2b734a;
+  --ra-status-warning: #8c5d12;
   --ra-status-error: #a83c35;
+
+  /* Light-theme accent tones. These are the "smallest darkening that clears
+     4.5:1 on all five light surfaces" counterparts of the dark tones in
+     `:root`; #507f7a only reached 3.65:1 on `--ra-tertiary`, which is exactly
+     where the sidebar and inline chips sit. Because the swatch tokens alias
+     these names, the picker follows the theme automatically. */
+  --ra-accent-tone-cyan: #456e6a;
+  --ra-accent-tone-cyan-hover: #34605c;
+  --ra-accent-tone-blue: #1d5fbf;
+  --ra-accent-tone-blue-hover: #174f9f;
+  --ra-accent-tone-violet: #6741b3;
+  --ra-accent-tone-violet-hover: #563394;
+  --ra-accent-tone-amber: #875000;
+  --ra-accent-tone-amber-hover: #6e4000;
+  --ra-accent-tone-rose: #b42345;
+  --ra-accent-tone-rose-hover: #971c38;
 
   /* Softer than the dark set: a light surface needs only a hint of lift. */
   --ra-shadow-1: 0 1px 2px rgb(31 30 26 / 0.06);
@@ -132,14 +206,28 @@ html[data-theme="system"] {
     --ra-border-strong: #51534c;
     --ra-text: #f4f3ef;
     --ra-text-secondary: #b7b5ae;
-    --ra-text-tertiary: #8f8e88;
+    --ra-text-tertiary: #979690;
     --ra-text-code: #aaa9a3;
     --ra-panel-bg: #20211e;
     --ra-panel-input: #292a26;
     --ra-status-running: #9ccf91;
     --ra-status-starting: #d8b868;
     --ra-status-stopped: #d7d5cf;
+    --ra-status-success: #9ccf91;
+    --ra-status-warning: #d8b868;
     --ra-status-error: #e27b6c;
+    /* System+dark must restate the dark accent tones: this block comes after
+       the light palette, which already replaced them with the light values. */
+    --ra-accent-tone-cyan: #7ea7a2;
+    --ra-accent-tone-cyan-hover: #98bbb7;
+    --ra-accent-tone-blue: #5597f5;
+    --ra-accent-tone-blue-hover: #68a4ff;
+    --ra-accent-tone-violet: #9e85f3;
+    --ra-accent-tone-violet-hover: #aa95ff;
+    --ra-accent-tone-amber: #d88a19;
+    --ra-accent-tone-amber-hover: #efa83a;
+    --ra-accent-tone-rose: #e87185;
+    --ra-accent-tone-rose-hover: #f17d90;
     /* Must be restated here: this block comes after the light palette and
        would otherwise leave system+dark rendering light-theme shadows. */
     --ra-shadow-1: 0 1px 2px rgb(0 0 0 / 0.45);
@@ -148,57 +236,12 @@ html[data-theme="system"] {
   }
 }
 
-html[data-theme="light"][data-accent="cyan"] {
-  --ra-accent: #507f7a;
-  --ra-accent-hover: #3f6d68;
-}
-
-html[data-theme="light"][data-accent="blue"] {
-  --ra-accent: #1d5fbf;
-  --ra-accent-hover: #174f9f;
-}
-
-html[data-theme="light"][data-accent="violet"] {
-  --ra-accent: #6741b3;
-  --ra-accent-hover: #563394;
-}
-
-html[data-theme="light"][data-accent="amber"] {
-  --ra-accent: #875000;
-  --ra-accent-hover: #6e4000;
-}
-
-html[data-theme="light"][data-accent="rose"] {
-  --ra-accent: #b42345;
-  --ra-accent-hover: #971c38;
-}
-
-@media (prefers-color-scheme: light) {
-  html[data-theme="system"][data-accent="cyan"] {
-    --ra-accent: #507f7a;
-    --ra-accent-hover: #3f6d68;
-  }
-
-  html[data-theme="system"][data-accent="blue"] {
-    --ra-accent: #1d5fbf;
-    --ra-accent-hover: #174f9f;
-  }
-
-  html[data-theme="system"][data-accent="violet"] {
-    --ra-accent: #6741b3;
-    --ra-accent-hover: #563394;
-  }
-
-  html[data-theme="system"][data-accent="amber"] {
-    --ra-accent: #875000;
-    --ra-accent-hover: #6e4000;
-  }
-
-  html[data-theme="system"][data-accent="rose"] {
-    --ra-accent: #b42345;
-    --ra-accent-hover: #971c38;
-  }
-}
+/* The per-accent light overrides that used to sit here
+   (`html[data-theme="light"][data-accent="…"]` and its
+   `@media (prefers-color-scheme: light)` twin for `system`) are gone: the light
+   palette above now restates `--ra-accent-tone-*` in place, so
+   `html[data-accent="…"]` keeps pointing at the right tone in every theme and
+   every accent needs exactly one declaration instead of three. */
 
 /* Agent Canvas contributes fixed white utility classes. Keep those aliases
    presentation-aware only at the bounded sidebar adapter. */
@@ -250,13 +293,23 @@ code {
     "Liberation Mono", "Courier New", monospace;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/*
+ * Removed: an unlayered `*, *::before, *::after { box-sizing: border-box;
+ * margin: 0; padding: 0 }` reset.
+ *
+ * Unlayered declarations outrank every `@layer`, so that reset beat the whole
+ * `@layer utilities` block and silently zeroed every padding utility in the
+ * product: `px-3 py-2`, `px-2 py-1.5`, `p-4` … all computed to `0px`. The
+ * visible consequences were rows that collapsed to bare line-height (a
+ * `/runs` disclosure button measured 998x17, the inbox submit 52x20, the
+ * settings list item 224x75 with zero inset) and the whole 24px minimum
+ * target / #448 13 density contract being unreachable through the padding
+ * scale.
+ *
+ * Tailwind's own preflight already ships the identical reset inside
+ * `@layer base`, where `utilities` correctly wins, so nothing needs to replace
+ * this rule. Keep any future global reset inside `@layer base`.
+ */
 
 /*
  * Focus visibility baseline.
@@ -273,6 +326,26 @@ code {
 :focus-visible {
   outline: 2px solid var(--ra-accent);
   outline-offset: 2px;
+}
+
+/*
+ * Native form controls.
+ *
+ * `input[type=checkbox]` and `input[type=radio]` default to
+ * `accent-color: auto`, so the browser paints the operating system's blue.
+ * On a product surface that reads as a stray colour from another palette; the
+ * settings "启用该连接" checkbox was the loudest example. Pointing them at
+ * `--ra-accent` makes a checked control follow the chosen accent in both
+ * themes, in one place rather than at every call site.
+ *
+ * Only colour is set here. Sizing deliberately stays at the call site, because
+ * the theme and accent radios are `sr-only` and rely on their 1x1 clipped box.
+ */
+@layer base {
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--ra-accent);
+  }
 }
 
 /*

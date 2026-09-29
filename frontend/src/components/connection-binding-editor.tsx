@@ -419,7 +419,7 @@ export function ConnectionBindingEditor({
                       已保存的密钥不会回显到浏览器。替换请在上方输入新 API Key 后保存；
                       移除请勾选下方选项。
                     </p>
-                    <label className="mt-2 inline-flex items-center gap-2 text-xs text-ra-text-secondary">
+                    <label className="mt-2 inline-flex min-h-6 items-center gap-2 text-xs text-ra-text-secondary">
                       <input
                         type="checkbox"
                         checked={connClearSecret}
@@ -453,10 +453,16 @@ export function ConnectionBindingEditor({
                           : ""}
                   </p>
                 )}
+                {/* Was `rounded-md border border-ra-border bg-ra-secondary p-3`
+                    inside a fieldset that is itself `bg-ra-secondary`: an
+                    identical surface carrying its own outline, so the only thing
+                    the border communicated was that something was nested (#448
+                    §12). A top divider groups it without inventing an elevation
+                    the surface does not have. */}
                 {canManageAccountLogin && onAccountAuthStart && (
                   <div
                     data-testid="connection-account-auth"
-                    className="mt-3 rounded-md border border-ra-border bg-ra-secondary p-3 text-ra-text-secondary"
+                    className="mt-3 border-t border-ra-border/60 pt-3 text-ra-text-secondary"
                   >
                     <p className="font-medium text-ra-text">
                       OpenAI / ChatGPT（GPT）账号登录
@@ -575,7 +581,7 @@ export function ConnectionBindingEditor({
             )}
           </div>
 
-          <label className="inline-flex items-center gap-2 text-sm text-ra-text-secondary">
+          <label className="inline-flex min-h-6 items-center gap-2 text-sm text-ra-text-secondary">
             <input
               type="checkbox"
               checked={connDraft.enabled}
@@ -601,7 +607,7 @@ export function ConnectionBindingEditor({
                   ? "该确认仅表示允许删除服务端已配置的凭据；浏览器不会读取密钥或环境变量名。"
                   : "填写新的 API Key 或环境变量引用；或勾选下方“清除已保存密钥”；或还原上述修改。留空保存不会沿用旧密钥。"}
               </p>
-              <label className="mt-2 inline-flex items-center gap-2 text-xs text-ra-text-secondary">
+              <label className="mt-2 inline-flex min-h-6 items-center gap-2 text-xs text-ra-text-secondary">
                 <input
                   type="checkbox"
                   checked={connClearSecret}
@@ -613,7 +619,7 @@ export function ConnectionBindingEditor({
           ) : null}
 
           {connError && (
-            <p role="alert" className="text-sm text-red-300">
+            <p role="alert" className="text-sm text-ra-status-error">
               {connError}
             </p>
           )}
@@ -635,7 +641,7 @@ export function ConnectionBindingEditor({
             <p
               role="status"
               data-testid="connection-probe-result"
-              className={`text-sm ${connectionProbeResult.ok ? "text-green-300" : "text-red-300"}`}
+              className={`text-sm ${connectionProbeResult.ok ? "text-ra-status-success" : "text-ra-status-error"}`}
             >
               {connectionProbeResult.ok ? "验证成功" : "验证失败"}：
               {localizedProbeMessage(connectionProbeResult)}
@@ -677,7 +683,7 @@ export function ConnectionBindingEditor({
               onClick={() =>
                 connSavedId ? onConnectionDelete(connSavedId) : undefined
               }
-              className={cn(secondaryButtonClass, "md:ml-auto text-red-300")}
+              className={cn(secondaryButtonClass, "md:ml-auto text-ra-status-error")}
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               删除连接
@@ -822,7 +828,7 @@ export function ConnectionBindingEditor({
             </Field>
           </div>
 
-          <label className="inline-flex items-center gap-2 text-sm text-ra-text-secondary">
+          <label className="inline-flex min-h-6 items-center gap-2 text-sm text-ra-text-secondary">
             <input
               type="checkbox"
               checked={bindDraft.enabled}
@@ -834,7 +840,7 @@ export function ConnectionBindingEditor({
           </label>
 
           {bindError && (
-            <p role="alert" className="text-sm text-red-300">
+            <p role="alert" className="text-sm text-ra-status-error">
               {bindError}
             </p>
           )}
@@ -850,7 +856,7 @@ export function ConnectionBindingEditor({
               onClick={() =>
                 bindSavedId ? onBindingDelete(bindSavedId) : undefined
               }
-              className={cn(secondaryButtonClass, "md:ml-auto text-red-300")}
+              className={cn(secondaryButtonClass, "md:ml-auto text-ra-status-error")}
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               删除绑定

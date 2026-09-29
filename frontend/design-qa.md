@@ -20,15 +20,17 @@ Linux snapshot update: 8 passed. Full Playwright: 24 passed, 2 viewport-specific
 
 Issue #343 bounded re-capture (single permitted snapshot update): the replayed PR #341 snapshots were captured against the index.css without the unlayered global margin/padding reset, while locked current main `af0bfdb62d96e00b5f89660390950f3b7f096026` still carries that reset. Because this round freezes `frontend/src/**`, the eight baselines were re-captured exactly once in the same official container image against locked main rendering; no CI snapshot update occurred. Container re-capture: 8 regenerated, full Playwright 24 passed, 2 viewport-specific skipped.
 
-Snapshot paths and SHA256 (bounded re-capture on locked main):
+Snapshot paths and SHA256 (current working tree, verified by `sha256sum`):
 
-- frontend/e2e/snapshots/desktop-chromium/home-light.png — AA4EB97D531B1720A58C06BC5DD273E8CAFFFA6A78871B5ABAB53B9B26D8528E
-- frontend/e2e/snapshots/desktop-chromium/home-dark.png — 7827EF305C15F21067AF8CAEADC17F69A3F5263E9BF61036D2816570285DBA5D
-- frontend/e2e/snapshots/desktop-chromium/settings-light.png — D262BB23EBFDD39480F9EB55E6A474D0DBADAB47F737A81539DA3CAEA977D139
-- frontend/e2e/snapshots/desktop-chromium/settings-dark.png — DB7F60B4407B603DAE78F90A10BBE793F1E0C87923F8316A6558C7A0A220B7E8
-- frontend/e2e/snapshots/mobile-chromium/home-light.png — 76727CE5B96020D354E523135B801102FCCFC0978B5719CB80375C8E1F7BD7B6
-- frontend/e2e/snapshots/mobile-chromium/home-dark.png — 0AC46E9176E0018CC5D121AC093FC87FA358C6801518B2569603C4BDA6D04200
-- frontend/e2e/snapshots/mobile-chromium/settings-light.png — CA0EB68807BC184CB6471B0F7A6E289A70910E0155D73AFD506A4A15D8C8FF42
-- frontend/e2e/snapshots/mobile-chromium/settings-dark.png — 395C49F15DAAB3DD192D7CBEE2924504CDAEC016FBDBB07D3F051EE73A52FC1B
+- frontend/e2e/snapshots/desktop-chromium/home-light.png — EDF146B22451F9C9069F5C17A7F4B9B4D9517933514577E6054EEB7F6978BDFE
+- frontend/e2e/snapshots/desktop-chromium/home-dark.png — 1AE03A05903872120B47DE03F42B24565FBF0279D5FC130C4F98A3BAB4ABF038
+- frontend/e2e/snapshots/desktop-chromium/settings-light.png — 89DA7AEFC61530ED3E1536CEE21DCD6CBB76260073AC261F6C6884460724D5E7
+- frontend/e2e/snapshots/desktop-chromium/settings-dark.png — 05655B3F094453DAB0AFDEB7121DE94B10FF057765BD7688A971DCA7898AC4DF
+- frontend/e2e/snapshots/mobile-chromium/home-light.png — 3DC8D0483058BE539D2F746C81463BD9B02A945E280387268D194D94B0CC1656
+- frontend/e2e/snapshots/mobile-chromium/home-dark.png — E46DE700DA483331DFA1D8418CF3914B3D06493262896FBFB739DB985D68AB50
+- frontend/e2e/snapshots/mobile-chromium/settings-light.png — D61689D9C0AC72E5BBA2AD3FDF60A9A5F537277B19182FED75575994A98E889A
+- frontend/e2e/snapshots/mobile-chromium/settings-dark.png — EEC0946C153AA54FA3090FF1AC8A2CC97DE802E5D522027BB4CEDC14856DAB2F
+
+Previous recorded hashes for the same eight paths (desktop home-light `AA4EB97D…`, home-dark `7827EF30…`, settings-light `D262BB23…`, settings-dark `DB7F60B4…`; mobile home-light `76727CE5…`, home-dark `0AC46E91…`, settings-light `CA0EB688…`, settings-dark `395C49F1…`) no longer matched the working tree and have been replaced with the values above. Four of the eight — the settings pair on both viewports — were re-captured in this round for two rendering changes: the accent swatch in `theme.ts` now resolves from the `--ra-swatch-*` tokens instead of a hardcoded saturated hex, and `src/index.css` now sets `accent-color: var(--ra-accent)` on native checkbox/radio so those controls follow the product accent instead of the browser default blue. The remaining four had already drifted from this document before this round; they are recorded here as observed rather than re-captured.
 
 The implementation retains the current product Home/Settings information architecture and does not fabricate unavailable capabilities or states.

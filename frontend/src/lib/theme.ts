@@ -1,4 +1,5 @@
-export const APPEARANCE_STORAGE_KEY = "reverse-agent.appearance";
+export const APPEARANCE_STORAGE_KEY = "nerelan.appearance";
+export const LEGACY_APPEARANCE_STORAGE_KEY = "reverse-agent.appearance";
 
 export const THEME_MODES = ["system", "light", "dark"] as const;
 export type ThemeMode = (typeof THEME_MODES)[number];
@@ -38,12 +39,21 @@ const accentLabels: Record<Accent, string> = {
   rose: "玫瑰",
 };
 
+/**
+ * Preview swatch for the accent picker.
+ *
+ * These must be the colours the chosen accent will actually render, and an
+ * accent resolves to a *different* value per theme (e.g. cyan is #7ea7a2 in
+ * dark and #456e6a in light). The swatches therefore read the theme-scoped
+ * `--ra-swatch-*` tokens from `index.css` instead of hardcoding hexes: the old
+ * hardcoded set advertised #18c6cf for "青色", a colour no theme ever painted.
+ */
 const accentSwatches: Record<Accent, string> = {
-  cyan: "#18c6cf",
-  blue: "#438cf4",
-  violet: "#8a6cf1",
-  amber: "#d88a19",
-  rose: "#e45b72",
+  cyan: "var(--ra-swatch-cyan)",
+  blue: "var(--ra-swatch-blue)",
+  violet: "var(--ra-swatch-violet)",
+  amber: "var(--ra-swatch-amber)",
+  rose: "var(--ra-swatch-rose)",
 };
 
 export function themeModeLabel(mode: ThemeMode): string {
@@ -77,8 +87,21 @@ export function normalizeAppearance(value: unknown): Appearance {
 
 export function readAppearance(storage?: Storage): Appearance {
   try {
-    const raw = (storage ?? defaultStorage())?.getItem(APPEARANCE_STORAGE_KEY);
-    return raw ? normalizeAppearance(JSON.parse(raw)) : { ...DEFAULT_APPEARANCE };
+    const activeStorage = storage ?? defaultStorage();
+    const raw = activeStorage?.getItem(APPEARANCE_STORAGE_KEY);
+    if (raw) return normalizeAppearance(JSON.parse(raw));
+
+    const legacyRaw = activeStorage?.getItem(LEGACY_APPEARANCE_STORAGE_KEY);
+    if (!legacyRaw) return { ...DEFAULT_APPEARANCE };
+
+    const migrated = normalizeAppearance(JSON.parse(legacyRaw));
+    try {
+      activeStorage?.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify(migrated));
+      activeStorage?.removeItem(LEGACY_APPEARANCE_STORAGE_KEY);
+    } catch {
+      // Keeping the user's existing preference matters more than retiring the key.
+    }
+    return migrated;
   } catch {
     return { ...DEFAULT_APPEARANCE };
   }
