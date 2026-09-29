@@ -1,10 +1,10 @@
-# System-owned final execution-path regressions for child environment repair
+# Conditional exact-head delegated PR1028 landing
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260928_issue372_windows_isolation_r3_v6",
-  "round_id": "round_20260928_issue372_windows_isolation_r3_v6",
+  "decision_id": "decision_20260929_pr1028_delegated_landing_r2_v1",
+  "round_id": "round_20260929_pr1028_delegated_landing_r2_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -31,44 +31,43 @@
   "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
   "provider_free_acceptance_required": true,
-  "decision_scope": "DIRECT_SESSION_ENV_CONFINEMENT_AND_989_WINDOWS_RESIDUAL",
-  "source_issue": 372,
+  "decision_scope": "EXACT_PR1028_DELEGATED_LANDING_ONLY",
+  "source_issue": 1027,
   "parent_issue": 1010,
-  "approved_by": "dddd2024 via explicit delegated Owner authorization",
-  "approval_basis": "Owner continuation delegates bounded system implementation and independent supervision. V4 accepted system-authored three-file candidate has34 passing new tests including real Windows Git/cmd. Full-platform development identifies obsolete Windows Binding expectations; include only their fourth test file to preserve and update regressions. V5 activation remains unpublished and unchanged; no modelcalls or product edits there. Fresh v6 exact-main successor copies reviewed v4 bytes after Draft, completes actual CLI/server/authmode checks and Windows expectation updates using tool-free system authored edits, then final checks. No weakened secret assertions or acceptance criteria. Third failure reproduces unchanged base: combined trusted host lease-provider test resolves api-binding from default live8765 rather than its own host. Permit only test fixture resolver wiring to own host, retaining lease assertions; no production taskservice/store/credentials edits.",
-  "risk_tier": "R3",
-  "authorized_risk_tier": "R3",
+  "approved_by": "dddd2024 via explicit current delegated Owner authorization",
+  "approval_basis": "Owner explicitly delegated publication, independent acceptance and merge of the pending GitHub work items, with the system performing every step. This bounded Decision authorizes one Decision-only unmerged authority Draft on branch codex/pr1028-delegated-landing-v1-20260929 and the exact-head landing of PR1028, the approved R1 frontend consolidation for Issue 1027. Product content is R1: frontend presentation, design tokens, brand identity and copy, with no schema, authority, budget, publication or durable-state surface. The transition itself is the governance artifact and carries the R2 floor. PR1028 is already approved by the Owner r1-approved label event of 2026-09-29T11:29:53Z and is complete at head d13eec586d47ba7fb286486170fdf711630e160a with new-refresh visual baselines re-captured from the canonical CI container. This Decision authorizes Ready and one expected-head merge only after an independent exact-head audit confirms every acceptance criterion and all required checks are green at that exact head. No source edit is authorized on the sidecar. All Owner-account actions are disclosed delegated automation, never personal human review.",
+  "risk_tier": "R2",
+  "authorized_risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "main",
-  "base_sha": "18c5030fabeb72288ea2de56314579e339995182",
-  "activation_base_sha": "18c5030fabeb72288ea2de56314579e339995182",
-  "starting_head": "18c5030fabeb72288ea2de56314579e339995182",
-  "fresh_base": "18c5030fabeb72288ea2de56314579e339995182",
-  "current_main_expected": "18c5030fabeb72288ea2de56314579e339995182",
-  "required_branch": "codex/issue372-windows-isolation-system-v6-20260928",
-  "workstream_id": "issue372-windows-isolation-system-v6",
-  "follows_last_decision_id": "decision_20260928_issue372_windows_isolation_r3_v5",
-  "follows_last_round_id": "round_20260928_issue372_windows_isolation_r3_v5",
-  "workflow_profile": "baseline",
+  "required_branch": "codex/pr1028-delegated-landing-v1-20260929",
+  "workstream_id": "pr1028-delegated-landing-r2-v1",
+  "follows_last_decision_id": "decision_20260928_pr1022_delegated_landing_r3_v1",
+  "follows_last_round_id": "round_20260928_pr1022_delegated_landing_r3_v1",
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 1,
+  "product_change_commit_limit": 0,
   "generated_governance_commit_limit": 0,
-  "normal_push_attempt_limit": 2,
+  "normal_push_attempt_limit": 1,
   "draft_pr_creation_limit": 1,
-  "mark_ready_attempt_limit": 0,
-  "merge_attempt_limit": 0,
+  "mark_ready_attempt_limit": 1,
+  "merge_attempt_limit": 1,
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
   "workflow_dispatch_limit": 0,
-  "live_model_call_limit": 16,
-  "provider_network_call_limit": 16,
+  "live_model_call_limit": 0,
+  "provider_network_call_limit": 0,
   "credential_access_limit": 0,
   "local_browser_launch_limit": 0,
   "pr_creation_allowed": true,
   "issue_comment_allowed": true,
   "pull_request_comment_allowed": true,
-  "merge_allowed": false,
-  "mark_ready_allowed": false,
+  "merge_allowed": true,
+  "mark_ready_allowed": true,
+  "base_sha": "393886c2e1b764e6f8a4ed638aceb24cccdc92a8",
+  "activation_base_sha": "393886c2e1b764e6f8a4ed638aceb24cccdc92a8",
+  "starting_head": "393886c2e1b764e6f8a4ed638aceb24cccdc92a8",
+  "fresh_base": "393886c2e1b764e6f8a4ed638aceb24cccdc92a8",
+  "current_main_expected": "393886c2e1b764e6f8a4ed638aceb24cccdc92a8",
   "workflow_rerun_allowed": false,
   "workflow_dispatch_allowed": false,
   "runner_dispatch_allowed": false,
@@ -77,10 +76,10 @@
   "force_push_allowed": false,
   "rebase_during_execution_allowed": false,
   "dependency_install_allowed": false,
-  "live_provider_access_allowed": true,
+  "live_provider_access_allowed": false,
   "credential_access_allowed": false,
   "unknown_binary_execution_allowed": false,
-  "model_api_invocation_allowed": true,
+  "model_api_invocation_allowed": false,
   "external_reverse_tool_invocation_allowed": false,
   "destructive_operations_allowed": false,
   "bootstrap_exception_files": [
@@ -93,12 +92,7 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/opencode_executor.py",
-    "tests/platform_v1/test_opencode_executor.py",
-    "tests/platform_v1/test_child_environment_isolation.py",
-    "tests/platform_v1/test_binding_windows_env.py",
-    "tests/platform_v1/test_task3c_v4_repairs.py"
+    "project_state/gates/transition_preflight_result.json"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
@@ -106,12 +100,7 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/opencode_executor.py",
-    "tests/platform_v1/test_opencode_executor.py",
-    "tests/platform_v1/test_child_environment_isolation.py",
-    "tests/platform_v1/test_binding_windows_env.py",
-    "tests/platform_v1/test_task3c_v4_repairs.py"
+    "project_state/gates/transition_preflight_result.json"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -124,110 +113,104 @@
     "AGENTS.md",
     ".github/**",
     ".codex-skills/**",
+    "reverse_agent/**",
     "frontend/**",
-    "reverse_agent/control_plane/**",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/platform_v1/task_service.py",
-    "reverse_agent/platform_v1/coordinator.py",
-    "reverse_agent/platform_v1/run_store.py",
-    "reverse_agent/model_access/store.py",
-    "dev-up.ps1",
-    "dev-down.ps1",
+    "tests/**",
+    "docs/**",
     "project_state/mainline_merge_intents/**",
     "project_state/rounds/**",
     "pyproject.toml",
     "requirements*.txt"
   ],
   "forbidden_operations": [
+    "source_edit",
     "direct_push_main",
-    "auto_merge",
     "force_push",
     "rebase",
-    "squash",
-    "amend",
     "history_rewrite",
-    "mark_ready",
-    "merge",
+    "auto_merge",
+    "tag_or_release",
     "workflow_rerun",
-    "workflow_dispatch",
     "runner_dispatch",
+    "model_api_invocation",
     "credential_access",
     "unknown_binary_execution",
     "external_reverse_tool_invocation",
     "destructive",
-    "tag_or_release",
     "dependency_install",
     "generated_governance_commit",
-    "snapshot_generation_or_threshold_change",
-    "fix_forward_after_mandatory_failure"
+    "active_json_rewrite",
+    "authority_pr_ready_or_merge",
+    "target_branch_mutation"
   ],
   "path_risk_floor": [
     {
       "pattern": "project_state/**",
       "minimum_risk": "R2"
-    },
-    {
-      "pattern": "reverse_agent/model_access/credential_relay.py",
-      "minimum_risk": "R3"
     }
   ],
+  "reference_paths": [
+    "AGENTS.md",
+    "docs/agents/governance-reference.md",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/project_gate.py",
+    "tests/test_mainline_landing.py"
+  ],
   "semantic_implementation_contract": {
-    "specification": "System implements explicit minimal childenv admission for ordinarynoBindingCLI, direct sequentialplanner/coder/reviewer andserver, andauthnone/external_cli_session/account_login. Never iterate/copy arbitraryparentenv orinheritimplicitprocessenv. PreservefixedOpenCodeflags androle/providerconfig. Use repository existingaccountauthnonsecretlocationallowlist ascompatibilityprecedent; justify mode-specific subset, no arbitrarysecret/proxy forwarding. Binding/relay remainsminimallyconfined; onlyexplicit989WindowsSystemDrive/PATHEXTvalidationresidualmaychangeBindingenv. EnsuretypedvalidSystemDriveavailable/derivedfromvalidSystemRootonWindows; missing/invalidPATHEXT handlingpreserves997safeextensiondiscovery andrejectsunsafecontrol/pathinjection. Preservemerged989lifetime/980evidence. Replaceobsolete testdirectauthenticatedparentmarkersassertion withstrongersecretconfinementcoverage; do notdeleteacceptedregressions. Adddeterministic guardedMapping(noitems/iteration),sentinelGH/provider/cloud/package/passwordexclusion,realCLI/serverkwargs androles/authmodes/safetyconfig coverage. No rawenvvaluesinstore/events/errors. ActualWindowsknownGit --version andknowncmd/PowerShellNoProfile fixedread-onlycommands inpytest-ownedtemp verifyminimalenvandSystemDriveexpansion,noliteralSystemDrivecachepath. No realOpenCode/OAuth/credentialstoretest,model/providercallsintests ordependencyinstall. No frontend/TaskStore/coordinator/credentialrelay redesign. Fiveproductpaths only; systemauthorsallbytes through16tool-freemaxcalls,0autoretry,600sectimeout/no spendcap; supervisorvalidatesstrictallowlist/nonlinks/exactoldtextandreviewsbeforefixedtests. Update obsolete test_binding_windows_env.py expectations to admit validated Windows SystemDrive and direct PATHEXT while retaining all secret guards, exact key-set checks, role/config and non-Windows regressions. In test_task3c_v4_repairs.py only bind test_combined_trusted_host_task_api_injects_lease_provider to its own CombinedTrustedHost model_control_url using existing BindingResolver precedent. Preserve real loopback lease create/release assertions; no fake-success or skip.",
-    "completion_boundary": "Onefinalproductcommit/twopushes/oneDraft. Exactheadfocusedandfullplatformproviderfreechecks,diff,gates,naturalCI andindependentacceptance. No source-stageReady/merge/closure/deployment. Laterseparatelandingmayclose372and989onlyafteralltheirresidualproofs andmainreceipt/CI;299fullOSsandboxstaysOPEN. NoTaskAPInativeverificationclaim forsupervisedtextinference."
-  },
-  "runtime_scratch_policy": {
-    "paths": [
-      ".platform_v1_runtime/**",
-      "**/__pycache__/**",
-      ".pytest_cache/**"
-    ],
-    "stage_allowed": false,
-    "note": "Existing launcher runtime stores/metadata only, preserve persisted settings. For approved provider-free tests ONLY, a test subprocess may set PYTHONPATH to existing trusted installed C:/Users/wjc27/AppData/Roaming/Python/Python313/site-packages so pytest is visible. No install, global env change or product child-env relaxation; no arbitrary home/secret reads. Evidence remains outside tracked source."
+    "specification": "No source edits on this sidecar. This Decision-only branch is created from exact base 393886c2e1b764e6f8a4ed638aceb24cccdc92a8 and adds exactly one commit containing only project_state/decision_packet.md. It authorizes the landing of already-authored, already-approved PR1028 content at frozen head d13eec586d47ba7fb286486170fdf711630e160a (tree of the approved R1 frontend consolidation for Issue 1027): 78 paths, all under frontend/, 6119 insertions and 4200 deletions against the same base. Product risk is R1 (frontend presentation, design tokens, brand, copy); the transition and its evidence are the R2 governance artifact. The content is unmodified by this Decision and no frontend path is touched here. PR1028 carries the Approvals empty-state truth fix, the design-token discipline guard with a zero-literal-colour assertion, the Nerelan brand with the nerelan.appearance storage-key migration, 24px minimum interaction targets, Chinese copy, and the eight refreshed @visual baselines re-captured from the canonical CI container (mcr.microsoft.com/playwright:v1.62.1-noble, run 36562645075). The two exceptional paths stay inside the Owner constraints recorded on Issue 1027: the vendored agent-canvas files are bounded to interaction-target and visual-compatibility change with upstream defaults preserved, and frontend/src/schemas/model-access.ts is bounded to presentation-layer parsing/validation. No backend, schema, authority, budget or durable-state surface is touched.",
+    "completion_boundary": "Run the existing startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness sequence with python -m reverse_agent.project_gate against project_state; require PRE_EXECUTION_AUTHORIZED then PUBLICATION_READY. Generated artifacts are evidence, not an independent grant, and no gate result may be hand-written. Push this authority branch once and create one Draft against locked main; observe natural Decision Preflight and State Gate success with no rerun or dispatch, and never Ready or merge the sidecar. Then independently audit PR1028 at the frozen accepted head: confirm the diff is exactly the 78 allowed paths with none outside frontend/, re-read the two exceptional paths against the Owner constraints, confirm zero unresolved review threads and all required checks green at that exact head, and post one transparent delegated Owner-account review stating that every Owner-account action is delegated automation and never personal human review. Mark PR1028 Ready exactly once and require the naturally triggered formal landing-state-gate and state-gate success at the accepted head. Immediately before merge re-verify that main still equals the base, that the head still equals the accepted head, that the PR is MERGEABLE and CLEAN, and that no concurrent publication is in flight; then merge once with expected-head protection and method merge, and verify merged, the merge commit, its parents and tree, and natural post-merge main CI and State integration success. Only then close 1027 with linked source and main evidence. If any acceptance criterion is not confirmed, retain 1027 open and record the exact residual instead of closing it. Keep every unrelated Issue and PR untouched and preserve all other authority Drafts."
   },
   "capability_policy": {
     "runner_dispatch_allowed": false,
-    "model_api_invocation_allowed": true,
+    "model_api_invocation_allowed": false,
     "external_reverse_tool_invocation_allowed": false,
     "unknown_binary_execution_allowed": false,
     "destructive_operations_allowed": false,
     "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
-    "merge_allowed": false,
+    "merge_allowed": true,
     "force_push_allowed": false,
     "rebase_during_execution_allowed": false,
     "tag_or_release_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [],
     "ci_network_exceptions": [
-      "Unchanged natural CI package setup and provider-free checks only; no added workflow or manual dispatch."
+      "Unchanged natural CI setup and provider-free checks only."
     ],
     "trusted_worker_network_exceptions": [],
-    "user_local_network_exceptions": [
-      "Verify existing owned supervised-route-mistral-20260928b exact connectionmistral/modelcodestral-latest/executoropencode disabled; temporarilyenable only it for each tool-free call and restore exactdisabled metadata finally. No other Binding/Connection/key mutations. Native trusted store/OSvault/relay internal credential use only, no rawsecretreads/output/export. Max16text-onlycalls600sec0tools/dispatch/automaticretry. Provider-free deterministic tests, ownedloopback and known Git/Windows fixed read-only pytesttemp proofs authorized."
-    ],
+    "user_local_network_exceptions": [],
     "github_control_plane_network_exceptions": [
-      "Canonical exact branch activation/implementation pushes and one Draft; descriptions only. No Ready/merge/tag/release under source stage."
+      "Canonical dddd2024/Nerelan only: one exact authority push and Draft on codex/pr1028-delegated-landing-v1-20260929; independent review of PR1028 at its frozen accepted head; one Ready and one expected-head merge of PR1028; then closure comment on Issue 1027 only. No other Issue or PR mutations."
     ]
+  },
+  "runtime_scratch_policy": {
+    "paths": [
+      "**/__pycache__/**",
+      ".pytest_cache/**"
+    ],
+    "stage_allowed": false,
+    "note": "Only pre-existing/generated ignored local Python scratch; never stage."
   },
   "allowed_commands": [
     {
-      "command_id": "issue372v6.bootstrap",
-      "command": "Fresh exactbase 18c5030fabeb72288ea2de56314579e339995182 checkout F:\\Nerelan-issue372-system-v6-20260928 branchcodex/issue372-windows-isolation-system-v6-20260928;writeimmutableDecisionUTF8LFoneactivationcommit; existingstartup-snapshot/transition-command-plan/transition-lint/transition-preflight --modepre/worktree-publication-readiness andgitdiffcheckbaseHEAD. FirstDraftbeforeproductchanges; neverstagegeneratedgates.",
+      "command_id": "pr1028.bootstrap",
+      "command": "Commit only this Decision once in a fresh exact-base codex/pr1028-delegated-landing-v1-20260929 checkout. Run existing startup-snapshot, transition-command-plan, transition-lint, transition-preflight --mode pre and worktree-publication-readiness using python -m reverse_agent.project_gate SUBCOMMAND --state-dir project_state. Require PRE_EXECUTION_AUTHORIZED and PUBLICATION_READY. Never edit the activated Decision and never stage generated gates.",
       "phase": "bootstrap",
+      "execution_surface": "user_local",
+      "operations": [
+        "code_read",
+        "local_static_check",
+        "command_plan_generation",
+        "commit",
+        "machine_specific_execution"
+      ],
+      "network_access": false,
       "required": true,
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "user_local",
-      "operations": [
-        "code_read",
-        "commit",
-        "command_plan_generation",
-        "local_static_check",
-        "machine_specific_execution"
-      ],
-      "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
         "project_state/decision_packet.md"
@@ -241,82 +224,30 @@
       ]
     },
     {
-      "command_id": "issue372v6.runtime",
-      "command": "No runtime restart/deployment or OpenCodeTask. Verify existing owned supervised-route-mistral-20260928b exact connectionmistral/modelcodestral-latest/executoropencode disabled; temporarilyenable only it for each tool-free call and restore exactdisabled metadata finally. No other Binding/Connection/key mutations. Native trusted store/OSvault/relay internal credential use only, no rawsecretreads/output/export. Max16text-onlycalls600sec0tools/dispatch/automaticretry. Provider-free deterministic tests, ownedloopback and known Git/Windows fixed read-only pytesttemp proofs authorized.",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "user_local",
-      "operations": [
-        "local_static_check",
-        "machine_specific_execution",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue372v6.system",
-      "command": "After activation Draft transfer exact reviewed v4 three product files, excluding rejected model call16. Up to16 tool-free Codestral calls for CLI/server/authmode execution coverage and Windows legacy expectation updates; only five approved product paths. Supervisor authors no product or test bytes; apply validated exact system edits. Final checks on frozen v6 exact head. Include isolated known baseline test fixture resolver correction only.",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "user_local",
-      "operations": [
-        "source_edit",
-        "commit",
-        "local_static_check",
-        "machine_specific_execution",
-        "model_api_invocation",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/opencode_executor.py",
-        "tests/platform_v1/test_opencode_executor.py",
-        "tests/platform_v1/test_child_environment_isolation.py",
-        "tests/platform_v1/test_binding_windows_env.py",
-        "tests/platform_v1/test_task3c_v4_repairs.py"
-      ],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue372v6.checks",
-      "command": "Developmentchecks/fixesbeforefreeze; finalexacthead python -B -m pytest tests/platform_v1/test_child_environment_isolation.py -q -p no:cacheprovider; python -B -m pytest tests/platform_v1/test_opencode_executor.py tests/platform_v1/test_opencode_server_transport.py tests/platform_v1/test_execution_runtime_budget.py -q -p no:cacheprovider; python -B -m pytest tests/platform_v1 -q -p no:cacheprovider; git diff --check 18c5030fabeb72288ea2de56314579e339995182 HEAD. Providerfree only, syntheticsentinels/fakeprocess exceptexplicitfixedWindowsGit/cmd/PowerShell read-only temp proofs. Beforestagecachedstartupreadiness;aftercommitall5gatesagain. Mandatoryfailurestopspublicationnofixforward.",
+      "command_id": "pr1028.validate",
+      "command": "Run existing python -B -m pytest tests/test_mainline_landing.py -q -p no:cacheprovider and git diff --check on the exact sidecar head. Verify the sidecar adds only project_state/decision_packet.md, and re-verify PR1028 scope, checks and review state at its frozen accepted head.",
       "phase": "validation",
+      "execution_surface": "user_local",
+      "operations": [
+        "code_read",
+        "unit_test",
+        "local_static_check",
+        "diff_validation",
+        "machine_specific_execution"
+      ],
+      "network_access": false,
       "required": true,
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "user_local",
-      "operations": [
-        "unit_test",
-        "integration_test",
-        "diff_validation",
-        "local_static_check",
-        "machine_specific_execution",
-        "network_access"
-      ],
-      "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "issue372v6.publish",
-      "command": "Atmost2pushesactivation/final exactbranchcodex/issue372-windows-isolation-system-v6-20260928 andoneDraftagainstmain@18c5030fabeb72288ea2de56314579e339995182;rebindexactheadbody. Requireallchecks/PUBLICATION_READY/freshbase/scope. NoReady/merge/closure/historyrewrite.",
+      "command_id": "pr1028.publish_authority",
+      "command": "Push the exact authority branch once and create one Draft against locked main. Decision-only sidecar; never Ready or merge it. Observe natural Decision Preflight and State Gate SUCCESS. No reruns or dispatch.",
       "phase": "publication",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
       "execution_surface": "github_control_plane",
       "operations": [
         "push",
@@ -324,18 +255,71 @@
         "network_access"
       ],
       "network_access": true,
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "issue372v6.ci",
-      "command": "Observe naturalexactheadCI/Decision/State plusnativeartifact, providerfreechecks. No reruns/manualdispatch/dependency/workflowchanges.",
-      "phase": "validation",
+      "command_id": "pr1028.audit",
+      "command": "Independently audit PR1028 at its frozen accepted head: allowed-path diff equals exactly the 78 Issue-1027 paths with none outside frontend/, the two exceptional paths stay inside the Owner constraints, acceptance criteria hold against the code, zero unresolved review threads, and all required checks green at that exact head. Post one transparent delegated Owner-account review disclosing that every Owner-account action is delegated automation and never personal human review.",
+      "phase": "final_evidence",
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "network_access"
+      ],
+      "network_access": true,
       "required": true,
       "expected_exit_codes": [
         0
       ],
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "pr1028.ready",
+      "command": "Only after the delegated audit review is posted and no drift has occurred, run gh pr ready 1028 --repo dddd2024/Nerelan exactly once. Require the naturally triggered formal landing-state-gate and ordinary state-gate SUCCESS at the exact accepted head. No rerun, dispatch, conversion cycling or fake context.",
+      "phase": "publication",
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "mark_ready",
+        "network_access"
+      ],
+      "network_access": true,
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "pr1028.merge",
+      "command": "Immediately verify main still equals 393886c2e1b764e6f8a4ed638aceb24cccdc92a8 and the head still equals d13eec586d47ba7fb286486170fdf711630e160a, MERGEABLE/CLEAN, exact required checks and audit review present, and no concurrent publication. Run gh pr merge 1028 --repo dddd2024/Nerelan --merge --match-head-commit d13eec586d47ba7fb286486170fdf711630e160a once. Verify merged, the merge commit, its parents and tree, and natural post-merge main CI and State success, then close 1027 if every acceptance criterion is confirmed. Preserve every other Issue and PR.",
+      "phase": "publication",
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "merge",
+        "network_access"
+      ],
+      "network_access": true,
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "pr1028.natural_ci",
+      "command": "Observe unchanged natural authority and target/main CI, Decision Preflight and State Gate; no provider calls in tests.",
+      "phase": "validation",
       "execution_surface": "ci_only",
       "operations": [
         "unit_test",
@@ -344,75 +328,22 @@
         "network_access"
       ],
       "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue372v6.audit",
-      "command": "Independent supervisor source/sink/compatibilityreview, actualminimalenvpositivecontrols andsentinelnegatives, bothtransports+ordinaryroles,Windowsproof. No modelselfacceptance orOSsandboxclaim. Distinguishmainline/source fromdirtylocalhost.",
-      "phase": "final_evidence",
       "required": true,
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "remote_observation",
-      "operations": [
-        "code_read",
-        "read_only_audit",
-        "repository_observation"
-      ],
-      "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     }
   ],
-  "concurrent_work_preservation": {
-    "prs": [
-      991,
-      992,
-      995,
-      1000,
-      1003,
-      1007,
-      1008,
-      1012,
-      1013,
-      1014,
-      1015,
-      1017,
-      1018,
-      1019,
-      1020,
-      1021
-    ],
-    "policy": "Preserve all previous Drafts, root user edits and partial worktrees; v5 unpublished activation preserved unchanged. V6 alone active for product completion after v4 full development results observed. No concurrent model calls; owned Codestral binding restored disabled after each call."
-  },
-  "reference_paths": [
-    "AGENTS.md",
-    "docs/agents/governance-reference.md",
-    "dev-up.ps1",
-    "reverse_agent/platform_v1/binding_resolver.py",
-    "reverse_agent/model_access/contracts.py",
-    "tests/platform_v1/test_opencode_server_transport.py",
-    "tests/platform_v1/test_credential_relay.py",
-    "tests/platform_v1/test_trusted_host.py",
-    "tests/platform_v1/test_trusted_host_lifecycle.py",
-    "reverse_agent/model_access/credential_relay.py",
-    "reverse_agent/platform_v1/trusted_host.py",
-    "tests/platform_v1/test_execution_runtime_budget.py"
-  ],
+  "target_pr": 1028,
+  "accepted_exact_head_sha": "d13eec586d47ba7fb286486170fdf711630e160a",
+  "expected_head_protection_required": true,
+  "allowed_merge_method": "merge",
+  "workflow_profile": "baseline",
   "source_issues": [
-    372,
-    989
-  ],
-  "required_provider_free_checks": [
-    "python -B -m pytest tests/platform_v1/test_child_environment_isolation.py tests/platform_v1/test_binding_windows_env.py -q -p no:cacheprovider",
-    "python -B -m pytest tests/platform_v1/test_opencode_executor.py tests/platform_v1/test_opencode_server_transport.py tests/platform_v1/test_execution_runtime_budget.py -q -p no:cacheprovider",
-    "python -B -m pytest tests/platform_v1/test_task3c_v4_repairs.py -q -p no:cacheprovider",
-    "python -B -m pytest tests/platform_v1 -q -p no:cacheprovider",
-    "git diff --check 18c5030fabeb72288ea2de56314579e339995182 HEAD"
+    1027
   ]
 }
 ```
