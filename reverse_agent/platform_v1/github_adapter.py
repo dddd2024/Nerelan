@@ -296,7 +296,7 @@ class LiveGitHubAdapter:
                 "--limit", "50",
             ],
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             timeout=120,
         )
         if result.returncode != 0:
@@ -364,7 +364,7 @@ class LiveGitHubAdapter:
                 "&sort=updated&per_page=20",
             ],
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             timeout=120,
         )
         if result.returncode != 0:

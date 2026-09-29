@@ -510,7 +510,7 @@ def _resolve_trusted_authority_sha() -> str:
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
-                cwd=repo_dir, capture_output=True, text=True, check=True,
+                cwd=repo_dir, capture_output=True, text=True, errors="replace", check=True,
                 timeout=10,
             )
             sha = result.stdout.strip()
@@ -537,7 +537,7 @@ def _resolve_trusted_planning_sha() -> str:
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
-                cwd=repo_dir, capture_output=True, text=True, check=True,
+                cwd=repo_dir, capture_output=True, text=True, errors="replace", check=True,
                 timeout=10,
             )
             sha = result.stdout.strip()

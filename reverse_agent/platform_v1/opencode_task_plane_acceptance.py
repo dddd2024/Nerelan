@@ -79,7 +79,7 @@ def _run(
     version_result = subprocess.run(
         version_argv,
         capture_output=True,
-        text=True,
+        text=True, errors="replace",
         timeout=15,
     )
     results["opencode_path"] = cli_path
@@ -93,7 +93,7 @@ def _run(
     models_result = subprocess.run(
         models_argv,
         capture_output=True,
-        text=True,
+        text=True, errors="replace",
         timeout=30,
     )
     results["opencode_models_output"] = (models_result.stdout or "")[:2000]
@@ -107,14 +107,14 @@ def _run(
         ["git", "status", "--porcelain", "--untracked-files=no"],
         cwd=repo_dir,
         capture_output=True,
-        text=True,
+        text=True, errors="replace",
         timeout=10,
     )
     source_hash_before = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         cwd=repo_dir,
         capture_output=True,
-        text=True,
+        text=True, errors="replace",
         timeout=10,
     )
     results["source_checkout"] = {
@@ -298,14 +298,14 @@ def _run(
         ["git", "status", "--porcelain", "--untracked-files=no"],
         cwd=repo_dir,
         capture_output=True,
-        text=True,
+        text=True, errors="replace",
         timeout=10,
     )
     source_hash_after = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         cwd=repo_dir,
         capture_output=True,
-        text=True,
+        text=True, errors="replace",
         timeout=10,
     )
     results["source_checkout"]["head_after"] = source_hash_after.stdout.strip()
@@ -365,7 +365,7 @@ def _run(
         ["git", "worktree", "list", "--porcelain"],
         cwd=repo_dir,
         capture_output=True,
-        text=True,
+        text=True, errors="replace",
         timeout=10,
     )
     results["worktree_registration"] = {}
@@ -376,14 +376,14 @@ def _run(
         ["git", "rev-parse", "HEAD"],
         cwd=wt_dir,
         capture_output=True,
-        text=True,
+        text=True, errors="replace",
         timeout=10,
     )
     wt_is_inside = subprocess.run(
         ["git", "rev-parse", "--is-inside-work-tree"],
         cwd=wt_dir,
         capture_output=True,
-        text=True,
+        text=True, errors="replace",
         timeout=10,
     )
     wt_git_file = os.path.join(wt_dir, ".git")

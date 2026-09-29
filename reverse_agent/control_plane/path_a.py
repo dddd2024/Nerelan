@@ -1016,7 +1016,7 @@ def _collect_changed_paths_for_event(
         base_sha = str(event.get("before") or "")
         head_sha = str(event.get("after") or "")
     actual_head = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"], cwd=repo_root, text=True
+        ["git", "rev-parse", "HEAD"], cwd=repo_root, text=True, errors="replace"
     ).strip()
     if not SHA_RE.fullmatch(head_sha) or actual_head != head_sha:
         raise PathAGateError("workflow_exact_head_mismatch", f"{actual_head}!={head_sha}")
@@ -1027,7 +1027,7 @@ def _collect_changed_paths_for_event(
         cwd=repo_root,
         check=False,
         capture_output=True,
-        text=True,
+        text=True, errors="replace",
     )
     if diff.returncode == 0:
         changed = _paths_from_diff_name_status(diff.stdout)
@@ -1228,7 +1228,7 @@ def run_path_a_gate(*, event_path: Path, repository: str, repo_root: Path) -> di
     merge_base = subprocess.check_output(
         ["git", "merge-base", "HEAD", snapshot.base_sha],
         cwd=repo_root,
-        text=True,
+        text=True, errors="replace",
     ).strip()
     result = verify_path_a_r1(
         event_name=os.environ.get("GITHUB_EVENT_NAME", ""),

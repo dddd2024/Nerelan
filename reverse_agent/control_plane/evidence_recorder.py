@@ -387,7 +387,7 @@ class EvidenceRecorder:
             ["git", "rev-parse", "HEAD"],
             cwd=str(self.repo_root),
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             check=False,
         )
         sha = result.stdout.strip()
@@ -425,7 +425,7 @@ def _git_changed_files(repo_root: Path, head_before: str, head_after: str) -> tu
             ["git", "diff", "--name-only", head_before, head_after],
             cwd=str(repo_root),
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             check=False,
         )
     else:
@@ -433,7 +433,7 @@ def _git_changed_files(repo_root: Path, head_before: str, head_after: str) -> tu
             ["git", "status", "--short", "--porcelain"],
             cwd=str(repo_root),
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             check=False,
         )
     lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
@@ -586,7 +586,7 @@ class TrustedCommandRunner:
             ["git", "rev-parse", "HEAD"],
             cwd=str(self.repo_root),
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             check=False,
         )
         sha = result.stdout.strip()
@@ -704,7 +704,7 @@ def _git_status_porcelain(repo_root: Path) -> str:
         ["git", "status", "--short", "--porcelain"],
         cwd=str(repo_root),
         capture_output=True,
-        text=True,
+        text=True, errors="replace",
         check=False,
     )
     return result.stdout
@@ -1071,7 +1071,7 @@ class TrustedExecutionContext:
     def _git_text(self, *args: str) -> str:
         return subprocess.run(
             ["git", *args], cwd=str(self.repo_root), capture_output=True,
-            text=True, check=False,
+            text=True, errors="replace", check=False,
         ).stdout.strip()
 
     def _git_is_ancestor(self, ancestor: str, descendant: str) -> bool:
@@ -1273,7 +1273,7 @@ class TrustedExecutionContext:
             ["git", "rev-parse", "HEAD"],
             cwd=str(self.repo_root),
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             check=False,
         )
         sha = result.stdout.strip()

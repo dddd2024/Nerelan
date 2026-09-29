@@ -77,7 +77,7 @@ class LiveGitAdapter:
             ["git", "diff", "--name-only", base_sha, head_sha],
             cwd=self.repo_dir,
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             timeout=30,
         )
         if result.returncode != 0:
@@ -93,7 +93,7 @@ class LiveGitAdapter:
             ["git", "diff", "--check", f"{base_sha}..{head_sha}"],
             cwd=self.repo_dir,
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             timeout=30,
         )
         if result.returncode not in (0, 2):
@@ -108,7 +108,7 @@ class LiveGitAdapter:
             ["git", "rev-parse", "HEAD"],
             cwd=self.repo_dir,
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             timeout=30,
         )
         if result.returncode != 0:
@@ -196,7 +196,7 @@ class LiveCommandRunner:
             shell=False,  # F19: shell must remain False
             cwd=cwd or self.default_cwd,
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             timeout=600,
         )
         return (result.returncode, result.stdout, result.stderr)
