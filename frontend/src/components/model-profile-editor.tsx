@@ -203,7 +203,7 @@ export function ModelProfileEditor({
         </Field>
       </div>
 
-      <label className="inline-flex items-center gap-2 text-sm text-ra-text-secondary">
+      <label className="inline-flex min-h-6 items-center gap-2 text-sm text-ra-text-secondary">
         <input
           type="checkbox"
           checked={draft.enabled}
@@ -213,7 +213,7 @@ export function ModelProfileEditor({
       </label>
 
       {validationError && (
-        <p role="alert" className="text-sm text-red-300">
+        <p role="alert" className="text-sm text-ra-status-error">
           {validationError}
         </p>
       )}
@@ -251,7 +251,7 @@ export function ModelProfileEditor({
           onClick={() =>
             savedProfileId ? onDelete(savedProfileId) : undefined
           }
-          className={cn(secondaryButtonClass, "md:ml-auto text-red-300")}
+          className={cn(secondaryButtonClass, "md:ml-auto text-ra-status-error")}
         >
           <Trash2 className="h-4 w-4" aria-hidden="true" />
           删除配置
@@ -288,7 +288,6 @@ const inputClass = cn(
 const primaryButtonClass = cn(
   "inline-flex items-center gap-2 rounded-md bg-ra-accent px-3 py-2",
   "text-sm font-medium text-ra-base disabled:cursor-not-allowed disabled:opacity-50",
-  "focus:outline-none focus-visible:ring-2 focus-visible:ring-white",
 );
 
 const secondaryButtonClass = cn(

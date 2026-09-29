@@ -4,6 +4,7 @@ import { AlertCircle, Search, X } from "lucide-react";
 import type { Task } from "@/types";
 import { useTasks } from "@/hooks/use-tasks";
 import { cn } from "@/lib/cn";
+import { displayTitle } from "@/lib/display-title";
 import { runStateStyle } from "@/lib/format";
 
 interface ConversationPanelProps {
@@ -72,7 +73,7 @@ export function ConversationPanel({ open, onClose }: ConversationPanelProps) {
         role="dialog"
         aria-modal="true"
         aria-label="搜索任务"
-        className="flex max-h-[68vh] w-full max-w-[620px] flex-col overflow-hidden rounded-[14px] border border-ra-border/70 bg-ra-workspace shadow-[0_24px_70px_rgba(0,0,0,.16)]"
+        className="flex max-h-[68vh] w-full max-w-[620px] flex-col overflow-hidden rounded-[14px] border border-ra-border/70 bg-ra-workspace shadow-[var(--ra-shadow-3)]"
       >
         <div className="flex h-12 shrink-0 items-center gap-2 border-b border-ra-border/60 px-3">
           <Search className="h-4 w-4 shrink-0 text-ra-text-tertiary" aria-hidden="true" />
@@ -90,7 +91,7 @@ export function ConversationPanel({ open, onClose }: ConversationPanelProps) {
             type="button"
             aria-label="关闭任务搜索"
             onClick={onClose}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ra-text-tertiary hover:bg-[var(--oh-surface-raised)] hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ra-text-tertiary hover:bg-ra-tertiary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -129,23 +130,23 @@ export function ConversationPanel({ open, onClose }: ConversationPanelProps) {
                       "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
                       isActive
                         ? "bg-ra-tertiary text-ra-text"
-                        : "text-ra-text-secondary hover:bg-[var(--oh-surface-raised)] hover:text-ra-text",
+                        : "text-ra-text-secondary hover:bg-ra-tertiary hover:text-ra-text",
                     )}
                   >
                     <StatusDot task={task} />
                     <span className="min-w-0 flex-1">
                       <span className="flex min-w-0 items-baseline gap-2">
                         <span className="min-w-0 flex-1 truncate text-[13px] font-medium leading-5">
-                          {task.title}
+                          {displayTitle(task.title)}
                         </span>
                         {task.issueNumber ? (
-                          <span className="shrink-0 text-[10px] tabular-nums text-ra-text-tertiary">
+                          <span className="shrink-0 text-[11px] tabular-nums text-ra-text-tertiary">
                             #{task.issueNumber}
                           </span>
                         ) : null}
                       </span>
                       {taskMeta(task) ? (
-                        <span className="block truncate text-[10px] leading-4 text-ra-text-tertiary">
+                        <span className="block truncate text-[11px] leading-4 text-ra-text-tertiary">
                           {taskMeta(task)}
                         </span>
                       ) : null}
@@ -157,7 +158,7 @@ export function ConversationPanel({ open, onClose }: ConversationPanelProps) {
           )}
         </div>
 
-        <div className="border-t border-ra-border/50 px-3 py-1.5 text-[10px] text-ra-text-tertiary">
+        <div className="border-t border-ra-border/50 px-3 py-1.5 text-[11px] text-ra-text-tertiary">
           {query.trim() ? `${filteredTasks.length} 个匹配结果` : "最近任务"}
         </div>
       </section>
@@ -167,18 +168,15 @@ export function ConversationPanel({ open, onClose }: ConversationPanelProps) {
 
 function StatusDot({ task }: { task: Task }) {
   const state = runStateStyle(task.state);
-  const colorMap: Record<string, string> = {
-    "bg-emerald-500": "bg-ra-accent",
-    "bg-sky-500": "bg-ra-accent",
-    "bg-amber-500": "bg-ra-status-starting",
-    "bg-orange-500": "bg-ra-status-starting",
-    "bg-rose-500": "bg-ra-status-error",
-    "bg-violet-500": "bg-ra-text-tertiary",
-    "bg-slate-400": "bg-ra-text-tertiary",
-  };
+  /*
+   * This used to translate the *old* palette dot classes (`bg-emerald-500`,
+   * `bg-rose-500`, …) into tokens. `runStateStyle` no longer emits those, so
+   * every lookup missed the map and fell through to the grey fallback — the
+   * search panel rendered every task with the same dot colour.
+   */
   return (
     <span
-      className={cn("h-1.5 w-1.5 shrink-0 rounded-full", colorMap[state.dot] ?? "bg-ra-text-tertiary")}
+      className={cn("h-1.5 w-1.5 shrink-0 rounded-full", state.dot)}
       aria-hidden="true"
     />
   );

@@ -64,7 +64,7 @@ export function GithubCapabilitiesEditor({
                 />
                 <span className="font-mono text-xs">{cap}</span>
                 {isMerge || isPushMain ? (
-                  <span className="ml-auto text-[10px] text-ra-text-tertiary">
+                  <span className="ml-auto text-[11px] text-ra-text-tertiary">
                     独立
                   </span>
                 ) : null}

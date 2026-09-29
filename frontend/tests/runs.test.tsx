@@ -3,6 +3,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "./test-utils";
 import { RunsPage } from "@/routes/runs";
+import type { PlatformRunCurrentActivity } from "@/lib/platform-client";
 
 function httpRun(taskId: string) {
   return {
@@ -78,6 +79,10 @@ describe("Agent Runs page", () => {
     await waitFor(() =>
       expect(screen.getByTestId("run-task-demo-1")).toBeInTheDocument(),
     );
+    // Run state labels come from the same mapping as the task list, so the
+    // same authoritative state cannot read differently on two surfaces. This
+    // is the wording the Runs page already shipped with; the shared mapping
+    // was aligned onto it rather than the other way round.
     expect(screen.getByTestId("run-state-task-demo-1").textContent).toBe(
       "等待人工审查",
     );
@@ -146,6 +151,62 @@ describe("Agent Runs page", () => {
     expect(screen.getByTestId("run-change-summary-task-demo-2").textContent).toContain("1 个文件");
   });
 
+  it("collapses a server activity title that only restates the category", async () => {
+    // The live read-model derives `current_activity.title` from the category
+    // alone (`run_read_model.py::_activity_title`), so it is a static English
+    // humanisation rather than authored content. The row used to print that one
+    // fact twice, in two languages, with the readable half demoted:
+    // `当前活动：Agent completed · Agent 完成`.
+    const currentActivity: PlatformRunCurrentActivity = {
+      category: "AGENT_COMPLETED",
+      title: "Agent completed",
+      description: "",
+    };
+    const run = { ...httpRun("task-http-generic-activity"), current_activity: currentActivity };
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) =>
+        jsonResponse(String(input).endsWith("/api/runs") ? { runs: [run] } : run),
+      ),
+    );
+
+    renderWithProviders(<RunsPage />);
+
+    const activity = await screen.findByTestId("run-current-activity-task-http-generic-activity");
+    expect(activity.textContent).toContain("当前活动：Agent 完成");
+    expect(activity.textContent).not.toContain("Agent completed");
+  });
+
+  it("keeps an authored server activity title beside its category label", async () => {
+    // A title the server did not derive from the category names the specific
+    // activity, so it must stay visible in full; the label becomes the hint.
+    const currentActivity: PlatformRunCurrentActivity = {
+      category: "COMMAND",
+      title: "运行集成测试",
+      description: "正在执行确定性测试。",
+    };
+    const run = {
+      ...httpRun("task-http-authored-activity"),
+      state: "RUNNING",
+      current_activity: currentActivity,
+    };
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) =>
+        jsonResponse(String(input).endsWith("/api/runs") ? { runs: [run] } : run),
+      ),
+    );
+
+    renderWithProviders(<RunsPage />);
+
+    const activity = await screen.findByTestId("run-current-activity-task-http-authored-activity");
+    expect(activity.textContent).toContain("当前活动：运行集成测试");
+    expect(activity.textContent).toContain("命令");
+    expect(activity.textContent).toContain("正在执行确定性测试。");
+  });
+
   it("opens the detail region by keyboard and renders overview, activity and files", async () => {
     const user = userEvent.setup();
     renderWithProviders(<RunsPage />);
@@ -162,8 +223,8 @@ describe("Agent Runs page", () => {
     expect(overview).toBeInTheDocument();
     expect(within(overview).getByText("执行")).toBeInTheDocument();
     expect(within(overview).getByText("Coder")).toBeInTheDocument();
-    expect(within(region).getByText("Activity")).toBeInTheDocument();
-    expect(within(region).getByText("Files")).toBeInTheDocument();
+    expect(within(region).getByText("执行活动")).toBeInTheDocument();
+    expect(within(region).getByText("变更文件")).toBeInTheDocument();
     expect(within(region).getByText("活动")).toBeInTheDocument();
     expect(within(region).getByText("最近 3 / 共 8 条")).toBeInTheDocument();
     expect(within(region).getByText(/仅显示最近 3 条结构化活动/)).toBeInTheDocument();

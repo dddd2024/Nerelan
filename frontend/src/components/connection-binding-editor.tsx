@@ -7,6 +7,7 @@ import {
   type AuthMethod,
   type AccountAuthStatus,
   type ConnectionProbeResult,
+  type ConnectionModelsResult,
   type ConnectionVerificationCapability,
   type Binding,
   type BindingInput,
@@ -32,8 +33,10 @@ interface ConnectionBindingEditorProps {
   onConnectionDelete: (connectionId: string) => Promise<void>;
   onBindingDelete: (bindingId: string) => Promise<void>;
   onConnectionTest: (connectionId: string) => Promise<void>;
+  onConnectionModelsFetch?: (connectionId: string) => Promise<ConnectionModelsResult>;
   connectionProbeResult: ConnectionProbeResult | null;
   connectionProbePending: boolean;
+  connectionModelsPending?: boolean;
   accountAuthState?: AccountAuthStatus | null;
   accountAuthPending?: boolean;
   onAccountAuthStart?: (connectionId: string) => Promise<void>;
@@ -73,8 +76,10 @@ export function ConnectionBindingEditor({
   onConnectionDelete,
   onBindingDelete,
   onConnectionTest,
+  onConnectionModelsFetch,
   connectionProbeResult,
   connectionProbePending,
+  connectionModelsPending = false,
   accountAuthState = null,
   accountAuthPending = false,
   onAccountAuthStart,
@@ -89,6 +94,8 @@ export function ConnectionBindingEditor({
   const [bindDraft, setBindDraft] = useState<BindingInput>(EMPTY_BINDING);
   const [bindError, setBindError] = useState<string | null>(null);
   const [accountAuthCode, setAccountAuthCode] = useState("");
+  const [connModels, setConnModels] = useState<string[]>([]);
+  const [connModelsMessage, setConnModelsMessage] = useState<string | null>(null);
 
   const [connSavedDraft, setConnSavedDraft] = useState<ConnectionInput | null>(null);
   const [connSavedApiKey, setConnSavedApiKey] = useState("");
@@ -126,6 +133,8 @@ export function ConnectionBindingEditor({
           : EMPTY_BINDING,
       );
       setBindError(null);
+      setConnModels([]);
+      setConnModelsMessage(null);
     }
   }, [view, connection, binding, creating]);
 
@@ -211,6 +220,26 @@ export function ConnectionBindingEditor({
     }
     setBindError(null);
     await onBindingSave(parsed.data);
+  }
+
+  async function handleFetchModels() {
+    if (!bindDraft.connectionId || !onConnectionModelsFetch) return;
+    setConnModelsMessage(null);
+    try {
+      const result = await onConnectionModelsFetch(bindDraft.connectionId);
+      if (result.ok && result.models.length > 0) {
+        setConnModels(result.models);
+        setConnModelsMessage(`已获取 ${result.models.length} 个可用模型`);
+      } else {
+        setConnModels([]);
+        setConnModelsMessage(localizedModelsMessage(result));
+      }
+    } catch (cause) {
+      setConnModels([]);
+      setConnModelsMessage(
+        cause instanceof Error ? cause.message : "获取模型列表失败",
+      );
+    }
   }
 
   async function handleTestConnection() {
@@ -392,7 +421,7 @@ export function ConnectionBindingEditor({
                       已保存的密钥不会回显到浏览器。替换请在上方输入新 API Key 后保存；
                       移除请勾选下方选项。
                     </p>
-                    <label className="mt-2 inline-flex items-center gap-2 text-xs text-ra-text-secondary">
+                    <label className="mt-2 inline-flex min-h-6 items-center gap-2 text-xs text-ra-text-secondary">
                       <input
                         type="checkbox"
                         checked={connClearSecret}
@@ -426,10 +455,16 @@ export function ConnectionBindingEditor({
                           : ""}
                   </p>
                 )}
+                {/* Was `rounded-md border border-ra-border bg-ra-secondary p-3`
+                    inside a fieldset that is itself `bg-ra-secondary`: an
+                    identical surface carrying its own outline, so the only thing
+                    the border communicated was that something was nested (#448
+                    §12). A top divider groups it without inventing an elevation
+                    the surface does not have. */}
                 {canManageAccountLogin && onAccountAuthStart && (
                   <div
                     data-testid="connection-account-auth"
-                    className="mt-3 rounded-md border border-ra-border bg-ra-secondary p-3 text-ra-text-secondary"
+                    className="mt-3 border-t border-ra-border/60 pt-3 text-ra-text-secondary"
                   >
                     <p className="font-medium text-ra-text">
                       OpenAI / ChatGPT（GPT）账号登录
@@ -548,7 +583,7 @@ export function ConnectionBindingEditor({
             )}
           </div>
 
-          <label className="inline-flex items-center gap-2 text-sm text-ra-text-secondary">
+          <label className="inline-flex min-h-6 items-center gap-2 text-sm text-ra-text-secondary">
             <input
               type="checkbox"
               checked={connDraft.enabled}
@@ -574,7 +609,7 @@ export function ConnectionBindingEditor({
                   ? "该确认仅表示允许删除服务端已配置的凭据；浏览器不会读取密钥或环境变量名。"
                   : "填写新的 API Key 或环境变量引用；或勾选下方“清除已保存密钥”；或还原上述修改。留空保存不会沿用旧密钥。"}
               </p>
-              <label className="mt-2 inline-flex items-center gap-2 text-xs text-ra-text-secondary">
+              <label className="mt-2 inline-flex min-h-6 items-center gap-2 text-xs text-ra-text-secondary">
                 <input
                   type="checkbox"
                   checked={connClearSecret}
@@ -608,7 +643,7 @@ export function ConnectionBindingEditor({
             <p
               role="status"
               data-testid="connection-probe-result"
-              className={`text-sm ${connectionProbeResult.ok ? "text-ra-status-running" : "text-ra-status-error"}`}
+              className={`text-sm ${connectionProbeResult.ok ? "text-ra-status-success" : "text-ra-status-error"}`}
             >
               {connectionProbeResult.ok ? "验证成功" : "验证失败"}：
               {localizedProbeMessage(connectionProbeResult)}
@@ -650,7 +685,7 @@ export function ConnectionBindingEditor({
               onClick={() =>
                 connSavedId ? onConnectionDelete(connSavedId) : undefined
               }
-              className={cn(secondaryButtonClass, "md:ml-auto text-ra-status-error hover:text-ra-status-error")}
+              className={cn(secondaryButtonClass, "md:ml-auto text-ra-status-error")}
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               删除连接
@@ -739,19 +774,63 @@ export function ConnectionBindingEditor({
               </select>
             </Field>
             <Field label="Model ID" className="md:col-span-2">
-              <input
-                aria-label="Model ID"
-                value={bindDraft.modelId}
-                onChange={(event) =>
-                  setBindDraft((d) => ({ ...d, modelId: event.target.value }))
-                }
-                className={inputClass}
-                autoComplete="off"
-              />
+              <div className="flex gap-2">
+                <input
+                  aria-label="Model ID"
+                  value={bindDraft.modelId}
+                  list="binding-model-id-options"
+                  onChange={(event) =>
+                    setBindDraft((d) => ({ ...d, modelId: event.target.value }))
+                  }
+                  className={inputClass}
+                  autoComplete="off"
+                  placeholder={
+                    connModels.length > 0
+                      ? "从下方列表选择或输入"
+                      : "填写 Model ID 或点击右侧按钮获取列表"
+                  }
+                />
+                {onConnectionModelsFetch ? (
+                  <button
+                    type="button"
+                    onClick={handleFetchModels}
+                    disabled={
+                      !bindDraft.connectionId || connectionModelsPending || busy
+                    }
+                    data-testid="fetch-models-button"
+                    title={
+                      bindDraft.connectionId
+                        ? "从该连接的 /models 端点获取全部可用模型"
+                        : "请先选择连接"
+                    }
+                    className={cn(
+                      secondaryButtonClass,
+                      "shrink-0 whitespace-nowrap",
+                      connectionModelsPending && "opacity-60",
+                    )}
+                  >
+                    {connectionModelsPending ? "获取中…" : "获取模型列表"}
+                  </button>
+                ) : null}
+              </div>
+              <datalist id="binding-model-id-options">
+                {connModels.map((modelId) => (
+                  <option key={modelId} value={modelId} />
+                ))}
+              </datalist>
+              {connModelsMessage && (
+                <p
+                  role="status"
+                  data-testid="connection-models-message"
+                  className="text-xs text-ra-text-tertiary"
+                >
+                  {connModelsMessage}
+                </p>
+              )}
             </Field>
           </div>
 
-          <label className="inline-flex items-center gap-2 text-sm text-ra-text-secondary">
+          <label className="inline-flex min-h-6 items-center gap-2 text-sm text-ra-text-secondary">
             <input
               type="checkbox"
               checked={bindDraft.enabled}
@@ -779,7 +858,7 @@ export function ConnectionBindingEditor({
               onClick={() =>
                 bindSavedId ? onBindingDelete(bindSavedId) : undefined
               }
-              className={cn(secondaryButtonClass, "md:ml-auto text-ra-status-error hover:text-ra-status-error")}
+              className={cn(secondaryButtonClass, "md:ml-auto text-ra-status-error")}
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               删除绑定
@@ -848,8 +927,36 @@ function accountAuthStatusLabel(status: string): string {
   }
 }
 
-function localizedProbeMessage(result: ConnectionProbeResult): string {
+function localizedModelsMessage(result: ConnectionModelsResult): string {
   switch (result.status) {
+    case "connected":
+      return "上游未返回可识别的模型列表";
+    case "credential_missing":
+      return "API Key 未配置或需要重新输入";
+    case "credential_store_locked":
+      return "系统凭据库不可用或已锁定，暂时无法读取已保存的密钥";
+    case "disabled":
+      return "连接已禁用";
+    case "live_probe_disabled":
+      return "实时模型探测未启用（需要 REVERSE_AGENT_MODEL_CONTROL_LIVE=1）";
+    case "unsupported_auth_method":
+      return "当前认证方式不支持获取模型列表";
+    case "upstream_http_error":
+      return "上游模型端点返回错误";
+    case "invalid_upstream_response":
+      return "上游模型端点返回了无效响应";
+    case "timeout":
+      return "获取模型列表超时";
+    case "connection_error":
+      return "无法连接上游模型端点";
+    case "not_found":
+      return "连接不存在";
+    default:
+      return result.ok ? "未获取到模型" : "获取模型列表失败";
+  }
+}
+
+function localizedProbeMessage(result: ConnectionProbeResult): string {  switch (result.status) {
     case "connected":
       return "连接成功";
     case "credential_missing":

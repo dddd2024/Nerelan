@@ -110,6 +110,41 @@ describe("Approvals continuation page", () => {
     expect(screen.queryByTestId("approval-launch-button")).not.toBeInTheDocument();
   });
 
+  it("collapses to a single actionable empty state when the queue is empty and nothing is selected", async () => {
+    __setMockGoalStatus(DEMO_GOAL_ID, { status: "RUNNING" });
+    renderWithProviders(<ApprovalsPage />);
+
+    expect(await screen.findByTestId("approval-empty")).toBeInTheDocument();
+    expect(screen.getByText("当前没有待处理的目标")).toBeInTheDocument();
+    /*
+     * A queue rail reading "0 项" next to a pane instructing the operator to
+     * "select a Goal" is a contradictory state (`#448` §9) — the collapsed
+     * state must not keep either half of that pair on screen.
+     */
+    expect(screen.queryByTestId("approval-pending-list")).not.toBeInTheDocument();
+    expect(screen.queryByText(/从左侧选择一个目标/)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "查看所有目标" })).toHaveAttribute("href", "/goals");
+    expect(screen.getByRole("link", { name: "打开想法收件箱" })).toHaveAttribute("href", "/inbox");
+  });
+
+  it("keeps a deep-linked Goal visible after it leaves the pending queue", async () => {
+    __setMockGoalStatus(DEMO_GOAL_ID, { status: "RUNNING" });
+    renderWithProviders(<ApprovalsPage />, {
+      initialEntries: [`/approvals?goal=${DEMO_GOAL_ID}`],
+    });
+
+    /*
+     * Live server truth outranks the empty-queue presentation: the Goal moved
+     * on from the queue, so the operator must still be able to see where it
+     * went instead of losing it behind an empty state.
+     */
+    expect(await screen.findByTestId("approval-goal-detail")).toBeInTheDocument();
+    expect(screen.getAllByText("运行中").length).toBeGreaterThan(0);
+    expect(screen.queryByTestId("approval-empty")).not.toBeInTheDocument();
+    expect(screen.getByText(/该目标当前不在待处理队列中/)).toBeInTheDocument();
+    expect(screen.getByText(/当前状态只读/)).toBeInTheDocument();
+  });
+
   it("shows the exact current plan and multiple pending Goals before approval", async () => {
     __setMockGoalStatus(DEMO_GOAL_ID, {
       status: "PLANNED",

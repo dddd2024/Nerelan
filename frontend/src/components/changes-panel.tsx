@@ -12,10 +12,10 @@ const STATUS_META: Record<
   ChangedFile["status"],
   { label: string; icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; color: string }
 > = {
-  added: { label: "新增", icon: FilePlus, color: "text-[#BCFF8C]" },
-  modified: { label: "修改", icon: FileEdit, color: "text-[#FFD43B]" },
+  added: { label: "新增", icon: FilePlus, color: "text-ra-status-success" },
+  modified: { label: "修改", icon: FileEdit, color: "text-ra-status-warning" },
   deleted: { label: "删除", icon: FileMinus, color: "text-ra-status-error" },
-  renamed: { label: "重命名", icon: FileOutput, color: "text-[#A3A3A3]" },
+  renamed: { label: "重命名", icon: FileOutput, color: "text-ra-text-tertiary" },
 };
 
 /**
@@ -33,8 +33,8 @@ const STATUS_META: Record<
  *   — icon + muted text center message
  *
  * Structurally ported: file list with border-b separators, status icon,
- * path, additions/deletions, and collapsible diff viewer. Dark panel
- * background (#1f2228 workspace bg) with border-ra-border.
+ * path, additions/deletions, and collapsible diff viewer. Panel surface
+ * comes from `ra-workspace` with `border-ra-border`.
  *
  * Modifications: reverse-agent ChangedFile type; simple pre-based diff
  * viewer instead of Monaco Editor (no external dependency).
@@ -62,7 +62,7 @@ export function ChangesPanel({ changes }: ChangesPanelProps) {
     <div data-testid="changes-panel" className="space-y-2">
       <div className="flex items-center gap-3 text-xs text-ra-text-tertiary">
         <span>{changes.length} 个文件</span>
-        <span className="text-[#BCFF8C]">+{totalAdd}</span>
+        <span className="text-ra-status-success">+{totalAdd}</span>
         <span className="text-ra-status-error">-{totalDel}</span>
       </div>
 
@@ -94,7 +94,7 @@ export function ChangesPanel({ changes }: ChangesPanelProps) {
                 <span className="flex-1 truncate font-mono text-xs text-ra-text-secondary">
                   {c.path}
                 </span>
-                <span className="text-xs text-[#BCFF8C]">+{c.additions}</span>
+                <span className="text-xs text-ra-status-success">+{c.additions}</span>
                 <span className="text-xs text-ra-status-error">
                   -{c.deletions}
                 </span>

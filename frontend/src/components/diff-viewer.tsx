@@ -17,9 +17,9 @@ interface DiffViewerProps {
  *   - monospace font-mono
  *   - hunk headers, meta lines, context lines
  *
- * Structurally ported: same line classification (add/del/hunk/meta/ctx)
- * with OpenHands diff color scheme (green additions, red deletions,
- * amber hunk headers). No Monaco dependency — uses plain pre/monospace.
+ * Structurally ported: same line classification (add/del/hunk/meta/ctx),
+ * but the upstream fixed green/red/amber scheme is expressed through
+ * `ra-status-*` tokens so both themes keep the same semantics.
  *
  * Modifications: simplified to text-based diff viewer; no view-mode
  * toggle or file status icon (handled by ChangesPanel parent).
@@ -45,9 +45,9 @@ export function DiffViewer({ diff, className, defaultExpanded = false }: DiffVie
             key={i}
             className={cn(
               "block whitespace-pre",
-              kind === "add" && "bg-[#014b01AA]/20 text-[#BCFF8C]",
-              kind === "del" && "bg-[#750000AA]/20 text-ra-status-error",
-              kind === "hunk" && "bg-[#525252]/30 text-[#FFD43B]",
+              kind === "add" && "bg-ra-status-success/15 text-ra-status-success",
+              kind === "del" && "bg-ra-status-error/15 text-ra-status-error",
+              kind === "hunk" && "bg-ra-text-tertiary/15 text-ra-status-warning",
               kind === "meta" && "text-ra-text-tertiary",
             )}
           >

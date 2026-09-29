@@ -73,7 +73,7 @@ describe("task-first sidebar IA", () => {
     sidebar(["/tasks/task-newest"]);
 
     expect(screen.getByTestId("sidebar")).toHaveClass("w-[232px]");
-    expect(screen.getByTestId("sidebar-section-recent")).toHaveTextContent("Recent");
+    expect(screen.getByTestId("sidebar-section-recent")).toHaveTextContent("最近任务");
     const recent = screen.getAllByTestId(/^sidebar-recent-task-/);
     expect(recent.map((item) => item.textContent)).toEqual([
       "Newest alpha task",
@@ -89,7 +89,7 @@ describe("task-first sidebar IA", () => {
   it("deduplicates Projects from task repositories and keeps project emphasis weaker", () => {
     sidebar(["/tasks?repository=org%2Falpha"]);
 
-    expect(screen.getByTestId("sidebar-section-projects")).toHaveTextContent("Projects");
+    expect(screen.getByTestId("sidebar-section-projects")).toHaveTextContent("项目");
     expect(screen.getAllByTestId(/^sidebar-project-/)).toHaveLength(2);
     const alpha = screen.getByTestId("sidebar-project-org/alpha");
     expect(alpha).toHaveAttribute("href", "/tasks?repository=org%2Falpha");

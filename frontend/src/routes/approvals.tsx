@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ShieldCheck } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { GoalReviewEditor } from "@/components/goal-review-editor";
+import { PageHeader, PageSurface } from "@/components/page-header";
 import type { GoalConfigurationInput, GoalPlanInput } from "@/lib/goal-continuation-operation";
 import {
   useApproveExistingGoal,
@@ -15,6 +16,20 @@ import { cn } from "@/lib/cn";
 import type { GoalStatus, PlatformGoal } from "@/lib/platform-client";
 
 const PENDING_STATUSES = new Set<GoalStatus>(["DRAFT", "PLANNED", "APPROVED"]);
+
+/*
+ * Empty-state navigation actions. Both keep a 24px minimum hit area so the
+ * affordances stay reachable by touch (`#448` §12 / accessibility baseline).
+ */
+const APPROVAL_ACTION_CLASS = cn(
+  "inline-flex min-h-9 items-center justify-center rounded-lg bg-ra-accent px-3.5 py-2 text-sm font-medium text-ra-base transition-colors hover:bg-ra-accent-hover",
+  "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+);
+
+const APPROVAL_SECONDARY_CLASS = cn(
+  "inline-flex min-h-9 items-center justify-center rounded-lg border border-ra-border px-3.5 py-2 text-sm font-medium text-ra-text-secondary transition-colors hover:bg-ra-light",
+  "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+);
 
 const STATUS_LABELS: Record<GoalStatus, string> = {
   DRAFT: "草稿",
@@ -70,7 +85,7 @@ function GoalDetail({
             Goal
           </p>
           <h2 className="mt-1 text-xl font-semibold text-ra-text">{goal.title}</h2>
-          <p className="mt-2 text-sm leading-6 text-ra-text-secondary">
+          <p className="ra-measure mt-2 text-sm leading-6 text-ra-text-secondary">
             {goal.objective}
           </p>
         </div>
@@ -81,19 +96,19 @@ function GoalDetail({
 
       <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-xs text-ra-text-tertiary">Repository</dt>
+          <dt className="text-xs text-ra-text-tertiary">仓库</dt>
           <dd className="mt-1 break-all text-ra-text-secondary">{goal.repository}</dd>
         </div>
         <div>
-          <dt className="text-xs text-ra-text-tertiary">Revision</dt>
+          <dt className="text-xs text-ra-text-tertiary">修订</dt>
           <dd className="mt-1 text-ra-text-secondary">{goal.revision}</dd>
         </div>
         <div>
-          <dt className="text-xs text-ra-text-tertiary">Executor</dt>
+          <dt className="text-xs text-ra-text-tertiary">执行模式</dt>
           <dd className="mt-1 text-ra-text-secondary">{goal.executor_kind}</dd>
         </div>
         <div>
-          <dt className="text-xs text-ra-text-tertiary">Binding</dt>
+          <dt className="text-xs text-ra-text-tertiary">模型绑定</dt>
           <dd className="mt-1 break-all text-ra-text-secondary">
             {goal.binding_ref || "未绑定（当前持久化值为空）"}
           </dd>
@@ -113,7 +128,7 @@ function GoalDetail({
           </p>
           <pre
             data-testid="approval-plan"
-            className="mt-2 whitespace-pre-wrap rounded-xl border border-ra-border bg-ra-light/30 p-4 font-sans text-sm leading-6 text-ra-text-secondary"
+            className="ra-measure mt-2 whitespace-pre-wrap rounded-xl border border-ra-border bg-ra-light/30 p-4 font-sans text-sm leading-6 text-ra-text-secondary"
           >
             {goal.plan_markdown || "当前 Goal 没有可显示的计划内容。"}
           </pre>
@@ -140,7 +155,7 @@ function GoalDetail({
         <p
           role="alert"
           data-testid="approval-error"
-          className="mt-5 rounded-xl border border-red-400/20 bg-red-400/5 px-3 py-2 text-sm text-red-300"
+          className="mt-5 rounded-xl border border-ra-status-error/20 bg-ra-status-error/5 px-3 py-2 text-sm text-ra-status-error"
         >
           {mutationMessage(error)}
         </p>
@@ -234,6 +249,14 @@ export function ApprovalsPage() {
   selectionRef.current = selectedGoalId;
   const selectedGoalQuery = useGoal(selectedGoalId);
   const selectedGoal = selectedGoalQuery.data;
+  /*
+   * `#448` §10 — the queue and the detail pane are two different states, and
+   * only the combination of "no pending Goal" *and* "no Goal selected" is the
+   * genuinely empty one. A deep link (`?goal=…`) to a Goal that already left
+   * the queue still owns a right-hand pane with live server state.
+   */
+  const hasPendingGoals = pendingGoals.length > 0;
+  const hasNothingToShow = !hasPendingGoals && !selectedGoalId;
   const pending =
     planMutation.isPending || approveMutation.isPending || launchMutation.isPending
     || configurationMutation.isPending || editPlanMutation.isPending;
@@ -254,38 +277,61 @@ export function ApprovalsPage() {
   };
 
   return (
-    <main
-      data-testid="approvals-page"
-      className={cn(
-        "min-h-full bg-[var(--oh-surface)] px-4 py-7",
-        "sm:px-8 lg:px-12 lg:py-10",
-      )}
-    >
-      <div className="mx-auto w-full max-w-[1080px]">
-        <header className="mb-8">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-ra-text-tertiary">
-            Owner review
-          </p>
-          <h1 className="mt-2 flex items-center gap-2 text-3xl font-medium tracking-[-0.025em] text-ra-text sm:text-4xl">
-            <ShieldCheck className="h-7 w-7" aria-hidden="true" />
-            审批与继续
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-ra-text-secondary">
-            这里直接读取 Goal 服务端真相。计划、批准和启动都是显式动作；刷新后会按同一个 Goal ID 恢复，而不是从浏览器状态猜测进度。
-          </p>
-        </header>
+    <PageSurface data-testid="approvals-page" measureClassName="max-w-[1080px]">
+      <PageHeader
+        title="审批与继续"
+        icon={ShieldCheck}
+        description="目标拆解成计划后，需要你确认计划、批准执行，或直接启动无人值守窗口。刷新后会回到同一个目标，不会丢失进度。"
+      />
 
         {goalsQuery.isLoading && (
           <p className="text-sm text-ra-text-tertiary">正在读取待处理目标…</p>
         )}
         {goalsQuery.error && (
-          <p role="alert" className="text-sm text-red-300">
+          <p role="alert" className="text-sm text-ra-status-error">
             {mutationMessage(goalsQuery.error)}
           </p>
         )}
 
-        {!goalsQuery.isLoading && (goalsQuery.data !== undefined || !goalsQuery.error) && (
-          <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+        {!goalsQuery.isLoading && (goalsQuery.data !== undefined || !goalsQuery.error)
+          && (hasNothingToShow ? (
+            /*
+             * One empty state, not two.
+             *
+             * The previous layout kept the two-pane grid for an empty queue, so
+             * a first-time visitor saw a narrow "0 项" card *and* a large
+             * dashed panel instructing them to "选择一个待处理 Goal" — an
+             * instruction for an action that was impossible, because there was
+             * nothing to select (`#448` §10: normal state stays quiet and must
+             * not be dressed up as an exception).
+             *
+             * The collapse is gated on "nothing pending AND nothing selected":
+             * a deep link to a Goal that has already left the queue must keep
+             * rendering that Goal's real state (`#448` §9 forbids hiding live
+             * server truth), so only the truly empty case is replaced.
+             */
+            <div
+              data-testid="approval-empty"
+              className="rounded-2xl border border-dashed border-ra-border px-6 py-12 text-center"
+            >
+              <ShieldCheck className="mx-auto h-6 w-6 text-ra-text-tertiary" aria-hidden="true" />
+              <p className="mt-3 text-sm font-medium text-ra-text">当前没有待处理的目标</p>
+              <p className="mx-auto mt-1.5 max-w-md text-sm leading-6 text-ra-text-secondary">
+                需要你确认计划、批准执行或启动窗口的目标会出现在这里。也可以先去目标列表查看已有进度。
+              </p>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                <Link to="/goals" className={APPROVAL_ACTION_CLASS}>查看所有目标</Link>
+                <Link to="/inbox" className={APPROVAL_SECONDARY_CLASS}>打开想法收件箱</Link>
+              </div>
+            </div>
+          ) : (
+          <div
+            className={cn(
+              "grid gap-5",
+              hasPendingGoals && "lg:grid-cols-[280px_minmax(0,1fr)]",
+            )}
+          >
+            {hasPendingGoals && (
             <aside className="rounded-2xl border border-ra-border bg-ra-light/20 p-3">
               <div className="flex items-center justify-between px-2 py-1">
                 <h2 className="text-sm font-medium text-ra-text">待处理</h2>
@@ -313,23 +359,21 @@ export function ApprovalsPage() {
                     </span>
                   </button>
                 ))}
-                {pendingGoals.length === 0 && (
-                  <p
-                    data-testid="approval-empty"
-                    className="px-3 py-8 text-center text-sm text-ra-text-tertiary"
-                  >
-                    无待处理审批。
-                  </p>
-                )}
               </div>
             </aside>
+            )}
 
             <div className="min-w-0">
+              {!hasPendingGoals && selectedGoalId && (
+                <p className="mb-3 text-sm text-ra-text-tertiary">
+                  该目标当前不在待处理队列中，下面显示它的最新状态（只读）。
+                </p>
+              )}
               {selectedGoalQuery.isLoading && selectedGoalId && (
                 <p className="text-sm text-ra-text-tertiary">正在读取目标…</p>
               )}
               {selectedGoalQuery.error && (
-                <p role="alert" className="text-sm text-red-300">
+                <p role="alert" className="text-sm text-ra-status-error">
                   {mutationMessage(selectedGoalQuery.error)}
                 </p>
               )}
@@ -368,15 +412,14 @@ export function ApprovalsPage() {
                   }}
                 />
               )}
-              {!selectedGoal && !selectedGoalId && (
+              {!selectedGoal && selectedGoalId && !selectedGoalQuery.isLoading && !selectedGoalQuery.error && (
                 <div className="rounded-2xl border border-dashed border-ra-border py-16 text-center text-sm text-ra-text-tertiary">
-                  选择一个待处理 Goal 后可查看计划与继续操作。
+                  无法显示该目标：服务没有返回它的内容。
                 </div>
               )}
             </div>
           </div>
-        )}
-      </div>
-    </main>
+          ))}
+    </PageSurface>
   );
 }

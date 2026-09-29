@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { GoalComposer } from "@/components/goal-composer";
@@ -9,6 +9,8 @@ import { LoadingState } from "@/components/loading-state";
 import { useGoal, useGoals, usePlatformStatus, useCreateGoalDraft } from "@/hooks/use-platform";
 import { useRuns } from "@/hooks/use-runs";
 import type { PlatformGoal } from "@/lib/platform-client";
+import { goalStatusLabel } from "@/lib/goal-status-label";
+import { displayTitle } from "@/lib/display-title";
 import { cn } from "@/lib/cn";
 
 function relativeTime(value: string) {
@@ -26,16 +28,6 @@ function goalStatusTextClass(status: string) {
   return "text-ra-text-tertiary";
 }
 
-function goalStatusLabel(status: PlatformGoal["status"]) {
-  if (status === "RUNNING") return "正在执行";
-  if (status === "COMPLETED") return "执行完成，待审查";
-  if (status === "BLOCKED") return "需要处理阻塞";
-  if (status === "INVALIDATED") return "已失效";
-  if (status === "APPROVED" || status === "PLANNED") return "等待启动";
-  if (status === "DRAFT") return "草稿";
-  return status;
-}
-
 function ReadFeedback({ query, label }: {
   query: { data: unknown; isPending: boolean; isError: boolean; error: unknown; refetch: () => unknown };
   label: string;
@@ -47,6 +39,48 @@ function ReadFeedback({ query, label }: {
     error={query.error}
     onRetry={() => void query.refetch()}
   />;
+}
+
+/** Objectives are long machine-written paragraphs: keep them to a summary. */
+const OBJECTIVE_CLAMP_THRESHOLD = 140;
+
+/**
+ * Goal objective on the workspace header.
+ *
+ * The objective is context for the goal, not the page subject, so a long one
+ * is clamped to two lines with an explicit expansion. Short objectives render
+ * as ordinary prose with no affordance to learn.
+ */
+function ObjectiveDisclosure({ objective }: { objective: string }) {
+  if (objective.length <= OBJECTIVE_CLAMP_THRESHOLD) {
+    return (
+      <p className="ra-measure mt-2 text-sm leading-5 text-ra-text-secondary">
+        {objective}
+      </p>
+    );
+  }
+  return (
+    <details className="group mt-2" data-testid="goal-objective-disclosure">
+      <summary
+        className={cn(
+          "cursor-pointer list-none",
+          "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+          "[&::-webkit-details-marker]:hidden",
+        )}
+      >
+        <p className="ra-measure line-clamp-2 text-sm leading-5 text-ra-text-secondary group-open:line-clamp-none">
+          {objective}
+        </p>
+        <span className="mt-1 inline-flex items-center gap-1 text-xs text-ra-text-tertiary">
+          <ChevronRight
+            className="h-3 w-3 transition-transform group-open:rotate-90"
+            aria-hidden="true"
+          />
+          展开目标全文
+        </span>
+      </summary>
+    </details>
+  );
 }
 
 export function HomePage() {
@@ -97,12 +131,10 @@ export function HomePage() {
                 {detailGoal.repository || "Workspace"}
               </p>
               <h1 className="mt-1.5 text-[28px] font-medium tracking-[-0.03em] text-ra-text sm:text-[32px]">
-                {detailGoal.title}
+                {displayTitle(detailGoal.title, 120)}
               </h1>
               {detailGoal.objective ? (
-                <p className="mt-2 max-w-3xl text-sm leading-5 text-ra-text-secondary">
-                  {detailGoal.objective}
-                </p>
+                <ObjectiveDisclosure objective={detailGoal.objective} />
               ) : null}
               <h2 className="sr-only">今天想完成什么？</h2>
             </div>
@@ -117,7 +149,8 @@ export function HomePage() {
               {activeWindow ? (
                 <span
                   data-testid="autonomy-status"
-                  className="inline-flex items-center gap-1.5 rounded-full bg-ra-tertiary/40 px-2.5 py-1 text-ra-text-secondary"
+                  className="inline-flex items-center gap-1.5 text-ra-text-tertiary"
+                  title={`自治窗口已完成 ${activeWindow.tasks_completed} 项任务，本窗口上限 ${activeWindow.max_tasks} 项`}
                 >
                   <Loader2
                     className={cn(
@@ -126,7 +159,14 @@ export function HomePage() {
                     )}
                     aria-hidden="true"
                   />
-                  自治 {activeWindow.tasks_completed}/{activeWindow.max_tasks}
+                  {/* The absolute count is cumulative but `max_tasks` is the
+                      per-window budget, so a raw "8/1" ratio asserts an
+                      impossible "8 of 1" whenever the window has already been
+                      exceeded. Below the budget the ratio is the denser and
+                      more informative form; above it the ratio is dropped. */}
+                  {activeWindow.tasks_completed <= activeWindow.max_tasks
+                    ? `自治 ${activeWindow.tasks_completed}/${activeWindow.max_tasks}`
+                    : `自治已完成 ${activeWindow.tasks_completed}`}
                 </span>
               ) : null}
               {platform ? (
@@ -145,10 +185,7 @@ export function HomePage() {
           </header>
         ) : (
           <header className="mb-6">
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-ra-text-tertiary">
-              Workspace
-            </p>
-            <h1 className="mt-2 text-3xl font-medium tracking-[-0.03em] text-ra-text sm:text-4xl">
+            <h1 className="text-[28px] font-medium tracking-[-0.03em] text-ra-text sm:text-[32px]">
               今天想完成什么？
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-ra-text-secondary">
@@ -202,7 +239,7 @@ export function HomePage() {
 
         <section
           data-testid="current-execution-section"
-          aria-label="Current execution"
+          aria-label="当前执行"
           className="mb-9"
         >
           {selectedId && detailQuery.isPending ? (
@@ -251,7 +288,7 @@ export function HomePage() {
 
         <section
           data-testid="recent-goals-section"
-          aria-label="Recent goals"
+          aria-label="最近目标"
           className="border-t border-ra-border/60 pt-6"
         >
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -259,7 +296,7 @@ export function HomePage() {
             <span className="text-[11px] tabular-nums text-ra-text-tertiary">
               {goalsQuery.data === undefined ? "—" : `最近 ${recent.length} 项`}
             </span>
-            <Link to="/goals" className="rounded-lg px-2 py-1.5 text-xs font-medium text-ra-accent underline-offset-4 hover:bg-ra-light hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">所有目标</Link>
+            <Link to="/goals" className="inline-flex min-h-6 items-center rounded px-1 text-xs text-ra-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">所有目标</Link>
           </div>
 
           <ReadFeedback query={goalsQuery} label="目标列表" />
@@ -277,11 +314,19 @@ export function HomePage() {
                 )}
               >
                 <div className="flex items-baseline gap-4">
-                  <p className="min-w-0 flex-1 text-sm font-medium leading-5 text-ra-text">
-                    <span className="line-clamp-1">{goal.title}</span>
+                  <p className="min-w-0 flex-1 text-sm leading-5 text-ra-text">
+                    <span className="line-clamp-1" title={displayTitle(goal.title, 160)}>{displayTitle(goal.title)}</span>
                   </p>
                   <span
                     className={cn(
+                      /*
+                       * A terminal COMPLETED row states the product meaning
+                       * ("execution finished, review still pending") because a
+                       * bare `COMPLETED` in a secondary row reads as delivery.
+                       * Non-terminal states keep their machine name: it is the
+                       * honest value while the run is still in flight, and the
+                       * tone class already carries the urgency.
+                       */
                       "shrink-0 rounded-md bg-ra-tertiary/50 px-1.5 py-0.5 text-[10px] font-medium tracking-[0.04em]",
                       goalStatusTextClass(goal.status),
                     )}
@@ -290,7 +335,7 @@ export function HomePage() {
                   </span>
                 </div>
                 <div className="mt-0.5 flex items-center gap-4 text-[11px] text-ra-text-tertiary">
-                  <span className="min-w-0 flex-1 truncate">{goal.objective}</span>
+                  <span className="min-w-0 flex-1 truncate" title={goal.objective}>{goal.objective}</span>
                   <span className="shrink-0 tabular-nums">{relativeTime(goal.updated_at)}</span>
                 </div>
               </button>

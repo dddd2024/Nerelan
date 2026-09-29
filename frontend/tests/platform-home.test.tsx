@@ -145,7 +145,7 @@ function seedPollingClientFull(): {
 
 async function homeReady() {
   render(<HomePage />, { factory: () => seededHomeClient() });
-  await waitFor(() => expect(screen.getByText("Agent progress")).toBeInTheDocument(), { timeout: 4000 });
+  await waitFor(() => expect(screen.getByText("执行进度")).toBeInTheDocument(), { timeout: 4000 });
 }
 
 function getGoalDetailCacheData(client: QueryClient): PlatformGoal | undefined {
@@ -175,7 +175,7 @@ describe("Platform V2 Home Workspace V2", () => {
     await homeReady();
     expect(screen.getByRole("heading", { name: "今天想完成什么？" })).toBeInTheDocument();
     expect(screen.getByLabelText("描述最终目标")).toBeInTheDocument();
-    expect(screen.getByText("Agent progress")).toBeInTheDocument();
+    expect(screen.getByText("执行进度")).toBeInTheDocument();
     expect(screen.getByText("实现协调与恢复链路")).toBeInTheDocument();
     expect(screen.getByTestId("goal-progress-bar")).toBeInTheDocument();
     const composer = screen.getByTestId("goal-composer-section");
@@ -203,7 +203,7 @@ describe("Platform V2 Home Workspace V2", () => {
     const goalTitle = screen.getByRole("heading", { name: "完善无人值守多 Agent 平台" });
     expect(goalTitle).toBeInTheDocument();
     const currentSection = screen.getByTestId("current-execution-section");
-    expect(currentSection).toContainElement(screen.getByText("Agent progress"));
+    expect(currentSection).toContainElement(screen.getByText("执行进度"));
     expect(currentSection).toContainElement(screen.getByText("分析目标与代码库"));
     expect(currentSection).toContainElement(screen.getByText("验证并准备证据"));
   });
@@ -265,7 +265,7 @@ describe("Platform V2 Home Workspace V2", () => {
     const retry = screen.getByRole("button", { name: "重试加载当前目标" });
     await userEvent.setup().click(retry);
 
-    await waitFor(() => expect(screen.getByText("Agent progress")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("执行进度")).toBeInTheDocument());
     expect(goalSpy).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -441,7 +441,7 @@ describe("Platform V2 Home Workspace V2", () => {
 
     expect(goalSpy.mock.calls.length).toBe(fetchesDuringTerminal);
     expect(getGoalDetailCacheData(client)?.status).toBe("COMPLETED");
-    expect(screen.queryByText("需要处理阻塞")).not.toBeInTheDocument();
+    expect(hasTextInCurrentSection("需要处理阻塞")).toBe(false);
   });
 
   it("keeps Recent Goals capped at 3 entries even with more goals", async () => {
@@ -462,7 +462,7 @@ describe("Platform V2 Home Workspace V2", () => {
     c.setQueryData(["goals", "goal-completed"], { ...makeGoal("COMPLETED", [...COMPLETED_LINKS]), id: "goal-completed" });
 
     render(<HomePage />, { factory: () => c });
-    await waitFor(() => expect(screen.getByText("Agent progress")).toBeInTheDocument(), { timeout: 4000 });
+    await waitFor(() => expect(screen.getByText("执行进度")).toBeInTheDocument(), { timeout: 4000 });
 
     const recentSection = screen.getByTestId("recent-goals-section");
     const badges = recentSection.querySelectorAll("span");

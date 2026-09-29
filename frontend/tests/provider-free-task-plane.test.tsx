@@ -146,11 +146,14 @@ describe("provider-free task plane integration", () => {
     expect(screen.getByTestId(`task-card-${FIXTURE_TASK.id}`)).toBeInTheDocument();
   });
 
-  it("activity-stream renders provider-free lifecycle events", () => {
+  it("activity-stream renders provider-free lifecycle events in product language", () => {
     renderWithProviders(<ActivityStream events={FIXTURE_TASK.activity} />);
-    expect(screen.getByText("Task queued")).toBeInTheDocument();
-    expect(screen.getByText("Workspace ready")).toBeInTheDocument();
-    expect(screen.getByText("Validation passed")).toBeInTheDocument();
+    // #448 §5: Level 1 describes what happened in product terms...
+    expect(screen.getByText("已识别任务")).toBeInTheDocument();
+    expect(screen.getByText("工作区已就绪")).toBeInTheDocument();
+    expect(screen.getByText("校验通过")).toBeInTheDocument();
+    // ...and the runtime wording stays reachable behind disclosure.
+    expect(screen.getAllByText("显示运行时原文").length).toBeGreaterThan(0);
   });
 
   it("changes-panel shows fixture changed file", () => {

@@ -1095,12 +1095,12 @@ export async function captureInboxItem(input: { title?: string; objective: strin
 export async function promoteInboxItem(itemId: string): Promise<{ item: PlatformInboxItem; goal: PlatformGoal }> {
   if (isMock()) {
     const item = mockInboxItems.find((entry) => entry.id === itemId);
-    if (!item) throw new Error("inbox item not found");
+    if (!item) throw new Error("未找到该收件条目，它可能已被移除。");
     if (item.status === "PROMOTED" && item.promoted_goal_id) {
       const goal = mockGoals.find((entry) => entry.id === item.promoted_goal_id) ?? mockGoal;
       return { item, goal };
     }
-    if (item.status !== "CAPTURED") throw new Error("inbox item not promotable");
+    if (item.status !== "CAPTURED") throw new Error("该条目当前不可晋升为目标。");
     const timestamp = new Date().toISOString();
     const goal: PlatformGoal = {
       ...mockGoal,
@@ -1138,8 +1138,8 @@ export async function promoteInboxItem(itemId: string): Promise<{ item: Platform
 export async function dismissInboxItem(itemId: string): Promise<PlatformInboxItem> {
   if (isMock()) {
     const item = mockInboxItems.find((entry) => entry.id === itemId);
-    if (!item) throw new Error("inbox item not found");
-    if (item.status !== "CAPTURED") throw new Error("inbox item not dismissable");
+    if (!item) throw new Error("未找到该收件条目，它可能已被移除。");
+    if (item.status !== "CAPTURED") throw new Error("该条目当前不可忽略。");
     item.status = "DISMISSED";
     item.updated_at = new Date().toISOString();
     return item;

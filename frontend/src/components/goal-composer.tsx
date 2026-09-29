@@ -4,7 +4,8 @@ import {
   GitBranch,
   Settings2,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useBindings } from "@/hooks/use-model-access";
 import type { StartGoalInput } from "@/lib/goal-start-operation";
 import { cn } from "@/lib/cn";
 
@@ -31,9 +32,15 @@ function createOperationId() {
 function freshDraft(): GoalComposerDraft {
   return {
     objective: "",
-    repository: "dddd2024/reverse-agent",
+    repository: "dddd2024/Nerelan",
     executorKind: "opencode",
-    bindingRef: "coding-default",
+    /*
+     * Deliberately empty. A hardcoded binding name is a promise the frontend
+     * cannot keep: if that binding is renamed, disabled, or routed to an
+     * unavailable provider, the goal fails server-side with a bare KeyError.
+     * The composer fills this from the bindings that actually exist.
+     */
+    bindingRef: "",
     autonomyHours: 2,
     operationId: createOperationId(),
     confirmed: false,
@@ -114,8 +121,29 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
   const [optionsOpen, setOptionsOpen] = useState(
     () => draft.objective.trim().length > 0,
   );
+  const [bindingTouched, setBindingTouched] = useState(false);
   const draftRef = useRef(draft);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const bindingsQuery = useBindings();
+  const usableBindings = useMemo(
+    () =>
+      (bindingsQuery.data ?? []).filter(
+        (binding) => binding.enabled && binding.executorId === "opencode",
+      ),
+    [bindingsQuery.data],
+  );
+
+  /*
+   * Default the binding to one that exists rather than to a remembered name.
+   * Runs once, and never overwrites a binding the user typed themselves.
+   */
+  useEffect(() => {
+    if (bindingTouched || bindingsQuery.data === undefined) return;
+    const usable = usableBindings[0];
+    if (!usable || draftRef.current.bindingRef) return;
+    replaceDraft({ ...draftRef.current, bindingRef: usable.bindingId });
+  }, [bindingTouched, bindingsQuery.data, usableBindings]);
 
   function replaceDraft(next: GoalComposerDraft, persist = true) {
     draftRef.current = next;
@@ -132,10 +160,35 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
   }
 
   const showOptions = optionsOpen || draft.objective.trim().length > 0;
+  const needsBinding = draft.executorKind === "opencode";
+  const bindingMissing = needsBinding && draft.bindingRef.trim().length === 0;
+  const objectiveLength = draft.objective.trim().length;
+  const repositoryReady = draft.repository.includes("/");
   const ready =
-    draft.objective.trim().length >= 8 &&
-    draft.repository.includes("/") &&
+    objectiveLength >= 8 &&
+    repositoryReady &&
+    !bindingMissing &&
     !busy;
+
+  /*
+   * A disabled submit button with no stated reason is a dead end: the user
+   * cannot tell whether the app is broken or waiting for something. Surface
+   * the first unmet requirement, but only once the user has actually started
+   * typing — an idle composer stays quiet (`#448` §9 state-aware actions,
+   * §10 exception-driven UI).
+   *
+   * The missing-binding case is deliberately not repeated here: the options
+   * row already states it next to the binding field itself.
+   */
+  const blockedReason = busy
+    ? "正在创建目标…"
+    : objectiveLength === 0
+      ? null
+      : objectiveLength < 8
+        ? `目标描述至少需要 8 个字，当前 ${objectiveLength} 个。`
+        : !repositoryReady
+          ? "仓库需要写成 owner/name 的形式。"
+          : null;
 
   return (
     <form
@@ -188,7 +241,7 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
             editDraft({ objective: event.target.value });
             resizeObjectiveTextarea(event.target);
           }}
-          placeholder="描述你想完成的目标…"
+          placeholder="让 Nerelan 做点什么…"
           rows={1}
           className="min-h-9 max-h-36 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-2 py-2 text-[15px] leading-5 text-ra-text placeholder:text-ra-text-tertiary focus:outline-none"
         />
@@ -197,6 +250,8 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
           type="submit"
           disabled={!ready}
           aria-label="创建并审阅目标"
+          aria-describedby={blockedReason ? "goal-composer-blocked" : undefined}
+          title={blockedReason ?? "创建并审阅目标"}
           className={cn(
             "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition",
             ready
@@ -207,6 +262,16 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
           <ArrowUp className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
+
+      {blockedReason ? (
+        <p
+          id="goal-composer-blocked"
+          data-testid="goal-composer-blocked"
+          className="px-3 pb-2 text-xs text-ra-text-tertiary"
+        >
+          {blockedReason}
+        </p>
+      ) : null}
 
       {showOptions && (
         <div
@@ -241,18 +306,47 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
                 </select>
               </label>
               {draft.executorKind === "opencode" && (
-                <input
-                  aria-label="模型绑定"
-                  value={draft.bindingRef}
-                  onChange={(event) => editDraft({ bindingRef: event.target.value })}
-                  placeholder="模型绑定"
-                  className="w-36 rounded-lg border border-ra-border/70 bg-ra-base/30 px-2.5 py-1.5 text-xs text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
-                />
+                <>
+                  <input
+                    aria-label="模型绑定"
+                    value={draft.bindingRef}
+                    list="goal-composer-bindings"
+                    onChange={(event) => {
+                      setBindingTouched(true);
+                      editDraft({ bindingRef: event.target.value });
+                    }}
+                    placeholder="模型绑定"
+                    className={cn(
+                      "w-36 rounded-lg border bg-ra-base/30 px-2.5 py-1.5 text-xs text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+                      bindingMissing
+                        ? "border-ra-status-warning/60"
+                        : "border-ra-border/70",
+                    )}
+                  />
+                  <datalist id="goal-composer-bindings">
+                    {usableBindings.map((binding) => (
+                      <option key={binding.bindingId} value={binding.bindingId}>
+                        {binding.name}
+                      </option>
+                    ))}
+                  </datalist>
+                </>
               )}
             </div>
 
             <p className="text-xs text-ra-text-secondary">先保存草稿，审阅并批准后再启动。</p>
           </div>
+          {bindingMissing ? (
+            <p
+              role="status"
+              data-testid="goal-composer-binding-hint"
+              className="mt-2 text-xs text-ra-status-warning"
+            >
+              {bindingsQuery.isLoading
+                ? "正在获取可用的模型绑定…"
+                : "没有可用的 OpenCode 绑定。请先在设置页创建连接与绑定，或直接填写绑定名称。"}
+            </p>
+          ) : null}
         </div>
       )}
     </form>

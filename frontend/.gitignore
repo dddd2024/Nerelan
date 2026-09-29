@@ -7,3 +7,10 @@ tsconfig.tsbuildinfo
 .logs
 test-results
 playwright-report
+
+# Frontend UI/UX audit scratch (screenshots, traces) — never product source.
+# Patterns are relative to this file, so the path must not repeat `frontend/`.
+.pw-audit-out/
+
+# Vite writes a throwaway config snapshot next to the config on some runs.
+vite.config.ts.timestamp-*.mjs

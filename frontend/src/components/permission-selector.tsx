@@ -31,8 +31,8 @@ interface PermissionSelectorProps {
  *
  * Structurally ported: dropdown select with trigger button
  * (`rounded-md border bg-ra-input`), listbox with hover/select states
- * using OpenHands dark palette colors (bg-[#454545] on hover,
- * text-[#A3A3A3] for muted items, text-white for selected).
+ * using OpenHands dark palette colors (bg-ra-tertiary on hover,
+ * text-ra-text-tertiary for muted items, text-white for selected).
  *
  * Modifications: permission profiles replace LLM model selection;
  * no provider/model icons; OpenHands brand text removed.
@@ -110,7 +110,7 @@ export function PermissionSelector({
           ref={listRef}
           role="listbox"
           aria-label={label}
-          className="absolute z-20 mt-1 w-full overflow-auto rounded-md border border-ra-border bg-ra-light py-1 shadow-lg"
+          className="absolute z-20 mt-1 w-full overflow-auto rounded-md border border-ra-border bg-ra-light py-1 shadow-[var(--ra-shadow-2)]"
         >
           {MODES.map((m, i) => {
             const selected = m === value;

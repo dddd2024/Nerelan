@@ -4,6 +4,7 @@ import type { PlatformGoal, PlatformGoalTaskLink } from "@/lib/platform-client";
 import { FUNCTIONAL_STATUS_LABELS, normalizeFunctionalValidation } from "@/lib/functional-validation";
 import { FunctionalValidationView } from "@/components/functional-validation";
 import { cn } from "@/lib/cn";
+import { displayTitle } from "@/lib/display-title";
 
 function statusFor(raw: string) {
   if (raw === "INTERRUPTED") return "interrupted";
@@ -63,8 +64,7 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
 
   return (
     <section aria-label="执行进度" className="rounded-2xl border border-ra-border/70 bg-ra-workspace px-4 pt-4 pb-1 sm:px-5">
-      <span className="sr-only">Agent progress</span>
-      <h2 className="mb-3 text-sm font-semibold text-ra-text">任务进度</h2>
+      <span className="sr-only">执行进度</span>
       <div className="mb-3 flex items-center gap-3" aria-label={`执行进度 ${reviewReady}/${links.length}`}>
         <div className="h-1 flex-1 overflow-hidden rounded-full bg-ra-tertiary" data-testid="goal-progress-bar">
           <div className={cn("h-full rounded-full transition-[width] duration-200", progressClassName(goal.status))} style={{ width: `${progress}%` }} />
@@ -89,7 +89,7 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
               <span aria-hidden="true" className={cn("mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center", taskStateClass(state))}>
                 <Icon className={cn(state === "queued" ? "h-2.5 w-2.5" : "h-3.5 w-3.5", state === "running" && "animate-spin")} />
               </span>
-              <p className="min-w-0 flex-1 break-words text-sm font-medium leading-5 text-ra-text">{task.title.replace(/^\[[^\]]+\]\s*/, "")}</p>
+              <p className="min-w-0 flex-1 break-words text-sm font-medium leading-5 text-ra-text" title={displayTitle(task.title, 160)}>{displayTitle(task.title)}</p>
               <span className="shrink-0 font-mono text-[10px] text-ra-text-tertiary">{task.plan_task_id || `T${index + 1}`}</span>
             </div>
             <div className="ml-7 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] leading-4">
@@ -100,7 +100,7 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
                 </span>
                 <Link to={`/runs?task=${encodeURIComponent(task.task_id)}`}
                   aria-label={`查看 ${task.title} 的${state === "interrupted" ? "中断" : ""}运行`}
-                  className="rounded px-1 py-0.5 font-medium text-ra-accent underline underline-offset-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+                  className="inline-flex min-h-6 items-center rounded px-1 font-medium text-ra-accent underline underline-offset-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
                   查看运行
                 </Link>
               </>}
@@ -108,7 +108,7 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
             {materialized && <div className="ml-7 mt-2 space-y-2">
               <p data-testid={`goal-publication-${task.task_id}`} className="text-[11px] text-ra-text-secondary">{publicationText(task.publication)}</p>
               <details className="text-xs text-ra-text-secondary">
-                <summary className="w-fit cursor-pointer rounded py-0.5 underline-offset-4 hover:text-ra-text hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">查看功能检查</summary>
+                <summary className="min-h-6 w-fit cursor-pointer rounded underline-offset-4 hover:text-ra-text hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">查看功能检查</summary>
                 <FunctionalValidationView evidence={proof} executor={executor} />
               </details>
             </div>}
