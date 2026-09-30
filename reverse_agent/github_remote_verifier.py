@@ -52,6 +52,17 @@ def _valid_check_name(value: Any) -> bool:
     )
 
 
+def _valid_observed_check_name(value: Any) -> bool:
+    # GitHub can expose an unevaluated multiline workflow expression as a
+    # job name. Observe it as data, without normalizing required-name matches.
+    return (
+        isinstance(value, str)
+        and 0 < len(value) <= 256
+        and bool(value.strip())
+        and all(char.isprintable() or char in "\t\r\n" for char in value)
+    )
+
+
 class GitHubRemoteAcceptanceVerifier:
     """Verify exact GitHub objects against a fixed repository identity."""
 
@@ -435,7 +446,7 @@ class GitHubRemoteAcceptanceVerifier:
                     raise GitHubEvidenceError("invalid_check_run_id")
                 if run_id in seen_ids:
                     raise GitHubEvidenceError("duplicate_check_run_id")
-                if not _valid_check_name(run.get("name")):
+                if not _valid_observed_check_name(run.get("name")):
                     raise GitHubEvidenceError("invalid_check_run_name")
                 if run.get("head_sha") != head_sha:
                     raise GitHubEvidenceError("check_run_head_mismatch")

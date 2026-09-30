@@ -19,6 +19,15 @@ malformed identity cannot be replaced with the expected value. An unknown API
 host cannot borrow GitHub.com's App identity; separately governed host policy is
 needed for an enterprise/custom-host integration.
 
+Caller-supplied required context names retain their strict printable, trimmed
+input rules. Observed names are a separate bounded data shape: GitHub can return
+multiline workflow expressions and names containing tabs or surrounding spaces.
+Those names do not invalidate an otherwise complete observation. They are never
+trimmed, case-folded or rewritten into a required context; matching remains exact.
+Empty/whitespace-only names, oversized names and other control characters still
+reject the observation, including on unrelated records. All record identity,
+producer and pagination checks still precede required-context selection.
+
 An unrelated App never satisfies a first-party required context. A valid
 foreign-App failure also cannot override the expected App's legitimate result.
 Malformed records are not silently discarded as if the observation were whole.
@@ -57,8 +66,10 @@ No merge, implementation-completion or independent-acceptance authority is added
 
 ## Integration and remaining trust boundaries
 
-The existing `mainline_landing` false/none post-merge validation path calls this
-method. Its signature and other methods remain unchanged. This patch does not
+The existing `mainline_landing` false/none validation path calls this method
+both before and after merge. With `premerge=True` it selects `baseline` and
+`state-gate`; therefore a rejected unrelated check name can block premerge
+validation as well. Its signature and other methods remain unchanged. This patch does not
 install a universal pre-merge guard, enable an automatic merge, or replace the
 other landing predicates. A5 remains responsible for composing the pre-action
 promotion controller.
@@ -82,6 +93,16 @@ simulates only the HTTP boundary. It covers producer identity, wrong artifacts,
 empty requirements, conflicting outcomes, complete and invalid pagination,
 observation bounds, and the existing Request/JSON parser composition. It makes
 no model/provider call, reads no credential and does not mutate GitHub.
+
+The same authorized test file embeds the complete, unprojected 22-record GitHub
+response for `40afe79b2cc28989cdbf7a40e2e973dc9025325d`, fetched on 2026-09-30.
+Its losslessly compressed JSON is digest-checked before replay through the real
+Request/JSON transport. The pinned UTF-8 payload SHA-256 (excluding the evidence
+file's trailing newline) is
+`bd4953887f96a67fb93f162a408bdad5de02bfb277f4ade34019ff94c486271e`.
+The full replay covers the two skipped multiline names, genuine required-check
+successes, and identity, conflicting-outcome, truncated and duplicate variants.
+It is an offline regression fixture, not live end-to-end authorization.
 
 ```text
 python -m pytest tests/platform_v1/test_check_producer_binding.py -q
