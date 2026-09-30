@@ -34,6 +34,24 @@ def _decode_github_contents_base64(content: str) -> bytes:
         raise ValueError("invalid_base64_content") from exc
 
 
+# The first-party required-context path is GitHub.com-only. This is trusted
+# repository policy, never learned from a candidate's check name or payload.
+_GITHUB_ACTIONS_APP_ID = 15368
+_GITHUB_ACTIONS_APP_SLUG = "github-actions"
+_MAX_REQUIRED_CHECK_CONTEXTS = 100
+_MAX_CHECK_RUNS = 1000
+_CHECK_RUN_PAGE_SIZE = 100
+
+
+def _valid_check_name(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and 0 < len(value) <= 256
+        and value == value.strip()
+        and value.isprintable()
+    )
+
+
 class GitHubRemoteAcceptanceVerifier:
     """Verify exact GitHub objects against a fixed repository identity."""
 
@@ -378,53 +396,153 @@ class GitHubRemoteAcceptanceVerifier:
             return {"verified": False, "reason": f"review_mismatch:{checks}"}
         return {"verified": True, "review": review}
 
+    def _load_latest_check_runs(self, *, head_sha: str) -> list[dict[str, Any]]:
+        """Read a bounded complete observation, never accept a partial page.
+
+        Counts, identities and page sizes detect observable collection drift.
+        They do not make multiple REST requests an atomic snapshot.
+        """
+
+        runs: list[dict[str, Any]] = []
+        seen_ids: set[int] = set()
+        expected_total: int | None = None
+        for page in range(1, _MAX_CHECK_RUNS // _CHECK_RUN_PAGE_SIZE + 1):
+            payload = self._request_json(
+                f"/repos/{self.repository}/commits/{head_sha}/check-runs"
+                f"?per_page={_CHECK_RUN_PAGE_SIZE}&filter=latest&page={page}"
+            )
+            if not isinstance(payload, dict):
+                raise GitHubEvidenceError("invalid_check_runs_payload")
+            total = payload.get("total_count")
+            batch = payload.get("check_runs")
+            if type(total) is not int or total < 0 or not isinstance(batch, list):
+                raise GitHubEvidenceError("invalid_check_runs_payload")
+            if total > _MAX_CHECK_RUNS:
+                raise GitHubEvidenceError("check_runs_observation_limit")
+            if expected_total is None:
+                expected_total = total
+            elif total != expected_total:
+                raise GitHubEvidenceError("check_runs_observation_changed")
+            expected_size = min(_CHECK_RUN_PAGE_SIZE, total - len(runs))
+            if len(batch) != expected_size:
+                raise GitHubEvidenceError("check_runs_pagination_incomplete")
+            for run in batch:
+                if not isinstance(run, dict):
+                    raise GitHubEvidenceError("invalid_check_run_record")
+                run_id = run.get("id")
+                app = run.get("app")
+                if type(run_id) is not int or run_id <= 0:
+                    raise GitHubEvidenceError("invalid_check_run_id")
+                if run_id in seen_ids:
+                    raise GitHubEvidenceError("duplicate_check_run_id")
+                if not _valid_check_name(run.get("name")):
+                    raise GitHubEvidenceError("invalid_check_run_name")
+                if run.get("head_sha") != head_sha:
+                    raise GitHubEvidenceError("check_run_head_mismatch")
+                if run.get("url") != (
+                    f"{self.api_url}/repos/{self.repository}/check-runs/{run_id}"
+                ):
+                    raise GitHubEvidenceError("check_run_repository_identity_mismatch")
+                if (
+                    not isinstance(app, dict)
+                    or type(app.get("id")) is not int
+                    or app["id"] <= 0
+                    or not _valid_check_name(app.get("slug"))
+                ):
+                    raise GitHubEvidenceError("invalid_check_run_producer")
+                if not isinstance(run.get("status"), str) or not (
+                    run.get("conclusion") is None
+                    or isinstance(run.get("conclusion"), str)
+                ):
+                    raise GitHubEvidenceError("invalid_check_run_state")
+                seen_ids.add(run_id)
+                runs.append(run)
+            if len(runs) == expected_total:
+                return runs
+        raise GitHubEvidenceError("check_runs_pagination_incomplete")
+
     def verify_check_run_contexts(
         self,
         *,
         head_sha: str,
         required_contexts: tuple[str, ...] | list[str],
     ) -> dict[str, Any]:
-        """Verify exact required status-check contexts on one exact head.
+        """Bind required checks to their producer and exact commit identity.
 
-        Only exact-name completed success runs satisfy a required context.  A
-        Draft ``landing-state-gate-draft-inert`` run never satisfies the formal
-        ``landing-state-gate`` context because the names differ.
+        App identity is necessary but not protected workflow-source identity.
+        Other landing predicates and independent acceptance still apply.
         """
 
+        if not isinstance(head_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", head_sha):
+            return {"verified": False, "reason": "invalid_check_head_sha"}
+        if (
+            not isinstance(required_contexts, (tuple, list))
+            or not 0 < len(required_contexts) <= _MAX_REQUIRED_CHECK_CONTEXTS
+            or any(not _valid_check_name(name) for name in required_contexts)
+        ):
+            return {"verified": False, "reason": "invalid_required_check_contexts"}
+        if len(set(required_contexts)) != len(required_contexts):
+            return {"verified": False, "reason": "duplicate_required_check_contexts"}
+        if (
+            not isinstance(self.repository, str)
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,99}/[A-Za-z0-9_.-]{1,100}", self.repository)
+            or self.repository.split("/")[1] in {".", ".."}
+        ):
+            return {"verified": False, "reason": "invalid_repository_identity"}
+        if self.api_url != "https://api.github.com":
+            return {"verified": False, "reason": "check_producer_policy_unavailable"}
         try:
-            payload = self._request_json(
-                f"/repos/{self.repository}/commits/{head_sha}/check-runs?per_page=100"
-            )
+            runs = self._load_latest_check_runs(head_sha=head_sha)
         except (GitHubEvidenceError, TypeError, ValueError) as exc:
             return {"verified": False, "reason": str(exc)}
-        runs = payload.get("check_runs") if isinstance(payload, dict) else []
-        if not isinstance(runs, list):
-            return {"verified": False, "reason": "invalid_check_runs_payload"}
-        by_name: dict[str, dict[str, bool]] = {}
+
+        contexts = {name: False for name in required_contexts}
+        successful_ids: dict[str, list[int]] = {name: [] for name in required_contexts}
+        blocking_ids: dict[str, list[int]] = {name: [] for name in required_contexts}
+        skipped_ids: dict[str, list[int]] = {name: [] for name in required_contexts}
+        foreign_ids: list[int] = []
         for run in runs:
-            if not isinstance(run, dict):
+            name = run["name"]
+            if name not in contexts:
                 continue
-            name = str(run.get("name") or "")
-            if not name:
+            app = run["app"]
+            if (
+                app["id"] != _GITHUB_ACTIONS_APP_ID
+                or app["slug"] != _GITHUB_ACTIONS_APP_SLUG
+            ):
+                # An unrelated integration cannot satisfy OR override the
+                # required first-party context merely by using its name.
+                foreign_ids.append(run["id"])
                 continue
-            entry = by_name.setdefault(name, {"completed": False, "success": False})
-            if str(run.get("status") or "") == "completed":
-                entry["completed"] = True
-                if str(run.get("conclusion") or "") == "success":
-                    entry["success"] = True
-        contexts: dict[str, bool] = {}
-        for required in required_contexts:
-            entry = by_name.get(str(required))
-            contexts[str(required)] = bool(entry and entry.get("success"))
-        if not all(contexts.values()):
+            if run["status"] == "completed" and run.get("conclusion") == "success":
+                successful_ids[name].append(run["id"])
+            elif run["status"] == "completed" and run.get("conclusion") == "skipped":
+                # Existing push/PR/conditional jobs legitimately coexist.
+                # Skipped never passes; a separate actual success is required.
+                skipped_ids[name].append(run["id"])
+            else:
+                # Do not choose a convenient green record, highest numeric id,
+                # or timestamp when trusted observations conflict.
+                blocking_ids[name].append(run["id"])
+        for name in contexts:
+            contexts[name] = bool(successful_ids[name]) and not blocking_ids[name]
+        result: dict[str, Any] = {
+            "verified": all(contexts.values()),
+            "contexts": contexts,
+            "check_runs": runs,
+            "context_check_ids": successful_ids,
+            "blocking_check_ids": blocking_ids,
+            "skipped_check_ids": skipped_ids,
+            "ignored_foreign_check_ids": foreign_ids,
+            "required_producer": {
+                "id": _GITHUB_ACTIONS_APP_ID,
+                "slug": _GITHUB_ACTIONS_APP_SLUG,
+            },
+        }
+        if not result["verified"]:
             missing = [name for name, ok in contexts.items() if not ok]
-            return {
-                "verified": False,
-                "reason": f"check_contexts_missing:{missing}",
-                "contexts": contexts,
-                "check_runs": runs,
-            }
-        return {"verified": True, "contexts": contexts, "check_runs": runs}
+            result["reason"] = f"check_contexts_missing_or_conflicting:{missing}"
+        return result
 
     def verify_repository_ruleset(
         self,
