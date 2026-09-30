@@ -250,13 +250,33 @@ def test_missing_object_fails_without_fallback(repository, path) -> None:
 
 
 @pytest.mark.parametrize("data", [b"\xff", b"not a Decision", b"x" * (adapter.MAX_DECISION + 1),
-                                 (_decision() + _decision()).encode()])
-def test_malformed_ambiguous_or_oversize_candidate_data_fails(repository, data) -> None:
+                                 (_decision() + _decision()).encode()],
+                         ids=["invalid-utf8", "not-a-decision", "oversize", "duplicate-blocks"])
+def test_malformed_ambiguous_or_oversize_candidate_data_fails(
+    repository, data, request: pytest.FixtureRequest,
+) -> None:
+    # pytest copies node IDs into PYTEST_CURRENT_TEST. Keep the full payload in
+    # Git, not in diagnostic metadata: an oversized ID prevents exec before the
+    # launcher can check the candidate (E2BIG on the Linux CI runner).
+    assert len(request.node.nodeid.encode("utf-8")) < 512
     repo, trusted = repository
     _write(repo, adapter.DECISION, data)
     candidate = _commit(repo)
     code, value = _call((repo, trusted), candidate=candidate)
     assert code == 2 and value["status"] == "ERROR"
+    if len(data) > adapter.MAX_DECISION:
+        assert value["diagnostic"] == "source_too_large"
+
+
+def test_candidate_data_exactly_at_limit_remains_valid(repository) -> None:
+    repo, trusted = repository
+    data = _decision().encode().ljust(adapter.MAX_DECISION, b" ")
+    assert len(data) == adapter.MAX_DECISION
+    _write(repo, adapter.DECISION, data)
+    candidate = _commit(repo)
+    code, value = _call((repo, trusted), candidate=candidate)
+    assert code == 0 and value["status"] == "VALID", value
+    assert value["candidate_decision"]["size"] == adapter.MAX_DECISION
 
 
 def test_launcher_must_match_trusted_object(repository, tmp_path) -> None:
