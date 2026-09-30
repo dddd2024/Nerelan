@@ -1151,7 +1151,36 @@ def _verify_contents_payload(
         repository="dddd2024/reverse-agent",
         token="test",
     )
-    verifier._request_json = lambda _path: payload  # type: ignore[method-assign]
+    # Adapt only the HTTP protocol fixture; the base64/digest cases below
+    # retain their original assertions. Construct Git objects independently
+    # of the production verifier, so a broken hashing helper cannot self-test.
+    def object_id(kind: str, raw: bytes) -> str:
+        header = kind.encode("ascii") + b" " + str(len(raw)).encode("ascii") + b"\0"
+        return hashlib.sha1(header + raw).hexdigest()
+
+    blob_sha = object_id("blob", expected_content)
+    child_raw = b"100644 example.json\0" + bytes.fromhex(blob_sha)
+    child_sha = object_id("tree", child_raw)
+    root_raw = b"40000 project_state\0" + bytes.fromhex(child_sha)
+    root_sha = object_id("tree", root_raw)
+    prefix = "/repos/dddd2024/reverse-agent/git"
+    responses = {
+        f"{prefix}/commits/{'a' * 40}": {
+            "sha": "a" * 40, "tree": {"sha": root_sha},
+        },
+        f"{prefix}/trees/{root_sha}": {
+            "sha": root_sha, "truncated": False,
+            "tree": [{"path": "project_state", "mode": "040000", "type": "tree", "sha": child_sha}],
+        },
+        f"{prefix}/trees/{child_sha}": {
+            "sha": child_sha, "truncated": False,
+            "tree": [{"path": "example.json", "mode": "100644", "type": "blob", "sha": blob_sha, "size": len(expected_content)}],
+        },
+        f"{prefix}/blobs/{blob_sha}": {
+            "sha": blob_sha, "size": len(expected_content), **payload,
+        },
+    }
+    verifier._request_json = lambda request_path: responses[request_path]  # type: ignore[method-assign]
     return verifier.verify_ref_file_sha256(
         ref="a" * 40,
         path="project_state/example.json",

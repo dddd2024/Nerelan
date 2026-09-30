@@ -34,6 +34,58 @@ def _decode_github_contents_base64(content: str) -> bytes:
         raise ValueError("invalid_base64_content") from exc
 
 
+def _source_oid(value: Any) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{40}", value) is not None
+
+
+def _source_component(value: Any) -> bool:
+    if not isinstance(value, str) or not value or len(value) > 255:
+        return False
+    if value in {".", ".."} or value.casefold() == ".git":
+        return False
+    if any(c in value for c in "/\\:") or any(ord(c) < 32 or ord(c) == 127 for c in value):
+        return False
+    try:
+        return len(value.encode("utf-8", errors="strict")) <= 255
+    except UnicodeError:
+        return False
+
+
+def _source_object_oid(kind: str, raw: bytes) -> str:
+    return hashlib.sha1(f"{kind} {len(raw)}\0".encode("ascii") + raw).hexdigest()
+
+
+def _verified_source_tree(payload: Any, expected_sha: str) -> dict[str, dict[str, Any]]:
+    """Verify a complete nonrecursive tree against Git's canonical encoding."""
+    if not isinstance(payload, dict) or payload.get("sha") != expected_sha:
+        raise GitHubEvidenceError("tree_identity_mismatch")
+    if payload.get("truncated") is not False:
+        raise GitHubEvidenceError("source_tree_incomplete")
+    entries = payload.get("tree")
+    if not isinstance(entries, list) or len(entries) > 10000:
+        raise GitHubEvidenceError("invalid_source_tree_entries")
+    kinds = {"040000": "tree", "100644": "blob", "100755": "blob", "120000": "blob", "160000": "commit"}
+    by_name: dict[str, dict[str, Any]] = {}
+    encoded: list[tuple[bytes, bytes]] = []
+    for entry in entries:
+        if not isinstance(entry, dict) or not _source_component(entry.get("path")):
+            raise GitHubEvidenceError("invalid_source_tree_entry")
+        name, mode, oid = entry["path"], entry.get("mode"), entry.get("sha")
+        if name in by_name:
+            raise GitHubEvidenceError("duplicate_source_tree_entry")
+        if not isinstance(mode, str) or mode not in kinds or entry.get("type") != kinds[mode] or not _source_oid(oid):
+            raise GitHubEvidenceError("invalid_source_tree_entry")
+        by_name[name] = entry
+        name_bytes = name.encode("utf-8")
+        sort_key = name_bytes + (b"/" if mode == "040000" else b"")
+        raw = mode.lstrip("0").encode("ascii") + b" " + name_bytes + b"\0" + bytes.fromhex(oid)
+        encoded.append((sort_key, raw))
+    raw_tree = b"".join(raw for _, raw in sorted(encoded))
+    if _source_object_oid("tree", raw_tree) != expected_sha:
+        raise GitHubEvidenceError("source_tree_digest_mismatch")
+    return by_name
+
+
 class GitHubRemoteAcceptanceVerifier:
     """Verify exact GitHub objects against a fixed repository identity."""
 
@@ -172,36 +224,21 @@ class GitHubRemoteAcceptanceVerifier:
             return {"verified": False, "reason": str(exc)}
 
     def verify_ref_file_sha256(
-        self,
-        *,
-        ref: str,
-        path: str,
-        expected_sha256: str,
+        self, *, ref: str, path: str, expected_sha256: str,
     ) -> dict[str, Any]:
-        try:
-            payload = self._request_json(
-                f"/repos/{self.repository}/contents/{path}?ref={ref}"
-            )
-            if payload.get("encoding") != "base64":
-                return {"verified": False, "reason": "unexpected_content_encoding"}
-            content = payload.get("content")
-            if not isinstance(content, str):
-                return {"verified": False, "reason": "invalid_content_type"}
-            raw = _decode_github_contents_base64(content)
-            observed = hashlib.sha256(raw).hexdigest()
-            if observed != expected_sha256:
-                return {
-                    "verified": False,
-                    "reason": f"content_digest_mismatch:{observed}",
-                }
-            return {"verified": True, "sha256": observed}
-        except (
-            GitHubEvidenceError,
-            TypeError,
-            ValueError,
-            binascii.Error,
-        ) as exc:
-            return {"verified": False, "reason": str(exc)}
+        """Compare a pinned regular Git file to an independently supplied digest."""
+        if not isinstance(expected_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_sha256):
+            return {"verified": False, "reason": "invalid_expected_sha256"}
+        result = self.load_ref_file_bytes(ref=ref, path=path)
+        if not result["verified"]:
+            return result
+        observed = hashlib.sha256(result["bytes"]).hexdigest()
+        if observed != expected_sha256:
+            return {"verified": False, "reason": f"content_digest_mismatch:{observed}"}
+        return {
+            "verified": True, "sha256": observed,
+            "source_identity": result["source_identity"],
+        }
 
     def load_merge_attestation(
         self,
@@ -491,21 +528,84 @@ class GitHubRemoteAcceptanceVerifier:
         return {"verified": True, "ruleset": ruleset}
 
     def load_ref_file_bytes(self, *, ref: str, path: str) -> dict[str, Any]:
-        """Return committed raw bytes at an exact ref via the contents API."""
+        """Read a regular file through a pinned commit/tree/blob chain.
 
+        The authenticated GitHub commit-to-root linkage and the caller's prior
+        approval of that commit are trusted inputs. No candidate code executes.
+        Object integrity is not proof of workflow execution or source approval.
+        """
         try:
-            payload = self._request_json(
-                f"/repos/{self.repository}/contents/{path}?ref={ref}"
-            )
-        except (GitHubEvidenceError, TypeError, ValueError) as exc:
+            return self._load_exact_git_file(ref=ref, path=path)
+        except (GitHubEvidenceError, ValueError) as exc:
             return {"verified": False, "reason": str(exc)}
-        if payload.get("encoding") != "base64":
-            return {"verified": False, "reason": "unexpected_content_encoding"}
-        content = payload.get("content")
-        if not isinstance(content, str):
-            return {"verified": False, "reason": "invalid_content_type"}
-        try:
+
+    def _load_exact_git_file(self, *, ref: str, path: str) -> dict[str, Any]:
+        if not isinstance(ref, str) or not re.fullmatch(r"[0-9a-f]{40}", ref):
+            raise GitHubEvidenceError("immutable_commit_required")
+        if not isinstance(self.repository, str) or not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9-]{0,99}/[A-Za-z0-9_.-]{1,100}", self.repository
+        ) or self.repository.split("/")[-1] in {".", ".."}:
+            raise GitHubEvidenceError("invalid_repository_identity")
+        if not isinstance(path, str) or not path or len(path) > 4096:
+            raise GitHubEvidenceError("invalid_source_path")
+        parts = path.split("/")
+        if len(parts) > 32 or any(not _source_component(part) for part in parts):
+            raise GitHubEvidenceError("invalid_source_path")
+        # Paths are matched as data in trees, never interpolated into URLs.
+        prefix = f"/repos/{self.repository}/git"
+        commit = self._request_json(f"{prefix}/commits/{ref}")
+        if not isinstance(commit, dict) or commit.get("sha") != ref:
+            raise GitHubEvidenceError("commit_identity_mismatch")
+        root = commit.get("tree")
+        if not isinstance(root, dict) or not _source_oid(root.get("sha")):
+            raise GitHubEvidenceError("invalid_commit_tree")
+        root_sha = tree_sha = root["sha"]
+        tree_chain: list[str] = []
+        for index, component in enumerate(parts):
+            tree = self._request_json(f"{prefix}/trees/{tree_sha}")
+            entries = _verified_source_tree(tree, tree_sha)
+            tree_chain.append(tree_sha)
+            entry = entries.get(component)
+            if entry is None:
+                raise GitHubEvidenceError("source_path_missing")
+            final = index == len(parts) - 1
+            if not final:
+                if entry["mode"] != "040000" or entry["type"] != "tree":
+                    raise GitHubEvidenceError("source_component_not_tree")
+                tree_sha = entry["sha"]
+                continue
+            if entry["mode"] not in {"100644", "100755"} or entry["type"] != "blob":
+                raise GitHubEvidenceError("source_not_regular_file")
+            size = entry.get("size")
+            if type(size) is not int or not 0 <= size <= 1024 * 1024:
+                raise GitHubEvidenceError("invalid_source_size")
+            blob_sha = entry["sha"]
+            blob = self._request_json(f"{prefix}/blobs/{blob_sha}")
+            if not isinstance(blob, dict) or blob.get("sha") != blob_sha:
+                raise GitHubEvidenceError("blob_identity_mismatch")
+            if blob.get("encoding") != "base64":
+                raise GitHubEvidenceError("unexpected_content_encoding")
+            content = blob.get("content")
+            if not isinstance(content, str):
+                raise GitHubEvidenceError("invalid_content_type")
+            # Bounded processing AFTER the existing transport has decoded JSON.
+            if len(content) > 2 * 1024 * 1024:
+                raise GitHubEvidenceError("source_encoding_too_large")
             raw = _decode_github_contents_base64(content)
-        except (binascii.Error, ValueError) as exc:
-            return {"verified": False, "reason": str(exc)}
-        return {"verified": True, "bytes": raw}
+            normalized = content.translate(str.maketrans("", "", " \t\r\n"))
+            if base64.b64encode(raw).decode("ascii") != normalized:
+                raise GitHubEvidenceError("invalid_base64_content")
+            if type(blob.get("size")) is not int or blob["size"] != size or len(raw) != size:
+                raise GitHubEvidenceError("source_size_mismatch")
+            if _source_object_oid("blob", raw) != blob_sha:
+                raise GitHubEvidenceError("source_blob_digest_mismatch")
+            return {
+                "verified": True, "bytes": raw,
+                "source_identity": {
+                    "repository": self.repository, "commit_sha": commit["sha"],
+                    "root_tree_sha": root_sha, "tree_chain": tree_chain,
+                    "path": path, "blob_sha": blob_sha, "mode": entry["mode"],
+                    "size": size,
+                },
+            }
+        raise GitHubEvidenceError("source_path_missing")
