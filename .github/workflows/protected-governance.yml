@@ -1,0 +1,55 @@
+name: Protected governance shadow
+
+# The workflow and trusted pin come from the protected base repository, not
+# candidate YAML. This is shadow-only and does not replace a required gate.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, ready_for_review, converted_to_draft]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: protected-governance-shadow-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  protected-governance-shadow:
+    if: >-
+      github.repository == 'dddd2024/Nerelan' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout only the protected workflow revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+          lfs: false
+
+      - name: Read candidate objects and run isolated shadow lint
+        shell: bash
+        env:
+          TRUSTED_SHA: ${{ github.workflow_sha }}
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$TRUSTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(/usr/bin/git rev-parse HEAD)" = "$TRUSTED_SHA"
+          # Public canonical repository: no token is passed or persisted here.
+          # Fetch objects only; never checkout, install or run candidate code.
+          /usr/bin/git -c core.hooksPath=/dev/null -c credential.helper= \
+            -c protocol.file.allow=never -c protocol.ext.allow=never \
+            fetch --no-tags --no-recurse-submodules --no-write-fetch-head \
+            https://github.com/dddd2024/Nerelan.git "$CANDIDATE_SHA"
+          /usr/bin/python3 -I -S -B "$GITHUB_WORKSPACE/tools/protected_governance.py" \
+            --repository-dir "$GITHUB_WORKSPACE" \
+            --git-executable /usr/bin/git \
+            --trusted-ref "$TRUSTED_SHA" \
+            --candidate-ref "$CANDIDATE_SHA"
