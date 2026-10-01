@@ -361,8 +361,10 @@ def test_no_issue_command_or_live_api_is_executed(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.parametrize("body,code", [
-    (None, "input_not_text"), ("x" * (preflight.MAX_INPUT_BYTES + 1), "input_too_large"),
-    ("中" * preflight.MAX_INPUT_BYTES, "input_too_large"), ("\ud800", "input_not_utf8"),
+    (None, "input_not_text"),
+    pytest.param("x" * (preflight.MAX_INPUT_BYTES + 1), "input_too_large", id="oversize-ascii"),
+    pytest.param("中" * preflight.MAX_INPUT_BYTES, "input_too_large", id="oversize-utf8"),
+    ("\ud800", "input_not_utf8"),
     (BODY + "\x00", "input_control_character"),
 ])
 def test_input_bounds_and_encoding(body: object, code: str) -> None:
