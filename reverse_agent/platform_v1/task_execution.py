@@ -74,6 +74,15 @@ def _build_executor_kwargs(
             reason = str(exc) if isinstance(exc, TaskStoreError) else "artifact_input_observation_failed"
             raise ExecutorRuntimeError(reason) from exc
     executor_kind = str(_map_task_field(task, "executor_kind", ""))
+    if executor_kind == "candidate_validation":
+        from .candidate_validation import admit_candidate
+        if store is None:
+            raise ExecutorRuntimeError("candidate_store_required")
+        try:
+            kwargs["approved_contract"] = admit_candidate(store, store.get_task(str(_map_task_field(task, "id", ""))))
+        except (TaskStoreError, RepositoryWorkspaceError, OSError, ValueError, RuntimeError) as exc:
+            raise ExecutorRuntimeError(str(exc) if isinstance(exc, (TaskStoreError, RepositoryWorkspaceError))
+                                       else "candidate_admission_failed") from exc
     if executor_kind == "opencode":
         binding_ref = str(_map_task_field(task, "binding_ref", ""))
         if binding_ref:

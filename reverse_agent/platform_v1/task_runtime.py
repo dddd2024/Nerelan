@@ -393,10 +393,12 @@ class ExecutorRouter:
 
     def __init__(self) -> None:
         from .opencode_executor import OpenCodeExecutor
+        from .candidate_validation import CandidateValidationExecutor
 
         self._registry: dict[str, Callable[..., Executor]] = {
             "deterministic_fixture": lambda **_: DeterministicFixtureExecutor(),
             "opencode": lambda **kwargs: OpenCodeExecutor(**kwargs),
+            "candidate_validation": lambda **kwargs: CandidateValidationExecutor(**kwargs),
         }
 
     def register(self, kind: str, factory: Callable[..., Executor]) -> None:
