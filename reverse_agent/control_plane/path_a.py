@@ -865,8 +865,10 @@ def verify_path_a_r1(
         "authority_revalidation_required": True,
         "lifecycle_stage": lifecycle_stage,
         "implementation_authority": not is_ready,
-        "product_accepted": lifecycle_stage == IMPLEMENTATION_DRAFT,
-        "implementation_complete": lifecycle_stage == IMPLEMENTATION_DRAFT,
+        # Authorization and check selection are not functional acceptance.
+        # Only the independent evidence/acceptance path can establish completion.
+        "product_accepted": False,
+        "implementation_complete": False,
         "merge_authority": False,
         "ready_authority": is_ready,
         "no_task_checks": is_ready,
@@ -1278,7 +1280,7 @@ def write_task_check_outputs(
         with output_path.open("a", encoding="utf-8", newline="\n") as stream:
             stream.write(f"base_platform={'true' if 'base_platform' in selected['check_ids'] else 'false'}\n")
             stream.write(f"path_a_gate={'true' if 'path_a_gate' in selected['check_ids'] else 'false'}\n")
-            stream.write(f"exact_head_sha={head_sha}\n")
+            stream.write(f"exact_head_sha={delta.head_sha}\n")
             stream.write("selected_checks_json=" + json.dumps(payload["commands"], separators=(",", ":")) + "\n")
     return payload
 
