@@ -6,6 +6,7 @@ The native executor/router are unmodified. No provider/model/binding doubles.
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -43,16 +44,22 @@ def candidate(tmp_path, monkeypatch):
         return subprocess.check_output(["git", "-C", str(source), *args], encoding="utf-8").strip()
     git("init", "-q")
     git("config", "core.autocrlf", "false")
+    git("config", "core.longpaths", "true")
     git("config", "user.name", "Synthetic candidate fixture")
     git("config", "user.email", "fixture@example.invalid")
     git("remote", "add", "origin", "https://github.com/owner/candidate.git")
     (source / "app.py").write_bytes(b"value = 1\n")
     (source / ".gitignore").write_bytes(b"__pycache__/\n.pytest_cache/\n")
+    archive = source / ("archive_" + "x" * 55) / ("round_" + "y" * 55) / ("evidence_" + "z" * 55) / "retained.txt"
+    # Explicit extended path creates fixture bytes without an OS policy change.
+    archive_io = Path("\\\\?\\" + str(archive.resolve())) if os.name == "nt" else archive
+    archive_io.parent.mkdir(parents=True, exist_ok=True)
+    archive_io.write_bytes(b"tracked historical evidence\n")
     for target in (*TARGETS[PROFILES[0]], *TARGETS[PROFILES[1]]):
         path = source / target
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"from app import value\ndef test_candidate():\n    assert value == 2\n")
-    git("add", "--", "app.py", ".gitignore", "tests")
+    git("add", "--", "app.py", ".gitignore", "tests", archive.relative_to(source).as_posix())
     git("commit", "-qm", "synthetic approved base")
     base = git("rev-parse", "HEAD")
     git("checkout", "--detach", base)

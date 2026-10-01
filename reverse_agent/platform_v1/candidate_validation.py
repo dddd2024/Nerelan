@@ -78,6 +78,8 @@ class CandidateValidationExecutor:
         for argv in (
             ["git", "clone", "--no-checkout", "--shared", "--", str(source), str(target)],
             ["git", "-C", str(target), "config", "--local", "core.autocrlf", "false"],
+            # Owned disposable checkout only; do not change global/OS settings.
+            ["git", "-C", str(target), "config", "--local", "core.longpaths", "true"],
             ["git", "-C", str(target), "remote", "set-url", "origin", origin],
             # A source may hold the approved commit only through FETCH_HEAD.
             # Explicit local transfer keeps it available even when clone does
