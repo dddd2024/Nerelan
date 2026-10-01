@@ -316,8 +316,9 @@ New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
 # Startup state reconciliation: a healthy recorded stack is reused; a partial,
 # unhealthy or config-drifted one is repaired by stopping only verified owned
 # children; unknown port occupants keep the fail-closed refusal below.
-function Compare-ProcessStartTime([string]$recordedStartTimeStr, [datetime]$actualStartTime) {
+function Compare-ProcessStartTime([object]$recordedStartTimeStr, [datetime]$actualStartTime) {
   if ([string]::IsNullOrWhiteSpace($recordedStartTimeStr)) { return $false }
+  if ($recordedStartTimeStr -is [datetime]) { $recordedStartTimeStr = $recordedStartTimeStr.ToString("o") }
   $recorded = $null
   try {
     $parsed = [datetime]::MinValue
@@ -348,24 +349,27 @@ function Test-RecordedChildOwned([object]$child) {
     $identityOk = $true
   }
   if (-not $identityOk) { return $false }
-  $recordedStart = if ($child.PSObject.Properties.Name -contains "start_time") { [string]$child.start_time } else { $null }
+  $recordedStart = if ($child.PSObject.Properties.Name -contains "start_time") { $child.start_time } else { $null }
   if (-not (Compare-ProcessStartTime $recordedStart $proc.StartTime)) { return $false }
   return $true
 }
 
 function Stop-VerifiedChild([object]$child) {
-  try {
-    $proc = Get-Process -Id $child.pid -ErrorAction SilentlyContinue
-    if ($proc -and -not $proc.HasExited) {
-      if ($child.wrapped) {
-        $ki = Start-Process "taskkill" -ArgumentList "/PID $($child.pid) /T /F" -Wait -NoNewWindow -PassThru -ErrorAction SilentlyContinue
-        if ($ki) { $ki.WaitForExit(5000) | Out-Null }
-      } else {
-        $proc.Kill()
-        $proc.WaitForExit(5000) | Out-Null
-      }
-    }
-  } catch {}
+  # Revalidate at the operation boundary, then retain the exact process handle.
+  if (-not (Test-RecordedChildOwned $child)) { Fail-Closed "recorded child identity changed before stop" }
+  $proc = Get-Process -Id $child.pid -ErrorAction Stop
+  $null = $proc.Handle
+  if (-not (Compare-ProcessStartTime $child.start_time $proc.StartTime)) { Fail-Closed "recorded child identity changed before stop" }
+  $actualExe = [System.IO.Path]::GetFileName($proc.MainModule.FileName)
+  if (($child.wrapped -and $actualExe -ne "cmd.exe") -or (-not $child.wrapped -and $actualExe -ne $child.expected_exe)) { Fail-Closed "recorded child executable changed before stop" }
+  if ($child.wrapped) {
+    . (Join-Path $PSScriptRoot "dev-down.ps1") -FunctionsOnly
+    $diagnostic = Invoke-OwnedTreeStop $proc
+    Write-Output "dev-up: stop method=$($diagnostic.stop_method) taskkill_exit=$($diagnostic.taskkill_exit_code)"
+  } else {
+    $proc.Kill()
+    if (-not $proc.WaitForExit(5000)) { Fail-Closed "recorded child did not exit" }
+  }
 }
 
 function Test-StackHealthy {

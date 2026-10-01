@@ -15,11 +15,12 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 DEV_UP = ROOT / "dev-up.ps1"
 DEV_DOWN = ROOT / "dev-down.ps1"
+_WINDOWS_PS_HOST = os.environ.get("NERELAN_TEST_POWERSHELL", "powershell")
 COMPOSER = ROOT / "frontend/src/components/new-task-composer.tsx"
 FRONTEND_TEST = ROOT / "frontend/tests/real-executor-task-plane.test.tsx"
 LAUNCHER = ROOT / "launch_reverse_agent.bat"
 
-_PWSH = shutil.which("powershell") or shutil.which("pwsh")
+_PWSH = shutil.which(_WINDOWS_PS_HOST) or shutil.which("pwsh")
 requires_powershell = pytest.mark.skipif(
     _PWSH is None, reason="requires powershell or pwsh"
 )
@@ -346,26 +347,19 @@ def test_dev_down_reads_start_time_from_record() -> None:
     assert "recordedStartTime" in _DEV_DOWN
 
 
+def _actual_start_time_function() -> str:
+    start = _DEV_DOWN.index("function Compare-ProcessStartTime")
+    end = _DEV_DOWN.index("\nfunction ", start + 1)
+    return _DEV_DOWN[start:end]
+
+
 @requires_powershell
 def test_dev_down_refuses_missing_start_time() -> None:
     """V4-F2: missing start_time must produce refused_identity_mismatch, not a kill."""
     ps1 = r'''
-function Compare-ProcessStartTime([string]$s, [datetime]$a) {
-  if ([string]::IsNullOrWhiteSpace($s)) { return $false }
-  $parsed = [datetime]::MinValue
-  if (-not [datetime]::TryParse($s, [ref]$parsed)) { return $false }
-  $recorded = $parsed
-  if ($recorded.Kind -eq [System.DateTimeKind]::Unspecified) {
-    $recorded = [datetime]::SpecifyKind($recorded, [System.DateTimeKind]::Utc)
-  }
-  $recordedUtc = $recorded.ToUniversalTime()
-  try { $actualUtc = $a.ToUniversalTime() } catch { return $false }
-  $diffMs = [math]::Abs(($recordedUtc - $actualUtc).TotalMilliseconds)
-  return $diffMs -le 100
-}
 Compare-ProcessStartTime "" (Get-Date)
 '''
-    result = _run_ps(ps1)
+    result = _run_ps(_actual_start_time_function() + "\n" + ps1)
     assert result.returncode == 0, f"powershell exit={result.returncode}: {result.stderr}"
     assert "False" in result.stdout.strip(), f"expected False for missing start_time, got: {result.stdout}"
 
@@ -374,22 +368,9 @@ Compare-ProcessStartTime "" (Get-Date)
 def test_dev_down_refuses_unreadable_start_time() -> None:
     """V4-F2: unparseable start_time must produce refused_identity_mismatch, not a kill."""
     ps1 = r'''
-function Compare-ProcessStartTime([string]$s, [datetime]$a) {
-  if ([string]::IsNullOrWhiteSpace($s)) { return $false }
-  $parsed = [datetime]::MinValue
-  if (-not [datetime]::TryParse($s, [ref]$parsed)) { return $false }
-  $recorded = $parsed
-  if ($recorded.Kind -eq [System.DateTimeKind]::Unspecified) {
-    $recorded = [datetime]::SpecifyKind($recorded, [System.DateTimeKind]::Utc)
-  }
-  $recordedUtc = $recorded.ToUniversalTime()
-  try { $actualUtc = $a.ToUniversalTime() } catch { return $false }
-  $diffMs = [math]::Abs(($recordedUtc - $actualUtc).TotalMilliseconds)
-  return $diffMs -le 100
-}
 Compare-ProcessStartTime "not-a-real-timestamp" (Get-Date)
 '''
-    result = _run_ps(ps1)
+    result = _run_ps(_actual_start_time_function() + "\n" + ps1)
     assert result.returncode == 0, f"powershell exit={result.returncode}: {result.stderr}"
     assert "False" in result.stdout.strip(), \
         f"expected False for unparseable start_time, got: {result.stdout}"
@@ -399,23 +380,11 @@ Compare-ProcessStartTime "not-a-real-timestamp" (Get-Date)
 def test_dev_down_accepts_matching_start_time() -> None:
     """V4-F2: same process instance (matching start_time) must be accepted."""
     ps1 = r'''
-function Compare-ProcessStartTime([string]$s, [datetime]$a) {
-  if ([string]::IsNullOrWhiteSpace($s)) { return $false }
-  $parsed = [datetime]::MinValue
-  if (-not [datetime]::TryParse($s, [ref]$parsed)) { return $false }
-  $recorded = $parsed
-  if ($recorded.Kind -eq [System.DateTimeKind]::Unspecified) {
-    $recorded = [datetime]::SpecifyKind($recorded, [System.DateTimeKind]::Utc)
-  }
-  $recordedUtc = $recorded.ToUniversalTime()
-  try { $actualUtc = $a.ToUniversalTime() } catch { return $false }
-  $diffMs = [math]::Abs(($recordedUtc - $actualUtc).TotalMilliseconds)
-  return $diffMs -le 100
-}
 $now = (Get-Date)
-Compare-ProcessStartTime ($now.ToString("o")) $now
+$record = @{ start_time = $now.ToString("o") } | ConvertTo-Json | ConvertFrom-Json
+Compare-ProcessStartTime $record.start_time $now
 '''
-    result = _run_ps(ps1)
+    result = _run_ps(_actual_start_time_function() + "\n" + ps1)
     assert result.returncode == 0, f"powershell exit={result.returncode}: {result.stderr}"
     assert "True" in result.stdout.strip(), \
         f"expected True for matching start_time, got: {result.stdout}"
@@ -425,24 +394,11 @@ Compare-ProcessStartTime ($now.ToString("o")) $now
 def test_dev_down_refuses_recycled_pid_with_different_start_time() -> None:
     """V4-F2: recycled PID with same exe but different start_time must be refused."""
     ps1 = r'''
-function Compare-ProcessStartTime([string]$s, [datetime]$a) {
-  if ([string]::IsNullOrWhiteSpace($s)) { return $false }
-  $parsed = [datetime]::MinValue
-  if (-not [datetime]::TryParse($s, [ref]$parsed)) { return $false }
-  $recorded = $parsed
-  if ($recorded.Kind -eq [System.DateTimeKind]::Unspecified) {
-    $recorded = [datetime]::SpecifyKind($recorded, [System.DateTimeKind]::Utc)
-  }
-  $recordedUtc = $recorded.ToUniversalTime()
-  try { $actualUtc = $a.ToUniversalTime() } catch { return $false }
-  $diffMs = [math]::Abs(($recordedUtc - $actualUtc).TotalMilliseconds)
-  return $diffMs -le 100
-}
 $old = (Get-Date).AddDays(-1)
 $new = (Get-Date)
 Compare-ProcessStartTime ($old.ToString("o")) $new
 '''
-    result = _run_ps(ps1)
+    result = _run_ps(_actual_start_time_function() + "\n" + ps1)
     assert result.returncode == 0, f"powershell exit={result.returncode}: {result.stderr}"
     assert "False" in result.stdout.strip(), \
         f"expected False for recycled PID (different start_time), got: {result.stdout}"
@@ -719,7 +675,7 @@ def _setup_stub_stack(
 def _run_dev_up(repo: Path, env: dict, ports: dict, timeout: int = 180) -> subprocess.CompletedProcess:
     return subprocess.run(
         [
-            "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+            _WINDOWS_PS_HOST, "-NoProfile", "-ExecutionPolicy", "Bypass",
             "-File", str(DEV_UP),
             "-RepoDir", str(repo), "-SourceDir", str(repo),
             "-FrontendPort", str(ports["frontend"]),
@@ -749,7 +705,7 @@ def _run_launcher(repo: Path, env: dict, ports: dict, timeout: int = 180) -> sub
 def _run_dev_down(repo: Path, env: dict, timeout: int = 120) -> subprocess.CompletedProcess:
     return subprocess.run(
         [
-            "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+            _WINDOWS_PS_HOST, "-NoProfile", "-ExecutionPolicy", "Bypass",
             "-File", str(DEV_DOWN), "-RepoDir", str(repo),
         ],
         capture_output=True, text=True, timeout=timeout, env=env, cwd=str(repo),
@@ -757,10 +713,38 @@ def _run_dev_down(repo: Path, env: dict, timeout: int = 120) -> subprocess.Compl
 
 
 def _assert_ports_free(ports: dict) -> None:
-    time.sleep(1.0)
-    for port in ports.values():
-        with pytest.raises(OSError):
-            socket.create_connection(("127.0.0.1", port), timeout=3)
+    # Closed loopback connections may time out on Windows. That result alone
+    # proves neither a free port nor a listener. Observe LISTEN and an exclusive
+    # kernel bind separately, with a bounded wait for accepted sockets to drain.
+    deadline = time.monotonic() + 10
+    remaining = set(ports.values())
+    last_errors = {}
+    while remaining and time.monotonic() < deadline:
+        observed = subprocess.run(
+            ["netstat", "-ano", "-p", "tcp"], capture_output=True, text=True, timeout=5,
+        )
+        assert observed.returncode == 0, observed.stderr
+        listening = {
+            int(fields[1].rsplit(":", 1)[1])
+            for line in observed.stdout.splitlines()
+            if (fields := line.split()) and len(fields) >= 4 and fields[3] == "LISTENING"
+        }
+        for port in tuple(remaining):
+            if port in listening:
+                last_errors[port] = "LISTEN still present"
+                continue
+            try:
+                with socket.socket() as sock:
+                    if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+                        sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+                    sock.bind(("127.0.0.1", port))
+                    sock.listen(1)
+                remaining.remove(port)
+            except OSError as exc:
+                last_errors[port] = repr(exc)
+        if remaining:
+            time.sleep(0.1)
+    assert not remaining, f"LISTEN/bind observations did not establish free ports: {last_errors}"
 
 
 def _assert_ports_reachable(ports: dict) -> None:
@@ -822,6 +806,7 @@ def test_desktop_launcher_five_runs_from_spaced_unicode_path(tmp_path: Path) -> 
     """The real .bat entrypoint must work repeatedly from a realistic Windows path."""
     repo, env, ports = _setup_stub_stack(tmp_path, repo_name="repo space 启动")
     shutil.copy2(DEV_UP, repo / DEV_UP.name)
+    shutil.copy2(DEV_DOWN, repo / DEV_DOWN.name)
     shutil.copy2(LAUNCHER, repo / LAUNCHER.name)
     runtime_dir = repo / ".platform_v1_runtime"
     pid_file = runtime_dir / "devup_pids.json"
@@ -876,21 +861,17 @@ def test_dev_up_repairs_partial_stack_by_restarting_it(tmp_path: Path) -> None:
     frontend_entry = next(
         child for child in record_before["children"] if child["name"] == "frontend-vite"
     )
-    subprocess.run(
-        ["taskkill", "/PID", str(frontend_entry["pid"]), "/T", "/F"],
-        capture_output=True, timeout=30,
-    )
-
-    deadline = time.time() + 10
-    while time.time() < deadline:
-        try:
-            with socket.create_connection(("127.0.0.1", ports["frontend"]), timeout=1):
-                pass
-            time.sleep(0.2)
-        except OSError:
-            break
-    else:
-        pytest.fail("frontend port did not free after killing the frontend child")
+    # Stop only the selected verified fixture tree through the actual script.
+    # Preserve the full record so the next dev-up sees a genuinely partial stack.
+    pid_file.write_text(json.dumps({**record_before, "children": [frontend_entry]}), encoding="utf-8")
+    try:
+        stopped = _run_dev_down(repo, env)
+        assert stopped.returncode == 0, f"{stopped.stdout}\\n{stopped.stderr}"
+        stop_record = json.loads(pid_file.read_text(encoding="utf-8-sig"))
+        assert stop_record["children"][0]["outcome"] == "stopped", stop_record
+        _assert_ports_free({"frontend": ports["frontend"]})
+    finally:
+        pid_file.write_text(json.dumps(record_before), encoding="utf-8")
 
     second = _run_dev_up(repo, env, ports)
     assert second.returncode == 0, (
@@ -937,3 +918,67 @@ def test_dev_up_invalid_runtime_state_produces_diagnostic_and_fresh_start(tmp_pa
     down2 = _run_dev_down(repo, env)
     assert down2.returncode == 0, down2.stderr
     _assert_ports_free(ports)
+
+
+@requires_windows_powershell
+def test_dev_down_rejects_identity_changes_without_stopping_fixture(tmp_path: Path) -> None:
+    """Actual script: wrong executable, missing/malformed/old birth time refuse."""
+    repo = tmp_path / "identity-repo"
+    runtime = repo / ".platform_v1_runtime"
+    runtime.mkdir(parents=True)
+    pid_file = runtime / "devup_pids.json"
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(120)"],
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+    try:
+        observed = _run_ps(
+            f"$p = Get-Process -Id {child.pid}; "
+            '@{ exe = [System.IO.Path]::GetFileName($p.MainModule.FileName); '
+            'start_time = $p.StartTime.ToString("o") } | ConvertTo-Json -Compress'
+        )
+        assert observed.returncode == 0, observed.stderr
+        identity = json.loads(observed.stdout)
+        valid = {"name": "identity-fixture", "pid": child.pid, "wrapped": False,
+                 "expected_exe": identity["exe"], "start_time": identity["start_time"]}
+        for changes in (
+            {"expected_exe": "incorrect-fixture.exe"},
+            {"start_time": None},
+            {"start_time": "not-a-timestamp"},
+            {"start_time": "2000-01-01T00:00:00Z"},
+        ):
+            entry = {**valid, **changes}
+            pid_file.write_text(
+                json.dumps({"repo_dir": str(repo), "source_dir": str(repo), "children": [entry]}),
+                encoding="utf-8",
+            )
+            result = _run_dev_down(repo, os.environ.copy())
+            assert result.returncode == 1, (changes, result.stdout, result.stderr)
+            record = json.loads(pid_file.read_text(encoding="utf-8-sig"))
+            assert record["children"][0]["outcome"] == "refused_identity_mismatch", record
+            assert record["children"][0]["pid"] == child.pid, record
+            assert child.poll() is None, f"refused identity was terminated: {changes}"
+        # A separate process is not owned by either recorded wrapper tree.
+        stack_dir = tmp_path / "owned-stack"
+        stack_dir.mkdir()
+        stack_repo, env, ports = _setup_stub_stack(stack_dir)
+        try:
+            started = _run_dev_up(stack_repo, env, ports)
+            assert started.returncode == 0, (started.stdout, started.stderr)
+            stopped = _run_dev_down(stack_repo, env)
+            assert stopped.returncode == 0, (stopped.stdout, stopped.stderr)
+            assert child.poll() is None, "unrelated fixture process was stopped"
+            shutdown = json.loads((stack_repo / ".platform_v1_runtime" / "devup_pids.json").read_text(encoding="utf-8-sig"))
+            assert all(entry["outcome"] == "stopped" for entry in shutdown["children"]), shutdown
+            for entry in shutdown["children"]:
+                assert entry["start_time"] and entry["wrapped"], entry
+                assert isinstance(entry["stop_diagnostics"]["taskkill_exit_code"], int), entry
+            _assert_ports_free(ports)
+        finally:
+            if (stack_repo / ".platform_v1_runtime" / "devup_pids.json").exists():
+                cleanup = _run_dev_down(stack_repo, env)
+                assert cleanup.returncode == 0, (cleanup.stdout, cleanup.stderr)
+    finally:
+        # Popen retains the handle of the test-created process; no PID-only kill.
+        child.terminate()
+        child.wait(timeout=10)
