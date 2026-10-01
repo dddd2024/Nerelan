@@ -374,9 +374,10 @@ function Stop-VerifiedChild([object]$child) {
   } elseif (-not $child.wrapped) { Fail-Closed "recorded child exited before stop" }
   if ($child.wrapped) {
     $diagnostic = Invoke-OwnedTreeStop $proc $child
+    # Commit this group's real result before another group or later step runs.
+    $child | Add-Member -NotePropertyName stop_diagnostics -NotePropertyValue $diagnostic -Force
+    $runtimeState | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $pidFile -Encoding UTF8
     if (-not $diagnostic.completed) {
-      $child | Add-Member -NotePropertyName stop_diagnostics -NotePropertyValue $diagnostic -Force
-      $runtimeState | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $pidFile -Encoding UTF8
       Fail-Closed "recorded child stop incomplete: $($diagnostic.error)"
     }
     Write-Output "dev-up: stop method=$($diagnostic.stop_method) active_remaining=$($diagnostic.active_remaining)"

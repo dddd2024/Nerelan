@@ -904,6 +904,82 @@ def test_dev_up_repairs_partial_stack_by_restarting_it(tmp_path: Path) -> None:
 
 
 @requires_windows_powershell
+def test_dev_up_persists_each_group_stop_before_later_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Real A shutdown, injected B failure, then actual entrypoint retry."""
+    repo, env, ports = _setup_stub_stack(tmp_path)
+    pid_file = repo / ".platform_v1_runtime" / "devup_pids.json"
+    first = _run_dev_up(repo, env, ports)
+    assert first.returncode == 0, (first.stdout, first.stderr)
+    before = json.loads(pid_file.read_text(encoding="utf-8-sig"))
+    assert [c["name"] for c in before["children"]] == ["combined-trusted-host", "frontend-vite"]
+
+    # Deterministic API failure after A genuinely completes. The production
+    # Stop-VerifiedChild, reconciliation and JSON persistence remain unchanged.
+    seam = r'''
+$script:fixtureStopAttempts = 0
+function Stop-OwnedJob([IntPtr]$job) {
+  $script:fixtureStopAttempts++
+  if ($script:fixtureStopAttempts -eq 2) { throw "fixture second-group stop failure" }
+  [NerelanOwnedJob]::Terminate($job)
+}
+'''
+    source = _text(DEV_UP)
+    marker = "# Startup state reconciliation:"
+    assert source.count(marker) == 1
+    injected = repo / "dev-up.ps1"
+    injected.write_text(source.replace(marker, seam + "\n" + marker), encoding="utf-8-sig")
+    shutil.copy2(DEV_DOWN, repo / DEV_DOWN.name)
+    monkeypatch.setattr(sys.modules[__name__], "DEV_UP", injected)
+    before["open_code_model"] = "fixture/old-configuration"
+    pid_file.write_text(json.dumps(before), encoding="utf-8")
+    failed = None
+    try:
+        failed = _run_dev_up(repo, env, ports)
+        assert failed.returncode == 1, (failed.stdout, failed.stderr)
+        assert "fixture second-group stop failure" in failed.stderr
+        saved = json.loads(pid_file.read_text(encoding="utf-8-sig"))
+        # Retain the untouched on-disk failure for baseline/repair evidence.
+        (tmp_path / "failed-repair.json").write_text(json.dumps(saved), encoding="utf-8")
+        (tmp_path / "failed-repair-output.txt").write_text(failed.stdout + failed.stderr, encoding="utf-8")
+        a, b = saved["children"]
+        _assert_ports_free({"task": ports["task"], "model": ports["model"]})
+        _assert_ports_reachable({"frontend": ports["frontend"]})
+        retry = _run_dev_up(repo, env, ports)
+        (tmp_path / "retry-output.txt").write_text(retry.stdout + retry.stderr, encoding="utf-8")
+        (tmp_path / "retry-result.json").write_text(json.dumps({"exit": retry.returncode}), encoding="utf-8")
+        assert a["pid"] == before["children"][0]["pid"] and a["start_time"] == before["children"][0]["start_time"]
+        assert a.get("stop_diagnostics", {}).get("completed") is True, saved
+        assert a["stop_diagnostics"]["active_remaining"] == 0, saved
+        assert b["stop_diagnostics"]["completed"] is False, saved
+        assert b["job_name"] == before["children"][1]["job_name"], saved
+        assert b["start_time"] == before["children"][1]["start_time"], saved
+        # On retry only B remains: its first stop succeeds, then both restart.
+        assert retry.returncode == 0, (retry.stdout, retry.stderr)
+        assert retry.stdout.count("repair: stopping recorded child") == 1, retry.stdout
+        assert retry.stdout.count("started pid=") == 2, retry.stdout
+        after = json.loads(pid_file.read_text(encoding="utf-8-sig"))
+        assert len(after["children"]) == 2 and after["open_code_model"] != before["open_code_model"], after
+        _assert_ports_reachable(ports)
+    finally:
+        if pid_file.exists():
+            current = json.loads(pid_file.read_text(encoding="utf-8-sig"))
+            if failed and "stop method=windows_job active_remaining=0" in failed.stdout:
+                # In the old failing baseline A was genuinely stopped but lost
+                # its receipt. Keep that immutable evidence above; cleanup
+                # targets only B or the two new groups, never invents A proof.
+                original_a = before["children"][0]
+                current["children"] = [c for c in current["children"] if any(
+                    c[key] != original_a[key] for key in ("pid", "start_time", "job_name")
+                )]
+                pid_file.write_text(json.dumps(current), encoding="utf-8")
+            cleanup = _run_dev_down(repo, env)
+            assert cleanup.returncode == 0, (cleanup.stdout, cleanup.stderr)
+        _assert_ports_free(ports)
+
+
+@requires_windows_powershell
 def test_dev_up_invalid_runtime_state_produces_diagnostic_and_fresh_start(tmp_path: Path) -> None:
     """A corrupt record with free ports must warn explicitly and start fresh."""
     repo, env, ports = _setup_stub_stack(tmp_path)
