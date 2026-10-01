@@ -35,6 +35,19 @@ _CATALOG = {
     "python_pytest": {"argv": ["@python", "-m", "pytest", "-q", "-p", "no:cacheprovider"], "timeout_seconds": 600},
     "npm_test": {"argv": ["@node", "@npm_cli", "test"], "timeout_seconds": 600},
 }
+_PYTEST_PROFILES = {
+    "python_pytest", "python_pytest_report_consistency", "python_pytest_functional_artifact",
+}
+_CATALOG.update({
+    "python_pytest_report_consistency": {
+        "argv": ["@python", "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                 "tests/platform_v1/test_functional_report_consistency.py"], "timeout_seconds": 600},
+    "python_pytest_functional_artifact": {
+        "argv": ["@python", "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                 "tests/platform_v1/test_functional_execution.py", "tests/platform_v1/test_artifact_handoff.py"],
+        "timeout_seconds": 600},
+})
+_REPORT_FORMATS = {**{key: ("junit",) for key in _PYTEST_PROFILES}, "npm_test": ("junit", "tap")}
 
 
 def canonical(value: Any) -> str:
@@ -47,7 +60,7 @@ def digest(value: Any) -> str:
 
 def catalog_digest() -> str:
     return digest({"version": CATALOG_VERSION, "profiles": _CATALOG, "output_limit": OUTPUT_LIMIT,
-                   "reports": {"python_pytest": "junit", "npm_test": {"node --test": "tap", "vitest run": "junit"}}})
+                   "reports": _REPORT_FORMATS})
 
 
 def normalize_checks(raw: Any) -> tuple[dict[str, str], ...]:
@@ -69,6 +82,8 @@ def normalize_checks(raw: Any) -> tuple[dict[str, str], ...]:
                 or (directory != "." and "." in directory.split("/"))):
             raise TaskStoreError("functional_directory_invalid")
         identity = (profile, directory)
+        if profile in {"python_pytest_report_consistency", "python_pytest_functional_artifact"} and directory != ".":
+            raise TaskStoreError("functional_fixed_profile_requires_root")
         if identity in seen:
             raise TaskStoreError("functional_check_duplicate")
         seen.add(identity)
@@ -127,6 +142,12 @@ def freeze_contract(store: Any, task: Any, *, goal: Any, plan_task: Any, base_co
                 "goal_id": goal.id, "goal_revision": goal.revision, "goal_artifact_digest": goal.artifact_digest,
                 "plan_task_id": plan_task.id, "requires_implementation": plan_task.capability == "execute_task",
                 "checks": list(checks)}
+    if task.executor_kind == "candidate_validation":
+        candidate = getattr(plan_task, "expected_candidate_sha", "")
+        if (not isinstance(candidate, str) or not _SHA40.fullmatch(candidate)
+                or plan_task.capability != "validate_task" or plan_task.artifact_input is not None):
+            raise TaskStoreError("candidate_contract_invalid")
+        contract["expected_candidate_sha"] = candidate
     previous = load_contract(store.get_task(task.id))
     if previous is not None:
         if previous != contract:
@@ -149,6 +170,12 @@ def load_contract(task: Any) -> dict[str, Any] | None:
         contract = json.loads(row["detail"])
         fields = {"version", "catalog_digest", "task_id", "repository", "base_commit", "goal_id",
                   "goal_revision", "goal_artifact_digest", "plan_task_id", "requires_implementation", "checks"}
+        if task.executor_kind == "candidate_validation":
+            fields.add("expected_candidate_sha")
+            if (not isinstance(contract.get("expected_candidate_sha"), str)
+                    or not _SHA40.fullmatch(contract["expected_candidate_sha"])
+                    or contract.get("requires_implementation") is not False):
+                raise ValueError
         if (not isinstance(contract, dict) or set(contract) != fields or row["status"] != "APPROVED"
                 or row["value"] != digest(contract) or row["raw_json_digest"] != digest(contract)
                 or contract["version"] != CATALOG_VERSION or contract["catalog_digest"] != catalog_digest()
@@ -173,7 +200,7 @@ def _working_directory(root: Path, relative: str) -> Path:
 
 
 def _resolved_argv(profile: str) -> list[str]:
-    if profile == "python_pytest":
+    if profile in _PYTEST_PROFILES:
         return [str(Path(sys.executable).resolve()), *_CATALOG[profile]["argv"][1:]]
     node, npm = shutil.which("node"), shutil.which("npm")
     if not node or not npm:
@@ -272,9 +299,12 @@ def _run_check(check: Mapping[str, str], root: Path) -> dict[str, Any]:
     argv = _resolved_argv(profile)
     with tempfile.TemporaryDirectory(prefix="nerelan-functional-check-") as temporary:
         env = _environment(root)
+        # Give each host check new owned scratch, without touching another
+        # user's existing pytest temporary root or changing global settings.
+        env.update(TEMP=temporary, TMP=temporary, TMPDIR=temporary)
         report = Path(temporary) / "tests.xml"
         report_kind = "junit"
-        if profile == "python_pytest":
+        if profile in _PYTEST_PROFILES:
             argv.append(f"--junitxml={report}")
         if profile == "npm_test":
             package = cwd / "package.json"
@@ -303,6 +333,27 @@ def _run_check(check: Mapping[str, str], root: Path) -> dict[str, Any]:
         return result
 
 
+def _report_accepted(report: Any, *, profile_id: str | None = None) -> bool:
+    """Check report consistency, not authenticity or task-obligation coverage.
+
+    Recompute the count predicate on readback as well as initial parsing. A
+    stored accepted flag is necessary but cannot override contradictory counts.
+    """
+    if not isinstance(report, Mapping) or report.get("accepted") is not True:
+        return False
+    kind = report.get("format")
+    if not isinstance(kind, str) or kind not in ("junit", "tap"):
+        return False
+    if profile_id is not None:
+        if not isinstance(profile_id, str) or kind not in _REPORT_FORMATS.get(profile_id, ()):
+            return False
+    counts = [report.get(key) for key in ("tests", "passed", "failed", "skipped")]
+    if any(type(value) is not int or value < 0 for value in counts):
+        return False
+    tests, passed, failed, skipped = counts
+    return tests == passed + failed + skipped and passed > 0 and failed == 0
+
+
 def _test_report(kind: str, report: Path, tail: bytes) -> dict[str, Any]:
     counts = {"tests": 0, "passed": 0, "failed": 0, "skipped": 0}
     try:
@@ -318,16 +369,21 @@ def _test_report(kind: str, report: Path, tail: bytes) -> dict[str, Any]:
                 key = "failed" if case.find("failure") is not None or case.find("error") is not None else (
                     "skipped" if case.find("skipped") is not None else "passed")
                 counts[key] += 1
-        else:
+        elif kind == "tap":
             summary = tail.decode("utf-8", errors="replace")
-            observed = {key: int(value) for key, value in re.findall(
-                r"(?m)^# (tests|pass|fail|cancelled|skipped) (\d+)\s*$", summary)}
-            if set(observed) != {"tests", "pass", "fail", "cancelled", "skipped"}:
+            entries = re.findall(
+                r"(?m)^# (tests|pass|fail|cancelled|skipped)(?:[ \t]+([^\r\n]*))?\r?$", summary)
+            keys = {"tests", "pass", "fail", "cancelled", "skipped"}
+            if (len(entries) != len(keys) or {key for key, _ in entries} != keys
+                    or any(re.fullmatch(r"[0-9]+[ \t]*", value) is None for _, value in entries)):
                 raise ValueError
+            observed = {key: int(value) for key, value in entries}
             counts.update(tests=observed["tests"], passed=observed["pass"],
                           failed=observed["fail"] + observed["cancelled"], skipped=observed["skipped"])
-        complete = counts["tests"] == counts["passed"] + counts["failed"] + counts["skipped"]
-        return {"format": kind, **counts, "accepted": complete and counts["passed"] > 0 and counts["failed"] == 0}
+        else:
+            raise ValueError
+        parsed = {"format": kind, **counts, "accepted": True}
+        return {**parsed, "accepted": _report_accepted(parsed)}
     except (OSError, ValueError, ET.ParseError):
         return {"format": kind, **counts, "accepted": False}
 
@@ -411,10 +467,16 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
         if (root / ".reverse-agent-handoff").exists():
             raise TaskStoreError("functional_transient_handoff_present")
         result["head_before"] = git_output(root, "rev-parse", "HEAD")
+        if task.executor_kind == "candidate_validation":
+            if result["head_before"] != contract["expected_candidate_sha"]:
+                raise TaskStoreError("functional_candidate_head_mismatch")
         if git_output(root, "merge-base", base_commit, result["head_before"]) != base_commit:
             raise TaskStoreError("functional_base_ancestry_mismatch")
         _, before, changed, hygiene = _snapshot_workspace(root, base_commit)
         result["tree_before"] = before
+        if task.executor_kind == "candidate_validation" and before != git_output(
+                root, "rev-parse", contract["expected_candidate_sha"] + "^{tree}"):
+            raise TaskStoreError("functional_candidate_tree_mismatch")
         from .artifact_handoff import check_input_snapshot, _digest as artifact_digest
         consumed = check_input_snapshot(task, root, head=result["head_before"], tree=before)
         if consumed is not None:
@@ -426,7 +488,7 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
         for check in contract["checks"]:
             observed = _run_check(check, root)
             result["checks"].append(observed)
-            if observed["timed_out"] or observed["exit_code"] != 0 or not observed["test_report"]["accepted"]:
+            if observed["timed_out"] or observed["exit_code"] != 0 or not _report_accepted(observed["test_report"], profile_id=check["profile_id"]):
                 break
         result["head_after"] = git_output(root, "rev-parse", "HEAD")
         _, after, _, after_hygiene = _snapshot_workspace(root, base_commit)
@@ -434,7 +496,7 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
         if before != after or result["head_before"] != result["head_after"]:
             raise TaskStoreError("functional_artifact_changed_during_checks")
         if after_hygiene["exit_code"] != 0 or len(result["checks"]) != len(contract["checks"]) or any(
-            check["timed_out"] or check["exit_code"] != 0 or not check["test_report"]["accepted"] for check in result["checks"]
+            check["timed_out"] or check["exit_code"] != 0 or not _report_accepted(check["test_report"], profile_id=check["profile_id"]) for check in result["checks"]
         ):
             raise TaskStoreError("functional_check_failed")
         result.update(passed=True, verified=task.executor_kind != "deterministic_fixture",
@@ -463,6 +525,12 @@ def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_
         return "git_diff_check", code, output, output_digest
     if lease is not None:
         store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
+    if task.executor_kind == "candidate_validation":
+        from .candidate_validation import admit_candidate
+        try:
+            admit_candidate(store, task)
+        except (TaskStoreError, OSError, ValueError, RuntimeError) as exc:
+            return FUNCTIONAL_COMMAND_ID, 1, str(exc) if isinstance(exc, TaskStoreError) else "candidate_admission_failed", ""
     from .artifact_handoff import bind_consumer_input, recover_export_validation, retain_validated_artifact
     try:
         consumed = bind_consumer_input(store, task_id, lease=lease, allow_create=False)
@@ -480,6 +548,12 @@ def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_
                                  base_commit=base_commit,
                                  execution_id=execution_id or task.execution_id)
     assert result is not None
+    if task.executor_kind == "candidate_validation":
+        try:
+            admit_candidate(store, store.get_task(task_id))
+        except (TaskStoreError, OSError, ValueError, RuntimeError) as exc:
+            result.update(passed=False, verified=False, status="FAILED", reason=(
+                str(exc) if isinstance(exc, TaskStoreError) else "candidate_admission_failed"))
     result["run_id"] = lease.run_id if lease is not None else ""
     result["lease_epoch"] = lease.epoch if lease is not None else None
     if result["passed"] and consumed is not None:
@@ -496,7 +570,7 @@ def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_
         store.add_evidence(task_id, **fields)
     else:
         store._fenced_add_evidence(lease.run_id, task_id, **fields, owner=lease.owner, epoch=lease.epoch)
-    if result["passed"] and result["verified"]:
+    if result["passed"] and result["verified"] and task.executor_kind != "candidate_validation":
         try:
             retain_validated_artifact(store, task_id, identity, worktree=worktree, lease=lease)
         except (TaskStoreError, OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
@@ -539,14 +613,16 @@ def functional_evidence(task: Any) -> dict[str, Any]:
         identities = [{key: item[key] for key in ("profile_id", "working_directory")} for item in checks]
         consistent = (identities == contract["checks"]
                       and all(type(item["exit_code"]) is int and item["exit_code"] == 0
-                              and item["timed_out"] is False and item["test_report"]["accepted"] is True
+                              and item["timed_out"] is False and _report_accepted(item["test_report"], profile_id=item["profile_id"])
                               and digest(item["argv"]) == item["argv_digest"] for item in checks)
                       and _SHA40.fullmatch(result["head_before"]) is not None
                       and _SHA40.fullmatch(result["tree_before"]) is not None
                       and result["head_before"] == result["head_after"]
                       and result["tree_before"] == result["tree_after"])
+        if task.executor_kind == "candidate_validation":
+            consistent = consistent and result["head_before"] == contract["expected_candidate_sha"]
         verified = (consistent and input_matches and result["passed"] is True and result["verified"] is True
-                    and result["status"] == "VERIFIED" and task.executor_kind == "opencode"
+                    and result["status"] == "VERIFIED" and task.executor_kind in {"opencode", "candidate_validation"}
                     and type(task.validation_exit_code) is int and task.validation_exit_code == 0)
         return {"status": "VERIFIED" if verified else ("FIXTURE_VERIFIED" if consistent
                 and result["status"] == "FIXTURE_VERIFIED" else "FAILED"), "verified": verified,

@@ -1,5 +1,52 @@
 # Approved functional checks
 
+## Fixed combinations and exact-candidate checks
+
+Two additional host-owned profiles run from repository root only. They accept
+no caller-supplied targets, argv, environment, timeout, or alternate directory:
+
+| Profile | Fixed pytest targets |
+| --- | --- |
+| `python_pytest_report_consistency` | `tests/platform_v1/test_functional_report_consistency.py` |
+| `python_pytest_functional_artifact` | `tests/platform_v1/test_functional_execution.py` and `tests/platform_v1/test_artifact_handoff.py` |
+
+Both use the existing trusted Python runtime, pytest quiet mode, disabled cache
+provider, a 600-second deadline, and a host-created JUnit report. Each check has
+new owned temporary storage. Adding these profiles changes the catalog digest;
+previously frozen contracts fail stale-catalog admission. The contract format
+version remains 1. Valid mixed pass/skip results retain their existing meaning.
+
+For provider-free commit validation, create a Goal with
+`executor_kind: candidate_validation`, `orchestration_mode: single`, and no
+Binding. Every planned task must select `capability: validate_task`, at least
+one of the fixed combinations above, and `expected_candidate_sha` containing
+the full approved 40-character lowercase Git commit SHA. The exact SHA is shown
+in the generated plan and included in its revision/digest before owner approval.
+Candidate tasks cannot request artifact inputs, dependencies, or producer exports.
+
+The existing Goal approval and ACTIVE window are required. The window must
+include the repository and both `execute_task` and `validate_task`. Execution
+rechecks the current Goal revision/digest, selected checks, Task link, window
+status/time and repository identity; it freezes these into the existing
+FunctionalContract evidence. A direct unapproved Task cannot invent this authority.
+The native router prepares a new isolated checkout of the exact SHA without
+model/provider calls, credentials or network fetches. The commit must already be
+available in the configured trusted source repository.
+
+Host validation requires the exact expected HEAD and committed tree before
+running checks, then unchanged HEAD/tree afterward. Another stable descendant
+of the approved base fails. Missing, contradictory, failed, zero-test or
+all-skipped reports cannot pass. Results retain the truthful
+`candidate_validation` executor identity in the existing Task/Run/SQLite views;
+durable execution uses the existing fenced lease/evidence/checkpoint writes.
+No producer AcceptedArtifact is generated and this route grants no publication,
+Ready, merge, deployment, or independent acceptance.
+
+“Read-only” describes intended validation behavior. Repository tests execute
+code; this route is not an OS sandbox or proof of authentic test provenance or
+complete task-obligation coverage. Its scoped result is author/runtime evidence
+until a different auditor reviews the final exact head and required CI.
+
 Goal tasks can select host-owned checks before owner review:
 
 ```json
@@ -22,7 +69,7 @@ source HEAD with Task creation in the existing SQLite evidence table. A repeated
 launch returns the same Tasks and contracts. No additional execution store or
 database migration is used.
 
-The current catalog has two profiles:
+The catalog has four profiles. Its two general profiles are:
 
 | Profile | Installed runtime | Accepted test evidence |
 | --- | --- | --- |
@@ -145,3 +192,37 @@ See [Accepted artifact inputs](artifact-handoff.md) for selecting one checked
 dependency as a task's exact code input. Validation-only consumers run host checks
 without model edits; functional evidence retains both the original approved base
 and the consumed producer commit/tree identity.
+
+## Test-report consistency at admission and readback
+
+The existing parser and functional-evidence projection share a strict report
+predicate. `accepted: true` alone is not proof: `tests`, `passed`, `failed` and
+`skipped` must be nonnegative integers (not booleans, strings or floats), their
+sum must agree, at least one test must pass, and no test may fail. The stored
+acceptance flag must still be exactly `true`; recomputation cannot promote a
+missing or false flag. Valid reports with some skipped tests remain admissible;
+entirely skipped or zero-test reports do not.
+
+The report format must match the selected profile: Python/pytest requires JUnit;
+the supported npm scripts use JUnit or TAP. Unknown report kinds and repeated,
+contradictory or malformed TAP summary keys are rejected instead of taking the
+last reported value. The same checks run when reading persisted evidence, so a
+report with matching ordinary digests but contradictory counts cannot produce a
+positive Task/Run functional-verification projection. Historical evidence is not
+silently rewritten and validation is not rerun by the read path.
+
+This consistency check is not an authenticity signature, a protected-verifier
+execution environment or proof that every requested obligation was tested.
+Correct-looking fabricated records still require provenance protection at the
+existing trusted-host boundary. The change neither adds an evidence store nor
+authorizes publication, merge, deployment or modifications to the verifier's
+own authority. These remaining requirements stay under #653 and #379.
+
+The report-consistency regression suite includes malformed persisted records,
+positive controls, actual fixed pytest/JUnit subprocesses and disk-SQLite
+readback through the real Task/Run projections. Model execution and binding use
+the existing disclosed local test doubles. Persistence corruption is injected
+only by tests, with ordinary digests updated deliberately to exercise count
+validation rather than a pre-existing digest mismatch; this does not demonstrate
+an untrusted production write path. A generated all-skipped test suite is a
+negative input, not a skipped regression test.

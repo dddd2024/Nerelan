@@ -1569,7 +1569,7 @@ class TaskStore:
             current_status = task_row["status"]
             current_executor_kind = task_row["executor_kind"]
             current_orchestration_mode = task_row["orchestration_mode"]
-            if current_executor_kind not in ("opencode", "deterministic_fixture"):
+            if current_executor_kind not in ("opencode", "deterministic_fixture", "candidate_validation"):
                 cur.execute("ROLLBACK")
                 raise TaskStoreError(
                     f"durable_claim_wrong_executor_kind:{task_id}:"
@@ -2264,7 +2264,7 @@ class TaskStore:
                     f"durable_recover_wrong_orchestration_mode:{run_id}:"
                     f"actual={row['orchestration_mode']}"
                 )
-            if row["executor_kind"] not in ("opencode", "deterministic_fixture"):
+            if row["executor_kind"] not in ("opencode", "deterministic_fixture", "candidate_validation"):
                 cur.execute("ROLLBACK")
                 raise TaskStoreError(
                     f"durable_recover_wrong_executor_kind:{run_id}:"
