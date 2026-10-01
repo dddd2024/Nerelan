@@ -249,9 +249,10 @@ def test_repo_dir_used_for_node_modules_and_runtime() -> None:
 
 def test_exact_pid_process_tree_ownership_exists() -> None:
     """V3-F3: exact-PID tree ownership must exist; no name-wide kill."""
-    assert "taskkill" in _DEV_DOWN
-    assert "/PID" in _DEV_DOWN
-    assert "/T" in _DEV_DOWN
+    assert "AssignProcessToJobObject" in _DEV_DOWN
+    assert "TerminateJobObject" in _DEV_DOWN
+    assert "IsProcessInJob" in _DEV_DOWN
+    assert "taskkill" not in _DEV_DOWN
     assert "expected_exe" in _DEV_UP
     assert "start_time" in _DEV_UP
     assert "wrapped" in _DEV_UP
@@ -305,7 +306,7 @@ def test_dev_down_cmd_exe_wrapped_frontend_accepted() -> None:
     """V3-F3: cmd.exe-wrapped frontend-vite must be accepted for shutdown."""
     assert "cmd.exe" in _DEV_DOWN
     assert "wrapped" in _DEV_DOWN
-    assert "taskkill" in _DEV_DOWN
+    assert "Invoke-OwnedTreeStop $proc $child" in _DEV_DOWN
 
 
 def test_single_opencode_model_note_in_frontend() -> None:
@@ -334,7 +335,7 @@ def test_dev_down_has_process_start_time_comparison() -> None:
 def test_dev_down_checks_start_time_before_kill() -> None:
     """V4-F2: start_time must be validated before any Kill()/taskkill call."""
     try_stop = _DEV_DOWN[_DEV_DOWN.index("function Try-Stop-Child"):]
-    kill_idx = try_stop.index("taskkill")
+    kill_idx = try_stop.index("Invoke-OwnedTreeStop $proc $child")
     compare_idx = try_stop.index("Compare-ProcessStartTime")
     assert compare_idx < kill_idx, "start_time comparison must precede any taskkill call"
     assert "refused_identity_mismatch" in try_stop[compare_idx:kill_idx], \
@@ -536,7 +537,7 @@ def test_dev_up_service_children_do_not_inherit_parent_stdio() -> None:
     A long-lived child that inherits the caller's pipe write end blocks any
     orchestrator (pytest, CI) reading dev-up output until EOF — even after
     dev-up exits, and even after a subprocess timeout kills dev-up itself.
-    Only a ShellExecute launch (no handle inheritance) avoids this, with
+    Native creation with bInheritHandles=false avoids this, with
     per-child environment variables carried by `set` commands inside the
     cmd.exe wrapper.
     """
@@ -545,10 +546,9 @@ def test_dev_up_service_children_do_not_inherit_parent_stdio() -> None:
             "function Wait-ServiceReady", _DEV_UP.index("function Start-ServiceProcess")
         )
     ]
-    assert "$psi.UseShellExecute = $true" in start_block, \
-        "services must launch via ShellExecute so no handles are inherited"
-    assert "$psi.UseShellExecute = $false" not in start_block, \
-        "the inheritable-handle launch path must not be used for services"
+    assert "[NerelanOwnedJob]::Start" in start_block
+    assert "IntPtr.Zero,IntPtr.Zero,false,0x08000004" in _DEV_DOWN, \
+        "native creation must disable inheritance and suspend before job assignment"
     assert "/s /c" in start_block, \
         "every service must run behind a cmd.exe /s /c wrapper"
     assert "2>&1" in start_block, \
@@ -862,7 +862,7 @@ def test_dev_up_repairs_partial_stack_by_restarting_it(tmp_path: Path) -> None:
         child for child in record_before["children"] if child["name"] == "frontend-vite"
     )
     # Stop only the selected verified fixture tree through the actual script.
-    # Preserve the full record so the next dev-up sees a genuinely partial stack.
+    # Preserve the full record and the actual stop result for the dead group.
     pid_file.write_text(json.dumps({**record_before, "children": [frontend_entry]}), encoding="utf-8")
     try:
         stopped = _run_dev_down(repo, env)
@@ -871,7 +871,21 @@ def test_dev_up_repairs_partial_stack_by_restarting_it(tmp_path: Path) -> None:
         assert stop_record["children"][0]["outcome"] == "stopped", stop_record
         _assert_ports_free({"frontend": ports["frontend"]})
     finally:
-        pid_file.write_text(json.dumps(record_before), encoding="utf-8")
+        repaired_record = {**record_before, "children": [
+            stop_record["children"][0] if child["name"] == "frontend-vite" else child
+            for child in record_before["children"]
+        ]}
+        pid_file.write_text(json.dumps(repaired_record), encoding="utf-8")
+
+    # Restoring a stale pre-stop record destroys proof; absence alone must refuse.
+    pid_file.write_text(json.dumps(record_before), encoding="utf-8")
+    try:
+        stale = _run_dev_up(repo, env, ports)
+        assert stale.returncode == 1, (stale.stdout, stale.stderr)
+        assert "root absence does not prove descendants exited" in stale.stderr
+        assert json.loads(pid_file.read_text(encoding="utf-8-sig")) == record_before
+    finally:
+        pid_file.write_text(json.dumps(repaired_record), encoding="utf-8")
 
     second = _run_dev_up(repo, env, ports)
     assert second.returncode == 0, (
@@ -972,7 +986,8 @@ def test_dev_down_rejects_identity_changes_without_stopping_fixture(tmp_path: Pa
             assert all(entry["outcome"] == "stopped" for entry in shutdown["children"]), shutdown
             for entry in shutdown["children"]:
                 assert entry["start_time"] and entry["wrapped"], entry
-                assert isinstance(entry["stop_diagnostics"]["taskkill_exit_code"], int), entry
+                assert entry["job_name"] and entry["stop_diagnostics"]["completed"], entry
+                assert entry["stop_diagnostics"]["active_remaining"] == 0, entry
             _assert_ports_free(ports)
         finally:
             if (stack_repo / ".platform_v1_runtime" / "devup_pids.json").exists():
@@ -982,3 +997,190 @@ def test_dev_down_rejects_identity_changes_without_stopping_fixture(tmp_path: Pa
         # Popen retains the handle of the test-created process; no PID-only kill.
         child.terminate()
         child.wait(timeout=10)
+
+
+@requires_windows_powershell
+@pytest.mark.parametrize("scenario", ["late_child", "root_exited_failure", "legacy", "query_after_termination"])
+def test_birth_bound_job_owns_late_children_and_retains_failed_stop(
+    tmp_path: Path, scenario: str,
+) -> None:
+    """Actual native launch/stop, controlled scheduling, no unknown process kills."""
+    port = _free_port()
+    signal = tmp_path / "spawn"
+    child_pid = tmp_path / "child-pid"
+    root_exit = tmp_path / "exit-root"
+    worker = tmp_path / "worker.py"
+    worker.write_text(
+        "import pathlib, subprocess, sys, time\n"
+        "signal, pid_file, leave = map(pathlib.Path, sys.argv[1:4])\n"
+        "while not signal.exists(): time.sleep(.01)\n"
+        "p = subprocess.Popen([sys.executable, '-c', "
+        "\"import socket,time; s=socket.socket(); s.bind(('127.0.0.1',int(__import__('sys').argv[1]))); s.listen(); time.sleep(90)\", "
+        "sys.argv[4]])\n"
+        "pid_file.write_text(str(p.pid))\n"
+        "while not leave.exists(): time.sleep(.01)\n",
+        encoding="utf-8",
+    )
+    # Single quotes in PS literals must be doubled even in fixture paths.
+    def ps(value: object) -> str:
+        return "'" + str(value).replace("'", "''") + "'"
+
+    repo = tmp_path / "record"
+    runtime = repo / ".platform_v1_runtime"
+    runtime.mkdir(parents=True)
+    script = tmp_path / "job-case.ps1"
+    report = tmp_path / "report.json"
+    down_literal = ps(DEV_DOWN)
+    failure_runner = tmp_path / "failure-runner.ps1"
+    failure_runner.write_text(
+        f". {down_literal} -RepoDir {ps(repo)} -FunctionsOnly\n"
+        "function Stop-OwnedJob([IntPtr]$job) { throw 'injected terminate failure after root exit' }\n"
+        f"$body = Get-Content -LiteralPath {down_literal} -Raw -Encoding UTF8\n"
+        "$tail = $body.Substring($body.IndexOf('if (-not (Test-Path -LiteralPath $pidFile))'))\n"
+        "Invoke-Expression $tail\n",
+        encoding="utf-8-sig",
+    )
+    common = f"""
+$ErrorActionPreference = 'Stop'
+. {down_literal} -RepoDir {ps(repo)} -FunctionsOnly
+Initialize-OwnedJobType
+$launch = [NerelanOwnedJob]::Start({ps(sys.executable)}, ('"' + {ps(worker)} + '" "' + {ps(signal)} + '" "' + {ps(child_pid)} + '" "' + {ps(root_exit)} + '" {port}'), {ps(tmp_path)})
+$root = $launch.Process
+$record = [pscustomobject]@{{ name='job-fixture'; pid=$root.Id; expected_exe='python.exe'; wrapped=$true; start_time=$root.StartTime.ToString('o'); job_name=$launch.JobName }}
+$proof = [ordered]@{{ scenario={ps(scenario)}; job_name=$launch.JobName; root_pid=$root.Id }}
+function Spawn-FixtureChild {{
+  Set-Content -LiteralPath {ps(signal)} -Value spawn
+  $deadline = [datetime]::UtcNow.AddSeconds(10)
+  while (-not (Test-Path -LiteralPath {ps(child_pid)})) {{
+    if ([datetime]::UtcNow -gt $deadline) {{ throw 'Fixture spawn timeout' }}
+    Start-Sleep -Milliseconds 20
+  }}
+  $script:fixtureChild = Get-Process -Id ([int](Get-Content -LiteralPath {ps(child_pid)}))
+  $null = $script:fixtureChild.Handle
+  $job = [NerelanOwnedJob]::Open($launch.JobName)
+  try {{
+    if (-not [NerelanOwnedJob]::Contains($job,$script:fixtureChild)) {{ throw 'Fixture child not job-owned' }}
+  }} finally {{ [NerelanOwnedJob]::Close($job) }}
+  $tcp = [Net.Sockets.TcpClient]::new()
+  try {{
+    while (-not $tcp.Connected) {{
+      try {{ $tcp.Connect('127.0.0.1',{port}) }} catch {{
+        if ([datetime]::UtcNow -gt $deadline) {{ throw }}
+        Start-Sleep -Milliseconds 20
+      }}
+    }}
+  }} finally {{ $tcp.Dispose() }}
+}}
+try {{
+"""
+    if scenario == "late_child":
+        case = """
+  function Stop-OwnedJob([IntPtr]$job) {
+    # Called after the real Members evidence snapshot: spawn a real late listener.
+    Spawn-FixtureChild
+    $proof.child_pid = $script:fixtureChild.Id
+    $proof.late_was_listening = $true
+    [NerelanOwnedJob]::Terminate($job)
+  }
+  $proof.result = Invoke-OwnedTreeStop $root $record
+  $proof.child_exited = $script:fixtureChild.WaitForExit(5000)
+"""
+    elif scenario == "root_exited_failure":
+        case = f"""
+  Spawn-FixtureChild
+  $proof.child_pid = $script:fixtureChild.Id
+  Set-Content -LiteralPath {ps(root_exit)} -Value exit
+  if (-not $root.WaitForExit(5000)) {{ throw 'Fixture root did not exit' }}
+  [ordered]@{{repo_dir={ps(repo)};source_dir={ps(repo)};children=@($record)}} | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $pidFile -Encoding UTF8
+  & {ps(_WINDOWS_PS_HOST)} -NoProfile -ExecutionPolicy Bypass -File {ps(failure_runner)} > {ps(tmp_path / 'failure.log')} 2>&1
+  $proof.failed_exit = $LASTEXITCODE
+  $saved = Get-Content -LiteralPath $pidFile -Raw -Encoding UTF8 | ConvertFrom-Json
+  $proof.failed = $saved.children[0].stop_diagnostics
+  $proof.failed_outcome = $saved.children[0].outcome
+  $proof.retained_start_time = $saved.children[0].start_time
+  $proof.retained_job = $saved.children[0].job_name
+  $proof.child_alive_after_failure = -not $script:fixtureChild.HasExited
+  & {ps(_WINDOWS_PS_HOST)} -NoProfile -ExecutionPolicy Bypass -File {down_literal} -RepoDir {ps(repo)} > {ps(tmp_path / 'retry.log')} 2>&1
+  $proof.retry_exit = $LASTEXITCODE
+  $saved = Get-Content -LiteralPath $pidFile -Raw -Encoding UTF8 | ConvertFrom-Json
+  $proof.retried = $saved.children[0].stop_diagnostics
+  $proof.child_exited = $script:fixtureChild.WaitForExit(5000)
+"""
+    elif scenario == "query_after_termination":
+        case = """
+  $script:queries = 0
+  function Get-OwnedJobActiveCount([IntPtr]$job) {
+    $script:queries++
+    if ($script:queries -gt 1) { throw 'injected query failure after termination' }
+    return [NerelanOwnedJob]::Active($job)
+  }
+  $proof.failed = Invoke-OwnedTreeStop $root $record
+  $proof.root_exited = $root.WaitForExit(5000)
+  $record | Add-Member -NotePropertyName stop_diagnostics -NotePropertyValue $proof.failed
+  function Get-OwnedJobActiveCount([IntPtr]$job) { [NerelanOwnedJob]::Active($job) }
+  $proof.retried = Invoke-OwnedTreeStop $null $record
+"""
+    else:
+        case = """
+  $unbound = $record.PSObject.Copy()
+  $unbound.job_name = $null
+  $proof.legacy = Invoke-OwnedTreeStop $root $unbound
+  $proof.root_alive_after_refusal = -not $root.HasExited
+  # A stale snapshot injection must never establish kill authority.
+  Add-Type 'public static class NerelanProcessParents { public static System.Collections.Generic.Dictionary<int,int> Snapshot() { throw new System.Exception("snapshot must not be used"); } }'
+  try { $null = Get-OwnedProcessTree $root; throw 'unsafe ancestry accepted' }
+  catch { $proof.snapshot_refusal = $_.Exception.Message }
+  $wrong = $record.PSObject.Copy()
+  $wrong.job_name = $wrong.job_name -replace '-[0-9]+-', '-1-'
+  $proof.wrong_binding = Invoke-OwnedTreeStop $root $wrong
+  $proof.root_alive_after_wrong_binding = -not $root.HasExited
+  $proof.result = Invoke-OwnedTreeStop $root $record
+"""
+    final = f"""
+}} finally {{
+  # Cleanup is the launcher's exact birth-bound job, never a raw PID tree.
+  $completed = if ($proof.retried) {{ $proof.retried }} else {{ $proof.result }}
+  if ($completed -and $completed.completed) {{ $record | Add-Member -NotePropertyName stop_diagnostics -NotePropertyValue $completed -Force }}
+  $cleanup = Invoke-OwnedTreeStop $null $record
+  $proof.cleanup = $cleanup
+  $proof | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath {ps(report)} -Encoding UTF8
+  if ($script:fixtureChild) {{ $script:fixtureChild.Dispose() }}
+  $root.Dispose()
+}}
+"""
+    script.write_text(common + case + final, encoding="utf-8-sig")
+    result = subprocess.run(
+        [_WINDOWS_PS_HOST, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)],
+        capture_output=True, text=True, timeout=45,
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    observed = json.loads(report.read_text(encoding="utf-8-sig"))
+    if scenario != "query_after_termination":
+        assert observed["cleanup"]["completed"], observed
+    if scenario == "late_child":
+        assert observed["late_was_listening"] and observed["child_exited"], observed
+        assert observed["result"]["completed"], observed
+        assert observed["result"]["active_remaining"] == 0, observed
+        assert observed["child_pid"] not in {m["pid"] for m in observed["result"]["members_before"]}, observed
+    elif scenario == "root_exited_failure":
+        assert observed["failed_exit"] == 1 and observed["failed_outcome"] == "stop_failed", observed
+        assert observed["retained_start_time"] and observed["retained_job"] == observed["job_name"], observed
+        assert not observed["failed"]["completed"], observed
+        assert "injected terminate failure" in observed["failed"]["error"], observed
+        assert observed["failed"]["job_name"] == observed["job_name"], observed
+        assert observed["failed"]["root_start_time"], observed
+        assert observed["child_pid"] in {m["pid"] for m in observed["failed"]["members_before"]}, observed
+        assert observed["failed"]["active_remaining"] > 0 and observed["child_alive_after_failure"], observed
+        assert observed["retry_exit"] == 0 and observed["retried"]["completed"] and observed["child_exited"], observed
+    elif scenario == "query_after_termination":
+        assert observed["root_exited"] and not observed["failed"]["completed"], observed
+        assert observed["failed"]["termination_requested"] and observed["failed"]["members_before"], observed
+        assert "query failure" in observed["failed"]["error"], observed
+        assert not observed["retried"]["completed"] and observed["retried"]["error"], observed
+    else:
+        assert not observed["legacy"]["completed"] and not observed["legacy"]["termination_requested"], observed
+        assert observed["root_alive_after_refusal"] and observed["root_alive_after_wrong_binding"], observed
+        assert "do not establish" in observed["snapshot_refusal"], observed
+        assert not observed["wrong_binding"]["completed"], observed
+        assert observed["result"]["completed"], observed
+    _assert_ports_free({"fixture": port})

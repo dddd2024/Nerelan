@@ -85,21 +85,27 @@ function Get-InvalidDirReason([string]$candidate, [string]$label) {
 }
 
 function Stop-Owned-Children {
+  $cleanupResults = @()
   foreach ($child in $script:startedChildren) {
-    try {
-      $proc = Get-Process -Id $child.pid -ErrorAction SilentlyContinue
-      if ($proc -and -not $proc.HasExited) {
-        if ($child.wrapped) {
-          $ki = Start-Process "taskkill" -ArgumentList "/PID $($child.pid) /T /F" -Wait -NoNewWindow -PassThru -ErrorAction SilentlyContinue
-          if ($ki) { $ki.WaitForExit(5000) | Out-Null }
-        } else {
-          $proc.Kill()
-          $proc.WaitForExit(5000) | Out-Null
-        }
-      }
-    } catch {}
+    if ($child.stop_diagnostics -and $child.stop_diagnostics.completed) {
+      $diagnostic = $child.stop_diagnostics
+    } else {
+      $root = if ($child.handle -and -not $child.handle.HasExited) { $child.handle } else { $null }
+      $diagnostic = Invoke-OwnedTreeStop $root $child
+      $child.stop_diagnostics = $diagnostic
+    }
+    $cleanupResults += [ordered]@{
+      name = $child.name; pid = $child.pid; expected_exe = $child.expected_exe
+      start_time = $child.start_time; wrapped = $child.wrapped; job_name = $child.job_name
+      outcome = if ($diagnostic.completed) { "stopped" } else { "stop_failed" }
+      stop_diagnostics = $diagnostic
+    }
   }
-  $script:startedChildren.Clear()
+  if ($cleanupResults.Count -gt 0) {
+    # Retain failed groups for an explicit dev-down retry, even if root exited.
+    [ordered]@{ repo_dir = $repoDir; source_dir = $sourceDir; children = @($cleanupResults) } |
+      ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $script:runtimeDir "devup_pids.json") -Encoding UTF8
+  }
 }
 
 function Fail-Closed([string]$msg) {
@@ -198,31 +204,18 @@ function Start-ServiceProcess(
     $inner = "`"$cmd`" $argString"
   }
 
-  # Service children must never inherit dev-up's stdio handles. The .NET
-  # UseShellExecute=false path enables full handle inheritance, so a
-  # long-lived child would keep the caller's stdout/stderr pipe write ends
-  # open and block any orchestrator (pytest, CI) reading dev-up output until
-  # EOF - even after dev-up itself exits or is killed. ShellExecute passes no
-  # handles; per-child environment variables travel inside the wrapper as
-  # `set` commands, and the wrapper redirects the real service's stdio into a
-  # per-service log file so the service never blocks on an unread pipe.
+  # Native creation passes bInheritHandles=false, preserving caller pipe EOF.
+  # Suspend before assigning the kernel job so no descendant predates binding.
+  # Environment remains isolated in the wrapper; service stdio goes to its log.
   $setEnv = @()
   foreach ($kv in $env.GetEnumerator()) {
     $setEnv += "set `"$($kv.Key)=$($kv.Value)`""
   }
   $wrappedCommand = (@($setEnv) + @("$inner > `"${logFile}`" 2>&1")) -join " && "
 
-  $psi = New-Object System.Diagnostics.ProcessStartInfo
-  $psi.FileName = "cmd.exe"
-  $psi.Arguments = "/s /c `"$wrappedCommand`""
-  $psi.UseShellExecute = $true
-  $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
-  $psi.WorkingDirectory = $cwd
-
-  $proc = New-Object System.Diagnostics.Process
-  $proc.StartInfo = $psi
   try {
-    $null = $proc.Start()
+    $launch = [NerelanOwnedJob]::Start((Join-Path $env:SystemRoot "System32\cmd.exe"), "/s /c `"$wrappedCommand`"", $cwd)
+    $proc = $launch.Process
   } catch {
     Stop-Owned-Children
     Fail-Closed "service '${name}' (${cmd} ${argString}) failed to start: $($_.Exception.Message)"
@@ -238,6 +231,7 @@ function Start-ServiceProcess(
     cmd = $cmd
     serviceArgs = $argString
     wrapped = $true
+    job_name = $launch.JobName
     handle = $proc
   })
 
@@ -311,6 +305,9 @@ if ($FrontendPort -eq $TaskApiPort -or $FrontendPort -eq $ModelControlPort -or $
   Fail-Closed "service ports must be distinct: ${FrontendPort}/${TaskApiPort}/${ModelControlPort}"
 }
 
+. (Join-Path $PSScriptRoot "dev-down.ps1") -RepoDir $repoDir -FunctionsOnly
+Initialize-OwnedJobType
+
 New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
 
 # Startup state reconciliation: a healthy recorded stack is reused; a partial,
@@ -337,7 +334,18 @@ function Compare-ProcessStartTime([object]$recordedStartTimeStr, [datetime]$actu
 function Test-RecordedChildOwned([object]$child) {
   if (-not $child -or -not $child.pid) { return $false }
   $proc = Get-Process -Id $child.pid -ErrorAction SilentlyContinue
-  if (-not $proc) { return $false }
+  if (-not $proc) {
+    if (-not $child.wrapped -or -not $child.job_name) { return $false }
+    $job = [IntPtr]::Zero
+    try {
+      $recorded = if ($child.start_time -is [datetime]) { $child.start_time } else { [datetime]::Parse([string]$child.start_time, [cultureinfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind) }
+      $prefix = "Local\Nerelan-devup-$($child.pid)-$($recorded.ToUniversalTime().ToFileTimeUtc())-"
+      if ($child.job_name -cnotmatch ('^' + [regex]::Escape($prefix) + '[0-9a-f]{32}$')) { return $false }
+      $job = [NerelanOwnedJob]::Open($child.job_name)
+      return ($job -ne [IntPtr]::Zero)
+    } catch { return $false }
+    finally { if ($job -ne [IntPtr]::Zero) { [NerelanOwnedJob]::Close($job) } }
+  }
   $actualExe = $null
   try { $actualExe = [System.IO.Path]::GetFileName($proc.MainModule.FileName) } catch { return $false }
   $wrapped = if ($child.PSObject.Properties.Name -contains "wrapped") { [bool]$child.wrapped } else { $false }
@@ -357,15 +365,21 @@ function Test-RecordedChildOwned([object]$child) {
 function Stop-VerifiedChild([object]$child) {
   # Revalidate at the operation boundary, then retain the exact process handle.
   if (-not (Test-RecordedChildOwned $child)) { Fail-Closed "recorded child identity changed before stop" }
-  $proc = Get-Process -Id $child.pid -ErrorAction Stop
-  $null = $proc.Handle
-  if (-not (Compare-ProcessStartTime $child.start_time $proc.StartTime)) { Fail-Closed "recorded child identity changed before stop" }
-  $actualExe = [System.IO.Path]::GetFileName($proc.MainModule.FileName)
-  if (($child.wrapped -and $actualExe -ne "cmd.exe") -or (-not $child.wrapped -and $actualExe -ne $child.expected_exe)) { Fail-Closed "recorded child executable changed before stop" }
+  $proc = Get-Process -Id $child.pid -ErrorAction SilentlyContinue
+  if ($proc) {
+    $null = $proc.Handle
+    if (-not (Compare-ProcessStartTime $child.start_time $proc.StartTime)) { Fail-Closed "recorded child identity changed before stop" }
+    $actualExe = [System.IO.Path]::GetFileName($proc.MainModule.FileName)
+    if (($child.wrapped -and $actualExe -ne "cmd.exe") -or (-not $child.wrapped -and $actualExe -ne $child.expected_exe)) { Fail-Closed "recorded child executable changed before stop" }
+  } elseif (-not $child.wrapped) { Fail-Closed "recorded child exited before stop" }
   if ($child.wrapped) {
-    . (Join-Path $PSScriptRoot "dev-down.ps1") -FunctionsOnly
-    $diagnostic = Invoke-OwnedTreeStop $proc
-    Write-Output "dev-up: stop method=$($diagnostic.stop_method) taskkill_exit=$($diagnostic.taskkill_exit_code)"
+    $diagnostic = Invoke-OwnedTreeStop $proc $child
+    if (-not $diagnostic.completed) {
+      $child | Add-Member -NotePropertyName stop_diagnostics -NotePropertyValue $diagnostic -Force
+      $runtimeState | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $pidFile -Encoding UTF8
+      Fail-Closed "recorded child stop incomplete: $($diagnostic.error)"
+    }
+    Write-Output "dev-up: stop method=$($diagnostic.stop_method) active_remaining=$($diagnostic.active_remaining)"
   } else {
     $proc.Kill()
     if (-not $proc.WaitForExit(5000)) { Fail-Closed "recorded child did not exit" }
@@ -402,6 +416,13 @@ if (Test-Path -LiteralPath $pidFile) {
     }
   }
   if ($runtimeState -and $runtimeState.children) {
+    foreach ($child in $runtimeState.children) {
+      if ($child.wrapped -and -not (Get-Process -Id $child.pid -ErrorAction SilentlyContinue) -and
+          -not (Test-RecordedChildOwned $child) -and
+          (-not $child.stop_diagnostics -or -not $child.stop_diagnostics.completed)) {
+        Fail-Closed "recorded tree ownership unavailable; root absence does not prove descendants exited"
+      }
+    }
     $recordedRepoDir = [string]$runtimeState.repo_dir
     if (-not ($recordedRepoDir.TrimEnd('\') -ieq ([string]$repoDir).TrimEnd('\'))) {
       if (@($runtimeState.children | Where-Object { Test-RecordedChildOwned $_ }).Count -gt 0) {
@@ -411,7 +432,9 @@ if (Test-Path -LiteralPath $pidFile) {
       $ownedChildren = @($runtimeState.children | Where-Object { Test-RecordedChildOwned $_ })
       $configMatches = (([string]$runtimeState.source_dir).TrimEnd('\') -ieq ([string]$sourceDir).TrimEnd('\')) -and
         ([string]$runtimeState.open_code_model -eq [string]$OpenCodeModel)
-      if ($ownedChildren.Count -gt 0 -and $configMatches -and (Test-StackHealthy)) {
+      $rootsPresent = @($ownedChildren | Where-Object { Get-Process -Id $_.pid -ErrorAction SilentlyContinue }).Count -eq $ownedChildren.Count
+      $failedStop = @($ownedChildren | Where-Object { $_.stop_diagnostics -and -not $_.stop_diagnostics.completed }).Count -gt 0
+      if ($ownedChildren.Count -gt 0 -and $rootsPresent -and -not $failedStop -and $configMatches -and (Test-StackHealthy)) {
         $stackReused = $true
         $ownedList = ($ownedChildren | ForEach-Object { "$($_.name) (pid $($_.pid))" }) -join ", "
         Write-Output "dev-up: stack already running and healthy; reusing recorded runtime: ${ownedList}"
@@ -544,6 +567,7 @@ $persistentChildren = foreach ($child in $script:startedChildren) {
     cmd = $child.cmd
     service_args = $child.serviceArgs
     wrapped = $child.wrapped
+    job_name = $child.job_name
     url = $urlMap[$child.name]
   }
 }
