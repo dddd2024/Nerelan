@@ -84,7 +84,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 public sealed class NerelanJobLaunch {
-  public Process Process; public string JobName;
+  public Process Process; public string JobName; public int KeeperPid; public string KeeperStartTime;
 }
 public sealed class NerelanJobMember {
   public int pid; public string start_time; public string executable;
@@ -142,7 +142,7 @@ public static class NerelanOwnedJob {
       if(ResumeThread(keeper.thread)==UInt32.MaxValue) throw new Win32Exception();
       var process=Process.GetProcessById((int)pi.pid); var held=process.Handle;
       if(ResumeThread(pi.thread)==UInt32.MaxValue) { process.Dispose(); throw new Win32Exception(); }
-      resumed=true; return new NerelanJobLaunch { Process=process,JobName=name };
+      resumed=true; return new NerelanJobLaunch { Process=process,JobName=name,KeeperPid=(int)keeper.pid,KeeperStartTime=DateTime.FromFileTimeUtc(Birth(keeper.process)).ToString("o") };
     } finally {
       bool stopped=true;
       if(!resumed) {

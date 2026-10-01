@@ -232,6 +232,8 @@ function Start-ServiceProcess(
     serviceArgs = $argString
     wrapped = $true
     job_name = $launch.JobName
+    keeper_pid = $launch.KeeperPid
+    keeper_start_time = $launch.KeeperStartTime
     handle = $proc
   })
 
@@ -359,7 +361,32 @@ function Test-RecordedChildOwned([object]$child) {
   if (-not $identityOk) { return $false }
   $recordedStart = if ($child.PSObject.Properties.Name -contains "start_time") { $child.start_time } else { $null }
   if (-not (Compare-ProcessStartTime $recordedStart $proc.StartTime)) { return $false }
+  if ($wrapped -and -not (Test-RecordedJobReady $child $proc)) { return $false }
   return $true
+}
+
+function Test-RecordedJobReady([object]$child, [System.Diagnostics.Process]$root) {
+  $job = [IntPtr]::Zero
+  $keeper = $null
+  try {
+    if (-not $child.job_name -or -not $child.keeper_pid -or -not $child.keeper_start_time) { return $false }
+    $recorded = if ($child.start_time -is [datetime]) { $child.start_time } else { [datetime]::Parse([string]$child.start_time, [cultureinfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind) }
+    $birth = $recorded.ToUniversalTime().ToFileTimeUtc()
+    $prefix = "Local\Nerelan-devup-$($child.pid)-${birth}-"
+    if ($child.job_name -cnotmatch ('^' + [regex]::Escape($prefix) + '[0-9a-f]{32}$')) { return $false }
+    if ($root.Id -ne $child.pid -or [NerelanOwnedJob]::Creation($root) -ne $birth) { return $false }
+    $job = [NerelanOwnedJob]::Open($child.job_name)
+    if ($job -eq [IntPtr]::Zero -or -not [NerelanOwnedJob]::Contains($job, $root)) { return $false }
+    $keeper = Get-Process -Id $child.keeper_pid -ErrorAction Stop
+    $null = $keeper.Handle
+    if ($keeper.HasExited -or $keeper.MainModule.FileName -ine (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')) { return $false }
+    $keeperBirth = if ($child.keeper_start_time -is [datetime]) { $child.keeper_start_time } else { [datetime]::Parse([string]$child.keeper_start_time, [cultureinfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind) }
+    return ([NerelanOwnedJob]::Creation($keeper) -eq $keeperBirth.ToUniversalTime().ToFileTimeUtc() -and [NerelanOwnedJob]::Contains($job, $keeper))
+  } catch { return $false }
+  finally {
+    if ($keeper) { $keeper.Dispose() }
+    if ($job -ne [IntPtr]::Zero) { [NerelanOwnedJob]::Close($job) }
+  }
 }
 
 function Stop-VerifiedChild([object]$child) {
@@ -418,6 +445,10 @@ if (Test-Path -LiteralPath $pidFile) {
   }
   if ($runtimeState -and $runtimeState.children) {
     foreach ($child in $runtimeState.children) {
+      if ($child.wrapped -and (Get-Process -Id $child.pid -ErrorAction SilentlyContinue) -and
+          -not (Test-RecordedChildOwned $child)) {
+        Fail-Closed "recorded live tree job/keeper ownership unavailable; refusing reuse or repair"
+      }
       if ($child.wrapped -and -not (Get-Process -Id $child.pid -ErrorAction SilentlyContinue) -and
           -not (Test-RecordedChildOwned $child) -and
           (-not $child.stop_diagnostics -or -not $child.stop_diagnostics.completed)) {
@@ -435,7 +466,11 @@ if (Test-Path -LiteralPath $pidFile) {
         ([string]$runtimeState.open_code_model -eq [string]$OpenCodeModel)
       $rootsPresent = @($ownedChildren | Where-Object { Get-Process -Id $_.pid -ErrorAction SilentlyContinue }).Count -eq $ownedChildren.Count
       $failedStop = @($ownedChildren | Where-Object { $_.stop_diagnostics -and -not $_.stop_diagnostics.completed }).Count -gt 0
-      if ($ownedChildren.Count -gt 0 -and $rootsPresent -and -not $failedStop -and $configMatches -and (Test-StackHealthy)) {
+      if ($ownedChildren.Count -eq @($runtimeState.children).Count -and $ownedChildren.Count -gt 0 -and $rootsPresent -and -not $failedStop -and $configMatches -and (Test-StackHealthy)) {
+        # Revalidate kernel ownership after readiness, immediately before reuse.
+        foreach ($child in $ownedChildren) {
+          if (-not (Test-RecordedChildOwned $child)) { Fail-Closed "recorded job/keeper identity changed before reuse" }
+        }
         $stackReused = $true
         $ownedList = ($ownedChildren | ForEach-Object { "$($_.name) (pid $($_.pid))" }) -join ", "
         Write-Output "dev-up: stack already running and healthy; reusing recorded runtime: ${ownedList}"
@@ -560,6 +595,7 @@ $urlMap = [ordered]@{
 }
 
 $persistentChildren = foreach ($child in $script:startedChildren) {
+  if (-not (Test-RecordedJobReady $child $child.handle)) { Fail-Closed "new service job/keeper identity unavailable after readiness" }
   [ordered]@{
     name = $child.name
     pid = $child.pid
@@ -569,6 +605,8 @@ $persistentChildren = foreach ($child in $script:startedChildren) {
     service_args = $child.serviceArgs
     wrapped = $child.wrapped
     job_name = $child.job_name
+    keeper_pid = $child.keeper_pid
+    keeper_start_time = $child.keeper_start_time
     url = $urlMap[$child.name]
   }
 }

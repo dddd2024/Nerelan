@@ -1260,3 +1260,92 @@ try {{
         assert not observed["wrong_binding"]["completed"], observed
         assert observed["result"]["completed"], observed
     _assert_ports_free({"fixture": port})
+
+
+_KEEPER_REUSE_PS = r'''
+param([string]$DownScript,[string]$UpScript,[string]$Repo,[string]$HostExe,[int]$FrontendPort,[int]$TaskPort,[int]$ModelPort)
+$ErrorActionPreference='Stop'
+. $DownScript -RepoDir $Repo -FunctionsOnly
+Initialize-OwnedJobType
+$originalRaw=Get-Content -Raw -Encoding UTF8 $pidFile
+$original=$originalRaw|ConvertFrom-Json
+$original|ConvertTo-Json -Depth 10|Set-Content (Join-Path $Repo 'original-record.json') -Encoding utf8
+$a=$original.children[0];$b=$original.children[1]
+$job=[NerelanOwnedJob]::Open($a.job_name)
+$guards=[Collections.Generic.List[Diagnostics.Process]]::new()
+$proof=[ordered]@{host=$PSVersionTable.PSVersion.ToString();fixture=$Repo;original=$original;members=@()}
+try{
+ foreach($m in [NerelanOwnedJob]::Members($job)){
+  $p=Get-Process -Id $m.pid -ErrorAction Stop
+  $null=$p.Handle
+  if(-not [NerelanOwnedJob]::Contains($job,$p) -or $p.MainModule.FileName -ne $m.executable -or [NerelanOwnedJob]::Creation($p) -ne ([datetime]::Parse($m.start_time)).ToUniversalTime().ToFileTimeUtc()){throw 'Ambiguous member'}
+  $guards.Add($p);$proof.members+=@{pid=$p.Id;exe=$m.executable;start_time=$m.start_time;job_member=$true}
+ }
+ # The dedicated keeper is a launcher's direct child, not a child of the cmd root.
+ Add-Type -TypeDefinition @'
+using System;using System.Runtime.InteropServices;
+public static class ParentForKeeper {
+ [StructLayout(LayoutKind.Sequential)] struct B{public IntPtr a,b,c,d,pid,parent;}
+ [DllImport("ntdll.dll")]static extern int NtQueryInformationProcess(IntPtr p,int c,out B b,int n,out int r);
+ public static long Parent(IntPtr p){B b;int r;if(NtQueryInformationProcess(p,0,out b,Marshal.SizeOf(typeof(B)),out r)!=0)throw new Exception("Parent unreadable");return b.parent.ToInt64();}
+}
+'@
+ $keepers=@($guards|Where-Object {$_.MainModule.FileName -ieq (Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe') -and [ParentForKeeper]::Parent($_.Handle) -ne $a.pid})
+ if($keepers.Count -ne 1){throw 'Keeper not unique'}
+ $proof.keeper_pid=$keepers[0].Id
+ $proof.keeper_parent=[ParentForKeeper]::Parent($keepers[0].Handle)
+ $keepers[0].Kill();if(-not $keepers[0].WaitForExit(5000)){throw 'Keeper not exited'}
+ [NerelanOwnedJob]::Close($job);$job=[IntPtr]::Zero
+ $probe=[NerelanOwnedJob]::Open($a.job_name);$proof.native_job_missing=($probe -eq [IntPtr]::Zero)
+ if($probe -ne [IntPtr]::Zero){[NerelanOwnedJob]::Close($probe);throw 'Missing job fixture not established'}
+ # No runtime record injection: invoke the actual entrypoint against unchanged state.
+ $ErrorActionPreference='Continue'
+ $output=& $HostExe -NoProfile -File $UpScript -RepoDir $Repo -SourceDir $Repo -FrontendPort $FrontendPort -TaskApiPort $TaskPort -ModelControlPort $ModelPort -NoBrowser 2>&1
+ $ErrorActionPreference='Stop'
+ $proof.rc=$LASTEXITCODE;$proof.output=@($output|ForEach-Object {$_.ToString()})
+ $after=Get-Content -Raw -Encoding UTF8 $pidFile|ConvertFrom-Json
+ $proof.record_job_unchanged=((Get-Content -Raw -Encoding UTF8 $pidFile) -ceq $originalRaw)
+ $proof.failclosed=($proof.rc -ne 0 -and (@($proof.output|Where-Object {$_ -match 'reusing recorded runtime'}).Count -eq 0))
+}finally{
+ if($job -ne [IntPtr]::Zero){[NerelanOwnedJob]::Close($job)}
+ # A has lost its job; cleanup uses only exact handles verified before the fault.
+ foreach($p in $guards){if(-not $p.HasExited){$p.Kill();if(-not $p.WaitForExit(5000)){throw 'A cleanup incomplete'}}}
+ $proof.A_cleanup=@($guards|ForEach-Object {@{pid=$_.Id;exited=$_.HasExited}})
+ foreach($p in $guards){$p.Dispose()}
+ # A evidence is preserved above. B still has its original exact job binding.
+ $cleanupState=[ordered]@{repo_dir=$original.repo_dir;source_dir=$original.source_dir;children=@($b)}
+ $cleanupState|ConvertTo-Json -Depth 10|Set-Content -LiteralPath $pidFile -Encoding utf8
+ $out=& $HostExe -NoProfile -File $DownScript -RepoDir $Repo 2>&1
+ $proof.B_cleanup_rc=$LASTEXITCODE
+ if($proof.B_cleanup_rc -ne 0){throw 'B cleanup failed'}
+ $proof|ConvertTo-Json -Depth 12|Set-Content (Join-Path $Repo 'keeper-reuse-report.json') -Encoding utf8
+}
+$proof|ConvertTo-Json -Depth 12
+if(-not $proof.failclosed){exit 1}
+
+'''
+
+
+@requires_windows_powershell
+def test_dev_up_refuses_reuse_after_real_keeper_exit(tmp_path: Path) -> None:
+    """Keep the runtime record unchanged; remove the actual known keeper."""
+    repo, env, ports = _setup_stub_stack(tmp_path)
+    started = _run_dev_up(repo, env, ports)
+    assert started.returncode == 0, (started.stdout, started.stderr)
+    harness = tmp_path / "keeper-reuse.ps1"
+    harness.write_text(_KEEPER_REUSE_PS, encoding="utf-8-sig")
+    result = subprocess.run(
+        [_WINDOWS_PS_HOST, "-NoProfile", "-File", str(harness),
+         "-DownScript", str(DEV_DOWN), "-UpScript", str(DEV_UP),
+         "-Repo", str(repo), "-HostExe", _WINDOWS_PS_HOST,
+         "-FrontendPort", str(ports["frontend"]),
+         "-TaskPort", str(ports["task"]), "-ModelPort", str(ports["model"])],
+        env=env, capture_output=True, text=True, timeout=60,
+    )
+    proof = json.loads((repo / "keeper-reuse-report.json").read_text(encoding="utf-8-sig"))
+    assert proof["native_job_missing"] and proof["record_job_unchanged"], proof
+    assert proof["rc"] != 0 and proof["failclosed"], proof
+    assert proof["B_cleanup_rc"] == 0, proof
+    assert all(member["exited"] for member in proof["A_cleanup"]), proof
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    _assert_ports_free(ports)
