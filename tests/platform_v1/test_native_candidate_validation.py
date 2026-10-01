@@ -55,11 +55,13 @@ def candidate(tmp_path, monkeypatch):
     git("add", "--", "app.py", ".gitignore", "tests")
     git("commit", "-qm", "synthetic approved base")
     base = git("rev-parse", "HEAD")
+    git("checkout", "--detach", base)
     (source / "app.py").write_bytes(b"value = 2\n")
     git("add", "--", "app.py")
     git("commit", "-qm", "synthetic candidate")
     expected = git("rev-parse", "HEAD")
     git("checkout", "--detach", base)
+    assert git("for-each-ref", "--contains", expected, "--format=%(refname)") == ""
     monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(source))
     store = TaskStore(str(tmp_path / "tasks.sqlite3"))
     control = PlatformControlStore(store)

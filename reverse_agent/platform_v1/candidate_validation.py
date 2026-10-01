@@ -79,6 +79,10 @@ class CandidateValidationExecutor:
             ["git", "clone", "--no-checkout", "--shared", "--", str(source), str(target)],
             ["git", "-C", str(target), "config", "--local", "core.autocrlf", "false"],
             ["git", "-C", str(target), "remote", "set-url", "origin", origin],
+            # A source may hold the approved commit only through FETCH_HEAD.
+            # Explicit local transfer keeps it available even when clone does
+            # not retain unreferenced/shared objects. This is not a network URL.
+            ["git", "-C", str(target), "fetch", "--no-tags", "--", str(source), contract["expected_candidate_sha"]],
             ["git", "-C", str(target), "checkout", "--detach", contract["expected_candidate_sha"]],
         ):
             result = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
