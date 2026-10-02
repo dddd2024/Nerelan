@@ -802,7 +802,10 @@ class DurableExecutionService:
             if executor_kind == "deterministic_fixture"
             else "READY_FOR_REVIEW"
         )
-        executor_kwargs = self._build_executor_kwargs(task)
+        try:
+            executor_kwargs = self._build_executor_kwargs(task)
+        except (TaskStoreError, RepositoryWorkspaceError) as exc:
+            return self._artifact_failure(task_id, lease, exc)
 
         # --- External dispatch via the same router path as TaskExecutionService ---
         # For deterministic_fixture, the executor creates its own worktree internally.
@@ -926,6 +929,11 @@ class DurableExecutionService:
         else:
             wt_path = ""
             repo_base_sha = ""
+
+        if task.executor_kind == "candidate_validation":
+            from .candidate_validation import admit_candidate
+            contract = admit_candidate(self.store, self.store.get_task(task_id))
+            self._bind_candidate_base(lease, contract["base_commit"])
 
         # PRE_PLANNER: durable run established before any external dispatch.
         self.store._accept_checkpoint(
@@ -1269,7 +1277,7 @@ class DurableExecutionService:
         val_command_id = "git_diff_check"
         try:
             executor = self.router.create_executor(
-                executor_kind="deterministic_fixture",
+                executor_kind=task.executor_kind,
                 **executor_kwargs,
             )
         except Exception as exc:
@@ -1350,6 +1358,16 @@ class DurableExecutionService:
                 exec_raw, "failure_classification", ""
             ),
         }
+
+        if task.executor_kind == "candidate_validation" and exec_raw.success:
+            from .functional_validation import load_contract
+            contract = load_contract(self.store.get_task(task_id))
+            assert contract is not None
+            self.store._set_worktree_identity(lease.run_id, exec_raw.workspace,
+                contract["expected_candidate_sha"], lease.owner, lease.epoch)
+            self.store._set_authority_identity(lease.run_id, self._trusted_authority_sha(),
+                self._trusted_planning_sha(), lease.owner, lease.epoch)
+            self._bind_candidate_base(lease, contract["base_commit"])
 
         self.store._reconcile_external_operation(
             operation_id=ext_op.operation_id,
@@ -1480,9 +1498,10 @@ class DurableExecutionService:
                 lease.run_id, task_id,
                 category="Executor",
                 label="executor_kind",
-                value="deterministic_fixture",
+                value=task.executor_kind,
                 status="pass",
-                detail="fixture/provider-free executor",
+                detail="Provider-free exact-candidate checks" if task.executor_kind == "candidate_validation"
+                else "fixture/provider-free executor",
                 owner=lease.owner, epoch=lease.epoch,
             )
         except TaskStoreError:
@@ -1498,7 +1517,7 @@ class DurableExecutionService:
             lease.run_id, task_id, "VALIDATING",
             lease.owner, lease.epoch,
         )
-        review_status = "READY_FOR_REVIEW_FIXTURE"
+        review_status = "READY_FOR_REVIEW_FIXTURE" if task.executor_kind == "deterministic_fixture" else "READY_FOR_REVIEW"
         if val_exit == 0:
             self.store._fenced_transition_to(
                 lease.run_id, task_id, review_status,
@@ -1507,13 +1526,15 @@ class DurableExecutionService:
             self.store._fenced_add_event(
                 lease.run_id, task_id,
                 event_type="VALIDATED",
-                title="Durable single fixture validated",
-                description="deterministic fixture dispatch + validation completed",
+                title="Durable provider-free task validated" if task.executor_kind == "candidate_validation"
+                else "Durable single fixture validated",
+                description="Provider-free dispatch and approved host validation completed"
+                if task.executor_kind == "candidate_validation" else "deterministic fixture dispatch + validation completed",
                 metadata={
                     "validation_exit_code": val_exit,
                     "validation_command_id": val_command_id,
                     "run_id": lease.run_id,
-                    "executor_kind": "deterministic_fixture",
+                    "executor_kind": task.executor_kind,
                 },
                 owner=lease.owner, epoch=lease.epoch,
             )
@@ -2045,6 +2066,9 @@ class DurableExecutionService:
 
     def _resume_base_head(self, task: Any, run: Any) -> str:
         try:
+            if task.executor_kind == "candidate_validation":
+                from .candidate_validation import admit_candidate
+                return admit_candidate(self.store, task)["expected_candidate_sha"]
             binding = bind_consumer_input(self.store, task.id, allow_create=False)
             if binding is None:
                 return run.repository_base_sha
@@ -2056,10 +2080,28 @@ class DurableExecutionService:
             reason = str(exc) if isinstance(exc, TaskStoreError) else "artifact_input_observation_failed"
             raise DurableResumeError(reason) from exc
 
+    def _bind_candidate_base(self, lease: LeaseHandle, expected_base: str) -> None:
+        """Initialize the frozen base once, or verify the existing binding."""
+        self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
+        run = self.store._get_durable_run(lease.run_id)
+        if run.repository_base_sha:
+            if run.repository_base_sha != expected_base:
+                raise TaskStoreError("candidate_run_base_mismatch")
+        else:
+            self.store._set_repository_base_sha(
+                lease.run_id, expected_base, lease.owner, lease.epoch,
+            )
+
     def _functional_checkpoint_outcome(self, task_id: str, run: Any, lease: LeaseHandle | None = None) -> Any:
         from .task_execution import TaskExecutionOutcome
         task = self.store.get_task(task_id)
         try:
+            if task.executor_kind == "candidate_validation":
+                from .candidate_validation import candidate_snapshot
+                contract = candidate_snapshot(self.store, task)
+                if (run.worktree_head_sha != contract["expected_candidate_sha"]
+                        or run.repository_base_sha != contract["base_commit"]):
+                    raise TaskStoreError("candidate_run_snapshot_mismatch")
             bind_consumer_input(self.store, task_id, lease=lease, allow_create=False)
             proof = accepted_checkpoint_proof(task, run)
         except (TaskStoreError, RepositoryWorkspaceError, OSError, ValueError, subprocess.SubprocessError) as exc:
@@ -2091,6 +2133,9 @@ class DurableExecutionService:
 
     def _build_executor_kwargs(self, task: Any) -> dict[str, Any]:
         kwargs: dict[str, Any] = {}
+        if getattr(task, "executor_kind", "") == "candidate_validation":
+            from .candidate_validation import admit_candidate
+            kwargs["approved_contract"] = admit_candidate(self.store, self.store.get_task(task.id))
         artifact_input = load_input_binding(self.store.get_task(task.id))
         if getattr(task, "executor_kind", "") == "opencode":
             binding_ref = getattr(task, "binding_ref", "") or ""
@@ -2728,7 +2773,12 @@ class DurableExecutionService:
         if Path(wt_path).exists():
             actual_head = self._git_rev_parse_head(wt_path)
             stored_base = self._resume_base_head(stored_task, run_obj)
-            if stored_base and actual_head != stored_base:
+            unprepared_candidate = (
+                stored_task.executor_kind == "candidate_validation"
+                and accepted_cp_pre == "PRE_PLANNER" and not run_obj.worktree_path
+                and not actual_head and not (Path(wt_path) / ".git").exists()
+            )
+            if stored_base and actual_head != stored_base and not unprepared_candidate:
                 raise DurableResumeError(
                     f"repository_base_head_mismatch:{stored_base}!={actual_head}"
                 )
@@ -3031,6 +3081,11 @@ class DurableExecutionService:
                     )
                     wt_path = computed_wt
                     prepared_path = Path(wt_path)
+                    if executor_kind == "candidate_validation" and exec_raw.success:
+                        from .functional_validation import load_contract
+                        contract = load_contract(self.store.get_task(task_id))
+                        assert contract is not None
+                        self._bind_candidate_base(lease, contract["base_commit"])
                 exec_result = {
                     "success": exec_raw.success,
                     "validation_command_id": exec_raw.validation_command_id,

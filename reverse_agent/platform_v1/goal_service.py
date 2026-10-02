@@ -34,6 +34,7 @@ class PlannedTask:
     capability: str = "execute_task"
     validation_checks: tuple[dict[str, str], ...] = ()
     artifact_input: dict[str, str] | None = None
+    expected_candidate_sha: str = ""
 
 
 @dataclass(frozen=True)
@@ -103,7 +104,8 @@ class GoalService:
             expected_revision=expected_revision,
             spec_markdown=spec,
             plan_markdown=plan,
-            tasks=tuple(asdict(item) for item in planned),
+            tasks=tuple({key: value for key, value in asdict(item).items()
+                         if key != "expected_candidate_sha" or value} for item in planned),
             acceptance_criteria=criteria,
         )
         return GoalPlan(
@@ -156,6 +158,19 @@ class GoalService:
             raise TaskStoreError("goal_repository_outside_window")
         if "execute_task" not in window.capabilities:
             raise TaskStoreError("goal_window_missing_execute_task_capability")
+        if goal.executor_kind == "candidate_validation":
+            if goal.orchestration_mode != "single" or goal.binding_ref or "validate_task" not in window.capabilities:
+                raise TaskStoreError("candidate_configuration_invalid")
+            for seq, raw in enumerate(goal.tasks):
+                planned = self._normalize_task(raw, seq=seq)
+                if (planned.capability != "validate_task" or not planned.expected_candidate_sha
+                        or not planned.validation_checks or planned.artifact_input is not None
+                        or planned.dependencies or any(check["profile_id"] not in {
+                            "python_pytest_report_consistency", "python_pytest_functional_artifact"
+                        } for check in planned.validation_checks)):
+                    raise TaskStoreError("candidate_plan_invalid")
+        elif any(raw.get("expected_candidate_sha") for raw in goal.tasks):
+            raise TaskStoreError("candidate_executor_required")
         if goal.executor_kind == "opencode":
             try:
                 resolve_repository_workspace(goal.repository)
@@ -359,7 +374,12 @@ class GoalService:
             raise TaskStoreError(f"unsupported_plan_task_capability:{capability}")
         checks = normalize_checks(raw.get("validation_checks", ()))
         artifact_input = normalize_input(raw.get("artifact_input"))
-        return PlannedTask(task_id, title, instruction, dependencies, capability, checks, artifact_input)
+        candidate = raw.get("expected_candidate_sha", "")
+        if (not isinstance(candidate, str) or candidate and (
+                not re.fullmatch(r"[0-9a-f]{40}", candidate) or capability != "validate_task"
+                or artifact_input is not None or not checks)):
+            raise TaskStoreError("candidate_plan_invalid")
+        return PlannedTask(task_id, title, instruction, dependencies, capability, checks, artifact_input, candidate)
 
     @staticmethod
     def _execution_title(goal: GoalRecord, task: PlannedTask) -> str:
@@ -388,6 +408,8 @@ class GoalService:
                     "",
                     f"Dependencies: {deps}",
                     f"Capability: `{item.capability}`",
+                    *([f"Expected candidate commit: `{item.expected_candidate_sha}`"]
+                      if item.expected_candidate_sha else []),
                     "Functional checks: " + (", ".join(
                         f"`{check['profile_id']}` in `{check['working_directory']}`" for check in item.validation_checks
                     ) or "not selected (patch hygiene alone is not functional verification)"),
