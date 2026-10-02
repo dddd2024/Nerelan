@@ -1,6 +1,7 @@
 """Provider-free native CLI wire-contract and public-evidence regressions."""
 
 import json
+import time
 
 import pytest
 
@@ -162,3 +163,42 @@ def test_error_diagnostics_redact_secrets_and_credential_urls_before_publication
     assert "private-password" not in public and "opaque-secret" not in public
     assert "s" * 64 not in public and "REDACTED" in public
     assert result.failed
+
+
+@pytest.mark.parametrize("diagnostic,private", [
+    ("wss://fixture-user:fixture-password@host.invalid/request", "fixture-password"),
+    ("Authorization=Basic Zml4dHVyZTo=", "Zml4dHVyZTo="),
+    ("token=fixture", "fixture"),
+    ('{"token": "short value"}', "short value"),
+    ("access_token='tiny'", "tiny"),
+    (json.dumps({"token": 'first" private remainder'}), "private remainder"),
+    ("password='first\\' private remainder'", "private remainder"),
+])
+@pytest.mark.parametrize("surface", ["error", "turn.failed", "warning"])
+def test_all_public_diagnostic_surfaces_redact_credentials_regardless_of_length(diagnostic, private, surface):
+    seen = []
+    parser = CodexJsonl(seen.append)
+    if surface == "warning":
+        events = [{"type": "item.completed", "item": {"type": "error", "message": diagnostic}},
+                  *START, MESSAGE, DONE]
+    elif surface == "turn.failed":
+        events = [*START, {"type": "turn.failed", "error": {"message": diagnostic}}]
+    else:
+        events = [*START, {"type": "error", "message": diagnostic},
+                  {"type": "turn.failed", "error": {"message": "failed"}}]
+    parser.feed(wire(*events))
+    result = parser.finish()
+    public = json.dumps(seen) + repr(result)
+    assert private not in public and "REDACTED" in public
+    assert result.completed is (surface == "warning")
+
+
+def test_large_scheme_free_diagnostic_does_not_block_executor_deadline_checks():
+    # A legal frame's long letter run has no URL. Redaction must not repeatedly
+    # scan it as a new candidate scheme at each character inside the same run.
+    parser = CodexJsonl()
+    started = time.monotonic()
+    parser.feed(wire(*START, {"type": "error", "message": "a" * 240_000},
+                     {"type": "turn.failed", "error": {"message": "failed"}}))
+    assert time.monotonic() - started < 2
+    assert parser.finish().failed

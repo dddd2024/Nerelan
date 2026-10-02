@@ -26,9 +26,16 @@ def public_text(value: Any, limit: int = 4096) -> str:
     # Redact the whole bounded frame before truncating public evidence.
     # The shared redactor handles many provider patterns, but its generic
     # Authorization substitution can consume only 'Bearer', leaving the token.
-    value = re.sub(r"(?im)\bauthorization\s*:\s*[^\r\n]*", "Authorization: [REDACTED]", value)
+    value = re.sub(r"(?im)\bauthorization[\"']?\s*[:=]\s*[^\r\n]*", "Authorization: [REDACTED]", value)
     value = re.sub(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+", "Bearer [REDACTED]", value)
-    value = re.sub(r"(?i)(https?://)[^/\s]+@", r"\1[REDACTED]@", value)
+    value = re.sub(r"(?i)(?<![a-z0-9+.-])([a-z][a-z0-9+.-]*://)[^/\s]+@", r"\1[REDACTED]@", value)
+    # Error diagnostics may contain short credentials, including quoted JSON
+    # assignments. Their sensitivity does not depend on a minimum token length.
+    value = re.sub(
+        r"(?i)\b(api[-_]?key|access[-_]?token|refresh[-_]?token|token|password|secret)"
+        r"[\"']?\s*[:=]\s*(?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^\s,;}&\]]+)",
+        r"\1=[REDACTED]", value,
+    )
     return redact_secrets(value).replace("\x00", "").encode("utf-8")[:limit].decode(
         "utf-8", errors="ignore"
     )
