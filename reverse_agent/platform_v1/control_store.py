@@ -405,7 +405,7 @@ class PlatformControlStore:
         idempotency_key = idempotency_key.strip()
         if not title or not objective or "/" not in repository or not idempotency_key:
             raise TaskStoreError("invalid_goal_identity")
-        if executor_kind not in {"opencode", "deterministic_fixture"}:
+        if executor_kind not in {"opencode", "deterministic_fixture", "candidate_validation"}:
             raise TaskStoreError(f"unsupported_executor_kind:{executor_kind}")
         if orchestration_mode not in {"single", "sequential_team"}:
             raise TaskStoreError(f"unsupported_orchestration_mode:{orchestration_mode}")
@@ -593,11 +593,11 @@ class PlatformControlStore:
                     )
                 except ValueError as exc:
                     raise TaskStoreError("invalid_goal_repository") from exc
-                if configuration["executor_kind"] not in {"opencode", "deterministic_fixture"}:
+                if configuration["executor_kind"] not in {"opencode", "deterministic_fixture", "candidate_validation"}:
                     raise TaskStoreError("unsupported_executor_kind")
                 if configuration["orchestration_mode"] not in {"single", "sequential_team"}:
                     raise TaskStoreError("unsupported_orchestration_mode")
-                if configuration["executor_kind"] == "deterministic_fixture":
+                if configuration["executor_kind"] in {"deterministic_fixture", "candidate_validation"}:
                     if configuration["orchestration_mode"] != "single" or configuration["binding_ref"]:
                         raise TaskStoreError("fixture_configuration_invalid")
                 elif not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,79}", configuration["binding_ref"]):
@@ -1086,7 +1086,7 @@ class PlatformControlStore:
                     if observation["status"] == "UNKNOWN"
                 )
                 usage_unknown = bool(unknown_count)
-                if not observations and task["executor_kind"] != "deterministic_fixture":
+                if not observations and task["executor_kind"] not in {"deterministic_fixture", "candidate_validation"}:
                     usage_unknown = True
                     unknown_count = 1
                 token_units = 0
