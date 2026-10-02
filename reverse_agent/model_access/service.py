@@ -674,6 +674,39 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _discard_rejected_request_body(self) -> None:
+        """Avoid closing over buffered body bytes after sending opaque 403.
+
+        Discard only unambiguous bounded framing, without parsing or retaining
+        payloads. A short absolute deadline also bounds incomplete/trickled
+        requests; rejection and its response precede this best-effort cleanup.
+        """
+        lengths = self.headers.get_all("Content-Length", [])
+        if len(lengths) != 1 or self.headers.get("Transfer-Encoding") is not None:
+            return
+        try:
+            remaining = int(lengths[0])
+        except ValueError:
+            return
+        if not 0 < remaining <= _MAX_BODY_BYTES:
+            return
+        previous_timeout = self.connection.gettimeout()
+        deadline = perf_counter() + 0.1
+        try:
+            while remaining:
+                timeout = deadline - perf_counter()
+                if timeout <= 0:
+                    return
+                self.connection.settimeout(timeout)
+                discarded = self.rfile.read1(min(remaining, 65_536))
+                if not discarded:
+                    return
+                remaining -= len(discarded)
+        except OSError:
+            return
+        finally:
+            self.connection.settimeout(previous_timeout)
+
     def _send_forbidden(self) -> None:
         """Send opaque 403 response — no secrets, no body echo, no stack trace."""
         body = b'{"error":"forbidden"}'
@@ -681,8 +714,12 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
+        self.wfile.flush()
+        self.close_connection = True
+        self._discard_rejected_request_body()
 
     def _check_origin(self) -> bool:
         """Server-side Origin gate.

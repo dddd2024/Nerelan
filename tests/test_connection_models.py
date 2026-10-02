@@ -1,9 +1,10 @@
 """Synthetic and owned-loopback HTTP acceptance of saved catalog APIs."""
 
 from contextlib import contextmanager
-from http.client import HTTPConnection
+from http.client import HTTPConnection, HTTPResponse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import socket
 import threading
 
 import pytest
@@ -281,3 +282,117 @@ def test_catalog_network_io_does_not_hold_store_lock():
 
     result = discover(store, transport=transport)
     assert not result.ok and result.status == "configuration_changed"
+
+
+def _assert_fixed_forbidden(response):
+    assert response.status == 403
+    headers = {key.lower(): value for key, value in response.getheaders()}
+    assert headers["connection"].lower() == "close"
+    assert "access-control-allow-origin" not in headers
+    assert "access-control-allow-methods" not in headers
+    assert response.read() == b'{"error":"forbidden"}'
+
+
+def test_foreign_origin_catalog_body_gets_fixed_403_without_parsing_or_store_change():
+    store = configured_store()
+    before = store.selection_public_snapshot()
+    parsed = threading.Event()
+    transport_called = threading.Event()
+
+    def forbidden_transport(*_):
+        transport_called.set()
+        raise AssertionError("rejected Origin must not invoke catalog transport")
+
+    configured = _handler_factory(
+        store, live_enabled=True, allowed_origin="http://localhost:5173",
+        catalog_transport=forbidden_transport,
+    )
+
+    class RejectionHandler(configured):
+        def _read_json(self, *, optional=False):
+            parsed.set()
+            raise AssertionError("rejected Origin must not parse request JSON")
+
+    payload = json.dumps({"api_key": "synthetic-rejected-body-key", "model_id": "forbidden-override"}).encode()
+    with running(RejectionHandler) as port:
+        client = HTTPConnection("127.0.0.1", port, timeout=2)
+        try:
+            client.request("POST", "/api/connections/fixture/models", payload, {
+                "Origin": "https://foreign.example.test",
+                "Content-Type": "application/json",
+            })
+            _assert_fixed_forbidden(client.getresponse())
+        finally:
+            client.close()
+    assert not parsed.is_set()
+    assert not transport_called.is_set()
+    assert store.selection_public_snapshot() == before
+
+
+@pytest.mark.parametrize("body_delivery", ["missing", "trickle"])
+def test_foreign_origin_body_discard_has_absolute_deadline_with_open_peer(body_delivery):
+    store = configured_store()
+    before = store.selection_public_snapshot()
+    finished = threading.Event()
+    parsed = threading.Event()
+    transport_called = threading.Event()
+
+    def forbidden_transport(*_):
+        transport_called.set()
+        raise AssertionError("rejected Origin must not invoke catalog transport")
+
+    configured = _handler_factory(
+        store, live_enabled=True, allowed_origin="http://localhost:5173",
+        catalog_transport=forbidden_transport,
+    )
+
+    class ObservedHandler(configured):
+        def _read_json(self, *, optional=False):
+            parsed.set()
+            raise AssertionError("rejected Origin must not parse request JSON")
+
+        def finish(self):
+            try:
+                super().finish()
+            finally:
+                finished.set()
+
+    sender_stop = threading.Event()
+    sender = None
+    with running(ObservedHandler) as port:
+        peer = socket.create_connection(("127.0.0.1", port), timeout=2)
+        try:
+            peer.sendall(
+                b"POST /api/connections/fixture/models HTTP/1.1\r\n"
+                b"Host: 127.0.0.1\r\nOrigin: https://foreign.example.test\r\n"
+                b"Content-Type: application/json\r\nContent-Length: 4096\r\n\r\n"
+            )
+            if body_delivery == "trickle":
+                def send_trickle():
+                    # Each byte arrives sooner than the server's per-read timeout.
+                    # A resettable timeout alone therefore cannot finish this peer.
+                    while not sender_stop.wait(0.02):
+                        try:
+                            peer.sendall(b"x")
+                        except OSError:
+                            return
+
+                sender = threading.Thread(target=send_trickle, daemon=True)
+                sender.start()
+            response = HTTPResponse(peer)
+            try:
+                response.begin()
+                _assert_fixed_forbidden(response)
+                # Keep the owning socket open: EOF must not be the reason that
+                # draining ends. This permits ample Windows scheduling slack.
+                assert finished.wait(1), "rejected body drain exceeded its absolute deadline"
+            finally:
+                response.close()
+        finally:
+            sender_stop.set()
+            if sender is not None:
+                sender.join(timeout=1)
+            peer.close()
+    assert not parsed.is_set()
+    assert not transport_called.is_set()
+    assert store.selection_public_snapshot() == before
