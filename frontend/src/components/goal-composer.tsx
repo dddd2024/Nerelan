@@ -129,7 +129,8 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
   const usableBindings = useMemo(
     () =>
       (bindingsQuery.data ?? []).filter(
-        (binding) => binding.enabled && binding.executorId === draft.executorKind,
+        // Fixture drafts retain the existing display binding; native Codex never borrows it.
+        (binding) => binding.enabled && binding.executorId === (draft.executorKind === "codex" ? "codex" : "opencode"),
       ),
     [bindingsQuery.data, draft.executorKind],
   );
