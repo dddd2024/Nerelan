@@ -79,7 +79,7 @@ export function normalizeFunctionalValidation(value: unknown, executor?: string)
     && Array.isArray(raw.checks) && raw.checks.length === proof.checks.length && proof.checks.length > 0
     && !functionalChecksError(proof.checks)
     && proof.checks.every((check) => check.exit_code === 0 && check.timed_out === false && check.test_report?.accepted);
-  if (raw.status === "VERIFIED" && raw.verified === true && executor === "opencode" && complete) {
+  if (raw.status === "VERIFIED" && raw.verified === true && (executor === "opencode" || executor === "codex") && complete) {
     proof.status = "VERIFIED";
     proof.verified = true;
   }

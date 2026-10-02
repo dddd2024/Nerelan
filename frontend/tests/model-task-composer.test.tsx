@@ -52,6 +52,26 @@ describe("Connection/Binding-aware task composer", () => {
     resetDefaultModelControlClientForTests();
   });
 
+  it("submits native Codex with its own saved binding and excludes OpenCode bindings", async () => {
+    const user = userEvent.setup();
+    const submit = vi.fn();
+    const queryClient = makeQueryClient();
+    queryClient.setQueryData(["bindings"], [
+      { bindingId: "native-binding", name: "Native model", executorId: "codex", connectionId: "native-login", modelId: "gpt-5.4", enabled: true },
+      { bindingId: "other-binding", name: "Other executor", executorId: "opencode", connectionId: "other", modelId: "other", enabled: true },
+    ]);
+    renderWithProviders(<ComposerMount submit={submit} queryClient={queryClient} />);
+    await user.click(screen.getByTestId("executor-option-codex"));
+    const select = await screen.findByTestId("task-opencode-binding-select");
+    expect(select).not.toHaveTextContent("Other executor");
+    await user.selectOptions(select, "native-binding");
+    await waitFor(() => expect(screen.getByTestId("task-opencode-repository-select")).toHaveValue(FAKE_REPOS[0].html_url));
+    await user.type(screen.getByLabelText("任务标题"), "Native bounded task");
+    await user.click(screen.getByTestId("submit-new-task"));
+    expect(submit).toHaveBeenCalledWith(expect.objectContaining({ executorKind: "codex", bindingRef: "native-binding", repository: FAKE_REPOS[0].full_name }));
+    expect(screen.queryByLabelText("API Key")).not.toBeInTheDocument();
+  });
+
   it("preselects the first enabled OpenCode Binding for the OpenCode executor", async () => {
     renderWithProviders(
       <ComposerMount submit={vi.fn()} />,

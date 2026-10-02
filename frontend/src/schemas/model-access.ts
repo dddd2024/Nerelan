@@ -90,6 +90,7 @@ export const ExecutorSchema = z.object({
   name: z.string().min(1).max(120),
   operational: z.boolean(),
   capabilities: z.array(z.string()),
+  readinessStatus: z.string().optional(),
 });
 
 export const BindingSchema = z.object({

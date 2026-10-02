@@ -612,8 +612,10 @@ class TaskStore:
             raise TaskStoreError(
                 "sequential_team_requires_opencode_executor"
             )
-        if binding_ref and executor_kind != "opencode":
+        if binding_ref and executor_kind not in {"opencode", "codex"}:
             raise TaskStoreError("binding_ref_requires_opencode_executor")
+        if executor_kind == "codex" and (not binding_ref or model_profile_ref):
+            raise TaskStoreError("codex_requires_binding_without_legacy_profile")
         if idempotency_key:
             existing = self._conn.execute(
                 "SELECT keys_table.task_id, keys_table.title, keys_table.repository, "
@@ -1569,7 +1571,7 @@ class TaskStore:
             current_status = task_row["status"]
             current_executor_kind = task_row["executor_kind"]
             current_orchestration_mode = task_row["orchestration_mode"]
-            if current_executor_kind not in ("opencode", "deterministic_fixture"):
+            if current_executor_kind not in ("opencode", "deterministic_fixture", "codex"):
                 cur.execute("ROLLBACK")
                 raise TaskStoreError(
                     f"durable_claim_wrong_executor_kind:{task_id}:"
@@ -2264,7 +2266,7 @@ class TaskStore:
                     f"durable_recover_wrong_orchestration_mode:{run_id}:"
                     f"actual={row['orchestration_mode']}"
                 )
-            if row["executor_kind"] not in ("opencode", "deterministic_fixture"):
+            if row["executor_kind"] not in ("opencode", "deterministic_fixture", "codex"):
                 cur.execute("ROLLBACK")
                 raise TaskStoreError(
                     f"durable_recover_wrong_executor_kind:{run_id}:"

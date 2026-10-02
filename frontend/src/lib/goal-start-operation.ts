@@ -313,7 +313,7 @@ async function runGoalStart(
         executor_kind: checkerDraft?.executorKind ?? (checkerPlan ? "opencode" : input.executorKind),
         orchestration_mode:
           checkerDraft?.orchestrationMode ?? (checkerPlan ? "single" : input.executorKind === "opencode" ? "sequential_team" : "single"),
-        binding_ref: checkerDraft?.bindingRef ?? (checkerPlan ? "" : input.executorKind === "opencode" ? input.bindingRef : ""),
+        binding_ref: checkerDraft?.bindingRef ?? (checkerPlan ? "" : input.executorKind !== "deterministic_fixture" ? input.bindingRef : ""),
       }),
     });
     journal = updateJournalGoal(journal, goal);

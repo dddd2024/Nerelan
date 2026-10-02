@@ -19,6 +19,14 @@ const verified: FunctionalValidation = {
     test_report: { format: "junit", tests: 3, passed: 2, failed: 0, skipped: 1, accepted: true } }],
 };
 
+it("accepts complete native functional proof without promoting incomplete or unknown-executor claims", () => {
+  expect(normalizeFunctionalValidation(verified, "codex").verified).toBe(true);
+  expect(normalizeFunctionalValidation({ ...verified, tree: "" }, "codex").verified).toBe(false);
+  expect(normalizeFunctionalValidation(verified, "unknown-native-alias").verified).toBe(false);
+  render(<FunctionalValidationView evidence={verified} executor="codex" />);
+  expect(screen.getByText("功能已验证")).toBeInTheDocument();
+});
+
 it("shows only complete consumed-input identity and rejects malformed positive claims", () => {
   const input = { plan_task_id: "A", task_id: "task-source", execution_id: "exec-source",
     commit: "1".repeat(40), tree: "2".repeat(40), result_digest: "3".repeat(64), binding_digest: "4".repeat(64) };

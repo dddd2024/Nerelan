@@ -83,6 +83,13 @@ def _provider_alias(value: Any) -> str:
     return ProviderIdentity.from_legacy_provider(value).executor_provider_id
 
 
+def _connection_provider_identity(value: Any) -> ProviderIdentity:
+    identity = ProviderIdentity.from_legacy_provider(value)
+    if identity.executor_provider_id == "codex":
+        return ProviderIdentity("openai", "codex-cli", "codex")
+    return identity
+
+
 @dataclass(frozen=True, slots=True)
 class Connection:
     """Sanitized provider/service access metadata.
@@ -117,7 +124,7 @@ class Connection:
                 raise ValueError(
                     "executor_provider_id is required when explicit provider identity is supplied"
                 )
-            identity = ProviderIdentity.from_legacy_provider(provider_alias)
+            identity = _connection_provider_identity(provider_alias)
         else:
             identity = ProviderIdentity(
                 upstream_provider_id=self.upstream_provider_id,
@@ -132,6 +139,11 @@ class Connection:
         object.__setattr__(self, "upstream_provider_id", identity.upstream_provider_id)
         object.__setattr__(self, "protocol_family", identity.protocol_family)
         object.__setattr__(self, "executor_provider_id", identity.executor_provider_id)
+        if identity.executor_provider_id == "codex" and (
+            identity.upstream_provider_id != "openai" or identity.protocol_family != "codex-cli"
+            or self.auth_method != "external_cli_session"
+        ):
+            raise ValueError("codex_requires_managed_session_connection")
 
     @property
     def provider_identity(self) -> ProviderIdentity:
@@ -188,7 +200,7 @@ class Connection:
         else:
             if provider_raw is None:
                 raise ValueError("provider is required")
-            identity = ProviderIdentity.from_legacy_provider(provider_raw)
+            identity = _connection_provider_identity(provider_raw)
             provider = identity.executor_provider_id
 
         return cls(
@@ -245,14 +257,18 @@ class ExecutorDescriptor:
     name: str
     operational: bool
     capabilities: tuple[str, ...]
+    readiness_status: str = ""
 
     def to_public_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "executor_id": self.executor_id,
             "name": self.name,
             "operational": self.operational,
             "capabilities": list(self.capabilities),
         }
+        if self.readiness_status:
+            result["readiness_status"] = self.readiness_status
+        return result
 
 
 @dataclass(frozen=True, slots=True)

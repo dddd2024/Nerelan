@@ -59,6 +59,11 @@ class OpenCodeBindingResolution:
     relay_required: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class CodexBindingResolution(OpenCodeBindingResolution):
+    """Native identifiers and managed login; never a provider relay binding."""
+
+
 class BindingResolver:
     def __init__(
         self,
@@ -86,9 +91,9 @@ class BindingResolver:
         binding_ref: str,
         *,
         task_executor: str,
-    ) -> OpenCodeBindingResolution:
+    ) -> OpenCodeBindingResolution | CodexBindingResolution:
         binding_id = _required_text(binding_ref, "binding_ref", maximum=200)
-        if task_executor != "opencode":
+        if task_executor not in {"opencode", "codex"}:
             raise BindingResolutionError("binding_requires_opencode_executor")
 
         binding = self._get_object("binding", "/api/bindings", binding_id)
@@ -125,7 +130,15 @@ class BindingResolver:
         raw_model_id = _required_text(
             binding.get("model_id"), "binding_model_id", maximum=200
         )
-        model_id = _normalize_model_id(provider_id, raw_model_id)
+        if task_executor == "codex":
+            from .codex_executor import validate_codex_model
+            model_id = validate_codex_model(raw_model_id)
+            if provider_id != "codex" or connection.get("upstream_provider_id") != "openai" or connection.get("protocol_family") != "codex-cli":
+                raise BindingResolutionError("codex_requires_openai_managed_connection")
+            if connection.get("auth_method") != "external_cli_session":
+                raise BindingResolutionError("codex_requires_managed_session_binding")
+        else:
+            model_id = _normalize_model_id(provider_id, raw_model_id)
         base_url = _validate_provider_base_url(connection.get("base_url"))
 
         auth_method = _required_text(
@@ -147,7 +160,8 @@ class BindingResolver:
         else:
             relay_required = False
 
-        return OpenCodeBindingResolution(
+        resolution_type = CodexBindingResolution if task_executor == "codex" else OpenCodeBindingResolution
+        return resolution_type(
             binding_ref=binding_id,
             connection_id=connection_id,
             executor_id=executor_id,
