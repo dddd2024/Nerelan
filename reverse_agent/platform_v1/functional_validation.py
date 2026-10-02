@@ -546,7 +546,7 @@ def functional_evidence(task: Any) -> dict[str, Any]:
                       and result["head_before"] == result["head_after"]
                       and result["tree_before"] == result["tree_after"])
         verified = (consistent and input_matches and result["passed"] is True and result["verified"] is True
-                    and result["status"] == "VERIFIED" and task.executor_kind == "opencode"
+                    and result["status"] == "VERIFIED" and task.executor_kind in {"opencode", "codex"}
                     and type(task.validation_exit_code) is int and task.validation_exit_code == 0)
         return {"status": "VERIFIED" if verified else ("FIXTURE_VERIFIED" if consistent
                 and result["status"] == "FIXTURE_VERIFIED" else "FAILED"), "verified": verified,

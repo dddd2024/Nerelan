@@ -314,7 +314,7 @@ async function runGoalStart(
         executor_kind: input.executorKind,
         orchestration_mode:
           input.executorKind === "opencode" ? "sequential_team" : "single",
-        binding_ref: input.executorKind === "opencode" ? input.bindingRef : "",
+        binding_ref: input.executorKind !== "deterministic_fixture" ? input.bindingRef : "",
       }),
     });
     journal = updateJournalGoal(journal, goal);

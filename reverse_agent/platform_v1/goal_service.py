@@ -156,7 +156,7 @@ class GoalService:
             raise TaskStoreError("goal_repository_outside_window")
         if "execute_task" not in window.capabilities:
             raise TaskStoreError("goal_window_missing_execute_task_capability")
-        if goal.executor_kind == "opencode":
+        if goal.executor_kind in {"opencode", "codex"}:
             try:
                 resolve_repository_workspace(goal.repository)
             except RepositoryWorkspaceError as exc:
@@ -164,7 +164,7 @@ class GoalService:
                     str(exc)
                 )
 
-        functional_base = repository_base(goal.repository) if any(
+        functional_base = repository_base(goal.repository) if goal.executor_kind == "codex" or any(
             raw.get("validation_checks") for raw in goal.tasks
         ) else ""
         for seq, raw in enumerate(goal.tasks):
@@ -174,6 +174,7 @@ class GoalService:
                 repository=goal.repository,
                 executor_kind=goal.executor_kind,
                 binding_ref=goal.binding_ref,
+                branch=functional_base if goal.executor_kind == "codex" else "",
                 permission_profile="AUTONOMOUS_WINDOW",
                 policy_ref=window.policy_id,
                 idempotency_key=f"goal:{goal.id}:r{goal.revision}:{plan_task.id}",

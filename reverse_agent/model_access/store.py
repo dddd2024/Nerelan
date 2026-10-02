@@ -367,7 +367,12 @@ class ModelProfileStore:
                 name="OpenCode",
                 operational=True,
                 capabilities=("model_selection", "workspace_execution"),
-            )
+            ),
+            "codex": ExecutorDescriptor(
+                executor_id="codex", name="Codex", operational=False,
+                capabilities=("model_selection", "workspace_execution", "single_mode"),
+                readiness_status="not_probed",
+            ),
         }
         self._bindings: dict[str, Binding] = {}
         self._lock = RLock()
@@ -552,6 +557,9 @@ class ModelProfileStore:
             self._ensure_connection_binding_ready()
             for stored in self._connections.values():
                 auth_method = stored.connection.auth_method
+                if stored.connection.executor_provider_id == "codex":
+                    # Native CLI readiness is never inferred from OpenCode auth.
+                    continue
                 if auth_method in {"account_login", "external_cli_session"}:
                     provider = stored.connection.executor_provider_id
                     if not provider:
@@ -573,6 +581,8 @@ class ModelProfileStore:
         """Return True if any Connection uses an external-session auth method."""
         self._ensure_connection_binding_ready()
         for stored in self._connections.values():
+            if stored.connection.executor_provider_id == "codex":
+                continue
             if stored.connection.auth_method in {
                 "account_login",
                 "external_cli_session",
@@ -591,6 +601,10 @@ class ModelProfileStore:
     def upsert_connection(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         _reject_derived_external_status(payload)
         connection = Connection.from_mapping(payload)
+        if connection.executor_provider_id == "codex" and any(
+            payload.get(key) for key in ("api_key", "apiKey", "api_key_env", "apiKeyEnv")
+        ):
+            raise ValueError("codex_credentials_owned_by_cli")
         with self._lock:
             self._ensure_connection_binding_ready()
             existing = self._connections.get(connection.connection_id)
@@ -713,6 +727,8 @@ class ModelProfileStore:
                 credential_ref=credential_ref,
                 external_session_status=external_status,
             )
+            if connection.executor_provider_id == "codex":
+                stored.external_session_status = "available" if self._executors["codex"].operational else "missing"
             self._connections[connection.connection_id] = stored
             self._commit_connection_transaction(
                 snap_conns=snap_conns,
@@ -828,6 +844,22 @@ class ModelProfileStore:
         with self._lock:
             return [executor.to_public_dict() for executor in self._executors.values()]
 
+    def set_codex_readiness(self, status: str) -> None:
+        """Trusted process-local probe result; never persisted as account authority."""
+        allowed = {"not_probed", "managed_login_ready", "managed_login_unavailable",
+                   "cli_unavailable", "cli_incompatible", "probe_output_invalid"}
+        if status not in allowed:
+            raise ValueError("codex_readiness_invalid")
+        with self._lock:
+            self._executors["codex"] = ExecutorDescriptor(
+                executor_id="codex", name="Codex", operational=status == "managed_login_ready",
+                capabilities=("model_selection", "workspace_execution", "single_mode"),
+                readiness_status=status,
+            )
+            for stored in self._connections.values():
+                if stored.connection.executor_provider_id == "codex":
+                    stored.external_session_status = "available" if status == "managed_login_ready" else "missing"
+
     def get_executor_public(self, executor_id: str) -> dict[str, Any]:
         with self._lock:
             executor = self._executors.get(executor_id)
@@ -856,6 +888,18 @@ class ModelProfileStore:
                 raise ValueError(f"unknown connection_id: {binding.connection_id}")
             if binding.executor_id not in self._executors:
                 raise ValueError(f"unknown executor_id: {binding.executor_id}")
+            if binding.executor_id == "codex":
+                from ..platform_v1.codex_executor import validate_codex_model
+                from ..platform_v1.task_runtime import ExecutorRuntimeError
+                try:
+                    validate_codex_model(binding.model_id)
+                except ExecutorRuntimeError as exc:
+                    raise ValueError("codex_model_id_invalid") from exc
+                connection = self._connections[binding.connection_id].connection
+                if connection.executor_provider_id != "codex" or connection.upstream_provider_id != "openai" or connection.auth_method != "external_cli_session":
+                    raise ValueError("codex_requires_openai_managed_connection")
+            elif self._connections[binding.connection_id].connection.executor_provider_id == "codex":
+                raise ValueError("codex_connection_requires_native_executor")
             snap_conns = dict(self._connections)
             snap_bindings = dict(self._bindings)
             self._bindings[binding.binding_id] = binding

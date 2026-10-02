@@ -151,6 +151,7 @@ function normalizeExecutor(value: unknown): Executor {
     name: raw.name,
     operational: raw.operational,
     capabilities: Array.isArray(raw.capabilities) ? raw.capabilities : [],
+    readinessStatus: raw.readinessStatus ?? raw.readiness_status,
   });
 }
 

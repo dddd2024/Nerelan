@@ -300,7 +300,7 @@ export function ConnectionBindingEditor({
                 {creating ? "新建连接" : connection?.name ?? "选择连接"}
               </h2>
               <p className="mt-1 text-xs text-ra-text-tertiary">
-                {connDraft.authMethod === "account_login"
+                {executorManagedAuth(connDraft.authMethod)
                   ? "账号授权由执行器管理，无需填写 API 密钥。"
                   : "API Key 只发送到模型控制服务，不写入浏览器存储。"}
               </p>
@@ -336,12 +336,17 @@ export function ConnectionBindingEditor({
                 aria-label="Provider"
                 list="connection-provider-presets"
                 value={connDraft.provider}
-                onChange={(event) =>
+                onChange={(event) => {
                   setConnDraft((d) => ({
                     ...d,
                     provider: event.target.value as ConnectionProvider,
-                  }))
-                }
+                    ...(event.target.value === "codex" ? { authMethod: "external_cli_session" as const, baseUrl: "https://chatgpt.com" } : {}),
+                  }));
+                  if (event.target.value === "codex") {
+                    setConnApiKey("");
+                    setConnClearSecret(false);
+                  }
+                }}
                 className={inputClass}
                 autoComplete="off"
                 placeholder="例如 litellm-proxy 或自定义 provider ID"
@@ -349,6 +354,7 @@ export function ConnectionBindingEditor({
               <datalist id="connection-provider-presets">
                 <option value="litellm-proxy">LiteLLM Proxy</option>
                 <option value="openai-compatible">OpenAI Compatible</option>
+                <option value="codex">Codex CLI 登录</option>
               </datalist>
             </Field>
             <Field label="认证方式">
@@ -745,13 +751,17 @@ export function ConnectionBindingEditor({
               >
                 <option value="">请选择执行器</option>
                 {executors
-                  .filter((e) => e.operational)
                   .map((executor) => (
-                    <option key={executor.executorId} value={executor.executorId}>
-                      {executor.name}
+                    <option key={executor.executorId} value={executor.executorId} disabled={!executor.operational}>
+                      {executor.name}{!executor.operational ? "（未就绪）" : ""}
                     </option>
                   ))}
               </select>
+              {bindDraft.executorId === "codex" && (
+                <p className="mt-2 text-xs text-ra-text-secondary">
+                  使用已有 Codex CLI 登录和原生模型名称，仅支持单任务。登录就绪不代表模型额度或执行结果已经验收。
+                </p>
+              )}
             </Field>
             <Field label="连接">
               <select

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   startGoal,
+  createGoalDraft,
   type StartGoalInput,
 } from "@/lib/goal-start-operation";
 import type { PlatformGoal, PlatformWindow } from "@/lib/platform-client";
@@ -92,6 +93,21 @@ describe("resumable Goal start operation", () => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     window.localStorage.clear();
+  });
+
+  it("preserves the native Codex binding in the durable Goal-start journal request", async () => {
+    const nativeInput: StartGoalInput = { ...input, executorKind: "codex", bindingRef: "native-binding", operationId: "native-goal-operation-001" };
+    const create = vi.fn(async (requestInput: RequestInfo | URL, init?: RequestInit) => {
+      expect(pathOf(requestInput)).toBe("/api/goals");
+      expect(init?.method).toBe("POST");
+      expect(JSON.parse(String(init?.body))).toMatchObject({ executor_kind: "codex", binding_ref: "native-binding", orchestration_mode: "single" });
+      return json({ ...goal("DRAFT"), executor_kind: "codex", binding_ref: "native-binding" });
+    });
+    vi.stubGlobal("fetch", create);
+    const result = await createGoalDraft(nativeInput);
+    expect(result.executor_kind).toBe("codex");
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(window.localStorage.getItem(operationStorageKey(nativeInput.operationId))).not.toContain("secret");
   });
 
   it("coalesces duplicates and reuses one idempotency key after a lost create response", async () => {

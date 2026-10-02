@@ -63,7 +63,7 @@ function readDraft(): GoalComposerDraft {
     if (
       typeof parsed.objective !== "string" ||
       typeof parsed.repository !== "string" ||
-      !["opencode", "deterministic_fixture"].includes(parsed.executorKind ?? "") ||
+      !["opencode", "codex", "deterministic_fixture"].includes(parsed.executorKind ?? "") ||
       typeof parsed.bindingRef !== "string" ||
       parsed.autonomyHours !== 2 ||
       typeof parsed.operationId !== "string" ||
@@ -129,9 +129,9 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
   const usableBindings = useMemo(
     () =>
       (bindingsQuery.data ?? []).filter(
-        (binding) => binding.enabled && binding.executorId === "opencode",
+        (binding) => binding.enabled && binding.executorId === draft.executorKind,
       ),
-    [bindingsQuery.data],
+    [bindingsQuery.data, draft.executorKind],
   );
 
   /*
@@ -160,7 +160,7 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
   }
 
   const showOptions = optionsOpen || draft.objective.trim().length > 0;
-  const needsBinding = draft.executorKind === "opencode";
+  const needsBinding = draft.executorKind !== "deterministic_fixture";
   const bindingMissing = needsBinding && draft.bindingRef.trim().length === 0;
   const objectiveLength = draft.objective.trim().length;
   const repositoryReady = draft.repository.includes("/");
@@ -297,15 +297,17 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
                   onChange={(event) =>
                     editDraft({
                       executorKind: event.target.value as StartGoalInput["executorKind"],
+                      bindingRef: "",
                     })
                   }
                   className="bg-transparent text-ra-text focus:outline-none"
                 >
                   <option value="opencode">OpenCode 多 Agent</option>
+                  <option value="codex">Codex 单任务</option>
                   <option value="deterministic_fixture">无模型验证</option>
                 </select>
               </label>
-              {draft.executorKind === "opencode" && (
+              {needsBinding && (
                 <>
                   <input
                     aria-label="模型绑定"

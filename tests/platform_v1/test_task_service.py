@@ -1053,7 +1053,7 @@ def test_missing_title_rejected(task_server) -> None:
 
 def test_unsupported_executor_kind_rejected(task_server) -> None:
     base, _ = task_server
-    status, body = _req(base, "POST", "/api/tasks", {"title": "t", "executor_kind": "codex"})
+    status, body = _req(base, "POST", "/api/tasks", {"title": "t", "executor_kind": "unregistered-executor"})
     assert status == 409
     assert "unsupported_executor_kind" in body["error"]
 

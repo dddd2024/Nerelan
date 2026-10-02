@@ -405,7 +405,7 @@ class PlatformControlStore:
         idempotency_key = idempotency_key.strip()
         if not title or not objective or "/" not in repository or not idempotency_key:
             raise TaskStoreError("invalid_goal_identity")
-        if executor_kind not in {"opencode", "deterministic_fixture"}:
+        if executor_kind not in {"opencode", "deterministic_fixture", "codex"}:
             raise TaskStoreError(f"unsupported_executor_kind:{executor_kind}")
         if orchestration_mode not in {"single", "sequential_team"}:
             raise TaskStoreError(f"unsupported_orchestration_mode:{orchestration_mode}")
@@ -593,10 +593,12 @@ class PlatformControlStore:
                     )
                 except ValueError as exc:
                     raise TaskStoreError("invalid_goal_repository") from exc
-                if configuration["executor_kind"] not in {"opencode", "deterministic_fixture"}:
+                if configuration["executor_kind"] not in {"opencode", "deterministic_fixture", "codex"}:
                     raise TaskStoreError("unsupported_executor_kind")
                 if configuration["orchestration_mode"] not in {"single", "sequential_team"}:
                     raise TaskStoreError("unsupported_orchestration_mode")
+                if configuration["executor_kind"] == "codex" and configuration["orchestration_mode"] != "single":
+                    raise TaskStoreError("codex_single_mode_only")
                 if configuration["executor_kind"] == "deterministic_fixture":
                     if configuration["orchestration_mode"] != "single" or configuration["binding_ref"]:
                         raise TaskStoreError("fixture_configuration_invalid")

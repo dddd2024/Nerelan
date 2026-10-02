@@ -869,7 +869,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
         if not title:
             raise TaskStoreError("title_required")
         executor_kind = str(payload.get("executor_kind", "deterministic_fixture"))
-        if executor_kind not in ("deterministic_fixture", "opencode"):
+        if executor_kind not in ("deterministic_fixture", "opencode", "codex"):
             raise TaskStoreError(f"unsupported_executor_kind:{executor_kind}")
         repository = str(payload.get("repository", "")).strip()
         if require_repository_for_opencode and executor_kind == "opencode" and not repository:
@@ -877,6 +877,15 @@ class _TaskHandler(BaseHTTPRequestHandler):
         if not repository:
             repository = "dddd2024/reverse-agent"
         orchestration_mode = str(payload.get("orchestration_mode", "single"))
+        branch = str(payload.get("branch", ""))
+        if executor_kind == "codex":
+            if not repository or not payload.get("binding_ref"):
+                raise TaskStoreError("codex_repository_and_binding_required")
+            if orchestration_mode != "single":
+                raise TaskStoreError("codex_single_mode_only")
+            if not branch:
+                from .functional_validation import repository_base
+                branch = repository_base(repository)
         return self.store.create_task(
             title=title,
             repository=repository,
@@ -886,7 +895,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
             permission_profile=str(payload.get("permission_profile", "ASK_FOR_APPROVAL")),
             policy_ref=str(payload.get("policy_ref", "")),
             workspace=str(payload.get("workspace", "")),
-            branch=str(payload.get("branch", "")),
+            branch=branch,
             idempotency_key=str(payload.get("idempotency_key", "")),
             orchestration_mode=orchestration_mode,
         )

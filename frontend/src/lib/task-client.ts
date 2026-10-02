@@ -1,6 +1,6 @@
 import type { TestStatus } from "@/types";
 import { functionalTestStatus, normalizeFunctionalValidation } from "@/lib/functional-validation";
-export type ExecutorKind = "deterministic_fixture" | "opencode";
+export type ExecutorKind = "deterministic_fixture" | "opencode" | "codex";
 
 export interface BackendTaskCreatePayload {
   title: string;
@@ -449,6 +449,7 @@ export async function createTask(
   const allowedExecutors: Record<string, true> = {
     deterministic_fixture: true,
     opencode: true,
+    codex: true,
   };
   const executorKind: ExecutorKind =
     inputExecutor && allowedExecutors[inputExecutor]

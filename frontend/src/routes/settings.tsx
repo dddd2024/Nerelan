@@ -310,7 +310,7 @@ export function SettingsPage() {
               </h1>
             </div>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-ra-text-secondary">
-              管理 Model Control 连接与 OpenCode 绑定。API Key 仅通过模型控制服务传输，
+              管理 Model Control 连接与 OpenCode / Codex 绑定。API Key 仅通过模型控制服务传输，
               不写入浏览器存储。
             </p>
           </div>
