@@ -12,6 +12,10 @@ import type {
   ConnectionModelsResult,
   ConnectionProbeResult,
   Executor,
+  CatalogBindingInput,
+  CatalogBindingResult,
+  ModelSelectionInput,
+  ModelSelectionResult,
 } from "@/schemas/model-access";
 import type { BindingInput } from "@/schemas/model-access";
 
@@ -118,5 +122,23 @@ export function useListConnectionModels() {
   const client = getDefaultModelControlClient();
   return useMutation<ConnectionModelsResult, Error, string>({
     mutationFn: (connectionId) => client.listConnectionModels(connectionId),
+  });
+}
+
+export function useSelectCatalogBinding() {
+  const queryClient = useQueryClient();
+  const client = getDefaultModelControlClient();
+  return useMutation<CatalogBindingResult, Error, CatalogBindingInput>({
+    mutationFn: (input) => client.selectCatalogBinding(input),
+    onSuccess: async () => replaceBindings(queryClient, await client.listBindings()),
+    retry: false,
+  });
+}
+
+export function useRecommendModelSelection() {
+  const client = getDefaultModelControlClient();
+  return useMutation<ModelSelectionResult, Error, ModelSelectionInput>({
+    mutationFn: (input) => client.recommendModelSelection(input),
+    retry: false,
   });
 }

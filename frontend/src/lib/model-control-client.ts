@@ -15,6 +15,10 @@ import {
   ExecutorSchema,
   BindingInputSchema,
   BindingSchema,
+  CatalogBindingInputSchema,
+  CatalogBindingResultSchema,
+  ModelSelectionInputSchema,
+  ModelSelectionResultSchema,
   type Connection,
   type ConnectionInput,
   type Executor,
@@ -23,6 +27,10 @@ import {
   type ConnectionProbeResult,
   type ConnectionModelsResult,
   type AccountAuthStatus,
+  type CatalogBindingInput,
+  type CatalogBindingResult,
+  type ModelSelectionInput,
+  type ModelSelectionResult,
 } from "@/schemas/model-access";
 
 /**
@@ -51,6 +59,8 @@ export interface ModelControlClient {
   deleteConnection(connectionId: string): Promise<void>;
   testConnection(connectionId: string): Promise<ConnectionProbeResult>;
   listConnectionModels(connectionId: string): Promise<ConnectionModelsResult>;
+  selectCatalogBinding(input: CatalogBindingInput): Promise<CatalogBindingResult>;
+  recommendModelSelection(input: ModelSelectionInput): Promise<ModelSelectionResult>;
   getAccountAuthStatus(connectionId: string): Promise<AccountAuthStatus>;
   startAccountAuth(connectionId: string): Promise<AccountAuthStatus>;
   completeAccountAuth(connectionId: string, code?: string): Promise<AccountAuthStatus>;
@@ -141,6 +151,80 @@ function normalizeConnection(value: unknown): Connection {
       credentialConfigured ?? (authMethod === "api_key" ? undefined : false),
     secretStatus: raw.secretStatus ?? raw.secret_status,
     externalSessionStatus: raw.externalSessionStatus ?? raw.external_session_status,
+    ...identityFields(raw),
+  });
+}
+
+function identityFields(raw: Record<string, unknown>) {
+  const result: Record<string, unknown> = {};
+  for (const [camel, snake] of [
+    ["upstreamProviderId", "upstream_provider_id"],
+    ["protocolFamily", "protocol_family"],
+    ["executorProviderId", "executor_provider_id"],
+  ]) {
+    if (Object.hasOwn(raw, camel) || Object.hasOwn(raw, snake)) {
+      result[camel] = Object.hasOwn(raw, camel) ? raw[camel] : raw[snake];
+    }
+  }
+  return result;
+}
+
+export function connectionConfigurationFingerprint(connection: Pick<Connection,
+  "connectionId" | "provider" | "baseUrl" | "authMethod" | "enabled"
+  | "upstreamProviderId" | "protocolFamily" | "executorProviderId">): string {
+  return JSON.stringify([connection.connectionId, connection.provider, connection.baseUrl,
+    connection.authMethod, connection.enabled, connection.upstreamProviderId ?? null,
+    connection.protocolFamily ?? null, connection.executorProviderId ?? null]);
+}
+
+function normalizeCatalog(value: unknown): ConnectionModelsResult {
+  const raw = value as Record<string, unknown>;
+  const records = raw.modelRecords ?? raw.model_records;
+  return ConnectionModelsResultSchema.parse({
+    ok: raw.ok, status: raw.status, message: raw.message,
+    latencyMs: raw.latencyMs ?? raw.latency_ms ?? null,
+    models: raw.models,
+    connectionId: raw.connectionId ?? raw.connection_id,
+    configurationRevision: raw.configurationRevision ?? raw.configuration_revision,
+    catalogRevision: raw.catalogRevision ?? raw.catalog_revision,
+    observedAt: raw.observedAt ?? raw.observed_at,
+    source: raw.source,
+    entitlement: raw.entitlement,
+    modelRecords: Array.isArray(records) ? records.map((value) => {
+      const record = value as Record<string, unknown>;
+      return { modelId: record.modelId ?? record.model_id,
+        displayName: record.displayName ?? record.display_name,
+        ownedBy: record.ownedBy ?? record.owned_by };
+    }) : undefined,
+  });
+}
+
+function normalizeSelection(value: unknown): ModelSelectionResult {
+  const raw = value as Record<string, unknown>;
+  function candidate(value: unknown) {
+    if (value === null) return null;
+    const item = value as Record<string, unknown>;
+    return {
+      bindingRef: item.bindingRef ?? item.binding_ref,
+      connectionId: item.connectionId ?? item.connection_id,
+      executorId: item.executorId ?? item.executor_id,
+      modelId: item.modelId ?? item.model_id,
+      configurationRevision: item.configurationRevision ?? item.configuration_revision ?? null,
+      catalogRevision: item.catalogRevision ?? item.catalog_revision ?? null,
+      source: item.source, eligible: item.eligible,
+      reasonCodes: item.reasonCodes ?? item.reason_codes,
+      explanation: item.explanation, availability: item.availability,
+      underlyingIdentity: item.underlyingIdentity ?? item.underlying_identity ?? null,
+      underlyingIdentityStatus: item.underlyingIdentityStatus ?? item.underlying_identity_status,
+      cost: item.cost, quality: item.quality,
+    };
+  }
+  return ModelSelectionResultSchema.parse({
+    previewOnly: raw.previewOnly ?? raw.preview_only,
+    status: raw.status, message: raw.message, policyId: raw.policyId ?? raw.policy_id,
+    recommended: candidate(raw.recommended),
+    candidates: Array.isArray(raw.candidates) ? raw.candidates.map(candidate) : raw.candidates,
+    evidenceUnknowns: raw.evidenceUnknowns ?? raw.evidence_unknowns,
   });
 }
 
@@ -191,6 +275,11 @@ function serializeConnectionInput(input: ConnectionInput) {
     auth_method: parsed.authMethod,
     enabled: parsed.enabled,
   };
+  if (parsed.executorProviderId !== undefined) {
+    body.executor_provider_id = parsed.executorProviderId;
+    body.upstream_provider_id = parsed.upstreamProviderId ?? null;
+    body.protocol_family = parsed.protocolFamily ?? null;
+  }
   if (parsed.apiKey !== undefined && parsed.apiKey !== "") {
     body.api_key = parsed.apiKey;
   }
@@ -389,14 +478,39 @@ export function createHttpModelControlClient(
           body: JSON.stringify({}),
         },
       );
-      const raw = payload as Record<string, unknown>;
-      return ConnectionModelsResultSchema.parse({
-        ok: raw.ok,
-        status: raw.status,
-        message: raw.message,
-        latencyMs: raw.latencyMs ?? raw.latency_ms ?? null,
-        models: Array.isArray(raw.models) ? raw.models : [],
+      return normalizeCatalog(payload);
+    },
+
+    async selectCatalogBinding(input) {
+      const parsed = CatalogBindingInputSchema.parse(input);
+      const payload = await requestJson(`${connectionsUrl}/${encodeURIComponent(parsed.connectionId)}/models/bindings`, {
+        method: "POST",
+        body: JSON.stringify({ configuration_revision: parsed.configurationRevision,
+          catalog_revision: parsed.catalogRevision, executor_id: parsed.executorId, model_id: parsed.modelId }),
       });
+      const raw = payload as Record<string, unknown>;
+      return CatalogBindingResultSchema.parse({
+        binding: normalizeBinding(raw.binding), created: raw.created,
+        reusedManual: raw.reusedManual ?? raw.reused_manual,
+        configurationRevision: raw.configurationRevision ?? raw.configuration_revision,
+        catalogRevision: raw.catalogRevision ?? raw.catalog_revision,
+        source: raw.source, advertisedModelId: raw.advertisedModelId ?? raw.advertised_model_id,
+        availability: raw.availability,
+      });
+    },
+
+    async recommendModelSelection(input) {
+      const parsed = ModelSelectionInputSchema.parse(input);
+      return normalizeSelection(await requestJson(`${baseUrl}/model-selections/recommend`, {
+        method: "POST", body: JSON.stringify({ selection_mode: parsed.selectionMode,
+          ...(parsed.manualBindingRef !== undefined ? { manual_binding_ref: parsed.manualBindingRef } : {}),
+          ...(parsed.purpose !== undefined ? { purpose: parsed.purpose } : {}),
+          ...(parsed.requiredCapabilities !== undefined ? { required_capabilities: parsed.requiredCapabilities } : {}),
+          ...(parsed.orchestrationMode !== undefined ? { orchestration_mode: parsed.orchestrationMode } : {}),
+          ...(parsed.executorPreference !== undefined ? { executor_preference: parsed.executorPreference } : {}),
+          ...(parsed.preferredBindingRefs !== undefined ? { preferred_binding_refs: parsed.preferredBindingRefs } : {}),
+        }),
+      }));
     },
 
     async getAccountAuthStatus(connectionId) {
@@ -495,6 +609,11 @@ export function createMockModelControlClient(
   let bindings = DEFAULT_MOCK_BINDINGS.map((b) =>
     BindingSchema.parse(structuredClone(b)),
   );
+  let generation = 0;
+  let generatedCount = 0;
+  const revisions = new Map(connections.map((connection) => [connection.connectionId, `mock-config-${++generation}`]));
+  const catalogs = new Map<string, ConnectionModelsResult>();
+  const generated = new Map<string, { configurationRevision: string; catalogRevision: string; advertisedModelId: string }>();
 
   function normalizeDefaults(next: ModelProfile[]): ModelProfile[] {
     const requestedDefault = next.find((profile) => profile.isDefault);
@@ -620,7 +739,13 @@ export function createMockModelControlClient(
         externalSessionStatus: executorManagedAuth
           ? "executor_managed"
           : "not_applicable",
+        ...identityFields(parsed as Record<string, unknown>),
       };
+      if (!existing || connectionConfigurationFingerprint(existing) !== connectionConfigurationFingerprint(saved)
+        || parsed.apiKey || parsed.apiKeyEnv || parsed.clearSecret) {
+        revisions.set(saved.connectionId, `mock-config-${++generation}`);
+        catalogs.delete(saved.connectionId);
+      }
       connections = [
         ...connections.filter((c) => c.connectionId !== saved.connectionId),
         saved,
@@ -641,6 +766,8 @@ export function createMockModelControlClient(
         throw new Error("该连接仍被一个绑定引用，请先删除绑定。");
       }
       connections = connections.filter((c) => c.connectionId !== connectionId);
+      revisions.delete(connectionId);
+      catalogs.delete(connectionId);
     },
 
     async testConnection(connectionId) {
@@ -686,34 +813,92 @@ export function createMockModelControlClient(
       if (!connection) {
         throw new Error(`未找到该连接（${connectionId}）。`);
       }
+      catalogs.delete(connectionId);
+      const unavailable = (status: string, message: string): ConnectionModelsResult => ({
+        ok: false, status, message, latencyMs: null, models: [], modelRecords: [],
+        connectionId, configurationRevision: revisions.get(connectionId) ?? null,
+        catalogRevision: null, observedAt: null, source: null, entitlement: "not_observed",
+      });
       if (!connection.enabled) {
-        return {
-          ok: false,
-          status: "disabled",
-          message: "连接已禁用",
-          latencyMs: null,
-          models: [],
-        };
+        return unavailable("disabled", "连接已禁用");
       }
       if (connection.authMethod !== "api_key" && connection.authMethod !== "none") {
-        return {
-          ok: false,
-          status: "unsupported_auth_method",
-          message: "认证由执行器管理，当前不支持获取模型列表",
-          latencyMs: null,
-          models: [],
-        };
+        return unavailable("unsupported_auth_method", "认证由执行器管理，当前不支持获取模型列表");
       }
-      return {
+      if (connection.authMethod === "api_key" && !["session", "environment", "stored"].includes(connection.secretStatus)) {
+        return unavailable(connection.secretStatus === "store_locked" ? "credential_store_locked"
+          : connection.secretStatus === "replacement_required" ? "credential_replacement_required" : "credential_missing",
+          "当前凭据不可用，无法读取模型目录");
+      }
+      const result: ConnectionModelsResult = {
         ok: true,
-        status: "connected",
-        message: "连接成功",
+        status: "advertised",
+        message: "已读取提供方公布的模型目录，尚未验证执行可用性",
         latencyMs: 18,
-        models: [
-          `${connection.provider}/mock-model-a`,
-          `${connection.provider}/mock-model-b`,
-        ],
+        models: ["mock-model-a", "mock-model-b"],
+        modelRecords: ["mock-model-a", "mock-model-b"].map((modelId) => ({ modelId, displayName: null, ownedBy: null })),
+        connectionId, configurationRevision: revisions.get(connectionId)!,
+        catalogRevision: `mock-catalog-${revisions.get(connectionId)}`,
+        observedAt: "2026-01-01T00:00:00Z", source: "provider_advertised", entitlement: "not_observed",
       };
+      catalogs.set(connectionId, result);
+      return structuredClone(result);
+    },
+
+    async selectCatalogBinding(input) {
+      const parsed = CatalogBindingInputSchema.parse(input);
+      const connection = connections.find((item) => item.connectionId === parsed.connectionId);
+      const catalog = catalogs.get(parsed.connectionId);
+      if (!connection || !catalog || revisions.get(parsed.connectionId) !== parsed.configurationRevision
+        || catalog.catalogRevision !== parsed.catalogRevision) throw new Error("模型目录已过期，请重新获取。");
+      if (!catalog.models.includes(parsed.modelId)) throw new Error("模型不在当前目录中。");
+      if (parsed.executorId !== "opencode" || connection.provider === "codex") throw new Error("当前目录与执行器不兼容。");
+      const namespace = connection.executorProviderId ?? connection.provider;
+      const modelId = `${namespace}/${parsed.modelId}`;
+      const matches = bindings.filter((item) => item.connectionId === parsed.connectionId
+        && item.executorId === parsed.executorId
+        && (item.modelId === modelId || (!parsed.modelId.includes("/") && item.modelId === parsed.modelId)));
+      const previous = matches.find((item) => !generated.has(item.bindingId))
+        ?? matches.find((item) => generated.get(item.bindingId)?.configurationRevision === parsed.configurationRevision);
+      const provenance = previous ? generated.get(previous.bindingId) : undefined;
+      const reusableGenerated = provenance?.configurationRevision === parsed.configurationRevision;
+      const saved = previous && (!provenance || reusableGenerated) ? previous : {
+        bindingId: `catalog-binding-${++generatedCount}`, name: `${parsed.modelId} · 目录绑定`,
+        executorId: parsed.executorId, connectionId: parsed.connectionId, modelId, enabled: true,
+      };
+      const created = saved !== previous;
+      if (created) {
+        bindings.push(saved);
+        generated.set(saved.bindingId, { configurationRevision: parsed.configurationRevision,
+          catalogRevision: parsed.catalogRevision, advertisedModelId: parsed.modelId });
+      }
+      return CatalogBindingResultSchema.parse({ binding: structuredClone(saved), created,
+        reusedManual: !!previous && !provenance,
+        configurationRevision: parsed.configurationRevision, catalogRevision: parsed.catalogRevision,
+        source: generated.has(saved.bindingId) ? "discovered" : "manual",
+        advertisedModelId: parsed.modelId, availability: "advertised_unverified" });
+    },
+
+    async recommendModelSelection(input) {
+      const parsed = ModelSelectionInputSchema.parse(input);
+      const selected = parsed.selectionMode === "manual"
+        ? bindings.filter((item) => item.bindingId === parsed.manualBindingRef) : bindings;
+      return ModelSelectionResultSchema.parse({ previewOnly: true,
+        status: parsed.selectionMode === "manual" ? "manual_blocked" : "no_eligible_pairing",
+        message: "当前执行器就绪性尚未观测；推荐仅供预览，尚未通过执行检查。",
+        policyId: "catalog-preview-v1", recommended: null,
+        evidenceUnknowns: ["cost", "quality", "task_success", "underlying_model_identity"],
+        candidates: selected.map((binding) => {
+          const provenance = generated.get(binding.bindingId);
+          return { bindingRef: binding.bindingId, connectionId: binding.connectionId,
+            executorId: binding.executorId, modelId: binding.modelId,
+            configurationRevision: revisions.get(binding.connectionId) ?? null,
+            catalogRevision: provenance?.catalogRevision ?? null,
+            source: provenance ? "discovered" : "manual", eligible: false,
+            reasonCodes: ["executor_readiness_not_observed"], explanation: "执行器就绪性尚未观测。",
+            availability: provenance ? "advertised_unverified" : "not_observed",
+            underlyingIdentity: null, underlyingIdentityStatus: "not_observed", cost: null, quality: null };
+        }) });
     },
 
     async getAccountAuthStatus(connectionId) {
@@ -803,6 +988,7 @@ export function createMockModelControlClient(
         ...bindings.filter((b) => b.bindingId !== saved.bindingId),
         saved,
       ];
+      generated.delete(saved.bindingId);
       return structuredClone(
         bindings.find((b) => b.bindingId === saved.bindingId) as Binding,
       );

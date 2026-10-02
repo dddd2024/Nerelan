@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ExternalLink, Save, Trash2 } from "lucide-react";
 import {
   ConnectionInputSchema,
@@ -14,9 +14,12 @@ import {
   type Connection,
   type ConnectionInput,
   type ConnectionProvider,
+  type CatalogBindingInput,
+  type CatalogBindingResult,
 } from "@/schemas/model-access";
 import type { Executor } from "@/schemas/model-access";
 import { cn } from "@/lib/cn";
+import { connectionConfigurationFingerprint } from "@/lib/model-control-client";
 
 type EditorView = "connection" | "binding";
 
@@ -34,6 +37,7 @@ interface ConnectionBindingEditorProps {
   onBindingDelete: (bindingId: string) => Promise<void>;
   onConnectionTest: (connectionId: string) => Promise<void>;
   onConnectionModelsFetch?: (connectionId: string) => Promise<ConnectionModelsResult>;
+  onCatalogBindingSelect?: (input: CatalogBindingInput) => Promise<CatalogBindingResult>;
   connectionProbeResult: ConnectionProbeResult | null;
   connectionProbePending: boolean;
   connectionModelsPending?: boolean;
@@ -77,6 +81,7 @@ export function ConnectionBindingEditor({
   onBindingDelete,
   onConnectionTest,
   onConnectionModelsFetch,
+  onCatalogBindingSelect,
   connectionProbeResult,
   connectionProbePending,
   connectionModelsPending = false,
@@ -94,8 +99,17 @@ export function ConnectionBindingEditor({
   const [bindDraft, setBindDraft] = useState<BindingInput>(EMPTY_BINDING);
   const [bindError, setBindError] = useState<string | null>(null);
   const [accountAuthCode, setAccountAuthCode] = useState("");
-  const [connModels, setConnModels] = useState<string[]>([]);
-  const [connModelsMessage, setConnModelsMessage] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<ConnectionModelsResult | null>(null);
+  const [catalogStamp, setCatalogStamp] = useState("");
+  const [catalogPending, setCatalogPending] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogModelId, setCatalogModelId] = useState("");
+  const [catalogExecutorId, setCatalogExecutorId] = useState("");
+  const [catalogSelecting, setCatalogSelecting] = useState(false);
+  const [catalogSaveEpoch, setCatalogSaveEpoch] = useState(0);
+  const [discoveryAfterSave, setDiscoveryAfterSave] = useState<string | null>(null);
+  const catalogRequest = useRef(0);
+  const catalogObserved = useRef(false);
 
   const [connSavedDraft, setConnSavedDraft] = useState<ConnectionInput | null>(null);
   const [connSavedApiKey, setConnSavedApiKey] = useState("");
@@ -110,6 +124,9 @@ export function ConnectionBindingEditor({
             baseUrl: connection.baseUrl,
             authMethod: connection.authMethod,
             enabled: connection.enabled,
+            upstreamProviderId: connection.upstreamProviderId,
+            protocolFamily: connection.protocolFamily,
+            executorProviderId: connection.executorProviderId,
           }
         : EMPTY_CONNECTION;
       setConnDraft(draft);
@@ -133,8 +150,6 @@ export function ConnectionBindingEditor({
           : EMPTY_BINDING,
       );
       setBindError(null);
-      setConnModels([]);
-      setConnModelsMessage(null);
     }
   }, [view, connection, binding, creating]);
 
@@ -148,9 +163,77 @@ export function ConnectionBindingEditor({
       connDraft.provider !== connSavedDraft.provider ||
       connDraft.baseUrl !== connSavedDraft.baseUrl ||
       connDraft.authMethod !== connSavedDraft.authMethod ||
-      connDraft.enabled !== connSavedDraft.enabled
+      connDraft.enabled !== connSavedDraft.enabled ||
+      connDraft.upstreamProviderId !== connSavedDraft.upstreamProviderId ||
+      connDraft.protocolFamily !== connSavedDraft.protocolFamily ||
+      connDraft.executorProviderId !== connSavedDraft.executorProviderId
     );
   }, [connDraft, connApiKey, connClearSecret, connSavedDraft, connSavedApiKey]);
+
+  const catalogTarget = view === "connection" ? connection
+    : connections.find((item) => item.connectionId === bindDraft.connectionId) ?? null;
+  const catalogContext = JSON.stringify([view, creating,
+    catalogTarget ? connectionConfigurationFingerprint(catalogTarget) : "",
+    view === "connection" ? connectionConfigurationFingerprint(connDraft) : "",
+    view === "connection" && connDirty, catalogSaveEpoch]);
+  const catalogContextRef = useRef(catalogContext);
+  catalogContextRef.current = catalogContext;
+  const catalogTargetRef = useRef(catalogTarget);
+  catalogTargetRef.current = catalogTarget;
+  const fetchModelsRef = useRef(onConnectionModelsFetch);
+  fetchModelsRef.current = onConnectionModelsFetch;
+  const catalogBlockedRef = useRef(false);
+  catalogBlockedRef.current = (view === "connection" && (creating || connDirty)) || !catalogTarget;
+  const visibleCatalog = catalogStamp === catalogContext ? catalog : null;
+  const connModels = visibleCatalog?.models ?? [];
+  const connModelsMessage = visibleCatalog ? localizedModelsMessage(visibleCatalog) : null;
+
+  useEffect(() => {
+    catalogRequest.current += 1;
+    setCatalog(null);
+    setCatalogStamp("");
+    setCatalogPending(false);
+    setCatalogError(catalogObserved.current ? "连接配置或选择已变化，旧目录已失效。请保存修改或重新获取。" : null);
+    catalogObserved.current = false;
+    setCatalogModelId("");
+    setCatalogSelecting(false);
+  }, [catalogContext]);
+
+  const fetchCatalog = useCallback(async () => {
+    const target = catalogTargetRef.current;
+    const fetchModels = fetchModelsRef.current;
+    if (!target || !fetchModels || catalogBlockedRef.current) return;
+    const request = ++catalogRequest.current;
+    const stamp = catalogContextRef.current;
+    setCatalog(null);
+    setCatalogError(null);
+    setCatalogModelId("");
+    setCatalogPending(true);
+    try {
+      const result = await fetchModels(target.connectionId);
+      if (request !== catalogRequest.current || stamp !== catalogContextRef.current) return;
+      if (result.connectionId && result.connectionId !== target.connectionId) {
+        setCatalogError("模型目录与当前连接不匹配，请重新获取。");
+        return;
+      }
+      setCatalog(result);
+      setCatalogStamp(stamp);
+      catalogObserved.current = true;
+    } catch {
+      if (request === catalogRequest.current && stamp === catalogContextRef.current) {
+        setCatalogError("获取模型目录失败，请检查连接后重新获取。");
+      }
+    } finally {
+      if (request === catalogRequest.current && stamp === catalogContextRef.current) setCatalogPending(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view !== "connection" || creating || connDirty || !catalogTarget
+      || discoveryAfterSave !== catalogTarget.connectionId) return;
+    setDiscoveryAfterSave(null);
+    void fetchCatalog();
+  }, [view, creating, connDirty, catalogTarget, discoveryAfterSave, fetchCatalog]);
 
   const authorityChanged = useMemo(() => {
     if (!connection || creating || view !== "connection") return false;
@@ -209,6 +292,9 @@ export function ConnectionBindingEditor({
     setConnClearSecret(false);
     setConnSavedDraft(structuredClone(connDraft));
     setConnSavedApiKey("");
+    catalogRequest.current += 1;
+    setCatalogSaveEpoch((value) => value + 1);
+    setDiscoveryAfterSave(parsed.data.connectionId);
   }
 
   async function handleBindingSubmit(event: FormEvent<HTMLFormElement>) {
@@ -223,22 +309,29 @@ export function ConnectionBindingEditor({
   }
 
   async function handleFetchModels() {
-    if (!bindDraft.connectionId || !onConnectionModelsFetch) return;
-    setConnModelsMessage(null);
+    await fetchCatalog();
+  }
+
+  async function handleCatalogSelection() {
+    if (!visibleCatalog?.configurationRevision || !visibleCatalog.catalogRevision
+      || !catalogTarget || !catalogModelId || !catalogExecutorId || !onCatalogBindingSelect) return;
+    const stamp = catalogContextRef.current;
+    const request = ++catalogRequest.current;
+    setCatalogSelecting(true);
+    setCatalogError(null);
     try {
-      const result = await onConnectionModelsFetch(bindDraft.connectionId);
-      if (result.ok && result.models.length > 0) {
-        setConnModels(result.models);
-        setConnModelsMessage(`已获取 ${result.models.length} 个可用模型`);
-      } else {
-        setConnModels([]);
-        setConnModelsMessage(localizedModelsMessage(result));
+      await onCatalogBindingSelect({ connectionId: catalogTarget.connectionId,
+        configurationRevision: visibleCatalog.configurationRevision,
+        catalogRevision: visibleCatalog.catalogRevision,
+        executorId: catalogExecutorId, modelId: catalogModelId });
+    } catch {
+      if (request === catalogRequest.current && stamp === catalogContextRef.current) {
+        setCatalog(null);
+        setCatalogModelId("");
+        setCatalogError("目录绑定未保存。目录可能已过期，请刷新后重新选择；原手动绑定保持不变。");
       }
-    } catch (cause) {
-      setConnModels([]);
-      setConnModelsMessage(
-        cause instanceof Error ? cause.message : "获取模型列表失败",
-      );
+    } finally {
+      if (request === catalogRequest.current && stamp === catalogContextRef.current) setCatalogSelecting(false);
     }
   }
 
@@ -285,6 +378,51 @@ export function ConnectionBindingEditor({
     connection.authMethod === "account_login" &&
     connDraft.provider === "openai" &&
     connDraft.authMethod === "account_login";
+
+  const catalogPanel = catalogPending || visibleCatalog || catalogError ? (
+    <section data-testid="connection-model-catalog" className="flex flex-col gap-3 rounded-lg border border-ra-border bg-ra-base/30 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-medium text-ra-text">提供方模型目录</h3>
+        <button type="button" onClick={handleFetchModels}
+          disabled={busy || catalogPending || catalogSelecting || catalogBlockedRef.current}
+          className={secondaryButtonClass}>刷新模型目录</button>
+      </div>
+      <p className="text-xs text-ra-text-tertiary">目录仅代表提供方公布的模型，尚未验证账户使用权限或任务执行可用性。</p>
+      {catalogPending ? <p role="status" className="text-sm text-ra-text-secondary">正在获取模型目录…</p> : null}
+      {catalogError ? <p role="alert" className="text-sm text-ra-status-error">{catalogError}</p> : null}
+      {connModelsMessage ? <p role="status" data-testid="connection-models-message" className="text-sm text-ra-text-secondary">{connModelsMessage}</p> : null}
+      {visibleCatalog?.ok && connModels.length > 0 ? (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="提供方公布的模型">
+              <select aria-label="提供方公布的模型" className={inputClass} value={catalogModelId}
+                onChange={(event) => setCatalogModelId(event.target.value)} disabled={catalogSelecting}>
+                <option value="">请选择模型</option>
+                {connModels.map((modelId) => {
+                  const record = visibleCatalog.modelRecords.find((item) => item.modelId === modelId);
+                  return <option key={modelId} value={modelId}>{record?.displayName ? `${record.displayName} · ${modelId}` : modelId}</option>;
+                })}
+              </select>
+            </Field>
+            <Field label="目录绑定执行器">
+              <select aria-label="目录绑定执行器" className={inputClass} value={catalogExecutorId}
+                onChange={(event) => setCatalogExecutorId(event.target.value)} disabled={catalogSelecting}>
+                <option value="">请选择执行器</option>
+                {executors.filter((item) => item.executorId === "opencode" && catalogTarget?.provider !== "codex")
+                  .map((item) => <option key={item.executorId} value={item.executorId} disabled={!item.operational}>{item.name}{!item.operational ? "（未就绪）" : ""}</option>)}
+              </select>
+            </Field>
+          </div>
+          {onCatalogBindingSelect ? <button type="button" onClick={handleCatalogSelection}
+            disabled={busy || catalogSelecting || !catalogModelId || !catalogExecutorId
+              || !visibleCatalog.configurationRevision || !visibleCatalog.catalogRevision}
+            className={primaryButtonClass}>{catalogSelecting ? "保存目录绑定中…" : "使用目录模型创建或复用绑定"}</button> : null}
+          {!visibleCatalog.configurationRevision || !visibleCatalog.catalogRevision ? <p className="text-xs text-ra-text-tertiary">目录缺少服务端版本，无法安全创建目录绑定；可保留高级手动设置。</p> : null}
+          <p className="text-xs text-ra-text-tertiary">已有手动绑定及其启用状态会保留。保存目录绑定不会启动任务、切换默认模型或授予 GPT 调用权限。</p>
+        </>
+      ) : null}
+    </section>
+  ) : null;
 
   return (
     <div data-testid="connection-binding-editor">
@@ -340,6 +478,9 @@ export function ConnectionBindingEditor({
                   setConnDraft((d) => ({
                     ...d,
                     provider: event.target.value as ConnectionProvider,
+                    upstreamProviderId: event.target.value === connection?.provider ? connection.upstreamProviderId : undefined,
+                    protocolFamily: event.target.value === connection?.provider ? connection.protocolFamily : undefined,
+                    executorProviderId: event.target.value === connection?.provider ? connection.executorProviderId : undefined,
                     ...(event.target.value === "codex" ? { authMethod: "external_cli_session" as const, baseUrl: "https://chatgpt.com" } : {}),
                   }));
                   if (event.target.value === "codex") {
@@ -659,6 +800,8 @@ export function ConnectionBindingEditor({
             </p>
           )}
 
+          {catalogPanel}
+
           <div className="flex flex-wrap items-center gap-2 border-t border-ra-border pt-3">
             <button type="submit" disabled={busy} className={primaryButtonClass}>
               <Save className="h-4 w-4" aria-hidden="true" />
@@ -805,12 +948,12 @@ export function ConnectionBindingEditor({
                     type="button"
                     onClick={handleFetchModels}
                     disabled={
-                      !bindDraft.connectionId || connectionModelsPending || busy
+                      !bindDraft.connectionId || connectionModelsPending || catalogPending || busy
                     }
                     data-testid="fetch-models-button"
                     title={
                       bindDraft.connectionId
-                        ? "从该连接的 /models 端点获取全部可用模型"
+                        ? "读取该连接的提供方模型目录；目录不代表执行可用性"
                         : "请先选择连接"
                     }
                     className={cn(
@@ -819,7 +962,7 @@ export function ConnectionBindingEditor({
                       connectionModelsPending && "opacity-60",
                     )}
                   >
-                    {connectionModelsPending ? "获取中…" : "获取模型列表"}
+                    {connectionModelsPending || catalogPending ? "获取中…" : "获取模型列表"}
                   </button>
                 ) : null}
               </div>
@@ -828,17 +971,12 @@ export function ConnectionBindingEditor({
                   <option key={modelId} value={modelId} />
                 ))}
               </datalist>
-              {connModelsMessage && (
-                <p
-                  role="status"
-                  data-testid="connection-models-message"
-                  className="text-xs text-ra-text-tertiary"
-                >
-                  {connModelsMessage}
-                </p>
-              )}
+              <p className="text-xs text-ra-text-tertiary">高级手动设置：用于不支持目录的连接，或保留明确指定的模型。获取目录不会改写这里的值。</p>
             </Field>
           </div>
+
+          {catalogTarget && executorManagedAuth(catalogTarget.authMethod) ? <p data-testid="catalog-unsupported-auth" className="text-xs text-ra-text-tertiary">当前执行器登录方式不支持提供方模型目录，请保留高级手动模型设置；登录就绪不代表模型可用。</p> : null}
+          {catalogPanel}
 
           <label className="inline-flex min-h-6 items-center gap-2 text-sm text-ra-text-secondary">
             <input
@@ -939,16 +1077,26 @@ function accountAuthStatusLabel(status: string): string {
 
 function localizedModelsMessage(result: ConnectionModelsResult): string {
   switch (result.status) {
+    case "advertised":
+      return `已读取 ${result.models.length} 个提供方公布的模型，尚未验证执行可用性。`;
+    case "empty":
+      return "提供方公布的模型目录为空；这不代表账户已通过执行验证。";
+    case "stale_configuration":
+    case "stale_catalog":
+    case "stale":
+    case "catalog_changed":
+      return "连接配置或目录已变化，请重新获取模型目录。";
     case "connected":
       return "上游未返回可识别的模型列表";
     case "credential_missing":
+    case "credential_replacement_required":
       return "API Key 未配置或需要重新输入";
     case "credential_store_locked":
       return "系统凭据库不可用或已锁定，暂时无法读取已保存的密钥";
     case "disabled":
       return "连接已禁用";
     case "live_probe_disabled":
-      return "实时模型探测未启用（需要 REVERSE_AGENT_MODEL_CONTROL_LIVE=1）";
+      return "实时模型目录读取未启用，无法读取提供方公布的模型。";
     case "unsupported_auth_method":
       return "当前认证方式不支持获取模型列表";
     case "upstream_http_error":

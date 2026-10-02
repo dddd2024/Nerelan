@@ -85,7 +85,14 @@ def test_executor_registry_exposes_only_proven_operational_executor() -> None:
             "name": "OpenCode",
             "operational": True,
             "capabilities": ["model_selection", "workspace_execution"],
-        }
+        },
+        {
+            "executor_id": "codex",
+            "name": "Codex",
+            "operational": False,
+            "capabilities": ["model_selection", "workspace_execution", "single_mode"],
+            "readiness_status": "not_probed",
+        },
     ]
 
 
@@ -298,9 +305,22 @@ def test_connection_and_executor_endpoints_return_sanitized_structures(
 
     status, executors = api_request(port, "GET", "/api/executors")
     assert status == 200
-    assert [executor["executor_id"] for executor in executors] == ["opencode"]
+    assert executors == [
+        {
+            "executor_id": "opencode",
+            "name": "OpenCode",
+            "operational": True,
+            "capabilities": ["model_selection", "workspace_execution"],
+        },
+        {
+            "executor_id": "codex",
+            "name": "Codex",
+            "operational": False,
+            "capabilities": ["model_selection", "workspace_execution", "single_mode"],
+            "readiness_status": "not_probed",
+        },
+    ]
     assert "openhands" not in json.dumps(executors).lower()
-    assert "codex" not in json.dumps(executors).lower()
 
 
 def test_binding_endpoints_validate_references_and_never_accept_credentials(

@@ -5,16 +5,22 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 import errno
+import hashlib
 import json
 import os
 from threading import RLock
 from typing import Any, Mapping
 import tempfile
+from uuid import uuid4
 
-from .contracts import Binding, Connection, ExecutionSnapshot, ExecutorDescriptor, ModelProfile
+from .contracts import (
+    Binding, CatalogSnapshot, Connection, ConnectionModelsResult,
+    ExecutionSnapshot, ExecutorDescriptor, ModelProfile,
+)
 from .os_vault import (
     VaultAdapter,
     VaultItemMissingError,
+    VaultUnavailableError,
     connection_vault_ref,
 )
 from .provider_identity import identity_authority_changed
@@ -375,6 +381,15 @@ class ModelProfileStore:
             ),
         }
         self._bindings: dict[str, Binding] = {}
+        # Discovery and its provenance are process-local, not a new state schema.
+        # After restart every persisted binding is conservatively user-owned.
+        self._configuration_revisions: dict[str, str] = {}
+        self._catalogs: dict[str, ConnectionModelsResult] = {}
+        # Last observed owner-credential reference for this generation, including
+        # failed discoveries; never persisted, hashed, returned or sent to selection.
+        self._catalog_credentials: dict[str, str | None] = {}
+        self._catalog_attempts: dict[str, str] = {}
+        self._generated_bindings: dict[str, dict[str, str]] = {}
         self._lock = RLock()
         self._connection_binding_poison: StoreError | None = None
 
@@ -739,6 +754,13 @@ class ModelProfileStore:
                 write_secret=write_secret,
                 delete_ref=delete_ref,
             )
+            if (
+                existing is None or authority_changed
+                or existing.connection.enabled != connection.enabled
+                or incoming_api_key is not None or incoming_api_key_env is not None
+                or clear_secret
+            ):
+                self._invalidate_catalog_locked(connection.connection_id)
             return stored.public(self._connection_secret_status(stored))
 
     def delete_connection(self, connection_id: str) -> None:
@@ -769,6 +791,229 @@ class ModelProfileStore:
                 write_secret=None,
                 delete_ref=stored.credential_ref,
             )
+            self._configuration_revisions.pop(connection_id, None)
+            self._catalogs.pop(connection_id, None)
+            self._catalog_credentials.pop(connection_id, None)
+            self._catalog_attempts.pop(connection_id, None)
+
+    def _configuration_revision_locked(self, connection_id: str) -> str:
+        return self._configuration_revisions.setdefault(connection_id, uuid4().hex)
+
+    def _invalidate_catalog_locked(self, connection_id: str) -> None:
+        # Never derive this token from a credential or its hash.
+        self._configuration_revisions[connection_id] = uuid4().hex
+        self._catalogs.pop(connection_id, None)
+        self._catalog_credentials.pop(connection_id, None)
+        self._catalog_attempts.pop(connection_id, None)
+
+    def _revalidate_catalog_locked(self, connection_id: str) -> None:
+        if connection_id not in self._catalog_credentials:
+            return
+        stored = self._connections.get(connection_id)
+        if stored is None:
+            self._catalogs.pop(connection_id, None)
+            self._catalog_credentials.pop(connection_id, None)
+            return
+        if stored.connection.auth_method == "api_key":
+            try:
+                current_secret = self._resolve_stored_secret(stored)
+            except VaultUnavailableError:
+                self._invalidate_catalog_locked(connection_id)
+                return
+            if current_secret != self._catalog_credentials.get(connection_id):
+                self._invalidate_catalog_locked(connection_id)
+
+    def catalog_snapshot(
+        self, connection_id: str, *, resolve_credentials: bool = False,
+        expected_revision: str | None = None,
+        begin_discovery: bool = False, expected_attempt: str | None = None,
+    ) -> CatalogSnapshot:
+        """One lock acquisition; metadata-only calls never touch the vault."""
+        with self._lock:
+            self._ensure_connection_binding_ready()
+            stored = self._connections.get(connection_id)
+            if stored is None:
+                raise KeyError("connection not found")
+            revision = self._configuration_revision_locked(connection_id)
+            if expected_revision is not None and expected_revision != revision:
+                raise ValueError("configuration_changed")
+            if expected_attempt is not None and self._catalog_attempts.get(connection_id) != expected_attempt:
+                raise ValueError("catalog_changed")
+            if begin_discovery:
+                self._catalog_attempts[connection_id] = uuid4().hex
+                self._catalogs.pop(connection_id, None)
+            secret = None
+            if resolve_credentials and stored.connection.auth_method == "api_key":
+                if self._connection_secret_status(stored) == "store_locked":
+                    raise VaultUnavailableError("credential_store_locked")
+                secret = self._resolve_stored_secret(stored)
+                if connection_id in self._catalog_credentials and secret != self._catalog_credentials[connection_id]:
+                    self._invalidate_catalog_locked(connection_id)
+                    raise ValueError("configuration_changed")
+                self._catalog_credentials[connection_id] = secret
+            return CatalogSnapshot(stored.connection, revision, secret, self._catalog_attempts.get(connection_id))
+
+    def catalog_generation_current(self, connection_id: str, revision: str) -> bool:
+        with self._lock:
+            self._ensure_connection_binding_ready()
+            return connection_id in self._connections and self._configuration_revisions.get(connection_id) == revision
+
+    def catalog_attempt_current(self, connection_id: str, attempt: str | None) -> bool:
+        with self._lock:
+            return attempt is not None and self._catalog_attempts.get(connection_id) == attempt
+
+    def discard_model_catalog(
+        self, connection_id: str, revision: str, *, attempt: str | None,
+        check_credentials: bool = False,
+    ) -> str:
+        with self._lock:
+            self._ensure_connection_binding_ready()
+            if connection_id not in self._connections or self._configuration_revisions.get(connection_id) != revision:
+                return "configuration_changed"
+            if self._catalog_attempts.get(connection_id) != attempt:
+                return "catalog_changed"
+            if check_credentials:
+                self._revalidate_catalog_locked(connection_id)
+                if self._configuration_revisions.get(connection_id) != revision:
+                    return "configuration_changed"
+            self._catalogs.pop(connection_id, None)
+            # Keep the observation across failure: a later refresh must still
+            # notice external env/vault replacement and reject the old generation.
+            return "current"
+
+    def admit_model_catalog(self, result: ConnectionModelsResult, *, snapshot: CatalogSnapshot) -> bool:
+        """CAS a bounded, immutable public projection after unlocked I/O."""
+        with self._lock:
+            self._ensure_connection_binding_ready()
+            connection_id = result.connection_id
+            if (
+                connection_id not in self._connections
+                or not self._connections[connection_id].connection.enabled
+                or self._configuration_revisions.get(connection_id) != result.configuration_revision
+                or snapshot.discovery_attempt is None
+                or self._catalog_attempts.get(connection_id) != snapshot.discovery_attempt
+            ):
+                return False
+            if snapshot.connection.connection_id != connection_id or snapshot.configuration_revision != result.configuration_revision:
+                raise ValueError("invalid_catalog_admission")
+            if snapshot.connection.auth_method == "api_key":
+                try:
+                    current_secret = self._resolve_stored_secret(self._connections[connection_id])
+                except VaultUnavailableError:
+                    self._invalidate_catalog_locked(connection_id)
+                    return False
+                if current_secret != snapshot.resolved_api_key:
+                    self._invalidate_catalog_locked(connection_id)
+                    return False
+            if not result.ok or result.catalog_revision is None or len(result.model_records) > 1000:
+                raise ValueError("invalid_catalog_admission")
+            self._catalogs[connection_id] = result
+            self._catalog_credentials[connection_id] = snapshot.resolved_api_key
+            return True
+
+    def selection_public_snapshot(self) -> dict[str, Any]:
+        """Atomic safe preview input; no resolved keys or invented readiness."""
+        with self._lock:
+            self._ensure_connection_binding_ready()
+            connections = []
+            for connection_id, stored in self._connections.items():
+                self._revalidate_catalog_locked(connection_id)
+                public = stored.public(self._connection_secret_status(stored))
+                public["configuration_revision"] = self._configuration_revision_locked(connection_id)
+                connections.append(public)
+            bindings = []
+            for binding_id, binding in self._bindings.items():
+                public = binding.to_public_dict()
+                provenance = self._generated_bindings.get(binding_id)
+                active = bool(provenance and provenance["configuration_revision"] == self._configuration_revisions.get(binding.connection_id) and self._catalogs.get(binding.connection_id) is not None and self._catalogs[binding.connection_id].catalog_revision == provenance["catalog_revision"])
+                public.update({
+                    "source": "discovered" if provenance else "manual",
+                    "availability": "advertised_unverified" if active else None,
+                    "configuration_revision": provenance["configuration_revision"] if provenance else None,
+                    "catalog_revision": provenance["catalog_revision"] if provenance else None,
+                    "advertised_model_id": provenance["advertised_model_id"] if provenance else None,
+                })
+                bindings.append(public)
+            return {
+                "connections": connections,
+                "executors": [executor.to_public_dict() for executor in self._executors.values()],
+                "bindings": bindings,
+                "catalogs": {key: catalog.to_public_dict() for key, catalog in self._catalogs.items()},
+            }
+
+    def select_catalog_binding(self, connection_id: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+        """Explicit metadata selection; protects user tuples, no provider calls."""
+        fields = {"configuration_revision", "catalog_revision", "executor_id", "model_id"}
+        if set(payload) != fields or any(not isinstance(payload[key], str) or not payload[key] or len(payload[key]) > 200 for key in fields):
+            raise ValueError("catalog_selection_requires_exact_fields")
+        with self._lock:
+            self._ensure_connection_binding_ready()
+            self._revalidate_catalog_locked(connection_id)
+            stored = self._connections.get(connection_id)
+            catalog = self._catalogs.get(connection_id)
+            if stored is None:
+                raise KeyError("connection not found")
+            if self._configuration_revision_locked(connection_id) != payload["configuration_revision"]:
+                raise ValueError("configuration_changed")
+            if catalog is None or catalog.catalog_revision != payload["catalog_revision"]:
+                raise ValueError("catalog_changed")
+            connection = stored.connection
+            executor = self._executors.get(payload["executor_id"])
+            if (
+                not connection.enabled or executor is None
+                or executor.executor_id != "opencode" or not executor.operational
+                or "model_selection" not in executor.capabilities
+                or connection.protocol_family != "openai"
+                or connection.auth_method not in {"api_key", "none"}
+            ):
+                raise ValueError("catalog_binding_unsupported")
+            raw_model = payload["model_id"]
+            if raw_model not in {record.model_id for record in catalog.model_records}:
+                raise ValueError("model_not_in_catalog")
+            # Preserve the exact advertised upstream ID behind the executor namespace.
+            canonical_model = f"{connection.executor_provider_id}/{raw_model}"
+            matching_models = {canonical_model}
+            if "/" not in raw_model:
+                matching_models.add(raw_model)
+            if len(canonical_model) > 200:
+                raise ValueError("binding_model_id_too_long")
+            provenance = {
+                "configuration_revision": payload["configuration_revision"],
+                "catalog_revision": payload["catalog_revision"],
+                "advertised_model_id": raw_model,
+            }
+            for binding in self._bindings.values():
+                if (
+                    binding.connection_id == connection_id
+                    and binding.executor_id == executor.executor_id
+                    and binding.model_id in matching_models
+                    and (binding.binding_id not in self._generated_bindings or not binding.enabled)
+                ):
+                    # Disabled tuples are protected too: never duplicate to bypass them.
+                    return {"binding": binding.to_public_dict(), "created": False,
+                            "reused_manual": True, "source": "manual",
+                            **provenance, "availability": "advertised_unverified"}
+            identity = json.dumps([connection_id, payload["configuration_revision"], executor.executor_id, raw_model], separators=(",", ":"))
+            binding_id = "catalog-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:48]
+            existing = self._bindings.get(binding_id)
+            if existing is not None:
+                if binding_id not in self._generated_bindings:
+                    raise ValueError("protected_binding_identity")
+                if existing.connection_id != connection_id or existing.executor_id != executor.executor_id or existing.model_id != canonical_model:
+                    raise ValueError("protected_binding_identity")
+                self._generated_bindings[binding_id] = provenance
+                return {"binding": existing.to_public_dict(), "created": False,
+                        "reused_manual": False, "source": "discovered",
+                        **provenance, "availability": "advertised_unverified"}
+            binding = Binding(binding_id, f"{executor.name}: {raw_model}"[:120], executor.executor_id, connection_id, canonical_model)
+            snap_conns, snap_bindings = dict(self._connections), dict(self._bindings)
+            self._bindings[binding_id] = binding
+            if self._state_path is not None:
+                self._persist_with_rollback(snap_conns, snap_bindings, lambda: self._rollback_conn_binding(snap_conns, snap_bindings))
+            self._generated_bindings[binding_id] = provenance
+            return {"binding": binding.to_public_dict(), "created": True,
+                    "reused_manual": False, "source": "discovered",
+                    **provenance, "availability": "advertised_unverified"}
 
     def resolve_connection_secret(self, connection_id: str) -> str | None:
         with self._lock:
@@ -909,6 +1154,7 @@ class ModelProfileStore:
                     snap_conns, snap_bindings,
                     lambda: self._rollback_conn_binding(snap_conns, snap_bindings),
                 )
+            self._generated_bindings.pop(binding.binding_id, None)
             return result
 
     def delete_binding(self, binding_id: str) -> None:
@@ -924,6 +1170,7 @@ class ModelProfileStore:
                     snap_conns, snap_bindings,
                     lambda: self._rollback_conn_binding(snap_conns, snap_bindings),
                 )
+            self._generated_bindings.pop(binding_id, None)
 
     def list_public(self) -> list[dict[str, Any]]:
         with self._lock:
@@ -1074,6 +1321,13 @@ class ModelProfileStore:
         self._connections.update(conn_by_id)
         self._bindings.clear()
         self._bindings.update(binding_by_id)
+        # Reload/reconciliation destroys process provenance as a restart does.
+        # Persisted v1/v2 parsing and ordinary metadata remain unchanged.
+        self._configuration_revisions.clear()
+        self._catalogs.clear()
+        self._catalog_credentials.clear()
+        self._catalog_attempts.clear()
+        self._generated_bindings.clear()
 
     def _parse_state_doc(self, raw: bytes) -> dict[str, Any]:
         try:

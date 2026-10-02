@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Settings } from "lucide-react";
 import { ConnectionBindingEditor, executorManagedAuth, externalSessionStatusLabel } from "@/components/connection-binding-editor";
 import {
@@ -11,6 +11,8 @@ import {
   useListConnectionModels,
   useUpsertBinding,
   useUpsertConnection,
+  useSelectCatalogBinding,
+  useRecommendModelSelection,
 } from "@/hooks/use-model-access";
 import type {
   AccountAuthStatus,
@@ -18,10 +20,13 @@ import type {
   Connection,
   ConnectionInput,
   ConnectionProbeResult,
+  CatalogBindingInput,
+  CatalogBindingResult,
+  ModelSelectionResult,
 } from "@/schemas/model-access";
 import type { BindingInput } from "@/schemas/model-access";
 import { cn } from "@/lib/cn";
-import { getDefaultModelControlClient } from "@/lib/model-control-client";
+import { connectionConfigurationFingerprint, getDefaultModelControlClient } from "@/lib/model-control-client";
 import { ThemeSelector } from "@/components/theme-selector";
 
 type EditorView = "connection" | "binding";
@@ -60,6 +65,15 @@ export function SettingsPage() {
 
   const testConnectionMutation = useTestConnection();
   const listConnectionModelsMutation = useListConnectionModels();
+  const catalogBindingMutation = useSelectCatalogBinding();
+  const selectionPreviewMutation = useRecommendModelSelection();
+  const [selectionPreview, setSelectionPreview] = useState<{ result: ModelSelectionResult; configurationStamp: string } | null>(null);
+  const [selectionPreviewError, setSelectionPreviewError] = useState<string | null>(null);
+  const operationEpoch = useRef(0);
+  const configurationStamp = JSON.stringify(connections.map(connectionConfigurationFingerprint).sort());
+  const configurationStampRef = useRef(configurationStamp);
+  configurationStampRef.current = configurationStamp;
+  const visibleSelectionPreview = selectionPreview?.configurationStamp === configurationStamp ? selectionPreview.result : null;
 
   useEffect(() => {
     if (creating) return;
@@ -91,13 +105,16 @@ export function SettingsPage() {
     deleteConnMutation.isPending ||
     bindingsMutation.isPending ||
     deleteBindingMutation.isPending ||
-    testConnectionMutation.isPending;
+    testConnectionMutation.isPending || catalogBindingMutation.isPending;
 
   function clearMessages() {
+    operationEpoch.current += 1;
     setStatus(null);
     setError(null);
     setConnProbeResult(null);
     setAccountAuthState(null);
+    setSelectionPreview(null);
+    setSelectionPreviewError(null);
   }
 
   /* The three list reads share one failure surface so the page states the
@@ -117,16 +134,17 @@ export function SettingsPage() {
   }
 
   async function handleConnectionSave(input: ConnectionInput) {
-    setStatus(null);
-    setError(null);
+    clearMessages();
+    const epoch = operationEpoch.current;
     try {
       const saved = await connectionsMutation.mutateAsync(input);
+      if (epoch !== operationEpoch.current) return;
       setCreating(false);
       setSelectedConnId(saved.connectionId);
       setConnProbeResult(null);
       setStatus("连接已保存");
     } catch (cause) {
-      setError(errorMessage(cause));
+      if (epoch === operationEpoch.current) setError(errorMessage(cause));
       throw cause;
     }
   }
@@ -240,14 +258,44 @@ export function SettingsPage() {
 
   async function handleBindingSave(input: BindingInput) {
     clearMessages();
+    const epoch = operationEpoch.current;
     try {
       const saved = await bindingsMutation.mutateAsync(input);
+      if (epoch !== operationEpoch.current) return;
       setCreating(false);
       setSelectedBindId(saved.bindingId);
       setStatus("绑定已保存");
+      await loadSelectionPreview(saved.bindingId, epoch);
     } catch (cause) {
       setError(errorMessage(cause));
     }
+  }
+
+  async function loadSelectionPreview(bindingId: string, epoch: number) {
+    const stamp = configurationStampRef.current;
+    try {
+      const result = await selectionPreviewMutation.mutateAsync({ selectionMode: "manual",
+        manualBindingRef: bindingId, purpose: "development",
+        requiredCapabilities: ["workspace_execution"], orchestrationMode: "single" });
+      if (epoch === operationEpoch.current && stamp === configurationStampRef.current) setSelectionPreview({ result, configurationStamp: stamp });
+    } catch {
+      if (epoch === operationEpoch.current && stamp === configurationStampRef.current) setSelectionPreviewError("兼容性预览暂时不可用；绑定已保留，执行检查尚未完成。");
+    }
+  }
+
+  async function handleCatalogBindingSelect(input: CatalogBindingInput): Promise<CatalogBindingResult> {
+    clearMessages();
+    const epoch = operationEpoch.current;
+    const result = await catalogBindingMutation.mutateAsync(input);
+    if (epoch !== operationEpoch.current) return result;
+    setCreating(false);
+    setView("binding");
+    setSelectedBindId(result.binding.bindingId);
+    setStatus(result.reusedManual
+      ? result.binding.enabled ? "已复用现有手动绑定，原配置保持不变。" : "已保留现有手动绑定（禁用），不会隐式启用。"
+      : "目录绑定已保存（提供方公布，尚未验证执行可用性）。");
+    await loadSelectionPreview(result.binding.bindingId, epoch);
+    return result;
   }
 
   async function handleConnectionDelete(connectionId: string) {
@@ -366,6 +414,17 @@ export function SettingsPage() {
             {error}
           </p>
         )}
+
+        {visibleSelectionPreview ? (
+          <section data-testid="model-selection-preview" className="rounded-md border border-ra-border bg-ra-base/30 px-3 py-2 text-sm text-ra-text-secondary">
+            <h2 className="font-medium">兼容性预览 · 等待执行检查</h2>
+            <p className="mt-1">{visibleSelectionPreview.message}</p>
+            {visibleSelectionPreview.recommended ? <p className="mt-1">建议：{visibleSelectionPreview.recommended.modelId || "模型标识不可展示"} · {visibleSelectionPreview.recommended.executorId}。{visibleSelectionPreview.recommended.explanation}</p> : null}
+            {visibleSelectionPreview.candidates.map((candidate) => <p key={candidate.bindingRef} className="mt-1">{candidate.modelId || "模型标识不可展示"} · {candidate.executorId}：{candidate.explanation}</p>)}
+            <p className="mt-2 text-xs text-ra-text-tertiary">费用、质量、任务成功和底层模型身份尚未观测。预览不会启动任务、切换默认绑定或授予 GPT 调用权限。</p>
+          </section>
+        ) : null}
+        {selectionPreviewError ? <p role="status" className="text-sm text-ra-text-tertiary">{selectionPreviewError}</p> : null}
 
         {/* A failed read must never be rendered as an empty collection: the
             page previously fell straight through to "还没有连接。/ 还没有绑定。",
@@ -532,6 +591,7 @@ export function SettingsPage() {
             onBindingDelete={handleBindingDelete}
             onConnectionTest={handleConnectionTest}
             onConnectionModelsFetch={handleConnectionModelsFetch}
+            onCatalogBindingSelect={handleCatalogBindingSelect}
             connectionProbeResult={connProbeResult}
             connectionProbePending={testConnectionMutation.isPending}
             connectionModelsPending={listConnectionModelsMutation.isPending}
