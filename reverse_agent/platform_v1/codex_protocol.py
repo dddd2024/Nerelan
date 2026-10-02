@@ -26,8 +26,16 @@ def public_text(value: Any, limit: int = 4096) -> str:
     # Redact the whole bounded frame before truncating public evidence.
     # The shared redactor handles many provider patterns, but its generic
     # Authorization substitution can consume only 'Bearer', leaving the token.
-    value = re.sub(r"(?im)\bauthorization\s*:\s*[^\r\n]*", "Authorization: [REDACTED]", value)
+    value = re.sub(r"(?im)\bauthorization[\"']?\s*[:=]\s*[^\r\n]*", "Authorization: [REDACTED]", value)
     value = re.sub(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+", "Bearer [REDACTED]", value)
+    value = re.sub(r"(?i)(?<![a-z0-9+.-])([a-z][a-z0-9+.-]*://)[^/\s]+@", r"\1[REDACTED]@", value)
+    # Error diagnostics may contain short credentials, including quoted JSON
+    # assignments. Their sensitivity does not depend on a minimum token length.
+    value = re.sub(
+        r"(?i)\b(api[-_]?key|access[-_]?token|refresh[-_]?token|token|password|secret)"
+        r"[\"']?\s*[:=]\s*(?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^\s,;}&\]]+)",
+        r"\1=[REDACTED]", value,
+    )
     return redact_secrets(value).replace("\x00", "").encode("utf-8")[:limit].decode(
         "utf-8", errors="ignore"
     )
@@ -68,6 +76,7 @@ class CodexJsonl:
         self._bytes = 0
         self._events = 0
         self._started = False
+        self._critical_error = False
 
     def feed(self, chunk: bytes) -> None:
         if not isinstance(chunk, bytes):
@@ -89,6 +98,10 @@ class CodexJsonl:
             self._line(bytes(self._buffer))
             self._buffer.clear()
         if not (self.turn.completed or self.turn.failed):
+            if self._critical_error:
+                self.turn.failed = True
+                self.turn.failure_classification = "codex_turn_failed"
+                return self.turn
             raise CodexProtocolError("codex_turn_incomplete")
         if self.turn.completed and not self.turn.final_text:
             raise CodexProtocolError("codex_final_message_missing")
@@ -122,24 +135,34 @@ class CodexJsonl:
             if self._started or not self.turn.thread_id:
                 raise CodexProtocolError("codex_turn_identity_invalid")
             self._started = True
-        elif kind in {"turn.completed", "turn.failed", "error"}:
-            if kind != "error" and not self._started:
+        elif kind == "error":
+            # Native 0.159.2 emits this diagnostic while still Running, then
+            # emits the actual turn terminal. Never accept success after it.
+            self._critical_error = True
+            self._diagnostic(kind, event.get("message"))
+        elif kind in {"turn.completed", "turn.failed"}:
+            if not self._started:
                 raise CodexProtocolError("codex_turn_identity_invalid")
-            self.turn.completed = kind == "turn.completed"
+            self.turn.completed = kind == "turn.completed" and not self._critical_error
             self.turn.failed = not self.turn.completed
             self.turn.failure_classification = "" if self.turn.completed else "codex_turn_failed"
+            if self.turn.failed:
+                error = event.get("error")
+                self._diagnostic(kind, error.get("message") if isinstance(error, dict) else None)
             usage = event.get("usage")
             if isinstance(usage, dict):
                 keys = ("input_tokens", "cached_input_tokens", "output_tokens")
                 if all(type(usage.get(k)) is int and usage[k] >= 0 for k in keys):
                     self.turn.usage = {k: usage[k] for k in keys}
         elif kind in {"item.started", "item.updated", "item.completed"}:
-            if not self._started:
-                raise CodexProtocolError("codex_turn_identity_invalid")
             item = event.get("item")
             if not isinstance(item, dict) or not isinstance(item.get("type"), str):
                 raise CodexProtocolError("codex_invalid_item")
             item_type = item["type"]
+            # CLI warnings can precede even thread.started. Only the diagnostic
+            # item may do so; agent/tool activity still requires a started turn.
+            if not self._started and item_type != "error":
+                raise CodexProtocolError("codex_turn_identity_invalid")
             # Allowlisted projection only: never relay arbitrary provider/MCP data.
             public: dict[str, Any] = {"type": kind, "item_type": public_text(item_type, 80)}
             if item_type == "agent_message":
@@ -154,6 +177,8 @@ class CodexJsonl:
                 public["status"] = public_text(item.get("status"), 80)
             elif item_type == "file_change":
                 public["status"] = public_text(item.get("status"), 80)
+            elif item_type == "error":
+                public["text"] = public_text(item.get("message"), 4096) or "Codex diagnostic"
             else:
                 public["text"] = "Codex activity"
             public = redact_event(public)
@@ -161,3 +186,11 @@ class CodexJsonl:
                 self.turn.items.append(public)
             if self._callback:
                 self._callback(public)
+
+    def _diagnostic(self, kind: str, message: Any) -> None:
+        public = {"type": kind, "item_type": "error",
+                  "text": public_text(message, 4096) or "Codex diagnostic"}
+        if len(self.turn.items) < 100:
+            self.turn.items.append(public)
+        if self._callback:
+            self._callback(public)

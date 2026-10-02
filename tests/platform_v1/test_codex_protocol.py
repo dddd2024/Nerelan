@@ -1,6 +1,7 @@
 """Provider-free native CLI wire-contract and public-evidence regressions."""
 
 import json
+import time
 
 import pytest
 
@@ -114,3 +115,90 @@ def test_total_stream_and_event_counts_are_independently_bounded():
     parser = CodexJsonl(max_events=1)
     with pytest.raises(CodexProtocolError, match="codex_event_limit_exceeded"):
         parser.feed(wire(*START))
+
+
+def test_critical_error_then_failed_turn_preserves_diagnostics_until_real_terminal():
+    seen = []
+    parser = CodexJsonl(seen.append)
+    parser.feed(wire(*START,
+        {"type": "error", "message": "Request failed"},
+        {"type": "error", "message": "Additional diagnostic"},
+        {"type": "turn.failed", "error": {"message": "Turn request failed"}}))
+    result = parser.finish()
+    assert result.failed and not result.completed
+    assert result.failure_classification == "codex_turn_failed"
+    assert [item["text"] for item in seen] == ["Request failed", "Additional diagnostic", "Turn request failed"]
+    with pytest.raises(CodexProtocolError, match="codex_event_after_terminal"):
+        parser.feed(wire(MESSAGE))
+
+
+@pytest.mark.parametrize("finish_events", [[], [MESSAGE, DONE]])
+def test_error_only_eof_and_completion_after_critical_error_never_become_success(finish_events):
+    parser = CodexJsonl()
+    parser.feed(wire(*START, {"type": "error", "message": "Critical diagnostic"}, *finish_events))
+    result = parser.finish()
+    assert result.failed and not result.completed
+    assert result.failure_classification == "codex_turn_failed"
+
+
+def test_pre_thread_warning_is_visible_without_relaxing_agent_item_identity():
+    seen = []
+    warning = {"type": "item.completed", "item": {"type": "error", "message": "Configuration warning"}}
+    parser = CodexJsonl(seen.append)
+    parser.feed(wire(warning, *START, MESSAGE, DONE))
+    assert parser.finish().completed
+    assert seen[0]["text"] == "Configuration warning"
+    with pytest.raises(CodexProtocolError, match="codex_turn_identity_invalid"):
+        CodexJsonl().feed(wire(MESSAGE))
+
+
+def test_error_diagnostics_redact_secrets_and_credential_urls_before_publication():
+    seen = []
+    parser = CodexJsonl(seen.append)
+    parser.feed(wire(*START,
+        {"type": "error", "message": "Authorization: Bearer " + "s" * 9000, "token": "opaque-secret"},
+        {"type": "turn.failed", "error": {"message": "https://user:private-password@host.invalid/request", "token": "opaque-secret"}}))
+    result = parser.finish()
+    public = json.dumps(seen) + repr(result)
+    assert "private-password" not in public and "opaque-secret" not in public
+    assert "s" * 64 not in public and "REDACTED" in public
+    assert result.failed
+
+
+@pytest.mark.parametrize("diagnostic,private", [
+    ("wss://fixture-user:fixture-password@host.invalid/request", "fixture-password"),
+    ("Authorization=Basic Zml4dHVyZTo=", "Zml4dHVyZTo="),
+    ("token=fixture", "fixture"),
+    ('{"token": "short value"}', "short value"),
+    ("access_token='tiny'", "tiny"),
+    (json.dumps({"token": 'first" private remainder'}), "private remainder"),
+    ("password='first\\' private remainder'", "private remainder"),
+])
+@pytest.mark.parametrize("surface", ["error", "turn.failed", "warning"])
+def test_all_public_diagnostic_surfaces_redact_credentials_regardless_of_length(diagnostic, private, surface):
+    seen = []
+    parser = CodexJsonl(seen.append)
+    if surface == "warning":
+        events = [{"type": "item.completed", "item": {"type": "error", "message": diagnostic}},
+                  *START, MESSAGE, DONE]
+    elif surface == "turn.failed":
+        events = [*START, {"type": "turn.failed", "error": {"message": diagnostic}}]
+    else:
+        events = [*START, {"type": "error", "message": diagnostic},
+                  {"type": "turn.failed", "error": {"message": "failed"}}]
+    parser.feed(wire(*events))
+    result = parser.finish()
+    public = json.dumps(seen) + repr(result)
+    assert private not in public and "REDACTED" in public
+    assert result.completed is (surface == "warning")
+
+
+def test_large_scheme_free_diagnostic_does_not_block_executor_deadline_checks():
+    # A legal frame's long letter run has no URL. Redaction must not repeatedly
+    # scan it as a new candidate scheme at each character inside the same run.
+    parser = CodexJsonl()
+    started = time.monotonic()
+    parser.feed(wire(*START, {"type": "error", "message": "a" * 240_000},
+                     {"type": "turn.failed", "error": {"message": "failed"}}))
+    assert time.monotonic() - started < 2
+    assert parser.finish().failed
