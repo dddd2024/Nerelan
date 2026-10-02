@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime, timezone
+import hashlib
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ipaddress import ip_address
 import json
 import os
+import re
+import unicodedata
 from time import perf_counter
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -15,8 +19,12 @@ from urllib.parse import unquote, urlsplit
 from urllib.request import Request, urlopen
 
 from .account_auth import AccountAuthManager
-from .contracts import Connection, ModelProfile, ProbeResult
+from .catalog_transport import CatalogTransportError, catalog_transport as bounded_catalog_transport
+from .contracts import (
+    Connection, ConnectionModelsResult, ModelCatalogRecord, ModelProfile, ProbeResult,
+)
 from .os_vault import VaultUnavailableError
+from .selection import recommend_model_selection
 from .store import ModelProfileStore
 
 ProbeTransport = Callable[[str, dict[str, str], float], tuple[int, bytes]]
@@ -238,6 +246,148 @@ def probe_saved_connection(
     )
 
 
+_CATALOG_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,199}")
+
+
+def _catalog_secret_shape(value: str, secret: str | None) -> bool:
+    lowered = value.casefold()
+    return bool(
+        (secret and secret in value)
+        or lowered.startswith(("sk-", "bearer ", "authorization", "api_key", "api-key", "access_token", "refresh_token"))
+        or re.search(r"(?:authorization|password|token|secret|api[_-]?key)\s*[:=]|\bbearer\s+|(?<![a-z0-9_])sk-", lowered)
+        or "://" in value
+    )
+
+
+def _catalog_optional_text(value: Any, *, maximum: int, secret: str | None) -> str | None:
+    # Optional metadata is a small safe label, never the upstream object/body.
+    if (
+        not isinstance(value, str) or not value or len(value) > maximum
+        or value != value.strip() or any(unicodedata.category(char).startswith("C") for char in value)
+        or any(char in value for char in "<>{}\\?#&=")
+        or _catalog_secret_shape(value, secret)
+    ):
+        return None
+    return value
+
+
+def _parse_catalog(body: bytes, *, secret: str | None) -> tuple[ModelCatalogRecord, ...]:
+    if len(body) > _MAX_BODY_BYTES:
+        raise ValueError("catalog_too_large")
+    try:
+        document = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+        raise ValueError("invalid_upstream_response") from None
+    if not isinstance(document, dict) or not isinstance(document.get("data"), list):
+        raise ValueError("invalid_upstream_response")
+    entries = document["data"]
+    if len(entries) > 1000:
+        raise ValueError("catalog_too_large")
+    records: dict[str, ModelCatalogRecord] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValueError("invalid_upstream_response")
+        model_id = entry.get("id")
+        if (
+            not isinstance(model_id, str) or not _CATALOG_ID.fullmatch(model_id)
+            or _catalog_secret_shape(model_id, secret)
+        ):
+            raise ValueError("invalid_upstream_response")
+        if model_id not in records:
+            records[model_id] = ModelCatalogRecord(
+                model_id,
+                _catalog_optional_text(entry.get("display_name", entry.get("name")), maximum=120, secret=secret),
+                _catalog_optional_text(entry.get("owned_by"), maximum=80, secret=secret),
+            )
+    return tuple(records[key] for key in sorted(records))
+
+
+def discover_saved_connection_models(
+    *, store: ModelProfileStore, connection_id: str, payload: dict[str, Any],
+    live_enabled: bool, transport: ProbeTransport | None = None, timeout: float = 10.0,
+) -> ConnectionModelsResult:
+    """One bounded advertised-catalog GET; no inference or entitlement claim."""
+    _require_empty_payload(payload)
+    try:
+        snapshot = store.catalog_snapshot(connection_id, begin_discovery=True)
+    except KeyError:
+        return ConnectionModelsResult(False, "not_found", "Connection not found", connection_id)
+    revision = snapshot.configuration_revision
+    attempt = snapshot.discovery_attempt
+    connection = snapshot.connection
+    credential_observed = False
+
+    def fail(status: str, message: str, latency: int | None = None) -> ConnectionModelsResult:
+        freshness = store.discard_model_catalog(connection_id, revision, attempt=attempt, check_credentials=credential_observed)
+        if freshness == "configuration_changed":
+            return ConnectionModelsResult(False, "configuration_changed", "Connection changed; refresh the catalog", connection_id)
+        if freshness == "catalog_changed":
+            return ConnectionModelsResult(False, "catalog_changed", "A newer catalog refresh superseded this result", connection_id, revision)
+        return ConnectionModelsResult(False, status, message, connection_id, revision, latency_ms=latency)
+
+    if not connection.enabled:
+        return fail("disabled", "Connection is disabled")
+    if connection.auth_method not in {"api_key", "none"}:
+        return fail("unsupported_auth_method", "This authentication method does not support catalog discovery")
+    if connection.protocol_family != "openai":
+        return fail("unsupported_protocol", "This protocol does not support catalog discovery")
+    # Metadata-only above; LIVE0 never resolves credentials or starts a worker.
+    if not live_enabled:
+        return fail("live_probe_disabled", "Live catalog discovery requires REVERSE_AGENT_MODEL_CONTROL_LIVE=1")
+    try:
+        snapshot = store.catalog_snapshot(connection_id, resolve_credentials=True, expected_revision=revision, expected_attempt=attempt)
+    except KeyError:
+        return fail("configuration_changed", "Connection changed; refresh the catalog")
+    except VaultUnavailableError:
+        return fail("credential_store_locked", "Credential store is locked or unavailable")
+    except ValueError as error:
+        return fail("catalog_changed" if str(error) == "catalog_changed" else "configuration_changed", "Connection or catalog changed; refresh the catalog")
+    secret = snapshot.resolved_api_key
+    credential_observed = True
+    if connection.auth_method == "api_key" and not secret:
+        return fail("credential_missing", "API key is not configured or needs replacement")
+    headers = {"Accept": "application/json"}
+    if secret:
+        headers["Authorization"] = f"Bearer {secret}"
+    started = perf_counter()
+    try:
+        code, body = (transport or bounded_catalog_transport)(f"{connection.base_url.rstrip('/')}/models", headers, timeout)
+        elapsed = max(0, round((perf_counter() - started) * 1000))
+        if 300 <= code < 400:
+            return fail("redirect_rejected", "Catalog redirects are not allowed", elapsed)
+        if not 200 <= code < 300:
+            return fail("upstream_http_error", "Catalog endpoint returned an HTTP error", elapsed)
+        records = _parse_catalog(body, secret=secret)
+    except CatalogTransportError as error:
+        status = {
+            "invalid_request": "invalid_connection_url",
+            "response_too_large": "catalog_too_large",
+            "timeout": "timeout",
+            "connection_error": "connection_error",
+            "worker_error": "worker_error",
+            "busy": "catalog_busy",
+        }.get(error.status, "worker_error")
+        return fail(status, "Catalog discovery failed: " + status, max(0, round((perf_counter() - started) * 1000)))
+    except ValueError as error:
+        status = "catalog_too_large" if str(error) == "catalog_too_large" else "invalid_upstream_response"
+        return fail(status, "Catalog response exceeds bounds" if status == "catalog_too_large" else "Catalog endpoint returned an invalid response")
+    except Exception:
+        # Never propagate exception text, URLs, headers or upstream bodies.
+        return fail("connection_error", "Catalog discovery failed")
+    projection = json.dumps([revision, [record.to_public_dict() for record in records]], sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    result = ConnectionModelsResult(
+        True, "advertised" if records else "empty",
+        "Provider advertised model IDs; execution access remains unverified" if records else "Provider advertised no model IDs",
+        connection_id, revision, hashlib.sha256(projection.encode("utf-8")).hexdigest(),
+        datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"), records, elapsed,
+    )
+    if not store.admit_model_catalog(result, snapshot=snapshot):
+        if store.catalog_generation_current(connection_id, revision):
+            return ConnectionModelsResult(False, "catalog_changed", "A newer catalog refresh superseded this result", connection_id, revision)
+        return ConnectionModelsResult(False, "configuration_changed", "Connection or credential changed; refresh the catalog", connection_id)
+    return result
+
+
 class _ModelControlHandler(BaseHTTPRequestHandler):
     store = ModelProfileStore()
     live_enabled = False
@@ -246,6 +396,7 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
         lambda _force, _connection_id: None
     )
     account_auth: AccountAuthManager | None = None
+    catalog_transport: ProbeTransport = staticmethod(bounded_catalog_transport)
 
     server_version = "reverse-agent-model-control/1"
 
@@ -378,6 +529,22 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
             return
         try:
             segments = self._segments()
+            if segments == ["api", "model-selections", "recommend"]:
+                result = recommend_model_selection(self.store.selection_public_snapshot(), self._read_json())
+                self._send_json(HTTPStatus.OK, result)
+                return
+            if len(segments) == 4 and segments[:2] == ["api", "connections"] and segments[3] == "models":
+                result = discover_saved_connection_models(
+                    store=self.store, connection_id=segments[2],
+                    payload=self._read_json(optional=True), live_enabled=self.live_enabled,
+                    transport=self.catalog_transport,
+                )
+                self._send_json(HTTPStatus.OK, result.to_public_dict())
+                return
+            if len(segments) == 5 and segments[:2] == ["api", "connections"] and segments[3:] == ["models", "bindings"]:
+                result = self.store.select_catalog_binding(segments[2], self._read_json())
+                self._send_json(HTTPStatus.OK, result)
+                return
             if (
                 len(segments) == 4
                 and segments[:2] == ["api", "model-profiles"]
@@ -577,6 +744,7 @@ def _handler_factory(
     allowed_origin: str,
     external_session_refresh: Callable[[bool, str | None], None] | None = None,
     account_auth: AccountAuthManager | None = None,
+    catalog_transport: ProbeTransport | None = None,
 ) -> type[_ModelControlHandler]:
     class ConfiguredHandler(_ModelControlHandler):
         pass
@@ -588,6 +756,7 @@ def _handler_factory(
         external_session_refresh or (lambda _force, _connection_id: None)
     )
     ConfiguredHandler.account_auth = account_auth
+    ConfiguredHandler.catalog_transport = staticmethod(catalog_transport or bounded_catalog_transport)
     return ConfiguredHandler
 
 

@@ -455,3 +455,58 @@ class ProbeResult:
             "message": self.message,
             "latency_ms": self.latency_ms,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogSnapshot:
+    """Private atomic saved configuration; credentials never become public."""
+
+    connection: Connection
+    configuration_revision: str
+    resolved_api_key: str | None = None
+    discovery_attempt: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ModelCatalogRecord:
+    """A small projection of an advertised ID, never an entitlement claim."""
+
+    model_id: str
+    display_name: str | None = None
+    owned_by: str | None = None
+
+    def to_public_dict(self) -> dict[str, Any]:
+        return {
+            "model_id": self.model_id,
+            "display_name": self.display_name,
+            "owned_by": self.owned_by,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ConnectionModelsResult:
+    ok: bool
+    status: str
+    message: str
+    connection_id: str
+    configuration_revision: str | None = None
+    catalog_revision: str | None = None
+    observed_at: str | None = None
+    model_records: tuple[ModelCatalogRecord, ...] = ()
+    latency_ms: int | None = None
+
+    def to_public_dict(self) -> dict[str, Any]:
+        return {
+            "ok": self.ok,
+            "status": self.status,
+            "message": self.message,
+            "latency_ms": self.latency_ms,
+            "models": [record.model_id for record in self.model_records],
+            "connection_id": self.connection_id,
+            "configuration_revision": self.configuration_revision,
+            "catalog_revision": self.catalog_revision,
+            "observed_at": self.observed_at,
+            "model_records": [record.to_public_dict() for record in self.model_records],
+            "source": "provider_advertised" if self.ok else None,
+            "entitlement": "not_observed",
+        }
