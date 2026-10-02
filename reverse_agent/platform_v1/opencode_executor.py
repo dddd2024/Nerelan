@@ -2703,7 +2703,19 @@ def _build_executor_evidence(
 ) -> list[dict[str, Any]]:
     evidence: list[dict[str, Any]] = []
     seen = 0
-    for event in events[:MAX_EVIDENCE_ITEMS]:
+    selected = events[:MAX_EVIDENCE_ITEMS]
+    # Keep the action budget while retaining a usable late assistant answer.
+    # Reuse the existing value normalization; text never establishes acceptance.
+    for index in range(len(events) - 1, MAX_EVIDENCE_ITEMS - 1, -1):
+        event = events[index]
+        part = event.get("part")
+        if (event.get("type") == "text" and isinstance(part, Mapping)
+                and part.get("type") == "text" and isinstance(part.get("text"), str)
+                and part["text"].replace("\x00", "")
+                and _bounded_value(event, MAX_EVIDENCE_STRING_LEN)):
+            selected[-1] = event
+            break
+    for event in selected:
         if seen >= MAX_EVIDENCE_ITEMS:
             break
         t = event.get("type") or event.get("event") or event.get("kind") or "event"
