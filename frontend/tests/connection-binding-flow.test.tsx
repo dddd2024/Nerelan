@@ -931,6 +931,7 @@ describe("auth-method-aware Connection verification UI", () => {
       };
 
       renderConnection(connection);
+      expect(screen.getByText("账号授权由执行器管理，无需填写 API 密钥。")).toBeVisible();
 
       expect(screen.getByLabelText("认证方式")).toHaveValue(authMethod);
       expect(screen.queryByLabelText("API Key")).not.toBeInTheDocument();

@@ -331,7 +331,7 @@ def bind_consumer_input(store: Any, task_id: str, *, lease: Any = None,
     contract = load_handoff_contract(task)
     if contract is None or contract["artifact_input"] is None:
         return None
-    if task.executor_kind != "opencode":
+    if task.executor_kind not in {"opencode", "codex"}:
         raise TaskStoreError("artifact_input_requires_real_executor")
     if lease is not None:
         store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)

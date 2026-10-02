@@ -74,6 +74,9 @@ def _build_executor_kwargs(
             reason = str(exc) if isinstance(exc, TaskStoreError) else "artifact_input_observation_failed"
             raise ExecutorRuntimeError(reason) from exc
     executor_kind = str(_map_task_field(task, "executor_kind", ""))
+    if executor_kind == "codex":
+        from .codex_executor import codex_executor_kwargs
+        return codex_executor_kwargs(task, binding_resolver=binding_resolver, artifact_input=artifact_input)
     if executor_kind == "opencode":
         binding_ref = str(_map_task_field(task, "binding_ref", ""))
         if binding_ref:
@@ -153,7 +156,7 @@ class TaskExecutionService:
 
         before_evidence = tuple(ev.get("id", "") for ev in task.evidence_refs)
 
-        if executor_kind == "opencode":
+        if executor_kind in {"opencode", "codex"}:
             try:
                 resolve_repository_workspace(task.repository)
             except RepositoryWorkspaceError as exc:

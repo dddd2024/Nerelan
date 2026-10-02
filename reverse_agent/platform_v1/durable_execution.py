@@ -710,7 +710,7 @@ class DurableExecutionService:
             raise TaskExecutionError(
                 f"durable_single_wrong_mode:{task_id}:actual={task.orchestration_mode}"
             )
-        if task.executor_kind == "opencode":
+        if task.executor_kind in {"opencode", "codex"}:
             try:
                 resolve_repository_workspace(task.repository)
             except RepositoryWorkspaceError as exc:
@@ -807,7 +807,7 @@ class DurableExecutionService:
         # --- External dispatch via the same router path as TaskExecutionService ---
         # For deterministic_fixture, the executor creates its own worktree internally.
         # For opencode, prepare_worktree_once is used to establish identity first.
-        use_prepare = executor_kind == "opencode"
+        use_prepare = executor_kind in {"opencode", "codex"}
 
         if use_prepare:
             try:
@@ -1203,13 +1203,13 @@ class DurableExecutionService:
             self.store._fenced_add_event(
                 lease.run_id, task_id,
                 event_type="VALIDATED",
-                title="Durable single opencode validated",
-                description="opencode executor dispatch + validation completed",
+                title="Durable single executor validated",
+                description="Executor dispatch and local validation completed",
                 metadata={
                     "validation_exit_code": val_exit,
                     "validation_command_id": val_command_id,
                     "run_id": lease.run_id,
-                    "executor_kind": "opencode",
+                    "executor_kind": self.store.get_task(task_id).executor_kind,
                 },
                 owner=lease.owner, epoch=lease.epoch,
             )
@@ -2092,6 +2092,9 @@ class DurableExecutionService:
     def _build_executor_kwargs(self, task: Any) -> dict[str, Any]:
         kwargs: dict[str, Any] = {}
         artifact_input = load_input_binding(self.store.get_task(task.id))
+        if getattr(task, "executor_kind", "") == "codex":
+            from .codex_executor import codex_executor_kwargs
+            return codex_executor_kwargs(task, binding_resolver=self.binding_resolver, artifact_input=artifact_input)
         if getattr(task, "executor_kind", "") == "opencode":
             binding_ref = getattr(task, "binding_ref", "") or ""
             if binding_ref and self.binding_resolver is not None:
@@ -2445,7 +2448,7 @@ class DurableExecutionService:
 
         stored_task = self.store.get_task(task_id)
 
-        if stored_task.executor_kind == "opencode":
+        if stored_task.executor_kind in {"opencode", "codex"}:
             try:
                 resolve_repository_workspace(stored_task.repository)
             except RepositoryWorkspaceError as exc:
@@ -2665,7 +2668,7 @@ class DurableExecutionService:
                 f"invalid_orchestration_mode:{stored_task.orchestration_mode}"
             )
 
-        if stored_task.executor_kind == "opencode":
+        if stored_task.executor_kind in {"opencode", "codex"}:
             try:
                 resolve_repository_workspace(stored_task.repository)
             except RepositoryWorkspaceError as exc:
@@ -2984,9 +2987,11 @@ class DurableExecutionService:
         )
 
         try:
-            if executor_kind == "opencode":
+            if executor_kind in {"opencode", "codex"}:
                 from .opencode_executor import OpenCodeExecutor, RoleContext
-                prepared = OpenCodeExecutor.reconstruct_prepared_context(
+                reconstruct = (executor.reconstruct_prepared_context if executor_kind == "codex"
+                               else OpenCodeExecutor.reconstruct_prepared_context)
+                prepared = reconstruct(
                     worktree_path=str(run.worktree_path or prepared_path),
                     base_sha=run.worktree_head_sha or run.repository_base_sha,
                     execution_id=run.execution_id,
