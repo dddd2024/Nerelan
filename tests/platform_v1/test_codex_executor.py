@@ -91,6 +91,25 @@ def test_process_and_protocol_failures_remain_failures(repository, tmp_path, scr
     assert len(launched) == 1 and launched[0].poll() is not None
 
 
+def test_native_fatal_diagnostic_and_true_failure_reach_task_progress_without_retry(repository, tmp_path):
+    repo, base = repository
+    events = [*EVENTS[:2], {"type": "error", "message": "Request denied"},
+        {"type": "turn.failed", "error": {"message": "Authorization: Bearer private-token"}}]
+    script = "import sys;sys.stdin.read();print(" + repr("\n".join(json.dumps(e) for e in events)) + ")"
+    executor, launched = fixture_executor(repo, base, script)
+    seen = []
+    store = SimpleNamespace(get_task=lambda _: SimpleNamespace(title="Fixture"))
+    result = executor.execute("native-1", store, workspace_root=str(tmp_path / "workspaces"),
+        event_callback=lambda _, event: seen.append(event))
+    assert not result.success and result.failure_classification == "codex_turn_failed"
+    progress = [e for e in seen if e["type"] == "EXECUTOR_PROGRESS"]
+    assert progress[0]["description"] == "Request denied"
+    assert "REDACTED" in progress[1]["description"]
+    assert "private-token" not in json.dumps(seen) + repr(result)
+    assert not any(e["type"] == "EXECUTOR_COMPLETED" for e in seen)
+    assert len(launched) == 1 and launched[0].poll() is not None
+
+
 def test_timeout_is_bounded_and_terminates_only_owned_fixture_process(repository, tmp_path):
     repo, base = repository
     executor, launched = fixture_executor(repo, base,

@@ -114,3 +114,51 @@ def test_total_stream_and_event_counts_are_independently_bounded():
     parser = CodexJsonl(max_events=1)
     with pytest.raises(CodexProtocolError, match="codex_event_limit_exceeded"):
         parser.feed(wire(*START))
+
+
+def test_critical_error_then_failed_turn_preserves_diagnostics_until_real_terminal():
+    seen = []
+    parser = CodexJsonl(seen.append)
+    parser.feed(wire(*START,
+        {"type": "error", "message": "Request failed"},
+        {"type": "error", "message": "Additional diagnostic"},
+        {"type": "turn.failed", "error": {"message": "Turn request failed"}}))
+    result = parser.finish()
+    assert result.failed and not result.completed
+    assert result.failure_classification == "codex_turn_failed"
+    assert [item["text"] for item in seen] == ["Request failed", "Additional diagnostic", "Turn request failed"]
+    with pytest.raises(CodexProtocolError, match="codex_event_after_terminal"):
+        parser.feed(wire(MESSAGE))
+
+
+@pytest.mark.parametrize("finish_events", [[], [MESSAGE, DONE]])
+def test_error_only_eof_and_completion_after_critical_error_never_become_success(finish_events):
+    parser = CodexJsonl()
+    parser.feed(wire(*START, {"type": "error", "message": "Critical diagnostic"}, *finish_events))
+    result = parser.finish()
+    assert result.failed and not result.completed
+    assert result.failure_classification == "codex_turn_failed"
+
+
+def test_pre_thread_warning_is_visible_without_relaxing_agent_item_identity():
+    seen = []
+    warning = {"type": "item.completed", "item": {"type": "error", "message": "Configuration warning"}}
+    parser = CodexJsonl(seen.append)
+    parser.feed(wire(warning, *START, MESSAGE, DONE))
+    assert parser.finish().completed
+    assert seen[0]["text"] == "Configuration warning"
+    with pytest.raises(CodexProtocolError, match="codex_turn_identity_invalid"):
+        CodexJsonl().feed(wire(MESSAGE))
+
+
+def test_error_diagnostics_redact_secrets_and_credential_urls_before_publication():
+    seen = []
+    parser = CodexJsonl(seen.append)
+    parser.feed(wire(*START,
+        {"type": "error", "message": "Authorization: Bearer " + "s" * 9000, "token": "opaque-secret"},
+        {"type": "turn.failed", "error": {"message": "https://user:private-password@host.invalid/request", "token": "opaque-secret"}}))
+    result = parser.finish()
+    public = json.dumps(seen) + repr(result)
+    assert "private-password" not in public and "opaque-secret" not in public
+    assert "s" * 64 not in public and "REDACTED" in public
+    assert result.failed
