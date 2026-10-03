@@ -364,3 +364,79 @@ def test_unavailable_existing_backend_and_malformed_observations_are_denied():
     del obs["active_upper_authority"]
     assert preview(p, upper=upper, obs=obs).reason == "invalid_preview_data"
     assert not preview(now=NOW.replace(tzinfo=None)).eligible
+
+
+@pytest.mark.parametrize("operation", ["open_draft_pr", "push_task_branch", "delete_merged_branch"])
+@pytest.mark.parametrize("head_case,reason", [
+    ("missing", "head_identity_mismatch"),
+    ("mismatch", "head_identity_mismatch"),
+    ("invalid", "head_identity_invalid"),
+])
+def test_publication_head_binding_without_optional_checks_or_reviews(operation, head_case, reason):
+    p = policy()
+    p["capabilities"] = [operation]
+    p["operation_budgets"] = {operation: 2}
+    p["required_checks"] = []
+    p["required_review_count"] = 0
+    upper = deepcopy(p)
+    req = request(operation)
+    obs = observations(p, upper)
+    obs["checks"] = []
+    obs["reviews"] = []
+    if head_case == "missing":
+        req.pop("head_sha")
+        obs.pop("head_sha")
+    elif head_case == "mismatch":
+        req["head_sha"] = "c" * 40
+    else:
+        req["head_sha"] = "not-a-commit"
+    before = deepcopy((p, upper, req, obs))
+    value = preview(p, upper=upper, req=req, obs=obs, available=frozenset({operation}))
+    assert not value.eligible and value.reason == reason
+    assert (p, upper, req, obs) == before
+    assert not value.execution_authorized and not value.owner_confirmation_verified and not value.upper_authority_verified
+
+
+@pytest.mark.parametrize("operation", ["open_draft_pr", "push_task_branch", "delete_merged_branch"])
+def test_bound_draft_needs_no_optional_review_but_future_adapters_stay_unavailable(operation):
+    p = policy()
+    p["capabilities"] = [operation]
+    p["operation_budgets"] = {operation: 2}
+    p["required_checks"] = []
+    p["required_review_count"] = 0
+    upper = deepcopy(p)
+    req = request(operation)
+    obs = observations(p, upper)
+    obs["checks"] = []
+    obs["reviews"] = []
+    before = deepcopy((p, upper, req, obs))
+    value = preview(p, upper=upper, req=req, obs=obs, available=frozenset({operation}))
+    assert value.eligible is (operation == "open_draft_pr")
+    assert value.reason == ("preview_conditions_satisfied" if operation == "open_draft_pr" else "backend_capability_unavailable")
+    assert (p, upper, req, obs) == before
+    assert not value.execution_authorized and not value.owner_confirmation_verified and not value.upper_authority_verified
+
+
+@pytest.mark.parametrize("notification", ["on_completion", "on_blocked", "on_failure", "summary_at_expiry"])
+def test_lower_policy_cannot_drop_any_upper_notification_obligation(notification):
+    upper = policy()
+    p = deepcopy(upper)
+    p["notifications"][notification] = False
+    before = deepcopy((p, upper))
+    value = preview(p, upper=upper)
+    assert not value.eligible and value.reason == "authority_expansion"
+    assert (p, upper) == before
+    assert not value.execution_authorized and not value.owner_confirmation_verified and not value.upper_authority_verified
+
+
+@pytest.mark.parametrize("notification", ["on_completion", "on_blocked", "on_failure", "summary_at_expiry"])
+def test_lower_policy_may_strengthen_an_optional_upper_notification(notification):
+    upper = policy()
+    upper["notifications"][notification] = False
+    p = deepcopy(upper)
+    p["notifications"][notification] = True
+    before = deepcopy((p, upper))
+    value = preview(p, upper=upper)
+    assert value.eligible and value.reason == "preview_conditions_satisfied"
+    assert (p, upper) == before
+    assert not value.execution_authorized and not value.owner_confirmation_verified and not value.upper_authority_verified

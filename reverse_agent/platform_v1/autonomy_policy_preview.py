@@ -309,6 +309,8 @@ def _within_authority(policy: dict, upper: dict) -> bool:
         return False
     if policy["required_review_count"] < upper["required_review_count"] or not set(upper["stop_conditions"]) <= set(policy["stop_conditions"]):
         return False
+    if any(required and not policy["notifications"][key] for key, required in upper["notifications"].items()):
+        return False
     lower_checks = {c["workflow_key"]: c for c in policy["required_checks"]}
     if any(lower_checks.get(c["workflow_key"]) != c for c in upper["required_checks"]):
         return False
@@ -398,7 +400,7 @@ def preview_policy_operation(
         head = request.get("head_sha")
         if head is not None and (type(head) is not str or not _OID.fullmatch(head)):
             return result("head_identity_invalid")
-        bound_operations = {"merge_pr", "mark_ready", "push_main", "create_tag", "create_github_release", "publish_package", "publish_container", "deploy_preview", "deploy_staging", "deploy_production", "rollback_deployment"}
+        bound_operations = {"open_draft_pr", "push_task_branch", "delete_merged_branch", "merge_pr", "mark_ready", "push_main", "create_tag", "create_github_release", "publish_package", "publish_container", "deploy_preview", "deploy_staging", "deploy_production", "rollback_deployment"}
         if policy["required_checks"] or policy["required_review_count"] or operation in bound_operations:
             if head is None or observations.get("head_sha") != head:
                 return result("head_identity_mismatch")
