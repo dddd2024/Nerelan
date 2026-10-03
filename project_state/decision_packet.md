@@ -1,10 +1,10 @@
-# Owner-delegated pure canonical policy preview
+# Owner-delegated correction of confirmed policy preview findings
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261003_issue118_policy_preview_r3_v1",
-  "round_id": "round_20261003_issue118_policy_preview_r3_v1",
+  "decision_id": "decision_20261003_pr1066_correction_r3_v1",
+  "round_id": "round_20261003_pr1066_correction_r3_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,20 +16,20 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "PURE_CANONICAL_AUTONOMY_POLICY_PREVIEW",
+  "decision_scope": "PREVIEW_HEAD_AND_NOTIFICATION_OBLIGATION_CORRECTION",
   "source_issue": 118,
   "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
   "approved_by": "dddd2024 / current explicit full project delegation",
-  "approval_basis": "Owner full-project delegation authorizes this necessary bounded pure first stage; project R0/R1 Work Item adapter cannot execute R3, so Codex fallback implements under Path B. This is not a quota reset for previous work or authority for privileged actions.",
+  "approval_basis": "Persistent Owner delegation authorizes corrective work for newly confirmed advisory defects, bounded prospectively without changing prior authority or budgets.",
   "risk_tier": "R3",
   "authorized_risk_tier": "R3",
   "governance_artifact_risk_tier": "R2",
-  "integration_base_ref": "main",
-  "base_sha": "9092911f41a089e249f27c883526904299be1d17",
-  "activation_base_sha": "9092911f41a089e249f27c883526904299be1d17",
-  "starting_head": "9092911f41a089e249f27c883526904299be1d17",
-  "required_branch": "codex/issue118-policy-preview-r3-v1-20261003",
+  "integration_base_ref": "codex/issue118-policy-preview-r3-v1-20261003",
+  "base_sha": "34875cc3deeab463c1b4cb16e5e72ad2cd33b5af",
+  "activation_base_sha": "34875cc3deeab463c1b4cb16e5e72ad2cd33b5af",
+  "starting_head": "34875cc3deeab463c1b4cb16e5e72ad2cd33b5af",
+  "required_branch": "codex/issue118-preview-obligations-r3-v1-20261003",
   "fresh_worktree_creation_required": false,
   "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
@@ -77,8 +77,8 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "Owner explicit full-project delegation prospectively authorizes the roadmap1010 A3 first pure policy-preview/evaluation stage of Issue118 Phase A. Source Issue118 remains planning, not authority; this bounded R3 Decision is the applicable authority. Reuse current AutonomyService, KNOWN_OPERATIONS, MAX_WINDOW_DURATION, CapabilityRegistry, canonical_json/sha256_json and sensitive-key rejection. Implement a pure canonical candidate policy normalizer and operation preview, with all Issue118 canonical categories: schema/id/revision/owner and declared confirmation metadata, creation/start/expiry, repository/base-branch/head-branch/path/goal/capability scope, worker delegation, check/review/merge constraints, publication/version/artifact/credential-reference targets, deployment/rollback data, operation and cost/token/time/retry budgets, stop/notification/summary rules and canonical digest. Normalize immutably without mutating input, preserve meaningful precision, strict finite types/bounds and stable sanitized denials; canonical digest binds all fields and is insertion/set-order invariant where order has no semantic meaning. Evaluate expiry/not-started/revoked or stale identity/digest/revision, exact request scope, upper-authority intersection/expansion, supported backend capability, worker roles, exact-head/check/review conditions, publication/artifact/version/environment/rollback constraints, operation/usage/runtime/retry budgets including unknown usage fail closed. A preview always reports execution_authorized=false and owner_confirmation_verified=false: declaration strings and supplied upstream observations are input data, not independently verified authority. No activated policy/window/token/receipt or side effect is produced. Future privileged operations remain unavailable in current registry, even if payload claims approval. Expose AutonomyService.preview without altering activate/authorize/summary, existing store/schema/claims/budgets/receipts or coordinator behavior. No second policy/authority/store, no Gate/receipt invented to enable landing, no dependency/provider/credential resolver, runtime/API/frontend/workflow/security-setting changes. control_store.py and test_autonomy.py remain original-owner occupied and read-only. Only three named source/test paths; preserve every existing test/assertion. Fresh exact-main branch in same owned checkout preserves five known generated gates; Decision-only activation and actual PRE_EXECUTION_AUTHORIZED plus activation Draft precede product changes. At most eight provider-free checks and two bounded scoped correction rounds: legacy autonomy baseline<=180s; new preview focus<=180s; combined legacy/preview<=180s; mandatory full Platform with unchanged four installed-OpenCode exclusions<=2400s and durable native failure capture/JUnit; Path-A<=120s; one exact committed-head combined autonomy suite<=180s; at most two additional scoped development checks if justified. Full mandatory failure/timeout stops publication and has no retry. One product commit after mandatory precommit success, two normal exact-branch pushes total, one Draft, exact-head description rebinding and natural source-head CI. No Ready/Merge/main push/comments/Issue closure/rerun/dispatch, models/providers/credential access/install/browser or existing runtime mutation. Completion boundary is this pure preview source candidate and actual checks/Draft/CI; live activation/persistence, revocation/recovery, trusted A2 identity and privileged adapters remain unimplemented subsequent stages. Do not claim Issue118 or whole backlog complete.",
-    "completion_boundary": "Pure canonical policy preview stage only; exact source tests/Draft/natural CI required; independent acceptance/landing and all further Issue118 phases separate."
+    "specification": "Owner persistent full-project delegation prospectively authorizes a NEW bounded corrective candidate for two actual project-review findings in Draft1066 at exact34875cc3. Project reviewer succeeded with full tracked source2927 blobs/zero mismatches, source/config unchanged, but advisory is not independent acceptance. Supervisor provider-free diagnosis check7/8 reproduced missing commit identity for supported open_draft_pr and four dropped upper notification obligations. Original source CI remains success, not functional acceptance. Preserve original Decisions, budgets, commits and reports; this does not amend/retry an old failed trial or authorize any model retry. Fresh branch from explicit planning integration codex/issue118-policy-preview-r3-v1-20261003 at34875cc3, no implicit main base. Decision-only activation, actual PRE_EXECUTION_AUTHORIZED/readiness and exact activation Draft against that integration branch precede product changes. Exactly two product paths. Require commit head binding for open_draft_pr independent of optional check/review declarations; retain no mandatory reviewer for initial Draft because independent acceptance is required only before separately authorized promotion. Bind future declared push_task_branch/delete_merged_branch head-sensitive operations if present; unavailable adapters stay unavailable. Upper true notifications on_completion/on_blocked/on_failure/summary_at_expiry cannot be dropped by a lower policy; false upper may be strengthened to true. Preserve all current always-false authority flags, no-store/no-side-effect behavior, strict data/digest/identity/usage/revocation and component-sensitive glob semantics. Do not weaken paths to legacy adapter fnmatch, clear a valid candidate digest on upper denial, or perform cosmetic cleanup. Add meaningful regressions for missing/mismatched/valid publication head with no checks/reviews and each notification obligation/allowed strengthening. Preserve every original test/function/assertion except exact implementation conditions. Original AutonomyService and original-owner control_store.py/test_autonomy.py remain byte-identical to base. No runtime/API/frontend/store/schema/provider/credential/model/browser/install/dependency/workflow/security-setting changes. Current project R0/R1 Work Item adapter refuses R3 before backend; Codex fallback performs this bounded source correction rather than bypassing that policy. At most6 provider-free check processes: mandatory combined legacy/preview<=180s, mandatory full Platform V1 with same4 installed-OpenCode exclusions<=2400s, Path-A<=120s, exact committed-head combined<=180s; at most2 additional scoped development checks if justified and2 scoped correction rounds. Full mandatory failure/timeout stops publication without retry. One product commit, at most2 normal exact-branch pushes total and1 activation Draft; only its description may be updated to exact source head/natural CI evidence. No comments/Issue updates/closure/Ready/Merge/main push/rewrite/dispatch/rerun or other PR writes. Complete only this corrective source candidate, actual mandatory validation and natural exact-head CI; independent acceptance, actual activation and all later Issue118/backlog work remain separate. Four-hour window.",
+    "completion_boundary": "Corrective preview source candidate, native mandatory checks and natural source CI; not independent acceptance/landing/Issue118 completion."
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
@@ -91,7 +91,6 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/autonomy.py",
     "reverse_agent/platform_v1/autonomy_policy_preview.py",
     "tests/platform_v1/test_autonomy_policy_preview.py"
   ],
@@ -102,7 +101,6 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/autonomy.py",
     "reverse_agent/platform_v1/autonomy_policy_preview.py",
     "tests/platform_v1/test_autonomy_policy_preview.py"
   ],
@@ -123,7 +121,8 @@
     "reverse_agent/platform_v1/capability_registry.py",
     "reverse_agent/platform_v1/policy_adapter.py",
     "tests/platform_v1/test_autonomy.py",
-    "tests/test_path_a_gate.py"
+    "tests/test_path_a_gate.py",
+    "reverse_agent/platform_v1/autonomy.py"
   ],
   "forbidden_mutated_paths": [
     "AGENTS.md",
@@ -151,7 +150,10 @@
     "reverse_agent/platform_v1/unattended_coordinator.py",
     "tests/platform_v1/test_autonomy.py",
     "reverse_agent/platform_v1/durable_execution.py",
-    "reverse_agent/platform_v1/functional_validation.py"
+    "reverse_agent/platform_v1/functional_validation.py",
+    "reverse_agent/platform_v1/autonomy.py",
+    "reverse_agent/platform_v1/policy_adapter.py",
+    "reverse_agent/platform_v1/capability_registry.py"
   ],
   "forbidden_operations": [
     "direct_push_main",
@@ -212,7 +214,7 @@
       "Existing provider-free pytest-owned temporary loopback fixtures only; no real models/providers/Internet/existing runtime."
     ],
     "github_control_plane_network_exceptions": [
-      "Exactly two normal pushes to codex/issue118-policy-preview-r3-v1-20261003, one activation Draft against main@9092911f41a089e249f27c883526904299be1d17, exact-head description updates and bounded read-only GitHub CI observation. No other writes."
+      "At most2 normal pushes to exact codex/issue118-preview-obligations-r3-v1-20261003,1 activation Draft against explicit codex/issue118-policy-preview-r3-v1-20261003@34875cc3deeab463c1b4cb16e5e72ad2cd33b5af, exact-head description updates and bounded read-only natural CI observation. No other writes."
     ]
   },
   "path_risk_floor": [
@@ -227,8 +229,8 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "policy.bootstrap",
-      "command": "Fresh exact-main branch, preserve known generated gates; one Decision-only activation, actual startup/plan/lint/preflight/readiness, one activation push and Draft before source changes.",
+      "command_id": "correction.bootstrap",
+      "command": "Preserve gates and immutable parent34875cc3, fresh explicit integration-base branch, one Decision-only activation, actual startup/plan/lint/preflight/readiness, one activation push and Draft before product changes.",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [
@@ -258,8 +260,8 @@
       ]
     },
     {
-      "command_id": "policy.implement",
-      "command": "Owner explicit full-project delegation prospectively authorizes the roadmap1010 A3 first pure policy-preview/evaluation stage of Issue118 Phase A. Source Issue118 remains planning, not authority; this bounded R3 Decision is the applicable authority. Reuse current AutonomyService, KNOWN_OPERATIONS, MAX_WINDOW_DURATION, CapabilityRegistry, canonical_json/sha256_json and sensitive-key rejection. Implement a pure canonical candidate policy normalizer and operation preview, with all Issue118 canonical categories: schema/id/revision/owner and declared confirmation metadata, creation/start/expiry, repository/base-branch/head-branch/path/goal/capability scope, worker delegation, check/review/merge constraints, publication/version/artifact/credential-reference targets, deployment/rollback data, operation and cost/token/time/retry budgets, stop/notification/summary rules and canonical digest. Normalize immutably without mutating input, preserve meaningful precision, strict finite types/bounds and stable sanitized denials; canonical digest binds all fields and is insertion/set-order invariant where order has no semantic meaning. Evaluate expiry/not-started/revoked or stale identity/digest/revision, exact request scope, upper-authority intersection/expansion, supported backend capability, worker roles, exact-head/check/review conditions, publication/artifact/version/environment/rollback constraints, operation/usage/runtime/retry budgets including unknown usage fail closed. A preview always reports execution_authorized=false and owner_confirmation_verified=false: declaration strings and supplied upstream observations are input data, not independently verified authority. No activated policy/window/token/receipt or side effect is produced. Future privileged operations remain unavailable in current registry, even if payload claims approval. Expose AutonomyService.preview without altering activate/authorize/summary, existing store/schema/claims/budgets/receipts or coordinator behavior. No second policy/authority/store, no Gate/receipt invented to enable landing, no dependency/provider/credential resolver, runtime/API/frontend/workflow/security-setting changes. control_store.py and test_autonomy.py remain original-owner occupied and read-only. Only three named source/test paths; preserve every existing test/assertion. Fresh exact-main branch in same owned checkout preserves five known generated gates; Decision-only activation and actual PRE_EXECUTION_AUTHORIZED plus activation Draft precede product changes. At most eight provider-free checks and two bounded scoped correction rounds: legacy autonomy baseline<=180s; new preview focus<=180s; combined legacy/preview<=180s; mandatory full Platform with unchanged four installed-OpenCode exclusions<=2400s and durable native failure capture/JUnit; Path-A<=120s; one exact committed-head combined autonomy suite<=180s; at most two additional scoped development checks if justified. Full mandatory failure/timeout stops publication and has no retry. One product commit after mandatory precommit success, two normal exact-branch pushes total, one Draft, exact-head description rebinding and natural source-head CI. No Ready/Merge/main push/comments/Issue closure/rerun/dispatch, models/providers/credential access/install/browser or existing runtime mutation. Completion boundary is this pure preview source candidate and actual checks/Draft/CI; live activation/persistence, revocation/recovery, trusted A2 identity and privileged adapters remain unimplemented subsequent stages. Do not claim Issue118 or whole backlog complete.",
+      "command_id": "correction.implement",
+      "command": "Owner persistent full-project delegation prospectively authorizes a NEW bounded corrective candidate for two actual project-review findings in Draft1066 at exact34875cc3. Project reviewer succeeded with full tracked source2927 blobs/zero mismatches, source/config unchanged, but advisory is not independent acceptance. Supervisor provider-free diagnosis check7/8 reproduced missing commit identity for supported open_draft_pr and four dropped upper notification obligations. Original source CI remains success, not functional acceptance. Preserve original Decisions, budgets, commits and reports; this does not amend/retry an old failed trial or authorize any model retry. Fresh branch from explicit planning integration codex/issue118-policy-preview-r3-v1-20261003 at34875cc3, no implicit main base. Decision-only activation, actual PRE_EXECUTION_AUTHORIZED/readiness and exact activation Draft against that integration branch precede product changes. Exactly two product paths. Require commit head binding for open_draft_pr independent of optional check/review declarations; retain no mandatory reviewer for initial Draft because independent acceptance is required only before separately authorized promotion. Bind future declared push_task_branch/delete_merged_branch head-sensitive operations if present; unavailable adapters stay unavailable. Upper true notifications on_completion/on_blocked/on_failure/summary_at_expiry cannot be dropped by a lower policy; false upper may be strengthened to true. Preserve all current always-false authority flags, no-store/no-side-effect behavior, strict data/digest/identity/usage/revocation and component-sensitive glob semantics. Do not weaken paths to legacy adapter fnmatch, clear a valid candidate digest on upper denial, or perform cosmetic cleanup. Add meaningful regressions for missing/mismatched/valid publication head with no checks/reviews and each notification obligation/allowed strengthening. Preserve every original test/function/assertion except exact implementation conditions. Original AutonomyService and original-owner control_store.py/test_autonomy.py remain byte-identical to base. No runtime/API/frontend/store/schema/provider/credential/model/browser/install/dependency/workflow/security-setting changes. Current project R0/R1 Work Item adapter refuses R3 before backend; Codex fallback performs this bounded source correction rather than bypassing that policy. At most6 provider-free check processes: mandatory combined legacy/preview<=180s, mandatory full Platform V1 with same4 installed-OpenCode exclusions<=2400s, Path-A<=120s, exact committed-head combined<=180s; at most2 additional scoped development checks if justified and2 scoped correction rounds. Full mandatory failure/timeout stops publication without retry. One product commit, at most2 normal exact-branch pushes total and1 activation Draft; only its description may be updated to exact source head/natural CI evidence. No comments/Issue updates/closure/Ready/Merge/main push/rewrite/dispatch/rerun or other PR writes. Complete only this corrective source candidate, actual mandatory validation and natural exact-head CI; independent acceptance, actual activation and all later Issue118/backlog work remain separate. Four-hour window.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -276,15 +278,14 @@
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/autonomy.py",
         "reverse_agent/platform_v1/autonomy_policy_preview.py",
         "tests/platform_v1/test_autonomy_policy_preview.py"
       ],
       "produced_artifacts": []
     },
     {
-      "command_id": "policy.validate",
-      "command": "At most8 provider-free checks and2 scoped correction rounds, all mandatory native checks as specified; full-suite failure/timeout stops publication without retry; one product commit then exact-head focused/legacy check; scoped diff and actual readiness. Native JUnit and unchanged source required.",
+      "command_id": "correction.validate",
+      "command": "At most6 provider-free check processes and2 scoped correction rounds; mandatory combined/full Platform/Path-A/exact committed combined as specified, native JUnit, original tests and read-only reference byte identity; mandatory full failure has no retry.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -303,15 +304,14 @@
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/autonomy.py",
         "reverse_agent/platform_v1/autonomy_policy_preview.py",
         "tests/platform_v1/test_autonomy_policy_preview.py"
       ],
       "produced_artifacts": []
     },
     {
-      "command_id": "policy.publish",
-      "command": "Two normal pushes to exact codex/issue118-policy-preview-r3-v1-20261003, one activation Draft against main@9092911f41a089e249f27c883526904299be1d17, exact-head body binding, bounded natural CI; no Ready/Merge/Issue close/comments/dispatch/rerun.",
+      "command_id": "correction.publish",
+      "command": "At most2 normal exact-branch pushes,1 activation Draft against explicit codex/issue118-policy-preview-r3-v1-20261003@34875cc3deeab463c1b4cb16e5e72ad2cd33b5af, exact-head description rebinding and bounded natural CI observation; no other GitHub writes.",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -333,23 +333,23 @@
   "runtime_scratch_policy": {
     "paths": [],
     "stage_allowed": false,
-    "note": "Same owned checkout, only five known generated gates carried over. External authority/helper/native evidence under issue118-policy-preview-r3-v1, no cleanup or gate staging."
+    "note": "Existing five generated gates preserved unstaged; external pr1066-correction-r3-v1 evidence only. No cleanup or original runtime/model changes."
   },
-  "follows_last_decision_id": "decision_20261003_issue829_validation_r2_v3",
-  "follows_last_round_id": "round_20261003_issue829_validation_r2_v3",
-  "workstream_id": "issue118-policy-preview-r3-v1",
+  "follows_last_decision_id": "decision_20261003_issue118_policy_preview_r3_v1",
+  "follows_last_round_id": "round_20261003_issue118_policy_preview_r3_v1",
+  "workstream_id": "pr1066-correction-r3-v1",
   "source_issues": [
     118,
     1010
   ],
   "local_browser_launch_limit": 0,
-  "development_check_run_limit": 8,
+  "development_check_run_limit": 6,
   "development_correction_round_limit": 2,
-  "execution_window_hours": 8,
+  "execution_window_hours": 4,
   "integration_observation_surface": "user_local_owned_exact_main_successor",
   "runtime_host_launch_limit": 0,
   "frontend_launch_limit": 0,
-  "approval_event_or_time": "2026-10-03T05:33:50.832144+00:00",
+  "approval_event_or_time": "2026-10-03T06:58:58.202558+00:00",
   "credential_status_probe_limit": 0,
   "provider_network_call_limit": 0
 }
