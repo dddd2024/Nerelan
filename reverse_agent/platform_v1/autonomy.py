@@ -35,6 +35,24 @@ class AutonomyService:
         self.control_store = control_store
         self.capabilities = capabilities
 
+    def preview(
+        self, payload: dict[str, Any], *, request: dict[str, Any],
+        upper_authority: dict[str, Any], observations: dict[str, Any],
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        """Preview declared policy data without activation or store writes."""
+        from .autonomy_policy_preview import preview_policy_operation
+
+        supported = frozenset(
+            operation for operation in KNOWN_OPERATIONS
+            if self.capabilities.supports_operation(operation)
+        )
+        return preview_policy_operation(
+            payload, request=request, upper_authority=upper_authority,
+            observations=observations, supported_operations=supported,
+            now=datetime.now(timezone.utc) if now is None else now,
+        ).to_dict()
+
     def activate(self, payload: Mapping[str, Any]) -> AutonomousWindowRecord:
         normalized = self._validate_policy(payload)
         active = self.control_store.active_window()
