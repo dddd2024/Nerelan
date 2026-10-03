@@ -1,10 +1,10 @@
-# System-owned final execution-path regressions for child environment repair
+# Frozen source complete validation with durable native evidence
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260928_issue372_windows_isolation_r3_v6",
-  "round_id": "round_20260928_issue372_windows_isolation_r3_v6",
+  "decision_id": "decision_20261003_issue829_validation_r2_v3",
+  "round_id": "round_20261003_issue829_validation_r2_v3",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,9 +16,22 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
+  "decision_scope": "FROZEN_SOURCE_COMPLETE_VALIDATION",
+  "source_issue": 829,
+  "parent_issue": 800,
   "repository": "dddd2024/Nerelan",
-  "mainline_merge_intent_required": false,
-  "active_pr_binding_mode": "none",
+  "approved_by": "dddd2024 / current explicit full project delegation",
+  "approval_basis": "Owner explicit full-project delegation authorizes this necessary prospective stage and four specified additional checks; original8 remain exhausted/recorded, no silent reset or model retry. Actual full-suite failure-order and uncovered observer boundary establish need for durable diagnostic procedure. Fresh main/all41 open PR file lists confirm exact base/no overlap.",
+  "risk_tier": "R2",
+  "authorized_risk_tier": "R2",
+  "governance_artifact_risk_tier": "R2",
+  "integration_base_ref": "main",
+  "base_sha": "9092911f41a089e249f27c883526904299be1d17",
+  "activation_base_sha": "9092911f41a089e249f27c883526904299be1d17",
+  "starting_head": "9092911f41a089e249f27c883526904299be1d17",
+  "required_branch": "codex/issue829-validation-r2-v3-20261003",
+  "fresh_worktree_creation_required": false,
+  "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
@@ -28,28 +41,6 @@
     "transition_reconcile",
     "worktree_publication_readiness"
   ],
-  "fresh_worktree_creation_required": true,
-  "history_reuse_allowed": false,
-  "provider_free_acceptance_required": true,
-  "decision_scope": "DIRECT_SESSION_ENV_CONFINEMENT_AND_989_WINDOWS_RESIDUAL",
-  "source_issue": 372,
-  "parent_issue": 1010,
-  "approved_by": "dddd2024 via explicit delegated Owner authorization",
-  "approval_basis": "Owner continuation delegates bounded system implementation and independent supervision. V4 accepted system-authored three-file candidate has34 passing new tests including real Windows Git/cmd. Full-platform development identifies obsolete Windows Binding expectations; include only their fourth test file to preserve and update regressions. V5 activation remains unpublished and unchanged; no modelcalls or product edits there. Fresh v6 exact-main successor copies reviewed v4 bytes after Draft, completes actual CLI/server/authmode checks and Windows expectation updates using tool-free system authored edits, then final checks. No weakened secret assertions or acceptance criteria. Third failure reproduces unchanged base: combined trusted host lease-provider test resolves api-binding from default live8765 rather than its own host. Permit only test fixture resolver wiring to own host, retaining lease assertions; no production taskservice/store/credentials edits.",
-  "risk_tier": "R3",
-  "authorized_risk_tier": "R3",
-  "governance_artifact_risk_tier": "R2",
-  "integration_base_ref": "main",
-  "base_sha": "18c5030fabeb72288ea2de56314579e339995182",
-  "activation_base_sha": "18c5030fabeb72288ea2de56314579e339995182",
-  "starting_head": "18c5030fabeb72288ea2de56314579e339995182",
-  "fresh_base": "18c5030fabeb72288ea2de56314579e339995182",
-  "current_main_expected": "18c5030fabeb72288ea2de56314579e339995182",
-  "required_branch": "codex/issue372-windows-isolation-system-v6-20260928",
-  "workstream_id": "issue372-windows-isolation-system-v6",
-  "follows_last_decision_id": "decision_20260928_issue372_windows_isolation_r3_v5",
-  "follows_last_round_id": "round_20260928_issue372_windows_isolation_r3_v5",
-  "workflow_profile": "baseline",
   "decision_activation_commit_limit": 1,
   "product_change_commit_limit": 1,
   "generated_governance_commit_limit": 0,
@@ -60,13 +51,11 @@
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
   "workflow_dispatch_limit": 0,
-  "live_model_call_limit": 16,
-  "provider_network_call_limit": 16,
+  "live_model_call_limit": 0,
   "credential_access_limit": 0,
-  "local_browser_launch_limit": 0,
   "pr_creation_allowed": true,
-  "issue_comment_allowed": true,
-  "pull_request_comment_allowed": true,
+  "issue_comment_allowed": false,
+  "pull_request_comment_allowed": false,
   "merge_allowed": false,
   "mark_ready_allowed": false,
   "workflow_rerun_allowed": false,
@@ -77,66 +66,83 @@
   "force_push_allowed": false,
   "rebase_during_execution_allowed": false,
   "dependency_install_allowed": false,
-  "live_provider_access_allowed": true,
+  "live_provider_access_allowed": false,
   "credential_access_allowed": false,
-  "unknown_binary_execution_allowed": false,
-  "model_api_invocation_allowed": true,
+  "local_browser_execution_allowed": false,
+  "model_api_invocation_allowed": false,
   "external_reverse_tool_invocation_allowed": false,
+  "unknown_binary_execution_allowed": false,
   "destructive_operations_allowed": false,
+  "provider_free_acceptance_required": true,
+  "mainline_merge_intent_required": false,
+  "active_pr_binding_mode": "none",
+  "semantic_implementation_contract": {
+    "specification": "Prospective bounded frozen-source validation under the existing explicit Owner full-project delegation. The original eight-check allowance is exhausted and stays exhausted; all earlier activated Decisions and failed/timeout records remain immutable. This new stage explicitly authorizes at most four additional checks, cumulatively at most12, without models, automatic retries or source repair. The changed procedure resolves actual evidence deficiencies: original900s Platform timeout after1881 outcomes left all58 observer cases unfinished; original failure ordinal1814 maps by native1939-case collection to unknown Task API routes, whose isolated run passed. Do not call that original failure repaired or unrelated. First reproduce the four adjacent HTTP tests in native order; second run the SAME FULL mandatory Platform suite with identical four existing installed-OpenCode deselections, max1800s, native JUnit and external durable native failure/collection/exit hook. Third run the mandatory Path-A suite only after both prior checks succeed. Fourth run drift suite on one exact product commit only after prior checks succeed, max300s. No retry; any mandatory failure or timeout stops product commit/push as applicable. Retain already completed66-pass executor-neutral/functional-validation scoped evidence for identical source bytes; no broad completion inferred from it. The external pytest hook only preserves actual native reports; it never changes test outcomes, creates acceptance or replaces final JUnit. Frozen source SHA2567c1503c8afc59061c254ba665305b25a3787171a240fc8566770810f5bbb001c; test SHA256117ff404db277361bbb0ccd265c4760cba631e9ed204c5e501efe58098123ad5. Only adoption/publication of those two exact existing candidate files is permitted; no product/test edit. All original four hardening obligations, intent-to-add identity, security and independent acceptance requirements remain unchanged. Fresh exact-main branch in the same owned full checkout preserves two known frozen candidate deltas and five generated gates. Decision-only activation and actual PRE_EXECUTION_AUTHORIZED plus activation Draft precede further execution/source commit. Two normal pushes to the exact new branch, one Draft, one product commit; zero source repair/retry/history rewrite/main push/Ready/Merge/comments/Issue closure/rerun/dispatch. Known installed Python/Git/pytest, provider-free test-owned temp and loopback fixtures only. No existing service/process/runtime/config mutation, models/providers/credentials/install/browser or unbounded network. Source publication requires native mandatory successes, exact source bytes, scoped diff, actual readiness and subsequent natural source-head CI; independent acceptance remains separate.",
+    "completion_boundary": "Frozen two-file candidate with all mandatory native checks, exact-head Draft and natural CI; independent acceptance/landing separate, whole GitHub task incomplete."
+  },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
   ],
   "bootstrap_exception_commands": [],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
+    "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/opencode_executor.py",
-    "tests/platform_v1/test_opencode_executor.py",
-    "tests/platform_v1/test_child_environment_isolation.py",
-    "tests/platform_v1/test_binding_windows_env.py",
-    "tests/platform_v1/test_task3c_v4_repairs.py"
+    "reverse_agent/platform_v1/workspace_drift.py",
+    "tests/platform_v1/test_workspace_drift.py"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
+    "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/opencode_executor.py",
-    "tests/platform_v1/test_opencode_executor.py",
-    "tests/platform_v1/test_child_environment_isolation.py",
-    "tests/platform_v1/test_binding_windows_env.py",
-    "tests/platform_v1/test_task3c_v4_repairs.py"
+    "reverse_agent/platform_v1/workspace_drift.py",
+    "tests/platform_v1/test_workspace_drift.py"
   ],
   "generated_artifact_paths": [
+    "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json"
   ],
+  "reference_paths": [
+    "AGENTS.md",
+    "docs/agents/governance-reference.md",
+    ".github/workflows/ci.yml",
+    "reverse_agent/platform_v1/artifact_handoff.py",
+    "tests/executor_neutral",
+    "tests/platform_v1/test_functional_validation.py",
+    "tests/test_path_a_gate.py",
+    ".codex-skills/registry.json",
+    ".codex-skills/reverse-agent-iteration/SKILL.md"
+  ],
   "forbidden_mutated_paths": [
     "AGENTS.md",
+    "docs/agents/**",
     ".github/**",
     ".codex-skills/**",
-    "frontend/**",
     "reverse_agent/control_plane/**",
     "reverse_agent/project_gate.py",
-    "reverse_agent/platform_v1/task_service.py",
-    "reverse_agent/platform_v1/coordinator.py",
-    "reverse_agent/platform_v1/run_store.py",
-    "reverse_agent/model_access/store.py",
-    "dev-up.ps1",
-    "dev-down.ps1",
-    "project_state/mainline_merge_intents/**",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/model_access/os_vault.py",
+    "reverse_agent/model_access/credential_relay.py",
     "project_state/rounds/**",
+    "project_state/mainline_merge_intents/**",
+    "frontend/package*.json",
+    "frontend/node_modules/**",
     "pyproject.toml",
-    "requirements*.txt"
+    "requirements*.txt",
+    "**/secrets/**",
+    "**/.env",
+    "**/auth.json",
+    "frontend/**"
   ],
   "forbidden_operations": [
     "direct_push_main",
@@ -151,69 +157,69 @@
     "workflow_rerun",
     "workflow_dispatch",
     "runner_dispatch",
-    "credential_access",
     "unknown_binary_execution",
     "external_reverse_tool_invocation",
     "destructive",
     "tag_or_release",
     "dependency_install",
     "generated_governance_commit",
-    "snapshot_generation_or_threshold_change",
-    "fix_forward_after_mandatory_failure"
+    "raw_secret_read_or_export",
+    "model_provider_config_mutation",
+    "payment",
+    "process_stop_without_identity",
+    "issue_comment",
+    "pull_request_comment",
+    "raw_credential_read_copy_or_print",
+    "independent_acceptance_by_self_or_same_underlying_model",
+    "automatic_GPT_fallback_or_retries",
+    "shared_dependency_mutation",
+    "existing_model_configuration_mutation",
+    "unknown_process_stop",
+    "ignore_rules_or_sandbox_bypass",
+    "existing_runtime_or_configuration_mutation",
+    "application_model_retry",
+    "model_fallback",
+    "raw_managed_session_access",
+    "existing_task_or_runtime_mutation"
   ],
+  "capability_policy": {
+    "runner_dispatch_allowed": false,
+    "workflow_dispatch_allowed": false,
+    "model_api_invocation_allowed": false,
+    "external_reverse_tool_invocation_allowed": false,
+    "unknown_binary_execution_allowed": false,
+    "destructive_operations_allowed": false,
+    "network_access_default_allowed": false,
+    "direct_push_to_main_allowed": false,
+    "force_push_allowed": false,
+    "rebase_during_execution_allowed": false,
+    "tag_or_release_allowed": false,
+    "merge_allowed": false,
+    "remote_observation_read_only_allowed": true,
+    "local_network_exceptions": [],
+    "ci_network_exceptions": [],
+    "trusted_worker_network_exceptions": [],
+    "user_local_network_exceptions": [
+      "Provider-free pytest-owned temporary loopback fixtures only; no real providers/model/Internet or existing app runtime."
+    ],
+    "github_control_plane_network_exceptions": [
+      "Exactly two normal pushes to codex/issue829-validation-r2-v3-20261003, one Draft against main@9092911f41a089e249f27c883526904299be1d17, exact-head body binding and bounded read-only CI. No other GitHub writes."
+    ]
+  },
   "path_risk_floor": [
     {
       "pattern": "project_state/**",
       "minimum_risk": "R2"
     },
     {
-      "pattern": "reverse_agent/model_access/credential_relay.py",
-      "minimum_risk": "R3"
+      "pattern": "reverse_agent/platform_v1/functional_validation.py",
+      "minimum_risk": "R2"
     }
   ],
-  "semantic_implementation_contract": {
-    "specification": "System implements explicit minimal childenv admission for ordinarynoBindingCLI, direct sequentialplanner/coder/reviewer andserver, andauthnone/external_cli_session/account_login. Never iterate/copy arbitraryparentenv orinheritimplicitprocessenv. PreservefixedOpenCodeflags androle/providerconfig. Use repository existingaccountauthnonsecretlocationallowlist ascompatibilityprecedent; justify mode-specific subset, no arbitrarysecret/proxy forwarding. Binding/relay remainsminimallyconfined; onlyexplicit989WindowsSystemDrive/PATHEXTvalidationresidualmaychangeBindingenv. EnsuretypedvalidSystemDriveavailable/derivedfromvalidSystemRootonWindows; missing/invalidPATHEXT handlingpreserves997safeextensiondiscovery andrejectsunsafecontrol/pathinjection. Preservemerged989lifetime/980evidence. Replaceobsolete testdirectauthenticatedparentmarkersassertion withstrongersecretconfinementcoverage; do notdeleteacceptedregressions. Adddeterministic guardedMapping(noitems/iteration),sentinelGH/provider/cloud/package/passwordexclusion,realCLI/serverkwargs androles/authmodes/safetyconfig coverage. No rawenvvaluesinstore/events/errors. ActualWindowsknownGit --version andknowncmd/PowerShellNoProfile fixedread-onlycommands inpytest-ownedtemp verifyminimalenvandSystemDriveexpansion,noliteralSystemDrivecachepath. No realOpenCode/OAuth/credentialstoretest,model/providercallsintests ordependencyinstall. No frontend/TaskStore/coordinator/credentialrelay redesign. Fiveproductpaths only; systemauthorsallbytes through16tool-freemaxcalls,0autoretry,600sectimeout/no spendcap; supervisorvalidatesstrictallowlist/nonlinks/exactoldtextandreviewsbeforefixedtests. Update obsolete test_binding_windows_env.py expectations to admit validated Windows SystemDrive and direct PATHEXT while retaining all secret guards, exact key-set checks, role/config and non-Windows regressions. In test_task3c_v4_repairs.py only bind test_combined_trusted_host_task_api_injects_lease_provider to its own CombinedTrustedHost model_control_url using existing BindingResolver precedent. Preserve real loopback lease create/release assertions; no fake-success or skip.",
-    "completion_boundary": "Onefinalproductcommit/twopushes/oneDraft. Exactheadfocusedandfullplatformproviderfreechecks,diff,gates,naturalCI andindependentacceptance. No source-stageReady/merge/closure/deployment. Laterseparatelandingmayclose372and989onlyafteralltheirresidualproofs andmainreceipt/CI;299fullOSsandboxstaysOPEN. NoTaskAPInativeverificationclaim forsupervisedtextinference."
-  },
-  "runtime_scratch_policy": {
-    "paths": [
-      ".platform_v1_runtime/**",
-      "**/__pycache__/**",
-      ".pytest_cache/**"
-    ],
-    "stage_allowed": false,
-    "note": "Existing launcher runtime stores/metadata only, preserve persisted settings. For approved provider-free tests ONLY, a test subprocess may set PYTHONPATH to existing trusted installed C:/Users/wjc27/AppData/Roaming/Python/Python313/site-packages so pytest is visible. No install, global env change or product child-env relaxation; no arbitrary home/secret reads. Evidence remains outside tracked source."
-  },
-  "capability_policy": {
-    "runner_dispatch_allowed": false,
-    "model_api_invocation_allowed": true,
-    "external_reverse_tool_invocation_allowed": false,
-    "unknown_binary_execution_allowed": false,
-    "destructive_operations_allowed": false,
-    "bmad_installation_allowed": false,
-    "network_access_default_allowed": false,
-    "direct_push_to_main_allowed": false,
-    "merge_allowed": false,
-    "force_push_allowed": false,
-    "rebase_during_execution_allowed": false,
-    "tag_or_release_allowed": false,
-    "remote_observation_read_only_allowed": true,
-    "local_network_exceptions": [],
-    "ci_network_exceptions": [
-      "Unchanged natural CI package setup and provider-free checks only; no added workflow or manual dispatch."
-    ],
-    "trusted_worker_network_exceptions": [],
-    "user_local_network_exceptions": [
-      "Verify existing owned supervised-route-mistral-20260928b exact connectionmistral/modelcodestral-latest/executoropencode disabled; temporarilyenable only it for each tool-free call and restore exactdisabled metadata finally. No other Binding/Connection/key mutations. Native trusted store/OSvault/relay internal credential use only, no rawsecretreads/output/export. Max16text-onlycalls600sec0tools/dispatch/automaticretry. Provider-free deterministic tests, ownedloopback and known Git/Windows fixed read-only pytesttemp proofs authorized."
-    ],
-    "github_control_plane_network_exceptions": [
-      "Canonical exact branch activation/implementation pushes and one Draft; descriptions only. No Ready/merge/tag/release under source stage."
-    ]
-  },
   "allowed_commands": [
     {
-      "command_id": "issue372v6.bootstrap",
-      "command": "Fresh exactbase 18c5030fabeb72288ea2de56314579e339995182 checkout F:\\Nerelan-issue372-system-v6-20260928 branchcodex/issue372-windows-isolation-system-v6-20260928;writeimmutableDecisionUTF8LFoneactivationcommit; existingstartup-snapshot/transition-command-plan/transition-lint/transition-preflight --modepre/worktree-publication-readiness andgitdiffcheckbaseHEAD. FirstDraftbeforeproductchanges; neverstagegeneratedgates.",
+      "command_id": "drift.bootstrap",
+      "command": "Fresh exact-main branch in same owned checkout, preserve exact frozen candidate and known generated gates; one Decision-only activation and actual control-plane/startup/plan/lint/preflight/readiness; activation push and Draft before further validation/product commit.",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [
@@ -223,73 +229,51 @@
       "operations": [
         "code_read",
         "commit",
+        "local_static_check",
         "command_plan_generation",
+        "machine_specific_execution"
+      ],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [
+        "project_state/decision_packet.md",
+        "reverse_agent/platform_v1/workspace_drift.py",
+        "tests/platform_v1/test_workspace_drift.py"
+      ],
+      "produced_artifacts": [
+        "project_state/gates/bootstrap_state.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/gates/transition_command_plan_preview.json",
+        "project_state/gates/transition_preflight_result.json"
+      ]
+    },
+    {
+      "command_id": "drift.implement",
+      "command": "Prospective bounded frozen-source validation under the existing explicit Owner full-project delegation. The original eight-check allowance is exhausted and stays exhausted; all earlier activated Decisions and failed/timeout records remain immutable. This new stage explicitly authorizes at most four additional checks, cumulatively at most12, without models, automatic retries or source repair. The changed procedure resolves actual evidence deficiencies: original900s Platform timeout after1881 outcomes left all58 observer cases unfinished; original failure ordinal1814 maps by native1939-case collection to unknown Task API routes, whose isolated run passed. Do not call that original failure repaired or unrelated. First reproduce the four adjacent HTTP tests in native order; second run the SAME FULL mandatory Platform suite with identical four existing installed-OpenCode deselections, max1800s, native JUnit and external durable native failure/collection/exit hook. Third run the mandatory Path-A suite only after both prior checks succeed. Fourth run drift suite on one exact product commit only after prior checks succeed, max300s. No retry; any mandatory failure or timeout stops product commit/push as applicable. Retain already completed66-pass executor-neutral/functional-validation scoped evidence for identical source bytes; no broad completion inferred from it. The external pytest hook only preserves actual native reports; it never changes test outcomes, creates acceptance or replaces final JUnit. Frozen source SHA2567c1503c8afc59061c254ba665305b25a3787171a240fc8566770810f5bbb001c; test SHA256117ff404db277361bbb0ccd265c4760cba631e9ed204c5e501efe58098123ad5. Only adoption/publication of those two exact existing candidate files is permitted; no product/test edit. All original four hardening obligations, intent-to-add identity, security and independent acceptance requirements remain unchanged. Fresh exact-main branch in the same owned full checkout preserves two known frozen candidate deltas and five generated gates. Decision-only activation and actual PRE_EXECUTION_AUTHORIZED plus activation Draft precede further execution/source commit. Two normal pushes to the exact new branch, one Draft, one product commit; zero source repair/retry/history rewrite/main push/Ready/Merge/comments/Issue closure/rerun/dispatch. Known installed Python/Git/pytest, provider-free test-owned temp and loopback fixtures only. No existing service/process/runtime/config mutation, models/providers/credentials/install/browser or unbounded network. Source publication requires native mandatory successes, exact source bytes, scoped diff, actual readiness and subsequent natural source-head CI; independent acceptance remains separate.",
+      "phase": "implementation",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "user_local",
+      "operations": [
+        "code_read",
+        "integration_test",
         "local_static_check",
         "machine_specific_execution"
       ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "project_state/decision_packet.md"
-      ],
-      "produced_artifacts": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/bootstrap_state.json",
-        "project_state/gates/transition_command_plan_preview.json",
-        "project_state/gates/transition_preflight_result.json"
-      ]
-    },
-    {
-      "command_id": "issue372v6.runtime",
-      "command": "No runtime restart/deployment or OpenCodeTask. Verify existing owned supervised-route-mistral-20260928b exact connectionmistral/modelcodestral-latest/executoropencode disabled; temporarilyenable only it for each tool-free call and restore exactdisabled metadata finally. No other Binding/Connection/key mutations. Native trusted store/OSvault/relay internal credential use only, no rawsecretreads/output/export. Max16text-onlycalls600sec0tools/dispatch/automaticretry. Provider-free deterministic tests, ownedloopback and known Git/Windows fixed read-only pytesttemp proofs authorized.",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "user_local",
-      "operations": [
-        "local_static_check",
-        "machine_specific_execution",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue372v6.system",
-      "command": "After activation Draft transfer exact reviewed v4 three product files, excluding rejected model call16. Up to16 tool-free Codestral calls for CLI/server/authmode execution coverage and Windows legacy expectation updates; only five approved product paths. Supervisor authors no product or test bytes; apply validated exact system edits. Final checks on frozen v6 exact head. Include isolated known baseline test fixture resolver correction only.",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "user_local",
-      "operations": [
-        "source_edit",
-        "commit",
-        "local_static_check",
-        "machine_specific_execution",
-        "model_api_invocation",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/opencode_executor.py",
-        "tests/platform_v1/test_opencode_executor.py",
-        "tests/platform_v1/test_child_environment_isolation.py",
-        "tests/platform_v1/test_binding_windows_env.py",
-        "tests/platform_v1/test_task3c_v4_repairs.py"
+        "reverse_agent/platform_v1/workspace_drift.py",
+        "tests/platform_v1/test_workspace_drift.py"
       ],
       "produced_artifacts": []
     },
     {
-      "command_id": "issue372v6.checks",
-      "command": "Developmentchecks/fixesbeforefreeze; finalexacthead python -B -m pytest tests/platform_v1/test_child_environment_isolation.py -q -p no:cacheprovider; python -B -m pytest tests/platform_v1/test_opencode_executor.py tests/platform_v1/test_opencode_server_transport.py tests/platform_v1/test_execution_runtime_budget.py -q -p no:cacheprovider; python -B -m pytest tests/platform_v1 -q -p no:cacheprovider; git diff --check 18c5030fabeb72288ea2de56314579e339995182 HEAD. Providerfree only, syntheticsentinels/fakeprocess exceptexplicitfixedWindowsGit/cmd/PowerShell read-only temp proofs. Beforestagecachedstartupreadiness;aftercommitall5gatesagain. Mandatoryfailurestopspublicationnofixforward.",
+      "command_id": "drift.validate",
+      "command": "Four explicit checks only, with original eight records unchanged and cumulative maximum12: ordered four-case HTTP cohort max120s; full Platform with same four CI deselections, durable native failure capture and native JUnit max1800s; Path-A max120s after successes; one product commit after three successes then exact committed-head drift max300s. Mandatory failures stop publication; no test weakening/source change/retry.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -297,21 +281,22 @@
       ],
       "execution_surface": "user_local",
       "operations": [
-        "unit_test",
+        "code_read",
         "integration_test",
         "diff_validation",
         "local_static_check",
         "machine_specific_execution",
-        "network_access"
+        "commit",
+        "source_edit"
       ],
-      "network_access": true,
+      "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "issue372v6.publish",
-      "command": "Atmost2pushesactivation/final exactbranchcodex/issue372-windows-isolation-system-v6-20260928 andoneDraftagainstmain@18c5030fabeb72288ea2de56314579e339995182;rebindexactheadbody. Requireallchecks/PUBLICATION_READY/freshbase/scope. NoReady/merge/closure/historyrewrite.",
+      "command_id": "drift.publish",
+      "command": "Two normal exact branch pushes to codex/issue829-validation-r2-v3-20261003, one activation Draft against main@9092911f41a089e249f27c883526904299be1d17, exact-head description binding; bounded read-only natural CI. No Ready/Merge/comments/Issue closure or other refs.",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -327,92 +312,31 @@
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
-    },
-    {
-      "command_id": "issue372v6.ci",
-      "command": "Observe naturalexactheadCI/Decision/State plusnativeartifact, providerfreechecks. No reruns/manualdispatch/dependency/workflowchanges.",
-      "phase": "validation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "ci_only",
-      "operations": [
-        "unit_test",
-        "integration_test",
-        "local_static_check",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "issue372v6.audit",
-      "command": "Independent supervisor source/sink/compatibilityreview, actualminimalenvpositivecontrols andsentinelnegatives, bothtransports+ordinaryroles,Windowsproof. No modelselfacceptance orOSsandboxclaim. Distinguishmainline/source fromdirtylocalhost.",
-      "phase": "final_evidence",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "remote_observation",
-      "operations": [
-        "code_read",
-        "read_only_audit",
-        "repository_observation"
-      ],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
     }
   ],
-  "concurrent_work_preservation": {
-    "prs": [
-      991,
-      992,
-      995,
-      1000,
-      1003,
-      1007,
-      1008,
-      1012,
-      1013,
-      1014,
-      1015,
-      1017,
-      1018,
-      1019,
-      1020,
-      1021
-    ],
-    "policy": "Preserve all previous Drafts, root user edits and partial worktrees; v5 unpublished activation preserved unchanged. V6 alone active for product completion after v4 full development results observed. No concurrent model calls; owned Codestral binding restored disabled after each call."
+  "issue_completion_close_allowed": [],
+  "runtime_scratch_policy": {
+    "paths": [],
+    "stage_allowed": false,
+    "note": "Same owned checkout, frozen two product files and five known generated gates as carryover. External validation scripts, hook and native reports under issue829-validation-v3 only; no cleanup or gate staging."
   },
-  "reference_paths": [
-    "AGENTS.md",
-    "docs/agents/governance-reference.md",
-    "dev-up.ps1",
-    "reverse_agent/platform_v1/binding_resolver.py",
-    "reverse_agent/model_access/contracts.py",
-    "tests/platform_v1/test_opencode_server_transport.py",
-    "tests/platform_v1/test_credential_relay.py",
-    "tests/platform_v1/test_trusted_host.py",
-    "tests/platform_v1/test_trusted_host_lifecycle.py",
-    "reverse_agent/model_access/credential_relay.py",
-    "reverse_agent/platform_v1/trusted_host.py",
-    "tests/platform_v1/test_execution_runtime_budget.py"
-  ],
+  "follows_last_decision_id": "decision_20261003_issue829_platform_diagnostic_r2_v1",
+  "follows_last_round_id": "round_20261003_issue829_platform_diagnostic_r2_v1",
+  "workstream_id": "issue829-validation-v3",
   "source_issues": [
-    372,
-    989
+    829,
+    652,
+    800
   ],
-  "required_provider_free_checks": [
-    "python -B -m pytest tests/platform_v1/test_child_environment_isolation.py tests/platform_v1/test_binding_windows_env.py -q -p no:cacheprovider",
-    "python -B -m pytest tests/platform_v1/test_opencode_executor.py tests/platform_v1/test_opencode_server_transport.py tests/platform_v1/test_execution_runtime_budget.py -q -p no:cacheprovider",
-    "python -B -m pytest tests/platform_v1/test_task3c_v4_repairs.py -q -p no:cacheprovider",
-    "python -B -m pytest tests/platform_v1 -q -p no:cacheprovider",
-    "git diff --check 18c5030fabeb72288ea2de56314579e339995182 HEAD"
-  ]
+  "local_browser_launch_limit": 0,
+  "development_check_run_limit": 4,
+  "development_correction_round_limit": 0,
+  "execution_window_hours": 4,
+  "integration_observation_surface": "user_local_owned_exact_main_successor",
+  "runtime_host_launch_limit": 0,
+  "frontend_launch_limit": 0,
+  "approval_event_or_time": "2026-10-03T04:24:24.055319+00:00",
+  "credential_status_probe_limit": 0,
+  "provider_network_call_limit": 0
 }
 ```
