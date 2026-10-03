@@ -1,10 +1,10 @@
-# Owner-delegated exact review target and finding contract
+# Owner-delegated read-only exact Git review snapshot
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261003_issue811_review_contract_r2_v1",
-  "round_id": "round_20261003_issue811_review_contract_r2_v1",
+  "decision_id": "decision_20261003_issue811_git_snapshot_r2_v1",
+  "round_id": "round_20261003_issue811_git_snapshot_r2_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,22 +16,22 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "EXACT_REVIEW_TARGET_FINDING_AND_FEEDBACK_CONTRACT",
+  "decision_scope": "READ_ONLY_EXACT_GIT_REVIEW_SNAPSHOT",
   "source_issue": 811,
   "parent_issue": 137,
   "repository": "dddd2024/Nerelan",
   "approved_by": "dddd2024 / current explicit full project delegation",
-  "approval_basis": "Persistent explicit Owner full-project delegation authorizes necessary new811 provider-free contract work, prospectively bounded; no prior reset/landing grant.",
+  "approval_basis": "Persistent explicit Owner full project delegation, newly prospectively bounded real Git collection work; no prior budget reset or landing grant.",
   "risk_tier": "R2",
   "authorized_risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
-  "integration_base_ref": "main",
-  "base_sha": "9092911f41a089e249f27c883526904299be1d17",
-  "activation_base_sha": "9092911f41a089e249f27c883526904299be1d17",
-  "starting_head": "9092911f41a089e249f27c883526904299be1d17",
-  "required_branch": "codex/issue811-review-contract-r2-v1-20261003",
+  "integration_base_ref": "codex/issue811-review-contract-r2-v1-20261003",
+  "base_sha": "71bdddd1f4555f7188fafd1aeed8d911be22d3a8",
+  "activation_base_sha": "71bdddd1f4555f7188fafd1aeed8d911be22d3a8",
+  "starting_head": "71bdddd1f4555f7188fafd1aeed8d911be22d3a8",
+  "required_branch": "codex/issue811-git-snapshot-r2-v1-20261003",
   "fresh_worktree_creation_required": false,
-  "history_reuse_allowed": false,
+  "history_reuse_allowed": true,
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
@@ -77,8 +77,8 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "Owner persistent explicit full-project delegation prospectively authorizes NEW Issue811 REVIEWAGENT-1 provider-free exact target/finding contract work. Fresh main9092911f41a089e249f27c883526904299be1d17 and current44 open PR file lists observed: three new product paths have no other active owner; do not edit reserved executor/store/runtime/authority code. Current project policy_adapter.validate_work_item rejects R2 before any backend, so authorized Codex fallback performs this R2 bootstrap/source work without changing/bypassing that adapter or retrying a model. Preserve all old Decisions/budgets/branches/review records; this is not another PR1067 review or model retry. Fresh exact-main-base branch and one Decision-only activation; actual canonical startup/plan/lint/preflight/readiness and one exact activation Draft must precede product changes. Implement bounded pure data API in review_findings.py: immutable canonical ReviewTarget binds repository/forge/change-request, base/head refs and same-family 40/64-char commit/tree OIDs, patch digest, exact reviewed/excluded file paths and review profile/observation digest; reject unknown/malformed/control/unbounded fields, require nonempty effective reviewed scope. Caller-provided identities are claims, not verified Git identity. ReviewFinding binds derived exact target generation/digest, rule/category/severity/confidence, scoped literal path and bounded line range/symbol/summary, source class and digest-only evidence refs; no raw logs/chain-of-thought/config/request text. Reuse existing canonical JSON/digest and secret redaction functions without edits or a new scanner/verifier/DB. Deterministic dedupe uses explicit shared rule+location+exact target identity, stable ordering and deterministic-source preference while preserving contributing sources/evidence; no fabricated semantic duplicate detection or model finding promoted to proven defect. A new target generation conservatively marks prior findings stale; mere disappearance must not mark fixed. Explicit bounded ACKNOWLEDGED/NOT_REPRODUCIBLE/DISMISSED_WITH_REASON feedback retains reason+evidence and cannot grant acceptance, authority, global learned policy or automatic code repair; original finding immutable. Never accept stale/mismatched target feedback, unsafe paths, secret-bearing serialized summaries, malformed identities, mutating references or conflicting finding IDs. All verified-evidence/independent-acceptance/execution-authorized/repair-authorized/landing-authorized flags remain false and cannot be supplied to grant authority. Expose no IO/store/Git/process/network/browser/provider or mutation methods. Add meaningful seeded finding, exact SHA1/SHA256 identity, input mutation, scope containment, stable dedupe, false-positive feedback, stale-generation and authority-injection regressions, including actual Python-surrogate rejection premise with sanitized deterministic fixture data, not fake live reviews or tests. Docs explicitly distinguish normalization from trusted evidence validation and list still-unimplemented runtime/API/model/forge/incremental impact/human acceptance phases of811. No full811/backlog completion claim. At most6 native provider-free pytest processes and2 bounded correction rounds; mandatory focused new review suite<=180s, full Platform V1<=2400s excluding only four already-excluded installed-OpenCode tests, Path-A<=120s, exact committed-head focused<=180s; at most2 additional development checks if justified. Mandatory full failure/timeout stops publication without retry. Preserve every original source/test byte at main base except three new paths. One product commit, at most2 normal pushes total to exact new branch, one activation Draft against explicit main@909; at most6 exact-head Draft description updates, read-only natural exact-head CI/artifact inspection. No comments/Issue writes/closure/Ready/Merge/main push/rewrite/dispatch/rerun/model/provider/credentials/runtime/browser/install/dependencies/workflows/security or original services/config changes. Four-hour window. Completion only this source candidate and actual mandatory checks/natural source CI; formal independent acceptance and all later811/runtime/user-journey/landing remain separate.",
-    "completion_boundary": "REVIEWAGENT-1 pure provider-free source and actual mandatory validation/natural source CI, not trusted identity/independent approval/runtime/full811/landing."
+    "specification": "Owner persistent explicit full-project delegation prospectively authorizes NEW Issue811 real local Git review snapshot/context collection, not a previous review retry. Explicit approved planning base is Draft1068 source71bdddd1f4555f7188fafd1aeed8d911be22d3a8 on codex/issue811-review-contract-r2-v1-20261003; main remains909, no implicit main fallback or claim parent accepted/landed. New exact-base branch; one Decision-only activation plus actual canonical startup/plan/lint/preflight/readiness and activation Draft before product mutations. Reuse unchanged review_findings target normalization/canonical JSON/secret detector and repository_workspace GitHub-origin syntax normalization; system Git is mature collector, not another scanner/TaskStore/GitHub replica. Add only review_git_snapshot.py, dedicated tests and docs. API collects supplied exact base/head commit OIDs from an existing selected repository, observes raw trees and blob identities and patch digest for effective explicitly selected literal paths, authenticates bytes against Git blob IDs; origin syntax must match requested current repository. SHA1/SHA256 supported; no refs-as-executable arguments, branch checkout/fetch/write/index mutation or implicit alias rewrite. Repo/global/ambient Git hooks/filters/external diff/textconv/replacement refs/lazy fetch/prompts/config overrides cannot execute or change source identity; use absolute installed system Git, shellfalse clean selected env, read-only commands with explicit object IDs. Enforce whole60s deadline,272-command ceiling, stream-time stdout caps4MiB/stderr16KiB/per blob128KiB/aggregate16MiB, bounded64 effective files and256KiB exposed text; fail closed on overrun/timeout/errors and close only owned Git process. Never unbounded subprocess capture. Sensitive-named paths rejected before content reads; excluded files never read or placed in patch/context. Mode and missing/deleted/symlink/binary metadata explicit; symlinks are Git link-text data, never dereferenced. Model context contains bounded redacted UTF8 text only, all base/head repository content\u2014including AGENTS/skills/config/instructions\u2014is explicitly untrusted data and grants no tools/policy; no automatic trusted policy resolution or execution, no raw secrets/config/request/chain-of-thought export. Detect shared-secret patterns and omit whole matching content; binary/oversized content withheld with digest/size, not interpreted. Local object observation is not remote forge ownership authentication, defect verification/independent acceptance or runtime permission. Preserve flags on normalized ReviewTarget false; snapshot never authorizes execution/repair/landing, no store/API/model/forge integration or scanner added. Meaningful actual disposable Git SHA1/SHA256 fixtures cover exact bytes/trees/patch, branch/worktree dirt isolation, index/source preservation, rename/delete/symlink behavior, instructions as data, exclusions without reads, sensitive paths, repo mismatch, replace refs/ambient Git config/hooks/textconv/filters not executed, malformed OIDs/paths, bounded streams/deadlines/error cleanup, redaction and binary/size truncation. At most6 native provider-free pytest processes and2 corrections: mandatory focused<=300s, full Platform V1<=2400s with only existing four installed-OpenCode exclusions, Path-A<=120s, exact committed-head focused<=300s. Mandatory full failure/timeout stops without retry. Preserve original source/tests including1068 bytes; one product commit, at most2 normal pushes to exact new branch and one Draft against explicit planning integration base; at most6 description rebindings and read-only natural exact-head CI/artifact observations. No other GitHub writes/Ready/Merge/Issue closure/rerun/dispatch/mainpush/historyrewrite/models/provider/credentials/browser/runtime/install/dependencies/workflows/existing services/config changes. Four-hour window; no full811/backlog/independent/mainline completion claim.",
+    "completion_boundary": "Real local exact Git/context collection and actual mandatory source validation/natural source CI; no runtime/store/API/forge or independent/landing/full811 completion."
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
@@ -91,9 +91,9 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/review_findings.py",
-    "tests/platform_v1/test_review_findings.py",
-    "docs/review-findings.md"
+    "reverse_agent/platform_v1/review_git_snapshot.py",
+    "tests/platform_v1/test_review_git_snapshot.py",
+    "docs/review-git-snapshot.md"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
@@ -102,9 +102,9 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/review_findings.py",
-    "tests/platform_v1/test_review_findings.py",
-    "docs/review-findings.md"
+    "reverse_agent/platform_v1/review_git_snapshot.py",
+    "tests/platform_v1/test_review_git_snapshot.py",
+    "docs/review-git-snapshot.md"
   ],
   "generated_artifact_paths": [
     "project_state/gates/bootstrap_state.json",
@@ -122,7 +122,9 @@
     "reverse_agent/platform_v1/artifact_handoff.py",
     "reverse_agent/platform_v1/run_store.py",
     "reverse_agent/platform_v1/policy_adapter.py",
-    ".github/workflows/ci.yml"
+    ".github/workflows/ci.yml",
+    "reverse_agent/platform_v1/review_findings.py",
+    "reverse_agent/platform_v1/repository_workspace.py"
   ],
   "forbidden_mutated_paths": [
     "AGENTS.md",
@@ -158,7 +160,12 @@
     "reverse_agent/platform_v1/artifact_handoff.py",
     "reverse_agent/platform_v1/run_store.py",
     "tests/platform_v1/test_opencode_executor.py",
-    "tests/platform_v1/test_artifact_handoff.py"
+    "tests/platform_v1/test_artifact_handoff.py",
+    "reverse_agent/platform_v1/review_findings.py",
+    "tests/platform_v1/test_review_findings.py",
+    "docs/review-findings.md",
+    "reverse_agent/platform_v1/repository_workspace.py",
+    "reverse_agent/platform_v1/workspace_drift.py"
   ],
   "forbidden_operations": [
     "direct_push_main",
@@ -219,7 +226,7 @@
       "Existing provider-free pytest-owned temporary loopback fixtures only; no real models/providers/Internet/existing runtime."
     ],
     "github_control_plane_network_exceptions": [
-      "At most2 normal pushes to exact codex/issue811-review-contract-r2-v1-20261003, one activation Draft against explicit main@9092911f41a089e249f27c883526904299be1d17, at most6 exact-head Draft description updates and bounded read-only natural CI/artifact observation. No other writes."
+      "At most2 normal pushes to exact codex/issue811-git-snapshot-r2-v1-20261003, one activation Draft against explicit codex/issue811-review-contract-r2-v1-20261003@71bdddd1f4555f7188fafd1aeed8d911be22d3a8, at most6 exact-head description updates and bounded read-only natural CI/artifact observation."
     ]
   },
   "path_risk_floor": [
@@ -234,8 +241,8 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "review.bootstrap",
-      "command": "Fresh main909 exact-base branch, preserve existing gates, one Decision-only activation; actual startup/plan/lint/preflight/readiness, one activation push and exact Draft before product changes.",
+      "command_id": "gitreview.bootstrap",
+      "command": "Fresh branch from explicit approved planning base codex/issue811-review-contract-r2-v1-20261003@71bdddd1f4555f7188fafd1aeed8d911be22d3a8; preserve gates; one Decision-only activation; canonical startup/plan/lint/preflight/readiness and activation Draft before product edits.",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [
@@ -263,8 +270,8 @@
       ]
     },
     {
-      "command_id": "review.implement",
-      "command": "Owner persistent explicit full-project delegation prospectively authorizes NEW Issue811 REVIEWAGENT-1 provider-free exact target/finding contract work. Fresh main9092911f41a089e249f27c883526904299be1d17 and current44 open PR file lists observed: three new product paths have no other active owner; do not edit reserved executor/store/runtime/authority code. Current project policy_adapter.validate_work_item rejects R2 before any backend, so authorized Codex fallback performs this R2 bootstrap/source work without changing/bypassing that adapter or retrying a model. Preserve all old Decisions/budgets/branches/review records; this is not another PR1067 review or model retry. Fresh exact-main-base branch and one Decision-only activation; actual canonical startup/plan/lint/preflight/readiness and one exact activation Draft must precede product changes. Implement bounded pure data API in review_findings.py: immutable canonical ReviewTarget binds repository/forge/change-request, base/head refs and same-family 40/64-char commit/tree OIDs, patch digest, exact reviewed/excluded file paths and review profile/observation digest; reject unknown/malformed/control/unbounded fields, require nonempty effective reviewed scope. Caller-provided identities are claims, not verified Git identity. ReviewFinding binds derived exact target generation/digest, rule/category/severity/confidence, scoped literal path and bounded line range/symbol/summary, source class and digest-only evidence refs; no raw logs/chain-of-thought/config/request text. Reuse existing canonical JSON/digest and secret redaction functions without edits or a new scanner/verifier/DB. Deterministic dedupe uses explicit shared rule+location+exact target identity, stable ordering and deterministic-source preference while preserving contributing sources/evidence; no fabricated semantic duplicate detection or model finding promoted to proven defect. A new target generation conservatively marks prior findings stale; mere disappearance must not mark fixed. Explicit bounded ACKNOWLEDGED/NOT_REPRODUCIBLE/DISMISSED_WITH_REASON feedback retains reason+evidence and cannot grant acceptance, authority, global learned policy or automatic code repair; original finding immutable. Never accept stale/mismatched target feedback, unsafe paths, secret-bearing serialized summaries, malformed identities, mutating references or conflicting finding IDs. All verified-evidence/independent-acceptance/execution-authorized/repair-authorized/landing-authorized flags remain false and cannot be supplied to grant authority. Expose no IO/store/Git/process/network/browser/provider or mutation methods. Add meaningful seeded finding, exact SHA1/SHA256 identity, input mutation, scope containment, stable dedupe, false-positive feedback, stale-generation and authority-injection regressions, including actual Python-surrogate rejection premise with sanitized deterministic fixture data, not fake live reviews or tests. Docs explicitly distinguish normalization from trusted evidence validation and list still-unimplemented runtime/API/model/forge/incremental impact/human acceptance phases of811. No full811/backlog completion claim. At most6 native provider-free pytest processes and2 bounded correction rounds; mandatory focused new review suite<=180s, full Platform V1<=2400s excluding only four already-excluded installed-OpenCode tests, Path-A<=120s, exact committed-head focused<=180s; at most2 additional development checks if justified. Mandatory full failure/timeout stops publication without retry. Preserve every original source/test byte at main base except three new paths. One product commit, at most2 normal pushes total to exact new branch, one activation Draft against explicit main@909; at most6 exact-head Draft description updates, read-only natural exact-head CI/artifact inspection. No comments/Issue writes/closure/Ready/Merge/main push/rewrite/dispatch/rerun/model/provider/credentials/runtime/browser/install/dependencies/workflows/security or original services/config changes. Four-hour window. Completion only this source candidate and actual mandatory checks/natural source CI; formal independent acceptance and all later811/runtime/user-journey/landing remain separate.",
+      "command_id": "gitreview.implement",
+      "command": "Owner persistent explicit full-project delegation prospectively authorizes NEW Issue811 real local Git review snapshot/context collection, not a previous review retry. Explicit approved planning base is Draft1068 source71bdddd1f4555f7188fafd1aeed8d911be22d3a8 on codex/issue811-review-contract-r2-v1-20261003; main remains909, no implicit main fallback or claim parent accepted/landed. New exact-base branch; one Decision-only activation plus actual canonical startup/plan/lint/preflight/readiness and activation Draft before product mutations. Reuse unchanged review_findings target normalization/canonical JSON/secret detector and repository_workspace GitHub-origin syntax normalization; system Git is mature collector, not another scanner/TaskStore/GitHub replica. Add only review_git_snapshot.py, dedicated tests and docs. API collects supplied exact base/head commit OIDs from an existing selected repository, observes raw trees and blob identities and patch digest for effective explicitly selected literal paths, authenticates bytes against Git blob IDs; origin syntax must match requested current repository. SHA1/SHA256 supported; no refs-as-executable arguments, branch checkout/fetch/write/index mutation or implicit alias rewrite. Repo/global/ambient Git hooks/filters/external diff/textconv/replacement refs/lazy fetch/prompts/config overrides cannot execute or change source identity; use absolute installed system Git, shellfalse clean selected env, read-only commands with explicit object IDs. Enforce whole60s deadline,272-command ceiling, stream-time stdout caps4MiB/stderr16KiB/per blob128KiB/aggregate16MiB, bounded64 effective files and256KiB exposed text; fail closed on overrun/timeout/errors and close only owned Git process. Never unbounded subprocess capture. Sensitive-named paths rejected before content reads; excluded files never read or placed in patch/context. Mode and missing/deleted/symlink/binary metadata explicit; symlinks are Git link-text data, never dereferenced. Model context contains bounded redacted UTF8 text only, all base/head repository content\u2014including AGENTS/skills/config/instructions\u2014is explicitly untrusted data and grants no tools/policy; no automatic trusted policy resolution or execution, no raw secrets/config/request/chain-of-thought export. Detect shared-secret patterns and omit whole matching content; binary/oversized content withheld with digest/size, not interpreted. Local object observation is not remote forge ownership authentication, defect verification/independent acceptance or runtime permission. Preserve flags on normalized ReviewTarget false; snapshot never authorizes execution/repair/landing, no store/API/model/forge integration or scanner added. Meaningful actual disposable Git SHA1/SHA256 fixtures cover exact bytes/trees/patch, branch/worktree dirt isolation, index/source preservation, rename/delete/symlink behavior, instructions as data, exclusions without reads, sensitive paths, repo mismatch, replace refs/ambient Git config/hooks/textconv/filters not executed, malformed OIDs/paths, bounded streams/deadlines/error cleanup, redaction and binary/size truncation. At most6 native provider-free pytest processes and2 corrections: mandatory focused<=300s, full Platform V1<=2400s with only existing four installed-OpenCode exclusions, Path-A<=120s, exact committed-head focused<=300s. Mandatory full failure/timeout stops without retry. Preserve original source/tests including1068 bytes; one product commit, at most2 normal pushes to exact new branch and one Draft against explicit planning integration base; at most6 description rebindings and read-only natural exact-head CI/artifact observations. No other GitHub writes/Ready/Merge/Issue closure/rerun/dispatch/mainpush/historyrewrite/models/provider/credentials/browser/runtime/install/dependencies/workflows/existing services/config changes. Four-hour window; no full811/backlog/independent/mainline completion claim.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -281,15 +288,15 @@
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/review_findings.py",
-        "tests/platform_v1/test_review_findings.py",
-        "docs/review-findings.md"
+        "reverse_agent/platform_v1/review_git_snapshot.py",
+        "tests/platform_v1/test_review_git_snapshot.py",
+        "docs/review-git-snapshot.md"
       ],
       "produced_artifacts": []
     },
     {
-      "command_id": "review.validate",
-      "command": "At most6 native provider-free pytest processes and2 corrections; mandatory focused/full Platform/Path-A/exact-head focused as specified; preserve original source/tests and reject mandatory full failure without retry.",
+      "command_id": "gitreview.validate",
+      "command": "At most6 native provider-free pytest processes and2 corrections; mandatory focused/full Platform/Path-A/exact-head focused as in specification; no retry of mandatory full failure.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -308,15 +315,15 @@
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/review_findings.py",
-        "tests/platform_v1/test_review_findings.py",
-        "docs/review-findings.md"
+        "reverse_agent/platform_v1/review_git_snapshot.py",
+        "tests/platform_v1/test_review_git_snapshot.py",
+        "docs/review-git-snapshot.md"
       ],
       "produced_artifacts": []
     },
     {
-      "command_id": "review.publish",
-      "command": "At most2 normal exact-branch pushes, one activation Draft against explicit main@9092911f41a089e249f27c883526904299be1d17, at most6 exact-head description rebindings and read-only natural exact-head CI/artifact inspection; no other writes.",
+      "command_id": "gitreview.publish",
+      "command": "At most2 normal pushes to exact codex/issue811-git-snapshot-r2-v1-20261003, one activation Draft against explicit codex/issue811-review-contract-r2-v1-20261003@71bdddd1f4555f7188fafd1aeed8d911be22d3a8, at most6 exact-head description updates and bounded read-only natural CI/artifact observation.",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -338,11 +345,11 @@
   "runtime_scratch_policy": {
     "paths": [],
     "stage_allowed": false,
-    "note": "Existing five generated gates preserved unstaged; external issue811-readiness-v1 and issue811-review-contract-r2-v1 only. No cleanup/runtime changes."
+    "note": "Preserve existing generated gates unstaged and all prior stages; new external issue811-git-snapshot-r2-v1 evidence only."
   },
-  "follows_last_decision_id": "decision_20261002_takeover_owned_cleanup_r3_v1",
-  "follows_last_round_id": "round_20261002_takeover_owned_cleanup_r3_v1",
-  "workstream_id": "issue811-review-contract-r2-v1",
+  "follows_last_decision_id": "decision_20261003_issue811_review_contract_r2_v1",
+  "follows_last_round_id": "round_20261003_issue811_review_contract_r2_v1",
+  "workstream_id": "issue811-git-snapshot-r2-v1",
   "source_issues": [
     811,
     179,
@@ -352,10 +359,10 @@
   "development_check_run_limit": 6,
   "development_correction_round_limit": 2,
   "execution_window_hours": 4,
-  "integration_observation_surface": "user_local_owned_exact_main_successor",
+  "integration_observation_surface": "user_local_owned_exact_planning_successor",
   "runtime_host_launch_limit": 0,
   "frontend_launch_limit": 0,
-  "approval_event_or_time": "2026-10-03T08:53:03.711795+00:00",
+  "approval_event_or_time": "2026-10-03T10:30:15.052207+00:00",
   "credential_status_probe_limit": 0,
   "provider_network_call_limit": 0,
   "pull_request_description_update_limit": 6
