@@ -15,11 +15,12 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 DEV_UP = ROOT / "dev-up.ps1"
 DEV_DOWN = ROOT / "dev-down.ps1"
+_WINDOWS_PS_HOST = os.environ.get("NERELAN_TEST_POWERSHELL", "powershell")
 COMPOSER = ROOT / "frontend/src/components/new-task-composer.tsx"
 FRONTEND_TEST = ROOT / "frontend/tests/real-executor-task-plane.test.tsx"
 LAUNCHER = ROOT / "launch_reverse_agent.bat"
 
-_PWSH = shutil.which("powershell") or shutil.which("pwsh")
+_PWSH = shutil.which(_WINDOWS_PS_HOST) or shutil.which("pwsh")
 requires_powershell = pytest.mark.skipif(
     _PWSH is None, reason="requires powershell or pwsh"
 )
@@ -248,9 +249,10 @@ def test_repo_dir_used_for_node_modules_and_runtime() -> None:
 
 def test_exact_pid_process_tree_ownership_exists() -> None:
     """V3-F3: exact-PID tree ownership must exist; no name-wide kill."""
-    assert "taskkill" in _DEV_DOWN
-    assert "/PID" in _DEV_DOWN
-    assert "/T" in _DEV_DOWN
+    assert "AssignProcessToJobObject" in _DEV_DOWN
+    assert "TerminateJobObject" in _DEV_DOWN
+    assert "IsProcessInJob" in _DEV_DOWN
+    assert "taskkill" not in _DEV_DOWN
     assert "expected_exe" in _DEV_UP
     assert "start_time" in _DEV_UP
     assert "wrapped" in _DEV_UP
@@ -304,7 +306,7 @@ def test_dev_down_cmd_exe_wrapped_frontend_accepted() -> None:
     """V3-F3: cmd.exe-wrapped frontend-vite must be accepted for shutdown."""
     assert "cmd.exe" in _DEV_DOWN
     assert "wrapped" in _DEV_DOWN
-    assert "taskkill" in _DEV_DOWN
+    assert "Invoke-OwnedTreeStop $proc $child" in _DEV_DOWN
 
 
 def test_single_opencode_model_note_in_frontend() -> None:
@@ -333,7 +335,7 @@ def test_dev_down_has_process_start_time_comparison() -> None:
 def test_dev_down_checks_start_time_before_kill() -> None:
     """V4-F2: start_time must be validated before any Kill()/taskkill call."""
     try_stop = _DEV_DOWN[_DEV_DOWN.index("function Try-Stop-Child"):]
-    kill_idx = try_stop.index("taskkill")
+    kill_idx = try_stop.index("Invoke-OwnedTreeStop $proc $child")
     compare_idx = try_stop.index("Compare-ProcessStartTime")
     assert compare_idx < kill_idx, "start_time comparison must precede any taskkill call"
     assert "refused_identity_mismatch" in try_stop[compare_idx:kill_idx], \
@@ -346,26 +348,19 @@ def test_dev_down_reads_start_time_from_record() -> None:
     assert "recordedStartTime" in _DEV_DOWN
 
 
+def _actual_start_time_function() -> str:
+    start = _DEV_DOWN.index("function Compare-ProcessStartTime")
+    end = _DEV_DOWN.index("\nfunction ", start + 1)
+    return _DEV_DOWN[start:end]
+
+
 @requires_powershell
 def test_dev_down_refuses_missing_start_time() -> None:
     """V4-F2: missing start_time must produce refused_identity_mismatch, not a kill."""
     ps1 = r'''
-function Compare-ProcessStartTime([string]$s, [datetime]$a) {
-  if ([string]::IsNullOrWhiteSpace($s)) { return $false }
-  $parsed = [datetime]::MinValue
-  if (-not [datetime]::TryParse($s, [ref]$parsed)) { return $false }
-  $recorded = $parsed
-  if ($recorded.Kind -eq [System.DateTimeKind]::Unspecified) {
-    $recorded = [datetime]::SpecifyKind($recorded, [System.DateTimeKind]::Utc)
-  }
-  $recordedUtc = $recorded.ToUniversalTime()
-  try { $actualUtc = $a.ToUniversalTime() } catch { return $false }
-  $diffMs = [math]::Abs(($recordedUtc - $actualUtc).TotalMilliseconds)
-  return $diffMs -le 100
-}
 Compare-ProcessStartTime "" (Get-Date)
 '''
-    result = _run_ps(ps1)
+    result = _run_ps(_actual_start_time_function() + "\n" + ps1)
     assert result.returncode == 0, f"powershell exit={result.returncode}: {result.stderr}"
     assert "False" in result.stdout.strip(), f"expected False for missing start_time, got: {result.stdout}"
 
@@ -374,22 +369,9 @@ Compare-ProcessStartTime "" (Get-Date)
 def test_dev_down_refuses_unreadable_start_time() -> None:
     """V4-F2: unparseable start_time must produce refused_identity_mismatch, not a kill."""
     ps1 = r'''
-function Compare-ProcessStartTime([string]$s, [datetime]$a) {
-  if ([string]::IsNullOrWhiteSpace($s)) { return $false }
-  $parsed = [datetime]::MinValue
-  if (-not [datetime]::TryParse($s, [ref]$parsed)) { return $false }
-  $recorded = $parsed
-  if ($recorded.Kind -eq [System.DateTimeKind]::Unspecified) {
-    $recorded = [datetime]::SpecifyKind($recorded, [System.DateTimeKind]::Utc)
-  }
-  $recordedUtc = $recorded.ToUniversalTime()
-  try { $actualUtc = $a.ToUniversalTime() } catch { return $false }
-  $diffMs = [math]::Abs(($recordedUtc - $actualUtc).TotalMilliseconds)
-  return $diffMs -le 100
-}
 Compare-ProcessStartTime "not-a-real-timestamp" (Get-Date)
 '''
-    result = _run_ps(ps1)
+    result = _run_ps(_actual_start_time_function() + "\n" + ps1)
     assert result.returncode == 0, f"powershell exit={result.returncode}: {result.stderr}"
     assert "False" in result.stdout.strip(), \
         f"expected False for unparseable start_time, got: {result.stdout}"
@@ -399,23 +381,11 @@ Compare-ProcessStartTime "not-a-real-timestamp" (Get-Date)
 def test_dev_down_accepts_matching_start_time() -> None:
     """V4-F2: same process instance (matching start_time) must be accepted."""
     ps1 = r'''
-function Compare-ProcessStartTime([string]$s, [datetime]$a) {
-  if ([string]::IsNullOrWhiteSpace($s)) { return $false }
-  $parsed = [datetime]::MinValue
-  if (-not [datetime]::TryParse($s, [ref]$parsed)) { return $false }
-  $recorded = $parsed
-  if ($recorded.Kind -eq [System.DateTimeKind]::Unspecified) {
-    $recorded = [datetime]::SpecifyKind($recorded, [System.DateTimeKind]::Utc)
-  }
-  $recordedUtc = $recorded.ToUniversalTime()
-  try { $actualUtc = $a.ToUniversalTime() } catch { return $false }
-  $diffMs = [math]::Abs(($recordedUtc - $actualUtc).TotalMilliseconds)
-  return $diffMs -le 100
-}
 $now = (Get-Date)
-Compare-ProcessStartTime ($now.ToString("o")) $now
+$record = @{ start_time = $now.ToString("o") } | ConvertTo-Json | ConvertFrom-Json
+Compare-ProcessStartTime $record.start_time $now
 '''
-    result = _run_ps(ps1)
+    result = _run_ps(_actual_start_time_function() + "\n" + ps1)
     assert result.returncode == 0, f"powershell exit={result.returncode}: {result.stderr}"
     assert "True" in result.stdout.strip(), \
         f"expected True for matching start_time, got: {result.stdout}"
@@ -425,24 +395,11 @@ Compare-ProcessStartTime ($now.ToString("o")) $now
 def test_dev_down_refuses_recycled_pid_with_different_start_time() -> None:
     """V4-F2: recycled PID with same exe but different start_time must be refused."""
     ps1 = r'''
-function Compare-ProcessStartTime([string]$s, [datetime]$a) {
-  if ([string]::IsNullOrWhiteSpace($s)) { return $false }
-  $parsed = [datetime]::MinValue
-  if (-not [datetime]::TryParse($s, [ref]$parsed)) { return $false }
-  $recorded = $parsed
-  if ($recorded.Kind -eq [System.DateTimeKind]::Unspecified) {
-    $recorded = [datetime]::SpecifyKind($recorded, [System.DateTimeKind]::Utc)
-  }
-  $recordedUtc = $recorded.ToUniversalTime()
-  try { $actualUtc = $a.ToUniversalTime() } catch { return $false }
-  $diffMs = [math]::Abs(($recordedUtc - $actualUtc).TotalMilliseconds)
-  return $diffMs -le 100
-}
 $old = (Get-Date).AddDays(-1)
 $new = (Get-Date)
 Compare-ProcessStartTime ($old.ToString("o")) $new
 '''
-    result = _run_ps(ps1)
+    result = _run_ps(_actual_start_time_function() + "\n" + ps1)
     assert result.returncode == 0, f"powershell exit={result.returncode}: {result.stderr}"
     assert "False" in result.stdout.strip(), \
         f"expected False for recycled PID (different start_time), got: {result.stdout}"
@@ -580,7 +537,7 @@ def test_dev_up_service_children_do_not_inherit_parent_stdio() -> None:
     A long-lived child that inherits the caller's pipe write end blocks any
     orchestrator (pytest, CI) reading dev-up output until EOF — even after
     dev-up exits, and even after a subprocess timeout kills dev-up itself.
-    Only a ShellExecute launch (no handle inheritance) avoids this, with
+    Native creation with bInheritHandles=false avoids this, with
     per-child environment variables carried by `set` commands inside the
     cmd.exe wrapper.
     """
@@ -589,10 +546,9 @@ def test_dev_up_service_children_do_not_inherit_parent_stdio() -> None:
             "function Wait-ServiceReady", _DEV_UP.index("function Start-ServiceProcess")
         )
     ]
-    assert "$psi.UseShellExecute = $true" in start_block, \
-        "services must launch via ShellExecute so no handles are inherited"
-    assert "$psi.UseShellExecute = $false" not in start_block, \
-        "the inheritable-handle launch path must not be used for services"
+    assert "[NerelanOwnedJob]::Start" in start_block
+    assert "IntPtr.Zero,IntPtr.Zero,false,0x08000004" in _DEV_DOWN, \
+        "native creation must disable inheritance and suspend before job assignment"
     assert "/s /c" in start_block, \
         "every service must run behind a cmd.exe /s /c wrapper"
     assert "2>&1" in start_block, \
@@ -719,7 +675,7 @@ def _setup_stub_stack(
 def _run_dev_up(repo: Path, env: dict, ports: dict, timeout: int = 180) -> subprocess.CompletedProcess:
     return subprocess.run(
         [
-            "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+            _WINDOWS_PS_HOST, "-NoProfile", "-ExecutionPolicy", "Bypass",
             "-File", str(DEV_UP),
             "-RepoDir", str(repo), "-SourceDir", str(repo),
             "-FrontendPort", str(ports["frontend"]),
@@ -749,7 +705,7 @@ def _run_launcher(repo: Path, env: dict, ports: dict, timeout: int = 180) -> sub
 def _run_dev_down(repo: Path, env: dict, timeout: int = 120) -> subprocess.CompletedProcess:
     return subprocess.run(
         [
-            "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+            _WINDOWS_PS_HOST, "-NoProfile", "-ExecutionPolicy", "Bypass",
             "-File", str(DEV_DOWN), "-RepoDir", str(repo),
         ],
         capture_output=True, text=True, timeout=timeout, env=env, cwd=str(repo),
@@ -757,10 +713,38 @@ def _run_dev_down(repo: Path, env: dict, timeout: int = 120) -> subprocess.Compl
 
 
 def _assert_ports_free(ports: dict) -> None:
-    time.sleep(1.0)
-    for port in ports.values():
-        with pytest.raises(OSError):
-            socket.create_connection(("127.0.0.1", port), timeout=3)
+    # Closed loopback connections may time out on Windows. That result alone
+    # proves neither a free port nor a listener. Observe LISTEN and an exclusive
+    # kernel bind separately, with a bounded wait for accepted sockets to drain.
+    deadline = time.monotonic() + 10
+    remaining = set(ports.values())
+    last_errors = {}
+    while remaining and time.monotonic() < deadline:
+        observed = subprocess.run(
+            ["netstat", "-ano", "-p", "tcp"], capture_output=True, text=True, timeout=5,
+        )
+        assert observed.returncode == 0, observed.stderr
+        listening = {
+            int(fields[1].rsplit(":", 1)[1])
+            for line in observed.stdout.splitlines()
+            if (fields := line.split()) and len(fields) >= 4 and fields[3] == "LISTENING"
+        }
+        for port in tuple(remaining):
+            if port in listening:
+                last_errors[port] = "LISTEN still present"
+                continue
+            try:
+                with socket.socket() as sock:
+                    if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+                        sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+                    sock.bind(("127.0.0.1", port))
+                    sock.listen(1)
+                remaining.remove(port)
+            except OSError as exc:
+                last_errors[port] = repr(exc)
+        if remaining:
+            time.sleep(0.1)
+    assert not remaining, f"LISTEN/bind observations did not establish free ports: {last_errors}"
 
 
 def _assert_ports_reachable(ports: dict) -> None:
@@ -822,6 +806,7 @@ def test_desktop_launcher_five_runs_from_spaced_unicode_path(tmp_path: Path) -> 
     """The real .bat entrypoint must work repeatedly from a realistic Windows path."""
     repo, env, ports = _setup_stub_stack(tmp_path, repo_name="repo space 启动")
     shutil.copy2(DEV_UP, repo / DEV_UP.name)
+    shutil.copy2(DEV_DOWN, repo / DEV_DOWN.name)
     shutil.copy2(LAUNCHER, repo / LAUNCHER.name)
     runtime_dir = repo / ".platform_v1_runtime"
     pid_file = runtime_dir / "devup_pids.json"
@@ -876,21 +861,31 @@ def test_dev_up_repairs_partial_stack_by_restarting_it(tmp_path: Path) -> None:
     frontend_entry = next(
         child for child in record_before["children"] if child["name"] == "frontend-vite"
     )
-    subprocess.run(
-        ["taskkill", "/PID", str(frontend_entry["pid"]), "/T", "/F"],
-        capture_output=True, timeout=30,
-    )
+    # Stop only the selected verified fixture tree through the actual script.
+    # Preserve the full record and the actual stop result for the dead group.
+    pid_file.write_text(json.dumps({**record_before, "children": [frontend_entry]}), encoding="utf-8")
+    try:
+        stopped = _run_dev_down(repo, env)
+        assert stopped.returncode == 0, f"{stopped.stdout}\\n{stopped.stderr}"
+        stop_record = json.loads(pid_file.read_text(encoding="utf-8-sig"))
+        assert stop_record["children"][0]["outcome"] == "stopped", stop_record
+        _assert_ports_free({"frontend": ports["frontend"]})
+    finally:
+        repaired_record = {**record_before, "children": [
+            stop_record["children"][0] if child["name"] == "frontend-vite" else child
+            for child in record_before["children"]
+        ]}
+        pid_file.write_text(json.dumps(repaired_record), encoding="utf-8")
 
-    deadline = time.time() + 10
-    while time.time() < deadline:
-        try:
-            with socket.create_connection(("127.0.0.1", ports["frontend"]), timeout=1):
-                pass
-            time.sleep(0.2)
-        except OSError:
-            break
-    else:
-        pytest.fail("frontend port did not free after killing the frontend child")
+    # Restoring a stale pre-stop record destroys proof; absence alone must refuse.
+    pid_file.write_text(json.dumps(record_before), encoding="utf-8")
+    try:
+        stale = _run_dev_up(repo, env, ports)
+        assert stale.returncode == 1, (stale.stdout, stale.stderr)
+        assert "root absence does not prove descendants exited" in stale.stderr
+        assert json.loads(pid_file.read_text(encoding="utf-8-sig")) == record_before
+    finally:
+        pid_file.write_text(json.dumps(repaired_record), encoding="utf-8")
 
     second = _run_dev_up(repo, env, ports)
     assert second.returncode == 0, (
@@ -906,6 +901,82 @@ def test_dev_up_repairs_partial_stack_by_restarting_it(tmp_path: Path) -> None:
     down = _run_dev_down(repo, env)
     assert down.returncode == 0, down.stderr
     _assert_ports_free(ports)
+
+
+@requires_windows_powershell
+def test_dev_up_persists_each_group_stop_before_later_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Real A shutdown, injected B failure, then actual entrypoint retry."""
+    repo, env, ports = _setup_stub_stack(tmp_path)
+    pid_file = repo / ".platform_v1_runtime" / "devup_pids.json"
+    first = _run_dev_up(repo, env, ports)
+    assert first.returncode == 0, (first.stdout, first.stderr)
+    before = json.loads(pid_file.read_text(encoding="utf-8-sig"))
+    assert [c["name"] for c in before["children"]] == ["combined-trusted-host", "frontend-vite"]
+
+    # Deterministic API failure after A genuinely completes. The production
+    # Stop-VerifiedChild, reconciliation and JSON persistence remain unchanged.
+    seam = r'''
+$script:fixtureStopAttempts = 0
+function Stop-OwnedJob([IntPtr]$job) {
+  $script:fixtureStopAttempts++
+  if ($script:fixtureStopAttempts -eq 2) { throw "fixture second-group stop failure" }
+  [NerelanOwnedJob]::Terminate($job)
+}
+'''
+    source = _text(DEV_UP)
+    marker = "# Startup state reconciliation:"
+    assert source.count(marker) == 1
+    injected = repo / "dev-up.ps1"
+    injected.write_text(source.replace(marker, seam + "\n" + marker), encoding="utf-8-sig")
+    shutil.copy2(DEV_DOWN, repo / DEV_DOWN.name)
+    monkeypatch.setattr(sys.modules[__name__], "DEV_UP", injected)
+    before["open_code_model"] = "fixture/old-configuration"
+    pid_file.write_text(json.dumps(before), encoding="utf-8")
+    failed = None
+    try:
+        failed = _run_dev_up(repo, env, ports)
+        assert failed.returncode == 1, (failed.stdout, failed.stderr)
+        assert "fixture second-group stop failure" in failed.stderr
+        saved = json.loads(pid_file.read_text(encoding="utf-8-sig"))
+        # Retain the untouched on-disk failure for baseline/repair evidence.
+        (tmp_path / "failed-repair.json").write_text(json.dumps(saved), encoding="utf-8")
+        (tmp_path / "failed-repair-output.txt").write_text(failed.stdout + failed.stderr, encoding="utf-8")
+        a, b = saved["children"]
+        _assert_ports_free({"task": ports["task"], "model": ports["model"]})
+        _assert_ports_reachable({"frontend": ports["frontend"]})
+        retry = _run_dev_up(repo, env, ports)
+        (tmp_path / "retry-output.txt").write_text(retry.stdout + retry.stderr, encoding="utf-8")
+        (tmp_path / "retry-result.json").write_text(json.dumps({"exit": retry.returncode}), encoding="utf-8")
+        assert a["pid"] == before["children"][0]["pid"] and a["start_time"] == before["children"][0]["start_time"]
+        assert a.get("stop_diagnostics", {}).get("completed") is True, saved
+        assert a["stop_diagnostics"]["active_remaining"] == 0, saved
+        assert b["stop_diagnostics"]["completed"] is False, saved
+        assert b["job_name"] == before["children"][1]["job_name"], saved
+        assert b["start_time"] == before["children"][1]["start_time"], saved
+        # On retry only B remains: its first stop succeeds, then both restart.
+        assert retry.returncode == 0, (retry.stdout, retry.stderr)
+        assert retry.stdout.count("repair: stopping recorded child") == 1, retry.stdout
+        assert retry.stdout.count("started pid=") == 2, retry.stdout
+        after = json.loads(pid_file.read_text(encoding="utf-8-sig"))
+        assert len(after["children"]) == 2 and after["open_code_model"] != before["open_code_model"], after
+        _assert_ports_reachable(ports)
+    finally:
+        if pid_file.exists():
+            current = json.loads(pid_file.read_text(encoding="utf-8-sig"))
+            if failed and "stop method=windows_job active_remaining=0" in failed.stdout:
+                # In the old failing baseline A was genuinely stopped but lost
+                # its receipt. Keep that immutable evidence above; cleanup
+                # targets only B or the two new groups, never invents A proof.
+                original_a = before["children"][0]
+                current["children"] = [c for c in current["children"] if any(
+                    c[key] != original_a[key] for key in ("pid", "start_time", "job_name")
+                )]
+                pid_file.write_text(json.dumps(current), encoding="utf-8")
+            cleanup = _run_dev_down(repo, env)
+            assert cleanup.returncode == 0, (cleanup.stdout, cleanup.stderr)
+        _assert_ports_free(ports)
 
 
 @requires_windows_powershell
@@ -936,4 +1007,345 @@ def test_dev_up_invalid_runtime_state_produces_diagnostic_and_fresh_start(tmp_pa
 
     down2 = _run_dev_down(repo, env)
     assert down2.returncode == 0, down2.stderr
+    _assert_ports_free(ports)
+
+
+@requires_windows_powershell
+def test_dev_down_rejects_identity_changes_without_stopping_fixture(tmp_path: Path) -> None:
+    """Actual script: wrong executable, missing/malformed/old birth time refuse."""
+    repo = tmp_path / "identity-repo"
+    runtime = repo / ".platform_v1_runtime"
+    runtime.mkdir(parents=True)
+    pid_file = runtime / "devup_pids.json"
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(120)"],
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+    try:
+        observed = _run_ps(
+            f"$p = Get-Process -Id {child.pid}; "
+            '@{ exe = [System.IO.Path]::GetFileName($p.MainModule.FileName); '
+            'start_time = $p.StartTime.ToString("o") } | ConvertTo-Json -Compress'
+        )
+        assert observed.returncode == 0, observed.stderr
+        identity = json.loads(observed.stdout)
+        valid = {"name": "identity-fixture", "pid": child.pid, "wrapped": False,
+                 "expected_exe": identity["exe"], "start_time": identity["start_time"]}
+        for changes in (
+            {"expected_exe": "incorrect-fixture.exe"},
+            {"start_time": None},
+            {"start_time": "not-a-timestamp"},
+            {"start_time": "2000-01-01T00:00:00Z"},
+        ):
+            entry = {**valid, **changes}
+            pid_file.write_text(
+                json.dumps({"repo_dir": str(repo), "source_dir": str(repo), "children": [entry]}),
+                encoding="utf-8",
+            )
+            result = _run_dev_down(repo, os.environ.copy())
+            assert result.returncode == 1, (changes, result.stdout, result.stderr)
+            record = json.loads(pid_file.read_text(encoding="utf-8-sig"))
+            assert record["children"][0]["outcome"] == "refused_identity_mismatch", record
+            assert record["children"][0]["pid"] == child.pid, record
+            assert child.poll() is None, f"refused identity was terminated: {changes}"
+        # A separate process is not owned by either recorded wrapper tree.
+        stack_dir = tmp_path / "owned-stack"
+        stack_dir.mkdir()
+        stack_repo, env, ports = _setup_stub_stack(stack_dir)
+        try:
+            started = _run_dev_up(stack_repo, env, ports)
+            assert started.returncode == 0, (started.stdout, started.stderr)
+            stopped = _run_dev_down(stack_repo, env)
+            assert stopped.returncode == 0, (stopped.stdout, stopped.stderr)
+            assert child.poll() is None, "unrelated fixture process was stopped"
+            shutdown = json.loads((stack_repo / ".platform_v1_runtime" / "devup_pids.json").read_text(encoding="utf-8-sig"))
+            assert all(entry["outcome"] == "stopped" for entry in shutdown["children"]), shutdown
+            for entry in shutdown["children"]:
+                assert entry["start_time"] and entry["wrapped"], entry
+                assert entry["job_name"] and entry["stop_diagnostics"]["completed"], entry
+                assert entry["stop_diagnostics"]["active_remaining"] == 0, entry
+            _assert_ports_free(ports)
+        finally:
+            if (stack_repo / ".platform_v1_runtime" / "devup_pids.json").exists():
+                cleanup = _run_dev_down(stack_repo, env)
+                assert cleanup.returncode == 0, (cleanup.stdout, cleanup.stderr)
+    finally:
+        # Popen retains the handle of the test-created process; no PID-only kill.
+        child.terminate()
+        child.wait(timeout=10)
+
+
+@requires_windows_powershell
+@pytest.mark.parametrize("scenario", ["late_child", "root_exited_failure", "legacy", "query_after_termination"])
+def test_birth_bound_job_owns_late_children_and_retains_failed_stop(
+    tmp_path: Path, scenario: str,
+) -> None:
+    """Actual native launch/stop, controlled scheduling, no unknown process kills."""
+    port = _free_port()
+    signal = tmp_path / "spawn"
+    child_pid = tmp_path / "child-pid"
+    root_exit = tmp_path / "exit-root"
+    worker = tmp_path / "worker.py"
+    worker.write_text(
+        "import pathlib, subprocess, sys, time\n"
+        "signal, pid_file, leave = map(pathlib.Path, sys.argv[1:4])\n"
+        "while not signal.exists(): time.sleep(.01)\n"
+        "p = subprocess.Popen([sys.executable, '-c', "
+        "\"import socket,time; s=socket.socket(); s.bind(('127.0.0.1',int(__import__('sys').argv[1]))); s.listen(); time.sleep(90)\", "
+        "sys.argv[4]])\n"
+        "pid_file.write_text(str(p.pid))\n"
+        "while not leave.exists(): time.sleep(.01)\n",
+        encoding="utf-8",
+    )
+    # Single quotes in PS literals must be doubled even in fixture paths.
+    def ps(value: object) -> str:
+        return "'" + str(value).replace("'", "''") + "'"
+
+    repo = tmp_path / "record"
+    runtime = repo / ".platform_v1_runtime"
+    runtime.mkdir(parents=True)
+    script = tmp_path / "job-case.ps1"
+    report = tmp_path / "report.json"
+    down_literal = ps(DEV_DOWN)
+    failure_runner = tmp_path / "failure-runner.ps1"
+    failure_runner.write_text(
+        f". {down_literal} -RepoDir {ps(repo)} -FunctionsOnly\n"
+        "function Stop-OwnedJob([IntPtr]$job) { throw 'injected terminate failure after root exit' }\n"
+        f"$body = Get-Content -LiteralPath {down_literal} -Raw -Encoding UTF8\n"
+        "$tail = $body.Substring($body.IndexOf('if (-not (Test-Path -LiteralPath $pidFile))'))\n"
+        "Invoke-Expression $tail\n",
+        encoding="utf-8-sig",
+    )
+    common = f"""
+$ErrorActionPreference = 'Stop'
+. {down_literal} -RepoDir {ps(repo)} -FunctionsOnly
+Initialize-OwnedJobType
+$launch = [NerelanOwnedJob]::Start({ps(sys.executable)}, ('"' + {ps(worker)} + '" "' + {ps(signal)} + '" "' + {ps(child_pid)} + '" "' + {ps(root_exit)} + '" {port}'), {ps(tmp_path)})
+$root = $launch.Process
+$record = [pscustomobject]@{{ name='job-fixture'; pid=$root.Id; expected_exe='python.exe'; wrapped=$true; start_time=$root.StartTime.ToString('o'); job_name=$launch.JobName }}
+$proof = [ordered]@{{ scenario={ps(scenario)}; job_name=$launch.JobName; root_pid=$root.Id }}
+function Spawn-FixtureChild {{
+  Set-Content -LiteralPath {ps(signal)} -Value spawn
+  $deadline = [datetime]::UtcNow.AddSeconds(10)
+  while (-not (Test-Path -LiteralPath {ps(child_pid)})) {{
+    if ([datetime]::UtcNow -gt $deadline) {{ throw 'Fixture spawn timeout' }}
+    Start-Sleep -Milliseconds 20
+  }}
+  $script:fixtureChild = Get-Process -Id ([int](Get-Content -LiteralPath {ps(child_pid)}))
+  $null = $script:fixtureChild.Handle
+  $job = [NerelanOwnedJob]::Open($launch.JobName)
+  try {{
+    if (-not [NerelanOwnedJob]::Contains($job,$script:fixtureChild)) {{ throw 'Fixture child not job-owned' }}
+  }} finally {{ [NerelanOwnedJob]::Close($job) }}
+  $tcp = [Net.Sockets.TcpClient]::new()
+  try {{
+    while (-not $tcp.Connected) {{
+      try {{ $tcp.Connect('127.0.0.1',{port}) }} catch {{
+        if ([datetime]::UtcNow -gt $deadline) {{ throw }}
+        Start-Sleep -Milliseconds 20
+      }}
+    }}
+  }} finally {{ $tcp.Dispose() }}
+}}
+try {{
+"""
+    if scenario == "late_child":
+        case = """
+  function Stop-OwnedJob([IntPtr]$job) {
+    # Called after the real Members evidence snapshot: spawn a real late listener.
+    Spawn-FixtureChild
+    $proof.child_pid = $script:fixtureChild.Id
+    $proof.late_was_listening = $true
+    [NerelanOwnedJob]::Terminate($job)
+  }
+  $proof.result = Invoke-OwnedTreeStop $root $record
+  $proof.child_exited = $script:fixtureChild.WaitForExit(5000)
+"""
+    elif scenario == "root_exited_failure":
+        case = f"""
+  Spawn-FixtureChild
+  $proof.child_pid = $script:fixtureChild.Id
+  Set-Content -LiteralPath {ps(root_exit)} -Value exit
+  if (-not $root.WaitForExit(5000)) {{ throw 'Fixture root did not exit' }}
+  [ordered]@{{repo_dir={ps(repo)};source_dir={ps(repo)};children=@($record)}} | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $pidFile -Encoding UTF8
+  & {ps(_WINDOWS_PS_HOST)} -NoProfile -ExecutionPolicy Bypass -File {ps(failure_runner)} > {ps(tmp_path / 'failure.log')} 2>&1
+  $proof.failed_exit = $LASTEXITCODE
+  $saved = Get-Content -LiteralPath $pidFile -Raw -Encoding UTF8 | ConvertFrom-Json
+  $proof.failed = $saved.children[0].stop_diagnostics
+  $proof.failed_outcome = $saved.children[0].outcome
+  $proof.retained_start_time = $saved.children[0].start_time
+  $proof.retained_job = $saved.children[0].job_name
+  $proof.child_alive_after_failure = -not $script:fixtureChild.HasExited
+  & {ps(_WINDOWS_PS_HOST)} -NoProfile -ExecutionPolicy Bypass -File {down_literal} -RepoDir {ps(repo)} > {ps(tmp_path / 'retry.log')} 2>&1
+  $proof.retry_exit = $LASTEXITCODE
+  $saved = Get-Content -LiteralPath $pidFile -Raw -Encoding UTF8 | ConvertFrom-Json
+  $proof.retried = $saved.children[0].stop_diagnostics
+  $proof.child_exited = $script:fixtureChild.WaitForExit(5000)
+"""
+    elif scenario == "query_after_termination":
+        case = """
+  $script:queries = 0
+  function Get-OwnedJobActiveCount([IntPtr]$job) {
+    $script:queries++
+    if ($script:queries -gt 1) { throw 'injected query failure after termination' }
+    return [NerelanOwnedJob]::Active($job)
+  }
+  $proof.failed = Invoke-OwnedTreeStop $root $record
+  $proof.root_exited = $root.WaitForExit(5000)
+  $record | Add-Member -NotePropertyName stop_diagnostics -NotePropertyValue $proof.failed
+  function Get-OwnedJobActiveCount([IntPtr]$job) { [NerelanOwnedJob]::Active($job) }
+  $proof.retried = Invoke-OwnedTreeStop $null $record
+"""
+    else:
+        case = """
+  $unbound = $record.PSObject.Copy()
+  $unbound.job_name = $null
+  $proof.legacy = Invoke-OwnedTreeStop $root $unbound
+  $proof.root_alive_after_refusal = -not $root.HasExited
+  # A stale snapshot injection must never establish kill authority.
+  Add-Type 'public static class NerelanProcessParents { public static System.Collections.Generic.Dictionary<int,int> Snapshot() { throw new System.Exception("snapshot must not be used"); } }'
+  try { $null = Get-OwnedProcessTree $root; throw 'unsafe ancestry accepted' }
+  catch { $proof.snapshot_refusal = $_.Exception.Message }
+  $wrong = $record.PSObject.Copy()
+  $wrong.job_name = $wrong.job_name -replace '-[0-9]+-', '-1-'
+  $proof.wrong_binding = Invoke-OwnedTreeStop $root $wrong
+  $proof.root_alive_after_wrong_binding = -not $root.HasExited
+  $proof.result = Invoke-OwnedTreeStop $root $record
+"""
+    final = f"""
+}} finally {{
+  # Cleanup is the launcher's exact birth-bound job, never a raw PID tree.
+  $completed = if ($proof.retried) {{ $proof.retried }} else {{ $proof.result }}
+  if ($completed -and $completed.completed) {{ $record | Add-Member -NotePropertyName stop_diagnostics -NotePropertyValue $completed -Force }}
+  $cleanup = Invoke-OwnedTreeStop $null $record
+  $proof.cleanup = $cleanup
+  $proof | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath {ps(report)} -Encoding UTF8
+  if ($script:fixtureChild) {{ $script:fixtureChild.Dispose() }}
+  $root.Dispose()
+}}
+"""
+    script.write_text(common + case + final, encoding="utf-8-sig")
+    result = subprocess.run(
+        [_WINDOWS_PS_HOST, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)],
+        capture_output=True, text=True, timeout=45,
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    observed = json.loads(report.read_text(encoding="utf-8-sig"))
+    if scenario != "query_after_termination":
+        assert observed["cleanup"]["completed"], observed
+    if scenario == "late_child":
+        assert observed["late_was_listening"] and observed["child_exited"], observed
+        assert observed["result"]["completed"], observed
+        assert observed["result"]["active_remaining"] == 0, observed
+        assert observed["child_pid"] not in {m["pid"] for m in observed["result"]["members_before"]}, observed
+    elif scenario == "root_exited_failure":
+        assert observed["failed_exit"] == 1 and observed["failed_outcome"] == "stop_failed", observed
+        assert observed["retained_start_time"] and observed["retained_job"] == observed["job_name"], observed
+        assert not observed["failed"]["completed"], observed
+        assert "injected terminate failure" in observed["failed"]["error"], observed
+        assert observed["failed"]["job_name"] == observed["job_name"], observed
+        assert observed["failed"]["root_start_time"], observed
+        assert observed["child_pid"] in {m["pid"] for m in observed["failed"]["members_before"]}, observed
+        assert observed["failed"]["active_remaining"] > 0 and observed["child_alive_after_failure"], observed
+        assert observed["retry_exit"] == 0 and observed["retried"]["completed"] and observed["child_exited"], observed
+    elif scenario == "query_after_termination":
+        assert observed["root_exited"] and not observed["failed"]["completed"], observed
+        assert observed["failed"]["termination_requested"] and observed["failed"]["members_before"], observed
+        assert "query failure" in observed["failed"]["error"], observed
+        assert not observed["retried"]["completed"] and observed["retried"]["error"], observed
+    else:
+        assert not observed["legacy"]["completed"] and not observed["legacy"]["termination_requested"], observed
+        assert observed["root_alive_after_refusal"] and observed["root_alive_after_wrong_binding"], observed
+        assert "do not establish" in observed["snapshot_refusal"], observed
+        assert not observed["wrong_binding"]["completed"], observed
+        assert observed["result"]["completed"], observed
+    _assert_ports_free({"fixture": port})
+
+
+_KEEPER_REUSE_PS = r'''
+param([string]$DownScript,[string]$UpScript,[string]$Repo,[string]$HostExe,[int]$FrontendPort,[int]$TaskPort,[int]$ModelPort)
+$ErrorActionPreference='Stop'
+. $DownScript -RepoDir $Repo -FunctionsOnly
+Initialize-OwnedJobType
+$originalRaw=Get-Content -Raw -Encoding UTF8 $pidFile
+$original=$originalRaw|ConvertFrom-Json
+$original|ConvertTo-Json -Depth 10|Set-Content (Join-Path $Repo 'original-record.json') -Encoding utf8
+$a=$original.children[0];$b=$original.children[1]
+$job=[NerelanOwnedJob]::Open($a.job_name)
+$guards=[Collections.Generic.List[Diagnostics.Process]]::new()
+$proof=[ordered]@{host=$PSVersionTable.PSVersion.ToString();fixture=$Repo;original=$original;members=@()}
+try{
+ foreach($m in [NerelanOwnedJob]::Members($job)){
+  $p=Get-Process -Id $m.pid -ErrorAction Stop
+  $null=$p.Handle
+  if(-not [NerelanOwnedJob]::Contains($job,$p) -or $p.MainModule.FileName -ne $m.executable -or [NerelanOwnedJob]::Creation($p) -ne ([datetime]::Parse($m.start_time)).ToUniversalTime().ToFileTimeUtc()){throw 'Ambiguous member'}
+  $guards.Add($p);$proof.members+=@{pid=$p.Id;exe=$m.executable;start_time=$m.start_time;job_member=$true}
+ }
+ # The dedicated keeper is a launcher's direct child, not a child of the cmd root.
+ Add-Type -TypeDefinition @'
+using System;using System.Runtime.InteropServices;
+public static class ParentForKeeper {
+ [StructLayout(LayoutKind.Sequential)] struct B{public IntPtr a,b,c,d,pid,parent;}
+ [DllImport("ntdll.dll")]static extern int NtQueryInformationProcess(IntPtr p,int c,out B b,int n,out int r);
+ public static long Parent(IntPtr p){B b;int r;if(NtQueryInformationProcess(p,0,out b,Marshal.SizeOf(typeof(B)),out r)!=0)throw new Exception("Parent unreadable");return b.parent.ToInt64();}
+}
+'@
+ $keepers=@($guards|Where-Object {$_.MainModule.FileName -ieq (Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe') -and [ParentForKeeper]::Parent($_.Handle) -ne $a.pid})
+ if($keepers.Count -ne 1){throw 'Keeper not unique'}
+ $proof.keeper_pid=$keepers[0].Id
+ $proof.keeper_parent=[ParentForKeeper]::Parent($keepers[0].Handle)
+ $keepers[0].Kill();if(-not $keepers[0].WaitForExit(5000)){throw 'Keeper not exited'}
+ [NerelanOwnedJob]::Close($job);$job=[IntPtr]::Zero
+ $probe=[NerelanOwnedJob]::Open($a.job_name);$proof.native_job_missing=($probe -eq [IntPtr]::Zero)
+ if($probe -ne [IntPtr]::Zero){[NerelanOwnedJob]::Close($probe);throw 'Missing job fixture not established'}
+ # No runtime record injection: invoke the actual entrypoint against unchanged state.
+ $ErrorActionPreference='Continue'
+ $output=& $HostExe -NoProfile -File $UpScript -RepoDir $Repo -SourceDir $Repo -FrontendPort $FrontendPort -TaskApiPort $TaskPort -ModelControlPort $ModelPort -NoBrowser 2>&1
+ $ErrorActionPreference='Stop'
+ $proof.rc=$LASTEXITCODE;$proof.output=@($output|ForEach-Object {$_.ToString()})
+ $after=Get-Content -Raw -Encoding UTF8 $pidFile|ConvertFrom-Json
+ $proof.record_job_unchanged=((Get-Content -Raw -Encoding UTF8 $pidFile) -ceq $originalRaw)
+ $proof.failclosed=($proof.rc -ne 0 -and (@($proof.output|Where-Object {$_ -match 'reusing recorded runtime'}).Count -eq 0))
+}finally{
+ if($job -ne [IntPtr]::Zero){[NerelanOwnedJob]::Close($job)}
+ # A has lost its job; cleanup uses only exact handles verified before the fault.
+ foreach($p in $guards){if(-not $p.HasExited){$p.Kill();if(-not $p.WaitForExit(5000)){throw 'A cleanup incomplete'}}}
+ $proof.A_cleanup=@($guards|ForEach-Object {@{pid=$_.Id;exited=$_.HasExited}})
+ foreach($p in $guards){$p.Dispose()}
+ # A evidence is preserved above. B still has its original exact job binding.
+ $cleanupState=[ordered]@{repo_dir=$original.repo_dir;source_dir=$original.source_dir;children=@($b)}
+ $cleanupState|ConvertTo-Json -Depth 10|Set-Content -LiteralPath $pidFile -Encoding utf8
+ $out=& $HostExe -NoProfile -File $DownScript -RepoDir $Repo 2>&1
+ $proof.B_cleanup_rc=$LASTEXITCODE
+ if($proof.B_cleanup_rc -ne 0){throw 'B cleanup failed'}
+ $proof|ConvertTo-Json -Depth 12|Set-Content (Join-Path $Repo 'keeper-reuse-report.json') -Encoding utf8
+}
+$proof|ConvertTo-Json -Depth 12
+if(-not $proof.failclosed){exit 1}
+
+'''
+
+
+@requires_windows_powershell
+def test_dev_up_refuses_reuse_after_real_keeper_exit(tmp_path: Path) -> None:
+    """Keep the runtime record unchanged; remove the actual known keeper."""
+    repo, env, ports = _setup_stub_stack(tmp_path)
+    started = _run_dev_up(repo, env, ports)
+    assert started.returncode == 0, (started.stdout, started.stderr)
+    harness = tmp_path / "keeper-reuse.ps1"
+    harness.write_text(_KEEPER_REUSE_PS, encoding="utf-8-sig")
+    result = subprocess.run(
+        [_WINDOWS_PS_HOST, "-NoProfile", "-File", str(harness),
+         "-DownScript", str(DEV_DOWN), "-UpScript", str(DEV_UP),
+         "-Repo", str(repo), "-HostExe", _WINDOWS_PS_HOST,
+         "-FrontendPort", str(ports["frontend"]),
+         "-TaskPort", str(ports["task"]), "-ModelPort", str(ports["model"])],
+        env=env, capture_output=True, text=True, timeout=60,
+    )
+    proof = json.loads((repo / "keeper-reuse-report.json").read_text(encoding="utf-8-sig"))
+    assert proof["native_job_missing"] and proof["record_job_unchanged"], proof
+    assert proof["rc"] != 0 and proof["failclosed"], proof
+    assert proof["B_cleanup_rc"] == 0, proof
+    assert all(member["exited"] for member in proof["A_cleanup"]), proof
+    assert result.returncode == 0, (result.stdout, result.stderr)
     _assert_ports_free(ports)
