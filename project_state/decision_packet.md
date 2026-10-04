@@ -1,10 +1,10 @@
-# Prospective continuation of preserved read-only review runtime candidate
+# Runtime-compatible protected review context projection
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261004_issue811_review_only_runtime_r3_v3",
-  "round_id": "round_20261004_issue811_review_only_runtime_r3_v3",
+  "decision_id": "decision_20261004_issue811_review_projection_r3_v1",
+  "round_id": "round_20261004_issue811_review_projection_r3_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,20 +16,20 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "ISSUE811_FIRST_CLASS_READ_ONLY_RUNTIME",
+  "decision_scope": "ISSUE811_READ_ONLY_PROJECTION_RUNTIME_CONTEXT_REPAIR",
   "source_issue": 811,
   "parent_issue": 137,
   "repository": "dddd2024/Nerelan",
   "approved_by": "dddd2024 / current explicit full project delegation",
-  "approval_basis": "Current persistent explicit full-project delegation prospectively adopts preserved runtime candidate and resumes remaining original bounded checks after overnight expiry; no retroactive authority or budget reset.",
+  "approval_basis": "Owner persistent full project delegation prospectively authorizes runtime compatibility/context repair after actual native Task failure; old native/check/failed-helper budgets retained.",
   "risk_tier": "R3",
   "authorized_risk_tier": "R3",
   "governance_artifact_risk_tier": "R2",
-  "integration_base_ref": "codex/issue811-short-fixtures-r3-v1-20261003",
-  "base_sha": "277625927e39ee568f56cbf403b5107ca92e28dd",
-  "activation_base_sha": "277625927e39ee568f56cbf403b5107ca92e28dd",
-  "starting_head": "277625927e39ee568f56cbf403b5107ca92e28dd",
-  "required_branch": "codex/issue811-review-only-runtime-r3-v3-20261004",
+  "integration_base_ref": "codex/issue811-review-only-runtime-r3-v3-20261004",
+  "base_sha": "87f717b0a04083366ea0f9a1ac0d55be35cc09fd",
+  "activation_base_sha": "87f717b0a04083366ea0f9a1ac0d55be35cc09fd",
+  "starting_head": "87f717b0a04083366ea0f9a1ac0d55be35cc09fd",
+  "required_branch": "codex/issue811-review-projection-r3-v1-20261004",
   "fresh_worktree_creation_required": false,
   "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
@@ -77,8 +77,8 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "Owner persistent full delegation prospectively authorizes Issue811 first-class read-only Task lifecycle integration on explicit approved planning base PR1072@277625927e39ee568f56cbf403b5107ca92e28dd; base remains unmerged with static advisory review, not independent acceptance. Reuse exact three reviewed collector blobs from1069@874c3fb11806b9ca4d19b913fce6125e89782be2 unchanged. Implement TaskExecutionService.execute_review and bounded existing Task API POST /api/tasks/{id}/review with existing TaskStore/status/events/evidence, no new DB/schema/executor kind/verifier/index/merge authority or unattended dispatch. Resolve target repository only from trusted registry/task identity; browser cannot supply filesystem paths/tools/config/policy/credentials. Collect exact explicit base/head and bounded paths with mature Git collector, original repo source/refs/index/config read-only. Native model/executor cwd is a freshly owned minimal projection Git repo containing host-authored policy/plan and serialized untrusted base/head context only; no target checkout, target AGENTS/skills/MCP/plugin/config activation. New bounded review_only role denies ALL bash/task/external-directory/network tools, only handoff/review.md write, no target write capability. Parse <=64KiB structured review-findings handoff, reject unknown fields/target mismatch/non-model source/excess findings/private reasoning/known secret patterns across persisted fields; use existing normalize_review_finding and bounded sanitized existing evidence path. Atomic existing lifecycle transitions prevent competing model launches; clean/static report is not functional validation or human/independent approval. Target generation and explicit all authority flags remain false in persisted records. Preserve original source/config, source-packet/CI review reports and existing frontend services; no Task status forgery for earlier direct-role QUEUED task. Provider-free meaningful actual Git/HTTP tests exercise lifecycle success/failure/concurrent claim, output/mutation/secret/target mismatch, head instruction/config data-only, API repository/path authority confinement and ordinary/sequential regression. Test executors are provider-free controlled substitutes, never reported as live model/detection acceptance. No new live model/provider/credentials/browser/native OpenCode trials (existing4 installed-OpenCode tests deselected only). Known installed Git/Python/PS5/PS7/Node and newly owned disposable fixture process/job cleanup permitted only under new short absent F:/nrl-reviewrt1; no existing file/user/runtime cleanup. At most6 provider-free development pytest processes/3 correction rounds, then mandatory single full Platform V1<=2400s, PathA<=120s and final committed-head focused<=300s; mandatory failure stops publication, no rerun/extra correction. One Decision-only activation and one product commit, max2 normal exact-branch pushes, one activation Draft against explicit planning branch1072/base277, max6 body updates/natural CI reads, no Ready/Merge/Issue closure/comments/rewrite/dispatch/install/workflow/dependency/config changes. No claim full811/allGitHub tasks complete; analyzer/context enrichment/forge/incremental/repair remain explicit next integration requirements. Six-hour execution window. Prospective v2 resolves old-template read-only reference conflict by treating opencode_executor.py exclusively as approved edit scope. Original v1 immutable Decision-only activation/preflight BLOCKED preserved, zero source/test/model/push/Draft calls spent; no execution budget is reset or hidden. This is the sole bootstrap scope correction. Prospective v3 resumes after v2 expired at2026-10-03T22:20:15.836421+00:00. Original v2 activation/Draft1073, failed native dev1(21failed319passed1skipped9errors) and expired Decision remain immutable. Recovery incorrectly changed task_execution.py and test_review_execution.py after expiry before observing current time; no test/model/push/staging occurred and deadline blocked dev2 start. This is explicitly recorded as an out-of-window correction, never retroactively authorized. Current owner full delegation prospectively adopts only the exact external preserved-source SHA256 manifest for reinspection/continuation; preserve all source/gates and never stage products under old authority. New fresh branch from original explicit planningbase277, Decision-only activation/new Draft before further edits/tests. Original runtime implementation budget remains cumulative6 development pytest checks(spent1,remaining5),3 correction rounds(charged1,remaining2),3 mandatory tests(spent0); no hidden retry/reset. V1 preflight conflict and V2 expiry are finite terminal stages. New source changes are permitted only by v3 approved allowlist. All old source/model/review/test/landing budgets preserved separately.",
-    "completion_boundary": "Actual first-class provider-free Git/HTTP/TaskStore lifecycle implemented and verified; live-model quality/independent acceptance/landing/full811 separate."
+    "specification": "Persistent explicit Owner full project delegation prospectively authorizes bounded runtime/context repair of Issue811 NEW native failure on Draft1074@87f717b0a04083366ea0f9a1ac0d55be35cc09fd, explicitly approved planning base/source1074, not main. Original rootsource native CI37175055295 SUCCESS native6934pass31skip/all154reviewcases; first actual native Task API run task-1791087503153-9157c508b9c5 FAILED review_projection_mutated after11observedSenseNova requests. All2935targettrackedfiles, targetGitindex/config and originalsavedmodelconfig unchanged; owned jobs active0/portsfree/projectionremoved. Mutation paths were not preserved, exact cause unresolved: never claim cache/index versus model mutation is proven. Native context249762bytes one JSON line, model readability weakness observed as size/layout only, not a proven particular upstream truncation. Preserve all original source/test/CI/model/helperfailed evidence and exhausted native1/1; no same-head native retry/modelcall in source repair. Fresh rootbranch fromexact87; Decision-only activation and exact Draft against approved1074planning ref before changing any product/test/docs. Allowed product ONLY review_execution.py, test_review_execution.py, docs/review-only-tasks.md; collector/normalizer/API/task lifecycle/opencode permissions/binding/vault/workflows/deps/verifiers/sourcepolicy unchanged. Repair uses mature standard Git separate-git-dir: modelcwd childcontext with immutable .git pointer; disposable internal Git metadata outside modelcwd, so trusted runtime cache/index activity is separate from protected model inputs. No blanket .git ignore or broad mutation allowlist, no targetsource/index/config/ref write. Protect model context/plan/source text/.git pointer plus privatehost Git config/HEAD/exact initial branchref; model editstillhandoffonly, externaldirectory/bash/task/network all denied. Existing owned TemporaryDirectory handles cleanup only fresh private container; no original source/runtime/userdata cleanup. Materialize every collected nonwithheld base/head code/instruction/config text as ordinal .txt data under hostfixed review-data paths, UTF8 exactbytes preserved (no platformnewline translation), bounded by existing collector/filecount. Small readable structured context index references these immutable files and retains exact authenticated target/digests/contentstates; no targetAGENTS/MCP/plugins/config activation, no custom analyzer/index framework or second verifier. Do not narrow reviewed paths/content merely to make smoke test pass. Retain original all-current content observations binding, evidence refs and existing output private/secret/source/target/size checks, all flagsfalse, no functionality/independence/landing claims. Add bounded integrity rejection metadata through existing Task events: known hostpath labels only, unknown filename count without raw names/content, no raw secrets/private reasoning or new receipt/Gate/schema. Provider-free actualGit tests exercise separate metadata nativeGitstatus/cache activity without source mutation, complete multiline code-byte materialization including hostile AGENTS/config quoted data, immutable pointer/config/HEAD/ref/data/plan/unexpectedfile mutation fails, safe diagnostics and same existingAPI/lifecycle/ordinary/concurrency/regressions. Retain all existing assertions/protections, no newskip/deselect/testweakening. This is third cumulative runtime correction round (old2spent,charge1,max3); original development pytest6limit4spent -> remaining2 only: affected review/Git/API group<=300s then existing execution/service/opencode/regression<=600s, no extra dev processes. New sourcephase finalmandatory once fullPlatformV1<=2400s retaining onlyexactoriginal4installedOpenCode exclusions; PathAonce<=120s; committedheadfocusedonce<=300s. Original previousmandatorychecks3/3completed onold87preserved; new changed candidate requires fresh exact-head mandatorychecks, never rebrandoldtests as new. Mandatory failure stops publication/corrections/retries. Scratch new absent F:/nrl-reviewrt2 only, known installed providerfreeGit/Python/PS/node; cleanup onlyfreshownedfixtures/jobs. Root oneDecisionactivation and oneproductcommit, max2normalexactbranch pushes, oneactivationDraft,max6bodyupdates and naturalexactheadCIoriginal reads, no Ready/Merge/Issueclosure/comments/rewrite/rerun/dispatch/install/nativeOpenCode/model/credential/browser/liveprovider in this sourcephase. Existing UI/nativecontroller/runtime/source1074 preserved. No full811/backlog claim. Sixhour window.",
+    "completion_boundary": "Corrected full-context disposable projection protected against model mutation; providerfree nativeGit/HTTP regressions and fresh exacthead CI. Live model/independent acceptance/full811 remain separate."
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
@@ -91,16 +91,8 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/review_git_snapshot.py",
-    "tests/platform_v1/test_review_git_snapshot.py",
-    "docs/review-git-snapshot.md",
     "reverse_agent/platform_v1/review_execution.py",
-    "reverse_agent/platform_v1/task_execution.py",
-    "reverse_agent/platform_v1/task_service.py",
-    "reverse_agent/platform_v1/opencode_executor.py",
     "tests/platform_v1/test_review_execution.py",
-    "tests/platform_v1/test_review_only_api.py",
-    "tests/platform_v1/test_opencode_executor.py",
     "docs/review-only-tasks.md"
   ],
   "authorized_risk_paths": [
@@ -110,16 +102,8 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/review_git_snapshot.py",
-    "tests/platform_v1/test_review_git_snapshot.py",
-    "docs/review-git-snapshot.md",
     "reverse_agent/platform_v1/review_execution.py",
-    "reverse_agent/platform_v1/task_execution.py",
-    "reverse_agent/platform_v1/task_service.py",
-    "reverse_agent/platform_v1/opencode_executor.py",
     "tests/platform_v1/test_review_execution.py",
-    "tests/platform_v1/test_review_only_api.py",
-    "tests/platform_v1/test_opencode_executor.py",
     "docs/review-only-tasks.md"
   ],
   "generated_artifact_paths": [
@@ -137,7 +121,12 @@
     "reverse_agent/platform_v1/artifact_handoff.py",
     "reverse_agent/platform_v1/run_store.py",
     "reverse_agent/platform_v1/policy_adapter.py",
-    ".github/workflows/ci.yml"
+    ".github/workflows/ci.yml",
+    "reverse_agent/platform_v1/opencode_executor.py",
+    "reverse_agent/platform_v1/review_git_snapshot.py",
+    "reverse_agent/platform_v1/review_findings.py",
+    "reverse_agent/platform_v1/task_execution.py",
+    "reverse_agent/platform_v1/task_service.py"
   ],
   "forbidden_mutated_paths": [
     "AGENTS.md",
@@ -247,7 +236,7 @@
   "allowed_commands": [
     {
       "command_id": "review.bootstrap",
-      "command": "Observe preserved exact source manifest/old expired v2, fresh explicit277 branch carrying known source unstaged, new Decision-only activation then canonical gates and new activation Draft; no old-authority execution/staging.",
+      "command": "Fresh exact87 approved planningbase1074 Decision-only activation, canonicalgates, pushactivation/Draftbefore productcode. No productchange beforeDraft.",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [
@@ -276,7 +265,7 @@
     },
     {
       "command_id": "review.implement",
-      "command": "Owner persistent full delegation prospectively authorizes Issue811 first-class read-only Task lifecycle integration on explicit approved planning base PR1072@277625927e39ee568f56cbf403b5107ca92e28dd; base remains unmerged with static advisory review, not independent acceptance. Reuse exact three reviewed collector blobs from1069@874c3fb11806b9ca4d19b913fce6125e89782be2 unchanged. Implement TaskExecutionService.execute_review and bounded existing Task API POST /api/tasks/{id}/review with existing TaskStore/status/events/evidence, no new DB/schema/executor kind/verifier/index/merge authority or unattended dispatch. Resolve target repository only from trusted registry/task identity; browser cannot supply filesystem paths/tools/config/policy/credentials. Collect exact explicit base/head and bounded paths with mature Git collector, original repo source/refs/index/config read-only. Native model/executor cwd is a freshly owned minimal projection Git repo containing host-authored policy/plan and serialized untrusted base/head context only; no target checkout, target AGENTS/skills/MCP/plugin/config activation. New bounded review_only role denies ALL bash/task/external-directory/network tools, only handoff/review.md write, no target write capability. Parse <=64KiB structured review-findings handoff, reject unknown fields/target mismatch/non-model source/excess findings/private reasoning/known secret patterns across persisted fields; use existing normalize_review_finding and bounded sanitized existing evidence path. Atomic existing lifecycle transitions prevent competing model launches; clean/static report is not functional validation or human/independent approval. Target generation and explicit all authority flags remain false in persisted records. Preserve original source/config, source-packet/CI review reports and existing frontend services; no Task status forgery for earlier direct-role QUEUED task. Provider-free meaningful actual Git/HTTP tests exercise lifecycle success/failure/concurrent claim, output/mutation/secret/target mismatch, head instruction/config data-only, API repository/path authority confinement and ordinary/sequential regression. Test executors are provider-free controlled substitutes, never reported as live model/detection acceptance. No new live model/provider/credentials/browser/native OpenCode trials (existing4 installed-OpenCode tests deselected only). Known installed Git/Python/PS5/PS7/Node and newly owned disposable fixture process/job cleanup permitted only under new short absent F:/nrl-reviewrt1; no existing file/user/runtime cleanup. At most6 provider-free development pytest processes/3 correction rounds, then mandatory single full Platform V1<=2400s, PathA<=120s and final committed-head focused<=300s; mandatory failure stops publication, no rerun/extra correction. One Decision-only activation and one product commit, max2 normal exact-branch pushes, one activation Draft against explicit planning branch1072/base277, max6 body updates/natural CI reads, no Ready/Merge/Issue closure/comments/rewrite/dispatch/install/workflow/dependency/config changes. No claim full811/allGitHub tasks complete; analyzer/context enrichment/forge/incremental/repair remain explicit next integration requirements. Six-hour execution window. Prospective v2 resolves old-template read-only reference conflict by treating opencode_executor.py exclusively as approved edit scope. Original v1 immutable Decision-only activation/preflight BLOCKED preserved, zero source/test/model/push/Draft calls spent; no execution budget is reset or hidden. This is the sole bootstrap scope correction. Prospective v3 resumes after v2 expired at2026-10-03T22:20:15.836421+00:00. Original v2 activation/Draft1073, failed native dev1(21failed319passed1skipped9errors) and expired Decision remain immutable. Recovery incorrectly changed task_execution.py and test_review_execution.py after expiry before observing current time; no test/model/push/staging occurred and deadline blocked dev2 start. This is explicitly recorded as an out-of-window correction, never retroactively authorized. Current owner full delegation prospectively adopts only the exact external preserved-source SHA256 manifest for reinspection/continuation; preserve all source/gates and never stage products under old authority. New fresh branch from original explicit planningbase277, Decision-only activation/new Draft before further edits/tests. Original runtime implementation budget remains cumulative6 development pytest checks(spent1,remaining5),3 correction rounds(charged1,remaining2),3 mandatory tests(spent0); no hidden retry/reset. V1 preflight conflict and V2 expiry are finite terminal stages. New source changes are permitted only by v3 approved allowlist. All old source/model/review/test/landing budgets preserved separately.",
+      "command": "Persistent explicit Owner full project delegation prospectively authorizes bounded runtime/context repair of Issue811 NEW native failure on Draft1074@87f717b0a04083366ea0f9a1ac0d55be35cc09fd, explicitly approved planning base/source1074, not main. Original rootsource native CI37175055295 SUCCESS native6934pass31skip/all154reviewcases; first actual native Task API run task-1791087503153-9157c508b9c5 FAILED review_projection_mutated after11observedSenseNova requests. All2935targettrackedfiles, targetGitindex/config and originalsavedmodelconfig unchanged; owned jobs active0/portsfree/projectionremoved. Mutation paths were not preserved, exact cause unresolved: never claim cache/index versus model mutation is proven. Native context249762bytes one JSON line, model readability weakness observed as size/layout only, not a proven particular upstream truncation. Preserve all original source/test/CI/model/helperfailed evidence and exhausted native1/1; no same-head native retry/modelcall in source repair. Fresh rootbranch fromexact87; Decision-only activation and exact Draft against approved1074planning ref before changing any product/test/docs. Allowed product ONLY review_execution.py, test_review_execution.py, docs/review-only-tasks.md; collector/normalizer/API/task lifecycle/opencode permissions/binding/vault/workflows/deps/verifiers/sourcepolicy unchanged. Repair uses mature standard Git separate-git-dir: modelcwd childcontext with immutable .git pointer; disposable internal Git metadata outside modelcwd, so trusted runtime cache/index activity is separate from protected model inputs. No blanket .git ignore or broad mutation allowlist, no targetsource/index/config/ref write. Protect model context/plan/source text/.git pointer plus privatehost Git config/HEAD/exact initial branchref; model editstillhandoffonly, externaldirectory/bash/task/network all denied. Existing owned TemporaryDirectory handles cleanup only fresh private container; no original source/runtime/userdata cleanup. Materialize every collected nonwithheld base/head code/instruction/config text as ordinal .txt data under hostfixed review-data paths, UTF8 exactbytes preserved (no platformnewline translation), bounded by existing collector/filecount. Small readable structured context index references these immutable files and retains exact authenticated target/digests/contentstates; no targetAGENTS/MCP/plugins/config activation, no custom analyzer/index framework or second verifier. Do not narrow reviewed paths/content merely to make smoke test pass. Retain original all-current content observations binding, evidence refs and existing output private/secret/source/target/size checks, all flagsfalse, no functionality/independence/landing claims. Add bounded integrity rejection metadata through existing Task events: known hostpath labels only, unknown filename count without raw names/content, no raw secrets/private reasoning or new receipt/Gate/schema. Provider-free actualGit tests exercise separate metadata nativeGitstatus/cache activity without source mutation, complete multiline code-byte materialization including hostile AGENTS/config quoted data, immutable pointer/config/HEAD/ref/data/plan/unexpectedfile mutation fails, safe diagnostics and same existingAPI/lifecycle/ordinary/concurrency/regressions. Retain all existing assertions/protections, no newskip/deselect/testweakening. This is third cumulative runtime correction round (old2spent,charge1,max3); original development pytest6limit4spent -> remaining2 only: affected review/Git/API group<=300s then existing execution/service/opencode/regression<=600s, no extra dev processes. New sourcephase finalmandatory once fullPlatformV1<=2400s retaining onlyexactoriginal4installedOpenCode exclusions; PathAonce<=120s; committedheadfocusedonce<=300s. Original previousmandatorychecks3/3completed onold87preserved; new changed candidate requires fresh exact-head mandatorychecks, never rebrandoldtests as new. Mandatory failure stops publication/corrections/retries. Scratch new absent F:/nrl-reviewrt2 only, known installed providerfreeGit/Python/PS/node; cleanup onlyfreshownedfixtures/jobs. Root oneDecisionactivation and oneproductcommit, max2normalexactbranch pushes, oneactivationDraft,max6bodyupdates and naturalexactheadCIoriginal reads, no Ready/Merge/Issueclosure/comments/rewrite/rerun/dispatch/install/nativeOpenCode/model/credential/browser/liveprovider in this sourcephase. Existing UI/nativecontroller/runtime/source1074 preserved. No full811/backlog claim. Sixhour window.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -293,23 +282,15 @@
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/review_git_snapshot.py",
-        "tests/platform_v1/test_review_git_snapshot.py",
-        "docs/review-git-snapshot.md",
         "reverse_agent/platform_v1/review_execution.py",
-        "reverse_agent/platform_v1/task_execution.py",
-        "reverse_agent/platform_v1/task_service.py",
-        "reverse_agent/platform_v1/opencode_executor.py",
         "tests/platform_v1/test_review_execution.py",
-        "tests/platform_v1/test_review_only_api.py",
-        "tests/platform_v1/test_opencode_executor.py",
         "docs/review-only-tasks.md"
       ],
       "produced_artifacts": []
     },
     {
       "command_id": "review.validate",
-      "command": "Cumulative runtime6 development checks/spent1/remaining5 and3 correction rounds/charged1/remaining2. Then mandatory single full Platform V1<=2400s/existing4 installed-OpenCode deselections only, PathA<=120s, final committed-head focused<=300s. New absent short fixture children under owned F:/nrl-reviewrt1; preserve all prior results, no models or test reruns beyond budget.",
+      "command": "Only current bounded2 remaining development checks; fresh oncefullPlatformV1/PathA/committedheadfocusedmandatory, gitdiffcheck/exactbranch/readiness/Draftbinding/naturalnativeCI and originalinputs preservation; no old87 test transfer.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -328,23 +309,15 @@
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/review_git_snapshot.py",
-        "tests/platform_v1/test_review_git_snapshot.py",
-        "docs/review-git-snapshot.md",
         "reverse_agent/platform_v1/review_execution.py",
-        "reverse_agent/platform_v1/task_execution.py",
-        "reverse_agent/platform_v1/task_service.py",
-        "reverse_agent/platform_v1/opencode_executor.py",
         "tests/platform_v1/test_review_execution.py",
-        "tests/platform_v1/test_review_only_api.py",
-        "tests/platform_v1/test_opencode_executor.py",
         "docs/review-only-tasks.md"
       ],
       "produced_artifacts": []
     },
     {
       "command_id": "review.publish",
-      "command": "Max2 normal exact-branch pushes, one activation Draft against codex/issue811-short-fixtures-r3-v1-20261003@277625927e39ee568f56cbf403b5107ca92e28dd; max6 body updates/natural exact-head CI reads only.",
+      "command": "Only current bounded2 remaining development checks; fresh oncefullPlatformV1/PathA/committedheadfocusedmandatory, gitdiffcheck/exactbranch/readiness/Draftbinding/naturalnativeCI and originalinputs preservation; no old87 test transfer.",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -383,7 +356,7 @@
   "integration_observation_surface": "user_local_owned_exact_main_successor",
   "runtime_host_launch_limit": 0,
   "frontend_launch_limit": 0,
-  "approval_event_or_time": "2026-10-04T02:55:35.027892+00:00",
+  "approval_event_or_time": "2026-10-04T04:32:54.995030+00:00",
   "credential_status_probe_limit": 0,
   "provider_network_call_limit": 0,
   "pull_request_description_update_limit": 6,
