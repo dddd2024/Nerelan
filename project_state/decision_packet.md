@@ -1,10 +1,10 @@
-# Default-deny Task client and trusted native bootstrap for118/384
+# Actual Windows native-client acceptance for118/384
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261004_issue118_client_guard_bootstrap_r3_v1",
-  "round_id": "round_20261004_issue118_client_guard_bootstrap_r3_v1",
+  "decision_id": "decision_20261004_issue118_native_browser_acceptance_r3_v1",
+  "round_id": "round_20261004_issue118_native_browser_acceptance_r3_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,20 +16,20 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "ISSUE118_TASK_CLIENT_GUARD_AND_TRUSTED_BOOTSTRAP",
+  "decision_scope": "ISSUE118_ACTUAL_WINDOWS_PRIVATE_CLIENT_ACCEPTANCE",
   "source_issue": 118,
   "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
   "approved_by": "dddd2024 / explicit current Owner full architecture delegation",
-  "approval_basis": "Current Owner delegates implementation and routine scoped decisions; this prospective bounded source phase preserves all privileged publication and independent acceptance boundaries.",
+  "approval_basis": "Existing explicit Owner takeover/frontend-opening/full architecture delegation; prospective bounded real runtime acceptance, no source/model/privileged-publication renewal.",
   "risk_tier": "R3",
   "authorized_risk_tier": "R3",
   "governance_artifact_risk_tier": "R2",
-  "integration_base_ref": "codex/issue118-client-session-r3-v2-20261004",
-  "base_sha": "e15a0b408d12b51e237bd0c4ac7ce290e1d1ed47",
-  "activation_base_sha": "e15a0b408d12b51e237bd0c4ac7ce290e1d1ed47",
-  "starting_head": "e15a0b408d12b51e237bd0c4ac7ce290e1d1ed47",
-  "required_branch": "codex/issue118-client-guard-bootstrap-r3-v1-20261004",
+  "integration_base_ref": "codex/issue118-client-guard-bootstrap-r3-v1-20261004",
+  "base_sha": "1b99c23d1e6c51289b973b2bbfe893627353af6f",
+  "activation_base_sha": "1b99c23d1e6c51289b973b2bbfe893627353af6f",
+  "starting_head": "1b99c23d1e6c51289b973b2bbfe893627353af6f",
+  "required_branch": "codex/issue118-native-browser-acceptance-r3-v1-20261004",
   "fresh_worktree_creation_required": false,
   "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
@@ -42,9 +42,9 @@
     "worktree_publication_readiness"
   ],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 1,
+  "product_change_commit_limit": 0,
   "generated_governance_commit_limit": 0,
-  "normal_push_attempt_limit": 2,
+  "normal_push_attempt_limit": 1,
   "draft_pr_creation_limit": 1,
   "mark_ready_attempt_limit": 0,
   "merge_attempt_limit": 0,
@@ -68,7 +68,7 @@
   "dependency_install_allowed": false,
   "live_provider_access_allowed": false,
   "credential_access_allowed": false,
-  "local_browser_execution_allowed": false,
+  "local_browser_execution_allowed": true,
   "model_api_invocation_allowed": false,
   "external_reverse_tool_invocation_allowed": false,
   "unknown_binary_execution_allowed": false,
@@ -77,8 +77,8 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "Current Owner delegates full unattended-platform implementation and routine scoped decisions. Issue118 is the primary architecture, dependency384 is confirmed loopback-client authority gap. Neither planning Issue nor its labels grants execution; this prospective bounded PathB source authority derives from current Owner full delegation. Previous distinct lifecycle/session foundations1078/1080 are source/native-CI complete, remain Draft/unaccepted/unmerged, with their failure/spending records preserved; no counters or expiry are renewed/transferred. This NEW request-admission and trusted native browser-bootstrap phase uses explicit planning base codex/issue118-client-session-r3-v2-20261004@e15a0b40, not main. Reuse idle F controller and existing shared frontend dependencies READ ONLY. Project's existing adapter cannot implement R3 source work and earlier real review failed; use Codex source fallback without project bypass/model retry. Before any product edit create Decision-only commit, canonical startup/plan/lint/preflight/readiness and bound activation Draft.\nImplement default-deny Task API client identity before sensitive GET or every POST body parsing/task lookup/dispatch/publication/window mutation, using existing host-memory LocalClientSession and bounded duplicate-header-safe constant-time validation. No-Origin transport is not authority; valid native capability may accompany no-Origin, while absent/wrong/expired/stale/query-only values fail closed. Preserve strict Origin as separate defense, OPTIONS is unauthenticated preflight only. Add explicitly public GET /api/health exposing only readiness Boolean and no user/window/repository state. Use existing Task service, one TaskStore/coordinator/receipts; do not copy runtime or invent policy/authority verifier/Gate. Preserve all upper authority/risk/budget/review/privileged-operation fences: client identity alone is not Owner policy confirmation or execution grant. Existing Model Control authority gap is not silently claimed fixed.\nWire the same session into CombinedTrustedHost handler; standalone TaskService gets an owned lifecycle session with private in-process delivery, no unauthenticated factory fallback. Reject duplicate active host starts, enforce existing loopback validator, revoke on owned cleanup and partial failures. Supported Windows dev-up opens owned native browser via trusted host and private anonymous stdin IPC to known Node; no capability env/argv/URL/log/file/TaskStore/evidence/renderer JS/browser storage or model child environment. No public token-fetch/GUI command endpoint. Node bridge uses existing mature playwright-core production dependency pinned1.62.1, promoted from already installed transitive dev package via exact package/lock edits; no install/shared node_modules/cache mutation. Exactly bound frontend/API origins and task API paths, block service workers, use native Node HTTP forwarding with strict limits/timeouts and no redirect-follow or credential forwarding to another origin; private value never enters renderer headers. Browser ownership/closure and unsupported bootstrap fail truthfully; preserve NoBrowser and existing verified process-tree ownership/unknown-port rejection. Health probing uses public-safe route. Native broker lifecycle status may be sanitized metadata, never secret. Existing five frontend HTTP clients remain unchanged; one native transport seam, no second frontend state machine.\nExactly26 approved product paths. Existing13 fixture modules may change ONLY explicit synthetic current-client session construction and positive task request headers, preserving original assertions/negative Origin semantics/provider-free behavior; no global HTTP monkeypatch/autouse auth injection, no auto-auth of new raw negative clients. Dev-up contract may adapt health/browser lifecycle assertions and retain all original ownership/safety tests. New deterministic HTTP negatives must reject before executor/Git/task/window/store actions, including missing/wrong/expired/stale/duplicate/non-ASCII/oversized/query-only/no-Origin; allowed Origin plus current capability retains semantics and disallowed Origin remains403. Prove session restart/rotation, zero secret persistence/logs/worker-env exposure, public health no user state, typed direct in-process bootstrap. New Python bootstrap tests invoke committed native Node standard-library test suite against owned fake loopback servers; verify private header injection/renderer absence/origin/frame/path limits/redirect no-leak/timeout/size/control IPC/error sanitization. Source checks do NOT launch actual browser or existing stack. Actual Windows supported-launcher/browser end-to-end acceptance remains a separate bounded runtime phase; do not call fixtures production proof or mark384/118/wholeGoal complete.\nMax8 development check invocations <=900seconds each and4 correction rounds, repeat only after changes/failures/unresolved need. Final mandatory full PlatformV1 once<=2400seconds with ONLY existing four installed-OpenCode opt-in exclusions, PathA once<=120seconds, committed exact-head client-auth/bootstrap/legacy Task HTTP/host/launcher regressions once<=900seconds. New Node suite runs under actual pytest producer and remains blocking; no skips for missing required Node capability. Existing frontend assets are unchanged, production dependency lock consistency is deterministic-tested; no local frontend build/Vitest/shared caches required. Freeze all26 source hashes for mandatory checks; preserve actual logs/JUnit/exit, original failures and spending, git diff --check, canonical publication readiness. Known local Node exact ref E:/Program Files/nodejs/node.exe SHA58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f may run only provider-free source checks; natural CI uses its installed known runner Node for committed standard-library tests. No real browser/model/provider/credential/known OpenCode probe/existing runtime modifications.\nOne Decision activation, one product commit,2 exact-branch pushes,1 Draft against explicit planning integration,6 description updates; bounded natural exact-head CI original logs/artifacts readback only, no runner/workflow dispatch or rerun. No Ready/Merge/main/auto-merge/history/tag/release/package publication/deploy/Issue or PR comments/closure/install/raw credential or private model-session access. Mandatory failure stops affected candidate publication; no automatic successor or budget reset. Absolute six-hour source window. All original broad backlog and architecture objectives remain intact, full client identity/product acceptance/Owner compiler/privileged adapters/recovery/independent landing remain required.",
-    "completion_boundary": "Default-deny Task client HTTP guard and trusted native browser bootstrap source, actual provider-free local/native CI evidence; actual Windows runtime acceptance, authenticated canonical Owner/upper authority and privileged architecture remain separate."
+    "specification": "Current Owner's explicit project takeover, frontend-opening and full unattended-architecture delegation authorizes this separately bounded real Windows runtime acceptance, not a retry or budget reset of the closed source phase1081. Source1b99c23d is locally/natively verified but Draft, unaccepted and unmerged. Preserve original source3/8 dev,4/4 corrections,3 mandatory checks,2/2 pushes, all failures and original absolute expiry. This runtime phase has NO source correction or product commit, NO models/provider calls/credential reads/auth-list probes/unknown tools/install/real task execution/window activation/privileged publication. Before any runtime operation create this immutable Decision-only activation, canonical plan/preflight/readiness and its own exact Draft againstcodex/issue118-client-guard-bootstrap-r3-v1-20261004@1b99c23d1e6c51289b973b2bbfe893627353af6f. Project runtime is used directly, not simulated.\nOne new owned temporary local clone only atF:\\nrl-auth118-native1, exact source1b99c23d1e6c51289b973b2bbfe893627353af6f, canonical origin dddd2024/Nerelan, not a new registered worktree. Source controller and accepted healthy frontend/old runtime processes are READ ONLY. Clone all tracked code from the known source; bind actual commit/tree/hash and disclose runtime deltas. Runtime-only frontend vite.config.ts may add cacheDir beneath the new owned clone so the existing frontend node_modules junction stays read-only. No frontend application, backend, trusted broker or launcher algorithm may change. Use existing mature playwright-core1.62.1 via read-only junction to F:/reverse-agent/frontend/node_modules; no dependency/cache modification or install. Known Node SHA58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f and Microsoft-signed Edge SHA39966f2799d3503e74871c945ba1c4877f38426d1c28756ab1545ad7c3de8907 only. No existing browser, host, saved configuration or unrelated window is modified.\nAt most1 supported dev-up launch (180seconds),1 owned native browser launch,1 Vite/combined stack startup,2 bounded acceptance observation invocations (<=180seconds each), and1 normal owned dev-down cleanup (120seconds). Frontend18879, Task18877, Model18878 must be free before launch; relay is owned ephemeral loopback. Fresh runtime TaskStore and ModelProfileStore are empty with no bindings, connections, secrets or external sessions; verify no OpenCode/auth-list/model subprocess. All real project HTTP observations stay on exactly these owned loopback ports, no public token-fetch/command endpoint. No private capability in argv/env/URL/files/logs/evidence/renderer/network screenshots. Never read the host's private value; use boolean HTTP outcomes and sanitized process metadata.\nUse actual Windows UI Automation/Win32 observation on the exact owned Edge window identified by process tree, creation times and frontend18879 address. Read-only UI navigation is limited to home/tasks/settings; capture owned-window pixels, not simulated screenshots. Observe positive Task API reads through real frontend, then unrelated native missing-capability/no-Origin requests must be401 before any task/window/store mutation; GEThealth exposes readiness only. Do not perform synthetic fixtures as real product implementation or claim Owner activation/upper authority/compiler/Model Control authentication solved.\nClose only the exact owned browser window through native UI; observe broker PID, creation time, ready flag and group lifecycle rather than assuming exit from browser disconnect. Preserve original outcome on any browser-close/private-stdin/readiness defect. Failure stops this acceptance and forbids another launch or source change under this packet; no automatic successor, retry or reset. Normal cleanup uses only this clone's canonical dev-down with verified ownership; never name-wide kill, PID-only kill, reset, clean, stash, delete or remove existing work. Record real commands, exits, timestamps, pixel evidence, frontend/backend source hashes, safety deltas and all receipts. Unknown usage is not zero. This is provider-free actual client acceptance, not independent audit, full384/full118/all backlog completion or mainline landing. Expiry2026-10-04T12:26:34.697358+00:00 with no renewal.",
+    "completion_boundary": "Actual owned Windows frontend/native private transport and browser-only closure evidence; source defects stop this phase. No complete architecture, independent acceptance or landing claim."
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
@@ -90,33 +90,7 @@
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/task_service.py",
-    "reverse_agent/platform_v1/trusted_host.py",
-    "reverse_agent/platform_v1/trusted_client.py",
-    "frontend/trusted-client.mjs",
-    "frontend/trusted-client.node-test.mjs",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "dev-up.ps1",
-    "docs/local-client-session.md",
-    "tests/platform_v1/test_task_client_auth.py",
-    "tests/platform_v1/test_trusted_client_bootstrap.py",
-    "tests/platform_v1/_local_client_fixture.py",
-    "tests/platform_v1/test_dev_up_contract.py",
-    "tests/platform_v1/test_artifact_handoff_http.py",
-    "tests/platform_v1/test_durable_execution.py",
-    "tests/platform_v1/test_durable_execution_v5.py",
-    "tests/platform_v1/test_execution_runtime_budget.py",
-    "tests/platform_v1/test_goal_completion_evidence.py",
-    "tests/platform_v1/test_goal_plan_revision.py",
-    "tests/platform_v1/test_provider_free_task_plane.py",
-    "tests/platform_v1/test_system_doctor.py",
-    "tests/platform_v1/test_task3c_v4_repairs.py",
-    "tests/platform_v1/test_task3c_v6_production_relay.py",
-    "tests/platform_v1/test_task_service.py",
-    "tests/platform_v1/test_trusted_host.py",
-    "tests/platform_v1/test_trusted_host_lifecycle.py"
+    "project_state/gates/transition_preflight_result.json"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
@@ -124,33 +98,7 @@
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/task_service.py",
-    "reverse_agent/platform_v1/trusted_host.py",
-    "reverse_agent/platform_v1/trusted_client.py",
-    "frontend/trusted-client.mjs",
-    "frontend/trusted-client.node-test.mjs",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "dev-up.ps1",
-    "docs/local-client-session.md",
-    "tests/platform_v1/test_task_client_auth.py",
-    "tests/platform_v1/test_trusted_client_bootstrap.py",
-    "tests/platform_v1/_local_client_fixture.py",
-    "tests/platform_v1/test_dev_up_contract.py",
-    "tests/platform_v1/test_artifact_handoff_http.py",
-    "tests/platform_v1/test_durable_execution.py",
-    "tests/platform_v1/test_durable_execution_v5.py",
-    "tests/platform_v1/test_execution_runtime_budget.py",
-    "tests/platform_v1/test_goal_completion_evidence.py",
-    "tests/platform_v1/test_goal_plan_revision.py",
-    "tests/platform_v1/test_provider_free_task_plane.py",
-    "tests/platform_v1/test_system_doctor.py",
-    "tests/platform_v1/test_task3c_v4_repairs.py",
-    "tests/platform_v1/test_task3c_v6_production_relay.py",
-    "tests/platform_v1/test_task_service.py",
-    "tests/platform_v1/test_trusted_host.py",
-    "tests/platform_v1/test_trusted_host_lifecycle.py"
+    "project_state/gates/transition_preflight_result.json"
   ],
   "generated_artifact_paths": [
     "project_state/gates/bootstrap_state.json",
@@ -177,29 +125,19 @@
   ],
   "forbidden_mutated_paths": [
     "AGENTS.md",
-    "docs/agents/**",
+    "docs/**",
     ".github/**",
     ".codex-skills/**",
-    "reverse_agent/control_plane/**",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/github_remote_verifier.py",
-    "reverse_agent/model_access/**",
+    "reverse_agent/**",
+    "frontend/**",
+    "dev-up.ps1",
+    "dev-down.ps1",
+    "pyproject.toml",
     "project_state/rounds/**",
     "project_state/mainline_merge_intents/**",
-    "frontend/src/**",
-    "frontend/node_modules/**",
-    "pyproject.toml",
-    "requirements*.txt",
     "**/secrets/**",
     "**/.env",
-    "**/auth.json",
-    "reverse_agent/platform_v1/run_store.py",
-    "reverse_agent/platform_v1/autonomy.py",
-    "reverse_agent/platform_v1/control_store.py",
-    "reverse_agent/platform_v1/local_client_session.py",
-    "reverse_agent/platform_v1/authority_adapter.py",
-    "reverse_agent/platform_v1/publication_controller.py"
+    "**/auth.json"
   ],
   "forbidden_operations": [
     "direct_push_main",
@@ -257,10 +195,10 @@
     "ci_network_exceptions": [],
     "trusted_worker_network_exceptions": [],
     "user_local_network_exceptions": [
-      "New owned provider-free synthetic HTTP/Node fixtures only, known installed Node58e74bf...; no model/provider/browser/existing ports."
+      "Owned real frontend18879/Task18877/Model18878/ephemeral relay only; no models/provider/auth probes/other listeners."
     ],
     "github_control_plane_network_exceptions": [
-      "Two exact branch pushes tocodex/issue118-client-guard-bootstrap-r3-v1-20261004,1 Draft againstcodex/issue118-client-session-r3-v2-20261004@e15a0b408d12b51e237bd0c4ac7ce290e1d1ed47,6 exact-head descriptions, bounded natural CI original evidence and live authority readback; no other GitHub writes."
+      "One activation push exactcodex/issue118-native-browser-acceptance-r3-v1-20261004, one Draft againstcodex/issue118-client-guard-bootstrap-r3-v1-20261004@1b99c23d1e6c51289b973b2bbfe893627353af6f,2 descriptions, bounded read-only natural CI and authority; no other writes."
     ]
   },
   "path_risk_floor": [
@@ -275,8 +213,8 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "client.bootstrap",
-      "command": "Fresh exact planning-base branch, Decision-only activation, canonical gates, exact bound activation Draft before source.",
+      "command_id": "native.bootstrap",
+      "command": "Fresh exact-base branch, immutable Decision-only activation and canonical gates; Draft before any actual runtime.",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [
@@ -304,8 +242,8 @@
       ]
     },
     {
-      "command_id": "client.implementation",
-      "command": "Current Owner delegates full unattended-platform implementation and routine scoped decisions. Issue118 is the primary architecture, dependency384 is confirmed loopback-client authority gap. Neither planning Issue nor its labels grants execution; this prospective bounded PathB source authority derives from current Owner full delegation. Previous distinct lifecycle/session foundations1078/1080 are source/native-CI complete, remain Draft/unaccepted/unmerged, with their failure/spending records preserved; no counters or expiry are renewed/transferred. This NEW request-admission and trusted native browser-bootstrap phase uses explicit planning base codex/issue118-client-session-r3-v2-20261004@e15a0b40, not main. Reuse idle F controller and existing shared frontend dependencies READ ONLY. Project's existing adapter cannot implement R3 source work and earlier real review failed; use Codex source fallback without project bypass/model retry. Before any product edit create Decision-only commit, canonical startup/plan/lint/preflight/readiness and bound activation Draft.\nImplement default-deny Task API client identity before sensitive GET or every POST body parsing/task lookup/dispatch/publication/window mutation, using existing host-memory LocalClientSession and bounded duplicate-header-safe constant-time validation. No-Origin transport is not authority; valid native capability may accompany no-Origin, while absent/wrong/expired/stale/query-only values fail closed. Preserve strict Origin as separate defense, OPTIONS is unauthenticated preflight only. Add explicitly public GET /api/health exposing only readiness Boolean and no user/window/repository state. Use existing Task service, one TaskStore/coordinator/receipts; do not copy runtime or invent policy/authority verifier/Gate. Preserve all upper authority/risk/budget/review/privileged-operation fences: client identity alone is not Owner policy confirmation or execution grant. Existing Model Control authority gap is not silently claimed fixed.\nWire the same session into CombinedTrustedHost handler; standalone TaskService gets an owned lifecycle session with private in-process delivery, no unauthenticated factory fallback. Reject duplicate active host starts, enforce existing loopback validator, revoke on owned cleanup and partial failures. Supported Windows dev-up opens owned native browser via trusted host and private anonymous stdin IPC to known Node; no capability env/argv/URL/log/file/TaskStore/evidence/renderer JS/browser storage or model child environment. No public token-fetch/GUI command endpoint. Node bridge uses existing mature playwright-core production dependency pinned1.62.1, promoted from already installed transitive dev package via exact package/lock edits; no install/shared node_modules/cache mutation. Exactly bound frontend/API origins and task API paths, block service workers, use native Node HTTP forwarding with strict limits/timeouts and no redirect-follow or credential forwarding to another origin; private value never enters renderer headers. Browser ownership/closure and unsupported bootstrap fail truthfully; preserve NoBrowser and existing verified process-tree ownership/unknown-port rejection. Health probing uses public-safe route. Native broker lifecycle status may be sanitized metadata, never secret. Existing five frontend HTTP clients remain unchanged; one native transport seam, no second frontend state machine.\nExactly26 approved product paths. Existing13 fixture modules may change ONLY explicit synthetic current-client session construction and positive task request headers, preserving original assertions/negative Origin semantics/provider-free behavior; no global HTTP monkeypatch/autouse auth injection, no auto-auth of new raw negative clients. Dev-up contract may adapt health/browser lifecycle assertions and retain all original ownership/safety tests. New deterministic HTTP negatives must reject before executor/Git/task/window/store actions, including missing/wrong/expired/stale/duplicate/non-ASCII/oversized/query-only/no-Origin; allowed Origin plus current capability retains semantics and disallowed Origin remains403. Prove session restart/rotation, zero secret persistence/logs/worker-env exposure, public health no user state, typed direct in-process bootstrap. New Python bootstrap tests invoke committed native Node standard-library test suite against owned fake loopback servers; verify private header injection/renderer absence/origin/frame/path limits/redirect no-leak/timeout/size/control IPC/error sanitization. Source checks do NOT launch actual browser or existing stack. Actual Windows supported-launcher/browser end-to-end acceptance remains a separate bounded runtime phase; do not call fixtures production proof or mark384/118/wholeGoal complete.\nMax8 development check invocations <=900seconds each and4 correction rounds, repeat only after changes/failures/unresolved need. Final mandatory full PlatformV1 once<=2400seconds with ONLY existing four installed-OpenCode opt-in exclusions, PathA once<=120seconds, committed exact-head client-auth/bootstrap/legacy Task HTTP/host/launcher regressions once<=900seconds. New Node suite runs under actual pytest producer and remains blocking; no skips for missing required Node capability. Existing frontend assets are unchanged, production dependency lock consistency is deterministic-tested; no local frontend build/Vitest/shared caches required. Freeze all26 source hashes for mandatory checks; preserve actual logs/JUnit/exit, original failures and spending, git diff --check, canonical publication readiness. Known local Node exact ref E:/Program Files/nodejs/node.exe SHA58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f may run only provider-free source checks; natural CI uses its installed known runner Node for committed standard-library tests. No real browser/model/provider/credential/known OpenCode probe/existing runtime modifications.\nOne Decision activation, one product commit,2 exact-branch pushes,1 Draft against explicit planning integration,6 description updates; bounded natural exact-head CI original logs/artifacts readback only, no runner/workflow dispatch or rerun. No Ready/Merge/main/auto-merge/history/tag/release/package publication/deploy/Issue or PR comments/closure/install/raw credential or private model-session access. Mandatory failure stops affected candidate publication; no automatic successor or budget reset. Absolute six-hour source window. All original broad backlog and architecture objectives remain intact, full client identity/product acceptance/Owner compiler/privileged adapters/recovery/independent landing remain required.",
+      "command_id": "native.implementation",
+      "command": "Current Owner's explicit project takeover, frontend-opening and full unattended-architecture delegation authorizes this separately bounded real Windows runtime acceptance, not a retry or budget reset of the closed source phase1081. Source1b99c23d is locally/natively verified but Draft, unaccepted and unmerged. Preserve original source3/8 dev,4/4 corrections,3 mandatory checks,2/2 pushes, all failures and original absolute expiry. This runtime phase has NO source correction or product commit, NO models/provider calls/credential reads/auth-list probes/unknown tools/install/real task execution/window activation/privileged publication. Before any runtime operation create this immutable Decision-only activation, canonical plan/preflight/readiness and its own exact Draft againstcodex/issue118-client-guard-bootstrap-r3-v1-20261004@1b99c23d1e6c51289b973b2bbfe893627353af6f. Project runtime is used directly, not simulated.\nOne new owned temporary local clone only atF:\\nrl-auth118-native1, exact source1b99c23d1e6c51289b973b2bbfe893627353af6f, canonical origin dddd2024/Nerelan, not a new registered worktree. Source controller and accepted healthy frontend/old runtime processes are READ ONLY. Clone all tracked code from the known source; bind actual commit/tree/hash and disclose runtime deltas. Runtime-only frontend vite.config.ts may add cacheDir beneath the new owned clone so the existing frontend node_modules junction stays read-only. No frontend application, backend, trusted broker or launcher algorithm may change. Use existing mature playwright-core1.62.1 via read-only junction to F:/reverse-agent/frontend/node_modules; no dependency/cache modification or install. Known Node SHA58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f and Microsoft-signed Edge SHA39966f2799d3503e74871c945ba1c4877f38426d1c28756ab1545ad7c3de8907 only. No existing browser, host, saved configuration or unrelated window is modified.\nAt most1 supported dev-up launch (180seconds),1 owned native browser launch,1 Vite/combined stack startup,2 bounded acceptance observation invocations (<=180seconds each), and1 normal owned dev-down cleanup (120seconds). Frontend18879, Task18877, Model18878 must be free before launch; relay is owned ephemeral loopback. Fresh runtime TaskStore and ModelProfileStore are empty with no bindings, connections, secrets or external sessions; verify no OpenCode/auth-list/model subprocess. All real project HTTP observations stay on exactly these owned loopback ports, no public token-fetch/command endpoint. No private capability in argv/env/URL/files/logs/evidence/renderer/network screenshots. Never read the host's private value; use boolean HTTP outcomes and sanitized process metadata.\nUse actual Windows UI Automation/Win32 observation on the exact owned Edge window identified by process tree, creation times and frontend18879 address. Read-only UI navigation is limited to home/tasks/settings; capture owned-window pixels, not simulated screenshots. Observe positive Task API reads through real frontend, then unrelated native missing-capability/no-Origin requests must be401 before any task/window/store mutation; GEThealth exposes readiness only. Do not perform synthetic fixtures as real product implementation or claim Owner activation/upper authority/compiler/Model Control authentication solved.\nClose only the exact owned browser window through native UI; observe broker PID, creation time, ready flag and group lifecycle rather than assuming exit from browser disconnect. Preserve original outcome on any browser-close/private-stdin/readiness defect. Failure stops this acceptance and forbids another launch or source change under this packet; no automatic successor, retry or reset. Normal cleanup uses only this clone's canonical dev-down with verified ownership; never name-wide kill, PID-only kill, reset, clean, stash, delete or remove existing work. Record real commands, exits, timestamps, pixel evidence, frontend/backend source hashes, safety deltas and all receipts. Unknown usage is not zero. This is provider-free actual client acceptance, not independent audit, full384/full118/all backlog completion or mainline landing. Expiry2026-10-04T12:26:34.697358+00:00 with no renewal.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -321,39 +259,12 @@
       ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/task_service.py",
-        "reverse_agent/platform_v1/trusted_host.py",
-        "reverse_agent/platform_v1/trusted_client.py",
-        "frontend/trusted-client.mjs",
-        "frontend/trusted-client.node-test.mjs",
-        "frontend/package.json",
-        "frontend/package-lock.json",
-        "dev-up.ps1",
-        "docs/local-client-session.md",
-        "tests/platform_v1/test_task_client_auth.py",
-        "tests/platform_v1/test_trusted_client_bootstrap.py",
-        "tests/platform_v1/_local_client_fixture.py",
-        "tests/platform_v1/test_dev_up_contract.py",
-        "tests/platform_v1/test_artifact_handoff_http.py",
-        "tests/platform_v1/test_durable_execution.py",
-        "tests/platform_v1/test_durable_execution_v5.py",
-        "tests/platform_v1/test_execution_runtime_budget.py",
-        "tests/platform_v1/test_goal_completion_evidence.py",
-        "tests/platform_v1/test_goal_plan_revision.py",
-        "tests/platform_v1/test_provider_free_task_plane.py",
-        "tests/platform_v1/test_system_doctor.py",
-        "tests/platform_v1/test_task3c_v4_repairs.py",
-        "tests/platform_v1/test_task3c_v6_production_relay.py",
-        "tests/platform_v1/test_task_service.py",
-        "tests/platform_v1/test_trusted_host.py",
-        "tests/platform_v1/test_trusted_host_lifecycle.py"
-      ],
+      "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "client.validation",
-      "command": "Max8 provider-free development checks900s /4 corrections; once mandatory fullPlatform2400,PathA120,committed focused900; original four opt-in exclusions only; actual native Node tests, source freeze/logs/XML and diff check.",
+      "command_id": "native.validation",
+      "command": "Current Owner's explicit project takeover, frontend-opening and full unattended-architecture delegation authorizes this separately bounded real Windows runtime acceptance, not a retry or budget reset of the closed source phase1081. Source1b99c23d is locally/natively verified but Draft, unaccepted and unmerged. Preserve original source3/8 dev,4/4 corrections,3 mandatory checks,2/2 pushes, all failures and original absolute expiry. This runtime phase has NO source correction or product commit, NO models/provider calls/credential reads/auth-list probes/unknown tools/install/real task execution/window activation/privileged publication. Before any runtime operation create this immutable Decision-only activation, canonical plan/preflight/readiness and its own exact Draft againstcodex/issue118-client-guard-bootstrap-r3-v1-20261004@1b99c23d1e6c51289b973b2bbfe893627353af6f. Project runtime is used directly, not simulated.\nOne new owned temporary local clone only atF:\\nrl-auth118-native1, exact source1b99c23d1e6c51289b973b2bbfe893627353af6f, canonical origin dddd2024/Nerelan, not a new registered worktree. Source controller and accepted healthy frontend/old runtime processes are READ ONLY. Clone all tracked code from the known source; bind actual commit/tree/hash and disclose runtime deltas. Runtime-only frontend vite.config.ts may add cacheDir beneath the new owned clone so the existing frontend node_modules junction stays read-only. No frontend application, backend, trusted broker or launcher algorithm may change. Use existing mature playwright-core1.62.1 via read-only junction to F:/reverse-agent/frontend/node_modules; no dependency/cache modification or install. Known Node SHA58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f and Microsoft-signed Edge SHA39966f2799d3503e74871c945ba1c4877f38426d1c28756ab1545ad7c3de8907 only. No existing browser, host, saved configuration or unrelated window is modified.\nAt most1 supported dev-up launch (180seconds),1 owned native browser launch,1 Vite/combined stack startup,2 bounded acceptance observation invocations (<=180seconds each), and1 normal owned dev-down cleanup (120seconds). Frontend18879, Task18877, Model18878 must be free before launch; relay is owned ephemeral loopback. Fresh runtime TaskStore and ModelProfileStore are empty with no bindings, connections, secrets or external sessions; verify no OpenCode/auth-list/model subprocess. All real project HTTP observations stay on exactly these owned loopback ports, no public token-fetch/command endpoint. No private capability in argv/env/URL/files/logs/evidence/renderer/network screenshots. Never read the host's private value; use boolean HTTP outcomes and sanitized process metadata.\nUse actual Windows UI Automation/Win32 observation on the exact owned Edge window identified by process tree, creation times and frontend18879 address. Read-only UI navigation is limited to home/tasks/settings; capture owned-window pixels, not simulated screenshots. Observe positive Task API reads through real frontend, then unrelated native missing-capability/no-Origin requests must be401 before any task/window/store mutation; GEThealth exposes readiness only. Do not perform synthetic fixtures as real product implementation or claim Owner activation/upper authority/compiler/Model Control authentication solved.\nClose only the exact owned browser window through native UI; observe broker PID, creation time, ready flag and group lifecycle rather than assuming exit from browser disconnect. Preserve original outcome on any browser-close/private-stdin/readiness defect. Failure stops this acceptance and forbids another launch or source change under this packet; no automatic successor, retry or reset. Normal cleanup uses only this clone's canonical dev-down with verified ownership; never name-wide kill, PID-only kill, reset, clean, stash, delete or remove existing work. Record real commands, exits, timestamps, pixel evidence, frontend/backend source hashes, safety deltas and all receipts. Unknown usage is not zero. This is provider-free actual client acceptance, not independent audit, full384/full118/all backlog completion or mainline landing. Expiry2026-10-04T12:26:34.697358+00:00 with no renewal.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -375,8 +286,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "client.publication",
-      "command": "2 normal exactbranch pushes/1 Draft againstcodex/issue118-client-session-r3-v2-20261004@e15a0b408d12b51e237bd0c4ac7ce290e1d1ed47/6 descriptions, natural source CI read only; no landing/comments/install/model/browser.",
+      "command_id": "native.publication",
+      "command": "One exact activation push and Draft, two truthful evidence descriptions; no landing. codex/issue118-native-browser-acceptance-r3-v1-20261004",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -398,28 +309,35 @@
   "runtime_scratch_policy": {
     "paths": [],
     "stage_allowed": false,
-    "note": "Only new owned pytest/Node temporary loopback fixtures under F:/nrl-client118-v1 and external evidence; no existing hosts, shared frontend caches/dependency writes or browser launch. Preserve old five unstaged generated gates."
+    "note": "Exactly new owned external runtimeF:\\nrl-auth118-native1; one clone/stack/browser, readonly shared deps, cacheDir safety config only. Never stage runtime/evidence. Existing runtimes preserved."
   },
-  "workstream_id": "issue118-client-guard-bootstrap-r3-v1",
+  "workstream_id": "issue118-native-browser-acceptance-r3-v1",
   "source_issues": [
     118,
     384
   ],
-  "local_browser_launch_limit": 0,
-  "development_check_run_limit": 8,
-  "development_correction_round_limit": 4,
-  "execution_window_hours": 6,
+  "local_browser_launch_limit": 1,
+  "execution_window_hours": 1.5,
   "integration_observation_surface": "user_local_exact_planning_base_fresh_branch",
-  "runtime_host_launch_limit": 0,
-  "frontend_launch_limit": 0,
-  "approval_event_or_time": "2026-10-04T08:55:31.639949+00:00",
+  "runtime_host_launch_limit": 1,
+  "frontend_launch_limit": 1,
+  "approval_event_or_time": "2026-10-04T10:56:34.697358+00:00",
   "credential_status_probe_limit": 0,
   "provider_network_call_limit": 0,
-  "pull_request_description_update_limit": 6,
-  "owned_test_scratch_root": "F:\\nrl-client118-v1",
-  "mandatory_pytest_process_limit": 3,
-  "cumulative_development_check_limit": 8,
-  "cumulative_correction_round_limit": 4,
-  "cumulative_prior_correction_rounds": 1
+  "pull_request_description_update_limit": 2,
+  "runtime_acceptance_limits": {
+    "clone": 1,
+    "stack_start": 1,
+    "browser_start": 1,
+    "observations": 2,
+    "normal_cleanup": 1,
+    "source_corrections": 0,
+    "source_checks_replay": 0,
+    "prior_source_dev_spent": 3,
+    "prior_source_corrections_spent": 4,
+    "prior_source_original_deadline": "2026-10-04T14:55:31.639949+00:00",
+    "owned_runtime_root": "F:\\nrl-auth118-native1",
+    "expires_at": "2026-10-04T12:26:34.697358+00:00"
+  }
 }
 ```
