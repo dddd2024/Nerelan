@@ -69,23 +69,15 @@ For local staging/publication use the applicable [worktree guard](docs/agents/go
 
 ## Long-duration unattended work
 
-Use explicit Owner authorization as a standing instruction for its recorded duration and scope. Do not request the same approval again for routine, reversible steps already covered by the current Work Item. A broad project delegation authorizes preparation and supervision; applicable Path-A snapshots or Path-B Decisions still bind execution. This document is guidance, not a standing execution grant or a runtime scheduler.
+Owner grants persist only for recorded scope, expiry and cumulative budgets; do not re-ask covered steps. Path A/B still apply.
 
-Before an unattended run, bind the Owner-approved objective, eligible task queue, repositories, allowed paths and operations, execution surfaces, absolute expiry and budget ceilings to the applicable authority. Record whether limits apply to an individual task/window or cumulatively across the run. Include bounded correction/retry allowances and whether prospective successor windows are permitted. Omitted renewal, model, credential, destructive, publication or landing permission is not inferred from "unattended".
+Prefer real Goal/Task execution; use Codex after observed capability/runtime failure. Advance the highest-priority eligible slice; park blockers without abandoning the goal.
 
-When the Owner explicitly permits renewal, prepare a fresh bounded Work Item/Decision before the current window expires or its allowance is exhausted. Reobserve the live base/head, scope, ownership and remaining aggregate allowance; run the existing approval/preflight sequence before new execution. Keep the previous immutable authority and its actual expenditure and failures. A successor may use only the remaining preauthorized aggregate allowance or an explicit additional grant. Never edit an activated Decision, relabel a retry, reset a cumulative counter, or claim authority retroactively. An expiry or exhausted allowance stops the affected action until a valid successor exists; it need not stop other independently authorized work.
+Renew only when preauthorized: fresh immutable authority/preflight, original absolute expiry and remaining aggregate allowance. Preserve failures and spending; never reset counters.
 
-Prefer the project's actual Goal/Task execution path for implementation. Observe TaskStore and terminal executor evidence before deciding it cannot complete a slice; Inbox capture or a queued task is not execution. Use Codex as the authorized fallback when a concrete runtime/capability failure prevents that path. Do not manufacture a task result, weaken acceptance, or repeatedly invoke a failed model/process to simulate autonomy.
+Correct within granted retries; mandatory failures block affected publication. Never weaken checks. Wait on original live handles.
 
-Schedule the highest-value runnable slice of the highest-priority active milestone. A missing capability, independent reviewer or blocked landing affects that slice, not every other authorized implementation or verification slice. Continue eligible work that advances the same milestone; do not take another active owner's task or drift to unrelated features merely because they are easier. Park a blocked item with its exact cause and next required input. Resume it when that input or capability actually changes.
-
-Treat development failures as diagnostic evidence within the approved correction allowance. Preserve the original failure, identify the cause, make a scoped correction and run the checks appropriate to that change. A failed mandatory check blocks publication/acceptance; further correction or revalidation requires the current contract to permit it. Do not weaken assertions, add exclusions, switch surfaces or spend beyond that contract to obtain a green result. Repeated identical failures, repeated re-anchoring, widening scope or governance overhead disproportionate to product work require plan/design reconciliation before another implementation cycle.
-
-Wait on the original confirmed-live process, Task, CI job or tool handle. An observation timeout is not a terminal failure and does not authorize another launch. Poll with bounded waits that permit communication; do not busy-loop unchanged state. Stop only owned processes with verified identity and the applicable operation grant. Provider-free checks remain provider-free.
-
-Keep a compact checkpoint in the existing TaskStore or the Work Item's already-authorized evidence location: exact authority/base/head/worktree, completed actions, active handles, cumulative expenditure, terminal failures, verification scope, blocker and next concrete action. Reuse that checkpoint across compaction/restarts, then refresh facts that can drift. Do not reload historical reports, repeat successful checks or create another branch/PR without a concrete need. Checkpoints are evidence, never a new Gate, receipt, authority schema or substitute for immutable identity.
-
-Report meaningful progress, terminal outcomes and required Owner actions. Keep unattended monitoring quiet while nothing actionable changes; do not repeat the same permission question or status indefinitely. Distinguish source implementation, native runtime verification, independent acceptance and mainline landing. Mark the full goal complete only when its original requirements are actually proven; preserve unfinished work when no authorized next action remains.
+Checkpoint authority/base/head, handles, spending, results and next action in existing stores/evidence. Refresh drifting facts after resume; avoid historical replay and repeated passed checks. Report meaningful changes; completion needs proof.
 
 ## Work Item acceptance requirements
 
