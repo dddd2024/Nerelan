@@ -514,6 +514,35 @@ class _TaskHandler(BaseHTTPRequestHandler):
             return
         try:
             segments = self._segments()
+            if (len(segments) == 4 and segments[:2] == ["api", "tasks"]
+                    and segments[3] == "review"):
+                from .review_execution import ReviewExecutionError, validate_review_request
+                from .review_findings import ReviewContractError
+                payload = self._read_json()
+                if payload is None:
+                    return
+                try:
+                    request = validate_review_request(payload)
+                except (ReviewExecutionError, ReviewContractError):
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": "review_request_invalid"})
+                    return
+                execution_service = TaskExecutionService(
+                    store=self.store, router=self.router,
+                    lease_provider=getattr(self, "lease_provider", None),
+                    binding_resolver=getattr(self, "binding_resolver", None),
+                )
+                try:
+                    execution_service.execute_review(
+                        segments[2], review_target=request,
+                        workspace_root=tempfile.gettempdir(),
+                    )
+                except TaskExecutionError as exc:
+                    error = "task not found" if str(exc).startswith("task_not_found:") else "review_task_unavailable"
+                    status = HTTPStatus.NOT_FOUND if error == "task not found" else HTTPStatus.CONFLICT
+                    self._send_json(status, {"error": error})
+                    return
+                self._send_json(HTTPStatus.OK, self._task_response(self.store.get_task(segments[2])))
+                return
             if (
                 len(segments) == 4
                 and segments[:2] == ["api", "runs"]

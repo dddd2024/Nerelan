@@ -132,12 +132,9 @@ class TaskExecutionService:
         try:
             task = self.store.get_task(task_id)
         except TaskStoreError:
-            raise TaskExecutionError(f"task_not_found:{task_id}")
-
+            raise TaskExecutionError(f"task_not_found:{task_id}") from None
         if task.status != "QUEUED":
-            raise TaskExecutionError(
-                f"task_not_queued:{task_id}:{task.status}"
-            )
+            raise TaskExecutionError(f"task_not_queued:{task_id}:{task.status}")
 
         executor_kind = task.executor_kind
         running_status = (
@@ -157,7 +154,7 @@ class TaskExecutionService:
             try:
                 resolve_repository_workspace(task.repository)
             except RepositoryWorkspaceError as exc:
-                self.store.classify_failure(
+                self._fail_queued_task(
                     task_id,
                     classification="blocked",
                     detail=str(exc),
@@ -182,7 +179,7 @@ class TaskExecutionService:
                 lease_provider=self.lease_provider,
             )
         except ExecutorRuntimeError as exc:
-            self.store.classify_failure(
+            self._fail_queued_task(
                 task_id,
                 classification="blocked",
                 detail=str(exc),
@@ -202,7 +199,7 @@ class TaskExecutionService:
                 failure_detail=final.failure_detail,
             )
 
-        self.store.transition_to(task_id, "PREPARING_WORKSPACE")
+        self._claim_queued_task(task_id)
         self.store.transition_to(task_id, running_status)
         self.store.add_event(
             task_id,
@@ -293,6 +290,51 @@ class TaskExecutionService:
             failure_detail=final.failure_detail,
         )
 
+    def _fail_queued_task(self, task_id: str, *, classification: str, detail: str):
+        """A losing preflight must not fail another execution's claimed task."""
+        with self.store._lock:
+            task = self.store.get_task(task_id)
+            if task.status != "QUEUED" or self.store._find_active_durable_run(task_id) is not None:
+                raise TaskExecutionError(f"task_not_queued:{task_id}:{task.status}")
+            return self.store.classify_failure(task_id, classification=classification, detail=detail)
+
+    def _claim_queued_task(self, task_id: str, *, executor_kind: str | None = None,
+                           single_only: bool = False):
+        """Exclude competing manual paths using the existing store lock/state.
+
+        An active durable run remains owned by its fenced runner. This helper
+        neither steals its lease nor creates an alternative ownership table.
+        """
+        with self.store._lock:
+            try:
+                task = self.store.get_task(task_id)
+            except TaskStoreError:
+                raise TaskExecutionError(f"task_not_found:{task_id}") from None
+            if task.status != "QUEUED":
+                raise TaskExecutionError(f"task_not_queued:{task_id}:{task.status}")
+            if executor_kind is not None and task.executor_kind != executor_kind:
+                raise TaskExecutionError(f"task_not_{executor_kind}:{task_id}:{task.executor_kind}")
+            if single_only and task.orchestration_mode != "single":
+                raise TaskExecutionError("review_task_mode_invalid")
+            if self.store._find_active_durable_run(task_id) is not None:
+                raise TaskExecutionError("task_has_active_durable_run")
+            self.store.transition_to(task_id, "PREPARING_WORKSPACE")
+            return task
+
+    def execute_review(
+        self, task_id: str, *, review_target: Mapping[str, Any], workspace_root: str,
+    ) -> TaskExecutionOutcome:
+        """Review an existing exact change set without entering the coder path.
+
+        Uses the existing task lifecycle and evidence table. The model sees only
+        an owned context projection; the repository under review is never its cwd.
+        A completed review is advisory, not functional or independent acceptance.
+        """
+        from .review_execution import execute_review_task
+        return execute_review_task(
+            self, task_id, review_target=review_target, workspace_root=workspace_root,
+        )
+
     def execute_sequential_team(
         self,
         task_id: str,
@@ -342,7 +384,7 @@ class TaskExecutionService:
         try:
             resolve_repository_workspace(task.repository)
         except RepositoryWorkspaceError as exc:
-            self.store.classify_failure(
+            self._fail_queued_task(
                 task_id,
                 classification="blocked",
                 detail=str(exc),
@@ -373,7 +415,7 @@ class TaskExecutionService:
                 **executor_kwargs,
             )
         except ExecutorRuntimeError as exc:
-            self.store.classify_failure(
+            self._fail_queued_task(
                 task_id,
                 classification="blocked",
                 detail=str(exc),
@@ -391,7 +433,7 @@ class TaskExecutionService:
                 failure_detail=final.failure_detail,
             )
 
-        self.store.transition_to(task_id, "PREPARING_WORKSPACE")
+        self._claim_queued_task(task_id, executor_kind="opencode")
         try:
             prepared = executor.prepare_worktree_once(
                 task_id, Path(workspace_root), self._store_event_callback
